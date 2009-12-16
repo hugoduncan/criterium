@@ -1,0 +1,18 @@
+# criterium
+
+Criterium is a benchmarking library for clojure
+
+## Usage
+
+(use 'criterium)
+
+(report (benchmark (+ 1 2)) :verbose)
+(report (quick-benchmark (+ 1 2)))
+
+## Installation
+
+FIXME: write
+
+## License
+
+Licensed under [EPL](http://www.eclipse.org/legal/epl-v10.html)
