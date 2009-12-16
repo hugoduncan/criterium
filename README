@@ -11,7 +11,12 @@ Criterium is a benchmarking library for clojure
 
 ## Installation
 
-FIXME: write
+The library can be installed through leiningen or through maven.  See http://clojars.org/criterium
+
+Alternatively, the source code can be compiled into a jar with leiningen.
+
+    lein jar
+
 
 ## License
 
