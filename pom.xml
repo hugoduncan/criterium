@@ -9,7 +9,7 @@
   <scm>
     <connection>scm:git:git://github.com/hugoduncan/criterium.git</connection>
     <developerConnection>scm:git:ssh://git@github.com/hugoduncan/criterium.git</developerConnection>
-    <tag>62f13b0b5302dcc80ae575247b559374496b87cb</tag>
+    <tag>fe6e57780825b8cbfbcaf0148a927c51637b690f</tag>
     <url>http://github.com/hugoduncan/criterium</url>
   </scm>
   <repositories>

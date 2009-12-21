@@ -515,11 +515,27 @@
   (print (Math/sqrt (point-estimate estimate)) unit
 	   " 95% CI:" (map #(Math/sqrt %1) (point-estimate-ci estimate))))
 
-(defn report-outliers [outlier-count samples]
-  (dorun
-   (map #(when (pos? %1) (println " " %2 ":" %1 "(" (* 100.0 (/ %1 samples)) "%)"))
-	(vals outlier-count)
-	["low-severe" "low-mild" "high-mild" "high-severe"])))
+(defn report-outliers [results]
+  (let [outliers (:outliers results)
+	values (vals outliers)
+	labels {:unaffected  "unaffected"
+		:slight "slightly inflated"
+		:moderate "moderately inflated"
+		:severe "severely inflated"}
+	sample-count (:sample-count results)]
+    (when (some pos? values)
+      (println "Found" (reduce + values) "outliers in"
+	       (:sample-count results) " samples ("
+	       (* 100.0 (/ (reduce + values) (:sample-count results))) "%)")
+    (dorun
+     (map #(when (pos? %1)
+	     (println " " %2 ":" %1 "(" (* 100.0 (/ %1 sample-count)) "%)"))
+	  values
+	  ["low-severe" "low-mild" "high-mild" "high-severe"]))
+
+    (println " variance introduced by outliers:" (* (:outlier-variance results) 100.0) "%")
+    (println " variance is" ((outlier-effect (:outlier-variance results)) labels) "by outliers")
+    (println))))
 
 (defn report-result [results & opts]
   (let [verbose (some #(= :verbose %) opts)
@@ -543,20 +559,8 @@
   (report-estimate-sqrt (:variance results) "sec")
   (println)
 
-  (let [outliers (:outliers results)
-	values (vals outliers)
-	labels {:unaffected  "unaffected"
-		:slight "slightly inflated"
-		:moderate "moderately inflated"
-		:severe "severely inflated"}]
-    (when (some pos? values)
-      (println "Found" (reduce + values) "outliers in"
-	       (:sample-count results) " samples ("
-	       (* 100.0 (/ (reduce + values) (:sample-count results))) "%)")
-      (report-outliers outliers (:sample-count results))
-      (println " variance introduced by outliers:" (* (:outlier-variance results) 100.0) "%")
-      (println " variance is" ((outlier-effect (:outlier-variance results)) labels) "by outliers")
-      (println))))
+  (report-outliers results)
+)
 
 (defmacro bench [expr & opts]
   `(report-result (benchmark ~expr) ~@opts))
