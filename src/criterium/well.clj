@@ -36,6 +36,7 @@
 (defn well-rng-1024a
   ([] (well-rng-1024a (int-array 32 (take 32 (repeatedly #(rand-int Integer/MAX_VALUE)))) (rand-int 32)))
   ([state index]
+     {:pre (>= 0 index 32)}
      (let [m1 3
 	   m2 24
 	   m3 10

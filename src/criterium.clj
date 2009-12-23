@@ -7,6 +7,7 @@
 
 
 (ns criterium
+  (:use clojure.set)
   (:import (java.lang.management ManagementFactory)))
 
 ;; this is taken from clojure.core
@@ -40,9 +41,16 @@
 
 (def *default-benchmark-opts*
      {:max-gc-attempts *max-gc-attempts*
-      :sample *sample-count*
+      :samples *sample-count*
       :target-execution-time *target-execution-time*
       :warmup-jit-period *warmup-jit-period*})
+
+;;; Progress reporting
+(def *report-progress* nil)
+
+(defn progress [& message]
+  (when *report-progress*
+    (apply println message)))
 
 ;;; Java Management interface
 (defprotocol StateChanged
@@ -191,6 +199,7 @@
 "
   ([] (force-gc *max-gc-attempts*))
   ([max-attempts]
+     (progress "Cleaning JVM allocations ...")
      (loop [memory-used (heap-used)
 	    attempts 0]
        (System/runFinalization)
@@ -205,6 +214,7 @@
   "Time a final clean up of JVM memory. If this time is significant compared to
   the runtime, then the runtime should maybe include this time."
   [execution-time]
+  (progress "Checking GC...")
   (let [cleanup-time (first (time-body (force-gc)))
 	fractional-time (/ cleanup-time execution-time)]
     [(> fractional-time *final-gc-problem-threshold*) fractional-time cleanup-time]))
@@ -218,10 +228,12 @@
 (defmacro warmup-for-jit
   "Run expression for the given amount of time to enable JIT compilation."
   [warmup-period expr]
-  `(loop [elapsed# 0 count# 0]
-     (if (> elapsed# ~warmup-period)
-       [elapsed# count#]
-       (recur (+ elapsed# (first (time-body ~expr))) (inc count#)))))
+  `(do
+     (progress "Warming up for JIT ...")
+     (loop [elapsed# 0 count# 0]
+       (if (> elapsed# ~warmup-period)
+	 [elapsed# count#]
+	 (recur (+ elapsed# (first (time-body ~expr))) (inc count#))))))
 
 
 
@@ -232,6 +244,7 @@
    and compilation state."
   [execution-period expr]
   `(let [period# ~execution-period]
+     (progress "Estimating execution count ...")
      (loop [n# 1 cl-state# (jvm-class-loader-state) comp-state# (jvm-compilation-state)]
        (let [t# (first (time-body (dotimes [_# n#] ~expr)))
 	     new-cl-state# (jvm-class-loader-state)
@@ -250,13 +263,16 @@
 
 ;;; Execution
 (defmacro execute-expr
-  "A function to execute an expression the given number of times, timing the complete execution."
+  "A function to execute an expression the given number of times, timing the
+  complete execution."
   [n expr]
   `(fn [_#] (time-body (dotimes [_# ~n] ~expr))))
 
-(defn calc-total-time [a b]
-  (+ a (first b)))
-
+(defmacro collect-samples [sample-count execution-count expr]
+  `(let [sample-count# ~sample-count
+	 n-exec# ~execution-count]
+     (progress "Running ...")
+     (map (execute-expr n-exec# ~expr) (range 0 sample-count#))))
 
 (defmacro run-benchmark
   "Benchmark an expression. This tries its best to eliminate sources of error.
@@ -271,12 +287,14 @@
      (let [first-execution# (time-body ~expr)]
        (warmup-for-jit warmup-jit-period# ~expr)
        (let [n-exec# (estimate-execution-count target-execution-time# ~expr)
-	     samples# (map (execute-expr n-exec# ~expr) (range 0 sample-count#))
-	     total# (reduce calc-total-time 0 samples#)
-	     final-gc-result# (final-gc-warn (final-gc total#))]
+	     samples# (collect-samples sample-count# n-exec# ~expr)
+	     sample-times# (map first samples#)
+	     total# (reduce + 0 sample-times#)
+	     final-gc-result# (final-gc-warn (final-gc total#))
+	     ]
 	 {:execution-count n-exec#
 	  :sample-count sample-count#
-	  :samples (map first samples#)
+	  :samples sample-times#
 	  :results (map second samples#)
 	  :total-time (/ total# 1e9)})))) ;; :average-time (/ total# sample-count# n-exec# 1e9)
 
@@ -366,7 +384,7 @@
    so you can use juxt to pass multiple statistics.
    http://en.wikipedia.org/wiki/Bootstrapping_(statistics)"
   [data statistic size rng-factory]
-  (println "Bootstrap samples ...")
+  (progress "Bootstrapping ...")
   (let [samples (bootstrap-sample data statistic size rng-factory)
 	transpose (fn [data] (apply map vector data))]
     (if (vector? (first samples))
@@ -386,6 +404,7 @@
 (defn outlier-significance
   "Find the significance of outliers given boostrapped mean and variance estimates."
   [mean-estimate variance-estimate n]
+  (progress "Checking outlier significance")
   (let [mean (point-estimate mean-estimate)
 	variance (point-estimate variance-estimate)
 	std-dev (Math/sqrt variance)
@@ -466,12 +485,36 @@
 (defn outliers
   "Find the outliers in the data using a boxplot technique."
   [data]
-  (println "Finding outliers...")
+  (progress "Finding outliers ...")
   (reduce (apply partial add-outlier
 		 (apply boxplot-outlier-thresholds
 			((juxt first last) (quartiles (sort data)))))
 	  (outlier-count 0 0 0 0)
 	  data))
+
+;;; options
+(defn extract-report-options
+  "Extract reporting options from the given options vector.  Returns a two
+  element vector containing the reporting options followed by the non-reporting
+  options"
+  [opts]
+  (let [known-options #{:os :runtime :verbose}
+	option-set (set opts)]
+    [(intersection known-options option-set)
+     (remove #(contains? known-options %1) opts)]))
+
+(defn add-default-options [options]
+  (let [time-periods #{:warmup-jit-period :target-execution-time}]
+    (merge *default-benchmark-opts*
+	   (into {} (map #(if (contains? time-periods (first %1))
+			    [(first %1) (* (second %1) *s-to-ns*)]
+			    %1)
+			 options)))))
+
+;;; User top level functions
+(defmacro with-progress-reporting [expr]
+  `(binding [*report-progress* true]
+     ~expr))
 
 (defmacro benchmark
   "Benchmark an expression. This tries its best to eliminate sources of error.
@@ -479,23 +522,24 @@
    quick test expression (less than 1s run time) or 10s plus 60 run times for
    longer running expressions."
   [expr & options]
-  `(let [opts# (into {} ~options)
-	 times# (run-benchmark  (or (:samples opts#) *sample-count*)
-				  (if-let [warmup-jit-period# (:warmup-jit-period opts#)]
-				    (* warmup-jit-period# *s-to-ns*)
-				    *warmup-jit-period*)
-				  (if-let [target-execution-time# (:target-execution-time opts#)]
-				    (* target-execution-time# *s-to-ns*)
-				    *target-execution-time*)
-				  ~expr
-				  (:pre opts#))
+  `(let [opts# (add-default-options (into {} ~options))
+	 times# (run-benchmark (:samples opts#)
+			       (:warmup-jit-period opts#)
+			       (:target-execution-time opts#)
+			       ~expr
+			       (:pre opts#))
 	 outliers# (outliers (:samples times#))
-	 stats# (bootstrap (:samples times#) (juxt mean variance) 20 criterium.well/well-rng-1024a)
-	 analysis# (outlier-significance (first stats#) (second stats#) (:sample-count times#))]
-     (merge times# {:outliers outliers#
-		    :mean (scale-bootstrap-estimate (first stats#) (/ 1e-9 (:execution-count times#)))
-		    :variance (scale-bootstrap-estimate (second stats#) (/ 1e-18 (:execution-count times#)))
-		    :outlier-variance analysis#})))
+	 stats# (bootstrap (:samples times#) (juxt mean variance) 20
+			   criterium.well/well-rng-1024a)
+	 analysis# (outlier-significance (first stats#) (second stats#)
+					 (:sample-count times#))]
+     (merge times#
+	    {:outliers outliers#
+	     :mean (scale-bootstrap-estimate
+		    (first stats#) (/ 1e-9 (:execution-count times#)))
+	     :variance (scale-bootstrap-estimate
+			(second stats#) (/ 1e-18 (:execution-count times#)))
+	     :outlier-variance analysis#})))
 
 
 
@@ -559,8 +603,11 @@
   (report-estimate-sqrt (:variance results) "sec")
   (println)
 
-  (report-outliers results)
-)
+  (report-outliers results))
 
-(defmacro bench [expr & opts]
-  `(report-result (benchmark ~expr) ~@opts))
+(defmacro bench
+  "Convenience macro for benchmarking an expression, expr.  Results are reported
+  to *out* in human readable format."
+  [expr & opts]
+  (let [[report-options options] (extract-report-options opts)]
+    `(report-result (benchmark ~expr ~@options) ~@report-options)))
