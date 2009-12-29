@@ -18,6 +18,7 @@
 
 (ns criterium
   (:use clojure.set)
+  (:require criterium.well)
   (:import (java.lang.management ManagementFactory)))
 
 ;; this is taken from clojure.core
@@ -53,7 +54,8 @@
      {:max-gc-attempts *max-gc-attempts*
       :samples *sample-count*
       :target-execution-time *target-execution-time*
-      :warmup-jit-period *warmup-jit-period*})
+      :warmup-jit-period *warmup-jit-period*
+      :confidence-interval 0.95})
 
 ;;; Progress reporting
 (def *report-progress* nil)
@@ -308,11 +310,22 @@
 	  :results (map second samples#)
 	  :total-time (/ total# 1e9)})))) ;; :average-time (/ total# sample-count# n-exec# 1e9)
 
+;;; Reshaping
+(defn transpose
+  "Transpose a vector of vectors."
+  [data]
+  (if (vector? (first data))
+    (apply map vector data)
+    data))
 
 ;;; Statistics
 (defn sqr
   "Square of argument"
   [x] (* x x))
+
+(defn cube
+  "Square of argument"
+  [x] (* x x x))
 
 (defn mean
   "Arithmetic mean of data."
@@ -358,7 +371,8 @@
 (defn bootstrap-sample
   "Bootstrap sampling of a statistic, using resampling with replacement."
   [data statistic size rng-factory]
-  (for [_ (range size)] (statistic (sample data (rng-factory)))))
+  (transpose
+   (for [_ (range size)] (statistic (sample data (rng-factory))))))
 
 (defn confidence-interval
   "Find the significance of outliers gicen boostrapped mean and variance estimates.
@@ -377,17 +391,172 @@
     (conj stats (apply confidence-interval stats))))
 
 (defn scale-bootstrap-estimate [estimate scale]
-  [ (* (first estimate) scale) (* (second estimate) scale scale)
-    (map #(* scale %1) (last estimate))])
+  [(* (first estimate) scale)
+   (map #(* scale %1) (last estimate))])
 
 (defn point-estimate [estimate]
   (first estimate))
 
-(defn point-estimate-variance [estimate]
-  (second estimate))
-
 (defn point-estimate-ci [estimate]
   (last estimate))
+
+(defn polynomial-value
+  "Evaluate a polynomial at the given value x, for the coefficients given in
+descending order (so the last element of coefficients is the constant term)."
+  [x coefficients]
+  (reduce #(+ (* x %1) %2) (first coefficients) (rest coefficients)))
+
+(defn erf
+  "erf polynomial approximation.  Maximum error is 1.5e-7.
+  Handbook of Mathematical Functions: with Formulas, Graphs, and Mathematical
+  Tables. Milton Abramowitz (Editor), Irene A. Stegun (Editor), 7.1.26"
+  [x]
+  (let [x (double x)
+	sign (Math/signum x)
+	x (Math/abs x)
+	a [1.061405429 -1.453152027 1.421413741 -0.284496736 0.254829592 0]
+	p 0.3275911
+	t (/ (+ 1 (* p x)))
+	value (- 1 (* (polynomial-value t a) (Math/exp (- (* x x)))))]
+    (* sign value)))
+
+(defn normal-cdf
+  "Probability p(X<x), for a normal distrubtion.  Uses the polynomial erf
+  approximation above, and so is not super accurate."
+  [x]
+  (* 1/2 (+ 1 (erf (/ x (Math/sqrt 2))))))
+
+(defn normal-quantile
+  "Normal quantile function. Given a quantile in (0,1), return the normal value for that quantile.
+  Wichura, MJ. 'Algorithm AS241' The Percentage Points of the Normal Distribution. Applied Statistics, 37, 477-484
+"
+  [x]
+  (let [x (double x)
+	a [2509.0809287301226727
+	   33430.575583588128105
+	   67265.770927008700853
+	   45921.953931549871457
+	   13731.693765509461125
+	   1971.5909503065514427
+	   133.14166789178437745
+	   3.3871328727963666080]
+	b [5226.4952788528545610
+	   28729.085735721942674
+	   39307.895800092710610
+	   21213.794301586595867
+	   5394.1960214247511077
+	   687.18700749205790830
+	   42.313330701600911252
+	   1]
+	c [0.000774545014278341407640
+	   0.0227238449892691845833
+	   0.241780725177450611770
+	   1.27045825245236838258
+	   3.64784832476320460504
+	   5.76949722146069140550
+	   4.63033784615654529590
+	   1.42343711074968357734]
+	d [1.05075007164441684324e-9
+	   0.000547593808499534494600
+	   0.0151986665636164571966
+	   0.148103976427480074590
+	   0.689767334985100004550
+	   1.67638483018380384940
+	   2.05319162663775882187
+	   1]
+  	e [
+	   2.01033439929228813265e-7
+	   0.0000271155556874348757815
+	   0.00124266094738807843860
+	   0.0265321895265761230930
+	   0.296560571828504891230
+	   1.78482653991729133580
+	   5.46378491116411436990
+	   6.65790464350110377720
+	   ]
+	f [2.04426310338993978564e-15
+	   1.42151175831644588870e-7
+	   1.84631831751005468180e-5
+	   0.000786869131145613259100
+	   0.0148753612908506148525
+	   0.136929880922735805310
+	   0.599832206555887937690
+	   1]]
+    (if (<= 0.075 x 0.925)
+      (let [v (- x 0.5)
+	    r (- 180625e-6 (* v v))]
+	(* v (/ (polynomial-value r a) (polynomial-value r b))))
+      (let [r (if (< x 1/2) x (- 1 x))
+	    r (Math/sqrt (- (Math/log r)))]
+	(if (<= r 5)
+	  (let [r (- r 16/10)]
+	    (* (Math/signum (- x 1/2)) (/ (polynomial-value r c) (polynomial-value r d))))
+	  (let [r (- r 5)]
+	    (* (Math/signum (- x 1/2)) (/ (polynomial-value r e) (polynomial-value r f)))))))))
+
+(defn drop-at [n coll]
+  (lazy-seq
+    (when-let [s (seq coll)]
+      (concat (take n s) (next (drop n s))))))
+
+(defn trunc
+  "Round towards zero to an integeral value."
+  [x] (if (pos? x)
+	(Math/floor x)
+	(Math/ceil x)))
+
+(defn jacknife
+  "Jacknife statistics on data."
+  [data statistic]
+  (transpose
+   (map #(statistic (drop-at %1 data)) (range (count data)))))
+
+(defn bca-nonparametric-eval
+  "Calculate bootstrap values for given estimate and samples"
+  [n size data z-alpha estimate samples jack-samples]
+  (let [z0 (normal-quantile (/ (count (filter (partial > estimate) samples)) size))
+	jack-mean (mean jack-samples)
+	jack-deviation (map #(- jack-mean %1) jack-samples)
+	acc (/ (reduce + 0 (map cube jack-deviation))
+	       (* 6 (Math/pow (reduce + 0 (map sqr jack-deviation)) 1.5)))
+	tt (map #(normal-cdf (+ z0 (/ (+ z0 %1) (- 1 (* acc (+ z0 %1)))))) z-alpha)
+	ooo (map #(trunc (* %1 size)) tt)
+	sorted-samples (sort samples)
+	confpoints (map (partial nth sorted-samples) ooo)]
+    [confpoints z0 acc jack-mean jack-samples]))
+
+(defn bca-nonparametric
+  "Non-parametric BCa estimate of a statistic on data. Size bootstrap samples
+  are used. Confidence values are returned at the alpha normal
+  quantiles. rng-factory is a method that returns a random number generator to
+  use for the sampling.
+  An introduction to the bootstrap.  Efron, B., & Tibshirani, R. J. (1993).
+  See http://lib.stat.cmu.edu/S/bootstrap.funs for Efron's original implementation.
+"
+  [data statistic size alpha rng-factory]
+  (let [n (count data)
+	estimate (statistic data)
+	samples (bootstrap-sample data statistic size rng-factory)
+	jack-samples (jacknife data statistic)
+	alpha (if (vector? alpha) alpha [alpha])
+	z-alpha (map normal-quantile alpha)]
+    (if (vector? estimate)
+      (map (partial bca-nonparametric-eval n size data z-alpha) estimate samples jack-samples)
+      (bca-nonparametric-eval n size data z-alpha estimate samples jack-samples))))
+
+(defn bca-to-estimate [alpha bca-estimate]
+  [(first (first bca-estimate)) (next (first bca-estimate))])
+
+(defn bootstrap-bca
+  "Bootstrap a statistic. Statistic can produce multiple statistics as a vector
+   so you can use juxt to pass multiple statistics.
+   http://en.wikipedia.org/wiki/Bootstrapping_(statistics)"
+  [data statistic size alpha rng-factory]
+  (progress "Bootstrapping ...")
+  (let [bca (bca-nonparametric data statistic size alpha rng-factory)]
+    (if (vector? bca)
+      (bca-to-estimate alpha bca)
+      (map (partial bca-to-estimate alpha) bca))))
 
 (defn bootstrap
   "Bootstrap a statistic. Statistic can produce multiple statistics as a vector
@@ -398,7 +567,7 @@
   (let [samples (bootstrap-sample data statistic size rng-factory)
 	transpose (fn [data] (apply map vector data))]
     (if (vector? (first samples))
-      (map bootstrap-estimate (transpose samples))
+      (map bootstrap-estimate samples)
       (bootstrap-estimate samples))))
 
 (defn outlier-effect
@@ -529,18 +698,21 @@
 (defmacro benchmark
   "Benchmark an expression. This tries its best to eliminate sources of error.
    This also means that it runs for a while.  It will typically take 70s for a
-   quick test expression (less than 1s run time) or 10s plus 60 run times for
+   fast test expression (less than 1s run time) or 10s plus 60 run times for
    longer running expressions."
   [expr & options]
-  `(let [opts# (add-default-options (into {} ~options))
+  `(let [options# (vector ~@options)
+	 opts# (add-default-options (if (empty? options#) {} (apply assoc {} options#)))
 	 times# (run-benchmark (:samples opts#)
 			       (:warmup-jit-period opts#)
 			       (:target-execution-time opts#)
 			       ~expr
 			       (:pre opts#))
 	 outliers# (outliers (:samples times#))
-	 stats# (bootstrap (:samples times#) (juxt mean variance) 20
-			   criterium.well/well-rng-1024a)
+	 ci# (/ (:confidence-interval opts#) 2)
+	 stats# (bootstrap-bca (:samples times#) (juxt mean variance)
+			       1000 [0.5 ci# (- 1 ci#)]
+			       criterium.well/well-rng-1024a)
 	 analysis# (outlier-significance (first stats#) (second stats#)
 					 (:sample-count times#))]
      (merge times#
@@ -549,7 +721,8 @@
 		    (first stats#) (/ 1e-9 (:execution-count times#)))
 	     :variance (scale-bootstrap-estimate
 			(second stats#) (/ 1e-18 (:execution-count times#)))
-	     :outlier-variance analysis#})))
+	     :outlier-variance analysis#
+	     :confidence-interval (:confidence-interval opts#)})))
 
 
 
@@ -561,13 +734,15 @@
 		     (/ *target-execution-time* 10)
 		     ~expr)))
 
-(defn report-estimate [estimate unit]
-  (print (point-estimate estimate) unit
-	   " 95% CI:" (point-estimate-ci estimate)))
+(defn report-estimate [estimate unit significance]
+  (print (point-estimate estimate) unit " "
+	 (str (* significance 100) "% CI:")
+	 (point-estimate-ci estimate)))
 
-(defn report-estimate-sqrt [estimate unit]
+(defn report-estimate-sqrt [estimate unit significance]
   (print (Math/sqrt (point-estimate estimate)) unit
-	   " 95% CI:" (map #(Math/sqrt %1) (point-estimate-ci estimate))))
+	 (str (* significance 100) "% CI:")
+	 (map #(Math/sqrt %1) (point-estimate-ci estimate))))
 
 (defn report-outliers [results]
   (let [outliers (:outliers results)
@@ -606,11 +781,11 @@
 				(:sample-count results)))
 
   (print "Execution time mean : ")
-  (report-estimate (:mean results) "sec")
+  (report-estimate (:mean results) "sec" (:confidence-interval results))
   (println)
 
   (print "Execution time variance : ")
-  (report-estimate-sqrt (:variance results) "sec")
+  (report-estimate-sqrt (:variance results) "sec" (:confidence-interval results))
   (println)
 
   (report-outliers results))

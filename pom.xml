@@ -5,11 +5,11 @@
   <artifactId>criterium</artifactId>
   <version>0.0.1-SNAPSHOT</version>
   <name>criterium</name>
-  <description>benchmarking library</description>
+  <description>Benchmarking library</description>
   <scm>
     <connection>scm:git:git://github.com/hugoduncan/criterium.git</connection>
     <developerConnection>scm:git:ssh://git@github.com/hugoduncan/criterium.git</developerConnection>
-    <tag>fe6e57780825b8cbfbcaf0148a927c51637b690f</tag>
+    <tag>b3c59a3344f91e89c7d1bdc6d9b1fe6c845b421a</tag>
     <url>http://github.com/hugoduncan/criterium</url>
   </scm>
   <repositories>
