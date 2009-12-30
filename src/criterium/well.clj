@@ -10,11 +10,9 @@
 ;;;; Improved Long-Period Generators Based on Linear Recurrences Modulo 2, F. Panneton, P. L'Ecuyer and M. Matsumoto
 ;;;; http://www.iro.umontreal.ca/~panneton/WELLRNG.html
 
-(ns criterium.well)
+(set! *warn-on-reflection* true)
 
-(defn well-1024a
-  {:state (long-array 32)
-   :index 0})
+(ns criterium.well)
 
 ;;; Macros to help convert unsigned algorithm to our implementation with signed integers.
 ;;; unsign is used to convert the [0.5,-0.5] range back onto [1,0]
@@ -40,11 +38,11 @@
   `(let [v# ~v] (int (bit-xor v# (bit-shift-left v# (- ~t))))))
 
 (defmacro add-mod-32 [a b]
-  `(bit-and (+ ~a ~b) 0x01f))
+  `(int (bit-and (+ ~a ~b) 0x01f)))
 
 (defn well-rng-1024a
   ([] (well-rng-1024a (int-array 32 (take 32 (repeatedly #(rand-int Integer/MAX_VALUE)))) (rand-int 32)))
-  ([state index]
+  ([#^ints state #^Integer index]
      {:pre (>= 0 index 32)}
      (let [m1 3
 	   m2 24

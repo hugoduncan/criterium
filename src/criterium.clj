@@ -15,6 +15,7 @@
 
 ;;;; Unlike java solutions, this can benchmark general expressions rather than just functions.
 
+(set! *warn-on-reflection* true)
 
 (ns criterium
   (:use clojure.set)
@@ -490,9 +491,9 @@ descending order (so the last element of coefficients is the constant term)."
 	    r (Math/sqrt (- (Math/log r)))]
 	(if (<= r 5)
 	  (let [r (- r 16/10)]
-	    (* (Math/signum (- x 1/2)) (/ (polynomial-value r c) (polynomial-value r d))))
+	    (* (Math/signum (double (- x 0.5))) (/ (polynomial-value r c) (polynomial-value r d))))
 	  (let [r (- r 5)]
-	    (* (Math/signum (- x 1/2)) (/ (polynomial-value r e) (polynomial-value r f)))))))))
+	    (* (Math/signum (double (- x 0.5))) (/ (polynomial-value r e) (polynomial-value r f)))))))))
 
 (defn drop-at [n coll]
   (lazy-seq
