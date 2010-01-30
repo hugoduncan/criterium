@@ -4,3 +4,5 @@ criterium.jar
 criterium-standalone.jar
 lib
 classes
+autodoc/**
+java.hprof.*

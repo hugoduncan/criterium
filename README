@@ -1,19 +1,33 @@
 # criterium
 
-Criterium is a benchmarking library for clojure.
+Criterium measures the computation time of an expression.  It is
+designed to address some of the pitfalls of benchmarking, and benchmarking on
+the JVM in particular.
 
-The analysis and reporting is inspired by Haskell's Criterion http://www.serpentine.com/blog/2009/09/29/criterion-a-new-benchmarking-library-for-haskell/
-Details of jvm benchmarking inspired by Brent Broyer's http://www.ellipticgroup.com/html/benchmarkingArticle.html
-
+This includes:
+  - statistical processing of multiple evaluations
+  - inclusion of a warm-up period, designed to allow the JIT compiler to
+    optimise its code
+  - purging of gc before testing, to isolate timings from GC state prior
+    to testing
+  - a final forced GC after testing to estimate impact of cleanup on the
+    timing results
 
 ## Usage
+  (use 'criterium)
+  (bench (+ 1 2) :verbose)
+  (with-progress-reporting (bench (+ 1 2) :verbose))
+  (report-result (benchmark (+ 1 2)) :verbose)
+  (report-result (quick-bench (+ 1 2)))
 
-(use 'criterium)
+## References
+See http://www.ellipticgroup.com/html/benchmarkingArticle.html for a Java
+benchmarking library.  The accompanying article describes many of the JVM
+benchmarking pitfalls.
 
-(bench (+ 1 2) :verbose)
-(with-progress-reporting (bench (+ 1 2) :verbose))
-(report (benchmark (+ 1 2)) :verbose)
-(report (quick-benchmark (+ 1 2)))
+See http://hackage.haskell.org/package/criterion for a Haskell benchmarking
+library that applies many of the same statistical techniques.
+
 
 ## Installation
 

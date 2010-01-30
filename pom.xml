@@ -9,7 +9,7 @@
   <scm>
     <connection>scm:git:git://github.com/hugoduncan/criterium.git</connection>
     <developerConnection>scm:git:ssh://git@github.com/hugoduncan/criterium.git</developerConnection>
-    <tag>b3c59a3344f91e89c7d1bdc6d9b1fe6c845b421a</tag>
+    <tag>e33c29ffb279c7550a96f29b5c98ba7c389e263d</tag>
     <url>http://github.com/hugoduncan/criterium</url>
   </scm>
   <repositories>
@@ -30,7 +30,7 @@
     <dependency>
       <groupId>org.clojure</groupId>
       <artifactId>clojure</artifactId>
-      <version>1.1.0-new-SNAPSHOT</version>
+      <version>1.2.0-master-SNAPSHOT</version>
     </dependency>
   </dependencies>
 </project>
