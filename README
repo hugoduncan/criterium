@@ -21,6 +21,9 @@ This includes:
   (report-result (quick-bench (+ 1 2)))
 
 ## References
+
+API Documentation is http://hugoduncan.github.com/criterium
+
 See http://www.ellipticgroup.com/html/benchmarkingArticle.html for a Java
 benchmarking library.  The accompanying article describes many of the JVM
 benchmarking pitfalls.

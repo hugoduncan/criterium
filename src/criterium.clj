@@ -43,7 +43,9 @@ benchmarking pitfalls.
 
 See http://hackage.haskell.org/package/criterion for a Haskell benchmarking
 library that applies many of the same statistical techniques.
-"}
+"
+       :see-also [["http://github.com/hugoduncan/criterium" "Source code"]
+		  ["http://hugoduncan.github.com/criterium" "API Documentation"]]}
   criterium
   (:use clojure.set
 	criterium.stats)
