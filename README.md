@@ -5,20 +5,33 @@ designed to address some of the pitfalls of benchmarking, and benchmarking on
 the JVM in particular.
 
 This includes:
-  - statistical processing of multiple evaluations
-  - inclusion of a warm-up period, designed to allow the JIT compiler to
-    optimise its code
-  - purging of gc before testing, to isolate timings from GC state prior
+
+  * statistical processing of multiple evaluations
+  * inclusion of a warm-up period, designed to allow the JIT compiler to optimise its code
+  * purging of gc before testing, to isolate timings from GC state prior
     to testing
-  - a final forced GC after testing to estimate impact of cleanup on the
+  * a final forced GC after testing to estimate impact of cleanup on the
     timing results
 
 ## Usage
-  (use 'criterium)
-  (bench (Thread/sleep 1000) :verbose)
-  (with-progress-reporting (bench (Thread/sleep 1000) :verbose))
-  (report-result (benchmark (Thread/sleep 1000)) :verbose)
-  (report-result (quick-bench (Thread/sleep 1000)))
+
+The top level interface is in `criterium.core`.
+
+    (use 'criterium.core)
+
+Use `bench` to run a benchmark in a simple manner.
+
+    (bench (Thread/sleep 1000) :verbose)
+
+By default bench is quiet about its progress.  Run `with-progress-reporting` to
+get progress information on *out*.
+
+    (with-progress-reporting (bench (Thread/sleep 1000) :verbose))
+
+Lower level functions are available.
+
+    (report-result (benchmark (Thread/sleep 1000)) :verbose)
+    (report-result (quick-bench (Thread/sleep 1000)))
 
 ## References
 
