@@ -1,0 +1,439 @@
+<html>
+  <head>
+    <title>criterium.stats API reference (Criterium)</title>
+    <link href="static/favicon.png" rel="icon" />
+    <link href="static/favicon.png" rel="shortcut icon" />
+    <link media="all" type="text/css" href="static/clojure.css" rel="stylesheet" />
+    <link media="all" type="text/css" href="static/wiki.css" rel="stylesheet" />
+    <link media="all" type="text/css" href="static/internal.css" rel="stylesheet" />
+    <!-- TODO: are we using these (from clojure.org)? If so, add the files -->
+    <script src="file/view/code_highlighter.js" type="text/javascript"></script>
+    <script src="file/view/clojure.js" type="text/javascript"></script>
+    <style>.menuWrapper{height: 36px;}</style>
+    <!--[if lte IE 6]>
+    <link rel="stylesheet" href="http://www.wikispaces.com/_/2009051601/s/internal_ie.css" type="text/css" />
+    <![endif]-->
+  </head>
+<!--
+This document was auto-generated from the source by the clojure autodoc system.
+To report errors or ask questions about the overall documentation structure, formatting,
+etc., contact Tom Faulhaber (google mail name: tomfaulhaber).
+For errors in the documentation of a particular namespace, contact the author of that
+namespace.
+-->
+  <body>
+    <div id="AllContentContainer">
+      <div id="Header">
+	<a id="Logo" href="index.html"><img alt="Clojure" height="100" width="100" src="static/clojure-icon.gif" /></a>
+	<h1><a title="page header title" id="page-header" href="index.html">Criterium</a></h1>
+      </div>
+      <div id="leftcolumn"><div style="text-align: center;"></div>
+<div class="menu">
+  <div class="WikiCustomNav WikiElement wiki">
+    <a class="wiki_link" href="index.html">Overview</a><br />
+    <a class="wiki_link" href="api-index.html">API Index</a><br />
+    <a class="wiki_link" href="#">Namespaces:</a>
+    <ul id="left-sidebar-list">
+      <li><a href="criterium.core-api.html" class="wiki_link">criterium.core</a></li><li><a href="criterium.dft-api.html" class="wiki_link">criterium.dft</a></li><li><a href="criterium.stats-api.html" class="wiki_link">criterium.stats</a></li><li><a href="criterium.well-api.html" class="wiki_link">criterium.well</a></li><li><a href="criterium.ziggurat-api.html" class="wiki_link">criterium.ziggurat</a></li>
+    </ul>
+  </div>
+</div>
+</div>
+      <div id="rightcolumn">
+	<div id="Content">
+	  <div class="contentBox"><div class="innerContentBox">
+              <div id="content_view" class="wiki wikiPage">
+                <div id="right-sidebar"><div id="toc">
+  <h1 class="nopad">Table of Contents</h1>
+  <div style="margin-left: 1em;" class="toc-section">
+    <a href="#toc0">Overview</a>
+    <div style="margin-left: 1em;" class="toc-entry">
+      <a href="#criterium.stats/bca-nonparametric">bca-nonparametric</a>
+    </div><div style="margin-left: 1em;" class="toc-entry">
+      <a href="#criterium.stats/bca-nonparametric-eval">bca-nonparametric-eval</a>
+    </div><div style="margin-left: 1em;" class="toc-entry">
+      <a href="#criterium.stats/bootstrap-estimate">bootstrap-estimate</a>
+    </div><div style="margin-left: 1em;" class="toc-entry">
+      <a href="#criterium.stats/bootstrap-sample">bootstrap-sample</a>
+    </div><div style="margin-left: 1em;" class="toc-entry">
+      <a href="#criterium.stats/boxplot-outlier-thresholds">boxplot-outlier-thresholds</a>
+    </div><div style="margin-left: 1em;" class="toc-entry">
+      <a href="#criterium.stats/confidence-interval">confidence-interval</a>
+    </div><div style="margin-left: 1em;" class="toc-entry">
+      <a href="#criterium.stats/cube">cube</a>
+    </div><div style="margin-left: 1em;" class="toc-entry">
+      <a href="#criterium.stats/erf">erf</a>
+    </div><div style="margin-left: 1em;" class="toc-entry">
+      <a href="#criterium.stats/gaussian-weight">gaussian-weight</a>
+    </div><div style="margin-left: 1em;" class="toc-entry">
+      <a href="#criterium.stats/jacknife">jacknife</a>
+    </div><div style="margin-left: 1em;" class="toc-entry">
+      <a href="#criterium.stats/kernel-density-estimator">kernel-density-estimator</a>
+    </div><div style="margin-left: 1em;" class="toc-entry">
+      <a href="#criterium.stats/mean">mean</a>
+    </div><div style="margin-left: 1em;" class="toc-entry">
+      <a href="#criterium.stats/median">median</a>
+    </div><div style="margin-left: 1em;" class="toc-entry">
+      <a href="#criterium.stats/modal-estimation-constant">modal-estimation-constant</a>
+    </div><div style="margin-left: 1em;" class="toc-entry">
+      <a href="#criterium.stats/mode-count">mode-count</a>
+    </div><div style="margin-left: 1em;" class="toc-entry">
+      <a href="#criterium.stats/normal-cdf">normal-cdf</a>
+    </div><div style="margin-left: 1em;" class="toc-entry">
+      <a href="#criterium.stats/normal-quantile">normal-quantile</a>
+    </div><div style="margin-left: 1em;" class="toc-entry">
+      <a href="#criterium.stats/oversmoothed-bandwidth">oversmoothed-bandwidth</a>
+    </div><div style="margin-left: 1em;" class="toc-entry">
+      <a href="#criterium.stats/polynomial-value">polynomial-value</a>
+    </div><div style="margin-left: 1em;" class="toc-entry">
+      <a href="#criterium.stats/quartiles">quartiles</a>
+    </div><div style="margin-left: 1em;" class="toc-entry">
+      <a href="#criterium.stats/sample">sample</a>
+    </div><div style="margin-left: 1em;" class="toc-entry">
+      <a href="#criterium.stats/sample-uniform">sample-uniform</a>
+    </div><div style="margin-left: 1em;" class="toc-entry">
+      <a href="#criterium.stats/smoothed-sample">smoothed-sample</a>
+    </div><div style="margin-left: 1em;" class="toc-entry">
+      <a href="#criterium.stats/sqr">sqr</a>
+    </div><div style="margin-left: 1em;" class="toc-entry">
+      <a href="#criterium.stats/sum">sum</a>
+    </div><div style="margin-left: 1em;" class="toc-entry">
+      <a href="#criterium.stats/sum-of-squares">sum-of-squares</a>
+    </div><div style="margin-left: 1em;" class="toc-entry">
+      <a href="#criterium.stats/transpose">transpose</a>
+    </div><div style="margin-left: 1em;" class="toc-entry">
+      <a href="#criterium.stats/trunc">trunc</a>
+    </div><div style="margin-left: 1em;" class="toc-entry">
+      <a href="#criterium.stats/uniform-distribution">uniform-distribution</a>
+    </div><div style="margin-left: 1em;" class="toc-entry">
+      <a href="#criterium.stats/variance">variance</a>
+    </div>
+    <br />
+  </div>
+</div>
+</div>
+                <div id="content-tag"><h1 id="overview">API for <span id="namespace-name">criterium.stats</span></h1>
+by <span id="author">Unknown</span><br />
+<br />Usage:
+<pre>
+(ns your-namespace
+  (:require <span id="long-name">criterium.stats</span>))
+</pre><pre>
+</pre><h2>Overview</h2>
+<pre id="namespace-docstr"></pre>
+<br />
+<h2>Public Variables and Functions</h2>
+<div id="var-entry">
+  <br />
+  <hr />
+  <h2 id="criterium.stats/bca-nonparametric">bca-nonparametric</h2>
+  <span id="var-type">function</span><br />
+  <pre id="var-usage">Usage: (bca-nonparametric data statistic size alpha rng-factory)
+</pre>
+  <pre id="var-docstr">Non-parametric BCa estimate of a statistic on data. Size bootstrap samples
+are used. Confidence values are returned at the alpha normal
+quantiles. rng-factory is a method that returns a random number generator to
+use for the sampling.
+An introduction to the bootstrap.  Efron, B., &amp; Tibshirani, R. J. (1993).
+See <a href="http://lib.stat.cmu.edu/S/bootstrap.funs">http://lib.stat.cmu.edu/S/bootstrap.funs</a> for Efron's original implementation.</pre>
+  <a href="http://github.com/hugoduncan/criterium/blob/93297129b7e489ba7615eca24398bb0c88637361/src/criterium/stats.clj#L262" id="var-source">Source</a>
+</div><div id="var-entry">
+  <br />
+  <hr />
+  <h2 id="criterium.stats/bca-nonparametric-eval">bca-nonparametric-eval</h2>
+  <span id="var-type">function</span><br />
+  <pre id="var-usage">Usage: (bca-nonparametric-eval n size data z-alpha estimate samples jack-samples)
+</pre>
+  <pre id="var-docstr">Calculate bootstrap values for given estimate and samples</pre>
+  <a href="http://github.com/hugoduncan/criterium/blob/93297129b7e489ba7615eca24398bb0c88637361/src/criterium/stats.clj#L248" id="var-source">Source</a>
+</div><div id="var-entry">
+  <br />
+  <hr />
+  <h2 id="criterium.stats/bootstrap-estimate">bootstrap-estimate</h2>
+  <span id="var-type">function</span><br />
+  <pre id="var-usage">Usage: (bootstrap-estimate sampled-stat)
+</pre>
+  <pre id="var-docstr">Mean, variance and confidence interval. This uses the bootstrapped
+statistic's variance for the confidence interval, but we should use BCa of
+ABC.</pre>
+  <a href="http://github.com/hugoduncan/criterium/blob/93297129b7e489ba7615eca24398bb0c88637361/src/criterium/stats.clj#L125" id="var-source">Source</a>
+</div><div id="var-entry">
+  <br />
+  <hr />
+  <h2 id="criterium.stats/bootstrap-sample">bootstrap-sample</h2>
+  <span id="var-type">function</span><br />
+  <pre id="var-usage">Usage: (bootstrap-sample data statistic size rng-factory)
+</pre>
+  <pre id="var-docstr">Bootstrap sampling of a statistic, using resampling with replacement.</pre>
+  <a href="http://github.com/hugoduncan/criterium/blob/93297129b7e489ba7615eca24398bb0c88637361/src/criterium/stats.clj#L111" id="var-source">Source</a>
+</div><div id="var-entry">
+  <br />
+  <hr />
+  <h2 id="criterium.stats/boxplot-outlier-thresholds">boxplot-outlier-thresholds</h2>
+  <span id="var-type">function</span><br />
+  <pre id="var-usage">Usage: (boxplot-outlier-thresholds q1 q3)
+</pre>
+  <pre id="var-docstr">Outlier thresholds for given quartiles.</pre>
+  <a href="http://github.com/hugoduncan/criterium/blob/93297129b7e489ba7615eca24398bb0c88637361/src/criterium/stats.clj#L83" id="var-source">Source</a>
+</div><div id="var-entry">
+  <br />
+  <hr />
+  <h2 id="criterium.stats/confidence-interval">confidence-interval</h2>
+  <span id="var-type">function</span><br />
+  <pre id="var-usage">Usage: (confidence-interval mean variance)
+</pre>
+  <pre id="var-docstr">Find the significance of outliers gicen boostrapped mean and variance estimates.
+This uses the bootstrapped statistic's variance, but we should use BCa of ABC.</pre>
+  <a href="http://github.com/hugoduncan/criterium/blob/93297129b7e489ba7615eca24398bb0c88637361/src/criterium/stats.clj#L117" id="var-source">Source</a>
+</div><div id="var-entry">
+  <br />
+  <hr />
+  <h2 id="criterium.stats/cube">cube</h2>
+  <span id="var-type">function</span><br />
+  <pre id="var-usage">Usage: (cube x)
+</pre>
+  <pre id="var-docstr">Square of argument</pre>
+  <a href="http://github.com/hugoduncan/criterium/blob/93297129b7e489ba7615eca24398bb0c88637361/src/criterium/stats.clj#L28" id="var-source">Source</a>
+</div><div id="var-entry">
+  <br />
+  <hr />
+  <h2 id="criterium.stats/erf">erf</h2>
+  <span id="var-type">function</span><br />
+  <pre id="var-usage">Usage: (erf x)
+</pre>
+  <pre id="var-docstr">erf polynomial approximation.  Maximum error is 1.5e-7.
+Handbook of Mathematical Functions: with Formulas, Graphs, and Mathematical
+Tables. Milton Abramowitz (Editor), Irene A. Stegun (Editor), 7.1.26</pre>
+  <a href="http://github.com/hugoduncan/criterium/blob/93297129b7e489ba7615eca24398bb0c88637361/src/criterium/stats.clj#L143" id="var-source">Source</a>
+</div><div id="var-entry">
+  <br />
+  <hr />
+  <h2 id="criterium.stats/gaussian-weight">gaussian-weight</h2>
+  <span id="var-type">function</span><br />
+  <pre id="var-usage">Usage: (gaussian-weight t)
+</pre>
+  <pre id="var-docstr">Weight function for gaussian kernel.</pre>
+  <a href="http://github.com/hugoduncan/criterium/blob/93297129b7e489ba7615eca24398bb0c88637361/src/criterium/stats.clj#L309" id="var-source">Source</a>
+</div><div id="var-entry">
+  <br />
+  <hr />
+  <h2 id="criterium.stats/jacknife">jacknife</h2>
+  <span id="var-type">function</span><br />
+  <pre id="var-usage">Usage: (jacknife data statistic)
+</pre>
+  <pre id="var-docstr">Jacknife statistics on data.</pre>
+  <a href="http://github.com/hugoduncan/criterium/blob/93297129b7e489ba7615eca24398bb0c88637361/src/criterium/stats.clj#L242" id="var-source">Source</a>
+</div><div id="var-entry">
+  <br />
+  <hr />
+  <h2 id="criterium.stats/kernel-density-estimator">kernel-density-estimator</h2>
+  <span id="var-type">function</span><br />
+  <pre id="var-usage">Usage: (kernel-density-estimator h K n X x)
+</pre>
+  <pre id="var-docstr">Kernel density estimator for x, given n samples X, weights K and width h.</pre>
+  <a href="http://github.com/hugoduncan/criterium/blob/93297129b7e489ba7615eca24398bb0c88637361/src/criterium/stats.clj#L315" id="var-source">Source</a>
+</div><div id="var-entry">
+  <br />
+  <hr />
+  <h2 id="criterium.stats/mean">mean</h2>
+  <span id="var-type">function</span><br />
+  <pre id="var-usage">Usage: (mean data)
+</pre>
+  <pre id="var-docstr">Arithmetic mean of data.</pre>
+  <a href="http://github.com/hugoduncan/criterium/blob/93297129b7e489ba7615eca24398bb0c88637361/src/criterium/stats.clj#L34" id="var-source">Source</a>
+</div><div id="var-entry">
+  <br />
+  <hr />
+  <h2 id="criterium.stats/median">median</h2>
+  <span id="var-type">function</span><br />
+  <pre id="var-usage">Usage: (median data)
+</pre>
+  <pre id="var-docstr">Calculate the median of a sorted data set
+References: <a href="http://en.wikipedia.org/wiki/Median">http://en.wikipedia.org/wiki/Median</a></pre>
+  <a href="http://github.com/hugoduncan/criterium/blob/93297129b7e489ba7615eca24398bb0c88637361/src/criterium/stats.clj#L62" id="var-source">Source</a>
+</div><div id="var-entry">
+  <br />
+  <hr />
+  <h2 id="criterium.stats/modal-estimation-constant">modal-estimation-constant</h2>
+  <span id="var-type">function</span><br />
+  <pre id="var-usage">Usage: (modal-estimation-constant h-k sample-variance)
+</pre>
+  <pre id="var-docstr">Kernel function for estimation of multi-modality.
+h-k is the critical bandwidth, sample-variance is the observed sample variance.
+Equation 7, Nonparametric assessment of multimodality for univariate
+data. Salgado-Ugarte IH, Shimizu M</pre>
+  <a href="http://github.com/hugoduncan/criterium/blob/93297129b7e489ba7615eca24398bb0c88637361/src/criterium/stats.clj#L292" id="var-source">Source</a>
+</div><div id="var-entry">
+  <br />
+  <hr />
+  <h2 id="criterium.stats/mode-count">mode-count</h2>
+  <span id="var-type">function</span><br />
+  <pre id="var-usage">Usage: (mode-count h-over-sampled h-crit K n X x-min x-max)
+</pre>
+  <pre id="var-docstr">Count the number of modes, using bandwidth between h-over-smoothed and
+h-crit, kernel K for n samples X, between x-min and x-max.
+
+Can we do a depth first search over h, descending using h/2 ?</pre>
+  <a href="http://github.com/hugoduncan/criterium/blob/93297129b7e489ba7615eca24398bb0c88637361/src/criterium/stats.clj#L326" id="var-source">Source</a>
+</div><div id="var-entry">
+  <br />
+  <hr />
+  <h2 id="criterium.stats/normal-cdf">normal-cdf</h2>
+  <span id="var-type">function</span><br />
+  <pre id="var-usage">Usage: (normal-cdf x)
+</pre>
+  <pre id="var-docstr">Probability p(X&lt;x), for a normal distrubtion.  Uses the polynomial erf
+approximation above, and so is not super accurate.</pre>
+  <a href="http://github.com/hugoduncan/criterium/blob/93297129b7e489ba7615eca24398bb0c88637361/src/criterium/stats.clj#L157" id="var-source">Source</a>
+</div><div id="var-entry">
+  <br />
+  <hr />
+  <h2 id="criterium.stats/normal-quantile">normal-quantile</h2>
+  <span id="var-type">function</span><br />
+  <pre id="var-usage">Usage: (normal-quantile x)
+</pre>
+  <pre id="var-docstr">Normal quantile function. Given a quantile in (0,1), return the normal value for that quantile.
+Wichura, MJ. 'Algorithm AS241' The Percentage Points of the Normal Distribution. Applied Statistics, 37, 477-484</pre>
+  <a href="http://github.com/hugoduncan/criterium/blob/93297129b7e489ba7615eca24398bb0c88637361/src/criterium/stats.clj#L163" id="var-source">Source</a>
+</div><div id="var-entry">
+  <br />
+  <hr />
+  <h2 id="criterium.stats/oversmoothed-bandwidth">oversmoothed-bandwidth</h2>
+  <span id="var-type">function</span><br />
+  <pre id="var-usage">Usage: (oversmoothed-bandwidth)
+</pre>
+  <pre id="var-docstr">Estimate an oversmoothed bandwidth.
+Terrell, Scott, 1995.</pre>
+  <a href="http://github.com/hugoduncan/criterium/blob/93297129b7e489ba7615eca24398bb0c88637361/src/criterium/stats.clj#L320" id="var-source">Source</a>
+</div><div id="var-entry">
+  <br />
+  <hr />
+  <h2 id="criterium.stats/polynomial-value">polynomial-value</h2>
+  <span id="var-type">function</span><br />
+  <pre id="var-usage">Usage: (polynomial-value x coefficients)
+</pre>
+  <pre id="var-docstr">Evaluate a polynomial at the given value x, for the coefficients given in
+descending order (so the last element of coefficients is the constant term).</pre>
+  <a href="http://github.com/hugoduncan/criterium/blob/93297129b7e489ba7615eca24398bb0c88637361/src/criterium/stats.clj#L137" id="var-source">Source</a>
+</div><div id="var-entry">
+  <br />
+  <hr />
+  <h2 id="criterium.stats/quartiles">quartiles</h2>
+  <span id="var-type">function</span><br />
+  <pre id="var-usage">Usage: (quartiles data)
+</pre>
+  <pre id="var-docstr">Calculate the quartiles of a sorted data set
+References: <a href="http://en.wikipedia.org/wiki/Quartile">http://en.wikipedia.org/wiki/Quartile</a></pre>
+  <a href="http://github.com/hugoduncan/criterium/blob/93297129b7e489ba7615eca24398bb0c88637361/src/criterium/stats.clj#L76" id="var-source">Source</a>
+</div><div id="var-entry">
+  <br />
+  <hr />
+  <h2 id="criterium.stats/sample">sample</h2>
+  <span id="var-type">function</span><br />
+  <pre id="var-usage">Usage: (sample x rng)
+</pre>
+  <pre id="var-docstr">Sample with replacement.</pre>
+  <a href="http://github.com/hugoduncan/criterium/blob/93297129b7e489ba7615eca24398bb0c88637361/src/criterium/stats.clj#L105" id="var-source">Source</a>
+</div><div id="var-entry">
+  <br />
+  <hr />
+  <h2 id="criterium.stats/sample-uniform">sample-uniform</h2>
+  <span id="var-type">function</span><br />
+  <pre id="var-usage">Usage: (sample-uniform n max-val rng)
+</pre>
+  <pre id="var-docstr">Provide n samples from a uniform distribution on 0..max-val</pre>
+  <a href="http://github.com/hugoduncan/criterium/blob/93297129b7e489ba7615eca24398bb0c88637361/src/criterium/stats.clj#L100" id="var-source">Source</a>
+</div><div id="var-entry">
+  <br />
+  <hr />
+  <h2 id="criterium.stats/smoothed-sample">smoothed-sample</h2>
+  <span id="var-type">function</span><br />
+  <pre id="var-usage">Usage: (smoothed-sample c-k h-k data deviates)
+</pre>
+  <pre id="var-docstr">Smoothed estimation function.</pre>
+  <a href="http://github.com/hugoduncan/criterium/blob/93297129b7e489ba7615eca24398bb0c88637361/src/criterium/stats.clj#L300" id="var-source">Source</a>
+</div><div id="var-entry">
+  <br />
+  <hr />
+  <h2 id="criterium.stats/sqr">sqr</h2>
+  <span id="var-type">function</span><br />
+  <pre id="var-usage">Usage: (sqr x)
+</pre>
+  <pre id="var-docstr">Square of argument</pre>
+  <a href="http://github.com/hugoduncan/criterium/blob/93297129b7e489ba7615eca24398bb0c88637361/src/criterium/stats.clj#L24" id="var-source">Source</a>
+</div><div id="var-entry">
+  <br />
+  <hr />
+  <h2 id="criterium.stats/sum">sum</h2>
+  <span id="var-type">function</span><br />
+  <pre id="var-usage">Usage: (sum data)
+</pre>
+  <pre id="var-docstr">Sum of each data point.</pre>
+  <a href="http://github.com/hugoduncan/criterium/blob/93297129b7e489ba7615eca24398bb0c88637361/src/criterium/stats.clj#L39" id="var-source">Source</a>
+</div><div id="var-entry">
+  <br />
+  <hr />
+  <h2 id="criterium.stats/sum-of-squares">sum-of-squares</h2>
+  <span id="var-type">function</span><br />
+  <pre id="var-usage">Usage: (sum-of-squares data)
+</pre>
+  <pre id="var-docstr">Sum of the squares of each data point.</pre>
+  <a href="http://github.com/hugoduncan/criterium/blob/93297129b7e489ba7615eca24398bb0c88637361/src/criterium/stats.clj#L43" id="var-source">Source</a>
+</div><div id="var-entry">
+  <br />
+  <hr />
+  <h2 id="criterium.stats/transpose">transpose</h2>
+  <span id="var-type">function</span><br />
+  <pre id="var-usage">Usage: (transpose data)
+</pre>
+  <pre id="var-docstr">Transpose a vector of vectors.</pre>
+  <a href="http://github.com/hugoduncan/criterium/blob/93297129b7e489ba7615eca24398bb0c88637361/src/criterium/stats.clj#L17" id="var-source">Source</a>
+</div><div id="var-entry">
+  <br />
+  <hr />
+  <h2 id="criterium.stats/trunc">trunc</h2>
+  <span id="var-type">function</span><br />
+  <pre id="var-usage">Usage: (trunc x)
+</pre>
+  <pre id="var-docstr">Round towards zero to an integeral value.</pre>
+  <a href="http://github.com/hugoduncan/criterium/blob/93297129b7e489ba7615eca24398bb0c88637361/src/criterium/stats.clj#L236" id="var-source">Source</a>
+</div><div id="var-entry">
+  <br />
+  <hr />
+  <h2 id="criterium.stats/uniform-distribution">uniform-distribution</h2>
+  <span id="var-type">function</span><br />
+  <pre id="var-usage">Usage: (uniform-distribution max-val rng)
+</pre>
+  <pre id="var-docstr">Return uniformly distributed deviates on 0..max-val use the specified rng.</pre>
+  <a href="http://github.com/hugoduncan/criterium/blob/93297129b7e489ba7615eca24398bb0c88637361/src/criterium/stats.clj#L95" id="var-source">Source</a>
+</div><div id="var-entry">
+  <br />
+  <hr />
+  <h2 id="criterium.stats/variance">variance</h2>
+  <span id="var-type">function</span><br />
+  <pre id="var-usage">Usage: (variance data)
+       (variance data df)
+</pre>
+  <pre id="var-docstr">Sample variance. Returns variance.
+Ref: Chan et al. Algorithms for computing the sample variance: analysis and
+     recommendations. American Statistician (1983).</pre>
+  <a href="http://github.com/hugoduncan/criterium/blob/93297129b7e489ba7615eca24398bb0c88637361/src/criterium/stats.clj#L47" id="var-source">Source</a>
+</div>
+
+
+</div>
+              </div>
+            </div>
+          </div>
+	</div>
+	<div id="foot">
+	  <div style="text-align: center;" id="copyright">Copyright Hugo Duncan 2010. All rights reserved.</div>
+	</div>
+      </div>
+      <div id="DesignedBy">Logo &amp; site design by <a title="Visit Tom Hickey's website." href="http://www.tomhickey.com">Tom Hickey</a>.<br />
+      Clojure auto-documentation system by Tom Faulhaber.</div>
+    </div>
+    <!-- /AllContentContainer -->
+  </body>
+
+</html>
