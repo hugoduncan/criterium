@@ -95,7 +95,7 @@
 (defn uniform-distribution
   "Return uniformly distributed deviates on 0..max-val use the specified rng."
   [max-val rng]
-  (map (fn [x] (int (* x max-val))) rng))
+  (map (fn [x] (* x max-val)) rng))
 
 (defn sample-uniform
   "Provide n samples from a uniform distribution on 0..max-val"

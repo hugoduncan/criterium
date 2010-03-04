@@ -1,4 +1,4 @@
-# criterium
+# Criterium
 
 Criterium measures the computation time of an expression.  It is
 designed to address some of the pitfalls of benchmarking, and benchmarking on
@@ -15,26 +15,27 @@ This includes:
 
 ## Usage
   (use 'criterium)
-  (bench (+ 1 2) :verbose)
-  (with-progress-reporting (bench (+ 1 2) :verbose))
-  (report-result (benchmark (+ 1 2)) :verbose)
-  (report-result (quick-bench (+ 1 2)))
+  (bench (Thread/sleep 1000) :verbose)
+  (with-progress-reporting (bench (Thread/sleep 1000) :verbose))
+  (report-result (benchmark (Thread/sleep 1000)) :verbose)
+  (report-result (quick-bench (Thread/sleep 1000)))
 
 ## References
 
-API Documentation is http://hugoduncan.github.com/criterium
+[API Documentation](http://hugoduncan.github.com/criterium)
 
-See http://www.ellipticgroup.com/html/benchmarkingArticle.html for a Java
-benchmarking library.  The accompanying article describes many of the JVM
-benchmarking pitfalls.
+See [Elliptic Group](http://www.ellipticgroup.com/html/benchmarkingArticle.html)
+for a Java benchmarking library.  The accompanying article describes many of the
+JVM benchmarking pitfalls.
 
-See http://hackage.haskell.org/package/criterion for a Haskell benchmarking
+See [Criterion](http://hackage.haskell.org/package/criterion) for a Haskell benchmarking
 library that applies many of the same statistical techniques.
 
 
 ## Installation
 
-The library can be installed through leiningen or through maven.  See http://clojars.org/criterium
+The library can be installed through
+[Leiningen](http://github.com/technomancy/leiningen) or through maven.
 
 Alternatively, the source code can be compiled into a jar with leiningen.
 
@@ -42,7 +43,6 @@ Alternatively, the source code can be compiled into a jar with leiningen.
 
 ## Todo
 
-Check calculation of outlier variance contriubtion.
 Serial correlation detection.
 Multimodal distribution detection.
 Use kernel density estimators?

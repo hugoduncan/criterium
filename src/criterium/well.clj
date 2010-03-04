@@ -12,7 +12,7 @@
 
 (ns criterium.well)
 
-(set! *warn-on-reflection* true)
+;(set! *warn-on-reflection* true)
 
 ;;; Macros to help convert unsigned algorithm to our implementation with signed integers.
 ;;; unsign is used to convert the [0.5,-0.5] range back onto [1,0]
@@ -31,11 +31,17 @@
   `(let [v# ~x]
      (if (neg? v#) (+ 1 v#) v#)))
 
+(def int-max (bit-or (bit-shift-left Integer/MAX_VALUE 1) 1))
+
+(defmacro limit-bits [x]
+  `(bit-and int-max ~x))
+
 (defmacro mat0-pos [t v]
   `(let [v# ~v] (bit-xor v# (bit-shift-right-ns v# ~t))))
 
 (defmacro mat0-neg [t v]
-  `(let [v# ~v] (int (bit-xor v# (bit-shift-left v# (- ~t))))))
+  `(let [v# ~v]
+     (int (bit-xor v# (.intValue (limit-bits (bit-shift-left v# (- ~t))))))))
 
 (defmacro add-mod-32 [a b]
   `(int (bit-and (+ ~a ~b) 0x01f)))
@@ -64,6 +70,6 @@ http://www.iro.umontreal.ca/~panneton/WELLRNG.html
 		      (mat0-neg -13 z2)))
        (let  []
 	 (lazy-seq
-	   (cons (unsign (* (double (aget state new-index)) fact))
-		 (well-rng-1024a state new-index)))))))
+          (cons (unsign (* (double (aget state new-index)) fact))
+                (well-rng-1024a state new-index)))))))
 

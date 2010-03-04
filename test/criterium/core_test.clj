@@ -1,9 +1,8 @@
-(ns criterium.criterium-test
-  (:use clojure.test
-	criterium)
+(ns criterium.core-test
+  (:use [criterium.core] :reload-all)
+  (:use clojure.test)
   (:require criterium.stats
 	    criterium.well))
-
 
 
 (deftest outliers-test
@@ -25,6 +24,13 @@
   (is (= :slight (outlier-effect 0.09)))
   (is (= :moderate (outlier-effect 0.49)))
   (is (= :severe (outlier-effect 0.51))))
+
+(deftest outlier-significance-test
+  ;; http://www.ellipticgroup.com/misc/article_supplement.pdf, p22
+  (is (= 0.9960022873987793
+         (outlier-significance [1.395522860870968 []]
+                               [(* 0.0013859776344426547 0.0013859776344426547) []]
+                               67108864))))
 
 (deftest bootstrap-test
   (is (= [1 0 [1.0 1.0]]

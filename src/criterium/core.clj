@@ -30,11 +30,11 @@ This includes:
     timing results
 
 Usage:
-  (use 'criterium)
-  (bench (+ 1 2) :verbose)
-  (with-progress-reporting (bench (+ 1 2) :verbose))
-  (report-result (benchmark (+ 1 2)) :verbose)
-  (report-result (quick-bench (+ 1 2)))
+  (use 'criterium.core)
+  (bench (Thread/sleep 1000) :verbose)
+  (with-progress-reporting (bench (Thread/sleep 1000) :verbose))
+  (report-result (benchmark (Thread/sleep 1000)) :verbose)
+  (report-result (quick-bench (Thread/sleep 1000)))
 
 References:
 See http://www.ellipticgroup.com/html/benchmarkingArticle.html for a Java
@@ -46,7 +46,7 @@ library that applies many of the same statistical techniques.
 "
        :see-also [["http://github.com/hugoduncan/criterium" "Source code"]
 		  ["http://hugoduncan.github.com/criterium" "API Documentation"]]}
-  criterium
+  criterium.core
   (:use clojure.set
 	criterium.stats)
   (:require criterium.well)
@@ -399,33 +399,31 @@ class counts, change in compilation time and result of specified function."
   (last estimate))
 
 (defn outlier-significance
-  "Find the significance of outliers given boostrapped mean and variance estimates."
+  "Find the significance of outliers given boostrapped mean and variance
+estimates.
+See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
   [mean-estimate variance-estimate n]
   (progress "Checking outlier significance")
-  (let [mean (point-estimate mean-estimate)
-	variance (point-estimate variance-estimate)
-	std-dev (Math/sqrt variance)
-	mean-over-n (/ mean n)
-	min-g (/ mean-over-n 2)
-	sigma-g (min (/ min-g 4) (/ std-dev (Math/sqrt n)))
-	variance-g (sqr sigma-g)
-	std-dev2 (sqr std-dev)
-	c-max (fn [x]
-		(let [k (- mean-over-n x)
-		      d (* 2 k)
-		      nd (* n d)
-		      k0 (* (- n) nd)
-		      k1 (+ (- variance (* n variance-g)) nd)
+  (let [mean-block (point-estimate mean-estimate)
+	variance-block (point-estimate variance-estimate)
+	std-dev-block (Math/sqrt variance-block)
+	mean-action (/ mean-block n)
+	mean-g-min (/ mean-action 2)
+	sigma-g (min (/ mean-g-min 4) (/ std-dev-block (Math/sqrt n)))
+	variance-g (* sigma-g sigma-g)
+	c-max (fn [t-min]
+		(let [j0 (- mean-action t-min)
+		      k0 (- (* n n j0 j0))
+		      k1 (+ variance-block (- (* n variance-g)) (* n j0 j0))
 		      det (- (* k1 k1) (* 4 variance-g k0))]
-		  (Math/floor (/ (* -2 k0)  (+ k1 (Math/sqrt det))))))
+		  (Math/floor (/ (* -2 k0) (+ k1 (Math/sqrt det))))))
 	var-out (fn [c]
 		  (let [nmc (- n c)]
-		    (* (/ nmc n) (- variance (* nmc variance-g)))))
+		    (* (/ nmc n) (- variance-block (* nmc variance-g)))))
 	min-f (fn [f q r]
 		(min (f q) (f r)))
 	]
-    (/ (min-f var-out 1 (min-f c-max 0 min-g)) variance)))
-
+    (/ (min-f var-out 1 (min-f c-max 0 mean-g-min)) variance-block)))
 
 
 (deftype outlier-count [low-severe low-mild high-mild high-severe]
@@ -581,8 +579,10 @@ class counts, change in compilation time and result of specified function."
 	show-os (or verbose (some #(= :os %) opts))
 	show-runtime (or verbose (some #(= :runtime %) opts))]
     (when show-os
-      (apply println (conj (apply vector (map #(%1 (criterium/os-details))
-					      [:arch :name :version :available-processors]))
+      (apply println
+             (conj
+              (apply vector (map #(%1 (os-details))
+                                 [:arch :name :version :available-processors]))
 			   "cpu(s)")))
     (when show-runtime
       (apply println (map #(%1 (runtime-details)) [:vm-name :vm-version]))
