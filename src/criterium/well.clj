@@ -12,7 +12,7 @@
 
 (ns criterium.well)
 
-;(set! *warn-on-reflection* true)
+;; (set! *warn-on-reflection* true)
 
 ;;; Macros to help convert unsigned algorithm to our implementation with signed integers.
 ;;; unsign is used to convert the [0.5,-0.5] range back onto [1,0]

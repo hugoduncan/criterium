@@ -11,7 +11,7 @@
 
 (ns criterium.stats)
 
-(set! *warn-on-reflection* true)
+;; (set! *warn-on-reflection* true)
 
 ;;; Utilities
 (defn transpose

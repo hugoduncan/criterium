@@ -52,7 +52,7 @@ library that applies many of the same statistical techniques.
   (:require criterium.well)
   (:import (java.lang.management ManagementFactory)))
 
-(set! *warn-on-reflection* true)
+;; (set! *warn-on-reflection* true)
 
 ;; this is taken from clojure.core
 (defmacro add-doc {:private true} [name docstring]

@@ -13,7 +13,7 @@
 (ns criterium.ziggurat
   (:require criterium.well))
 
-(set! *warn-on-reflection* true)
+;; (set! *warn-on-reflection* true)
 
 (def *zignor-c* 128 ) ; "Number of blocks."
 (def *zignor-r* 3.442619855899e0) ; "Start of the right tail" (R * phi(R) + Pr(X>=R)) * sqrt(2\pi)
