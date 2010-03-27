@@ -1,6 +1,6 @@
 (ns criterium.core-test
   (:use [criterium.core] :reload-all)
-  (:use clojure.test)
+  (:use [clojure.test :only [deftest is]])
   (:require criterium.stats
 	    criterium.well))
 
