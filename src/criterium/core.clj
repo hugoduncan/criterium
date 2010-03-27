@@ -512,8 +512,6 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
              :outlier-variance analysis#
              :confidence-interval (:confidence-interval opts#)})))
 
-
-
 (defmacro quick-bench
   "Benchmark an expression. Less rigorous benchmark (higher uncertainty)."
   ([expr & options]
@@ -542,37 +540,62 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
                 :outlier-variance analysis#
                 :confidence-interval (:confidence-interval opts#)}))))
 
-(defn report-estimate [estimate unit significance]
-  (print (point-estimate estimate) unit " "
-         (str (* significance 100) "% CI:")
-         (point-estimate-ci estimate)))
+(defn report
+  "Print format output"
+  [format-string & values]
+  (print (apply format format-string values)))
 
-(defn report-estimate-sqrt [estimate unit significance]
-  (print (Math/sqrt (point-estimate estimate)) unit
-         (str (* significance 100) "% CI:")
-         (map #(Math/sqrt %1) (point-estimate-ci estimate))))
+(defn scale-time
+  "Determine a scale factor and unit for displaying a time."
+  [measurement]
+  (cond
+   (> measurement 60) [(/ 60) "min"]
+   (< measurement 1e-6) [1e9 "ns"]
+   (< measurement 1e-3) [1e6 "us"]
+   (< measurement 1) [1e3 "ms"]
+   :else [1 "sec"]))
+
+(defn format-value [value scale unit]
+  (format "%f %s" (* scale value) unit))
+
+(defn report-estimate [estimate significance]
+  (let [mean (first estimate)
+        [factor unit] (scale-time mean)]
+    (apply
+     report "Execution time mean          : %s  %2.1f%% CI: (%s, %s)\n"
+     (format-value mean factor unit)
+     (* significance 100)
+     (map #(format-value % factor unit) (last estimate)))))
+
+(defn report-estimate-sqrt [estimate significance]
+  (let [mean (Math/sqrt (first estimate))
+	[factor unit] (scale-time mean)]
+    (apply
+     report "Execution time std-deviation : %s  %2.1f%% CI: (%s, %s)\n"
+     (format-value mean factor unit)
+     (* significance 100)
+     (map #(format-value (Math/sqrt %) factor unit) (last estimate)))))
 
 (defn report-outliers [results]
   (let [outliers (:outliers results)
         values (vals outliers)
-        labels {:unaffected  "unaffected"
+        labels {:unaffected "unaffected"
                 :slight "slightly inflated"
                 :moderate "moderately inflated"
                 :severe "severely inflated"}
         sample-count (:sample-count results)
         types ["low-severe" "low-mild" "high-mild" "high-severe"]]
     (when (some pos? values)
-      (let [sum (reduce + values)
-            scount (:sample-count results)]
-        (println
-         (format "\nFound %d outliers in %d samples ( %2.4f %%)"
-                 sum (:sample-count results) (* 100.0 (/ sum scount)))))
+      (let [sum (reduce + values)]
+        (report
+         "\nFound %d outliers in %d samples (%2.4f %%)\n"
+         sum sample-count (* 100.0 (/ sum sample-count))))
       (doseq [[v c] (partition 2 (interleave (filter pos? values) types))]
-        (println (format "\t%s\t %d ( %2.4f %%)" c v (* 100.0 (/ v sample-count)))))
-      (println (format " Variance from outliers : %2.4f %%"
-                       (* (:outlier-variance results) 100.0)))
-      (println (format " Variance is %s by outliers\n"
-                       (-> (:outlier-variance results) outlier-effect labels))))))
+        (report "\t%s\t %d (%2.4f %%)\n" c v (* 100.0 (/ v sample-count))))
+      (report " Variance from outliers : %2.4f %%"
+              (* (:outlier-variance results) 100.0))
+      (report " Variance is %s by outliers\n"
+              (-> (:outlier-variance results) outlier-effect labels)))))
 
 (defn report-result [results & opts]
   (let [verbose (some #(= :verbose %) opts)
@@ -580,24 +603,16 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
         show-runtime (or verbose (some #(= :runtime %) opts))]
     (when show-os
       (apply println
-             (conj
-              (apply vector (map #(%1 (os-details))
-                                 [:arch :name :version :available-processors]))
-                           "cpu(s)")))
+             (->  (map #(%1 (os-details)) [:arch :name :version :available-processors])
+                  vec (conj "cpu(s)"))))
     (when show-runtime
       (apply println (map #(%1 (runtime-details)) [:vm-name :vm-version]))
       (apply println "Runtime arguments:" (:input-arguments (runtime-details)))))
-  (println "Evaluation count        :" (* (:execution-count results)
-                                          (:sample-count results)))
+  (println "Evaluation count             :" (* (:execution-count results)
+                                               (:sample-count results)))
 
-  (print "Execution time mean     : ")
-  (report-estimate (:mean results) "sec" (:confidence-interval results))
-  (println)
-
-  (print "Execution time variance : ")
-  (report-estimate-sqrt (:variance results) "sec" (:confidence-interval results))
-  (println)
-
+  (report-estimate (:mean results) (:confidence-interval results))
+  (report-estimate-sqrt (:variance results) (:confidence-interval results))
   (report-outliers results))
 
 (defmacro bench
