@@ -45,10 +45,10 @@ See http://hackage.haskell.org/package/criterion for a Haskell benchmarking
 library that applies many of the same statistical techniques.
 "
        :see-also [["http://github.com/hugoduncan/criterium" "Source code"]
-		  ["http://hugoduncan.github.com/criterium" "API Documentation"]]}
+                  ["http://hugoduncan.github.com/criterium" "API Documentation"]]}
   criterium.core
   (:use clojure.set
-	criterium.stats)
+        criterium.stats)
   (:require criterium.well)
   (:import (java.lang.management ManagementFactory)))
 
@@ -62,26 +62,26 @@ library that applies many of the same statistical techniques.
 
 (def *final-gc-problem-threshold* 0.01)
 (add-doc *final-gc-problem-threshold*
-	 "Fraction of excution time allowed for final cleanup before a warning is issued.")
+         "Fraction of excution time allowed for final cleanup before a warning is issued.")
 
 (def *s-to-ns* (* 1000 1000 1000)) ; in ns
 (def *ns-to-s* 1e-9) ; in ns
 
 (def *warmup-jit-period* (* 10 *s-to-ns*)) ; in ns
 (add-doc *warmup-jit-period*
-	 "Time period used to let the code run so that jit compiler can do its work.")
+         "Time period used to let the code run so that jit compiler can do its work.")
 
 (def *sample-count* 60)
 (add-doc *sample-count*
-	 "Number of executions required")
+         "Number of executions required")
 
 (def *target-execution-time* (* 1 *s-to-ns*)) ; in ns
 (add-doc *target-execution-time*
-	 "Target elapsed time for execution for a single measurement.")
+         "Target elapsed time for execution for a single measurement.")
 
 (def *max-gc-attempts* 100)
 (add-doc *max-gc-attempts*
-	 "Maximum number of attempts to run finalisers and gc.")
+         "Maximum number of attempts to run finalisers and gc.")
 
 (def *default-benchmark-opts*
      {:max-gc-attempts *max-gc-attempts*
@@ -119,14 +119,14 @@ library that applies many of the same statistical techniques.
 (extend-type ::JvmClassLoaderState
  StateChanged
  (state-changed? [state]
-		(not (and (zero? (:loaded-count state)) (zero? (:unloaded-count state)))))
+                (not (and (zero? (:loaded-count state)) (zero? (:unloaded-count state)))))
  (state-delta [state-1 state-2]
-	      (apply JvmClassLoaderState (map - (vals state-1) (vals state-2)))))
+              (apply JvmClassLoaderState (map - (vals state-1) (vals state-2)))))
 
 (defn jvm-class-loader-state []
   (let [bean (.. ManagementFactory getClassLoadingMXBean)]
     (JvmClassLoaderState (. bean getLoadedClassCount)
-			 (. bean getUnloadedClassCount))))
+                         (. bean getUnloadedClassCount))))
 
 
 (deftype JvmCompilationState [compilation-time]
@@ -135,17 +135,17 @@ library that applies many of the same statistical techniques.
 (extend-type ::JvmCompilationState
  StateChanged
  (state-changed? [state]
-		 (not (zero? (:compilation-time state))))
+                 (not (zero? (:compilation-time state))))
  (state-delta [state-1 state-2]
-	      (apply JvmCompilationState (map - (vals state-1) (vals state-2)))))
+              (apply JvmCompilationState (map - (vals state-1) (vals state-2)))))
 
 (defn jvm-compilation-state
   "Returns the total compilation time for the JVM instance."
   []
   (let [bean (.. ManagementFactory getCompilationMXBean)]
     (JvmCompilationState (if (. bean isCompilationTimeMonitoringSupported)
-			   (. bean getTotalCompilationTime)
-			   -1))))
+                           (. bean getTotalCompilationTime)
+                           -1))))
 
 (defn jvm-jit-name
   "Returns the name of the JIT compiler."
@@ -194,7 +194,7 @@ library that applies many of the same statistical techniques.
   (condp #(re-find %1 %2) (.. System getProperties (getProperty "os.name"))
     #"Mac" (clear-cache-mac)
     :else (println "WARNING: don't know how to clear disk buffer cache for "
-		   (.. System getProperties (getProperty "os.name")))))
+                   (.. System getProperties (getProperty "os.name")))))
 
 ;;; Time reporting
 (defn timestamp
@@ -213,25 +213,25 @@ library that applies many of the same statistical techniques.
   "Returns a vector containing execution time and result of specified function."
   ([expr pre]
      `(do ~pre
-	  (time-body ~expr)))
+          (time-body ~expr)))
   ([expr]
      `(let [start# (timestamp)
-	    ret# ~expr
-	    finish# (timestamp)]
-	[(- finish# start#) ret#])))
+            ret# ~expr
+            finish# (timestamp)]
+        [(- finish# start#) ret#])))
 
 (defmacro time-body-with-jvm-state
   "Returns a vector containing execution time, change in loaded and unloaded
 class counts, change in compilation time and result of specified function."
   ([expr pre]
      `(do ~pre
-	  (time-body-with-jvm-state ~expr)))
+          (time-body-with-jvm-state ~expr)))
   ([expr]
   `(let [cl-state# (jvm-class-loader-state)
-	 comp-state# (jvm-compilation-state)
-	 start# (timestamp)
-	 ret# ~expr
-	 finish# (timestamp)]
+         comp-state# (jvm-compilation-state)
+         start# (timestamp)
+         ret# ~expr
+         finish# (timestamp)]
      [(- finish# start#)
       (merge-with - cl-state# (jvm-class-loader-state))
       (merge-with - comp-state# (jvm-compilation-state))
@@ -260,14 +260,14 @@ class counts, change in compilation time and result of specified function."
   ([max-attempts]
      (progress "Cleaning JVM allocations ...")
      (loop [memory-used (heap-used)
-	    attempts 0]
+            attempts 0]
        (System/runFinalization)
        (System/gc)
        (let [new-memory-used (heap-used)]
-	 (if (and (or (pos? (.. ManagementFactory getMemoryMXBean getObjectPendingFinalizationCount))
-		      (> memory-used new-memory-used))
-		  (< attempts max-attempts))
-	   (recur new-memory-used (inc attempts)))))))
+         (if (and (or (pos? (.. ManagementFactory getMemoryMXBean getObjectPendingFinalizationCount))
+                      (> memory-used new-memory-used))
+                  (< attempts max-attempts))
+           (recur new-memory-used (inc attempts)))))))
 
 (defn final-gc
   "Time a final clean up of JVM memory. If this time is significant compared to
@@ -275,7 +275,7 @@ class counts, change in compilation time and result of specified function."
   [execution-time]
   (progress "Checking GC...")
   (let [cleanup-time (first (time-body (force-gc)))
-	fractional-time (/ cleanup-time execution-time)]
+        fractional-time (/ cleanup-time execution-time)]
     [(> fractional-time *final-gc-problem-threshold*) fractional-time cleanup-time]))
 
 (defn final-gc-warn [final-gc-result]
@@ -291,8 +291,8 @@ class counts, change in compilation time and result of specified function."
      (progress "Warming up for JIT ...")
      (loop [elapsed# 0 count# 0]
        (if (> elapsed# ~warmup-period)
-	 [elapsed# count#]
-	 (recur (+ elapsed# (first (time-body ~expr))) (inc count#))))))
+         [elapsed# count#]
+         (recur (+ elapsed# (first (time-body ~expr))) (inc count#))))))
 
 ;;; Execution parameters
 (defmacro estimate-execution-count
@@ -304,16 +304,16 @@ class counts, change in compilation time and result of specified function."
      (progress "Estimating execution count ...")
      (loop [n# 1 cl-state# (jvm-class-loader-state) comp-state# (jvm-compilation-state)]
        (let [t# (first (time-body (dotimes [_# n#] ~expr)))
-	     new-cl-state# (jvm-class-loader-state)
-	     new-comp-state# (jvm-compilation-state)]
-	 (if (and (>= t# period#)
-		  (= cl-state# new-cl-state#)
-		  (= comp-state# new-comp-state#))
-	   n#
-	   (recur (if (>= t# period#)
-		    n#
-		    (min (* 2 n#) (inc (int (* n# (/ period# t#))))))
-		  new-cl-state# new-comp-state#))))))
+             new-cl-state# (jvm-class-loader-state)
+             new-comp-state# (jvm-compilation-state)]
+         (if (and (>= t# period#)
+                  (= cl-state# new-cl-state#)
+                  (= comp-state# new-comp-state#))
+           n#
+           (recur (if (>= t# period#)
+                    n#
+                    (min (* 2 n#) (inc (int (* n# (/ period# t#))))))
+                  new-cl-state# new-comp-state#))))))
 
 
 
@@ -327,7 +327,7 @@ class counts, change in compilation time and result of specified function."
 
 (defmacro collect-samples [sample-count execution-count expr]
   `(let [sample-count# ~sample-count
-	 n-exec# ~execution-count]
+         n-exec# ~execution-count]
      (progress "Running ...")
      (map (execute-expr n-exec# ~expr) (range 0 sample-count#))))
 
@@ -338,22 +338,22 @@ class counts, change in compilation time and result of specified function."
    longer running expressions."
   [iterations warmup-jit-period target-execution-time expr pre-expr]
   `(let [sample-count# ~iterations
-	 warmup-jit-period# ~warmup-jit-period
-	 target-execution-time# ~target-execution-time]
+         warmup-jit-period# ~warmup-jit-period
+         target-execution-time# ~target-execution-time]
      (force-gc)
      (let [first-execution# (time-body ~expr)]
        (warmup-for-jit warmup-jit-period# ~expr)
        (let [n-exec# (estimate-execution-count target-execution-time# ~expr)
-	     samples# (collect-samples sample-count# n-exec# ~expr)
-	     sample-times# (map first samples#)
-	     total# (reduce + 0 sample-times#)
-	     final-gc-result# (final-gc-warn (final-gc total#))
-	     ]
-	 {:execution-count n-exec#
-	  :sample-count sample-count#
-	  :samples sample-times#
-	  :results (map second samples#)
-	  :total-time (/ total# 1e9)})))) ;; :average-time (/ total# sample-count# n-exec# 1e9)
+             samples# (collect-samples sample-count# n-exec# ~expr)
+             sample-times# (map first samples#)
+             total# (reduce + 0 sample-times#)
+             final-gc-result# (final-gc-warn (final-gc total#))
+             ]
+         {:execution-count n-exec#
+          :sample-count sample-count#
+          :samples sample-times#
+          :results (map second samples#)
+          :total-time (/ total# 1e9)})))) ;; :average-time (/ total# sample-count# n-exec# 1e9)
 
 
 
@@ -375,7 +375,7 @@ class counts, change in compilation time and result of specified function."
   [data statistic size rng-factory]
   (progress "Bootstrapping ...")
   (let [samples (bootstrap-sample data statistic size rng-factory)
-	transpose (fn [data] (apply map vector data))]
+        transpose (fn [data] (apply map vector data))]
     (if (vector? (first samples))
       (map bootstrap-estimate samples)
       (bootstrap-estimate samples))))
@@ -405,24 +405,24 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
   [mean-estimate variance-estimate n]
   (progress "Checking outlier significance")
   (let [mean-block (point-estimate mean-estimate)
-	variance-block (point-estimate variance-estimate)
-	std-dev-block (Math/sqrt variance-block)
-	mean-action (/ mean-block n)
-	mean-g-min (/ mean-action 2)
-	sigma-g (min (/ mean-g-min 4) (/ std-dev-block (Math/sqrt n)))
-	variance-g (* sigma-g sigma-g)
-	c-max (fn [t-min]
-		(let [j0 (- mean-action t-min)
-		      k0 (- (* n n j0 j0))
-		      k1 (+ variance-block (- (* n variance-g)) (* n j0 j0))
-		      det (- (* k1 k1) (* 4 variance-g k0))]
-		  (Math/floor (/ (* -2 k0) (+ k1 (Math/sqrt det))))))
-	var-out (fn [c]
-		  (let [nmc (- n c)]
-		    (* (/ nmc n) (- variance-block (* nmc variance-g)))))
-	min-f (fn [f q r]
-		(min (f q) (f r)))
-	]
+        variance-block (point-estimate variance-estimate)
+        std-dev-block (Math/sqrt variance-block)
+        mean-action (/ mean-block n)
+        mean-g-min (/ mean-action 2)
+        sigma-g (min (/ mean-g-min 4) (/ std-dev-block (Math/sqrt n)))
+        variance-g (* sigma-g sigma-g)
+        c-max (fn [t-min]
+                (let [j0 (- mean-action t-min)
+                      k0 (- (* n n j0 j0))
+                      k1 (+ variance-block (- (* n variance-g)) (* n j0 j0))
+                      det (- (* k1 k1) (* 4 variance-g k0))]
+                  (Math/floor (/ (* -2 k0) (+ k1 (Math/sqrt det))))))
+        var-out (fn [c]
+                  (let [nmc (- n c)]
+                    (* (/ nmc n) (- variance-block (* nmc variance-g)))))
+        min-f (fn [f q r]
+                (min (f q) (f r)))
+        ]
     (/ (min-f var-out 1 (min-f c-max 0 mean-g-min)) variance-block)))
 
 
@@ -450,10 +450,10 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
   [data]
   (progress "Finding outliers ...")
   (reduce (apply partial add-outlier
-		 (apply boxplot-outlier-thresholds
-			((juxt first last) (quartiles (sort data)))))
-	  (outlier-count 0 0 0 0)
-	  data))
+                 (apply boxplot-outlier-thresholds
+                        ((juxt first last) (quartiles (sort data)))))
+          (outlier-count 0 0 0 0)
+          data))
 
 ;;; options
 (defn extract-report-options
@@ -462,17 +462,17 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
   options"
   [opts]
   (let [known-options #{:os :runtime :verbose}
-	option-set (set opts)]
+        option-set (set opts)]
     [(intersection known-options option-set)
      (remove #(contains? known-options %1) opts)]))
 
 (defn add-default-options [options defaults]
   (let [time-periods #{:warmup-jit-period :target-execution-time}]
     (merge defaults
-	   (into {} (map #(if (contains? time-periods (first %1))
-			    [(first %1) (* (second %1) *s-to-ns*)]
-			    %1)
-			 options)))))
+           (into {} (map #(if (contains? time-periods (first %1))
+                            [(first %1) (* (second %1) *s-to-ns*)]
+                            %1)
+                         options)))))
 
 ;;; User top level functions
 (defmacro with-progress-reporting
@@ -488,29 +488,29 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
    longer running expressions."
   [expr & options]
   `(let [options# (vector ~@options)
-	 opts# (add-default-options
-		(if (empty? options#) {} (apply assoc {} options#))
-		*default-benchmark-opts*)
-	 times# (run-benchmark (:samples opts#)
-			       (:warmup-jit-period opts#)
-			       (:target-execution-time opts#)
-			       ~expr
-			       (:pre opts#))
-	 outliers# (outliers (:samples times#))
-	 ci# (/ (:confidence-interval opts#) 2)
-	 stats# (bootstrap-bca (:samples times#) (juxt mean variance)
-			       1000 [0.5 ci# (- 1 ci#)]
-			       criterium.well/well-rng-1024a)
-	 analysis# (outlier-significance (first stats#) (second stats#)
-					 (:sample-count times#))]
+         opts# (add-default-options
+                (if (empty? options#) {} (apply assoc {} options#))
+                *default-benchmark-opts*)
+         times# (run-benchmark (:samples opts#)
+                               (:warmup-jit-period opts#)
+                               (:target-execution-time opts#)
+                               ~expr
+                               (:pre opts#))
+         outliers# (outliers (:samples times#))
+         ci# (/ (:confidence-interval opts#) 2)
+         stats# (bootstrap-bca (:samples times#) (juxt mean variance)
+                               1000 [0.5 ci# (- 1 ci#)]
+                               criterium.well/well-rng-1024a)
+         analysis# (outlier-significance (first stats#) (second stats#)
+                                         (:sample-count times#))]
      (merge times#
-	    {:outliers outliers#
-	     :mean (scale-bootstrap-estimate
-		    (first stats#) (/ 1e-9 (:execution-count times#)))
-	     :variance (scale-bootstrap-estimate
-			(second stats#) (/ 1e-18 (:execution-count times#)))
-	     :outlier-variance analysis#
-	     :confidence-interval (:confidence-interval opts#)})))
+            {:outliers outliers#
+             :mean (scale-bootstrap-estimate
+                    (first stats#) (/ 1e-9 (:execution-count times#)))
+             :variance (scale-bootstrap-estimate
+                        (second stats#) (/ 1e-18 (:execution-count times#)))
+             :outlier-variance analysis#
+             :confidence-interval (:confidence-interval opts#)})))
 
 
 
@@ -518,79 +518,79 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
   "Benchmark an expression. Less rigorous benchmark (higher uncertainty)."
   ([expr & options]
      `(let [options# (vector ~@options)
-	    opts# (add-default-options
-		   (if (empty? options#) {} (apply assoc {} options#))
-		   *default-quick-bench-opts*)
-	    times# (run-benchmark (:samples opts#)
-				  (:warmup-jit-period opts#)
-				  (:target-execution-time opts#)
-				  ~expr
-				  (:pre opts#))
-	    outliers# (outliers (:samples times#))
-	    ci# (/ (:confidence-interval opts#) 2)
-	    stats# (bootstrap-bca (:samples times#) (juxt mean variance)
-				  500 [0.5 ci# (- 1 ci#)]
-				  criterium.well/well-rng-1024a)
-	    analysis# (outlier-significance (first stats#) (second stats#)
-					 (:sample-count times#))]
-	(merge times#
-	       {:outliers outliers#
-		:mean (scale-bootstrap-estimate
-		       (first stats#) (/ 1e-9 (:execution-count times#)))
-		:variance (scale-bootstrap-estimate
-			   (second stats#) (/ 1e-18 (:execution-count times#)))
-		:outlier-variance analysis#
-		:confidence-interval (:confidence-interval opts#)}))))
+            opts# (add-default-options
+                   (if (empty? options#) {} (apply assoc {} options#))
+                   *default-quick-bench-opts*)
+            times# (run-benchmark (:samples opts#)
+                                  (:warmup-jit-period opts#)
+                                  (:target-execution-time opts#)
+                                  ~expr
+                                  (:pre opts#))
+            outliers# (outliers (:samples times#))
+            ci# (/ (:confidence-interval opts#) 2)
+            stats# (bootstrap-bca (:samples times#) (juxt mean variance)
+                                  500 [0.5 ci# (- 1 ci#)]
+                                  criterium.well/well-rng-1024a)
+            analysis# (outlier-significance (first stats#) (second stats#)
+                                         (:sample-count times#))]
+        (merge times#
+               {:outliers outliers#
+                :mean (scale-bootstrap-estimate
+                       (first stats#) (/ 1e-9 (:execution-count times#)))
+                :variance (scale-bootstrap-estimate
+                           (second stats#) (/ 1e-18 (:execution-count times#)))
+                :outlier-variance analysis#
+                :confidence-interval (:confidence-interval opts#)}))))
 
 (defn report-estimate [estimate unit significance]
   (print (point-estimate estimate) unit " "
-	 (str (* significance 100) "% CI:")
-	 (point-estimate-ci estimate)))
+         (str (* significance 100) "% CI:")
+         (point-estimate-ci estimate)))
 
 (defn report-estimate-sqrt [estimate unit significance]
   (print (Math/sqrt (point-estimate estimate)) unit
-	 (str (* significance 100) "% CI:")
-	 (map #(Math/sqrt %1) (point-estimate-ci estimate))))
+         (str (* significance 100) "% CI:")
+         (map #(Math/sqrt %1) (point-estimate-ci estimate))))
 
 (defn report-outliers [results]
   (let [outliers (:outliers results)
-	values (vals outliers)
-	labels {:unaffected  "unaffected"
-		:slight "slightly inflated"
-		:moderate "moderately inflated"
-		:severe "severely inflated"}
-	sample-count (:sample-count results)]
+        values (vals outliers)
+        labels {:unaffected  "unaffected"
+                :slight "slightly inflated"
+                :moderate "moderately inflated"
+                :severe "severely inflated"}
+        sample-count (:sample-count results)
+        types ["low-severe" "low-mild" "high-mild" "high-severe"]]
     (when (some pos? values)
-      (println "Found" (reduce + values) "outliers in"
-	       (:sample-count results) " samples ("
-	       (* 100.0 (/ (reduce + values) (:sample-count results))) "%)")
-    (dorun
-     (map #(when (pos? %1)
-	     (println " " %2 ":" %1 "(" (* 100.0 (/ %1 sample-count)) "%)"))
-	  values
-	  ["low-severe" "low-mild" "high-mild" "high-severe"]))
-
-    (println " variance introduced by outliers:" (* (:outlier-variance results) 100.0) "%")
-    (println " variance is" ((outlier-effect (:outlier-variance results)) labels) "by outliers")
-    (println))))
+      (let [sum (reduce + values)
+            scount (:sample-count results)]
+        (println
+         (format "\nFound %d outliers in %d samples ( %2.4f %%)"
+                 sum (:sample-count results) (* 100.0 (/ sum scount)))))
+      (doseq [[v c] (partition 2 (interleave (filter pos? values) types))]
+        (println (format "\t%s\t %d ( %2.4f %%)" c v (* 100.0 (/ v sample-count)))))
+      (println (format " Variance from outliers : %2.4f %%"
+                       (* (:outlier-variance results) 100.0)))
+      (println (format " Variance is %s by outliers\n"
+                       (-> (:outlier-variance results) outlier-effect labels))))))
 
 (defn report-result [results & opts]
   (let [verbose (some #(= :verbose %) opts)
-	show-os (or verbose (some #(= :os %) opts))
-	show-runtime (or verbose (some #(= :runtime %) opts))]
+        show-os (or verbose (some #(= :os %) opts))
+        show-runtime (or verbose (some #(= :runtime %) opts))]
     (when show-os
       (apply println
              (conj
               (apply vector (map #(%1 (os-details))
                                  [:arch :name :version :available-processors]))
-			   "cpu(s)")))
+                           "cpu(s)")))
     (when show-runtime
       (apply println (map #(%1 (runtime-details)) [:vm-name :vm-version]))
       (apply println "Runtime arguments:" (:input-arguments (runtime-details)))))
-  (println "# evaluations :" (* (:execution-count results)
-				(:sample-count results)))
+  (println "Evaluation count        :" (* (:execution-count results)
+                                          (:sample-count results)))
 
-  (print "Execution time mean : ")
+  (print "Execution time mean     : ")
   (report-estimate (:mean results) "sec" (:confidence-interval results))
   (println)
 
