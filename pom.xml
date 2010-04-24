@@ -9,13 +9,21 @@
   <scm>
     <connection>scm:git:git://github.com/hugoduncan/criterium.git</connection>
     <developerConnection>scm:git:ssh://git@github.com/hugoduncan/criterium.git</developerConnection>
-    <tag>e33c29ffb279c7550a96f29b5c98ba7c389e263d</tag>
+    <tag>dde658aefcfa6a3a451d368cdec0713c719267d7</tag>
     <url>http://github.com/hugoduncan/criterium</url>
   </scm>
+  <build>
+    <sourceDirectory>src</sourceDirectory>
+    <testSourceDirectory>test</testSourceDirectory>
+  </build>
   <repositories>
     <repository>
       <id>central</id>
       <url>http://repo1.maven.org/maven2</url>
+    </repository>
+    <repository>
+      <id>clojure</id>
+      <url>http://build.clojure.org/releases</url>
     </repository>
     <repository>
       <id>clojure-snapshots</id>

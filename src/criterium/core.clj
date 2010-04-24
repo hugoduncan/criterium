@@ -16,7 +16,10 @@
 ;;;; Unlike java solutions, this can benchmark general expressions rather than just functions.
 
 (ns #^{:author "Hugo Duncan"
-       :doc "Criterium measures the computation time of an expression.  It is
+       :see-also [["http://github.com/hugoduncan/criterium" "Source code"]
+                  ["http://hugoduncan.github.com/criterium" "API Documentation"]]}
+  criterium.core
+  "Criterium measures the computation time of an expression.  It is
 designed to address some of the pitfalls of benchmarking, and benchmarking on
 the JVM in particular.
 
@@ -43,11 +46,7 @@ benchmarking pitfalls.
 
 See http://hackage.haskell.org/package/criterion for a Haskell benchmarking
 library that applies many of the same statistical techniques.
-"
-       :see-also [["http://github.com/hugoduncan/criterium" "Source code"]
-                  ["http://hugoduncan.github.com/criterium" "API Documentation"]]}
-  criterium.core
-  (:use clojure.set
+"  (:use clojure.set
         criterium.stats)
   (:require criterium.well)
   (:import (java.lang.management ManagementFactory)))
@@ -110,42 +109,46 @@ library that applies many of the same statistical techniques.
 ;;; Java Management interface
 (defprotocol StateChanged
   "Interrogation of differences in a state."
-  (state-changed? [state] "Check to see if a state delta represents no change")
-  (state-delta [state-1 state-2] "Return a state object for the difference between two states"))
+  (state-changed?
+   [state]
+   "Check to see if a state delta represents no change")
+  (state-delta
+   [state-1 state-2]
+   "Return a state object for the difference between two states"))
 
-(deftype JvmClassLoaderState [loaded-count unloaded-count]
-  clojure.lang.IPersistentMap)
-
-(extend-type ::JvmClassLoaderState
- StateChanged
- (state-changed? [state]
-                (not (and (zero? (:loaded-count state)) (zero? (:unloaded-count state)))))
- (state-delta [state-1 state-2]
-              (apply JvmClassLoaderState (map - (vals state-1) (vals state-2)))))
+(defrecord JvmClassLoaderState [loaded-count unloaded-count]
+  StateChanged
+  (state-changed?
+   [state]
+   (not (and (zero? (:loaded-count state)) (zero? (:unloaded-count state)))))
+  (state-delta
+   [state-1 state-2]
+   (let [vals (map - (vals state-1) (vals state-2))]
+     (JvmClassLoaderState. (first vals) (second)))))
 
 (defn jvm-class-loader-state []
   (let [bean (.. ManagementFactory getClassLoadingMXBean)]
-    (JvmClassLoaderState (. bean getLoadedClassCount)
-                         (. bean getUnloadedClassCount))))
+    (JvmClassLoaderState. (. bean getLoadedClassCount)
+                          (. bean getUnloadedClassCount))))
 
 
-(deftype JvmCompilationState [compilation-time]
-  clojure.lang.IPersistentMap)
-
-(extend-type ::JvmCompilationState
- StateChanged
- (state-changed? [state]
-                 (not (zero? (:compilation-time state))))
- (state-delta [state-1 state-2]
-              (apply JvmCompilationState (map - (vals state-1) (vals state-2)))))
+(defrecord JvmCompilationState [compilation-time]
+  StateChanged
+  (state-changed?
+   [state]
+   (not (zero? (:compilation-time state))))
+  (state-delta
+   [state-1 state-2]
+   (let [vals (map - (vals state-1) (vals state-2))]
+     (JvmCompilationState. (first vals)))))
 
 (defn jvm-compilation-state
   "Returns the total compilation time for the JVM instance."
   []
   (let [bean (.. ManagementFactory getCompilationMXBean)]
-    (JvmCompilationState (if (. bean isCompilationTimeMonitoringSupported)
-                           (. bean getTotalCompilationTime)
-                           -1))))
+    (JvmCompilationState. (if (. bean isCompilationTimeMonitoringSupported)
+                            (. bean getTotalCompilationTime)
+                            -1))))
 
 (defn jvm-jit-name
   "Returns the name of the JIT compiler."
@@ -426,8 +429,11 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
     (/ (min-f var-out 1 (min-f c-max 0 mean-g-min)) variance-block)))
 
 
-(deftype outlier-count [low-severe low-mild high-mild high-severe]
-  clojure.lang.IPersistentMap)
+(defrecord OutlierCount [low-severe low-mild high-mild high-severe])
+
+(defn outlier-count
+  [low-severe low-mild high-mild high-severe]
+  (OutlierCount. low-severe low-mild high-mild high-severe))
 
 
 (defn add-outlier [low-severe low-mild high-mild high-severe counts x]
