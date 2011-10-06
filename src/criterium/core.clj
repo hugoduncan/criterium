@@ -54,7 +54,7 @@ library that applies many of the same statistical techniques."
   (:require criterium.well)
   (:import (java.lang.management ManagementFactory)))
 
-(def *use-mxbean-for-times* nil)
+(def ^{:dynamic true} *use-mxbean-for-times* nil)
 
 (def ^{:doc "Fraction of excution time allowed for final cleanup before a
              warning is issued."

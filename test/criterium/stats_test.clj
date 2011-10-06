@@ -4,8 +4,8 @@
   (:require criterium.well))
 
 (deftest mean-test
-  (is (= 1.0 (mean (take 20 (repeatedly (constantly 1))))))
-  (is (= 3.0 (mean (range 0 7)))))
+  (is (= 1 (mean (take 20 (repeatedly (constantly 1))))))
+  (is (= 3 (mean (range 0 7)))))
 
 (deftest sum-test
   (is (= 20 (sum (take 20 (repeatedly (constantly 1))))))
@@ -36,7 +36,7 @@
   (is (= [-4.0 -1.0 7.0 10.0] (boxplot-outlier-thresholds 2.0 4.0))))
 
 (deftest bootstrap-estimate-test
-  (is (= [1.0 0.0 [1.0 1.0]]
+  (is (= [1 0.0 [1.0 1.0]]
          (bootstrap-estimate (take 20 (repeatedly (constantly 1)))))))
 
 (deftest bootstrap-estimate-scale-test

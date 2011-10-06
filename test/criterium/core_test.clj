@@ -34,12 +34,12 @@
           67108864))))
 
 (deftest bootstrap-test
-  (is (= [1 0 [1.0 1.0]]
+  (is (= [1 0.0 [1.0 1.0]]
          (bootstrap (take 20 (repeatedly (constantly 1)))
                     criterium.stats/mean
                     100
                     criterium.well/well-rng-1024a)))
-  (is (=  [ [1 0 [1.0 1.0]] [0 0 [0.0 0.0]]]
+  (is (=  [ [1 0.0 [1.0 1.0]] [0.0 0.0 [0.0 0.0]]]
           (bootstrap (take 20 (repeatedly (constantly 1)))
                      (juxt criterium.stats/mean criterium.stats/variance)
                      100
