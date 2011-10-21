@@ -59,10 +59,6 @@ library that applies many of the same statistical techniques.
 The library can be installed through
 [Leiningen](http://github.com/technomancy/leiningen) or through maven.
 
-Alternatively, the source code can be compiled into a jar with leiningen.
-
-    lein jar
-
 ## Todo
 
 Serial correlation detection.
