@@ -2,6 +2,7 @@
   :description "Benchmarking library"
   :url "http://github.com/hugoduncan/criterium"
   :dependencies [[org.clojure/clojure "1.3.0"]]
+  :local-repo-classpath true
   :autodoc {:name "Criterium"
             :description "A benchmarking library."
             :copyright "Copyright Hugo Duncan 2010, 2011. All rights reserved."
