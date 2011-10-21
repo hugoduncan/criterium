@@ -21,17 +21,26 @@ The top level interface is in `criterium.core`.
 
 Use `bench` to run a benchmark in a simple manner.
 
-    (bench (Thread/sleep 1000) :verbose)
+    (bench (Thread/sleep 1000) :verbose true)
 
 By default bench is quiet about its progress.  Run `with-progress-reporting` to
 get progress information on *out*.
 
-    (with-progress-reporting (bench (Thread/sleep 1000) :verbose))
+    (with-progress-reporting (bench (Thread/sleep 1000) :verbose true))
+    (with-progress-reporting (quick-bench (Thread/sleep 1000) :verbose))
 
 Lower level functions are available.
 
-    (report-result (benchmark (Thread/sleep 1000)) :verbose)
+    (report-result (benchmark (Thread/sleep 1000)) :verbose true)
     (report-result (quick-bench (Thread/sleep 1000)))
+
+Note that results are returned to the user to prevent JIT from recognising that
+the results are not used. For functions that are very fast, or return a lot of
+data, you may need to supply a function to reduce the results to prevent
+excessive memory allocation.
+
+    (bench (rand) :reduce-with +)
+
 
 ## References
 
@@ -49,10 +58,6 @@ library that applies many of the same statistical techniques.
 
 The library can be installed through
 [Leiningen](http://github.com/technomancy/leiningen) or through maven.
-
-Alternatively, the source code can be compiled into a jar with leiningen.
-
-    lein jar
 
 ## Todo
 

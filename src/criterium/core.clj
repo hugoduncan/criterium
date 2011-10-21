@@ -10,14 +10,17 @@
 
 ;;;; Criterium - measures expression computation time over multiple invocations
 
-;;;; Inspired by Brent Broyer's http://www.ellipticgroup.com/html/benchmarkingArticle.html
+;;;; Inspired by Brent Broyer's
+;;;; http://www.ellipticgroup.com/html/benchmarkingArticle.html
 ;;;; and also Haskell's Criterion
 
-;;;; Unlike java solutions, this can benchmark general expressions rather than just functions.
+;;;; Unlike java solutions, this can benchmark general expressions rather than
+;;;; just functions.
 
-(ns #^{:author "Hugo Duncan"
-       :see-also [["http://github.com/hugoduncan/criterium" "Source code"]
-                  ["http://hugoduncan.github.com/criterium" "API Documentation"]]}
+(ns ^{:author "Hugo Duncan"
+      :see-also
+      [["http://github.com/hugoduncan/criterium" "Source code"]
+       ["http://hugoduncan.github.com/criterium" "API Documentation"]]}
   criterium.core
   "Criterium measures the computation time of an expression.  It is
 designed to address some of the pitfalls of benchmarking, and benchmarking on
@@ -45,59 +48,58 @@ benchmarking library.  The accompanying article describes many of the JVM
 benchmarking pitfalls.
 
 See http://hackage.haskell.org/package/criterion for a Haskell benchmarking
-library that applies many of the same statistical techniques.
-"  (:use clojure.set
-        criterium.stats)
+library that applies many of the same statistical techniques."
+  (:use clojure.set
+         criterium.stats)
   (:require criterium.well)
   (:import (java.lang.management ManagementFactory)))
 
-;; (set! *warn-on-reflection* true)
+(def ^{:dynamic true} *use-mxbean-for-times* nil)
 
-;; this is taken from clojure.core
-(defmacro add-doc {:private true} [name docstring]
-  `(alter-meta! (var ~name)  assoc :doc ~docstring))
+(def ^{:doc "Fraction of excution time allowed for final cleanup before a
+             warning is issued."
+       :dynamic true}
+  *final-gc-problem-threshold* 0.01)
 
-(def *use-mxbean-for-times* nil)
+(def s-to-ns (* 1000 1000 1000)) ; in ns
+(def ns-to-s 1e-9) ; in ns
 
-(def *final-gc-problem-threshold* 0.01)
-(add-doc *final-gc-problem-threshold*
-         "Fraction of excution time allowed for final cleanup before a warning is issued.")
+(def ^{:doc "Time period used to let the code run so that jit compiler can do
+             its work."
+       :dynamic true}
+  *warmup-jit-period* (* 10 s-to-ns)) ; in ns
 
-(def *s-to-ns* (* 1000 1000 1000)) ; in ns
-(def *ns-to-s* 1e-9) ; in ns
+(def ^{:doc "Number of executions required"
+       :dynamic true} *sample-count* 60)
 
-(def *warmup-jit-period* (* 10 *s-to-ns*)) ; in ns
-(add-doc *warmup-jit-period*
-         "Time period used to let the code run so that jit compiler can do its work.")
+(def ^{:doc "Target elapsed time for execution for a single measurement."
+       :dynamic true}
+  *target-execution-time* (* 1 s-to-ns)) ; in ns
 
-(def *sample-count* 60)
-(add-doc *sample-count*
-         "Number of executions required")
+(def ^{:doc "Maximum number of attempts to run finalisers and gc."
+       :dynamic true}
+  *max-gc-attempts* 100)
 
-(def *target-execution-time* (* 1 *s-to-ns*)) ; in ns
-(add-doc *target-execution-time*
-         "Target elapsed time for execution for a single measurement.")
+(def ^{:dynamic true}
+  *default-benchmark-opts*
+  {:max-gc-attempts *max-gc-attempts*
+   :samples *sample-count*
+   :target-execution-time *target-execution-time*
+   :warmup-jit-period *warmup-jit-period*
+   :confidence-interval 0.95
+   :bootstrap-size 1000})
 
-(def *max-gc-attempts* 100)
-(add-doc *max-gc-attempts*
-         "Maximum number of attempts to run finalisers and gc.")
-
-(def *default-benchmark-opts*
-     {:max-gc-attempts *max-gc-attempts*
-      :samples *sample-count*
-      :target-execution-time *target-execution-time*
-      :warmup-jit-period *warmup-jit-period*
-      :confidence-interval 0.95})
-
-(def *default-quick-bench-opts*
-     {:max-gc-attempts *max-gc-attempts*
-      :samples (/ *sample-count* 10)
-      :target-execution-time (/ *target-execution-time*)
-      :warmup-jit-period *warmup-jit-period*
-      :confidence-interval 0.95})
+(def ^{:dynamic true}
+  *default-quick-bench-opts*
+  {:max-gc-attempts *max-gc-attempts*
+   :samples (/ *sample-count* 10)
+   :target-execution-time (/ *target-execution-time* 10)
+   :warmup-jit-period (/ *warmup-jit-period* 2)
+   :confidence-interval 0.95
+   :bootstrap-size 500})
 
 ;;; Progress reporting
-(def *report-progress* nil)
+(def ^{:dynamic true} *report-progress* nil)
 
 (defn #^{:skip-wiki true}
   progress
@@ -267,7 +269,9 @@ class counts, change in compilation time and result of specified function."
        (System/runFinalization)
        (System/gc)
        (let [new-memory-used (heap-used)]
-         (if (and (or (pos? (.. ManagementFactory getMemoryMXBean getObjectPendingFinalizationCount))
+         (if (and (or (pos? (.. ManagementFactory
+                                getMemoryMXBean
+                                getObjectPendingFinalizationCount))
                       (> memory-used new-memory-used))
                   (< attempts max-attempts))
            (recur new-memory-used (inc attempts)))))))
@@ -279,85 +283,93 @@ class counts, change in compilation time and result of specified function."
   (progress "Checking GC...")
   (let [cleanup-time (first (time-body (force-gc)))
         fractional-time (/ cleanup-time execution-time)]
-    [(> fractional-time *final-gc-problem-threshold*) fractional-time cleanup-time]))
+    [(> fractional-time *final-gc-problem-threshold*)
+     fractional-time
+     cleanup-time]))
 
 (defn final-gc-warn [final-gc-result]
   (when (first final-gc-result)
-    (println "WARNING: Final GC required" (* 100.0 (second final-gc-result)) "% of runtime"))
+    (println
+     "WARNING: Final GC required"
+     (* 100.0 (second final-gc-result))
+     "% of runtime"))
   final-gc-result)
 
+;;; Execution
+(defn execute-expr
+  "A function to execute a function the given number of times, timing the
+  complete execution."
+  [n f reduce-with]
+  (if reduce-with
+    (time-body (loop [i (dec n) v (f)]
+                 (if (pos? i)
+                   (recur (dec i) (reduce-with v (f)))
+                   v)))
+    (time-body (doall (for [_ (range 0 n)] (f))))))
+
+(defn collect-samples
+  [sample-count execution-count f reduce-with]
+  (for [_ (range 0 sample-count)]
+    (execute-expr execution-count f reduce-with)))
+
 ;;; Compilation
-(defmacro warmup-for-jit
+(defn warmup-for-jit
   "Run expression for the given amount of time to enable JIT compilation."
-  [warmup-period expr]
-  `(do
-     (progress "Warming up for JIT ...")
-     (loop [elapsed# 0 count# 0]
-       (if (> elapsed# ~warmup-period)
-         [elapsed# count#]
-         (recur (+ elapsed# (first (time-body ~expr))) (inc count#))))))
+  [warmup-period f]
+  (progress "Warming up for JIT optimisations ...")
+  (loop [elapsed 0 count 0]
+    (if (> elapsed warmup-period)
+      [elapsed count]
+      (recur (+ elapsed (first (time-body (f)))) (inc count)))))
 
 ;;; Execution parameters
-(defmacro estimate-execution-count
+(defn estimate-execution-count
   "Estimate the number of executions required in order to have at least the
    specified execution period, check for the jvm to have constant class loader
    and compilation state."
-  [execution-period expr]
-  `(let [period# ~execution-period]
-     (progress "Estimating execution count ...")
-     (loop [n# 1 cl-state# (jvm-class-loader-state) comp-state# (jvm-compilation-state)]
-       (let [t# (first (time-body (dotimes [_# n#] ~expr)))
-             new-cl-state# (jvm-class-loader-state)
-             new-comp-state# (jvm-compilation-state)]
-         (if (and (>= t# period#)
-                  (= cl-state# new-cl-state#)
-                  (= comp-state# new-comp-state#))
-           n#
-           (recur (if (>= t# period#)
-                    n#
-                    (min (* 2 n#) (inc (int (* n# (/ period# t#))))))
-                  new-cl-state# new-comp-state#))))))
+  [period f reduce-with]
+  (progress "Estimating execution count ...")
+  (loop [n 1
+         cl-state (jvm-class-loader-state)
+         comp-state (jvm-compilation-state)]
+    (let [t (ffirst (collect-samples 1 n f reduce-with))
+          new-cl-state (jvm-class-loader-state)
+          new-comp-state (jvm-compilation-state)]
+      (if (and (>= t period)
+               (= cl-state new-cl-state)
+               (= comp-state new-comp-state))
+        n
+        (recur (if (>= t period)
+                 n
+                 (min (* 2 n) (inc (int (* n (/ period t))))))
+               new-cl-state new-comp-state)))))
 
 
-
-
-;;; Execution
-(defmacro execute-expr
-  "A function to execute an expression the given number of times, timing the
-  complete execution."
-  [n expr]
-  `(fn [_#] (time-body (dotimes [_# ~n] ~expr))))
-
-(defmacro collect-samples [sample-count execution-count expr]
-  `(let [sample-count# ~sample-count
-         n-exec# ~execution-count]
-     (progress "Running ...")
-     (map (execute-expr n-exec# ~expr) (range 0 sample-count#))))
-
-(defmacro run-benchmark
+;; benchmark
+(defn run-benchmark
   "Benchmark an expression. This tries its best to eliminate sources of error.
    This also means that it runs for a while.  It will typically take 70s for a
    quick test expression (less than 1s run time) or 10s plus 60 run times for
    longer running expressions."
-  [iterations warmup-jit-period target-execution-time expr pre-expr]
-  `(let [sample-count# ~iterations
-         warmup-jit-period# ~warmup-jit-period
-         target-execution-time# ~target-execution-time]
-     (force-gc)
-     (let [first-execution# (time-body ~expr)]
-       (warmup-for-jit warmup-jit-period# ~expr)
-       (let [n-exec# (estimate-execution-count target-execution-time# ~expr)
-             samples# (collect-samples sample-count# n-exec# ~expr)
-             sample-times# (map first samples#)
-             total# (reduce + 0 sample-times#)
-             final-gc-result# (final-gc-warn (final-gc total#))
-             ]
-         {:execution-count n-exec#
-          :sample-count sample-count#
-          :samples sample-times#
-          :results (map second samples#)
-          :total-time (/ total# 1e9)})))) ;; :average-time (/ total# sample-count# n-exec# 1e9)
-
+  [sample-count warmup-jit-period target-execution-time f reduce-with]
+  (force-gc)
+  (let [first-execution (time-body (f))]
+    (warmup-for-jit warmup-jit-period f)
+    (let [n-exec (estimate-execution-count target-execution-time f reduce-with)
+          _   (progress
+               "Running with sample-count" sample-count
+               "exec-count" n-exec
+               (if reduce-with "reducing results" ""))
+          samples (collect-samples sample-count n-exec f reduce-with)
+          sample-times (map first samples)
+          total (reduce + 0 sample-times)
+          final-gc-result (final-gc-warn (final-gc total))]
+      {:execution-count n-exec
+       :sample-count sample-count
+       :samples sample-times
+       :results (map second samples)
+       :total-time (/ total 1e9)})))
+;; :average-time (/ total# sample-count# n-exec# 1e9)
 
 
 (defn bootstrap-bca
@@ -476,7 +488,7 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
   (let [time-periods #{:warmup-jit-period :target-execution-time}]
     (merge defaults
            (into {} (map #(if (contains? time-periods (first %1))
-                            [(first %1) (* (second %1) *s-to-ns*)]
+                            [(first %1) (* (second %1) s-to-ns)]
                             %1)
                          options)))))
 
@@ -487,64 +499,62 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
   `(binding [*report-progress* true]
      ~expr))
 
+(defn benchmark*
+  "Benchmark a function. This tries its best to eliminate sources of error.
+   This also means that it runs for a while.  It will typically take 70s for a
+   fast test expression (less than 1s run time) or 10s plus 60 run times for
+   longer running expressions."
+  [f & {:as options}]
+  (let [opts (merge *default-benchmark-opts* options)
+        times (run-benchmark (:samples opts)
+                             (:warmup-jit-period opts)
+                             (:target-execution-time opts)
+                             f
+                             (:reduce-with opts))
+        outliers (outliers (:samples times))
+        ci (/ (:confidence-interval opts) 2)
+        stats (bootstrap-bca
+               (map double (:samples times))
+               (juxt
+                mean
+                variance
+                (partial quantile (- 1.0 (:confidence-interval opts)))
+                (partial quantile (:confidence-interval opts)))
+               (:bootstrap-size opts) [0.5 ci (- 1.0 ci)]
+               criterium.well/well-rng-1024a)
+        analysis (outlier-significance (first stats) (second stats)
+                                       (:sample-count times))]
+    (merge times
+           {:outliers outliers
+            :mean (scale-bootstrap-estimate
+                   (first stats) (/ 1e-9 (:execution-count times)))
+            :variance (scale-bootstrap-estimate
+                       (second stats) (/ 1e-18 (:execution-count times)))
+            :lower-ci (scale-bootstrap-estimate
+                       (nth stats 2) (/ 1e-9 (:execution-count times)))
+            :upper-ci (scale-bootstrap-estimate
+                       (nth stats 3) (/ 1e-9 (:execution-count times)))
+            :outlier-variance analysis
+            :confidence-interval (:confidence-interval opts)})))
+
 (defmacro benchmark
   "Benchmark an expression. This tries its best to eliminate sources of error.
    This also means that it runs for a while.  It will typically take 70s for a
    fast test expression (less than 1s run time) or 10s plus 60 run times for
    longer running expressions."
   [expr & options]
-  `(let [options# (vector ~@options)
-         opts# (add-default-options
-                (if (empty? options#) {} (apply assoc {} options#))
-                *default-benchmark-opts*)
-         times# (run-benchmark (:samples opts#)
-                               (:warmup-jit-period opts#)
-                               (:target-execution-time opts#)
-                               ~expr
-                               (:pre opts#))
-         outliers# (outliers (:samples times#))
-         ci# (/ (:confidence-interval opts#) 2)
-         stats# (bootstrap-bca (:samples times#) (juxt mean variance)
-                               1000 [0.5 ci# (- 1 ci#)]
-                               criterium.well/well-rng-1024a)
-         analysis# (outlier-significance (first stats#) (second stats#)
-                                         (:sample-count times#))]
-     (merge times#
-            {:outliers outliers#
-             :mean (scale-bootstrap-estimate
-                    (first stats#) (/ 1e-9 (:execution-count times#)))
-             :variance (scale-bootstrap-estimate
-                        (second stats#) (/ 1e-18 (:execution-count times#)))
-             :outlier-variance analysis#
-             :confidence-interval (:confidence-interval opts#)})))
+  `(benchmark* (fn [] ~expr) ~@options))
 
-(defmacro quick-bench
+(defn quick-benchmark*
   "Benchmark an expression. Less rigorous benchmark (higher uncertainty)."
-  ([expr & options]
-     `(let [options# (vector ~@options)
-            opts# (add-default-options
-                   (if (empty? options#) {} (apply assoc {} options#))
-                   *default-quick-bench-opts*)
-            times# (run-benchmark (:samples opts#)
-                                  (:warmup-jit-period opts#)
-                                  (:target-execution-time opts#)
-                                  ~expr
-                                  (:pre opts#))
-            outliers# (outliers (:samples times#))
-            ci# (/ (:confidence-interval opts#) 2)
-            stats# (bootstrap-bca (:samples times#) (juxt mean variance)
-                                  500 [0.5 ci# (- 1 ci#)]
-                                  criterium.well/well-rng-1024a)
-            analysis# (outlier-significance (first stats#) (second stats#)
-                                         (:sample-count times#))]
-        (merge times#
-               {:outliers outliers#
-                :mean (scale-bootstrap-estimate
-                       (first stats#) (/ 1e-9 (:execution-count times#)))
-                :variance (scale-bootstrap-estimate
-                           (second stats#) (/ 1e-18 (:execution-count times#)))
-                :outlier-variance analysis#
-                :confidence-interval (:confidence-interval opts#)}))))
+  [f & {:as options}]
+  (apply
+   benchmark* f (apply concat (merge *default-quick-bench-opts* options))))
+
+(defmacro quick-benchmark
+  "Benchmark an expression. Less rigorous benchmark (higher uncertainty)."
+  [expr & options]
+  `(quick-benchmark* (fn [] ~expr) ~@options))
 
 (defn report
   "Print format output"
@@ -564,23 +574,28 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
 (defn format-value [value scale unit]
   (format "%f %s" (* scale value) unit))
 
-(defn report-estimate [estimate significance]
+(defn report-estimate
+  [msg estimate significance]
   (let [mean (first estimate)
         [factor unit] (scale-time mean)]
     (apply
-     report "Execution time mean          : %s  %2.1f%% CI: (%s, %s)\n"
+     report "%32s : %s  %2.1f%% CI: (%s, %s)\n"
+     msg
      (format-value mean factor unit)
      (* significance 100)
      (map #(format-value % factor unit) (last estimate)))))
 
-(defn report-estimate-sqrt [estimate significance]
+(defn report-estimate-sqrt
+  [msg estimate significance]
   (let [mean (Math/sqrt (first estimate))
-	[factor unit] (scale-time mean)]
+        [factor unit] (scale-time mean)]
     (apply
-     report "Execution time std-deviation : %s  %2.1f%% CI: (%s, %s)\n"
+     report "%32s : %s  %2.1f%% CI: (%s, %s)\n"
+     msg
      (format-value mean factor unit)
      (* significance 100)
      (map #(format-value (Math/sqrt %) factor unit) (last estimate)))))
+
 
 (defn report-outliers [results]
   (let [outliers (:outliers results)
@@ -617,8 +632,18 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
   (println "Evaluation count             :" (* (:execution-count results)
                                                (:sample-count results)))
 
-  (report-estimate (:mean results) (:confidence-interval results))
-  (report-estimate-sqrt (:variance results) (:confidence-interval results))
+  (report-estimate
+   "Execution time mean"
+   (:mean results) (:confidence-interval results))
+  (report-estimate-sqrt
+   "Execution time std-deviation"
+   (:variance results) (:confidence-interval results))
+  (report-estimate
+   "Execution time lower ci"
+   (:lower-ci results) (:confidence-interval results))
+  (report-estimate
+   "Execution time upper ci"
+   (:upper-ci results) (:confidence-interval results))
   (report-outliers results))
 
 (defmacro bench
@@ -628,3 +653,9 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
   (let [[report-options options] (extract-report-options opts)]
     `(report-result (benchmark ~expr ~@options) ~@report-options)))
 
+(defmacro quick-bench
+  "Convenience macro for benchmarking an expression, expr.  Results are reported
+  to *out* in human readable format."
+  [expr & opts]
+  (let [[report-options options] (extract-report-options opts)]
+    `(report-result (quick-benchmark ~expr ~@options) ~@report-options)))
