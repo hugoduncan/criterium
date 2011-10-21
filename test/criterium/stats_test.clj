@@ -84,4 +84,6 @@
     (test-max-error 1.0 (quantile 0.5 [0 1 2]) max-error)
     (test-max-error 1.5 (quantile 0.5 [0 1 2 3]) max-error)
     (test-max-error 1.0 (quantile 0.25 [0 1 1.5 2 3]) max-error)
-    (test-max-error 2.0 (quantile 0.75 [0 1 1.5 2 3]) max-error)))
+    (test-max-error 2.0 (quantile 0.75 [0 1 1.5 2 3]) max-error))
+  (is (= 5.0 (quantile 0.05 (range 0 101))))
+  (is (= 95.0 (quantile 0.95 (range 0 101)))))

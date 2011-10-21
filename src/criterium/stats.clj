@@ -295,6 +295,7 @@ descending order (so the last element of coefficients is the constant term)."
    implementation."
   [data statistic size alpha rng-factory]
   (let [n (count data)
+        data (sort data)
         estimate (statistic data)
         samples (bootstrap-sample data statistic size rng-factory)
         jack-samples (jacknife data statistic)

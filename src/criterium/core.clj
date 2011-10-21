@@ -514,13 +514,13 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
         outliers (outliers (:samples times))
         ci (/ (:confidence-interval opts) 2)
         stats (bootstrap-bca
-               (:samples times)
+               (map double (:samples times))
                (juxt
                 mean
                 variance
                 (partial quantile (- 1.0 (:confidence-interval opts)))
                 (partial quantile (:confidence-interval opts)))
-               (:bootstrap-size opts) [0.5 ci (- 1 ci)]
+               (:bootstrap-size opts) [0.5 ci (- 1.0 ci)]
                criterium.well/well-rng-1024a)
         analysis (outlier-significance (first stats) (second stats)
                                        (:sample-count times))]
