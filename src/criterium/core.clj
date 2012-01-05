@@ -523,13 +523,14 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
                (:bootstrap-size opts) [0.5 ci (- 1.0 ci)]
                criterium.well/well-rng-1024a)
         analysis (outlier-significance (first stats) (second stats)
-                                       (:sample-count times))]
+                                       (:sample-count times))
+        sqr (fn [x] (* x x))]
     (merge times
            {:outliers outliers
             :mean (scale-bootstrap-estimate
                    (first stats) (/ 1e-9 (:execution-count times)))
             :variance (scale-bootstrap-estimate
-                       (second stats) (/ 1e-18 (:execution-count times)))
+                       (second stats) (sqr (/ 1e-9 (:execution-count times))))
             :lower-ci (scale-bootstrap-estimate
                        (nth stats 2) (/ 1e-9 (:execution-count times)))
             :upper-ci (scale-bootstrap-estimate
