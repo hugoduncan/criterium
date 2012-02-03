@@ -660,3 +660,44 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
   [expr & opts]
   (let [[report-options options] (extract-report-options opts)]
     `(report-result (quick-benchmark ~expr ~@options) ~@report-options)))
+
+(defmacro do-bench*
+  [bench body]
+  (let [m (if (string? (first body))
+            {:doc (first body)}
+            {})
+        body (if (string? (first body))
+               (rest body)
+               body)
+        m (if (map? (first body))
+               (conj m (first body))
+               {})
+        body (if (map? (first body))
+               (rest body)
+               body)
+        body (map #(if-let [opts (:opts m)]
+                     (list* bench % opts)
+                     (list bench %))
+                  body)
+        body (if-let [docstr (:doc m)]
+               (list* (list 'progress (str "\n" docstr)) body)
+               body)]
+
+    (list* 'do body)))
+
+(defmacro do-bench
+  "Convenience macro for benchmarking a series of expressions using the bench
+  macro. Accepts an optional docstring and attr-map. If *progress-reporting* is on, the docstring will be reported to the
+  user prior to execution."
+  {:arglists '([docstr? attr-map? & exprs])}
+  [& body]
+  `(do-bench* bench ~body))
+
+(defmacro do-quick-bench
+  "Convenience macro for benchmarking a series of expressions using the quick-bench
+  macro. Accepts an optional docstring and attr-map which may be used to specify
+  options. If *progress-reporting* is on, the docstring will be reported to the
+  user prior to execution."
+  {:arglists '([docstr? attr-map? & exprs])}
+  [& body]
+  `(do-bench* quick-bench ~body))
