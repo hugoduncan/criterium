@@ -495,9 +495,9 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
 ;;; User top level functions
 (defmacro with-progress-reporting
   "Macro to enable progress reporting during the benchmark."
-  [expr]
+  [& body]
   `(binding [*report-progress* true]
-     ~expr))
+     ~@body))
 
 (defn benchmark*
   "Benchmark a function. This tries its best to eliminate sources of error.
