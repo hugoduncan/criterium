@@ -29,10 +29,11 @@ get progress information on *out*.
     (with-progress-reporting (bench (Thread/sleep 1000) :verbose))
     (with-progress-reporting (quick-bench (Thread/sleep 1000) :verbose))
 
-Lower level functions are available.
+Lower level functions are available, that separate benchmark statistic
+generation and reporting.
 
     (report-result (benchmark (Thread/sleep 1000)) :verbose)
-    (report-result (quick-bench (Thread/sleep 1000)))
+    (report-result (quick-benchmark (Thread/sleep 1000)))
 
 Note that results are returned to the user to prevent JIT from recognising that
 the results are not used. For functions that are very fast, or return a lot of
