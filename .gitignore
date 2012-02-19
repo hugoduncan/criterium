@@ -6,3 +6,4 @@ lib
 classes
 autodoc/**
 java.hprof.*
+.lein-deps-sum
