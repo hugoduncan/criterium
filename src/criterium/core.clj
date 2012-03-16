@@ -492,6 +492,13 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
                             %1)
                          options)))))
 
+(defn default-reducer
+  "A function that can be used to reduce any function output."
+  [a b]
+  (let [a (if (nil? a) 0 (.hashCode a))
+        b (if (nil? b) 0 (.hashCode b))]
+    (+ a b)))
+
 ;;; User top level functions
 (defmacro with-progress-reporting
   "Macro to enable progress reporting during the benchmark."
@@ -510,7 +517,7 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
                              (:warmup-jit-period opts)
                              (:target-execution-time opts)
                              f
-                             (:reduce-with opts))
+                             (:reduce-with opts default-reducer))
         outliers (outliers (:samples times))
         ci (/ (:confidence-interval opts) 2)
         stats (bootstrap-bca
