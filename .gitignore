@@ -5,4 +5,10 @@ criterium-standalone.jar
 lib
 classes
 autodoc/**
+doc/**
 java.hprof.*
+.lein-deps-sum
+.lein-failures
+.ritz-exception-filters
+target
+checkouts
