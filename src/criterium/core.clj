@@ -536,7 +536,11 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
             :upper-ci (scale-bootstrap-estimate
                        (nth stats 3) (/ 1e-9 (:execution-count times)))
             :outlier-variance analysis
-            :confidence-interval (:confidence-interval opts)})))
+            :confidence-interval (:confidence-interval opts)
+            :os-details (os-details)
+            :runtime-details (->
+                              (runtime-details)
+                              (update-in [:input-arguments] vec))})))
 
 (defmacro benchmark
   "Benchmark an expression. This tries its best to eliminate sources of error.
@@ -625,11 +629,14 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
         show-runtime (or verbose (some #(= :runtime %) opts))]
     (when show-os
       (apply println
-             (->  (map #(%1 (os-details)) [:arch :name :version :available-processors])
+             (->  (map
+                   #(%1 (:os-details results))
+                   [:arch :name :version :available-processors])
                   vec (conj "cpu(s)"))))
     (when show-runtime
-      (apply println (map #(%1 (runtime-details)) [:vm-name :vm-version]))
-      (apply println "Runtime arguments:" (:input-arguments (runtime-details)))))
+      (let [runtime-details (:runtime-details results)]
+        (apply println (map #(%1 runtime-details) [:vm-name :vm-version]))
+        (apply println "Runtime arguments:" (:input-arguments runtime-details)))))
   (println "Evaluation count             :" (* (:execution-count results)
                                                (:sample-count results)))
 
@@ -649,14 +656,16 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
 
 (defmacro bench
   "Convenience macro for benchmarking an expression, expr.  Results are reported
-  to *out* in human readable format."
+  to *out* in human readable format. Options for report format are: :os,
+:runtime, and :verbose."
   [expr & opts]
   (let [[report-options options] (extract-report-options opts)]
     `(report-result (benchmark ~expr ~@options) ~@report-options)))
 
 (defmacro quick-bench
   "Convenience macro for benchmarking an expression, expr.  Results are reported
-  to *out* in human readable format."
+to *out* in human readable format. Options for report format are: :os,
+:runtime, and :verbose."
   [expr & opts]
   (let [[report-options options] (extract-report-options opts)]
     `(report-result (quick-benchmark ~expr ~@options) ~@report-options)))
