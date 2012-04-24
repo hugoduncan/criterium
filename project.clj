@@ -1,4 +1,4 @@
-(defproject criterium "0.2.1-SNAPSHOT"
+(defproject criterium "0.2.1"
   :description "Benchmarking library"
   :url "http://github.com/hugoduncan/criterium"
   :dependencies [[org.clojure/clojure "1.3.0"]]
