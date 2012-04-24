@@ -1,6 +1,19 @@
 # Release Notes
 
-Current version is 0.2.0
+Current version is 0.2.1
+
+# 0.2.1
+
+## Features
+
+- Add universal reducer function as a default reducer.
+
+- Add os-details and runtime-details to results data
+
+## Bug Fixes
+
+- Fix bug in the calculation of the standard deviation
+
 
 # 0.2.0
 
