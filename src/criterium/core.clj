@@ -492,6 +492,13 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
                             %1)
                          options)))))
 
+(defn default-reducer
+  "A function that can be used to reduce any function output."
+  [a b]
+  (let [a (if (nil? a) 0 (.hashCode a))
+        b (if (nil? b) 0 (.hashCode b))]
+    (+ a b)))
+
 ;;; User top level functions
 (defmacro with-progress-reporting
   "Macro to enable progress reporting during the benchmark."
@@ -510,7 +517,7 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
                              (:warmup-jit-period opts)
                              (:target-execution-time opts)
                              f
-                             (:reduce-with opts))
+                             (:reduce-with opts default-reducer))
         outliers (outliers (:samples times))
         ci (/ (:confidence-interval opts) 2)
         stats (bootstrap-bca
@@ -523,19 +530,24 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
                (:bootstrap-size opts) [0.5 ci (- 1.0 ci)]
                criterium.well/well-rng-1024a)
         analysis (outlier-significance (first stats) (second stats)
-                                       (:sample-count times))]
+                                       (:sample-count times))
+        sqr (fn [x] (* x x))]
     (merge times
            {:outliers outliers
             :mean (scale-bootstrap-estimate
                    (first stats) (/ 1e-9 (:execution-count times)))
             :variance (scale-bootstrap-estimate
-                       (second stats) (/ 1e-18 (:execution-count times)))
+                       (second stats) (sqr (/ 1e-9 (:execution-count times))))
             :lower-ci (scale-bootstrap-estimate
                        (nth stats 2) (/ 1e-9 (:execution-count times)))
             :upper-ci (scale-bootstrap-estimate
                        (nth stats 3) (/ 1e-9 (:execution-count times)))
             :outlier-variance analysis
-            :confidence-interval (:confidence-interval opts)})))
+            :confidence-interval (:confidence-interval opts)
+            :os-details (os-details)
+            :runtime-details (->
+                              (runtime-details)
+                              (update-in [:input-arguments] vec))})))
 
 (defmacro benchmark
   "Benchmark an expression. This tries its best to eliminate sources of error.
@@ -624,11 +636,14 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
         show-runtime (or verbose (some #(= :runtime %) opts))]
     (when show-os
       (apply println
-             (->  (map #(%1 (os-details)) [:arch :name :version :available-processors])
+             (->  (map
+                   #(%1 (:os-details results))
+                   [:arch :name :version :available-processors])
                   vec (conj "cpu(s)"))))
     (when show-runtime
-      (apply println (map #(%1 (runtime-details)) [:vm-name :vm-version]))
-      (apply println "Runtime arguments:" (:input-arguments (runtime-details)))))
+      (let [runtime-details (:runtime-details results)]
+        (apply println (map #(%1 runtime-details) [:vm-name :vm-version]))
+        (apply println "Runtime arguments:" (:input-arguments runtime-details)))))
   (println "Evaluation count             :" (* (:execution-count results)
                                                (:sample-count results)))
 
@@ -648,14 +663,16 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
 
 (defmacro bench
   "Convenience macro for benchmarking an expression, expr.  Results are reported
-  to *out* in human readable format."
+  to *out* in human readable format. Options for report format are: :os,
+:runtime, and :verbose."
   [expr & opts]
   (let [[report-options options] (extract-report-options opts)]
     `(report-result (benchmark ~expr ~@options) ~@report-options)))
 
 (defmacro quick-bench
   "Convenience macro for benchmarking an expression, expr.  Results are reported
-  to *out* in human readable format."
+to *out* in human readable format. Options for report format are: :os,
+:runtime, and :verbose."
   [expr & opts]
   (let [[report-options options] (extract-report-options opts)]
     `(report-result (quick-benchmark ~expr ~@options) ~@report-options)))
