@@ -519,7 +519,7 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
                              f
                              (:reduce-with opts default-reducer))
         outliers (outliers (:samples times))
-        ci (/ (:confidence-interval opts) 2)
+        ci (/ (- 1.0 (:confidence-interval opts)) 2.0)
         stats (bootstrap-bca
                (map double (:samples times))
                (juxt
