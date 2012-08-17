@@ -3,6 +3,9 @@
         criterium.stats)
   (:require criterium.well))
 
+(defmacro test-max-error [expected actual max-error]
+  `(is (< (Math/abs (- ~expected ~actual)) ~max-error)))
+
 (deftest mean-test
   (is (= 1 (mean (take 20 (repeatedly (constantly 1))))))
   (is (= 3 (mean (range 0 7)))))
@@ -37,14 +40,16 @@
 
 (deftest bootstrap-estimate-test
   (is (= [1 0.0 [1.0 1.0]]
-         (bootstrap-estimate (take 20 (repeatedly (constantly 1)))))))
+         (bootstrap-estimate (take 20 (repeatedly (constantly 1))))))
+  (let [[m s [l u]] (bootstrap-estimate (take 1000000 (repeatedly rand)))]
+    (is (test-max-error 0.5 m 1e-2))
+    (is (test-max-error 0 l 0.2))
+    (is (test-max-error 1 u 0.2))
+    (is (test-max-error 0.0833 s 0.2))))
 
 (deftest bootstrap-estimate-scale-test
   (is (= [1e-9 [1e-8 1e-8]]
          (scale-bootstrap-estimate [1 1 [10 10]] 1e-9))))
-
-(defmacro test-max-error [expected actual max-error]
-  `(is (< (Math/abs (- ~expected ~actual)) ~max-error)))
 
 ;; Values from R, qnorm (with options(digits=15))
 (deftest normal-quantile-test
