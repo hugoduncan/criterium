@@ -202,9 +202,9 @@ library that applies many of the same statistical techniques."
                    (.. System getProperties (getProperty "os.name")))))
 
 ;;; Time reporting
-(defn timestamp
+(defmacro timestamp
   "Obtain a timestamp"
-  [] (System/nanoTime))
+  [] `(System/nanoTime))
 
 (defn timestamp-2
   "Obtain a timestamp, possibly using MXBean."
@@ -320,7 +320,7 @@ class counts, change in compilation time and result of specified function."
   (loop [elapsed 0 count 0]
     (if (> elapsed warmup-period)
       [elapsed count]
-      (recur (+ elapsed (first (time-body (f)))) (inc count)))))
+      (recur (+ elapsed (long (first (time-body (f))))) (inc count)))))
 
 ;;; Execution parameters
 (defn estimate-execution-count
@@ -494,7 +494,7 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
 
 (defn default-reducer
   "A function that can be used to reduce any function output."
-  [a b]
+  [^Object a ^Object b]
   (let [a (if (nil? a) 0 (.hashCode a))
         b (if (nil? b) 0 (.hashCode b))]
     (+ a b)))
