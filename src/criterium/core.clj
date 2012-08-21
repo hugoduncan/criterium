@@ -309,8 +309,9 @@ class counts, change in compilation time and result of specified function."
 
 (defn collect-samples
   [sample-count execution-count f reduce-with]
-  (for [_ (range 0 sample-count)]
-    (execute-expr execution-count f reduce-with)))
+  (doall
+   (for [_ (range 0 sample-count)]
+     (execute-expr execution-count f reduce-with))))
 
 ;;; Compilation
 (defn warmup-for-jit
