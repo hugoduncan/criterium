@@ -7,7 +7,8 @@ the JVM in particular.
 This includes:
 
   * statistical processing of multiple evaluations
-  * inclusion of a warm-up period, designed to allow the JIT compiler to optimise its code
+  * inclusion of a warm-up period, designed to allow the JIT compiler to
+    optimise its code
   * purging of gc before testing, to isolate timings from GC state prior
     to testing
   * a final forced GC after testing to estimate impact of cleanup on the
@@ -51,8 +52,8 @@ See [Elliptic Group](http://www.ellipticgroup.com/html/benchmarkingArticle.html)
 for a Java benchmarking library.  The accompanying article describes many of the
 JVM benchmarking pitfalls.
 
-See [Criterion](http://hackage.haskell.org/package/criterion) for a Haskell benchmarking
-library that applies many of the same statistical techniques.
+See [Criterion](http://hackage.haskell.org/package/criterion) for a Haskell
+benchmarking library that applies many of the same statistical techniques.
 
 
 ## Installation
