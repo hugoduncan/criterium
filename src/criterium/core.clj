@@ -308,10 +308,13 @@ class counts, change in compilation time and result of specified function."
     (time-body (doall (for [_ (range 0 n)] (f))))))
 
 (defn collect-samples
-  [sample-count execution-count f reduce-with]
+  [sample-count execution-count f reduce-with gc-before-sample]
   (doall
    (for [_ (range 0 sample-count)]
-     (execute-expr execution-count f reduce-with))))
+     (do
+       (when gc-before-sample
+         (force-gc))
+       (execute-expr execution-count f reduce-with)))))
 
 ;;; Compilation
 (defn warmup-for-jit
@@ -328,12 +331,12 @@ class counts, change in compilation time and result of specified function."
   "Estimate the number of executions required in order to have at least the
    specified execution period, check for the jvm to have constant class loader
    and compilation state."
-  [period f reduce-with]
+  [period f reduce-with gc-before-sample]
   (progress "Estimating execution count ...")
   (loop [n 1
          cl-state (jvm-class-loader-state)
          comp-state (jvm-compilation-state)]
-    (let [t (ffirst (collect-samples 1 n f reduce-with))
+    (let [t (ffirst (collect-samples 1 n f reduce-with gc-before-sample))
           new-cl-state (jvm-class-loader-state)
           new-comp-state (jvm-compilation-state)]
       (if (and (>= t period)
@@ -352,16 +355,19 @@ class counts, change in compilation time and result of specified function."
    This also means that it runs for a while.  It will typically take 70s for a
    quick test expression (less than 1s run time) or 10s plus 60 run times for
    longer running expressions."
-  [sample-count warmup-jit-period target-execution-time f reduce-with]
+  [sample-count warmup-jit-period target-execution-time f reduce-with
+   gc-before-sample]
   (force-gc)
   (let [first-execution (time-body (f))]
     (warmup-for-jit warmup-jit-period f)
-    (let [n-exec (estimate-execution-count target-execution-time f reduce-with)
+    (let [n-exec (estimate-execution-count
+                  target-execution-time f reduce-with gc-before-sample)
           _   (progress
                "Running with sample-count" sample-count
                "exec-count" n-exec
                (if reduce-with "reducing results" ""))
-          samples (collect-samples sample-count n-exec f reduce-with)
+          samples (collect-samples
+                   sample-count n-exec f reduce-with gc-before-sample)
           sample-times (map first samples)
           total (reduce + 0 sample-times)
           final-gc-result (final-gc-warn (final-gc total))]
@@ -518,7 +524,8 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
                              (:warmup-jit-period opts)
                              (:target-execution-time opts)
                              f
-                             (:reduce-with opts default-reducer))
+                             (:reduce-with opts default-reducer)
+                             (:gc-before-sample opts))
         outliers (outliers (:samples times))
         tail-quantile (:tail-quantile opts)
         stats (bootstrap-bca
