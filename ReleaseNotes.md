@@ -1,6 +1,24 @@
 # Release Notes
 
-Current version is 0.2.1
+Current version is 0.3.0
+
+# 0.3.0
+
+- Remove unused code. Makes criterium work on clojure 1.5.0-master-SNAPSHOT.
+  Fixes #11.
+
+- Add :gc-before-sample option
+  Passing this option as true will force gc before every sample is taken.
+
+- Fix labelling of quantiles, and drop display of intervals on the estimator
+  distributions
+
+- Force the collection of samples before calculating any statistics
+
+- Remove compilation and reflection warnings
+
+- Add tests for bootstrap-estimate and bootstrap-bca
+
 
 # 0.2.1
 
