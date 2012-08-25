@@ -86,7 +86,7 @@ library that applies many of the same statistical techniques."
    :samples *sample-count*
    :target-execution-time *target-execution-time*
    :warmup-jit-period *warmup-jit-period*
-   :confidence-interval 0.95
+   :tail-quantile 0.025
    :bootstrap-size 1000})
 
 (def ^{:dynamic true}
@@ -95,7 +95,7 @@ library that applies many of the same statistical techniques."
    :samples (/ *sample-count* 10)
    :target-execution-time (/ *target-execution-time* 10)
    :warmup-jit-period (/ *warmup-jit-period* 2)
-   :confidence-interval 0.95
+   :tail-quantile 0.025
    :bootstrap-size 500})
 
 ;;; Progress reporting
@@ -202,9 +202,9 @@ library that applies many of the same statistical techniques."
                    (.. System getProperties (getProperty "os.name")))))
 
 ;;; Time reporting
-(defn timestamp
+(defmacro timestamp
   "Obtain a timestamp"
-  [] (System/nanoTime))
+  [] `(System/nanoTime))
 
 (defn timestamp-2
   "Obtain a timestamp, possibly using MXBean."
@@ -308,9 +308,13 @@ class counts, change in compilation time and result of specified function."
     (time-body (doall (for [_ (range 0 n)] (f))))))
 
 (defn collect-samples
-  [sample-count execution-count f reduce-with]
-  (for [_ (range 0 sample-count)]
-    (execute-expr execution-count f reduce-with)))
+  [sample-count execution-count f reduce-with gc-before-sample]
+  (doall
+   (for [_ (range 0 sample-count)]
+     (do
+       (when gc-before-sample
+         (force-gc))
+       (execute-expr execution-count f reduce-with)))))
 
 ;;; Compilation
 (defn warmup-for-jit
@@ -320,19 +324,19 @@ class counts, change in compilation time and result of specified function."
   (loop [elapsed 0 count 0]
     (if (> elapsed warmup-period)
       [elapsed count]
-      (recur (+ elapsed (first (time-body (f)))) (inc count)))))
+      (recur (+ elapsed (long (first (time-body (f))))) (inc count)))))
 
 ;;; Execution parameters
 (defn estimate-execution-count
   "Estimate the number of executions required in order to have at least the
    specified execution period, check for the jvm to have constant class loader
    and compilation state."
-  [period f reduce-with]
+  [period f reduce-with gc-before-sample]
   (progress "Estimating execution count ...")
   (loop [n 1
          cl-state (jvm-class-loader-state)
          comp-state (jvm-compilation-state)]
-    (let [t (ffirst (collect-samples 1 n f reduce-with))
+    (let [t (ffirst (collect-samples 1 n f reduce-with gc-before-sample))
           new-cl-state (jvm-class-loader-state)
           new-comp-state (jvm-compilation-state)]
       (if (and (>= t period)
@@ -351,16 +355,19 @@ class counts, change in compilation time and result of specified function."
    This also means that it runs for a while.  It will typically take 70s for a
    quick test expression (less than 1s run time) or 10s plus 60 run times for
    longer running expressions."
-  [sample-count warmup-jit-period target-execution-time f reduce-with]
+  [sample-count warmup-jit-period target-execution-time f reduce-with
+   gc-before-sample]
   (force-gc)
   (let [first-execution (time-body (f))]
     (warmup-for-jit warmup-jit-period f)
-    (let [n-exec (estimate-execution-count target-execution-time f reduce-with)
+    (let [n-exec (estimate-execution-count
+                  target-execution-time f reduce-with gc-before-sample)
           _   (progress
                "Running with sample-count" sample-count
                "exec-count" n-exec
                (if reduce-with "reducing results" ""))
-          samples (collect-samples sample-count n-exec f reduce-with)
+          samples (collect-samples
+                   sample-count n-exec f reduce-with gc-before-sample)
           sample-times (map first samples)
           total (reduce + 0 sample-times)
           final-gc-result (final-gc-warn (final-gc total))]
@@ -494,7 +501,7 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
 
 (defn default-reducer
   "A function that can be used to reduce any function output."
-  [a b]
+  [^Object a ^Object b]
   (let [a (if (nil? a) 0 (.hashCode a))
         b (if (nil? b) 0 (.hashCode b))]
     (+ a b)))
@@ -517,33 +524,42 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
                              (:warmup-jit-period opts)
                              (:target-execution-time opts)
                              f
-                             (:reduce-with opts default-reducer))
+                             (:reduce-with opts default-reducer)
+                             (:gc-before-sample opts))
         outliers (outliers (:samples times))
-        ci (/ (:confidence-interval opts) 2)
+        tail-quantile (:tail-quantile opts)
         stats (bootstrap-bca
                (map double (:samples times))
                (juxt
                 mean
                 variance
-                (partial quantile (- 1.0 (:confidence-interval opts)))
-                (partial quantile (:confidence-interval opts)))
-               (:bootstrap-size opts) [0.5 ci (- 1.0 ci)]
+                (partial quantile tail-quantile)
+                (partial quantile (- 1.0 tail-quantile)))
+               (:bootstrap-size opts) [0.5 tail-quantile (- 1.0 tail-quantile)]
                criterium.well/well-rng-1024a)
         analysis (outlier-significance (first stats) (second stats)
                                        (:sample-count times))
-        sqr (fn [x] (* x x))]
+        sqr (fn [x] (* x x))
+        m (mean (map double (:samples times)))
+        s (Math/sqrt (variance (map double (:samples times))))]
     (merge times
            {:outliers outliers
             :mean (scale-bootstrap-estimate
                    (first stats) (/ 1e-9 (:execution-count times)))
+            :sample-mean (scale-bootstrap-estimate
+                          [m [(- m (* 3 s)) (+ m (* 3 s))]]
+                          (/ 1e-9 (:execution-count times)))
             :variance (scale-bootstrap-estimate
                        (second stats) (sqr (/ 1e-9 (:execution-count times))))
-            :lower-ci (scale-bootstrap-estimate
+            :sample-variance (scale-bootstrap-estimate
+                              [ (sqr s) [0 0]]
+                              (sqr (/ 1e-9 (:execution-count times))))
+            :lower-q (scale-bootstrap-estimate
                        (nth stats 2) (/ 1e-9 (:execution-count times)))
-            :upper-ci (scale-bootstrap-estimate
+            :upper-q (scale-bootstrap-estimate
                        (nth stats 3) (/ 1e-9 (:execution-count times)))
             :outlier-variance analysis
-            :confidence-interval (:confidence-interval opts)
+            :tail-quantile (:tail-quantile opts)
             :os-details (os-details)
             :runtime-details (->
                               (runtime-details)
@@ -597,6 +613,18 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
      (* significance 100)
      (map #(format-value % factor unit) (last estimate)))))
 
+(defn report-point-estimate
+  ([msg estimate]
+     (let [mean (first estimate)
+           [factor unit] (scale-time mean)]
+       (report "%32s : %s\n" msg (format-value mean factor unit))))
+  ([msg estimate quantile]
+     (let [mean (first estimate)
+           [factor unit] (scale-time mean)]
+       (report
+        "%32s : %s (%4.1f%%)\n"
+        msg (format-value mean factor unit) (* quantile 100)))))
+
 (defn report-estimate-sqrt
   [msg estimate significance]
   (let [mean (Math/sqrt (first estimate))
@@ -608,6 +636,11 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
      (* significance 100)
      (map #(format-value (Math/sqrt %) factor unit) (last estimate)))))
 
+(defn report-point-estimate-sqrt
+  [msg estimate]
+  (let [mean (Math/sqrt (first estimate))
+        [factor unit] (scale-time mean)]
+    (report "%32s : %s\n" msg (format-value mean factor unit))))
 
 (defn report-outliers [results]
   (let [outliers (:outliers results)
@@ -643,23 +676,29 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
     (when show-runtime
       (let [runtime-details (:runtime-details results)]
         (apply println (map #(%1 runtime-details) [:vm-name :vm-version]))
-        (apply println "Runtime arguments:" (:input-arguments runtime-details)))))
-  (println "Evaluation count             :" (* (:execution-count results)
-                                               (:sample-count results)))
+        (apply println "Runtime arguments:"
+               (:input-arguments runtime-details))))
+    (println "Evaluation count :" (* (:execution-count results)
+                                     (:sample-count results))
+             "in" (:sample-count results) "samples of"
+             (:execution-count results) "calls.")
 
-  (report-estimate
-   "Execution time mean"
-   (:mean results) (:confidence-interval results))
-  (report-estimate-sqrt
-   "Execution time std-deviation"
-   (:variance results) (:confidence-interval results))
-  (report-estimate
-   "Execution time lower ci"
-   (:lower-ci results) (:confidence-interval results))
-  (report-estimate
-   "Execution time upper ci"
-   (:upper-ci results) (:confidence-interval results))
-  (report-outliers results))
+    (when verbose
+      (report-point-estimate
+       "Execution time sample mean" (:sample-mean results)))
+    (report-point-estimate "Execution time mean" (:mean results))
+    (when verbose
+      (report-point-estimate-sqrt
+       "Execution time sample std-deviation" (:sample-variance results)))
+    (report-point-estimate-sqrt
+     "Execution time std-deviation" (:variance results))
+    (report-point-estimate
+     "Execution time lower quantile"
+     (:lower-q results) (:tail-quantile results))
+    (report-point-estimate
+     "Execution time upper quantile"
+     (:upper-q results) (- 1.0 (:tail-quantile results)))
+    (report-outliers results)))
 
 (defmacro bench
   "Convenience macro for benchmarking an expression, expr.  Results are reported

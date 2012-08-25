@@ -13,8 +13,6 @@
 
 (ns criterium.well)
 
-;; (set! *warn-on-reflection* true)
-
 ;;; Macros to help convert unsigned algorithm to our implementation with signed
 ;;; integers.
 ;;; unsign is used to convert the [0.5,-0.5] range back onto [1,0]
@@ -45,7 +43,7 @@
 
 (defmacro mat0-neg [t v]
   `(let [v# ~v]
-     (long (bit-xor v# (.longValue (limit-bits (bit-shift-left v# (- ~t))))))))
+     (long (bit-xor v# (limit-bits (bit-shift-left v# (- ~t)))))))
 
 (defmacro add-mod-32 [a b]
   `(long (bit-and (+ ~a ~b) 0x01f)))

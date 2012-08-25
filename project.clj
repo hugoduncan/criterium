@@ -1,6 +1,8 @@
-(defproject criterium "0.2.1"
+(defproject criterium "0.3.0"
   :description "Benchmarking library"
-  :url "http://github.com/hugoduncan/criterium"
+  :url "https://github.com/hugoduncan/criterium"
+  :license {:name "Eclipse Public License"
+            :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.3.0"]]
   :local-repo-classpath true
   :codox {:writer codox-md.writer/write-docs}

@@ -346,22 +346,3 @@ descending order (so the last element of coefficients is the constant term)."
   "Kernel density estimator for x, given n samples X, weights K and width h."
   [h K n X x]
   (/ (reduce #(+ %1 (K (/ (- x %2) h))) 0 X) (* n h)))
-
-(defn oversmoothed-bandwidth
-  "Estimate an oversmoothed bandwidth.
-Terrell, Scott, 1995.
-"
-  )
-
-(defn mode-count
-  "Count the number of modes, using bandwidth between h-over-smoothed and
-  h-crit, kernel K for n samples X, between x-min and x-max.
-
-  Can we do a depth first search over h, descending using h/2 ?
-"
-  [h-over-sampled h-crit K n X x-min x-max]
-  (range x-min x-max h-over-sampled)
-  )
-
-(defn density-count []
-  (count (filter (partial <= 1) nil)))
