@@ -170,7 +170,8 @@ library that applies many of the same statistical techniques."
 (defn runtime-details
   "Return the runtime details as a hash."
   []
-  (let [bean (.. ManagementFactory getRuntimeMXBean)]
+  (let [bean (.. ManagementFactory getRuntimeMXBean)
+        props (. bean getSystemProperties)]
     {:input-arguments (. bean getInputArguments)
      :name (. bean getName)
      :spec-name (. bean getSpecName)
@@ -178,7 +179,9 @@ library that applies many of the same statistical techniques."
      :spec-version (. bean getSpecVersion)
      :vm-name (. bean getVmName)
      :vm-vendor (. bean getVmVendor)
-     :vm-version (. bean getVmVersion)}))
+     :vm-version (. bean getVmVersion)
+     :java-version (get props "java.version")
+     :java-runtime-version (get props "java.runtime.version")}))
 
 (defn system-properties
   "Return the operating system details."
