@@ -181,7 +181,10 @@ library that applies many of the same statistical techniques."
      :vm-vendor (. bean getVmVendor)
      :vm-version (. bean getVmVersion)
      :java-version (get props "java.version")
-     :java-runtime-version (get props "java.runtime.version")}))
+     :java-runtime-version (get props "java.runtime.version")
+     :sun-arch-data-model (get props "sun.arch.data.model")
+     :clojure-version-string (clojure-version)
+     :clojure-version *clojure-version*}))
 
 (defn system-properties
   "Return the operating system details."
