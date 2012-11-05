@@ -567,6 +567,7 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
             :outlier-variance analysis
             :tail-quantile (:tail-quantile opts)
             :os-details (os-details)
+            :options opts
             :runtime-details (->
                               (runtime-details)
                               (update-in [:input-arguments] vec))})))
