@@ -231,6 +231,10 @@ library that applies many of the same statistical techniques."
             finish# (timestamp)]
         [(- finish# start#) ret#])))
 
+(defn replace-ret-val-in-time-body-result
+  [[elapsed-time _] new-ret-val]
+  [elapsed-time new-ret-val])
+
 (defmacro time-body-with-jvm-state
   "Returns a vector containing execution time, change in loaded and unloaded
 class counts, change in compilation time and result of specified function."
@@ -301,16 +305,68 @@ class counts, change in compilation time and result of specified function."
      "% of runtime"))
   final-gc-result)
 
+(def ^:const +max-obj-array-size+ 8192)
+
+(defn execute-expr-core-timed-part
+  "Performs the part of execute-expr where we actually measure the
+  elapsed run time.  Evaluates (f) n times, each time saving the
+  return value as an Object in the Java Object array ret-vals-arr,
+  i.e. ret-vals-arr is mutated.
+
+  The idea is that except for the call to (f), the only things done
+  during each iteration are a few arithmetic operations and
+  comparisons to 0 on primitive longs, and the aset to store the
+  return value.
+
+  The JVM is not free to optimize away the calls to f because the
+  return values are saved in ret-vals-arr.
+
+  This array is at most +max-obj-array-size+ elements long, to save
+  memory.  An artificially intelligent JVM might be able to determine
+  that if n is larger than +max-obj-array-size+, some of the return
+  values are overwritten and thus those calls need not be made.  I
+  doubt we will see that kind of optimization any time soon, and
+  perhaps some JVM rules even prohibit doing so since the writes to
+  ret-vals-arr could potentially be read by a different thread."
+  [n f ret-vals-arr]
+  (let [^objects arr ret-vals-arr
+        arr-size-1 (long (dec (count arr)))
+        init-j (rem (dec n) +max-obj-array-size+)]
+    (time-body
+     (loop [i (long (dec n))
+            j (long init-j)
+            v (f)]
+       (aset arr j v)
+       (if (pos? i)
+         (recur (unchecked-dec i)
+                (if (zero? j) arr-size-1 (unchecked-dec j))
+                (f)))))))
+
+(defn execute-expr-core
+  "See execute-expr-core-timed-part.  Here we create the Java Object
+  array in which execute-expr-core-timed-part will store return values
+  from calling (f).  Even though storing the return values in that
+  array is probably enough not to allow the JVM to optimize away calls
+  to (f), go ahead and use reduce-with to combine up to
+  +max-obj-array-size+ return values together and return that."
+  [n f reduce-with]
+  (let [arr-size (int (min +max-obj-array-size+ n))
+        arr-size-1 (int (dec arr-size))
+        ret-vals-arr (object-array arr-size)
+        time-and-ret (execute-expr-core-timed-part n f ret-vals-arr)]
+    (loop [i (int arr-size-1)
+           v (aget ret-vals-arr i)]
+      (if (pos? i)
+        (recur (dec i) (reduce-with v (aget ret-vals-arr (dec i))))
+        (replace-ret-val-in-time-body-result time-and-ret v)))))
+
 ;;; Execution
 (defn execute-expr
   "A function to execute a function the given number of times, timing the
   complete execution."
   [n f reduce-with]
   (if reduce-with
-    (time-body (loop [i (dec n) v (f)]
-                 (if (pos? i)
-                   (recur (dec i) (reduce-with v (f)))
-                   v)))
+    (execute-expr-core n f reduce-with)
     (time-body (doall (for [_ (range 0 n)] (f))))))
 
 (defn collect-samples
