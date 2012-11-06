@@ -399,6 +399,11 @@ class counts, change in compilation time and result of specified function."
          cl-state (jvm-class-loader-state)
          comp-state (jvm-compilation-state)]
     (let [t (ffirst (collect-samples 1 n f reduce-with gc-before-sample))
+          ;; It is possible for small n and a fast expression to get
+          ;; t=0 nsec back from collect-samples.  This is likely due
+          ;; to how (System/nanoTime) quantizes the time on some
+          ;; systems.
+          t (max 1 t)
           new-cl-state (jvm-class-loader-state)
           new-comp-state (jvm-compilation-state)]
       (if (and (>= t period)
@@ -407,7 +412,7 @@ class counts, change in compilation time and result of specified function."
         n
         (recur (if (>= t period)
                  n
-                 (min (* 2 n) (inc (int (* n (/ period t))))))
+                 (min (* 2 n) (inc (long (* n (/ period t))))))
                new-cl-state new-comp-state)))))
 
 
