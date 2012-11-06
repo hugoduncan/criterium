@@ -305,7 +305,32 @@ class counts, change in compilation time and result of specified function."
      "% of runtime"))
   final-gc-result)
 
-(def ^:const +max-obj-array-size+ 8192)
+;; Andy Fingerhut note: I tried using a larger value like 8192 for
+;; +max-obj-array-size+, but for a benchmarked expression like (conj
+;; coll :foo) (where coll is (into [] (range (+ 32768 32)))), it seems
+;; to result in much more GC time required between calls to
+;; execute-expr.  I saw it take multiple seconds between calls to
+;; execute-expr, even though the calls to execute-expr themselves only
+;; took about 1 second.  I'm not quite sure why it does this, since
+;; the amount of memory allocated by each call to (conj coll :foo) in
+;; that case is not terribly large -- most of the structure is shared
+;; with the original coll.
+;;
+;; By using a small value like 4, it seems that the GC can much more
+;; quickly get rid of the garbage.  My guess is that this has
+;; something to do with how generational GC works.
+;;
+;; For expressions that construct brand new large data structures, it
+;; also obviously requires significantly more memory during
+;; execute-expr to have a large value for +max-obj-array-size+,
+;; e.g. when benchmarking an expression like (into [] (range 100000)).
+;;
+;; TBD: Consider using the value 1.  This would still require keeping
+;; around the previous expression's return value while calculating the
+;; next one, so 2 total in memory at a time, but it seems like any
+;; value that is >= 1 should prevent the JVM from optimizing away the
+;; calculation of the expression.
+(def ^:const +max-obj-array-size+ 4)
 
 (defn execute-expr-core-timed-part
   "Performs the part of execute-expr where we actually measure the
