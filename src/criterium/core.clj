@@ -471,6 +471,94 @@ class counts, change in compilation time and result of specified function."
 ;; :average-time (/ total# sample-count# n-exec# 1e9)
 
 
+(defn run-benchmarks-round-robin
+  "Benchmark multiple expressions in a 'round robin' fashion.  Very
+similar to run-benchmark, except it takes multiple expressions in a
+sequence instead of only one (each element of the sequence should be a
+map with keys :f and :expr-string).  It runs the following steps in
+sequence:
+
+1. Execute each expr once
+
+2. Run expression 1 for at least warmup-jit-period nanoseconds so the
+   JIT has an opportunity to optimize it.  Then do the same for each
+   of the other expressions.
+
+3. Run expression 1 many times to estimate how many times it must be
+   executed to take a total of target-execution-time nanoseconds.  The
+   result is a number of iterations n-exec1 for expression 1.  Do the
+   same for each of the other expressions, each with the same
+   target-execution-time, each resulting in its own independent number
+   of executions.
+
+4. Run expression 1 n-exec1 times, measuring the total elapsed time.
+   Do the same for the rest of the expressions.
+
+5. Repeat step 4 a total of sample-count times."
+  [sample-count warmup-jit-period target-execution-time exprs reduce-with
+   gc-before-sample]
+  (force-gc)
+  (let [first-executions (map (fn [{:keys [f]}] (time-body (f))) exprs)]
+    (progress (format "Warming up %d expression for %.2e sec each:"
+                      (count exprs) (/ warmup-jit-period 1.0e9)))
+    (doseq [{:keys [f expr-string]} exprs]
+      (progress (format "    %s..." expr-string))
+      (warmup-for-jit warmup-jit-period f))
+    (progress (format "Estimating execution counts for %d expressions.  Target execution time = %.2e sec:"
+                      (count exprs) (/ target-execution-time 1.0e9)))
+    (let [exprs (map-indexed
+                 (fn [idx {:keys [f expr-string] :as expr}]
+                   (progress (format "    %s..." expr-string))
+                   (assoc expr :index idx
+                          :n-exec (estimate-execution-count
+                                   target-execution-time f
+                                   reduce-with gc-before-sample)))
+                 exprs)
+;;          _   (progress
+;;               "Running with sample-count" sample-count
+;;               "exec-count" n-exec  ; tbd: update
+;;               (if reduce-with "reducing results" ""))
+          all-samples (doall
+                       (for [i (range sample-count)]
+                         (do
+                           (progress (format "    Running sample %d/%d for %d expressions:"
+                                             (inc i) sample-count (count exprs)))
+                           (doall
+                            (for [{:keys [f n-exec expr-string] :as expr} exprs]
+                              (do
+                                (progress (format "        %s..." expr-string))
+                                (assoc expr
+                                  :sample (first
+                                           (collect-samples 1 n-exec f
+                                                            reduce-with
+                                                            gc-before-sample)))))))))
+
+          ;; 'transpose' all-samples so that all samples for a
+          ;; particular expression are in a sequence together, and
+          ;; all-samples is a sequence of one map per expression.
+          all-samples (group-by :index (apply concat all-samples))
+          all-samples
+          (map (fn [[idx data-seq]]
+                 (let [expr (dissoc (first data-seq) :sample)
+                       n-exec (:n-exec expr)
+                       samples (map :sample data-seq)
+                       sample-times (map first samples)
+                       total (reduce + 0 sample-times)
+                       ;; TBD: Doesn't make much sense to attach final
+                       ;; GC warning to the expression that happened
+                       ;; to be first in the sequence, but that is
+                       ;; what this probably does right now.  Think
+                       ;; what might be better to do.
+                       final-gc-result (final-gc-warn (final-gc total))]
+                   {:execution-count n-exec
+                    :sample-count sample-count
+                    :samples sample-times
+                    :results (map second samples)
+                    :total-time (/ total 1e9)}))
+               all-samples)]
+      all-samples)))
+
+
 (defn bootstrap-bca
   "Bootstrap a statistic. Statistic can produce multiple statistics as a vector
    so you can use juxt to pass multiple statistics.
@@ -605,20 +693,8 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
   `(binding [*report-progress* true]
      ~expr))
 
-(defn benchmark*
-  "Benchmark a function. This tries its best to eliminate sources of error.
-   This also means that it runs for a while.  It will typically take 70s for a
-   fast test expression (less than 1s run time) or 10s plus 60 run times for
-   longer running expressions."
-  [f & {:as options}]
-  (let [opts (merge *default-benchmark-opts* options)
-        times (run-benchmark (:samples opts)
-                             (:warmup-jit-period opts)
-                             (:target-execution-time opts)
-                             f
-                             (:reduce-with opts default-reducer)
-                             (:gc-before-sample opts))
-        outliers (outliers (:samples times))
+(defn benchmark-stats [times opts]
+  (let [outliers (outliers (:samples times))
         tail-quantile (:tail-quantile opts)
         stats (bootstrap-bca
                (map double (:samples times))
@@ -658,6 +734,33 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
                               (runtime-details)
                               (update-in [:input-arguments] vec))})))
 
+(defn benchmark*
+  "Benchmark a function. This tries its best to eliminate sources of error.
+   This also means that it runs for a while.  It will typically take 70s for a
+   fast test expression (less than 1s run time) or 10s plus 60 run times for
+   longer running expressions."
+  [f & {:as options}]
+  (let [opts (merge *default-benchmark-opts* options)
+        times (run-benchmark (:samples opts)
+                             (:warmup-jit-period opts)
+                             (:target-execution-time opts)
+                             f
+                             (:reduce-with opts default-reducer)
+                             (:gc-before-sample opts))]
+    (benchmark-stats times opts)))
+
+(defn benchmark-round-robin*
+  [exprs options]
+  (let [opts (merge *default-benchmark-opts* options)
+        times (run-benchmarks-round-robin
+               (:samples opts)
+               (:warmup-jit-period opts)
+               (:target-execution-time opts)
+               exprs
+               (:reduce-with opts default-reducer)
+               (:gc-before-sample opts))]
+    (map #(benchmark-stats % opts) times)))
+
 (defmacro benchmark
   "Benchmark an expression. This tries its best to eliminate sources of error.
    This also means that it runs for a while.  It will typically take 70s for a
@@ -665,6 +768,16 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
    longer running expressions."
   [expr & options]
   `(benchmark* (fn [] ~expr) ~@options))
+
+(defmacro benchmark-round-robin
+  [exprs options]
+  (let [wrap-exprs (fn [exprs]
+                     (cons 'list
+                           (map (fn [expr]
+                                  {:f `(fn [] ~expr)
+                                   :expr-string (str expr)})
+                                exprs)))]
+    `(benchmark-round-robin* ~(wrap-exprs exprs) ~options)))
 
 (defn quick-benchmark*
   "Benchmark an expression. Less rigorous benchmark (higher uncertainty)."
