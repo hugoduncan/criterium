@@ -170,7 +170,8 @@ library that applies many of the same statistical techniques."
 (defn runtime-details
   "Return the runtime details as a hash."
   []
-  (let [bean (.. ManagementFactory getRuntimeMXBean)]
+  (let [bean (.. ManagementFactory getRuntimeMXBean)
+        props (. bean getSystemProperties)]
     {:input-arguments (. bean getInputArguments)
      :name (. bean getName)
      :spec-name (. bean getSpecName)
@@ -178,7 +179,12 @@ library that applies many of the same statistical techniques."
      :spec-version (. bean getSpecVersion)
      :vm-name (. bean getVmName)
      :vm-vendor (. bean getVmVendor)
-     :vm-version (. bean getVmVersion)}))
+     :vm-version (. bean getVmVersion)
+     :java-version (get props "java.version")
+     :java-runtime-version (get props "java.runtime.version")
+     :sun-arch-data-model (get props "sun.arch.data.model")
+     :clojure-version-string (clojure-version)
+     :clojure-version *clojure-version*}))
 
 (defn system-properties
   "Return the operating system details."
@@ -224,6 +230,10 @@ library that applies many of the same statistical techniques."
             ret# ~expr
             finish# (timestamp)]
         [(- finish# start#) ret#])))
+
+(defn replace-ret-val-in-time-body-result
+  [[elapsed-time _] new-ret-val]
+  [elapsed-time new-ret-val])
 
 (defmacro time-body-with-jvm-state
   "Returns a vector containing execution time, change in loaded and unloaded
@@ -295,16 +305,93 @@ class counts, change in compilation time and result of specified function."
      "% of runtime"))
   final-gc-result)
 
+;; Andy Fingerhut note: I tried using a larger value like 8192 for
+;; +max-obj-array-size+, but for a benchmarked expression like (conj
+;; coll :foo) (where coll is (into [] (range (+ 32768 32)))), it seems
+;; to result in much more GC time required between calls to
+;; execute-expr.  I saw it take multiple seconds between calls to
+;; execute-expr, even though the calls to execute-expr themselves only
+;; took about 1 second.  I'm not quite sure why it does this, since
+;; the amount of memory allocated by each call to (conj coll :foo) in
+;; that case is not terribly large -- most of the structure is shared
+;; with the original coll.
+;;
+;; By using a small value like 4, it seems that the GC can much more
+;; quickly get rid of the garbage.  My guess is that this has
+;; something to do with how generational GC works.
+;;
+;; For expressions that construct brand new large data structures, it
+;; also obviously requires significantly more memory during
+;; execute-expr to have a large value for +max-obj-array-size+,
+;; e.g. when benchmarking an expression like (into [] (range 100000)).
+;;
+;; TBD: Consider using the value 1.  This would still require keeping
+;; around the previous expression's return value while calculating the
+;; next one, so 2 total in memory at a time, but it seems like any
+;; value that is >= 1 should prevent the JVM from optimizing away the
+;; calculation of the expression.
+(def ^:const +max-obj-array-size+ 4)
+
+(defn execute-expr-core-timed-part
+  "Performs the part of execute-expr where we actually measure the
+  elapsed run time.  Evaluates (f) n times, each time saving the
+  return value as an Object in the Java Object array ret-vals-arr,
+  i.e. ret-vals-arr is mutated.
+
+  The idea is that except for the call to (f), the only things done
+  during each iteration are a few arithmetic operations and
+  comparisons to 0 on primitive longs, and the aset to store the
+  return value.
+
+  The JVM is not free to optimize away the calls to f because the
+  return values are saved in ret-vals-arr.
+
+  This array is at most +max-obj-array-size+ elements long, to save
+  memory.  An artificially intelligent JVM might be able to determine
+  that if n is larger than +max-obj-array-size+, some of the return
+  values are overwritten and thus those calls need not be made.  I
+  doubt we will see that kind of optimization any time soon, and
+  perhaps some JVM rules even prohibit doing so since the writes to
+  ret-vals-arr could potentially be read by a different thread."
+  [n f ret-vals-arr]
+  (let [^objects arr ret-vals-arr
+        arr-size-1 (long (dec (count arr)))
+        init-j (rem (dec n) +max-obj-array-size+)]
+    (time-body
+     (loop [i (long (dec n))
+            j (long init-j)
+            v (f)]
+       (aset arr j v)
+       (if (pos? i)
+         (recur (unchecked-dec i)
+                (if (zero? j) arr-size-1 (unchecked-dec j))
+                (f)))))))
+
+(defn execute-expr-core
+  "See execute-expr-core-timed-part.  Here we create the Java Object
+  array in which execute-expr-core-timed-part will store return values
+  from calling (f).  Even though storing the return values in that
+  array is probably enough not to allow the JVM to optimize away calls
+  to (f), go ahead and use reduce-with to combine up to
+  +max-obj-array-size+ return values together and return that."
+  [n f reduce-with]
+  (let [arr-size (int (min +max-obj-array-size+ n))
+        arr-size-1 (int (dec arr-size))
+        ret-vals-arr (object-array arr-size)
+        time-and-ret (execute-expr-core-timed-part n f ret-vals-arr)]
+    (loop [i (int arr-size-1)
+           v (aget ret-vals-arr i)]
+      (if (pos? i)
+        (recur (dec i) (reduce-with v (aget ret-vals-arr (dec i))))
+        (replace-ret-val-in-time-body-result time-and-ret v)))))
+
 ;;; Execution
 (defn execute-expr
   "A function to execute a function the given number of times, timing the
   complete execution."
   [n f reduce-with]
   (if reduce-with
-    (time-body (loop [i (dec n) v (f)]
-                 (if (pos? i)
-                   (recur (dec i) (reduce-with v (f)))
-                   v)))
+    (execute-expr-core n f reduce-with)
     (time-body (doall (for [_ (range 0 n)] (f))))))
 
 (defn collect-samples
@@ -337,6 +424,11 @@ class counts, change in compilation time and result of specified function."
          cl-state (jvm-class-loader-state)
          comp-state (jvm-compilation-state)]
     (let [t (ffirst (collect-samples 1 n f reduce-with gc-before-sample))
+          ;; It is possible for small n and a fast expression to get
+          ;; t=0 nsec back from collect-samples.  This is likely due
+          ;; to how (System/nanoTime) quantizes the time on some
+          ;; systems.
+          t (max 1 t)
           new-cl-state (jvm-class-loader-state)
           new-comp-state (jvm-compilation-state)]
       (if (and (>= t period)
@@ -345,7 +437,7 @@ class counts, change in compilation time and result of specified function."
         n
         (recur (if (>= t period)
                  n
-                 (min (* 2 n) (inc (int (* n (/ period t))))))
+                 (min (* 2 n) (inc (long (* n (/ period t))))))
                new-cl-state new-comp-state)))))
 
 
@@ -377,6 +469,94 @@ class counts, change in compilation time and result of specified function."
        :results (map second samples)
        :total-time (/ total 1e9)})))
 ;; :average-time (/ total# sample-count# n-exec# 1e9)
+
+
+(defn run-benchmarks-round-robin
+  "Benchmark multiple expressions in a 'round robin' fashion.  Very
+similar to run-benchmark, except it takes multiple expressions in a
+sequence instead of only one (each element of the sequence should be a
+map with keys :f and :expr-string).  It runs the following steps in
+sequence:
+
+1. Execute each expr once
+
+2. Run expression 1 for at least warmup-jit-period nanoseconds so the
+   JIT has an opportunity to optimize it.  Then do the same for each
+   of the other expressions.
+
+3. Run expression 1 many times to estimate how many times it must be
+   executed to take a total of target-execution-time nanoseconds.  The
+   result is a number of iterations n-exec1 for expression 1.  Do the
+   same for each of the other expressions, each with the same
+   target-execution-time, each resulting in its own independent number
+   of executions.
+
+4. Run expression 1 n-exec1 times, measuring the total elapsed time.
+   Do the same for the rest of the expressions.
+
+5. Repeat step 4 a total of sample-count times."
+  [sample-count warmup-jit-period target-execution-time exprs reduce-with
+   gc-before-sample]
+  (force-gc)
+  (let [first-executions (map (fn [{:keys [f]}] (time-body (f))) exprs)]
+    (progress (format "Warming up %d expression for %.2e sec each:"
+                      (count exprs) (/ warmup-jit-period 1.0e9)))
+    (doseq [{:keys [f expr-string]} exprs]
+      (progress (format "    %s..." expr-string))
+      (warmup-for-jit warmup-jit-period f))
+    (progress (format "Estimating execution counts for %d expressions.  Target execution time = %.2e sec:"
+                      (count exprs) (/ target-execution-time 1.0e9)))
+    (let [exprs (map-indexed
+                 (fn [idx {:keys [f expr-string] :as expr}]
+                   (progress (format "    %s..." expr-string))
+                   (assoc expr :index idx
+                          :n-exec (estimate-execution-count
+                                   target-execution-time f
+                                   reduce-with gc-before-sample)))
+                 exprs)
+;;          _   (progress
+;;               "Running with sample-count" sample-count
+;;               "exec-count" n-exec  ; tbd: update
+;;               (if reduce-with "reducing results" ""))
+          all-samples (doall
+                       (for [i (range sample-count)]
+                         (do
+                           (progress (format "    Running sample %d/%d for %d expressions:"
+                                             (inc i) sample-count (count exprs)))
+                           (doall
+                            (for [{:keys [f n-exec expr-string] :as expr} exprs]
+                              (do
+                                (progress (format "        %s..." expr-string))
+                                (assoc expr
+                                  :sample (first
+                                           (collect-samples 1 n-exec f
+                                                            reduce-with
+                                                            gc-before-sample)))))))))
+          
+          ;; 'transpose' all-samples so that all samples for a
+          ;; particular expression are in a sequence together, and
+          ;; all-samples is a sequence of one map per expression.
+          all-samples (group-by :index (apply concat all-samples))
+          all-samples
+          (map (fn [[idx data-seq]]
+                 (let [expr (dissoc (first data-seq) :sample)
+                       n-exec (:n-exec expr)
+                       samples (map :sample data-seq)
+                       sample-times (map first samples)
+                       total (reduce + 0 sample-times)
+                       ;; TBD: Doesn't make much sense to attach final
+                       ;; GC warning to the expression that happened
+                       ;; to be first in the sequence, but that is
+                       ;; what this probably does right now.  Think
+                       ;; what might be better to do.
+                       final-gc-result (final-gc-warn (final-gc total))]
+                   {:execution-count n-exec
+                    :sample-count sample-count
+                    :samples sample-times
+                    :results (map second samples)
+                    :total-time (/ total 1e9)}))
+               all-samples)]
+      all-samples)))
 
 
 (defn bootstrap-bca
@@ -513,20 +693,8 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
   `(binding [*report-progress* true]
      ~expr))
 
-(defn benchmark*
-  "Benchmark a function. This tries its best to eliminate sources of error.
-   This also means that it runs for a while.  It will typically take 70s for a
-   fast test expression (less than 1s run time) or 10s plus 60 run times for
-   longer running expressions."
-  [f & {:as options}]
-  (let [opts (merge *default-benchmark-opts* options)
-        times (run-benchmark (:samples opts)
-                             (:warmup-jit-period opts)
-                             (:target-execution-time opts)
-                             f
-                             (:reduce-with opts default-reducer)
-                             (:gc-before-sample opts))
-        outliers (outliers (:samples times))
+(defn benchmark-stats [times opts]
+  (let [outliers (outliers (:samples times))
         tail-quantile (:tail-quantile opts)
         stats (bootstrap-bca
                (map double (:samples times))
@@ -561,9 +729,37 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
             :outlier-variance analysis
             :tail-quantile (:tail-quantile opts)
             :os-details (os-details)
+            :options opts
             :runtime-details (->
                               (runtime-details)
                               (update-in [:input-arguments] vec))})))
+
+(defn benchmark*
+  "Benchmark a function. This tries its best to eliminate sources of error.
+   This also means that it runs for a while.  It will typically take 70s for a
+   fast test expression (less than 1s run time) or 10s plus 60 run times for
+   longer running expressions."
+  [f & {:as options}]
+  (let [opts (merge *default-benchmark-opts* options)
+        times (run-benchmark (:samples opts)
+                             (:warmup-jit-period opts)
+                             (:target-execution-time opts)
+                             f
+                             (:reduce-with opts default-reducer)
+                             (:gc-before-sample opts))]
+    (benchmark-stats times opts)))
+
+(defn benchmark-round-robin*
+  [exprs options]
+  (let [opts (merge *default-benchmark-opts* options)
+        times (run-benchmarks-round-robin
+               (:samples opts)
+               (:warmup-jit-period opts)
+               (:target-execution-time opts)
+               exprs
+               (:reduce-with opts default-reducer)
+               (:gc-before-sample opts))]
+    (map #(benchmark-stats % opts) times)))
 
 (defmacro benchmark
   "Benchmark an expression. This tries its best to eliminate sources of error.
@@ -572,6 +768,16 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
    longer running expressions."
   [expr & options]
   `(benchmark* (fn [] ~expr) ~@options))
+
+(defmacro benchmark-round-robin
+  [exprs options]
+  (let [wrap-exprs (fn [exprs]
+                     (cons 'list
+                           (map (fn [expr]
+                                  {:f `(fn [] ~expr)
+                                   :expr-string (str expr)})
+                                exprs)))]
+    `(benchmark-round-robin* ~(wrap-exprs exprs) ~options)))
 
 (defn quick-benchmark*
   "Benchmark an expression. Less rigorous benchmark (higher uncertainty)."
