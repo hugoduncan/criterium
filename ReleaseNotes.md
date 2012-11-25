@@ -1,6 +1,31 @@
 # Release Notes
 
-Current version is 0.3.0
+Current version is 0.3.1
+
+# 0.3.1
+
+- Add macro 'benchmark-round-robin' that is like benchmark, but takes a
+  sequence of expressions
+  The goal is to see whether the results are noticeably different when
+  executed 'round robin' instead of doing the same expression over and over
+  for an extended period of time (e.g. 1 min).  Instead try 10 different
+  expressions for 100 millisec each, for example, and then repeat that 60
+  times if :sample-count is 60.
+
+  One needs to be cautious in interpreting the results, e.g. if one
+  expression in the sequence tends to leave behind lots of garbage that
+  won't be collected until a later expression is being executed.
+
+- Change execute-expr so it has less overhead per execution of the
+  benchmarked expression.
+
+- Return options used as part of benchmark* return value
+
+- Add Clojure version and system property sun.arch.data.model to
+  runtime-details return value.
+
+- Add the values of system properties java.version and java.runtime.version
+  to return value of runtime-details.
 
 # 0.3.0
 
