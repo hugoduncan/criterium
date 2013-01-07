@@ -801,7 +801,7 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
   (cond
    (> measurement 60) [(/ 60) "min"]
    (< measurement 1e-6) [1e9 "ns"]
-   (< measurement 1e-3) [1e6 "us"]
+   (< measurement 1e-3) [1e6 "µs"]
    (< measurement 1) [1e3 "ms"]
    :else [1 "sec"]))
 
