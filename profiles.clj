@@ -1,4 +1,4 @@
-{:dev
+{:doc
  {:dependencies [[codox-md "0.1.0"]]
   :codox {:writer codox-md.writer/write-docs}
   :autodoc {:name "Criterium"
