@@ -14,6 +14,21 @@ This includes:
   * a final forced GC after testing to estimate impact of cleanup on the
     timing results
 
+## Installation
+
+### Clojars
+
+    [criterium "0.3.1"]
+    
+### Maven
+```xml
+<dependency>
+  <groupId>criterium</groupId>
+  <artifactId>criterium</artifactId>
+  <version>0.3.1</version>
+</dependency>
+```
+
 ## Usage
 
 The top level interface is in `criterium.core`.
@@ -67,12 +82,6 @@ JVM benchmarking pitfalls.
 
 See [Criterion](http://hackage.haskell.org/package/criterion) for a Haskell
 benchmarking library that applies many of the same statistical techniques.
-
-
-## Installation
-
-The library can be installed through
-[Leiningen](http://github.com/technomancy/leiningen) or through maven.
 
 ## Todo
 
