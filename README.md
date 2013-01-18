@@ -16,7 +16,7 @@ This includes:
 
 ## Installation
 
-### Clojars
+### Leiningen
 
     [criterium "0.3.1"]
     
