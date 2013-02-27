@@ -378,7 +378,7 @@ class counts, change in compilation time and result of specified function."
 (defn warmup-for-jit
   "Run expression for the given amount of time to enable JIT compilation."
   [warmup-period f]
-  (progress "Warming up for JIT optimisations " warmup-period "...")
+  (progress "Warming up for JIT optimisations" warmup-period "...")
   (let [t (max 1 (first (time-body (f))))
         p (/ warmup-period t)
         n (long (max 1 (/ p 100)))]
@@ -422,19 +422,25 @@ class counts, change in compilation time and result of specified function."
    This also means that it runs for a while.  It will typically take 70s for a
    quick test expression (less than 1s run time) or 10s plus 60 run times for
    longer running expressions."
-  [sample-count warmup-jit-period target-execution-time f gc-before-sample]
+  [sample-count warmup-jit-period target-execution-time f gc-before-sample
+   overhead]
   (force-gc)
   (let [first-execution (time-body (f))
         [warmup-t warmup-n] (warmup-for-jit warmup-jit-period f)
         n-exec (estimate-execution-count
                 target-execution-time f gc-before-sample)
+        total-overhead (long (* (or overhead 0) 1e9 n-exec))
         _   (progress
              "Running with sample-count" sample-count
-             "exec-count" n-exec)
+             "exec-count" n-exec
+             "overhead[s]" overhead
+             "total-overhead[ns]" total-overhead)
         _   (force-gc)
         samples (collect-samples sample-count n-exec f gc-before-sample)
         final-gc-time (final-gc)
-        sample-times (map first samples)
+        sample-times (->> samples
+                          (map first)
+                          (map #(- % total-overhead)))
         total (reduce + 0 sample-times)
         final-gc-result (final-gc-warn total final-gc-time)]
     {:execution-count n-exec
@@ -444,7 +450,8 @@ class counts, change in compilation time and result of specified function."
      :total-time (/ total 1e9)
      :warmup-time warmup-t
      :warmup-executions warmup-n
-     :final-gc-time final-gc-time}))
+     :final-gc-time final-gc-time
+     :overhead overhead}))
 
 
 (defn run-benchmarks-round-robin
@@ -710,13 +717,13 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
    This also means that it runs for a while.  It will typically take 70s for a
    fast test expression (less than 1s run time) or 10s plus 60 run times for
    longer running expressions."
-  [f {:as options}]
-  (let [opts (merge *default-benchmark-opts* options)
-        times (run-benchmark (:samples opts)
-                             (:warmup-jit-period opts)
-                             (:target-execution-time opts)
-                             f
-                             (:gc-before-sample opts))]
+  [f {:keys [samples warmup-jit-period target-execution-time gc-before-sample
+             overhead] :as options}]
+  (let [{:keys [samples warmup-jit-period target-execution-time
+                gc-before-sample overhead] :as opts}
+        (merge *default-benchmark-opts* options)
+        times (run-benchmark
+               samples warmup-jit-period target-execution-time f opts overhead)]
     (benchmark-stats times opts)))
 
 (defn benchmark-round-robin*
@@ -872,7 +879,33 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
     (report-point-estimate
      "Execution time upper quantile"
      (:upper-q results) (- 1.0 (:tail-quantile results)))
+    (when (pos? (:overhead results))
+      (report-point-estimate "Overhead used" [(:overhead results)]))
     (report-outliers results)))
+
+(defn estimate-overhead
+  "Calculate a conservative estimate of the timing loop overhead."
+  []
+  (-> (benchmark 0 {:warmup-jit-period (* 10 s-to-ns)
+                    :samples 10
+                    :target-execution-time (* 0.5 s-to-ns)
+                    :overhead 0})
+      :lower-q
+      first))
+
+(def estimatated-overhead-cache nil)
+
+(defn estimatated-overhead!
+  "Sets the estimated overhead."
+  []
+  (progress "Estimating sampling overhead")
+  (alter-var-root
+   #'estimatated-overhead-cache (constantly (estimate-overhead))))
+
+(defn estimatated-overhead
+  []
+  (or estimatated-overhead-cache
+      (estimatated-overhead!)))
 
 (defmacro bench
   "Convenience macro for benchmarking an expression, expr.  Results are reported
@@ -881,7 +914,10 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
   [expr & opts]
   (let [[report-options options] (extract-report-options opts)]
     `(report-result
-      (benchmark ~expr ~(apply hash-map options))
+      (benchmark
+       ~expr
+       (merge {:overhead (estimatated-overhead)}
+              ~(when (seq options) (apply hash-map options))))
       ~@report-options)))
 
 (defmacro quick-bench
@@ -891,4 +927,8 @@ to *out* in human readable format. Options for report format are: :os,
   [expr & opts]
   (let [[report-options options] (extract-report-options opts)]
     `(report-result
-      (quick-benchmark ~expr ~(apply hash-map options)) ~@report-options)))
+      (quick-benchmark
+       ~expr
+       (merge {:overhead (estimatated-overhead)}
+              ~(when (seq options) (apply hash-map options))))
+      ~@report-options)))
