@@ -361,22 +361,30 @@ class counts, change in compilation time and result of specified function."
 
 (defn collect-samples
   [sample-count execution-count f gc-before-sample]
-  (doall
-   (for [_ (range 0 sample-count)]
-     (do
-       (when gc-before-sample
-         (force-gc))
-       (execute-expr execution-count f)))))
+  {:pre [(pos? sample-count)]}
+  (let [result (object-array sample-count)]
+    (loop [i (long 0)]
+      (if (< i sample-count)
+        (do
+          (when gc-before-sample
+            (force-gc))
+          (aset result i (execute-expr execution-count f))
+          (recur (unchecked-inc i)))
+        result))))
 
 ;;; Compilation
 (defn warmup-for-jit
   "Run expression for the given amount of time to enable JIT compilation."
   [warmup-period f]
-  (progress "Warming up for JIT optimisations ...")
-  (loop [elapsed 0 count 0]
-    (if (> elapsed warmup-period)
-      [elapsed count]
-      (recur (+ elapsed (long (first (time-body (f))))) (inc count)))))
+  (progress "Warming up for JIT optimisations " warmup-period "...")
+  (let [t (max 1 (first (time-body (f))))
+        p (/ warmup-period t)
+        n (long (max 1 (/ p 100)))]
+    (progress "  using execution-count" n)
+    (loop [elapsed (long 0) count (long 0)]
+      (if (> elapsed warmup-period)
+        [elapsed count]
+        (recur (+ elapsed (long (first (execute-expr n f)))) (+ count n))))))
 
 ;;; Execution parameters
 (defn estimate-execution-count
