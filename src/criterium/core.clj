@@ -710,7 +710,7 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
    This also means that it runs for a while.  It will typically take 70s for a
    fast test expression (less than 1s run time) or 10s plus 60 run times for
    longer running expressions."
-  [f & {:as options}]
+  [f {:as options}]
   (let [opts (merge *default-benchmark-opts* options)
         times (run-benchmark (:samples opts)
                              (:warmup-jit-period opts)
@@ -735,8 +735,8 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
    This also means that it runs for a while.  It will typically take 70s for a
    fast test expression (less than 1s run time) or 10s plus 60 run times for
    longer running expressions."
-  [expr & options]
-  `(benchmark* (fn [] ~expr) ~@options))
+  [expr options]
+  `(benchmark* (fn [] ~expr) ~options))
 
 (defmacro benchmark-round-robin
   [exprs options]
@@ -750,14 +750,13 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
 
 (defn quick-benchmark*
   "Benchmark an expression. Less rigorous benchmark (higher uncertainty)."
-  [f & {:as options}]
-  (apply
-   benchmark* f (apply concat (merge *default-quick-bench-opts* options))))
+  [f {:as options}]
+  (benchmark* f (merge *default-quick-bench-opts* options)))
 
 (defmacro quick-benchmark
   "Benchmark an expression. Less rigorous benchmark (higher uncertainty)."
-  [expr & options]
-  `(quick-benchmark* (fn [] ~expr) ~@options))
+  [expr options]
+  `(quick-benchmark* (fn [] ~expr) ~options))
 
 (defn report
   "Print format output"
@@ -881,7 +880,9 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
 :runtime, and :verbose."
   [expr & opts]
   (let [[report-options options] (extract-report-options opts)]
-    `(report-result (benchmark ~expr ~@options) ~@report-options)))
+    `(report-result
+      (benchmark ~expr ~(apply hash-map options))
+      ~@report-options)))
 
 (defmacro quick-bench
   "Convenience macro for benchmarking an expression, expr.  Results are reported
@@ -889,4 +890,5 @@ to *out* in human readable format. Options for report format are: :os,
 :runtime, and :verbose."
   [expr & opts]
   (let [[report-options options] (extract-report-options opts)]
-    `(report-result (quick-benchmark ~expr ~@options) ~@report-options)))
+    `(report-result
+      (quick-benchmark ~expr ~(apply hash-map options)) ~@report-options)))
