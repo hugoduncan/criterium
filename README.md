@@ -63,14 +63,7 @@ generation and reporting.
 ```
 
 Note that results are returned to the user to prevent JIT from recognising that
-the results are not used. For functions that are very fast, or return a lot of
-data, you may need to supply a function to reduce the results to prevent
-excessive memory allocation. The default for :reduce-with adds the hash codes of
-the results.
-
-```clj
-(bench (rand) :reduce-with +)
-```
+the results are not used.
 
 ## References
 

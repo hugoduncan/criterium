@@ -33,5 +33,5 @@
         (replace-ret-val-in-time-body-result time-and-ret v)))))
 
 (defn with-array [f]
-  (with-redefs [criterium.core/execute-expr-core execute-expr-core-with-array]
+  (with-redefs [criterium.core/execute-expr execute-expr-core-with-array]
     (f)))

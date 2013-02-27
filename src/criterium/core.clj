@@ -305,46 +305,34 @@ class counts, change in compilation time and result of specified function."
      "% of runtime"))
   final-gc-result)
 
-;; Andy Fingerhut note: I tried using a larger value like 8192 for
-;; +max-obj-array-size+, but for a benchmarked expression like (conj
-;; coll :foo) (where coll is (into [] (range (+ 32768 32)))), it seems
-;; to result in much more GC time required between calls to
-;; execute-expr.  I saw it take multiple seconds between calls to
-;; execute-expr, even though the calls to execute-expr themselves only
-;; took about 1 second.  I'm not quite sure why it does this, since
-;; the amount of memory allocated by each call to (conj coll :foo) in
-;; that case is not terribly large -- most of the structure is shared
-;; with the original coll.
-;;
-;; By using a small value like 4, it seems that the GC can much more
-;; quickly get rid of the garbage.  My guess is that this has
-;; something to do with how generational GC works.
-;;
-;; For expressions that construct brand new large data structures, it
-;; also obviously requires significantly more memory during
-;; execute-expr to have a large value for +max-obj-array-size+,
-;; e.g. when benchmarking an expression like (into [] (range 100000)).
-;;
-;; TBD: Consider using the value 1.  This would still require keeping
-;; around the previous expression's return value while calculating the
-;; next one, so 2 total in memory at a time, but it seems like any
-;; value that is >= 1 should prevent the JVM from optimizing away the
-;; calculation of the expression.
-(def ^:const +max-obj-array-size+ 4)
+;;; ## Core timing loop
+
+;;; A mutable field is used to store the result of each function call, to
+;;; prevent JIT optimising away the expression entirely.
+
+(defprotocol MutablePlace
+  "Provides a mutable place"
+  (set-place [_ v] "Set mutable field to value.")
+  (get-place [_] "Get mutable field value."))
+
+(deftype Unsynchronized [^{:unsynchronized-mutable true :tag Object} v]
+  MutablePlace
+  (set-place [_ value] (set! v value))
+  (get-place [_] v))
+
+(def mutable-place (Unsynchronized. nil))
 
 (defn execute-expr-core-timed-part
-  "Performs the part of execute-expr where we actually measure the
-  elapsed run time.  Evaluates (f) n times, each time saving the
-  return value as an Object in the Java Object array ret-vals-arr,
-  i.e. ret-vals-arr is mutated.
+ "Performs the part of execute-expr where we actually measure the elapsed run
+  time.  Evaluates `(f)` `n` times, each time saving the return value as an
+  Object in `mutable-place`.
 
-  The idea is that except for the call to (f), the only things done
-  during each iteration are a few arithmetic operations and
-  comparisons to 0 on primitive longs, and the aset to store the
-  return value.
+  The idea is that except for the call to (f), the only things done during each
+  iteration are a few arithmetic operations and comparisons to 0 on primitive
+  longs, and the storage of the return value.
 
-  The JVM is not free to optimize away the calls to f because the
-  return values are saved in ret-vals-arr.
+  The JVM is not free to optimize away the calls to f because the return values
+  are saved in `mutable-place`.
 
   This array is at most +max-obj-array-size+ elements long, to save
   memory.  An artificially intelligent JVM might be able to determine
@@ -353,55 +341,32 @@ class counts, change in compilation time and result of specified function."
   doubt we will see that kind of optimization any time soon, and
   perhaps some JVM rules even prohibit doing so since the writes to
   ret-vals-arr could potentially be read by a different thread."
-  [n f ret-vals-arr]
-  (let [^objects arr ret-vals-arr
-        arr-size-1 (long (dec (count arr)))
-        init-j (rem (dec n) +max-obj-array-size+)]
-    (time-body
-     (loop [i (long (dec n))
-            j (long init-j)
-            v (f)]
-       (aset arr j v)
-       (if (pos? i)
-         (recur (unchecked-dec i)
-                (if (zero? j) arr-size-1 (unchecked-dec j))
-                (f)))))))
+  [n f]
+  (time-body
+   (loop [i (long (dec n))
+          v (f)]
+     (set-place mutable-place v)
+     (if (pos? i)
+       (recur (unchecked-dec i) (f))
+       v))))
 
-(defn execute-expr-core
-  "See execute-expr-core-timed-part.  Here we create the Java Object
-  array in which execute-expr-core-timed-part will store return values
-  from calling (f).  Even though storing the return values in that
-  array is probably enough not to allow the JVM to optimize away calls
-  to (f), go ahead and use reduce-with to combine up to
-  +max-obj-array-size+ return values together and return that."
-  [n f reduce-with]
-  (let [arr-size (int (min +max-obj-array-size+ n))
-        arr-size-1 (int (dec arr-size))
-        ret-vals-arr (object-array arr-size)
-        time-and-ret (execute-expr-core-timed-part n f ret-vals-arr)]
-    (loop [i (int arr-size-1)
-           v (aget ret-vals-arr i)]
-      (if (pos? i)
-        (recur (dec i) (reduce-with v (aget ret-vals-arr (dec i))))
-        (replace-ret-val-in-time-body-result time-and-ret v)))))
-
-;;; Execution
+;;; ## Execution
 (defn execute-expr
-  "A function to execute a function the given number of times, timing the
-  complete execution."
-  [n f reduce-with]
-  (if reduce-with
-    (execute-expr-core n f reduce-with)
-    (time-body (doall (for [_ (range 0 n)] (f))))))
+  "Time the execution of `n` invocations of `f`. See
+  `execute-expr-core-timed-part`."
+  [n f]
+  (let [time-and-ret (execute-expr-core-timed-part n f)]
+    (get-place mutable-place) ;; just for good measure, use the mutable value
+    time-and-ret))
 
 (defn collect-samples
-  [sample-count execution-count f reduce-with gc-before-sample]
+  [sample-count execution-count f gc-before-sample]
   (doall
    (for [_ (range 0 sample-count)]
      (do
        (when gc-before-sample
          (force-gc))
-       (execute-expr execution-count f reduce-with)))))
+       (execute-expr execution-count f)))))
 
 ;;; Compilation
 (defn warmup-for-jit
@@ -418,12 +383,12 @@ class counts, change in compilation time and result of specified function."
   "Estimate the number of executions required in order to have at least the
    specified execution period, check for the jvm to have constant class loader
    and compilation state."
-  [period f reduce-with gc-before-sample]
+  [period f gc-before-sample]
   (progress "Estimating execution count ...")
   (loop [n 1
          cl-state (jvm-class-loader-state)
          comp-state (jvm-compilation-state)]
-    (let [t (ffirst (collect-samples 1 n f reduce-with gc-before-sample))
+    (let [t (ffirst (collect-samples 1 n f gc-before-sample))
           ;; It is possible for small n and a fast expression to get
           ;; t=0 nsec back from collect-samples.  This is likely due
           ;; to how (System/nanoTime) quantizes the time on some
@@ -447,19 +412,16 @@ class counts, change in compilation time and result of specified function."
    This also means that it runs for a while.  It will typically take 70s for a
    quick test expression (less than 1s run time) or 10s plus 60 run times for
    longer running expressions."
-  [sample-count warmup-jit-period target-execution-time f reduce-with
-   gc-before-sample]
+  [sample-count warmup-jit-period target-execution-time f gc-before-sample]
   (force-gc)
   (let [first-execution (time-body (f))]
     (warmup-for-jit warmup-jit-period f)
     (let [n-exec (estimate-execution-count
-                  target-execution-time f reduce-with gc-before-sample)
+                  target-execution-time f gc-before-sample)
           _   (progress
                "Running with sample-count" sample-count
-               "exec-count" n-exec
-               (if reduce-with "reducing results" ""))
-          samples (collect-samples
-                   sample-count n-exec f reduce-with gc-before-sample)
+               "exec-count" n-exec)
+          samples (collect-samples sample-count n-exec f gc-before-sample)
           sample-times (map first samples)
           total (reduce + 0 sample-times)
           final-gc-result (final-gc-warn (final-gc total))]
@@ -495,8 +457,7 @@ sequence:
    Do the same for the rest of the expressions.
 
 5. Repeat step 4 a total of sample-count times."
-  [sample-count warmup-jit-period target-execution-time exprs reduce-with
-   gc-before-sample]
+  [sample-count warmup-jit-period target-execution-time exprs gc-before-sample]
   (force-gc)
   (let [first-executions (map (fn [{:keys [f]}] (time-body (f))) exprs)]
     (progress (format "Warming up %d expression for %.2e sec each:"
@@ -504,7 +465,9 @@ sequence:
     (doseq [{:keys [f expr-string]} exprs]
       (progress (format "    %s..." expr-string))
       (warmup-for-jit warmup-jit-period f))
-    (progress (format "Estimating execution counts for %d expressions.  Target execution time = %.2e sec:"
+    (progress
+     (format
+      "Estimating execution counts for %d expressions.  Target execution time = %.2e sec:"
                       (count exprs) (/ target-execution-time 1.0e9)))
     (let [exprs (map-indexed
                  (fn [idx {:keys [f expr-string] :as expr}]
@@ -512,26 +475,26 @@ sequence:
                    (assoc expr :index idx
                           :n-exec (estimate-execution-count
                                    target-execution-time f
-                                   reduce-with gc-before-sample)))
+                                   gc-before-sample)))
                  exprs)
 ;;          _   (progress
 ;;               "Running with sample-count" sample-count
-;;               "exec-count" n-exec  ; tbd: update
-;;               (if reduce-with "reducing results" ""))
+;;               "exec-count" n-exec  ; tbd: update)
           all-samples (doall
                        (for [i (range sample-count)]
                          (do
-                           (progress (format "    Running sample %d/%d for %d expressions:"
-                                             (inc i) sample-count (count exprs)))
+                           (progress
+                            (format
+                             "    Running sample %d/%d for %d expressions:"
+                             (inc i) sample-count (count exprs)))
                            (doall
                             (for [{:keys [f n-exec expr-string] :as expr} exprs]
                               (do
                                 (progress (format "        %s..." expr-string))
                                 (assoc expr
                                   :sample (first
-                                           (collect-samples 1 n-exec f
-                                                            reduce-with
-                                                            gc-before-sample)))))))))
+                                           (collect-samples
+                                            1 n-exec f gc-before-sample)))))))))
 
           ;; 'transpose' all-samples so that all samples for a
           ;; particular expression are in a sequence together, and
@@ -679,13 +642,6 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
                             %1)
                          options)))))
 
-(defn default-reducer
-  "A function that can be used to reduce any function output."
-  [^Object a ^Object b]
-  (let [a (if (nil? a) 0 (.hashCode a))
-        b (if (nil? b) 0 (.hashCode b))]
-    (+ a b)))
-
 ;;; User top level functions
 (defmacro with-progress-reporting
   "Macro to enable progress reporting during the benchmark."
@@ -745,7 +701,6 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
                              (:warmup-jit-period opts)
                              (:target-execution-time opts)
                              f
-                             (:reduce-with opts default-reducer)
                              (:gc-before-sample opts))]
     (benchmark-stats times opts)))
 
@@ -757,7 +712,6 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
                (:warmup-jit-period opts)
                (:target-execution-time opts)
                exprs
-               (:reduce-with opts default-reducer)
                (:gc-before-sample opts))]
     (map #(benchmark-stats % opts) times)))
 

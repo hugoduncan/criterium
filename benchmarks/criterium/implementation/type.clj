@@ -33,7 +33,7 @@
     time-and-ret))
 
 (defn with-volatile [f]
-  (with-redefs [criterium.core/execute-expr-core execute-expr-core-volatile]
+  (with-redefs [criterium.core/execute-expr execute-expr-core-volatile]
     (f)))
 
 
@@ -61,6 +61,5 @@
     time-and-ret))
 
 (defn with-unsynchronized [f]
-  (with-redefs [criterium.core/execute-expr-core
-                execute-expr-core-unsynchronized]
+  (with-redefs [criterium.core/execute-expr execute-expr-core-unsynchronized]
     (f)))
