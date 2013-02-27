@@ -289,21 +289,23 @@ class counts, change in compilation time and result of specified function."
 (defn final-gc
   "Time a final clean up of JVM memory. If this time is significant compared to
   the runtime, then the runtime should maybe include this time."
-  [execution-time]
-  (progress "Checking GC...")
-  (let [cleanup-time (first (time-body (force-gc)))
-        fractional-time (/ cleanup-time execution-time)]
-    [(> fractional-time *final-gc-problem-threshold*)
-     fractional-time
-     cleanup-time]))
+  []
+  (progress "Final GC...")
+  (first (time-body (force-gc))))
 
-(defn final-gc-warn [final-gc-result]
-  (when (first final-gc-result)
-    (println
-     "WARNING: Final GC required"
-     (* 100.0 (second final-gc-result))
-     "% of runtime"))
-  final-gc-result)
+(defn final-gc-warn
+  [execution-time final-gc-time]
+  (progress "Checking GC...")
+  (let [fractional-time (/ final-gc-time execution-time)
+        final-gc-result [(> fractional-time *final-gc-problem-threshold*)
+                         fractional-time
+                         final-gc-time]]
+    (when (first final-gc-result)
+      (println
+       "WARNING: Final GC required"
+       (* 100.0 (second final-gc-result))
+       "% of runtime"))
+    final-gc-result))
 
 ;;; ## Core timing loop
 
@@ -422,23 +424,27 @@ class counts, change in compilation time and result of specified function."
    longer running expressions."
   [sample-count warmup-jit-period target-execution-time f gc-before-sample]
   (force-gc)
-  (let [first-execution (time-body (f))]
-    (warmup-for-jit warmup-jit-period f)
-    (let [n-exec (estimate-execution-count
-                  target-execution-time f gc-before-sample)
-          _   (progress
-               "Running with sample-count" sample-count
-               "exec-count" n-exec)
-          samples (collect-samples sample-count n-exec f gc-before-sample)
-          sample-times (map first samples)
-          total (reduce + 0 sample-times)
-          final-gc-result (final-gc-warn (final-gc total))]
-      {:execution-count n-exec
-       :sample-count sample-count
-       :samples sample-times
-       :results (map second samples)
-       :total-time (/ total 1e9)})))
-;; :average-time (/ total# sample-count# n-exec# 1e9)
+  (let [first-execution (time-body (f))
+        [warmup-t warmup-n] (warmup-for-jit warmup-jit-period f)
+        n-exec (estimate-execution-count
+                target-execution-time f gc-before-sample)
+        _   (progress
+             "Running with sample-count" sample-count
+             "exec-count" n-exec)
+        _   (force-gc)
+        samples (collect-samples sample-count n-exec f gc-before-sample)
+        final-gc-time (final-gc)
+        sample-times (map first samples)
+        total (reduce + 0 sample-times)
+        final-gc-result (final-gc-warn total final-gc-time)]
+    {:execution-count n-exec
+     :sample-count sample-count
+     :samples sample-times
+     :results (map second samples)
+     :total-time (/ total 1e9)
+     :warmup-time warmup-t
+     :warmup-executions warmup-n
+     :final-gc-time final-gc-time}))
 
 
 (defn run-benchmarks-round-robin
@@ -513,6 +519,7 @@ sequence:
                  (let [expr (dissoc (first data-seq) :sample)
                        n-exec (:n-exec expr)
                        samples (map :sample data-seq)
+                       final-gc-time (final-gc)
                        sample-times (map first samples)
                        total (reduce + 0 sample-times)
                        ;; TBD: Doesn't make much sense to attach final
@@ -520,7 +527,7 @@ sequence:
                        ;; to be first in the sequence, but that is
                        ;; what this probably does right now.  Think
                        ;; what might be better to do.
-                       final-gc-result (final-gc-warn (final-gc total))]
+                       final-gc-result (final-gc-warn total final-gc-time)]
                    {:execution-count n-exec
                     :sample-count sample-count
                     :samples sample-times
