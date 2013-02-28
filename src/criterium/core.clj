@@ -108,6 +108,24 @@ library that applies many of the same statistical techniques."
   (when *report-progress*
     (apply println message)))
 
+(def ^{:dynamic true} *report-debug* nil)
+
+(defn #^{:skip-wiki true}
+  debug
+  "Conditionally report debug to *out*."
+  [& message]
+  (when *report-debug*
+    (apply println message)))
+
+(def ^{:dynamic true} *report-warn* nil)
+
+(defn #^{:skip-wiki true}
+  warn
+  "Conditionally report warn to *out*."
+  [& message]
+  (when *report-warn*
+    (apply println "WARNING:" message)))
+
 ;;; Java Management interface
 (defprotocol StateChanged
   "Interrogation of differences in a state."
@@ -126,7 +144,7 @@ library that applies many of the same statistical techniques."
   (state-delta
    [state-1 state-2]
    (let [vals (map - (vals state-1) (vals state-2))]
-     (JvmClassLoaderState. (first vals) (second)))))
+     (JvmClassLoaderState. (first vals) (second vals)))))
 
 (defn jvm-class-loader-state []
   (let [bean (.. ManagementFactory getClassLoadingMXBean)]
@@ -273,7 +291,7 @@ class counts, change in compilation time and result of specified function."
 "
   ([] (force-gc *max-gc-attempts*))
   ([max-attempts]
-     (progress "Cleaning JVM allocations ...")
+     (debug "Cleaning JVM allocations ...")
      (loop [memory-used (heap-used)
             attempts 0]
        (System/runFinalization)
@@ -379,23 +397,52 @@ class counts, change in compilation time and result of specified function."
   "Run expression for the given amount of time to enable JIT compilation."
   [warmup-period f]
   (progress "Warming up for JIT optimisations" warmup-period "...")
-  (let [t (max 1 (first (time-body (f))))
+  (let [cl-state (jvm-class-loader-state)
+        comp-state (jvm-compilation-state)
+        t (max 1 (first (time-body (f))))
+        _ (debug "  initial t" t)
+        [t n] (if (< t 100000)           ; 100us
+                (let [n (/ 100000 t)]
+                  [(first (execute-expr n f)) n])
+                [t 1])
         p (/ warmup-period t)
-        n (long (max 1 (/ p 100)))]
-    (progress "  using execution-count" n)
-    (loop [elapsed (long 0) count (long 0)]
-      (if (> elapsed warmup-period)
-        [elapsed count]
-        (recur (+ elapsed (long (first (execute-expr n f)))) (+ count n))))))
+        c (long (max 1 (* n (/ p 5))))]
+    (debug "  using t" t "n" n)
+    (debug "  using execution-count" c)
+    (loop [elapsed (long t)
+           count (long n)
+           delta-free (long 0)
+           old-cl-state cl-state
+           old-comp-state comp-state]
+      (let [new-cl-state (jvm-class-loader-state)
+            new-comp-state (jvm-compilation-state)]
+        (if (not= old-cl-state new-cl-state)
+          (progress "  classes loaded before" count "iterations"))
+        (if (not= old-comp-state new-comp-state)
+          (progress "  compilation occured before" count "iterations"))
+        (debug "  elapsed" elapsed " count" count)
+        (if (and (> delta-free 2) (> elapsed warmup-period))
+          [elapsed count
+           (state-delta new-cl-state cl-state)
+           (state-delta new-comp-state comp-state)]
+          (recur (+ elapsed (long (first (execute-expr c f))))
+                 (+ count c)
+                 (if (and (= old-cl-state new-cl-state)
+                          (= old-comp-state new-comp-state))
+                   (unchecked-inc delta-free)
+                   (long 0))
+                 new-cl-state
+                 new-comp-state))))))
 
 ;;; Execution parameters
 (defn estimate-execution-count
   "Estimate the number of executions required in order to have at least the
    specified execution period, check for the jvm to have constant class loader
    and compilation state."
-  [period f gc-before-sample]
+  [period f gc-before-sample estimated-fn-time]
   (progress "Estimating execution count ...")
-  (loop [n 1
+  (debug " estimated-fn-time" estimated-fn-time)
+  (loop [n (max 1 (long (/ period estimated-fn-time 5)))
          cl-state (jvm-class-loader-state)
          comp-state (jvm-compilation-state)]
     (let [t (ffirst (collect-samples 1 n f gc-before-sample))
@@ -406,6 +453,9 @@ class counts, change in compilation time and result of specified function."
           t (max 1 t)
           new-cl-state (jvm-class-loader-state)
           new-comp-state (jvm-compilation-state)]
+      (debug " ..." n)
+      (when (not= comp-state new-comp-state)
+        (warn "new compilations in execution estimation phase"))
       (if (and (>= t period)
                (= cl-state new-cl-state)
                (= comp-state new-comp-state))
@@ -426,14 +476,17 @@ class counts, change in compilation time and result of specified function."
    overhead]
   (force-gc)
   (let [first-execution (time-body (f))
-        [warmup-t warmup-n] (warmup-for-jit warmup-jit-period f)
+        [warmup-t warmup-n cl-state comp-state] (warmup-for-jit
+                                                 warmup-jit-period f)
         n-exec (estimate-execution-count
-                target-execution-time f gc-before-sample)
+                target-execution-time f gc-before-sample
+                (long (/ warmup-t warmup-n)))
         total-overhead (long (* (or overhead 0) 1e9 n-exec))
-        _   (progress
-             "Running with sample-count" sample-count
-             "exec-count" n-exec
-             "overhead[s]" overhead
+        _   (progress "Sampling ...")
+        _   (debug
+             "Running with\n sample-count" sample-count \newline
+             "exec-count" n-exec \newline
+             "overhead[s]" overhead \newline
              "total-overhead[ns]" total-overhead)
         _   (force-gc)
         samples (collect-samples sample-count n-exec f gc-before-sample)
@@ -496,7 +549,8 @@ sequence:
                    (assoc expr :index idx
                           :n-exec (estimate-execution-count
                                    target-execution-time f
-                                   gc-before-sample)))
+                                   gc-before-sample
+                                   nil)))
                  exprs)
 ;;          _   (progress
 ;;               "Running with sample-count" sample-count
