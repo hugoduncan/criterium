@@ -18,14 +18,19 @@ This includes:
 
 ### Leiningen
 
-    [criterium "0.3.1"]
+Add the following to your `:dependencies`:
+
+```clj
+[criterium "0.4.0"]
+```
 
 ### Maven
+
 ```xml
 <dependency>
   <groupId>criterium</groupId>
   <artifactId>criterium</artifactId>
-  <version>0.3.1</version>
+  <version>0.4.0</version>
 </dependency>
 ```
 
@@ -58,7 +63,7 @@ Lower level functions are available, that separate benchmark statistic
 generation and reporting.
 
 ```clj
-(report-result (benchmark (Thread/sleep 1000)) :verbose)
+(report-result (benchmark (Thread/sleep 1000)) {:verbose true})
 (report-result (quick-benchmark (Thread/sleep 1000)))
 ```
 
