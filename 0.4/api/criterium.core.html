@@ -1,0 +1,511 @@
+<html lang="en">
+  <head>
+    <title>criterium.core documentation</title>
+    <link href="css/default.css" type="text/css" rel="stylesheet" />
+    <script type="text/javascript" src="js/jquery.min.js"></script>
+    <script type="text/javascript" src="js/page_effects.js"></script>
+  </head>
+  <body>
+    <header>
+      <div id="header">
+        <h1 class="project-title">Criterium 0.4.0 API documentation</h1>
+      </div>
+    </header>
+    <navigation>
+      <div id="namespaces" class="sidebar">
+        <h3>Namespaces</h3>
+        <ul class="ns-links">
+          <li class="ns-link"><a href="criterium.core.html">criterium.core</a></li><li class="ns-link"><a href="criterium.stats.html">criterium.stats</a></li><li class="ns-link"><a href="criterium.well.html">criterium.well</a></li><li class="ns-link"><a href="criterium.ziggurat.html">criterium.ziggurat</a></li>
+        </ul>
+      </div>
+      <div id="vars" class="sidebar">
+        <h3>Public Vars</h3>
+        <ul class="ns-var-links">
+          <li class="ns-var-link"><a href="criterium.core.html#var-*final-gc-problem-threshold*">*final-gc-problem-threshold*</a></li><li class="ns-var-link"><a href="criterium.core.html#var-*max-gc-attempts*">*max-gc-attempts*</a></li><li class="ns-var-link"><a href="criterium.core.html#var-*sample-count*">*sample-count*</a></li><li class="ns-var-link"><a href="criterium.core.html#var-*target-execution-time*">*target-execution-time*</a></li><li class="ns-var-link"><a href="criterium.core.html#var-*warmup-jit-period*">*warmup-jit-period*</a></li><li class="ns-var-link"><a href="criterium.core.html#var--%3EJvmClassLoaderState">-&gt;JvmClassLoaderState</a></li><li class="ns-var-link"><a href="criterium.core.html#var--%3EJvmCompilationState">-&gt;JvmCompilationState</a></li><li class="ns-var-link"><a href="criterium.core.html#var--%3EOutlierCount">-&gt;OutlierCount</a></li><li class="ns-var-link"><a href="criterium.core.html#var--%3EUnsynchronized">-&gt;Unsynchronized</a></li><li class="ns-var-link"><a href="criterium.core.html#var-MutablePlace">MutablePlace</a></li><li class="ns-var-link"><a href="criterium.core.html#var-StateChanged">StateChanged</a></li><li class="ns-var-link"><a href="criterium.core.html#var-bench">bench</a></li><li class="ns-var-link"><a href="criterium.core.html#var-benchmark">benchmark</a></li><li class="ns-var-link"><a href="criterium.core.html#var-benchmark*">benchmark*</a></li><li class="ns-var-link"><a href="criterium.core.html#var-bootstrap">bootstrap</a></li><li class="ns-var-link"><a href="criterium.core.html#var-bootstrap-bca">bootstrap-bca</a></li><li class="ns-var-link"><a href="criterium.core.html#var-estimatated-overhead%21">estimatated-overhead!</a></li><li class="ns-var-link"><a href="criterium.core.html#var-estimate-execution-count">estimate-execution-count</a></li><li class="ns-var-link"><a href="criterium.core.html#var-estimate-overhead">estimate-overhead</a></li><li class="ns-var-link"><a href="criterium.core.html#var-execute-expr">execute-expr</a></li><li class="ns-var-link"><a href="criterium.core.html#var-execute-expr-core-timed-part">execute-expr-core-timed-part</a></li><li class="ns-var-link"><a href="criterium.core.html#var-extract-report-options">extract-report-options</a></li><li class="ns-var-link"><a href="criterium.core.html#var-final-gc">final-gc</a></li><li class="ns-var-link"><a href="criterium.core.html#var-force-gc">force-gc</a></li><li class="ns-var-link"><a href="criterium.core.html#var-get-place">get-place</a></li><li class="ns-var-link"><a href="criterium.core.html#var-heap-used">heap-used</a></li><li class="ns-var-link"><a href="criterium.core.html#var-jvm-compilation-state">jvm-compilation-state</a></li><li class="ns-var-link"><a href="criterium.core.html#var-jvm-jit-name">jvm-jit-name</a></li><li class="ns-var-link"><a href="criterium.core.html#var-map-%3EJvmClassLoaderState">map-&gt;JvmClassLoaderState</a></li><li class="ns-var-link"><a href="criterium.core.html#var-map-%3EJvmCompilationState">map-&gt;JvmCompilationState</a></li><li class="ns-var-link"><a href="criterium.core.html#var-map-%3EOutlierCount">map-&gt;OutlierCount</a></li><li class="ns-var-link"><a href="criterium.core.html#var-memory">memory</a></li><li class="ns-var-link"><a href="criterium.core.html#var-os-details">os-details</a></li><li class="ns-var-link"><a href="criterium.core.html#var-outlier-effect">outlier-effect</a></li><li class="ns-var-link"><a href="criterium.core.html#var-outlier-significance">outlier-significance</a></li><li class="ns-var-link"><a href="criterium.core.html#var-outliers">outliers</a></li><li class="ns-var-link"><a href="criterium.core.html#var-quick-bench">quick-bench</a></li><li class="ns-var-link"><a href="criterium.core.html#var-quick-benchmark">quick-benchmark</a></li><li class="ns-var-link"><a href="criterium.core.html#var-quick-benchmark*">quick-benchmark*</a></li><li class="ns-var-link"><a href="criterium.core.html#var-report">report</a></li><li class="ns-var-link"><a href="criterium.core.html#var-run-benchmark">run-benchmark</a></li><li class="ns-var-link"><a href="criterium.core.html#var-run-benchmarks-round-robin">run-benchmarks-round-robin</a></li><li class="ns-var-link"><a href="criterium.core.html#var-runtime-details">runtime-details</a></li><li class="ns-var-link"><a href="criterium.core.html#var-scale-time">scale-time</a></li><li class="ns-var-link"><a href="criterium.core.html#var-set-place">set-place</a></li><li class="ns-var-link"><a href="criterium.core.html#var-state-changed%3F">state-changed?</a></li><li class="ns-var-link"><a href="criterium.core.html#var-state-delta">state-delta</a></li><li class="ns-var-link"><a href="criterium.core.html#var-system-properties">system-properties</a></li><li class="ns-var-link"><a href="criterium.core.html#var-time-body">time-body</a></li><li class="ns-var-link"><a href="criterium.core.html#var-time-body-with-jvm-state">time-body-with-jvm-state</a></li><li class="ns-var-link"><a href="criterium.core.html#var-timestamp">timestamp</a></li><li class="ns-var-link"><a href="criterium.core.html#var-timestamp-2">timestamp-2</a></li><li class="ns-var-link"><a href="criterium.core.html#var-warmup-for-jit">warmup-for-jit</a></li><li class="ns-var-link"><a href="criterium.core.html#var-with-progress-reporting">with-progress-reporting</a></li>
+        </ul>
+      </div>
+    </navigation>
+    <article>
+      <div id="content" class="namespace-docs">
+        <h2 class="namespace-title">criterium.core documentation</h2>
+        <div class="doc"><p>Criterium measures the computation time of an expression.  It is
+designed to address some of the pitfalls of benchmarking, and benchmarking on
+the JVM in particular.</p>
+
+<p>This includes:
+  - statistical processing of multiple evaluations
+  - inclusion of a warm-up period, designed to allow the JIT compiler to
+    optimise its code
+  - purging of gc before testing, to isolate timings from GC state prior
+    to testing
+  - a final forced GC after testing to estimate impact of cleanup on the
+    timing results</p>
+
+<p>Usage:
+  (use 'criterium.core)
+  (bench (Thread/sleep 1000) :verbose)
+  (with-progress-reporting (bench (Thread/sleep 1000) :verbose))
+  (report-result (benchmark (Thread/sleep 1000)) :verbose)
+  (report-result (quick-bench (Thread/sleep 1000)))</p>
+
+<p>References:
+See http://www.ellipticgroup.com/html/benchmarkingArticle.html for a Java
+benchmarking library.  The accompanying article describes many of the JVM
+benchmarking pitfalls.</p>
+
+<p>See http://hackage.haskell.org/package/criterion for a Haskell benchmarking
+library that applies many of the same statistical techniques.</p>
+</div>
+        <div class="ns-vars">
+          <div class="public">
+            <h3 id="var-*final-gc-problem-threshold*">*final-gc-problem-threshold*</h3>
+            
+            
+            
+            <div class="doc"><p>Fraction of excution time allowed for final cleanup before a
+warning is issued.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-*max-gc-attempts*">*max-gc-attempts*</h3>
+            
+            
+            
+            <div class="doc"><p>Maximum number of attempts to run finalisers and gc.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-*sample-count*">*sample-count*</h3>
+            
+            
+            
+            <div class="doc"><p>Number of executions required</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-*target-execution-time*">*target-execution-time*</h3>
+            
+            
+            
+            <div class="doc"><p>Target elapsed time for execution for a single measurement.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-*warmup-jit-period*">*warmup-jit-period*</h3>
+            
+            
+            
+            <div class="doc"><p>Time period used to let the code run so that jit compiler can do
+its work.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var--%3EJvmClassLoaderState">-&gt;JvmClassLoaderState</h3>
+            <div class="usage">[loaded-count unloaded-count]</div>
+            
+            
+            <div class="doc"><p>Positional factory function for class criterium.core.JvmClassLoaderState.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var--%3EJvmCompilationState">-&gt;JvmCompilationState</h3>
+            <div class="usage">[compilation-time]</div>
+            
+            
+            <div class="doc"><p>Positional factory function for class criterium.core.JvmCompilationState.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var--%3EOutlierCount">-&gt;OutlierCount</h3>
+            <div class="usage">[low-severe low-mild high-mild high-severe]</div>
+            
+            
+            <div class="doc"><p>Positional factory function for class criterium.core.OutlierCount.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var--%3EUnsynchronized">-&gt;Unsynchronized</h3>
+            <div class="usage">[v]</div>
+            
+            
+            <div class="doc"><p>Positional factory function for class criterium.core.Unsynchronized.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-MutablePlace">MutablePlace</h3>
+            
+            
+            
+            <div class="doc"><p>Provides a mutable place</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-StateChanged">StateChanged</h3>
+            
+            
+            
+            <div class="doc"><p>Interrogation of differences in a state.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-bench">bench</h3>
+            <div class="usage">[expr &amp; opts]</div>
+            
+            
+            <div class="doc"><p>Convenience macro for benchmarking an expression, expr.  Results are reported
+  to <em>out</em> in human readable format. Options for report format are: :os,
+:runtime, and :verbose.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-benchmark">benchmark</h3>
+            <div class="usage">[expr options]</div>
+            
+            
+            <div class="doc"><p>Benchmark an expression. This tries its best to eliminate sources of error.
+This also means that it runs for a while.  It will typically take 70s for a
+fast test expression (less than 1s run time) or 10s plus 60 run times for
+longer running expressions.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-benchmark*">benchmark*</h3>
+            <div class="usage">[f {:keys [samples warmup-jit-period target-execution-time gc-before-sample overhead], :as options}]</div>
+            
+            
+            <div class="doc"><p>Benchmark a function. This tries its best to eliminate sources of error.
+This also means that it runs for a while.  It will typically take 70s for a
+fast test expression (less than 1s run time) or 10s plus 60 run times for
+longer running expressions.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-bootstrap">bootstrap</h3>
+            <div class="usage">[data statistic size rng-factory]</div>
+            
+            
+            <div class="doc"><p>Bootstrap a statistic. Statistic can produce multiple statistics as a vector
+so you can use juxt to pass multiple statistics.
+http://en.wikipedia.org/wiki/Bootstrapping_(statistics)</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-bootstrap-bca">bootstrap-bca</h3>
+            <div class="usage">[data statistic size alpha rng-factory]</div>
+            
+            
+            <div class="doc"><p>Bootstrap a statistic. Statistic can produce multiple statistics as a vector
+so you can use juxt to pass multiple statistics.
+http://en.wikipedia.org/wiki/Bootstrapping_(statistics)</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-estimatated-overhead%21">estimatated-overhead!</h3>
+            <div class="usage">[]</div>
+            
+            
+            <div class="doc"><p>Sets the estimated overhead.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-estimate-execution-count">estimate-execution-count</h3>
+            <div class="usage">[period f gc-before-sample estimated-fn-time]</div>
+            
+            
+            <div class="doc"><p>Estimate the number of executions required in order to have at least the
+specified execution period, check for the jvm to have constant class loader
+and compilation state.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-estimate-overhead">estimate-overhead</h3>
+            <div class="usage">[]</div>
+            
+            
+            <div class="doc"><p>Calculate a conservative estimate of the timing loop overhead.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-execute-expr">execute-expr</h3>
+            <div class="usage">[n f]</div>
+            
+            
+            <div class="doc"><p>Time the execution of <code>n</code> invocations of <code>f</code>. See
+<code>execute-expr-core-timed-part</code>.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-execute-expr-core-timed-part">execute-expr-core-timed-part</h3>
+            <div class="usage">[n f]</div>
+            
+            
+            <div class="doc"><p>Performs the part of execute-expr where we actually measure the elapsed run
+time.  Evaluates <code>(f)</code> <code>n</code> times, each time saving the return value as an
+Object in <code>mutable-place</code>.</p>
+
+<p>The idea is that except for the call to (f), the only things done during each
+iteration are a few arithmetic operations and comparisons to 0 on primitive
+longs, and the storage of the return value.</p>
+
+<p>The JVM is not free to optimize away the calls to f because the return values
+are saved in <code>mutable-place</code>.</p>
+
+<p>This array is at most +max-obj-array-size+ elements long, to save
+memory.  An artificially intelligent JVM might be able to determine
+that if n is larger than +max-obj-array-size+, some of the return
+values are overwritten and thus those calls need not be made.  I
+doubt we will see that kind of optimization any time soon, and
+perhaps some JVM rules even prohibit doing so since the writes to
+ret-vals-arr could potentially be read by a different thread.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-extract-report-options">extract-report-options</h3>
+            <div class="usage">[opts]</div>
+            
+            
+            <div class="doc"><p>Extract reporting options from the given options vector.  Returns a two
+element vector containing the reporting options followed by the non-reporting
+options</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-final-gc">final-gc</h3>
+            <div class="usage">[]</div>
+            
+            
+            <div class="doc"><p>Time a final clean up of JVM memory. If this time is significant compared to
+the runtime, then the runtime should maybe include this time.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-force-gc">force-gc</h3>
+            <div class="usage">[]</div><div class="usage">[max-attempts]</div>
+            
+            
+            <div class="doc"><p>Force garbage collection and finalisers so that execution time associated
+with this is not incurred later. Up to max-attempts are made.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-get-place">get-place</h3>
+            <div class="usage">[_]</div>
+            
+            
+            <div class="doc"><p>Get mutable field value.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-heap-used">heap-used</h3>
+            <div class="usage">[]</div>
+            
+            
+            <div class="doc"><p>Report a (inconsistent) snapshot of the heap memory used.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-jvm-compilation-state">jvm-compilation-state</h3>
+            <div class="usage">[]</div>
+            
+            
+            <div class="doc"><p>Returns the total compilation time for the JVM instance.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-jvm-jit-name">jvm-jit-name</h3>
+            <div class="usage">[]</div>
+            
+            
+            <div class="doc"><p>Returns the name of the JIT compiler.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-map-%3EJvmClassLoaderState">map-&gt;JvmClassLoaderState</h3>
+            <div class="usage">[m__5665__auto__]</div>
+            
+            
+            <div class="doc"><p>Factory function for class criterium.core.JvmClassLoaderState, taking a map of keywords to field values.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-map-%3EJvmCompilationState">map-&gt;JvmCompilationState</h3>
+            <div class="usage">[m__5665__auto__]</div>
+            
+            
+            <div class="doc"><p>Factory function for class criterium.core.JvmCompilationState, taking a map of keywords to field values.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-map-%3EOutlierCount">map-&gt;OutlierCount</h3>
+            <div class="usage">[m__5665__auto__]</div>
+            
+            
+            <div class="doc"><p>Factory function for class criterium.core.OutlierCount, taking a map of keywords to field values.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-memory">memory</h3>
+            <div class="usage">[]</div>
+            
+            
+            <div class="doc"><p>Report a (inconsistent) snapshot of the memory situation.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-os-details">os-details</h3>
+            <div class="usage">[]</div>
+            
+            
+            <div class="doc"><p>Return the operating system details as a hash.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-outlier-effect">outlier-effect</h3>
+            <div class="usage">[var-out-min]</div>
+            
+            
+            <div class="doc"><p>Return a keyword describing the effect of outliers on the estimate of mean
+runtime.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-outlier-significance">outlier-significance</h3>
+            <div class="usage">[mean-estimate variance-estimate n]</div>
+            
+            
+            <div class="doc"><p>Find the significance of outliers given boostrapped mean and variance
+estimates.
+See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-outliers">outliers</h3>
+            <div class="usage">[data]</div>
+            
+            
+            <div class="doc"><p>Find the outliers in the data using a boxplot technique.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-quick-bench">quick-bench</h3>
+            <div class="usage">[expr &amp; opts]</div>
+            
+            
+            <div class="doc"><p>Convenience macro for benchmarking an expression, expr.  Results are reported
+to <em>out</em> in human readable format. Options for report format are: :os,
+:runtime, and :verbose.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-quick-benchmark">quick-benchmark</h3>
+            <div class="usage">[expr options]</div>
+            
+            
+            <div class="doc"><p>Benchmark an expression. Less rigorous benchmark (higher uncertainty).</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-quick-benchmark*">quick-benchmark*</h3>
+            <div class="usage">[f {:as options}]</div>
+            
+            
+            <div class="doc"><p>Benchmark an expression. Less rigorous benchmark (higher uncertainty).</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-report">report</h3>
+            <div class="usage">[format-string &amp; values]</div>
+            
+            
+            <div class="doc"><p>Print format output</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-run-benchmark">run-benchmark</h3>
+            <div class="usage">[sample-count warmup-jit-period target-execution-time f gc-before-sample overhead]</div>
+            
+            
+            <div class="doc"><p>Benchmark an expression. This tries its best to eliminate sources of error.
+This also means that it runs for a while.  It will typically take 70s for a
+quick test expression (less than 1s run time) or 10s plus 60 run times for
+longer running expressions.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-run-benchmarks-round-robin">run-benchmarks-round-robin</h3>
+            <div class="usage">[sample-count warmup-jit-period target-execution-time exprs gc-before-sample]</div>
+            
+            
+            <div class="doc"><p>Benchmark multiple expressions in a 'round robin' fashion.  Very
+similar to run-benchmark, except it takes multiple expressions in a
+sequence instead of only one (each element of the sequence should be a
+map with keys :f and :expr-string).  It runs the following steps in
+sequence:</p>
+
+<ol>
+<li><p>Execute each expr once</p></li>
+<li><p>Run expression 1 for at least warmup-jit-period nanoseconds so the
+JIT has an opportunity to optimize it.  Then do the same for each
+of the other expressions.</p></li>
+<li><p>Run expression 1 many times to estimate how many times it must be
+executed to take a total of target-execution-time nanoseconds.  The
+result is a number of iterations n-exec1 for expression 1.  Do the
+same for each of the other expressions, each with the same
+target-execution-time, each resulting in its own independent number
+of executions.</p></li>
+<li><p>Run expression 1 n-exec1 times, measuring the total elapsed time.
+Do the same for the rest of the expressions.</p></li>
+<li><p>Repeat step 4 a total of sample-count times.</p></li>
+</ol>
+</div>
+          </div><div class="public">
+            <h3 id="var-runtime-details">runtime-details</h3>
+            <div class="usage">[]</div>
+            
+            
+            <div class="doc"><p>Return the runtime details as a hash.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-scale-time">scale-time</h3>
+            <div class="usage">[measurement]</div>
+            
+            
+            <div class="doc"><p>Determine a scale factor and unit for displaying a time.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-set-place">set-place</h3>
+            <div class="usage">[_ v]</div>
+            
+            
+            <div class="doc"><p>Set mutable field to value.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-state-changed%3F">state-changed?</h3>
+            <div class="usage">[state]</div>
+            
+            
+            <div class="doc"><p>Check to see if a state delta represents no change</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-state-delta">state-delta</h3>
+            <div class="usage">[state-1 state-2]</div>
+            
+            
+            <div class="doc"><p>Return a state object for the difference between two states</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-system-properties">system-properties</h3>
+            <div class="usage">[]</div>
+            
+            
+            <div class="doc"><p>Return the operating system details.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-time-body">time-body</h3>
+            <div class="usage">[expr pre]</div><div class="usage">[expr]</div>
+            
+            
+            <div class="doc"><p>Returns a vector containing execution time and result of specified function.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-time-body-with-jvm-state">time-body-with-jvm-state</h3>
+            <div class="usage">[expr pre]</div><div class="usage">[expr]</div>
+            
+            
+            <div class="doc"><p>Returns a vector containing execution time, change in loaded and unloaded
+class counts, change in compilation time and result of specified function.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-timestamp">timestamp</h3>
+            <div class="usage">[]</div>
+            
+            
+            <div class="doc"><p>Obtain a timestamp</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-timestamp-2">timestamp-2</h3>
+            <div class="usage">[]</div>
+            
+            
+            <div class="doc"><p>Obtain a timestamp, possibly using MXBean.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-warmup-for-jit">warmup-for-jit</h3>
+            <div class="usage">[warmup-period f]</div>
+            
+            
+            <div class="doc"><p>Run expression for the given amount of time to enable JIT compilation.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-with-progress-reporting">with-progress-reporting</h3>
+            <div class="usage">[expr]</div>
+            
+            
+            <div class="doc"><p>Macro to enable progress reporting during the benchmark.</p>
+</div>
+          </div>
+        </div>
+      </div>
+    </article>
+  </body>
+
+</html>

@@ -1,0 +1,100 @@
+<html lang="en">
+  <head>
+    <title>Criterium 0.4.0 API documentation</title>
+    <link href="css/default.css" type="text/css" rel="stylesheet" />
+    <script type="text/javascript" src="js/jquery.min.js"></script>
+    <script type="text/javascript" src="js/page_effects.js"></script>
+  </head>
+  <body>
+    <header>
+      <div id="header">
+        <h1 class="project-title">Criterium 0.4.0 API documentation</h1>
+      </div>
+    </header>
+    <navigation>
+      <div id="namespaces" class="sidebar">
+        <h3>Namespaces</h3>
+        <ul class="ns-links">
+          <li class="ns-link"><a href="criterium.core.html">criterium.core</a></li><li class="ns-link"><a href="criterium.stats.html">criterium.stats</a></li><li class="ns-link"><a href="criterium.well.html">criterium.well</a></li><li class="ns-link"><a href="criterium.ziggurat.html">criterium.ziggurat</a></li>
+        </ul>
+      </div>
+    </navigation>
+    <article>
+      <div id="content" class="namespace-index">
+        <h2 class="project-title">Criterium 0.4.0 API documentation</h2>
+        <div class="doc"><p>Benchmarking library</p>
+</div>
+        <div class="project-namespaces">
+          <div class="namespace">
+            <h3 class="ns-link"><a href="criterium.core.html">criterium.core</a></h3>
+            <div class="doc"><p>Criterium measures the computation time of an expression.  It is
+designed to address some of the pitfalls of benchmarking, and benchmarking on
+the JVM in particular.</p>
+
+<p>This includes:
+  - statistical processing of multiple evaluations
+  - inclusion of a warm-up period, designed to allow the JIT compiler to
+    optimise its code
+  - purging of gc before testing, to isolate timings from GC state prior
+    to testing
+  - a final forced GC after testing to estimate impact of cleanup on the
+    timing results</p>
+
+<p>Usage:
+  (use 'criterium.core)
+  (bench (Thread/sleep 1000) :verbose)
+  (with-progress-reporting (bench (Thread/sleep 1000) :verbose))
+  (report-result (benchmark (Thread/sleep 1000)) :verbose)
+  (report-result (quick-bench (Thread/sleep 1000)))</p>
+
+<p>References:
+See http://www.ellipticgroup.com/html/benchmarkingArticle.html for a Java
+benchmarking library.  The accompanying article describes many of the JVM
+benchmarking pitfalls.</p>
+
+<p>See http://hackage.haskell.org/package/criterion for a Haskell benchmarking
+library that applies many of the same statistical techniques.</p>
+</div>
+            <div class="index ns-var-links">
+              <p>Public variables and functions:</p>
+              <ul>
+                <li class="ns-var-link"><a href="criterium.core.html#var-*final-gc-problem-threshold*">*final-gc-problem-threshold*</a></li><li class="ns-var-link"><a href="criterium.core.html#var-*max-gc-attempts*">*max-gc-attempts*</a></li><li class="ns-var-link"><a href="criterium.core.html#var-*sample-count*">*sample-count*</a></li><li class="ns-var-link"><a href="criterium.core.html#var-*target-execution-time*">*target-execution-time*</a></li><li class="ns-var-link"><a href="criterium.core.html#var-*warmup-jit-period*">*warmup-jit-period*</a></li><li class="ns-var-link"><a href="criterium.core.html#var--%3EJvmClassLoaderState">-&gt;JvmClassLoaderState</a></li><li class="ns-var-link"><a href="criterium.core.html#var--%3EJvmCompilationState">-&gt;JvmCompilationState</a></li><li class="ns-var-link"><a href="criterium.core.html#var--%3EOutlierCount">-&gt;OutlierCount</a></li><li class="ns-var-link"><a href="criterium.core.html#var--%3EUnsynchronized">-&gt;Unsynchronized</a></li><li class="ns-var-link"><a href="criterium.core.html#var-MutablePlace">MutablePlace</a></li><li class="ns-var-link"><a href="criterium.core.html#var-StateChanged">StateChanged</a></li><li class="ns-var-link"><a href="criterium.core.html#var-bench">bench</a></li><li class="ns-var-link"><a href="criterium.core.html#var-benchmark">benchmark</a></li><li class="ns-var-link"><a href="criterium.core.html#var-benchmark*">benchmark*</a></li><li class="ns-var-link"><a href="criterium.core.html#var-bootstrap">bootstrap</a></li><li class="ns-var-link"><a href="criterium.core.html#var-bootstrap-bca">bootstrap-bca</a></li><li class="ns-var-link"><a href="criterium.core.html#var-estimatated-overhead%21">estimatated-overhead!</a></li><li class="ns-var-link"><a href="criterium.core.html#var-estimate-execution-count">estimate-execution-count</a></li><li class="ns-var-link"><a href="criterium.core.html#var-estimate-overhead">estimate-overhead</a></li><li class="ns-var-link"><a href="criterium.core.html#var-execute-expr">execute-expr</a></li><li class="ns-var-link"><a href="criterium.core.html#var-execute-expr-core-timed-part">execute-expr-core-timed-part</a></li><li class="ns-var-link"><a href="criterium.core.html#var-extract-report-options">extract-report-options</a></li><li class="ns-var-link"><a href="criterium.core.html#var-final-gc">final-gc</a></li><li class="ns-var-link"><a href="criterium.core.html#var-force-gc">force-gc</a></li><li class="ns-var-link"><a href="criterium.core.html#var-get-place">get-place</a></li><li class="ns-var-link"><a href="criterium.core.html#var-heap-used">heap-used</a></li><li class="ns-var-link"><a href="criterium.core.html#var-jvm-compilation-state">jvm-compilation-state</a></li><li class="ns-var-link"><a href="criterium.core.html#var-jvm-jit-name">jvm-jit-name</a></li><li class="ns-var-link"><a href="criterium.core.html#var-map-%3EJvmClassLoaderState">map-&gt;JvmClassLoaderState</a></li><li class="ns-var-link"><a href="criterium.core.html#var-map-%3EJvmCompilationState">map-&gt;JvmCompilationState</a></li><li class="ns-var-link"><a href="criterium.core.html#var-map-%3EOutlierCount">map-&gt;OutlierCount</a></li><li class="ns-var-link"><a href="criterium.core.html#var-memory">memory</a></li><li class="ns-var-link"><a href="criterium.core.html#var-os-details">os-details</a></li><li class="ns-var-link"><a href="criterium.core.html#var-outlier-effect">outlier-effect</a></li><li class="ns-var-link"><a href="criterium.core.html#var-outlier-significance">outlier-significance</a></li><li class="ns-var-link"><a href="criterium.core.html#var-outliers">outliers</a></li><li class="ns-var-link"><a href="criterium.core.html#var-quick-bench">quick-bench</a></li><li class="ns-var-link"><a href="criterium.core.html#var-quick-benchmark">quick-benchmark</a></li><li class="ns-var-link"><a href="criterium.core.html#var-quick-benchmark*">quick-benchmark*</a></li><li class="ns-var-link"><a href="criterium.core.html#var-report">report</a></li><li class="ns-var-link"><a href="criterium.core.html#var-run-benchmark">run-benchmark</a></li><li class="ns-var-link"><a href="criterium.core.html#var-run-benchmarks-round-robin">run-benchmarks-round-robin</a></li><li class="ns-var-link"><a href="criterium.core.html#var-runtime-details">runtime-details</a></li><li class="ns-var-link"><a href="criterium.core.html#var-scale-time">scale-time</a></li><li class="ns-var-link"><a href="criterium.core.html#var-set-place">set-place</a></li><li class="ns-var-link"><a href="criterium.core.html#var-state-changed%3F">state-changed?</a></li><li class="ns-var-link"><a href="criterium.core.html#var-state-delta">state-delta</a></li><li class="ns-var-link"><a href="criterium.core.html#var-system-properties">system-properties</a></li><li class="ns-var-link"><a href="criterium.core.html#var-time-body">time-body</a></li><li class="ns-var-link"><a href="criterium.core.html#var-time-body-with-jvm-state">time-body-with-jvm-state</a></li><li class="ns-var-link"><a href="criterium.core.html#var-timestamp">timestamp</a></li><li class="ns-var-link"><a href="criterium.core.html#var-timestamp-2">timestamp-2</a></li><li class="ns-var-link"><a href="criterium.core.html#var-warmup-for-jit">warmup-for-jit</a></li><li class="ns-var-link"><a href="criterium.core.html#var-with-progress-reporting">with-progress-reporting</a></li>
+              </ul>
+            </div>
+          </div><div class="namespace">
+            <h3 class="ns-link"><a href="criterium.stats.html">criterium.stats</a></h3>
+            <div class="doc">
+</div>
+            <div class="index ns-var-links">
+              <p>Public variables and functions:</p>
+              <ul>
+                <li class="ns-var-link"><a href="criterium.stats.html#var-bca-nonparametric">bca-nonparametric</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-bca-nonparametric-eval">bca-nonparametric-eval</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-bootstrap-estimate">bootstrap-estimate</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-bootstrap-sample">bootstrap-sample</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-boxplot-outlier-thresholds">boxplot-outlier-thresholds</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-confidence-interval">confidence-interval</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-cube">cube</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-erf">erf</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-gaussian-weight">gaussian-weight</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-jacknife">jacknife</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-kernel-density-estimator">kernel-density-estimator</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-mean">mean</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-median">median</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-modal-estimation-constant">modal-estimation-constant</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-normal-cdf">normal-cdf</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-normal-quantile">normal-quantile</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-polynomial-value">polynomial-value</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-quantile">quantile</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-quartiles">quartiles</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-sample">sample</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-sample-uniform">sample-uniform</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-smoothed-sample">smoothed-sample</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-sqr">sqr</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-sum">sum</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-sum-of-squares">sum-of-squares</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-transpose">transpose</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-trunc">trunc</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-uniform-distribution">uniform-distribution</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-variance">variance</a></li>
+              </ul>
+            </div>
+          </div><div class="namespace">
+            <h3 class="ns-link"><a href="criterium.well.html">criterium.well</a></h3>
+            <div class="doc">
+</div>
+            <div class="index ns-var-links">
+              <p>Public variables and functions:</p>
+              <ul>
+                <li class="ns-var-link"><a href="criterium.well.html#var-bit-shift-right-ns">bit-shift-right-ns</a></li><li class="ns-var-link"><a href="criterium.well.html#var-unsign">unsign</a></li><li class="ns-var-link"><a href="criterium.well.html#var-well-rng-1024a">well-rng-1024a</a></li>
+              </ul>
+            </div>
+          </div><div class="namespace">
+            <h3 class="ns-link"><a href="criterium.ziggurat.html">criterium.ziggurat</a></h3>
+            <div class="doc">
+</div>
+            <div class="index ns-var-links">
+              <p>Public variables and functions:</p>
+              <ul>
+                <li class="ns-var-link"><a href="criterium.ziggurat.html#var-random-normal-zig">random-normal-zig</a></li><li class="ns-var-link"><a href="criterium.ziggurat.html#var-zignor-init">zignor-init</a></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+  </body>
+
+</html>

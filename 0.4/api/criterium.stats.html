@@ -1,0 +1,270 @@
+<html lang="en">
+  <head>
+    <title>criterium.stats documentation</title>
+    <link href="css/default.css" type="text/css" rel="stylesheet" />
+    <script type="text/javascript" src="js/jquery.min.js"></script>
+    <script type="text/javascript" src="js/page_effects.js"></script>
+  </head>
+  <body>
+    <header>
+      <div id="header">
+        <h1 class="project-title">Criterium 0.4.0 API documentation</h1>
+      </div>
+    </header>
+    <navigation>
+      <div id="namespaces" class="sidebar">
+        <h3>Namespaces</h3>
+        <ul class="ns-links">
+          <li class="ns-link"><a href="criterium.core.html">criterium.core</a></li><li class="ns-link"><a href="criterium.stats.html">criterium.stats</a></li><li class="ns-link"><a href="criterium.well.html">criterium.well</a></li><li class="ns-link"><a href="criterium.ziggurat.html">criterium.ziggurat</a></li>
+        </ul>
+      </div>
+      <div id="vars" class="sidebar">
+        <h3>Public Vars</h3>
+        <ul class="ns-var-links">
+          <li class="ns-var-link"><a href="criterium.stats.html#var-bca-nonparametric">bca-nonparametric</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-bca-nonparametric-eval">bca-nonparametric-eval</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-bootstrap-estimate">bootstrap-estimate</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-bootstrap-sample">bootstrap-sample</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-boxplot-outlier-thresholds">boxplot-outlier-thresholds</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-confidence-interval">confidence-interval</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-cube">cube</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-erf">erf</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-gaussian-weight">gaussian-weight</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-jacknife">jacknife</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-kernel-density-estimator">kernel-density-estimator</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-mean">mean</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-median">median</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-modal-estimation-constant">modal-estimation-constant</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-normal-cdf">normal-cdf</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-normal-quantile">normal-quantile</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-polynomial-value">polynomial-value</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-quantile">quantile</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-quartiles">quartiles</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-sample">sample</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-sample-uniform">sample-uniform</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-smoothed-sample">smoothed-sample</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-sqr">sqr</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-sum">sum</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-sum-of-squares">sum-of-squares</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-transpose">transpose</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-trunc">trunc</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-uniform-distribution">uniform-distribution</a></li><li class="ns-var-link"><a href="criterium.stats.html#var-variance">variance</a></li>
+        </ul>
+      </div>
+    </navigation>
+    <article>
+      <div id="content" class="namespace-docs">
+        <h2 class="namespace-title">criterium.stats documentation</h2>
+        <div class="doc">
+</div>
+        <div class="ns-vars">
+          <div class="public">
+            <h3 id="var-bca-nonparametric">bca-nonparametric</h3>
+            <div class="usage">[data statistic size alpha rng-factory]</div>
+            
+            
+            <div class="doc"><p>Non-parametric BCa estimate of a statistic on data. Size bootstrap samples
+are used. Confidence values are returned at the alpha normal
+quantiles. rng-factory is a method that returns a random number generator to
+use for the sampling.</p>
+
+<p>An introduction to the bootstrap.  Efron, B., &amp; Tibshirani, R. J. (1993).</p>
+
+<p>See http://lib.stat.cmu.edu/S/bootstrap.funs for Efron's original
+ implementation.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-bca-nonparametric-eval">bca-nonparametric-eval</h3>
+            <div class="usage">[n size data z-alpha estimate samples jack-samples]</div>
+            
+            
+            <div class="doc"><p>Calculate bootstrap values for given estimate and samples</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-bootstrap-estimate">bootstrap-estimate</h3>
+            <div class="usage">[sampled-stat]</div>
+            
+            
+            <div class="doc"><p>Mean, variance and confidence interval. This uses the bootstrapped
+statistic's variance for the confidence interval, but we should use BCa of
+ABC.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-bootstrap-sample">bootstrap-sample</h3>
+            <div class="usage">[data statistic size rng-factory]</div>
+            
+            
+            <div class="doc"><p>Bootstrap sampling of a statistic, using resampling with replacement.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-boxplot-outlier-thresholds">boxplot-outlier-thresholds</h3>
+            <div class="usage">[q1 q3]</div>
+            
+            
+            <div class="doc"><p>Outlier thresholds for given quartiles.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-confidence-interval">confidence-interval</h3>
+            <div class="usage">[mean variance]</div>
+            
+            
+            <div class="doc"><p>Find the significance of outliers gicen boostrapped mean and variance
+estimates. This uses the bootstrapped statistic's variance, but we should use
+BCa of ABC.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-cube">cube</h3>
+            <div class="usage">[x]</div>
+            
+            
+            <div class="doc"><p>Square of argument</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-erf">erf</h3>
+            <div class="usage">[x]</div>
+            
+            
+            <div class="doc"><p>erf polynomial approximation.  Maximum error is 1.5e-7.
+Handbook of Mathematical Functions: with Formulas, Graphs, and Mathematical
+Tables. Milton Abramowitz (Editor), Irene A. Stegun (Editor), 7.1.26</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-gaussian-weight">gaussian-weight</h3>
+            <div class="usage">[t]</div>
+            
+            
+            <div class="doc"><p>Weight function for gaussian kernel.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-jacknife">jacknife</h3>
+            <div class="usage">[data statistic]</div>
+            
+            
+            <div class="doc"><p>Jacknife statistics on data.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-kernel-density-estimator">kernel-density-estimator</h3>
+            <div class="usage">[h K n X x]</div>
+            
+            
+            <div class="doc"><p>Kernel density estimator for x, given n samples X, weights K and width h.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-mean">mean</h3>
+            <div class="usage">[data]</div>
+            
+            
+            <div class="doc"><p>Arithmetic mean of data.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-median">median</h3>
+            <div class="usage">[data]</div>
+            
+            
+            <div class="doc"><p>Calculate the median of a sorted data set
+References: http://en.wikipedia.org/wiki/Median</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-modal-estimation-constant">modal-estimation-constant</h3>
+            <div class="usage">[h-k sample-variance]</div>
+            
+            
+            <div class="doc"><p>Kernel function for estimation of multi-modality.
+h-k is the critical bandwidth, sample-variance is the observed sample variance.
+Equation 7, Nonparametric assessment of multimodality for univariate
+data. Salgado-Ugarte IH, Shimizu M</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-normal-cdf">normal-cdf</h3>
+            <div class="usage">[x]</div>
+            
+            
+            <div class="doc"><p>Probability p(X<x is="is" super="super" so="so" a="a" normal="normal" erf="erf" and="and" polynomial="polynomial" above="above" accurate.="accurate." not="not" distrubtion.="distrubtion." uses="uses" approximation="approximation" for="for" the="the" p="p">
+</x></p></div>
+          </div><div class="public">
+            <h3 id="var-normal-quantile">normal-quantile</h3>
+            <div class="usage">[x]</div>
+            
+            
+            <div class="doc"><p>Normal quantile function. Given a quantile in (0,1), return the normal value
+for that quantile.</p>
+
+<p>Wichura, MJ. 'Algorithm AS241' The Percentage Points of the Normal
+Distribution. Applied Statistics, 37, 477-484 </p>
+</div>
+          </div><div class="public">
+            <h3 id="var-polynomial-value">polynomial-value</h3>
+            <div class="usage">[x coefficients]</div>
+            
+            
+            <div class="doc"><p>Evaluate a polynomial at the given value x, for the coefficients given in
+descending order (so the last element of coefficients is the constant term).</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-quantile">quantile</h3>
+            <div class="usage">[quantile data]</div>
+            
+            
+            <div class="doc"><p>Calculate the quantile of a sorted data set
+References: http://en.wikipedia.org/wiki/Quantile</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-quartiles">quartiles</h3>
+            <div class="usage">[data]</div>
+            
+            
+            <div class="doc"><p>Calculate the quartiles of a sorted data set
+References: http://en.wikipedia.org/wiki/Quartile</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-sample">sample</h3>
+            <div class="usage">[x rng]</div>
+            
+            
+            <div class="doc"><p>Sample with replacement.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-sample-uniform">sample-uniform</h3>
+            <div class="usage">[n max-val rng]</div>
+            
+            
+            <div class="doc"><p>Provide n samples from a uniform distribution on 0..max-val</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-smoothed-sample">smoothed-sample</h3>
+            <div class="usage">[c-k h-k data deviates]</div>
+            
+            
+            <div class="doc"><p>Smoothed estimation function.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-sqr">sqr</h3>
+            <div class="usage">[x]</div>
+            
+            
+            <div class="doc"><p>Square of argument</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-sum">sum</h3>
+            <div class="usage">[data]</div>
+            
+            
+            <div class="doc"><p>Sum of each data point.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-sum-of-squares">sum-of-squares</h3>
+            <div class="usage">[data]</div>
+            
+            
+            <div class="doc"><p>Sum of the squares of each data point.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-transpose">transpose</h3>
+            <div class="usage">[data]</div>
+            
+            
+            <div class="doc"><p>Transpose a vector of vectors.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-trunc">trunc</h3>
+            <div class="usage">[x]</div>
+            
+            
+            <div class="doc"><p>Round towards zero to an integeral value.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-uniform-distribution">uniform-distribution</h3>
+            <div class="usage">[max-val rng]</div>
+            
+            
+            <div class="doc"><p>Return uniformly distributed deviates on 0..max-val use the specified rng.</p>
+</div>
+          </div><div class="public">
+            <h3 id="var-variance">variance</h3>
+            <div class="usage">[data]</div><div class="usage">[data df]</div>
+            
+            
+            <div class="doc"><p>Sample variance. Returns variance.
+Ref: Chan et al. Algorithms for computing the sample variance: analysis and
+     recommendations. American Statistician (1983).</p>
+</div>
+          </div>
+        </div>
+      </div>
+    </article>
+  </body>
+
+</html>
