@@ -14,6 +14,26 @@ This includes:
   * a final forced GC after testing to estimate impact of cleanup on the
     timing results
 
+## Installation
+
+### Leiningen
+
+Add the following to your `:dependencies`:
+
+```clj
+[criterium "0.4.0"]
+```
+
+### Maven
+
+```xml
+<dependency>
+  <groupId>criterium</groupId>
+  <artifactId>criterium</artifactId>
+  <version>0.4.0</version>
+</dependency>
+```
+
 ## Usage
 
 The top level interface is in `criterium.core`.
@@ -43,19 +63,12 @@ Lower level functions are available, that separate benchmark statistic
 generation and reporting.
 
 ```clj
-(report-result (benchmark (Thread/sleep 1000)) :verbose)
+(report-result (benchmark (Thread/sleep 1000)) {:verbose true})
 (report-result (quick-benchmark (Thread/sleep 1000)))
 ```
 
 Note that results are returned to the user to prevent JIT from recognising that
-the results are not used. For functions that are very fast, or return a lot of
-data, you may need to supply a function to reduce the results to prevent
-excessive memory allocation. The default for :reduce-with adds the hash codes of
-the results.
-
-```clj
-(bench (rand) :reduce-with +)
-```
+the results are not used.
 
 ## References
 
@@ -67,12 +80,6 @@ JVM benchmarking pitfalls.
 
 See [Criterion](http://hackage.haskell.org/package/criterion) for a Haskell
 benchmarking library that applies many of the same statistical techniques.
-
-
-## Installation
-
-The library can be installed through
-[Leiningen](http://github.com/technomancy/leiningen) or through maven.
 
 ## Todo
 
