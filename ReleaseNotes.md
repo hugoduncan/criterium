@@ -1,6 +1,41 @@
 # Release Notes
 
-Current version is 0.3.1
+# 0.4.0
+
+- Make warmup and count estimation more robust
+  Also splits out debug and warning messages.
+
+  Will now warn if compilation occurs during execution count estimation.
+
+- Compute and subtract the measurement overhead
+  Estimate the measurement overhead on first run, and then subtract it from 
+  subsequent estimates.
+
+  An explicit overhead can be supplied with the :overhead keyword.
+
+- Pass a map instead of varargs
+  In all but the top level bench and quick-bench macros, use a map for
+  options, rather than varargs.
+
+- Make the final gc run immediately after sampling
+  Avoid doing any other memory allocation after the end of sample
+  collection.
+
+- Make warmup-for-jit more efficient
+  Accumulates runtime in chunks, rather than timing individual calls.
+
+- Use a mutable field for timing loop storage
+  Replace the use of an array for the timing loop storage, and remove the
+  use of a reducer.  Testing showed no difference in the resulting
+  measurements, and this simplifies the code.
+
+- Add benchmarks for timing loop implementations
+  In order to quantify the impact of several timing loop implementations,
+  adds benchmarks to quantify them.  There seems to be no difference in the
+  result between using an array, or a mutable place.
+
+- Use mu for microsecond units. [#14]
+
 
 # 0.3.1
 
