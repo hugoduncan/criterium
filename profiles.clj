@@ -1,16 +1,19 @@
 {:doc
  {:dependencies [[codox-md "0.1.0"]]
-  :codox {:writer codox-md.writer/write-docs}
-  :autodoc {:name "Criterium"
-            :description "A benchmarking library."
-            :copyright "Copyright Hugo Duncan 2010, 2011, 2012. All rights reserved."
-            :web-src-dir "http://github.com/hugoduncan/criterium/blob/"
-            :web-home "http://hugoduncan.github.com/criterium/" }}
+  :codox {:writer codox-md.writer/write-docs
+          :output-dir "doc/0.4/api"
+          :src-dir-uri "https://github.com/hugoduncan/criterium/blob/develop"
+          :src-linenum-anchor-prefix "L"}
+  :aliases {"marg" ["marg" "-d" "doc/0.4/"]
+            "codox" ["doc"]
+            "doc" ["do" "codox," "marg"]}}
  :release
- {:plugins [[lein-set-version "0.2.1"]]
+ {:plugins [[lein-set-version "0.3.0"]]
   :set-version
   {:updates [{:path "README.md" :no-snapshot true}]}}
- :dev {:aliases {"impl-perf" ["with-profile" "+impl" " perforate" "--quick"]}}
+ :dev {:aliases {"impl-perf" ["with-profile" "+impl" " perforate" "--quick"]}
+       :plugins [[codox/codox.leiningen "0.6.4"]
+                 [lein-marginalia "0.7.1"]]}
  :impl {:perforate
         {:environments
          [{:name :array
