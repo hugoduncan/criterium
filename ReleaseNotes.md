@@ -1,5 +1,9 @@
 # Release Notes
 
+# 0.4.1
+
+- Fix NPE in report-results when there is no overhead in results.
+
 # 0.4.0
 
 - Make warmup and count estimation more robust

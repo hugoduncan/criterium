@@ -933,8 +933,9 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
     (report-point-estimate
      "Execution time upper quantile"
      (:upper-q results) (- 1.0 (:tail-quantile results)))
-    (when (pos? (:overhead results))
-      (report-point-estimate "Overhead used" [(:overhead results)]))
+    (when-let [overhead (:overhead results)]
+      (when (pos? overhead)
+        (report-point-estimate "Overhead used" [overhead])))
     (report-outliers results)))
 
 (defn estimate-overhead
