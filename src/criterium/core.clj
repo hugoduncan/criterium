@@ -766,6 +766,20 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
                               (runtime-details)
                               (update-in [:input-arguments] vec))})))
 
+(defn warn-on-suspicious-jvm-options
+  "Warn if the JIT options are suspicious looking."
+  []
+  (let [compiler (jvm-jit-name)
+        {:keys [input-arguments]} (runtime-details)]
+    (when-let [arg (and (re-find #"Tiered" compiler)
+                        (some #(re-find #"TieredStopAtLevel=(.*)" %)
+                              input-arguments))]
+      (println
+       "WARNING: JVM argument" (first arg) "is active,"
+       "and may lead to unexpected results as JIT C2 compiler may not be active."
+       "See http://www.slideshare.net/CharlesNutter/javaone-2012-jvm-jit-for-dummies."))))
+
+
 (defn benchmark*
   "Benchmark a function. This tries its best to eliminate sources of error.
    This also means that it runs for a while.  It will typically take 70s for a
@@ -773,6 +787,7 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
    longer running expressions."
   [f {:keys [samples warmup-jit-period target-execution-time gc-before-sample
              overhead] :as options}]
+  (warn-on-suspicious-jvm-options)
   (let [{:keys [samples warmup-jit-period target-execution-time
                 gc-before-sample overhead] :as opts}
         (merge *default-benchmark-opts* options)
