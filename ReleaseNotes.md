@@ -1,5 +1,14 @@
 # Release Notes
 
+# 0.4.2
+
+- Add warning when running with TieredStopAtLevel
+  TieredStopAtLevel is used to enable quick startup of lein, for example,
+  and disables various levels of JIT compilation, which is probably not what
+  you intended if you are benchmarking.
+
+  This commit will print a warning if ths JVM option is in use.
+
 # 0.4.1
 
 - Fix NPE in report-results when there is no overhead in results.
