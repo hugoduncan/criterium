@@ -786,8 +786,9 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
    fast test expression (less than 1s run time) or 10s plus 60 run times for
    longer running expressions."
   [f {:keys [samples warmup-jit-period target-execution-time gc-before-sample
-             overhead] :as options}]
-  (warn-on-suspicious-jvm-options)
+             overhead supress-jvm-option-warnings] :as options}]
+  (when-not supress-jvm-option-warnings
+    (warn-on-suspicious-jvm-options))
   (let [{:keys [samples warmup-jit-period target-execution-time
                 gc-before-sample overhead] :as opts}
         (merge *default-benchmark-opts* options)
