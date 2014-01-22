@@ -3028,7 +3028,7 @@ net.brehaut.ClojureTools = (function (SH) {
     build_tree: build_tree
   };
 })(SyntaxHighlighter);
-</script><title>criterium -- Marginalia</title></head><body><table><tr><td class="docs"><div class="header"><h1 class="project-name">criterium</h1><h2 class="project-version">0.4.0</h2><br /><p>Benchmarking library</p>
+</script><title>criterium -- Marginalia</title></head><body><table><tr><td class="docs"><div class="header"><h1 class="project-name">criterium</h1><h2 class="project-version">0.4.3</h2><br /><p>Benchmarking library</p>
 </div><div class="dependencies"><h3>dependencies</h3><table><tr><td class="dep-name">org.clojure/clojure</td><td class="dotted"><hr /></td><td class="dep-version">1.3.0</td></tr></table></div></td><td class="codes" style="text-align: center; vertical-align: middle;color: #666;padding-right:20px"><br /><br /><br />(this space intentionally left almost blank)</td></tr><tr><td class="docs"><div class="toc"><a name="toc"><h3>namespaces</h3></a><ul><li><a href="#criterium.core">criterium.core</a></li><li><a href="#criterium.stats">criterium.stats</a></li><li><a href="#criterium.well">criterium.well</a></li><li><a href="#criterium.ziggurat">criterium.ziggurat</a></li></ul></div></td><td class="codes">&nbsp;</td></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#criterium.core" name="criterium.core"><h1 class="project-name">criterium.core</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs"><p>Copyright (c) Hugo Duncan. All rights reserved.</p>
 </td><td class="codes"></td></tr><tr><td class="docs"><p>The use and distribution terms for this software are covered by the
 Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
@@ -3629,7 +3629,29 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17.</p>
                  (apply boxplot-outlier-thresholds
                         ((juxt first last) (quartiles (sort data)))))
           (outlier-count 0 0 0 0)
-          data))</pre></td></tr><tr><td class="docs"><p>Extract reporting options from the given options vector.  Returns a two
+          data))</pre></td></tr><tr><td class="docs"><p>overhead estimation</p>
+</td><td class="codes"><pre class="brush: clojure">(declare benchmark*)</pre></td></tr><tr><td class="docs"><p>Calculate a conservative estimate of the timing loop overhead.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn estimate-overhead
+  []
+  (-&gt; (benchmark*
+       (fn [] 0)
+       {:warmup-jit-period (* 10 s-to-ns)
+        :samples 10
+        :target-execution-time (* 0.5 s-to-ns)
+        :overhead 0
+        :supress-jvm-option-warnings true})
+      :lower-q
+      first))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(def estimatated-overhead-cache nil)</pre></td></tr><tr><td class="docs"><p>Sets the estimated overhead.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn estimatated-overhead!
+  []
+  (progress &quot;Estimating sampling overhead&quot;)
+  (alter-var-root
+   #'estimatated-overhead-cache (constantly (estimate-overhead))))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn estimatated-overhead
+  []
+  (or estimatated-overhead-cache
+      (estimatated-overhead!)))</pre></td></tr><tr><td class="docs"><p>Extract reporting options from the given options vector.  Returns a two
   element vector containing the reporting options followed by the non-reporting
   options</p>
 
@@ -3692,16 +3714,31 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17.</p>
             :options opts
             :runtime-details (-&gt;
                               (runtime-details)
-                              (update-in [:input-arguments] vec))})))</pre></td></tr><tr><td class="docs"><p>Benchmark a function. This tries its best to eliminate sources of error.
+                              (update-in [:input-arguments] vec))})))</pre></td></tr><tr><td class="docs"><p>Warn if the JIT options are suspicious looking.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn warn-on-suspicious-jvm-options
+  []
+  (let [compiler (jvm-jit-name)
+        {:keys [input-arguments]} (runtime-details)]
+    (when-let [arg (and (re-find #&quot;Tiered&quot; compiler)
+                        (some #(re-find #&quot;TieredStopAtLevel=(.*)&quot; %)
+                              input-arguments))]
+      (println
+       &quot;WARNING: JVM argument&quot; (first arg) &quot;is active,&quot;
+       &quot;and may lead to unexpected results as JIT C2 compiler may not be active.&quot;
+       &quot;See http://www.slideshare.net/CharlesNutter/javaone-2012-jvm-jit-for-dummies.&quot;))))</pre></td></tr><tr><td class="docs"><p>Benchmark a function. This tries its best to eliminate sources of error.
    This also means that it runs for a while.  It will typically take 70s for a
    fast test expression (less than 1s run time) or 10s plus 60 run times for
    longer running expressions.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn benchmark*
   [f {:keys [samples warmup-jit-period target-execution-time gc-before-sample
-             overhead] :as options}]
+             overhead supress-jvm-option-warnings] :as options}]
+  (when-not supress-jvm-option-warnings
+    (warn-on-suspicious-jvm-options))
   (let [{:keys [samples warmup-jit-period target-execution-time
                 gc-before-sample overhead] :as opts}
-        (merge *default-benchmark-opts* options)
+        (merge *default-benchmark-opts*
+               {:overhead (or overhead (estimatated-overhead))}
+               options)
         times (run-benchmark
                samples warmup-jit-period target-execution-time f opts overhead)]
     (benchmark-stats times opts)))</pre></td></tr><tr><td class="docs">
@@ -3839,27 +3876,10 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17.</p>
     (report-point-estimate
      &quot;Execution time upper quantile&quot;
      (:upper-q results) (- 1.0 (:tail-quantile results)))
-    (when (pos? (:overhead results))
-      (report-point-estimate &quot;Overhead used&quot; [(:overhead results)]))
-    (report-outliers results)))</pre></td></tr><tr><td class="docs"><p>Calculate a conservative estimate of the timing loop overhead.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn estimate-overhead
-  []
-  (-&gt; (benchmark 0 {:warmup-jit-period (* 10 s-to-ns)
-                    :samples 10
-                    :target-execution-time (* 0.5 s-to-ns)
-                    :overhead 0})
-      :lower-q
-      first))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(def estimatated-overhead-cache nil)</pre></td></tr><tr><td class="docs"><p>Sets the estimated overhead.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn estimatated-overhead!
-  []
-  (progress &quot;Estimating sampling overhead&quot;)
-  (alter-var-root
-   #'estimatated-overhead-cache (constantly (estimate-overhead))))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn estimatated-overhead
-  []
-  (or estimatated-overhead-cache
-      (estimatated-overhead!)))</pre></td></tr><tr><td class="docs"><p>Convenience macro for benchmarking an expression, expr.  Results are reported
+    (when-let [overhead (:overhead results)]
+      (when (pos? overhead)
+        (report-point-estimate &quot;Overhead used&quot; [overhead])))
+    (report-outliers results)))</pre></td></tr><tr><td class="docs"><p>Convenience macro for benchmarking an expression, expr.  Results are reported
   to <em>out</em> in human readable format. Options for report format are: :os,
 :runtime, and :verbose.</p>
 </td><td class="codes"><pre class="brush: clojure">(defmacro bench
@@ -3868,8 +3888,7 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17.</p>
     `(report-result
       (benchmark
        ~expr
-       (merge {:overhead (estimatated-overhead)}
-              ~(when (seq options) (apply hash-map options))))
+       ~(when (seq options) (apply hash-map options)))
       ~@report-options)))</pre></td></tr><tr><td class="docs"><p>Convenience macro for benchmarking an expression, expr.  Results are reported
 to <em>out</em> in human readable format. Options for report format are: :os,
 :runtime, and :verbose.</p>
@@ -3879,8 +3898,7 @@ to <em>out</em> in human readable format. Options for report format are: :os,
     `(report-result
       (quick-benchmark
        ~expr
-       (merge {:overhead (estimatated-overhead)}
-              ~(when (seq options) (apply hash-map options))))
+       ~(when (seq options) (apply hash-map options)))
       ~@report-options)))</pre></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#criterium.stats" name="criterium.stats"><h1 class="project-name">criterium.stats</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs"><p>Copyright (c) Hugo Duncan. All rights reserved.</p>
 </td><td class="codes"></td></tr><tr><td class="docs"><p>The use and distribution terms for this software are covered by the
 Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
