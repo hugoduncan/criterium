@@ -1,5 +1,18 @@
 # Release Notes
 
+# 0.4.3
+
+- Push overhead estimation into benchmark*
+
+  This restores the ability to simply use benchmark and quick-benchmark to
+  obtain raw benchmark results data.  Closes #23
+
+- Add option to suppress jvm option warnings
+
+- Rename an incorrectly named test
+  Rename a test wrongly named with the same name as a previous one that
+  caused the former not to run.
+
 # 0.4.2
 
 - Add warning when running with TieredStopAtLevel
@@ -21,7 +34,7 @@
   Will now warn if compilation occurs during execution count estimation.
 
 - Compute and subtract the measurement overhead
-  Estimate the measurement overhead on first run, and then subtract it from 
+  Estimate the measurement overhead on first run, and then subtract it from
   subsequent estimates.
 
   An explicit overhead can be supplied with the :overhead keyword.

@@ -699,6 +699,36 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
           (outlier-count 0 0 0 0)
           data))
 
+;;; overhead estimation
+(declare benchmark*)
+
+(defn estimate-overhead
+  "Calculate a conservative estimate of the timing loop overhead."
+  []
+  (-> (benchmark*
+       (fn [] 0)
+       {:warmup-jit-period (* 10 s-to-ns)
+        :samples 10
+        :target-execution-time (* 0.5 s-to-ns)
+        :overhead 0
+        :supress-jvm-option-warnings true})
+      :lower-q
+      first))
+
+(def estimatated-overhead-cache nil)
+
+(defn estimatated-overhead!
+  "Sets the estimated overhead."
+  []
+  (progress "Estimating sampling overhead")
+  (alter-var-root
+   #'estimatated-overhead-cache (constantly (estimate-overhead))))
+
+(defn estimatated-overhead
+  []
+  (or estimatated-overhead-cache
+      (estimatated-overhead!)))
+
 ;;; options
 (defn extract-report-options
   "Extract reporting options from the given options vector.  Returns a two
@@ -779,18 +809,20 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
        "and may lead to unexpected results as JIT C2 compiler may not be active."
        "See http://www.slideshare.net/CharlesNutter/javaone-2012-jvm-jit-for-dummies."))))
 
-
 (defn benchmark*
   "Benchmark a function. This tries its best to eliminate sources of error.
    This also means that it runs for a while.  It will typically take 70s for a
    fast test expression (less than 1s run time) or 10s plus 60 run times for
    longer running expressions."
   [f {:keys [samples warmup-jit-period target-execution-time gc-before-sample
-             overhead] :as options}]
-  (warn-on-suspicious-jvm-options)
+             overhead supress-jvm-option-warnings] :as options}]
+  (when-not supress-jvm-option-warnings
+    (warn-on-suspicious-jvm-options))
   (let [{:keys [samples warmup-jit-period target-execution-time
                 gc-before-sample overhead] :as opts}
-        (merge *default-benchmark-opts* options)
+        (merge *default-benchmark-opts*
+               {:overhead (or overhead (estimatated-overhead))}
+               options)
         times (run-benchmark
                samples warmup-jit-period target-execution-time f opts overhead)]
     (benchmark-stats times opts)))
@@ -953,30 +985,6 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
         (report-point-estimate "Overhead used" [overhead])))
     (report-outliers results)))
 
-(defn estimate-overhead
-  "Calculate a conservative estimate of the timing loop overhead."
-  []
-  (-> (benchmark 0 {:warmup-jit-period (* 10 s-to-ns)
-                    :samples 10
-                    :target-execution-time (* 0.5 s-to-ns)
-                    :overhead 0})
-      :lower-q
-      first))
-
-(def estimatated-overhead-cache nil)
-
-(defn estimatated-overhead!
-  "Sets the estimated overhead."
-  []
-  (progress "Estimating sampling overhead")
-  (alter-var-root
-   #'estimatated-overhead-cache (constantly (estimate-overhead))))
-
-(defn estimatated-overhead
-  []
-  (or estimatated-overhead-cache
-      (estimatated-overhead!)))
-
 (defmacro bench
   "Convenience macro for benchmarking an expression, expr.  Results are reported
   to *out* in human readable format. Options for report format are: :os,
@@ -986,8 +994,7 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
     `(report-result
       (benchmark
        ~expr
-       (merge {:overhead (estimatated-overhead)}
-              ~(when (seq options) (apply hash-map options))))
+       ~(when (seq options) (apply hash-map options)))
       ~@report-options)))
 
 (defmacro quick-bench
@@ -999,6 +1006,5 @@ to *out* in human readable format. Options for report format are: :os,
     `(report-result
       (quick-benchmark
        ~expr
-       (merge {:overhead (estimatated-overhead)}
-              ~(when (seq options) (apply hash-map options))))
+       ~(when (seq options) (apply hash-map options)))
       ~@report-options)))

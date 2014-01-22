@@ -14,7 +14,7 @@
   (is (= 20 (sum (take 20 (repeatedly (constantly 1))))))
   (is (= 21 (sum (range 0 7)))))
 
-(deftest sum-test
+(deftest sum-of-squares-test
   (is (= 20.0 (sum-of-squares (take 20 (repeatedly (constantly 1))))))
   (is (= 80.0 (sum-of-squares (take 20 (repeatedly (constantly 2))))))
   (is (= 91.0 (sum-of-squares (range 0 7)))))
