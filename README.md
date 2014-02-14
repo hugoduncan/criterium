@@ -70,6 +70,21 @@ generation and reporting.
 Note that results are returned to the user to prevent JIT from recognising that
 the results are not used.
 
+## Measurement Overhead Estimation
+
+Criterium will automatically estimate a time for it's measurement
+overhead.  The estimate is normally made once per session, and is
+available in the `criterium.core/extimated-overhead-cache` var.
+
+If the estimation is made while their is a lot of other processing
+going on, then benchmarking quick functions may report small negative
+times.  You can force a recalculation of the overhead by calling
+`criterium.core/estimated-overhead!`.
+
+If you want consistency across JVM processes, it might be prudent to
+explicitly set `criterium.core/estimated-overhead!` to a constant
+value.
+
 ## References
 
 [API Documentation](http://hugoduncan.github.com/criterium/0.4/api/)
