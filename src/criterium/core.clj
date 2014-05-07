@@ -715,19 +715,19 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
       :lower-q
       first))
 
-(def estimatated-overhead-cache nil)
+(def estimated-overhead-cache nil)
 
-(defn estimatated-overhead!
+(defn estimated-overhead!
   "Sets the estimated overhead."
   []
   (progress "Estimating sampling overhead")
   (alter-var-root
-   #'estimatated-overhead-cache (constantly (estimate-overhead))))
+   #'estimated-overhead-cache (constantly (estimate-overhead))))
 
-(defn estimatated-overhead
+(defn estimated-overhead
   []
-  (or estimatated-overhead-cache
-      (estimatated-overhead!)))
+  (or estimated-overhead-cache
+      (estimated-overhead!)))
 
 ;;; options
 (defn extract-report-options
@@ -821,7 +821,7 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
   (let [{:keys [samples warmup-jit-period target-execution-time
                 gc-before-sample overhead] :as opts}
         (merge *default-benchmark-opts*
-               {:overhead (or overhead (estimatated-overhead))}
+               {:overhead (or overhead (estimated-overhead))}
                options)
         times (run-benchmark
                samples warmup-jit-period target-execution-time f opts overhead)]
