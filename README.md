@@ -63,7 +63,7 @@ Lower level functions are available, that separate benchmark statistic
 generation and reporting.
 
 ```clj
-(report-result (benchmark (Thread/sleep 1000)) {:verbose true})
+(report-result (benchmark (Thread/sleep 1000) {:verbose true}))
 (report-result (quick-benchmark (Thread/sleep 1000)))
 ```
 
