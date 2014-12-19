@@ -72,7 +72,7 @@ the results are not used.
 
 ## Measurement Overhead Estimation
 
-Criterium will automatically estimate a time for it's measurement
+Criterium will automatically estimate a time for its measurement
 overhead.  The estimate is normally made once per session, and is
 available in the `criterium.core/extimated-overhead-cache` var.
 
