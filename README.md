@@ -76,7 +76,7 @@ Criterium will automatically estimate a time for it's measurement
 overhead.  The estimate is normally made once per session, and is
 available in the `criterium.core/extimated-overhead-cache` var.
 
-If the estimation is made while their is a lot of other processing
+If the estimation is made while there is a lot of other processing
 going on, then benchmarking quick functions may report small negative
 times.  You can force a recalculation of the overhead by calling
 `criterium.core/estimated-overhead!`.
