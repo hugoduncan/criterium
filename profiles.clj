@@ -4,7 +4,7 @@
  :1.4 {:dependencies [[org.clojure/clojure "1.4.0"]]}
  :1.5 {:dependencies [[org.clojure/clojure "1.5.1"]]}
  :1.6 {:dependencies [[org.clojure/clojure "1.6.0"]]}
- :1.7 {:dependencies [[org.clojure/clojure "1.7.0-alpha3"]]
+ :1.7 {:dependencies [[org.clojure/clojure "1.7.0-alpha6"]]
        :global-vars {*unchecked-math* true}}
  :doc
  {:dependencies [[codox-md "0.1.0"]]
