@@ -1,5 +1,5 @@
 (ns criterium.well-test
-  (:use [criterium.well] :reload-all)
+  (:use [criterium.well])
   (:use clojure.test))
 
 (deftest bit-shift-right-ns-test
