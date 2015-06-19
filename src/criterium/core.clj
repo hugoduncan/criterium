@@ -419,7 +419,7 @@ class counts, change in compilation time and result of specified function."
         (if (not= old-cl-state new-cl-state)
           (progress "  classes loaded before" count "iterations"))
         (if (not= old-comp-state new-comp-state)
-          (progress "  compilation occured before" count "iterations"))
+          (progress "  compilation occurred before" count "iterations"))
         (debug "  elapsed" elapsed " count" count)
         (if (and (> delta-free 2) (> elapsed warmup-period))
           [elapsed count
