@@ -442,7 +442,7 @@ class counts, change in compilation time and result of specified function."
   [period f gc-before-sample estimated-fn-time]
   (progress "Estimating execution count ...")
   (debug " estimated-fn-time" estimated-fn-time)
-  (loop [n (max 1 (long (/ period estimated-fn-time 5)))
+  (loop [n (max 1 (long (/ period (max 1 estimated-fn-time) 5)))
          cl-state (jvm-class-loader-state)
          comp-state (jvm-compilation-state)]
     (let [t (ffirst (collect-samples 1 n f gc-before-sample))
