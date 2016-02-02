@@ -222,8 +222,8 @@ library that applies many of the same statistical techniques."
 (defn clear-cache []
   (condp #(re-find %1 %2) (.. System getProperties (getProperty "os.name"))
     #"Mac" (clear-cache-mac)
-    :else (println "WARNING: don't know how to clear disk buffer cache for "
-                   (.. System getProperties (getProperty "os.name")))))
+    :else (warn "don't know how to clear disk buffer cache for "
+                (.. System getProperties (getProperty "os.name")))))
 
 ;;; Time reporting
 (defmacro timestamp
@@ -319,8 +319,8 @@ class counts, change in compilation time and result of specified function."
                          fractional-time
                          final-gc-time]]
     (when (first final-gc-result)
-      (println
-       "WARNING: Final GC required"
+      (warn
+       "Final GC required"
        (* 100.0 (second final-gc-result))
        "% of runtime"))
     final-gc-result))
@@ -804,8 +804,8 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
     (when-let [arg (and (re-find #"Tiered" compiler)
                         (some #(re-find #"TieredStopAtLevel=(.*)" %)
                               input-arguments))]
-      (println
-       "WARNING: JVM argument" (first arg) "is active,"
+      (warn
+       "JVM argument" (first arg) "is active,"
        "and may lead to unexpected results as JIT C2 compiler may not be active."
        "See http://www.slideshare.net/CharlesNutter/javaone-2012-jvm-jit-for-dummies."))))
 
