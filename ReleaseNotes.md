@@ -1,5 +1,19 @@
 # Release Notes
 
+# 0.4.4
+
+- Output WARNING through the warn function
+
+- Fix division by zero exception when warmup-n > warmup-n
+
+- Fix spelling error in progress message
+
+- Fix pre-condition in well rng
+  Closes #30
+
+- Make clojure a provided dependency
+
+
 # 0.4.3
 
 - Push overhead estimation into benchmark*
