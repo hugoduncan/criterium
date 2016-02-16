@@ -21,7 +21,7 @@ This includes:
 Add the following to your `:dependencies`:
 
 ```clj
-[criterium "0.4.3"]
+[criterium "0.4.4"]
 ```
 
 ### Maven
@@ -30,7 +30,7 @@ Add the following to your `:dependencies`:
 <dependency>
   <groupId>criterium</groupId>
   <artifactId>criterium</artifactId>
-  <version>0.4.3</version>
+  <version>0.4.4</version>
 </dependency>
 ```
 
