@@ -222,8 +222,8 @@ library that applies many of the same statistical techniques."
 (defn clear-cache []
   (condp #(re-find %1 %2) (.. System getProperties (getProperty "os.name"))
     #"Mac" (clear-cache-mac)
-    :else (println "WARNING: don't know how to clear disk buffer cache for "
-                   (.. System getProperties (getProperty "os.name")))))
+    :else (warn "don't know how to clear disk buffer cache for "
+                (.. System getProperties (getProperty "os.name")))))
 
 ;;; Time reporting
 (defmacro timestamp
@@ -319,8 +319,8 @@ class counts, change in compilation time and result of specified function."
                          fractional-time
                          final-gc-time]]
     (when (first final-gc-result)
-      (println
-       "WARNING: Final GC required"
+      (warn
+       "Final GC required"
        (* 100.0 (second final-gc-result))
        "% of runtime"))
     final-gc-result))
@@ -419,7 +419,7 @@ class counts, change in compilation time and result of specified function."
         (if (not= old-cl-state new-cl-state)
           (progress "  classes loaded before" count "iterations"))
         (if (not= old-comp-state new-comp-state)
-          (progress "  compilation occured before" count "iterations"))
+          (progress "  compilation occurred before" count "iterations"))
         (debug "  elapsed" elapsed " count" count)
         (if (and (> delta-free 2) (> elapsed warmup-period))
           [elapsed count
@@ -442,7 +442,7 @@ class counts, change in compilation time and result of specified function."
   [period f gc-before-sample estimated-fn-time]
   (progress "Estimating execution count ...")
   (debug " estimated-fn-time" estimated-fn-time)
-  (loop [n (max 1 (long (/ period estimated-fn-time 5)))
+  (loop [n (max 1 (long (/ period (max 1 estimated-fn-time) 5)))
          cl-state (jvm-class-loader-state)
          comp-state (jvm-compilation-state)]
     (let [t (ffirst (collect-samples 1 n f gc-before-sample))
@@ -715,19 +715,19 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
       :lower-q
       first))
 
-(def estimatated-overhead-cache nil)
+(def estimated-overhead-cache nil)
 
-(defn estimatated-overhead!
+(defn estimated-overhead!
   "Sets the estimated overhead."
   []
   (progress "Estimating sampling overhead")
   (alter-var-root
-   #'estimatated-overhead-cache (constantly (estimate-overhead))))
+   #'estimated-overhead-cache (constantly (estimate-overhead))))
 
-(defn estimatated-overhead
+(defn estimated-overhead
   []
-  (or estimatated-overhead-cache
-      (estimatated-overhead!)))
+  (or estimated-overhead-cache
+      (estimated-overhead!)))
 
 ;;; options
 (defn extract-report-options
@@ -804,8 +804,8 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
     (when-let [arg (and (re-find #"Tiered" compiler)
                         (some #(re-find #"TieredStopAtLevel=(.*)" %)
                               input-arguments))]
-      (println
-       "WARNING: JVM argument" (first arg) "is active,"
+      (warn
+       "JVM argument" (first arg) "is active,"
        "and may lead to unexpected results as JIT C2 compiler may not be active."
        "See http://www.slideshare.net/CharlesNutter/javaone-2012-jvm-jit-for-dummies."))))
 
@@ -821,7 +821,7 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
   (let [{:keys [samples warmup-jit-period target-execution-time
                 gc-before-sample overhead] :as opts}
         (merge *default-benchmark-opts*
-               {:overhead (or overhead (estimatated-overhead))}
+               {:overhead (or overhead (estimated-overhead))}
                options)
         times (run-benchmark
                samples warmup-jit-period target-execution-time f opts overhead)]

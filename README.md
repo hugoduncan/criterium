@@ -21,7 +21,7 @@ This includes:
 Add the following to your `:dependencies`:
 
 ```clj
-[criterium "0.4.3"]
+[criterium "0.4.4"]
 ```
 
 ### Maven
@@ -30,7 +30,7 @@ Add the following to your `:dependencies`:
 <dependency>
   <groupId>criterium</groupId>
   <artifactId>criterium</artifactId>
-  <version>0.4.3</version>
+  <version>0.4.4</version>
 </dependency>
 ```
 
@@ -63,12 +63,27 @@ Lower level functions are available, that separate benchmark statistic
 generation and reporting.
 
 ```clj
-(report-result (benchmark (Thread/sleep 1000)) {:verbose true})
+(report-result (benchmark (Thread/sleep 1000) {:verbose true}))
 (report-result (quick-benchmark (Thread/sleep 1000)))
 ```
 
 Note that results are returned to the user to prevent JIT from recognising that
 the results are not used.
+
+## Measurement Overhead Estimation
+
+Criterium will automatically estimate a time for its measurement
+overhead.  The estimate is normally made once per session, and is
+available in the `criterium.core/estimated-overhead-cache` var.
+
+If the estimation is made while there is a lot of other processing
+going on, then benchmarking quick functions may report small negative
+times.  You can force a recalculation of the overhead by calling
+`criterium.core/estimated-overhead!`.
+
+If you want consistency across JVM processes, it might be prudent to
+explicitly set `criterium.core/estimated-overhead!` to a constant
+value.
 
 ## References
 
