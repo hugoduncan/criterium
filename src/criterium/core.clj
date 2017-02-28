@@ -533,12 +533,12 @@ sequence:
 5. Repeat step 4 a total of sample-count times."
   [sample-count warmup-jit-period target-execution-time exprs gc-before-sample]
   (force-gc)
-  (let [first-executions (map (fn [{:keys [f]}] (time-body (f))) exprs)]
-    (progress (format "Warming up %d expression for %.2e sec each:"
-                      (count exprs) (/ warmup-jit-period 1.0e9)))
-    (doseq [{:keys [f expr-string]} exprs]
-      (progress (format "    %s..." expr-string))
-      (warmup-for-jit warmup-jit-period f))
+  (let [first-executions (map (fn [{:keys [f]}] (time-body (f))) exprs)
+        _ (progress (format "Warming up %d expression for %.2e sec each:"
+                          (count exprs) (/ warmup-jit-period 1.0e9)))
+        warmup (vec (for [{:keys [f expr-string]} exprs]
+                      (do (progress (format "    %s..." expr-string))
+                          (warmup-for-jit warmup-jit-period f))))]
     (progress
      (format
       "Estimating execution counts for %d expressions.  Target execution time = %.2e sec:"
@@ -546,11 +546,12 @@ sequence:
     (let [exprs (map-indexed
                  (fn [idx {:keys [f expr-string] :as expr}]
                    (progress (format "    %s..." expr-string))
-                   (assoc expr :index idx
-                          :n-exec (estimate-execution-count
-                                   target-execution-time f
-                                   gc-before-sample
-                                   nil)))
+                   (let [ [warmup-t warmup-n cl-state comp-state] (get warmup idx)]
+                     (assoc expr :index idx
+                       :n-exec (estimate-execution-count
+                                target-execution-time f
+                                gc-before-sample
+                                (long (/ warmup-t warmup-n))))))
                  exprs)
 ;;          _   (progress
 ;;               "Running with sample-count" sample-count
