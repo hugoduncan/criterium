@@ -1,5 +1,9 @@
 # Release Notes
 
+# 0.4.5
+
+- Fix benchmark-round-robin
+
 # 0.4.4
 
 - Output WARNING through the warn function
