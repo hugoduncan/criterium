@@ -103,6 +103,12 @@ Serial correlation detection.
 Multimodal distribution detection.
 Use kernel density estimators?
 
+## Releasing
+
+To release, run the `release.sh` script.  This requires that you have
+git-flow enabled your git repository with `git flow init`, and that
+you have configured your
+[credentials for clojars](https://github.com/technomancy/leiningen/blob/stable/doc/DEPLOY.md).
 
 ## YourKit
 
