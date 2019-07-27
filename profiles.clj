@@ -1,4 +1,4 @@
-{:provided  {:dependencies [[org.clojure/clojure "1.7.0-alpha3"]]
+{:provided  {:dependencies [[org.clojure/clojure "1.10.1"]]
              :global-vars {*unchecked-math* true}}
  :1.3 {:dependencies [[org.clojure/clojure "1.3.0"]]}
  :1.4 {:dependencies [[org.clojure/clojure "1.4.0"]]}
@@ -8,6 +8,10 @@
        :global-vars {*unchecked-math* true}}
  :1.8 {:dependencies [[org.clojure/clojure "1.8.0"]]
        :global-vars {*unchecked-math* true}}
+ :1.9 {:dependencies [[org.clojure/clojure "1.9.0"]]
+       :global-vars {*unchecked-math* true}}
+ :1.10 {:dependencies [[org.clojure/clojure "1.10.1"]]
+        :global-vars {*unchecked-math* true}}
  :doc
  {:dependencies [[codox-md "0.1.0"]]
   :codox {:writer codox-md.writer/write-docs

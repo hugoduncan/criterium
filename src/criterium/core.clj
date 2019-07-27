@@ -50,11 +50,13 @@ benchmarking pitfalls.
 See http://hackage.haskell.org/package/criterion for a Haskell benchmarking
 library that applies many of the same statistical techniques."
   (:use clojure.set
-         criterium.stats)
-  (:require criterium.well)
+        criterium.stats)
+  (:require [criterium
+             [jvm :as jvm]
+             [toolkit :as toolkit]
+             [types :as types]
+             [well :as well]])
   (:import (java.lang.management ManagementFactory)))
-
-(def ^{:dynamic true} *use-mxbean-for-times* nil)
 
 (def ^{:doc "Fraction of excution time allowed for final cleanup before a
              warning is issued."
@@ -126,89 +128,6 @@ library that applies many of the same statistical techniques."
   (when *report-warn*
     (apply println "WARNING:" message)))
 
-;;; Java Management interface
-(defprotocol StateChanged
-  "Interrogation of differences in a state."
-  (state-changed?
-   [state]
-   "Check to see if a state delta represents no change")
-  (state-delta
-   [state-1 state-2]
-   "Return a state object for the difference between two states"))
-
-(defrecord JvmClassLoaderState [loaded-count unloaded-count]
-  StateChanged
-  (state-changed?
-   [state]
-   (not (and (zero? (:loaded-count state)) (zero? (:unloaded-count state)))))
-  (state-delta
-   [state-1 state-2]
-   (let [vals (map - (vals state-1) (vals state-2))]
-     (JvmClassLoaderState. (first vals) (second vals)))))
-
-(defn jvm-class-loader-state []
-  (let [bean (.. ManagementFactory getClassLoadingMXBean)]
-    (JvmClassLoaderState. (. bean getLoadedClassCount)
-                          (. bean getUnloadedClassCount))))
-
-
-(defrecord JvmCompilationState [compilation-time]
-  StateChanged
-  (state-changed?
-   [state]
-   (not (zero? (:compilation-time state))))
-  (state-delta
-   [state-1 state-2]
-   (let [vals (map - (vals state-1) (vals state-2))]
-     (JvmCompilationState. (first vals)))))
-
-(defn jvm-compilation-state
-  "Returns the total compilation time for the JVM instance."
-  []
-  (let [bean (.. ManagementFactory getCompilationMXBean)]
-    (JvmCompilationState. (if (. bean isCompilationTimeMonitoringSupported)
-                            (. bean getTotalCompilationTime)
-                            -1))))
-
-(defn jvm-jit-name
-  "Returns the name of the JIT compiler."
-  []
-  (let [bean (.. ManagementFactory getCompilationMXBean)]
-    (. bean getName)))
-
-(defn os-details
-  "Return the operating system details as a hash."
-  []
-  (let [bean (.. ManagementFactory getOperatingSystemMXBean)]
-    {:arch (. bean getArch)
-     :available-processors (. bean getAvailableProcessors)
-     :name (. bean getName)
-     :version (. bean getVersion)}))
-
-(defn runtime-details
-  "Return the runtime details as a hash."
-  []
-  (let [bean (.. ManagementFactory getRuntimeMXBean)
-        props (. bean getSystemProperties)]
-    {:input-arguments (. bean getInputArguments)
-     :name (. bean getName)
-     :spec-name (. bean getSpecName)
-     :spec-vendor (. bean getSpecVendor)
-     :spec-version (. bean getSpecVersion)
-     :vm-name (. bean getVmName)
-     :vm-vendor (. bean getVmVendor)
-     :vm-version (. bean getVmVersion)
-     :java-version (get props "java.version")
-     :java-runtime-version (get props "java.runtime.version")
-     :sun-arch-data-model (get props "sun.arch.data.model")
-     :clojure-version-string (clojure-version)
-     :clojure-version *clojure-version*}))
-
-(defn system-properties
-  "Return the operating system details."
-  []
-  (let [bean (.. ManagementFactory getRuntimeMXBean)]
-    (. bean getSystemProperties)))
 
 ;;; OS Specific Code
 (defn clear-cache-mac []
@@ -225,29 +144,31 @@ library that applies many of the same statistical techniques."
     :else (warn "don't know how to clear disk buffer cache for "
                 (.. System getProperties (getProperty "os.name")))))
 
-;;; Time reporting
-(defmacro timestamp
-  "Obtain a timestamp"
-  [] `(System/nanoTime))
 
-(defn timestamp-2
-  "Obtain a timestamp, possibly using MXBean."
-  []
-  (if *use-mxbean-for-times*
-    (.. ManagementFactory getThreadMXBean getCurrentThreadCpuTime)
-    (System/nanoTime)))
+;; protocol wrappers
+(defn state-delta [start finish]
+  (types/state-delta start finish))
+
+(defn elapsed-time [data]
+  (-> data :time :elapsed))
 
 ;;; Execution timing
 (defmacro time-body
-  "Returns a vector containing execution time and result of specified function."
-  ([expr pre]
-     `(do ~pre
-          (time-body ~expr)))
-  ([expr]
-     `(let [start# (timestamp)
-            ret# ~expr
-            finish# (timestamp)]
-        [(- finish# start#) ret#])))
+  "Returns a map containing execution time and result of specified function."
+  ;; ([expr pre]
+  ;;  `(do ~pre
+  ;;       (time-body ~expr)))
+  [expr]
+  `(toolkit/deltas
+     (toolkit/instrumented
+       (toolkit/with-time
+         (toolkit/with-return-value
+           ~expr))))
+  ;; `(let [start# (timestamp)
+  ;;        ret# ~expr
+  ;;        finish# (timestamp)]
+  ;;    [(- finish# start#) ret#])
+  )
 
 (defn replace-ret-val-in-time-body-result
   [[elapsed-time _] new-ret-val]
@@ -256,19 +177,26 @@ library that applies many of the same statistical techniques."
 (defmacro time-body-with-jvm-state
   "Returns a vector containing execution time, change in loaded and unloaded
 class counts, change in compilation time and result of specified function."
-  ([expr pre]
-     `(do ~pre
-          (time-body-with-jvm-state ~expr)))
-  ([expr]
-  `(let [cl-state# (jvm-class-loader-state)
-         comp-state# (jvm-compilation-state)
-         start# (timestamp)
-         ret# ~expr
-         finish# (timestamp)]
-     [(- finish# start#)
-      (merge-with - cl-state# (jvm-class-loader-state))
-      (merge-with - comp-state# (jvm-compilation-state))
-      ret#])))
+  [expr]
+  `(toolkit/instrumented
+     (toolkit/with-class-loader-counts
+       (toolkit/with-compilation-time
+         (toolkit/with-time
+           ~expr))))
+  ;; ([expr pre]
+  ;;    `(do ~pre
+  ;;         (time-body-with-jvm-state ~expr)))
+  ;; ([expr]
+  ;; `(let [cl-state# (toolkit/jvm-class-loader-state)
+  ;;        comp-state# (jvm-compilation-state)
+  ;;        start# (timestamp)
+  ;;        ret# ~expr
+  ;;        finish# (timestamp)]
+  ;;    [(- finish# start#)
+  ;;     (merge-with - cl-state# (toolkit/jvm-class-loader-state))
+  ;;     (merge-with - comp-state# (jvm-compilation-state))
+  ;;     ret#]))
+  )
 
 
 ;;; Memory reporting
@@ -309,7 +237,7 @@ class counts, change in compilation time and result of specified function."
   the runtime, then the runtime should maybe include this time."
   []
   (progress "Final GC...")
-  (first (time-body (force-gc))))
+  (-> (time-body (force-gc)) :time :elapsed))
 
 (defn final-gc-warn
   [execution-time final-gc-time]
@@ -397,42 +325,42 @@ class counts, change in compilation time and result of specified function."
   "Run expression for the given amount of time to enable JIT compilation."
   [warmup-period f]
   (progress "Warming up for JIT optimisations" warmup-period "...")
-  (let [cl-state (jvm-class-loader-state)
-        comp-state (jvm-compilation-state)
-        t (max 1 (first (time-body (f))))
-        _ (debug "  initial t" t)
-        [t n] (if (< t 100000)           ; 100us
-                (let [n (/ 100000 t)]
-                  [(first (execute-expr n f)) n])
-                [t 1])
-        p (/ warmup-period t)
-        c (long (max 1 (* n (/ p 5))))]
+  (let [cl-counts (jvm/class-loader-counts)
+        comp-time (jvm/compilation-time)
+        t         (max 1 (-> (time-body (f)) :time :elapsed))
+        _         (debug "  initial t" t)
+        [t n]     (if (< t 100000)           ; 100us
+                    (let [n (/ 100000 t)]
+                      [(-> (execute-expr n f) :time :elapsed) n])
+                    [t 1])
+        p         (/ warmup-period t)
+        c         (long (max 1 (* n (/ p 5))))]
     (debug "  using t" t "n" n)
     (debug "  using execution-count" c)
-    (loop [elapsed (long t)
-           count (long n)
-           delta-free (long 0)
-           old-cl-state cl-state
-           old-comp-state comp-state]
-      (let [new-cl-state (jvm-class-loader-state)
-            new-comp-state (jvm-compilation-state)]
-        (if (not= old-cl-state new-cl-state)
+    (loop [elapsed       (long t)
+           count         (long n)
+           delta-free    (long 0)
+           old-cl-counts cl-counts
+           old-comp-time comp-time]
+      (let [new-cl-counts (jvm/class-loader-counts)
+            new-comp-time (jvm/compilation-time)]
+        (if (not= old-cl-counts new-cl-counts)
           (progress "  classes loaded before" count "iterations"))
-        (if (not= old-comp-state new-comp-state)
+        (if (not= old-comp-time new-comp-time)
           (progress "  compilation occurred before" count "iterations"))
         (debug "  elapsed" elapsed " count" count)
         (if (and (> delta-free 2) (> elapsed warmup-period))
           [elapsed count
-           (state-delta new-cl-state cl-state)
-           (state-delta new-comp-state comp-state)]
-          (recur (+ elapsed (long (first (execute-expr c f))))
+           (state-delta new-cl-counts cl-counts)
+           (state-delta new-comp-time comp-time)]
+          (recur (+ elapsed (long (-> (execute-expr c f) :time :elapsed)))
                  (+ count c)
-                 (if (and (= old-cl-state new-cl-state)
-                          (= old-comp-state new-comp-state))
+                 (if (and (= old-cl-counts new-cl-counts)
+                          (= old-comp-time new-comp-time))
                    (unchecked-inc delta-free)
                    (long 0))
-                 new-cl-state
-                 new-comp-state))))))
+                 new-cl-counts
+                 new-comp-time))))))
 
 ;;; Execution parameters
 (defn estimate-execution-count
@@ -442,28 +370,29 @@ class counts, change in compilation time and result of specified function."
   [period f gc-before-sample estimated-fn-time]
   (progress "Estimating execution count ...")
   (debug " estimated-fn-time" estimated-fn-time)
-  (loop [n (max 1 (long (/ period (max 1 estimated-fn-time) 5)))
-         cl-state (jvm-class-loader-state)
-         comp-state (jvm-compilation-state)]
-    (let [t (ffirst (collect-samples 1 n f gc-before-sample))
+  (loop [n         (max 1 (long (/ period (max 1 estimated-fn-time) 5)))
+         cl-counts (jvm/class-loader-counts)
+         comp-time (jvm/compilation-time)]
+    (let [t             (-> (collect-samples 1 n f gc-before-sample)
+                            first :time :elapsed)
           ;; It is possible for small n and a fast expression to get
           ;; t=0 nsec back from collect-samples.  This is likely due
           ;; to how (System/nanoTime) quantizes the time on some
           ;; systems.
-          t (max 1 t)
-          new-cl-state (jvm-class-loader-state)
-          new-comp-state (jvm-compilation-state)]
+          t             (max 1 t)
+          new-cl-counts (jvm/class-loader-counts)
+          new-comp-time (jvm/compilation-time)]
       (debug " ..." n)
-      (when (not= comp-state new-comp-state)
+      (when (not= comp-time new-comp-time)
         (warn "new compilations in execution estimation phase"))
       (if (and (>= t period)
-               (= cl-state new-cl-state)
-               (= comp-state new-comp-state))
+               (= cl-counts new-cl-counts)
+               (= comp-time new-comp-time))
         n
         (recur (if (>= t period)
                  n
                  (min (* 2 n) (inc (long (* n (/ period t))))))
-               new-cl-state new-comp-state)))))
+               new-cl-counts new-comp-time)))))
 
 
 ;; benchmark
@@ -475,36 +404,37 @@ class counts, change in compilation time and result of specified function."
   [sample-count warmup-jit-period target-execution-time f gc-before-sample
    overhead]
   (force-gc)
-  (let [first-execution (time-body (f))
-        [warmup-t warmup-n cl-state comp-state] (warmup-for-jit
-                                                 warmup-jit-period f)
-        n-exec (estimate-execution-count
-                target-execution-time f gc-before-sample
-                (long (/ warmup-t warmup-n)))
-        total-overhead (long (* (or overhead 0) 1e9 n-exec))
-        _   (progress "Sampling ...")
-        _   (debug
-             "Running with\n sample-count" sample-count \newline
-             "exec-count" n-exec \newline
-             "overhead[s]" overhead \newline
-             "total-overhead[ns]" total-overhead)
-        _   (force-gc)
-        samples (collect-samples sample-count n-exec f gc-before-sample)
-        final-gc-time (final-gc)
-        sample-times (->> samples
-                          (map first)
-                          (map #(- % total-overhead)))
-        total (reduce + 0 sample-times)
-        final-gc-result (final-gc-warn total final-gc-time)]
-    {:execution-count n-exec
-     :sample-count sample-count
-     :samples sample-times
-     :results (map second samples)
-     :total-time (/ total 1e9)
-     :warmup-time warmup-t
+  (let [first-execution       (time-body (f))
+        [warmup-t warmup-n
+         cl-state comp-state] (warmup-for-jit
+                                warmup-jit-period f)
+        n-exec                (estimate-execution-count
+                                target-execution-time f gc-before-sample
+                                (long (/ warmup-t warmup-n)))
+        total-overhead        (long (* (or overhead 0) 1e9 n-exec))
+        _                     (progress "Sampling ...")
+        _                     (debug
+                                "Running with\n sample-count" sample-count \newline
+                                "exec-count" n-exec \newline
+                                "overhead[s]" overhead \newline
+                                "total-overhead[ns]" total-overhead)
+        _                     (force-gc)
+        samples               (collect-samples sample-count n-exec f gc-before-sample)
+        final-gc-time         (final-gc)
+        sample-times          (->> samples
+                                   (map elapsed-time)
+                                   (map #(- % total-overhead)))
+        total                 (reduce + 0 sample-times)
+        final-gc-result       (final-gc-warn total final-gc-time)]
+    {:execution-count   n-exec
+     :sample-count      sample-count
+     :samples           sample-times
+     :results           (map second samples)
+     :total-time        (/ total 1e9)
+     :warmup-time       warmup-t
      :warmup-executions warmup-n
-     :final-gc-time final-gc-time
-     :overhead overhead}))
+     :final-gc-time     final-gc-time
+     :overhead          overhead}))
 
 
 (defn run-benchmarks-round-robin
@@ -767,7 +697,7 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
                 (partial quantile tail-quantile)
                 (partial quantile (- 1.0 tail-quantile)))
                (:bootstrap-size opts) [0.5 tail-quantile (- 1.0 tail-quantile)]
-               criterium.well/well-rng-1024a)
+               well/well-rng-1024a)
         analysis (outlier-significance (first stats) (second stats)
                                        (:sample-count times))
         sqr (fn [x] (* x x))
@@ -791,17 +721,17 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
                        (nth stats 3) (/ 1e-9 (:execution-count times)))
             :outlier-variance analysis
             :tail-quantile (:tail-quantile opts)
-            :os-details (os-details)
+            :os-details (jvm/os-details)
             :options opts
             :runtime-details (->
-                              (runtime-details)
+                              (jvm/runtime-details)
                               (update-in [:input-arguments] vec))})))
 
 (defn warn-on-suspicious-jvm-options
   "Warn if the JIT options are suspicious looking."
   []
-  (let [compiler (jvm-jit-name)
-        {:keys [input-arguments]} (runtime-details)]
+  (let [compiler (jvm/jit-name)
+        {:keys [input-arguments]} (jvm/runtime-details)]
     (when-let [arg (and (re-find #"Tiered" compiler)
                         (some #(re-find #"TieredStopAtLevel=(.*)" %)
                               input-arguments))]
