@@ -9,19 +9,15 @@
 
 (ns criterium.toolkit
   "Standalone instrumentation"
-  (:require [criterium.jvm :as jvm]))
+  (:require [criterium
+             [jvm :as jvm]
+             [util :as util]]))
 
 
 (defn assoc-delta
   "Assoc finish merged with start using op, onto the :delta key."
-  [{:keys [start finish] :as data} op]
-  (assoc data :delta (merge-with op finish start)))
-
-
-(defn assoc-delta-minus
-  "Assoc finish merged with start using op, onto the :delta key."
-  [data]
-  (assoc-delta data -))
+  [{:keys [start finish] :as data}]
+  (assoc data :delta (util/diff finish start)))
 
 
 ;; Macros to wrap an expr execution.  The macros use a first data
@@ -38,10 +34,19 @@
   `(-> {} ~expr))
 
 
-(defmacro with-return-value
-  "Execute expr, adding the return value to the data map's :return-value key."
+(defmacro with-expr-value
+  "Execute expr, adding the return value to the data map's :expr-value key."
   [data expr]
-  `(assoc ~data :return-value ~expr))
+  `(assoc ~data :expr-value ~expr))
+
+
+(defmacro with-expr
+  "Execute expr."
+  [data expr]
+  `(let [d# ~data]
+     ~expr
+     d#))
+
 
 (defmacro with-time
   "Execute expr, adding timing to the data map.
@@ -51,10 +56,10 @@
   nanoseconds."
   [data expr]
   `(-> ~data
-     (assoc-in [:time :start] {:elapsed (jvm/timestamp)})
-     ~expr
-     (assoc-in [:time :finish] {:elapsed (jvm/timestamp)})
-     (update-in [:time] assoc-delta-minus)))
+       (assoc-in [:time :start] {:elapsed (jvm/timestamp)})
+       ~expr
+       (assoc-in [:time :finish] {:elapsed (jvm/timestamp)})
+       (update-in [:time] assoc-delta)))
 
 
 (defmacro with-class-loader-counts
@@ -68,7 +73,7 @@
        (assoc-in [:class-loader :start] (jvm/class-loader-counts))
        ~expr
        (assoc-in [:class-loader :finish] (jvm/class-loader-counts))
-       (update-in [:class-loader] assoc-delta-minus)))
+       (update-in [:class-loader] assoc-delta)))
 
 
 (defmacro with-compilation-time
@@ -82,7 +87,45 @@
        (assoc-in [:compilation :start] (jvm/compilation-time))
        ~expr
        (assoc-in [:compilation :finish] (jvm/compilation-time))
-       (update-in [:compilation] assoc-delta-minus)))
+       (update-in [:compilation] assoc-delta)))
+
+
+(defmacro with-memory
+  "Execute expr, add compilation time to the data map.
+
+  Adds JvmClassLoaderState records to the :compilation key in data,
+  with the :before, :after, and :delta sub-keys.
+  "
+  [data expr]
+  `(-> ~data
+       (assoc-in [:memory :start] (jvm/memory))
+       ~expr
+       (assoc-in [:memory :finish] (jvm/memory))
+       (update-in [:memory] assoc-delta)))
+
+
+(defmacro with-finalization-count
+  "Execute expr, add compilation time to the data map.
+
+  Adds JvmClassLoaderState records to the :compilation key in data,
+  with the :before, :after, and :delta sub-keys.
+  "
+  [data expr]
+  `(-> ~data
+       (assoc-in [:finalization :start] (jvm/finalization-count))
+       ~expr
+       (assoc-in [:finalization :finish] (jvm/finalization-count))
+       (update-in [:finalization] assoc-delta)))
+
+
+(defmacro with-garbage-collector-stats
+  "Execute expr, add garbage collection counts and times to the data map."
+  [data expr]
+  `(-> ~data
+       (assoc-in [:garbage-collector :start] (jvm/garbage-collector-stats))
+       ~expr
+       (assoc-in [:garbage-collector :finish] (jvm/garbage-collector-stats))
+       (update-in [:garbage-collector] assoc-delta)))
 
 
 (defn deltas
@@ -100,13 +143,20 @@
     data))
 
 (comment
-  (assoc-delta-minus {:start {:a 1} :finish {:a 4}})
+  (assoc-delta {:start {:a 1} :finish {:a 4}})
 
   (deltas
     (instrumented
-      (with-compilation-time
-        (with-class-loader-counts
-          (with-time
-            (with-return-value 1))))))
+      (with-garbage-collector-stats
+        (with-finalization-count
+          (with-compilation-time
+            (with-class-loader-counts
+              (with-time
+                (with-expr-value (Thread/sleep 1)))))))))
+
+  (deltas
+    (instrumented
+      (with-time
+        (with-expr (Thread/sleep 1)))))
 
   )

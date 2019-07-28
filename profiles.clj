@@ -25,7 +25,7 @@
  {:plugins [[lein-set-version "0.3.0"]]
   :set-version
   {:updates [{:path "README.md" :no-snapshot true}]}}
- :dev {:aliases {"impl-perf" ["with-profile" "+impl" " perforate" "--quick"]}
+ :dev {:aliases {"impl-perf" ["with-profile" "+impl" "perforate" "--quick"]}
        :plugins [[codox/codox.leiningen "0.6.4"]
                  [lein-marginalia "0.7.1"]]
        :global-vars {*warn-on-reflection* true}}
@@ -39,4 +39,6 @@
            :fixtures [criterium.implementation.type/with-volatile]}
           {:name :unsynchronized
            :namespaces [criterium.implementation]
-           :fixtures [criterium.implementation.type/with-unsynchronized]}]}}}
+           :fixtures [criterium.implementation.type/with-unsynchronized]}]}
+        :dependencies [[perforate "0.3.4"]]
+        :plugins [[perforate "0.3.4"]]}}

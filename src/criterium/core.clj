@@ -21,12 +21,12 @@
       :see-also
       [["http://github.com/hugoduncan/criterium" "Source code"]
        ["http://hugoduncan.github.com/criterium" "API Documentation"]]}
-  criterium.core
+    criterium.core
   "Criterium measures the computation time of an expression.  It is
-designed to address some of the pitfalls of benchmarking, and benchmarking on
-the JVM in particular.
+  designed to address some of the pitfalls of benchmarking, and benchmarking on
+  the JVM in particular.
 
-This includes:
+  This includes:
   - statistical processing of multiple evaluations
   - inclusion of a warm-up period, designed to allow the JIT compiler to
     optimise its code
@@ -35,26 +35,27 @@ This includes:
   - a final forced GC after testing to estimate impact of cleanup on the
     timing results
 
-Usage:
+  Usage:
   (use 'criterium.core)
   (bench (Thread/sleep 1000) :verbose)
   (with-progress-reporting (bench (Thread/sleep 1000) :verbose))
   (report-result (benchmark (Thread/sleep 1000)) :verbose)
   (report-result (quick-bench (Thread/sleep 1000)))
 
-References:
-See http://www.ellipticgroup.com/html/benchmarkingArticle.html for a Java
-benchmarking library.  The accompanying article describes many of the JVM
-benchmarking pitfalls.
+  References:
+  See http://www.ellipticgroup.com/html/benchmarkingArticle.html for a Java
+  benchmarking library.  The accompanying article describes many of the JVM
+  benchmarking pitfalls.
 
-See http://hackage.haskell.org/package/criterion for a Haskell benchmarking
-library that applies many of the same statistical techniques."
+  See http://hackage.haskell.org/package/criterion for a Haskell benchmarking
+  library that applies many of the same statistical techniques."
   (:use clojure.set
         criterium.stats)
   (:require [criterium
              [jvm :as jvm]
              [toolkit :as toolkit]
              [types :as types]
+             [util :as util]
              [well :as well]])
   (:import (java.lang.management ManagementFactory)))
 
@@ -153,105 +154,73 @@ library that applies many of the same statistical techniques."
   (-> data :time :elapsed))
 
 ;;; Execution timing
-(defmacro time-body
+(defmacro time-expr
   "Returns a map containing execution time and result of specified function."
-  ;; ([expr pre]
-  ;;  `(do ~pre
-  ;;       (time-body ~expr)))
   [expr]
   `(toolkit/deltas
      (toolkit/instrumented
        (toolkit/with-time
-         (toolkit/with-return-value
-           ~expr))))
-  ;; `(let [start# (timestamp)
-  ;;        ret# ~expr
-  ;;        finish# (timestamp)]
-  ;;    [(- finish# start#) ret#])
-  )
+         (toolkit/with-expr
+           ~expr)))))
 
-(defn replace-ret-val-in-time-body-result
-  [[elapsed-time _] new-ret-val]
-  [elapsed-time new-ret-val])
 
-(defmacro time-body-with-jvm-state
-  "Returns a vector containing execution time, change in loaded and unloaded
-class counts, change in compilation time and result of specified function."
+(defmacro time-expr-for-warmup
+  "Returns a map containing execution time, change in loaded and unloaded
+  class counts, change in compilation time and result of specified function."
   [expr]
-  `(toolkit/instrumented
-     (toolkit/with-class-loader-counts
-       (toolkit/with-compilation-time
-         (toolkit/with-time
-           ~expr))))
-  ;; ([expr pre]
-  ;;    `(do ~pre
-  ;;         (time-body-with-jvm-state ~expr)))
-  ;; ([expr]
-  ;; `(let [cl-state# (toolkit/jvm-class-loader-state)
-  ;;        comp-state# (jvm-compilation-state)
-  ;;        start# (timestamp)
-  ;;        ret# ~expr
-  ;;        finish# (timestamp)]
-  ;;    [(- finish# start#)
-  ;;     (merge-with - cl-state# (toolkit/jvm-class-loader-state))
-  ;;     (merge-with - comp-state# (jvm-compilation-state))
-  ;;     ret#]))
-  )
+  `(toolkit/deltas
+     (toolkit/instrumented
+       (toolkit/with-class-loader-counts
+         (toolkit/with-compilation-time
+           (toolkit/with-time
+             (toolkit/with-expr
+               ~expr)))))))
 
-
-;;; Memory reporting
-(defn heap-used
-  "Report a (inconsistent) snapshot of the heap memory used."
-  []
-  (let [runtime (Runtime/getRuntime)]
-    (- (.totalMemory runtime) (.freeMemory runtime))))
-
-(defn memory
-  "Report a (inconsistent) snapshot of the memory situation."
-  []
-  (let [runtime (Runtime/getRuntime)]
-    [ (.freeMemory runtime) (.totalMemory runtime) (.maxMemory runtime)]))
 
 ;;; Memory management
 (defn force-gc
-  "Force garbage collection and finalisers so that execution time associated
-   with this is not incurred later. Up to max-attempts are made.
-"
+  "Force garbage collection and finalisers so that execution time
+  associated with this is not incurred at another time. Up to
+  max-attempts are run to clear all pending finalizers and free as
+  much memory as possible.
+
+  Returns the GC execution time,  total changes in memory, and in
+  object finalizers pending."
   ([] (force-gc *max-gc-attempts*))
   ([max-attempts]
-     (debug "Cleaning JVM allocations ...")
-     (loop [memory-used (heap-used)
-            attempts 0]
-       (System/runFinalization)
-       (System/gc)
-       (let [new-memory-used (heap-used)]
-         (if (and (or (pos? (.. ManagementFactory
-                                getMemoryMXBean
-                                getObjectPendingFinalizationCount))
-                      (> memory-used new-memory-used))
-                  (< attempts max-attempts))
-           (recur new-memory-used (inc attempts)))))))
+   (debug "Cleaning JVM allocations ...")
+   (loop [all-deltas [] ; hold onto data we allocate here
+          attempts   0]
+     (let [deltas (toolkit/deltas
+                    (toolkit/instrumented
+                      (toolkit/with-memory
+                        (toolkit/with-finalization-count
+                          (toolkit/with-time
+                            (toolkit/with-expr-value
+                              (jvm/run-finalizers-and-gc)))))))]
 
-(defn final-gc
-  "Time a final clean up of JVM memory. If this time is significant compared to
-  the runtime, then the runtime should maybe include this time."
-  []
-  (progress "Final GC...")
-  (-> (time-body (force-gc)) :time :elapsed))
+       (let [new-memory-used (-> deltas :memory :total :used)]
+         (debug "pending finalizers" (-> deltas :finalization :pending))
+         (debug "new-memory-used" new-memory-used)
+         (if (and (< attempts max-attempts)
+                  (or (pos? (-> deltas :finalization :pending))
+                      (< new-memory-used 0)))
+           (recur (conj all-deltas (dissoc deltas :expr-value))
+                  (inc attempts))
+           (reduce util/sum all-deltas)))))))
+
 
 (defn final-gc-warn
+  "If the final GC execution time is significant compared to
+  the runtime, then the runtime should maybe include this time."
   [execution-time final-gc-time]
-  (progress "Checking GC...")
   (let [fractional-time (/ final-gc-time execution-time)
-        final-gc-result [(> fractional-time *final-gc-problem-threshold*)
-                         fractional-time
-                         final-gc-time]]
-    (when (first final-gc-result)
-      (warn
-       "Final GC required"
-       (* 100.0 (second final-gc-result))
-       "% of runtime"))
-    final-gc-result))
+        is-significant? (> fractional-time *final-gc-problem-threshold*)]
+    (when is-significant?
+      (warn "Final GC required" (* 100.0 fractional-time) "% of runtime"))
+    [is-significant?
+     fractional-time
+     final-gc-time]))
 
 ;;; ## Core timing loop
 
@@ -270,42 +239,38 @@ class counts, change in compilation time and result of specified function."
 
 (def mutable-place (Unsynchronized. nil))
 
-(defn execute-expr-core-timed-part
- "Performs the part of execute-expr where we actually measure the elapsed run
-  time.  Evaluates `(f)` `n` times, each time saving the return value as an
-  Object in `mutable-place`.
+(defmacro execute-fn-n-times
+  "Evaluates `(f)` `n` times, each time saving the
+  return value as an Object in `mutable-place`.
 
-  The idea is that except for the call to (f), the only things done during each
-  iteration are a few arithmetic operations and comparisons to 0 on primitive
-  longs, and the storage of the return value.
+  Except for the call to (f), only a few primitive long arithmetic
+  operations and comparisons to 0, and the storage of the return
+  value, are done during each iteration.
 
-  The JVM is not free to optimize away the calls to f because the return values
-  are saved in `mutable-place`.
-
-  This array is at most +max-obj-array-size+ elements long, to save
-  memory.  An artificially intelligent JVM might be able to determine
-  that if n is larger than +max-obj-array-size+, some of the return
-  values are overwritten and thus those calls need not be made.  I
-  doubt we will see that kind of optimization any time soon, and
-  perhaps some JVM rules even prohibit doing so since the writes to
-  ret-vals-arr could potentially be read by a different thread."
-  [n f]
-  (time-body
-   (loop [i (long (dec n))
-          v (f)]
-     (set-place mutable-place v)
-     (if (pos? i)
-       (recur (unchecked-dec i) (f))
-       v))))
+  The JVM is not free to optimize away the calls to f, as the return
+  values are saved in `mutable-place`."
+  [f n]
+  `(loop [i# (long (dec ~n))
+          v# (~f)]
+     (set-place mutable-place v#)
+     (if (pos? i#)
+       (recur (unchecked-dec i#) (~f))
+       v#)))
 
 ;;; ## Execution
 (defn execute-expr
-  "Time the execution of `n` invocations of `f`. See
-  `execute-expr-core-timed-part`."
+  "Time the execution of `n` invocations of `f`. See `execute-expr*`."
   [n f]
-  (let [time-and-ret (execute-expr-core-timed-part n f)]
+  (let [deltas (time-expr (execute-fn-n-times f n))]
     (get-place mutable-place) ;; just for good measure, use the mutable value
-    time-and-ret))
+    deltas))
+
+(defn execute-expr-for-warmup
+  "Time the execution of `n` invocations of `f`. See `execute-expr*`."
+  [n f]
+  (let [deltas (time-expr-for-warmup (execute-fn-n-times f n))]
+    (get-place mutable-place) ;; just for good measure, use the mutable value
+    deltas))
 
 (defn collect-samples
   [sample-count execution-count f gc-before-sample]
@@ -322,45 +287,52 @@ class counts, change in compilation time and result of specified function."
 
 ;;; Compilation
 (defn warmup-for-jit
-  "Run expression for the given amount of time to enable JIT compilation."
-  [warmup-period f]
-  (progress "Warming up for JIT optimisations" warmup-period "...")
-  (let [cl-counts (jvm/class-loader-counts)
-        comp-time (jvm/compilation-time)
-        t         (max 1 (-> (time-body (f)) :time :elapsed))
-        _         (debug "  initial t" t)
-        [t n]     (if (< t 100000)           ; 100us
-                    (let [n (/ 100000 t)]
-                      [(-> (execute-expr n f) :time :elapsed) n])
-                    [t 1])
-        p         (/ warmup-period t)
-        c         (long (max 1 (* n (/ p 5))))]
-    (debug "  using t" t "n" n)
+  "Run expression for the given amount of time to enable JIT compilation.
+
+  Returns a vector of execution count, deltas and estimated function
+  execution time."  [warmup-period f]
+  (debug "warmup-for-jit f" f)
+  (let [ignore-first (time-expr-for-warmup (f))
+        _            (println ignore-first)
+        deltas-1     (time-expr-for-warmup (f))
+        t            (max 1 (elapsed-time deltas-1))
+        _            (debug "  initial t" t)
+        [deltas-n n] (if (< t 100000)           ; 100us
+                       (let [n (inc (quot 100000 t))]
+                         [(execute-expr-for-warmup n f) n])
+                       [deltas-1 1])
+        t            (elapsed-time deltas-n)
+        p            (/ warmup-period t)
+        c            (long (max 1 (* n (/ p 5))))]
+    (debug "  using t" t "for n" n)
     (debug "  using execution-count" c)
-    (loop [elapsed       (long t)
-           count         (long n)
-           delta-free    (long 0)
-           old-cl-counts cl-counts
-           old-comp-time comp-time]
-      (let [new-cl-counts (jvm/class-loader-counts)
-            new-comp-time (jvm/compilation-time)]
-        (if (not= old-cl-counts new-cl-counts)
-          (progress "  classes loaded before" count "iterations"))
-        (if (not= old-comp-time new-comp-time)
-          (progress "  compilation occurred before" count "iterations"))
-        (debug "  elapsed" elapsed " count" count)
+    (loop [count      n
+           delta-free 0
+           deltas-sum (if (= n 1)
+                        deltas-1
+                        (util/sum deltas-1 deltas-n))]
+      (let [deltas    (execute-expr-for-warmup c f)
+            sum       (util/sum deltas-sum deltas)
+            count     (+ count c)
+            elapsed   (elapsed-time sum)
+            cl-counts (-> deltas :class-loader :loaded-count)
+            comp-time (-> deltas :compilation :compilation-time)]
+        (if (pos? cl-counts)
+          (debug "  classes loaded before" count "iterations"))
+        (if (pos? comp-time)
+          (debug "  compilation occurred before" count "iterations"))
+        ;; (debug "elapsed-time" elapsed "count" count)
         (if (and (> delta-free 2) (> elapsed warmup-period))
-          [elapsed count
-           (state-delta new-cl-counts cl-counts)
-           (state-delta new-comp-time comp-time)]
-          (recur (+ elapsed (long (-> (execute-expr c f) :time :elapsed)))
-                 (+ count c)
-                 (if (and (= old-cl-counts new-cl-counts)
-                          (= old-comp-time new-comp-time))
-                   (unchecked-inc delta-free)
-                   (long 0))
-                 new-cl-counts
-                 new-comp-time))))))
+          (let [estimated-fn-time (max 1 (quot elapsed count))]
+            (progress "estimated-fn-time"
+                      estimated-fn-time (float estimated-fn-time))
+            [count sum estimated-fn-time])
+          (recur count
+                 (if (and (zero? cl-counts)
+                          (zero? comp-time))
+                   (inc delta-free)
+                   0)
+                 sum))))))
 
 ;;; Execution parameters
 (defn estimate-execution-count
@@ -368,31 +340,29 @@ class counts, change in compilation time and result of specified function."
    specified execution period, check for the jvm to have constant class loader
    and compilation state."
   [period f gc-before-sample estimated-fn-time]
-  (progress "Estimating execution count ...")
+  (debug " period" period)
   (debug " estimated-fn-time" estimated-fn-time)
-  (loop [n         (max 1 (long (/ period (max 1 estimated-fn-time) 5)))
-         cl-counts (jvm/class-loader-counts)
-         comp-time (jvm/compilation-time)]
-    (let [t             (-> (collect-samples 1 n f gc-before-sample)
-                            first :time :elapsed)
+  (loop [n (max 1 (long (/ period (max 1 estimated-fn-time) 5)))]
+    (when gc-before-sample
+      (force-gc))
+    (let [deltas    (execute-expr-for-warmup n f)
+          t         (elapsed-time deltas)
           ;; It is possible for small n and a fast expression to get
-          ;; t=0 nsec back from collect-samples.  This is likely due
-          ;; to how (System/nanoTime) quantizes the time on some
-          ;; systems.
-          t             (max 1 t)
-          new-cl-counts (jvm/class-loader-counts)
-          new-comp-time (jvm/compilation-time)]
+          ;; t=0 nsec.  This is likely due to how (System/nanoTime)
+          ;; quantizes the time on some systems.
+          t         (max 1 t)
+          cl-counts (-> deltas :class-loader :loaded-count)
+          comp-time (-> deltas :compilation :compilation-time)]
       (debug " ..." n)
-      (when (not= comp-time new-comp-time)
+      (when (pos? comp-time)
         (warn "new compilations in execution estimation phase"))
       (if (and (>= t period)
-               (= cl-counts new-cl-counts)
-               (= comp-time new-comp-time))
+               (zero? cl-counts)
+               (zero? comp-time))
         n
         (recur (if (>= t period)
                  n
-                 (min (* 2 n) (inc (long (* n (/ period t))))))
-               new-cl-counts new-comp-time)))))
+                 (min (* 2 n) (inc (long (* n (/ period t)))))))))))
 
 
 ;; benchmark
@@ -404,28 +374,37 @@ class counts, change in compilation time and result of specified function."
   [sample-count warmup-jit-period target-execution-time f gc-before-sample
    overhead]
   (force-gc)
-  (let [first-execution       (time-body (f))
-        [warmup-t warmup-n
-         cl-state comp-state] (warmup-for-jit
-                                warmup-jit-period f)
-        n-exec                (estimate-execution-count
-                                target-execution-time f gc-before-sample
-                                (long (/ warmup-t warmup-n)))
-        total-overhead        (long (* (or overhead 0) 1e9 n-exec))
-        _                     (progress "Sampling ...")
-        _                     (debug
-                                "Running with\n sample-count" sample-count \newline
-                                "exec-count" n-exec \newline
-                                "overhead[s]" overhead \newline
-                                "total-overhead[ns]" total-overhead)
-        _                     (force-gc)
-        samples               (collect-samples sample-count n-exec f gc-before-sample)
-        final-gc-time         (final-gc)
-        sample-times          (->> samples
-                                   (map elapsed-time)
-                                   (map #(- % total-overhead)))
-        total                 (reduce + 0 sample-times)
-        final-gc-result       (final-gc-warn total final-gc-time)]
+  (let [_                   (progress "Warm up for JIT optimisations ...")
+        [warmup-n
+         deltas
+         estimated-fn-time] (warmup-for-jit warmup-jit-period f)
+        _                   (progress "Estimate execution count ...")
+        warmup-t            (elapsed-time deltas)
+        n-exec              (estimate-execution-count
+                              target-execution-time f gc-before-sample
+                              estimated-fn-time)
+        total-overhead      (long (* (or overhead 0) 1e9 n-exec))
+        _                   (progress "Sample ...")
+        _                   (debug
+                              "Running with\n sample-count" sample-count \newline
+                              "exec-count" n-exec \newline
+                              "overhead[s]" overhead \newline
+                              "total-overhead[ns]" total-overhead)
+        _                   (force-gc)
+        samples             (collect-samples
+                              sample-count
+                              n-exec
+                              f
+                              gc-before-sample)
+        _                   (progress "Final GC...")
+        gc-deltas           (force-gc)
+        final-gc-time       (elapsed-time gc-deltas)
+        sample-times        (->> samples
+                                 (map elapsed-time)
+                                 (map #(- % total-overhead)))
+        total               (reduce + 0 sample-times)
+        _                   (progress "Checking GC...")
+        final-gc-result     (final-gc-warn total final-gc-time)]
     {:execution-count   n-exec
      :sample-count      sample-count
      :samples           sample-times
@@ -439,94 +418,98 @@ class counts, change in compilation time and result of specified function."
 
 (defn run-benchmarks-round-robin
   "Benchmark multiple expressions in a 'round robin' fashion.  Very
-similar to run-benchmark, except it takes multiple expressions in a
-sequence instead of only one (each element of the sequence should be a
-map with keys :f and :expr-string).  It runs the following steps in
-sequence:
+  similar to run-benchmark, except it takes multiple expressions in a
+  sequence instead of only one (each element of the sequence should be a
+  map with keys :f and :expr-string).  It runs the following steps in
+  sequence:
 
-1. Execute each expr once
+  1. Execute each expr once
 
-2. Run expression 1 for at least warmup-jit-period nanoseconds so the
+  2. Run expression 1 for at least warmup-jit-period nanoseconds so the
    JIT has an opportunity to optimize it.  Then do the same for each
    of the other expressions.
 
-3. Run expression 1 many times to estimate how many times it must be
+  3. Run expression 1 many times to estimate how many times it must be
    executed to take a total of target-execution-time nanoseconds.  The
    result is a number of iterations n-exec1 for expression 1.  Do the
    same for each of the other expressions, each with the same
    target-execution-time, each resulting in its own independent number
    of executions.
 
-4. Run expression 1 n-exec1 times, measuring the total elapsed time.
+  4. Run expression 1 n-exec1 times, measuring the total elapsed time.
    Do the same for the rest of the expressions.
 
-5. Repeat step 4 a total of sample-count times."
+  5. Repeat step 4 a total of sample-count times."
   [sample-count warmup-jit-period target-execution-time exprs gc-before-sample]
   (force-gc)
-  (let [first-executions (map (fn [{:keys [f]}] (time-body (f))) exprs)
-        _ (progress (format "Warming up %d expression for %.2e sec each:"
-                          (count exprs) (/ warmup-jit-period 1.0e9)))
-        warmup (vec (for [{:keys [f expr-string]} exprs]
-                      (do (progress (format "    %s..." expr-string))
-                          (warmup-for-jit warmup-jit-period f))))]
-    (progress
-     (format
-      "Estimating execution counts for %d expressions.  Target execution time = %.2e sec:"
-                      (count exprs) (/ target-execution-time 1.0e9)))
-    (let [exprs (map-indexed
-                 (fn [idx {:keys [f expr-string] :as expr}]
-                   (progress (format "    %s..." expr-string))
-                   (let [ [warmup-t warmup-n cl-state comp-state] (get warmup idx)]
-                     (assoc expr :index idx
-                       :n-exec (estimate-execution-count
-                                target-execution-time f
-                                gc-before-sample
-                                (long (/ warmup-t warmup-n))))))
-                 exprs)
-;;          _   (progress
-;;               "Running with sample-count" sample-count
-;;               "exec-count" n-exec  ; tbd: update)
-          all-samples (doall
-                       (for [i (range sample-count)]
-                         (do
-                           (progress
+  (let [_           (progress
+                      (format "Warm up %d expressions for %.2e sec each:"
+                              (count exprs) (/ warmup-jit-period 1.0e9)))
+        warmup      (vec (for [{:keys [f expr-string]} exprs]
+                           (do (progress (format "    %s..." expr-string))
+                               (warmup-for-jit warmup-jit-period f))))
+        _           (progress
+                      (format
+                        (str "Estimate execution counts for %d expressions.  "
+                             "Target execution time = %.2e sec:")
+                        (count exprs) (/ target-execution-time 1.0e9)))
+        exec-counts (map
+                      (fn [{:keys [f expr-string] :as expr}
+                           [warmup-n deltas estimated-fn-time]]
+                        (progress (format "    %s..." expr-string))
+                        (estimate-execution-count
+                          target-execution-time f
+                          gc-before-sample
+                          estimated-fn-time))
+                      exprs warmup)
+        exprs       (map
+                      (fn [idx expr exec-count]
+                        (assoc expr :index idx :n-exec exec-count))
+                      (range) exprs exec-counts)
+        all-samples (doall
+                      (for [i (range sample-count)]
+                        (do
+                          (progress
                             (format
-                             "    Running sample %d/%d for %d expressions:"
-                             (inc i) sample-count (count exprs)))
-                           (doall
+                              "    Running sample %d/%d for %d expressions:"
+                              (inc i) sample-count (count exprs)))
+                          (doall
                             (for [{:keys [f n-exec expr-string] :as expr} exprs]
                               (do
                                 (progress (format "        %s..." expr-string))
                                 (assoc expr
-                                  :sample (first
-                                           (collect-samples
-                                            1 n-exec f gc-before-sample)))))))))
+                                       :sample (first
+                                                 (collect-samples
+                                                   1 n-exec f gc-before-sample)))))))))
 
-          ;; 'transpose' all-samples so that all samples for a
-          ;; particular expression are in a sequence together, and
-          ;; all-samples is a sequence of one map per expression.
-          all-samples (group-by :index (apply concat all-samples))
-          all-samples
-          (map (fn [[idx data-seq]]
-                 (let [expr (dissoc (first data-seq) :sample)
-                       n-exec (:n-exec expr)
-                       samples (map :sample data-seq)
-                       final-gc-time (final-gc)
-                       sample-times (map first samples)
-                       total (reduce + 0 sample-times)
-                       ;; TBD: Doesn't make much sense to attach final
-                       ;; GC warning to the expression that happened
-                       ;; to be first in the sequence, but that is
-                       ;; what this probably does right now.  Think
-                       ;; what might be better to do.
-                       final-gc-result (final-gc-warn total final-gc-time)]
-                   {:execution-count n-exec
-                    :sample-count sample-count
-                    :samples sample-times
-                    :results (map second samples)
-                    :total-time (/ total 1e9)}))
-               all-samples)]
-      all-samples)))
+        ;; 'transpose' all-samples so that all samples for a
+        ;; particular expression are in a sequence together, and
+        ;; all-samples is a sequence of one map per expression.
+        all-samples (group-by :index (apply concat all-samples))
+        all-samples
+        (map (fn [[idx data-seq]]
+               (let [expr            (dissoc (first data-seq) :sample)
+                     n-exec          (:n-exec expr)
+                     samples         (map :sample data-seq)
+                     _               (progress "Final GC...")
+                     gc-deltas       (force-gc)
+                     final-gc-time   (elapsed-time gc-deltas)
+                     sample-times    (map elapsed-time samples)
+                     total           (reduce + 0 sample-times)
+                     ;; TBD: Doesn't make much sense to attach final
+                     ;; GC warning to the expression that happened
+                     ;; to be first in the sequence, but that is
+                     ;; what this probably does right now.  Think
+                     ;; what might be better to do.
+                     _               (progress "Checking GC..." total final-gc-time)
+                     final-gc-result (final-gc-warn total final-gc-time)]
+                 {:execution-count n-exec
+                  :sample-count    sample-count
+                  :samples         sample-times
+                  :results         (map second samples)
+                  :total-time      (/ total 1e9)}))
+             all-samples)]
+    all-samples))
 
 
 (defn bootstrap-bca
@@ -637,12 +620,12 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
   "Calculate a conservative estimate of the timing loop overhead."
   []
   (-> (benchmark*
-       (fn [] 0)
-       {:warmup-jit-period (* 10 s-to-ns)
-        :samples 10
-        :target-execution-time (* 0.5 s-to-ns)
-        :overhead 0
-        :supress-jvm-option-warnings true})
+        (fn [] 1)
+        {:warmup-jit-period           (* 10 s-to-ns)
+         :samples                     10
+         :target-execution-time       (* 0.5 s-to-ns)
+         :overhead                    0
+         :supress-jvm-option-warnings true})
       :lower-q
       first))
 

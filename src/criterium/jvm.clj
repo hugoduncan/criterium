@@ -1,12 +1,23 @@
 (ns criterium.jvm
   "JVM data accessors"
-  (:require [criterium.types :refer :all])
-  (:import [java.lang.management ManagementFactory]))
+  (:require [criterium
+             [types :refer :all]
+             [util :as util]]
+            [clojure.string :as string])
+  (:import [java.lang.management
+            GarbageCollectorMXBean ManagementFactory MemoryUsage]))
 
 
 (defmacro timestamp
   "Obtain a timestamp using System/nanoTime."
   [] `(System/nanoTime))
+
+
+(defn run-finalizers-and-gc
+  "Run object finalizers and then GC"
+  []
+  (System/runFinalization)
+  (System/gc))
 
 
 (let [bean (.. ManagementFactory getClassLoadingMXBean)]
@@ -33,6 +44,82 @@
     (->JvmCompilationState (if (. bean isCompilationTimeMonitoringSupported)
                              (. bean getTotalCompilationTime)
                              -1))))
+
+
+(let [bean (.. ManagementFactory getMemoryMXBean)]
+  (defn finalization-count
+    "Return the finalization count for the JVM instance."
+    []
+    {:pending (. bean getObjectPendingFinalizationCount)}))
+
+
+(let [bean (.. ManagementFactory getMemoryMXBean)
+      usage (fn [^MemoryUsage usage]
+              {:committed (.getCommitted usage)
+               :init (.getInit usage)
+               :max (.getMax usage)
+               :used (.getUsed usage)})]
+  (defn memory
+    "Return the finalization count for the JVM instance."
+    []
+    (let [heap     (usage (. bean getHeapMemoryUsage))
+          non-heap (usage (. bean getNonHeapMemoryUsage))]
+      {:heap     heap
+       :non-heap non-heap
+       :total    (util/sum heap non-heap)})))
+
+
+(let [beans (.. ManagementFactory getGarbageCollectorMXBeans)
+      kws (reduce
+            (fn [res ^GarbageCollectorMXBean bean]
+              (let [n (. bean getName)]
+                (assoc res n (keyword (-> n
+                                          string/lower-case
+                                          (string/replace \space \-))))))
+            {}
+            beans)]
+  (defn garbage-collector-stats
+    "Return the garbage collection counts and times for the JVM instance.
+
+    Returns a sequence of maps each with :name, :count, :name keys,
+    for each of the system garbace collectors, and for their total,
+    with the keyword :total."
+    []
+    (let [stats (reduce
+                  (fn [res ^GarbageCollectorMXBean bean]
+                    (assoc res (kws (. bean getName))
+                           {:count (. bean getCollectionCount)
+                            :time  (. bean getCollectionTime)}))
+                  {}
+                  beans)
+          total (reduce
+                  #(merge-with + %1 %2)
+                  {}
+                  (vals stats))]
+      (assoc stats :total total))))
+
+
+;;; Memory reporting
+(defn heap-used
+  "Report a (inconsistent) snapshot of the heap memory used."
+  []
+  (let [runtime (Runtime/getRuntime)]
+    (- (.totalMemory runtime) (.freeMemory runtime))))
+
+
+(defn runtime-memory
+  "Report a (inconsistent) snapshot of the memory situation."
+  []
+  (let [runtime (Runtime/getRuntime)]
+    {:free (.freeMemory runtime)
+     :total (.totalMemory runtime)
+     :max (.maxMemory runtime)}))
+
+(defn verbose-classloading
+  "Set whether the classloader is verbose or not."
+  [flag]
+  (let [bean (.. ManagementFactory getClassLoadingMXBean)]
+    (. bean setVerbose (boolean flag))))
 
 
 (defn jit-name
@@ -77,3 +164,17 @@
   []
   (let [bean (.. ManagementFactory getRuntimeMXBean)]
     (. bean getSystemProperties)))
+
+
+(defn wait
+  "Utility function to wait the given time in ns, without releasing the thread.
+  Returns the actual time waited, in nanoseconds.
+  This is CPU intensive, and is for verifying criterium itself.
+  It should have good accuracy down to about 10us."
+  [ns]
+  (let [start (timestamp)]
+    (loop []
+      (let [diff (- (timestamp) start)]
+        (if (> diff ns)
+          diff
+          (recur))))))
