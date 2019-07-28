@@ -1,7 +1,6 @@
 (ns criterium.jvm
   "JVM data accessors"
   (:require [criterium
-             [types :refer :all]
              [util :as util]]
             [clojure.string :as string])
   (:import [java.lang.management
@@ -31,8 +30,8 @@
 
     These are counts since the start of the JVM."
     []
-    (->JvmClassLoaderState (. bean getLoadedClassCount)
-                           (. bean getUnloadedClassCount))))
+    {:loaded-count  (. bean getLoadedClassCount)
+     :unloaded-count (. bean getUnloadedClassCount)}))
 
 
 (let [bean (.. ManagementFactory getCompilationMXBean)]
@@ -41,9 +40,9 @@
 
     Returns -1 if not supported."
     []
-    (->JvmCompilationState (if (. bean isCompilationTimeMonitoringSupported)
-                             (. bean getTotalCompilationTime)
-                             -1))))
+    {:compilation-time (if (. bean isCompilationTimeMonitoringSupported)
+                         (. bean getTotalCompilationTime)
+                         -1)}))
 
 
 (let [bean (.. ManagementFactory getMemoryMXBean)]

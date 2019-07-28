@@ -54,7 +54,6 @@
   (:require [criterium
              [jvm :as jvm]
              [toolkit :as toolkit]
-             [types :as types]
              [util :as util]
              [well :as well]])
   (:import (java.lang.management ManagementFactory)))
@@ -85,21 +84,21 @@
 
 (def ^{:dynamic true}
   *default-benchmark-opts*
-  {:max-gc-attempts *max-gc-attempts*
-   :samples *sample-count*
+  {:max-gc-attempts       *max-gc-attempts*
+   :num-samples           *sample-count*
    :target-execution-time *target-execution-time*
-   :warmup-jit-period *warmup-jit-period*
-   :tail-quantile 0.025
-   :bootstrap-size 1000})
+   :warmup-jit-period     *warmup-jit-period*
+   :tail-quantile         0.025
+   :bootstrap-size        1000})
 
 (def ^{:dynamic true}
   *default-quick-bench-opts*
-  {:max-gc-attempts *max-gc-attempts*
-   :samples (/ *sample-count* 10)
+  {:max-gc-attempts       *max-gc-attempts*
+   :num-samples           (/ *sample-count* 10)
    :target-execution-time (/ *target-execution-time* 10)
-   :warmup-jit-period (/ *warmup-jit-period* 2)
-   :tail-quantile 0.025
-   :bootstrap-size 500})
+   :warmup-jit-period     (/ *warmup-jit-period* 2)
+   :tail-quantile         0.025
+   :bootstrap-size        500})
 
 ;;; Progress reporting
 (def ^{:dynamic true} *report-progress* nil)
@@ -142,13 +141,9 @@
 (defn clear-cache []
   (condp #(re-find %1 %2) (.. System getProperties (getProperty "os.name"))
     #"Mac" (clear-cache-mac)
-    :else (warn "don't know how to clear disk buffer cache for "
-                (.. System getProperties (getProperty "os.name")))))
+    :else  (warn "don't know how to clear disk buffer cache for "
+                 (.. System getProperties (getProperty "os.name")))))
 
-
-;; protocol wrappers
-(defn state-delta [start finish]
-  (types/state-delta start finish))
 
 (defn elapsed-time [data]
   (-> data :time :elapsed))
@@ -407,8 +402,8 @@
         final-gc-result     (final-gc-warn total final-gc-time)]
     {:execution-count   n-exec
      :sample-count      sample-count
-     :samples           sample-times
-     :results           (map second samples)
+     :sample-times      sample-times
+     :results           (map :value samples)
      :total-time        (/ total 1e9)
      :warmup-time       warmup-t
      :warmup-executions warmup-n
@@ -505,7 +500,7 @@
                      final-gc-result (final-gc-warn total final-gc-time)]
                  {:execution-count n-exec
                   :sample-count    sample-count
-                  :samples         sample-times
+                  :sample-times    sample-times
                   :results         (map second samples)
                   :total-time      (/ total 1e9)}))
              all-samples)]
@@ -622,7 +617,7 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
   (-> (benchmark*
         (fn [] 1)
         {:warmup-jit-period           (* 10 s-to-ns)
-         :samples                     10
+         :num-samples                 10
          :target-execution-time       (* 0.5 s-to-ns)
          :overhead                    0
          :supress-jvm-option-warnings true})
@@ -670,45 +665,45 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
      ~expr))
 
 (defn benchmark-stats [times opts]
-  (let [outliers (outliers (:samples times))
+  (let [outliers      (outliers (:sample-times times))
         tail-quantile (:tail-quantile opts)
-        stats (bootstrap-bca
-               (map double (:samples times))
-               (juxt
-                mean
-                variance
-                (partial quantile tail-quantile)
-                (partial quantile (- 1.0 tail-quantile)))
-               (:bootstrap-size opts) [0.5 tail-quantile (- 1.0 tail-quantile)]
-               well/well-rng-1024a)
-        analysis (outlier-significance (first stats) (second stats)
-                                       (:sample-count times))
-        sqr (fn [x] (* x x))
-        m (mean (map double (:samples times)))
-        s (Math/sqrt (variance (map double (:samples times))))]
+        stats         (bootstrap-bca
+                        (map double (:sample-times times))
+                        (juxt
+                          mean
+                          variance
+                          (partial quantile tail-quantile)
+                          (partial quantile (- 1.0 tail-quantile)))
+                        (:bootstrap-size opts) [0.5 tail-quantile (- 1.0 tail-quantile)]
+                        well/well-rng-1024a)
+        analysis      (outlier-significance (first stats) (second stats)
+                                            (:sample-count times))
+        sqr           (fn [x] (* x x))
+        m             (mean (map double (:sample-times times)))
+        s             (Math/sqrt (variance (map double (:sample-times times))))]
     (merge times
-           {:outliers outliers
-            :mean (scale-bootstrap-estimate
-                   (first stats) (/ 1e-9 (:execution-count times)))
-            :sample-mean (scale-bootstrap-estimate
-                          [m [(- m (* 3 s)) (+ m (* 3 s))]]
-                          (/ 1e-9 (:execution-count times)))
-            :variance (scale-bootstrap-estimate
-                       (second stats) (sqr (/ 1e-9 (:execution-count times))))
-            :sample-variance (scale-bootstrap-estimate
-                              [ (sqr s) [0 0]]
-                              (sqr (/ 1e-9 (:execution-count times))))
-            :lower-q (scale-bootstrap-estimate
-                       (nth stats 2) (/ 1e-9 (:execution-count times)))
-            :upper-q (scale-bootstrap-estimate
-                       (nth stats 3) (/ 1e-9 (:execution-count times)))
+           {:outliers         outliers
+            :mean             (scale-bootstrap-estimate
+                                (first stats) (/ 1e-9 (:execution-count times)))
+            :sample-mean      (scale-bootstrap-estimate
+                                [m [(- m (* 3 s)) (+ m (* 3 s))]]
+                                (/ 1e-9 (:execution-count times)))
+            :variance         (scale-bootstrap-estimate
+                                (second stats) (sqr (/ 1e-9 (:execution-count times))))
+            :sample-variance  (scale-bootstrap-estimate
+                                [ (sqr s) [0 0]]
+                                (sqr (/ 1e-9 (:execution-count times))))
+            :lower-q          (scale-bootstrap-estimate
+                                (nth stats 2) (/ 1e-9 (:execution-count times)))
+            :upper-q          (scale-bootstrap-estimate
+                                (nth stats 3) (/ 1e-9 (:execution-count times)))
             :outlier-variance analysis
-            :tail-quantile (:tail-quantile opts)
-            :os-details (jvm/os-details)
-            :options opts
-            :runtime-details (->
-                              (jvm/runtime-details)
-                              (update-in [:input-arguments] vec))})))
+            :tail-quantile    (:tail-quantile opts)
+            :os-details       (jvm/os-details)
+            :options          opts
+            :runtime-details  (->
+                                (jvm/runtime-details)
+                                (update-in [:input-arguments] vec))})))
 
 (defn warn-on-suspicious-jvm-options
   "Warn if the JIT options are suspicious looking."
@@ -728,28 +723,39 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
    This also means that it runs for a while.  It will typically take 70s for a
    fast test expression (less than 1s run time) or 10s plus 60 run times for
    longer running expressions."
-  [f {:keys [samples warmup-jit-period target-execution-time gc-before-sample
-             overhead supress-jvm-option-warnings] :as options}]
+  [f {:keys [num-samples
+             warmup-jit-period
+             target-execution-time
+             gc-before-sample
+             overhead
+             supress-jvm-option-warnings] :as options}]
   (when-not supress-jvm-option-warnings
     (warn-on-suspicious-jvm-options))
-  (let [{:keys [samples warmup-jit-period target-execution-time
+  (let [{:keys [num-samples
+                warmup-jit-period
+                target-execution-time
                 gc-before-sample overhead] :as opts}
         (merge *default-benchmark-opts*
                {:overhead (or overhead (estimated-overhead))}
                options)
         times (run-benchmark
-               samples warmup-jit-period target-execution-time f opts overhead)]
+                num-samples
+                warmup-jit-period
+                target-execution-time
+                f
+                opts
+                overhead)]
     (benchmark-stats times opts)))
 
 (defn benchmark-round-robin*
   [exprs options]
-  (let [opts (merge *default-benchmark-opts* options)
+  (let [opts  (merge *default-benchmark-opts* options)
         times (run-benchmarks-round-robin
-               (:samples opts)
-               (:warmup-jit-period opts)
-               (:target-execution-time opts)
-               exprs
-               (:gc-before-sample opts))]
+                (:num-samples opts)
+                (:warmup-jit-period opts)
+                (:target-execution-time opts)
+                exprs
+                (:gc-before-sample opts))]
     (map #(benchmark-stats % opts) times)))
 
 (defmacro benchmark
@@ -765,7 +771,7 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
   (let [wrap-exprs (fn [exprs]
                      (cons 'list
                            (map (fn [expr]
-                                  {:f `(fn [] ~expr)
+                                  {:f           `(fn [] ~expr)
                                    :expr-string (str expr)})
                                 exprs)))]
     `(benchmark-round-robin* ~(wrap-exprs exprs) ~options)))
