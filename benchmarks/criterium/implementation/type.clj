@@ -1,7 +1,7 @@
 (ns criterium.implementation.type
   "Use a deftype to store sample results"
   (:use
-   [criterium.core :only [time-body]]))
+   [criterium.core :only [time-expr]]))
 
 
 (defprotocol MutablePlace
@@ -19,7 +19,7 @@
 
 (defn execute-expr-core-timed-part-volatile
   [n f]
-  (time-body
+  (time-expr
    (loop [i (long (dec n))
           v (f)]
      (set-mutable-place volatile-place v)
@@ -47,7 +47,7 @@
 
 (defn execute-expr-core-timed-part-unsynchronized
   [n f]
-  (time-body
+  (time-expr
    (loop [i (long (dec n))
           v (f)]
      (set-mutable-place unsynchronized-place v)

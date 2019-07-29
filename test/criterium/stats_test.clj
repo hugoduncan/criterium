@@ -43,8 +43,8 @@
          (bootstrap-estimate (take 20 (repeatedly (constantly 1))))))
   (let [[m s [l u]] (bootstrap-estimate (take 1000000 (repeatedly rand)))]
     (is (test-max-error 0.5 m 1e-2))
-    (is (test-max-error 0 l 0.2))
-    (is (test-max-error 1 u 0.2))
+    (is (test-max-error 0.0 l 0.2))
+    (is (test-max-error 1.0 u 0.2))
     (is (test-max-error 0.0833 s 0.2))))
 
 (deftest bootstrap-estimate-scale-test
