@@ -4,7 +4,10 @@
              [util :as util]]
             [clojure.string :as string])
   (:import [java.lang.management
-            GarbageCollectorMXBean ManagementFactory MemoryUsage]))
+            GarbageCollectorMXBean
+            ManagementFactory
+            MemoryPoolMXBean
+            MemoryUsage]))
 
 
 (defmacro timestamp
@@ -52,31 +55,45 @@
     {:pending (. bean getObjectPendingFinalizationCount)}))
 
 
-(let [bean (.. ManagementFactory getMemoryMXBean)
-      usage (fn [^MemoryUsage usage]
-              {:committed (.getCommitted usage)
-               :init (.getInit usage)
-               :max (.getMax usage)
-               :used (.getUsed usage)})]
+(defn- memory-usage
+  [^MemoryUsage usage]
+  {:committed (.getCommitted usage)
+   :init      (.getInit usage)
+   :max       (.getMax usage)
+   :used      (.getUsed usage)})
+
+
+(let [mem-bean (.. ManagementFactory getMemoryMXBean)]
   (defn memory
-    "Return the finalization count for the JVM instance."
+    "Return the memory usage for the JVM instance."
     []
-    (let [heap     (usage (. bean getHeapMemoryUsage))
-          non-heap (usage (. bean getNonHeapMemoryUsage))]
+    (let [heap     (memory-usage (. mem-bean getHeapMemoryUsage))
+          non-heap (memory-usage (. mem-bean getNonHeapMemoryUsage))
+          sum      (util/sum heap non-heap)]
       {:heap     heap
        :non-heap non-heap
-       :total    (util/sum heap non-heap)})))
+       :total    sum    })))
+
+
+(let [pools (.. ManagementFactory getMemoryPoolMXBeans)]
+  (defn memory-pools
+    "Return the finalization count for the JVM instance."
+    []
+    (let [pool-usaage (for [^MemoryPoolMXBean pool pools]
+                        [(.getName pool) (memory-usage (.getUsage pool))])
+          sum         (reduce util/sum (map second pool-usaage))]
+      (into {} pool-usaage))))
 
 
 (let [beans (.. ManagementFactory getGarbageCollectorMXBeans)
-      kws (reduce
-            (fn [res ^GarbageCollectorMXBean bean]
-              (let [n (. bean getName)]
-                (assoc res n (keyword (-> n
-                                          string/lower-case
-                                          (string/replace \space \-))))))
-            {}
-            beans)]
+      kws   (reduce
+              (fn [res ^GarbageCollectorMXBean bean]
+                (let [n (. bean getName)]
+                  (assoc res n (keyword (-> n
+                                            string/lower-case
+                                            (string/replace \space \-))))))
+              {}
+              beans)]
   (defn garbage-collector-stats
     "Return the garbage collection counts and times for the JVM instance.
 

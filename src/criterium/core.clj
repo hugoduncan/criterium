@@ -155,7 +155,7 @@
   `(toolkit/deltas
      (toolkit/instrumented
        (toolkit/with-time
-         (toolkit/with-expr
+         (toolkit/with-expr-value
            ~expr)))))
 
 
@@ -403,6 +403,7 @@
     {:execution-count   n-exec
      :sample-count      sample-count
      :sample-times      sample-times
+     :samples           samples
      :results           (map :value samples)
      :total-time        (/ total 1e9)
      :warmup-time       warmup-t
@@ -550,30 +551,35 @@
 
 (defn outlier-significance
   "Find the significance of outliers given boostrapped mean and variance
-estimates.
-See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
+  estimates.
+  See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
   [mean-estimate variance-estimate n]
   (progress "Checking outlier significance")
-  (let [mean-block (point-estimate mean-estimate)
+  (debug "mean-estimate" mean-estimate
+         "variance-estimate" variance-estimate
+         "n" n)
+  (let [mean-block     (point-estimate mean-estimate)
         variance-block (point-estimate variance-estimate)
-        std-dev-block (Math/sqrt variance-block)
-        mean-action (/ mean-block n)
-        mean-g-min (/ mean-action 2)
-        sigma-g (min (/ mean-g-min 4) (/ std-dev-block (Math/sqrt n)))
-        variance-g (* sigma-g sigma-g)
-        c-max (fn [t-min]
-                (let [j0 (- mean-action t-min)
-                      k0 (- (* n n j0 j0))
-                      k1 (+ variance-block (- (* n variance-g)) (* n j0 j0))
-                      det (- (* k1 k1) (* 4 variance-g k0))]
-                  (Math/floor (/ (* -2 k0) (+ k1 (Math/sqrt det))))))
-        var-out (fn [c]
-                  (let [nmc (- n c)]
-                    (* (/ nmc n) (- variance-block (* nmc variance-g)))))
-        min-f (fn [f q r]
-                (min (f q) (f r)))
+        std-dev-block  (Math/sqrt variance-block)
+        mean-action    (/ mean-block n)
+        mean-g-min     (/ mean-action 2)
+        sigma-g        (min (/ mean-g-min 4) (/ std-dev-block (Math/sqrt n)))
+        variance-g     (* sigma-g sigma-g)
+        c-max          (fn [t-min]
+                         (let [j0  (- mean-action t-min)
+                               k0  (- (* n n j0 j0))
+                               k1  (+ variance-block (- (* n variance-g)) (* n j0 j0))
+                               det (- (* k1 k1) (* 4 variance-g k0))]
+                           (Math/floor (/ (* -2 k0) (+ k1 (Math/sqrt det))))))
+        var-out        (fn [c]
+                         (let [nmc (- n c)]
+                           (* (/ nmc n) (- variance-block (* nmc variance-g)))))
+        min-f          (fn [f q r]
+                         (min (f q) (f r)))
         ]
-    (/ (min-f var-out 1 (min-f c-max 0 mean-g-min)) variance-block)))
+    (if (zero? variance-block)
+      0
+      (/ (min-f var-out 1 (min-f c-max 0 mean-g-min)) variance-block))))
 
 
 (defrecord OutlierCount [low-severe low-mild high-mild high-severe])
@@ -614,15 +620,16 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
 (defn estimate-overhead
   "Calculate a conservative estimate of the timing loop overhead."
   []
-  (-> (benchmark*
-        (fn [] 1)
-        {:warmup-jit-period           (* 10 s-to-ns)
-         :num-samples                 10
-         :target-execution-time       (* 0.5 s-to-ns)
-         :overhead                    0
-         :supress-jvm-option-warnings true})
-      :lower-q
-      first))
+  (let [bm (benchmark*
+             (fn [] 1)
+             {:warmup-jit-period           (* 10 s-to-ns)
+              :num-samples                 10
+              :target-execution-time       (* 0.5 s-to-ns)
+              :overhead                    0
+              :supress-jvm-option-warnings true})]
+    (println "est memory ohead"
+             (-> bm :memory-usage :lower-q first))
+    (-> bm :execution-time :lower-q first)))
 
 (def estimated-overhead-cache nil)
 
@@ -664,46 +671,65 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
   `(binding [*report-progress* true]
      ~expr))
 
-(defn benchmark-stats [times opts]
-  (let [outliers      (outliers (:sample-times times))
+(defn sample-stats [values sample-count execution-count opts]
+  (let [outliers      (outliers values)
         tail-quantile (:tail-quantile opts)
         stats         (bootstrap-bca
-                        (map double (:sample-times times))
+                        (map double values)
                         (juxt
                           mean
                           variance
                           (partial quantile tail-quantile)
                           (partial quantile (- 1.0 tail-quantile)))
-                        (:bootstrap-size opts) [0.5 tail-quantile (- 1.0 tail-quantile)]
+                        (:bootstrap-size opts)
+                        [0.5 tail-quantile (- 1.0 tail-quantile)]
                         well/well-rng-1024a)
-        analysis      (outlier-significance (first stats) (second stats)
-                                            (:sample-count times))
+        analysis      (outlier-significance
+                        (first stats)
+                        (second stats)
+                        sample-count)
         sqr           (fn [x] (* x x))
-        m             (mean (map double (:sample-times times)))
-        s             (Math/sqrt (variance (map double (:sample-times times))))]
-    (merge times
-           {:outliers         outliers
-            :mean             (scale-bootstrap-estimate
-                                (first stats) (/ 1e-9 (:execution-count times)))
-            :sample-mean      (scale-bootstrap-estimate
-                                [m [(- m (* 3 s)) (+ m (* 3 s))]]
-                                (/ 1e-9 (:execution-count times)))
-            :variance         (scale-bootstrap-estimate
-                                (second stats) (sqr (/ 1e-9 (:execution-count times))))
-            :sample-variance  (scale-bootstrap-estimate
-                                [ (sqr s) [0 0]]
-                                (sqr (/ 1e-9 (:execution-count times))))
-            :lower-q          (scale-bootstrap-estimate
-                                (nth stats 2) (/ 1e-9 (:execution-count times)))
-            :upper-q          (scale-bootstrap-estimate
-                                (nth stats 3) (/ 1e-9 (:execution-count times)))
-            :outlier-variance analysis
-            :tail-quantile    (:tail-quantile opts)
-            :os-details       (jvm/os-details)
-            :options          opts
-            :runtime-details  (->
-                                (jvm/runtime-details)
-                                (update-in [:input-arguments] vec))})))
+        m             (mean (map double values))
+        s             (Math/sqrt (variance (map double values)))]
+    {:outliers         outliers
+     :mean             (scale-bootstrap-estimate
+                         (first stats) (/ 1e-9 execution-count))
+     :sample-mean      (scale-bootstrap-estimate
+                         [m [(- m (* 3 s)) (+ m (* 3 s))]]
+                         (/ 1e-9 execution-count))
+     :variance         (scale-bootstrap-estimate
+                         (second stats) (sqr (/ 1e-9 execution-count)))
+     :sample-variance  (scale-bootstrap-estimate
+                         [ (sqr s) [0 0]]
+                         (sqr (/ 1e-9 execution-count)))
+     :lower-q          (scale-bootstrap-estimate
+                         (nth stats 2) (/ 1e-9 execution-count))
+     :upper-q          (scale-bootstrap-estimate
+                         (nth stats 3) (/ 1e-9 execution-count))
+     :outlier-variance analysis
+     :tail-quantile    (:tail-quantile opts)
+     :sample-count     sample-count
+     :execution-count  execution-count}))
+
+
+(defn benchmark-stats [data opts]
+  (let [execution-count (:execution-count data)
+        sample-count    (:sample-count data)
+        time-samples    (:sample-times data)
+        time-stats      (sample-stats
+                          time-samples
+                          sample-count
+                          execution-count
+                          opts)]
+    (merge data
+           {:execution-time  time-stats
+            :os-details      (jvm/os-details)
+            :options         opts
+            :runtime-details (->
+                               (jvm/runtime-details)
+                               (update-in [:input-arguments] vec))
+            :sample-count    sample-count
+            :execution-count execution-count})))
 
 (defn warn-on-suspicious-jvm-options
   "Warn if the JIT options are suspicious looking."
@@ -738,14 +764,14 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
         (merge *default-benchmark-opts*
                {:overhead (or overhead (estimated-overhead))}
                options)
-        times (run-benchmark
-                num-samples
-                warmup-jit-period
-                target-execution-time
-                f
-                opts
-                overhead)]
-    (benchmark-stats times opts)))
+        data (run-benchmark
+               num-samples
+               warmup-jit-period
+               target-execution-time
+               f
+               opts
+               overhead)]
+    (benchmark-stats data opts)))
 
 (defn benchmark-round-robin*
   [exprs options]
@@ -791,73 +817,89 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
   [format-string & values]
   (print (apply format format-string values)))
 
+
 (defn scale-time
   "Determine a scale factor and unit for displaying a time."
   [measurement]
   (cond
-   (> measurement 60) [(/ 60) "min"]
-   (< measurement 1e-6) [1e9 "ns"]
-   (< measurement 1e-3) [1e6 "µs"]
-   (< measurement 1) [1e3 "ms"]
-   :else [1 "sec"]))
+    (> measurement 60)   [(/ 60) "min"]
+    (< measurement 1e-6) [1e9 "ns"]
+    (< measurement 1e-3) [1e6 "µs"]
+    (< measurement 1)    [1e3 "ms"]
+    :else                [1 "sec"]))
+
+
+(def one-kb 1024)
+(def one-mb (* 1024 1024))
+(def one-gb (* 1024 1024 1024))
+
+
+(defn scale-memory
+  "Determine a scale factor and unit for displaying a memory."
+  [measurement]
+  (cond
+    (< measurement one-kb) [1 "bytes"]
+    (< measurement one-mb) [(/ one-kb) "Kb"]
+    (< measurement one-gb) [(/ one-mb) "Mb"]
+    :else                  [(/ one-gb) "Gb"]))
 
 (defn format-value [value scale unit]
   (format "%f %s" (* scale value) unit))
 
 (defn report-estimate
-  [msg estimate significance]
-  (let [mean (first estimate)
-        [factor unit] (scale-time mean)]
+  [msg estimate significance scale-fn]
+  (let [mean          (first estimate)
+        [factor unit] (scale-fn mean)]
     (apply
-     report "%32s : %s  %2.1f%% CI: (%s, %s)\n"
-     msg
-     (format-value mean factor unit)
-     (* significance 100)
-     (map #(format-value % factor unit) (last estimate)))))
+      report "%32s : %s  %2.1f%% CI: (%s, %s)\n"
+      msg
+      (format-value mean factor unit)
+      (* significance 100)
+      (map #(format-value % factor unit) (last estimate)))))
 
 (defn report-point-estimate
-  ([msg estimate]
-     (let [mean (first estimate)
-           [factor unit] (scale-time mean)]
-       (report "%32s : %s\n" msg (format-value mean factor unit))))
-  ([msg estimate quantile]
-     (let [mean (first estimate)
-           [factor unit] (scale-time mean)]
-       (report
-        "%32s : %s (%4.1f%%)\n"
-        msg (format-value mean factor unit) (* quantile 100)))))
+  ([msg estimate scale-fn]
+   (let [mean          (first estimate)
+         [factor unit] (scale-fn mean)]
+     (report "%32s : %s\n" msg (format-value mean factor unit))))
+  ([msg estimate quantile scale-fn]
+   (let [mean          (first estimate)
+         [factor unit] (scale-fn mean)]
+     (report
+       "%32s : %s (%4.1f%%)\n"
+       msg (format-value mean factor unit) (* quantile 100)))))
 
 (defn report-estimate-sqrt
-  [msg estimate significance]
-  (let [mean (Math/sqrt (first estimate))
-        [factor unit] (scale-time mean)]
+  [msg estimate significance scale-fn]
+  (let [mean          (Math/sqrt (first estimate))
+        [factor unit] (scale-fn mean)]
     (apply
-     report "%32s : %s  %2.1f%% CI: (%s, %s)\n"
-     msg
-     (format-value mean factor unit)
-     (* significance 100)
-     (map #(format-value (Math/sqrt %) factor unit) (last estimate)))))
+      report "%32s : %s  %2.1f%% CI: (%s, %s)\n"
+      msg
+      (format-value mean factor unit)
+      (* significance 100)
+      (map #(format-value (Math/sqrt %) factor unit) (last estimate)))))
 
 (defn report-point-estimate-sqrt
-  [msg estimate]
-  (let [mean (Math/sqrt (first estimate))
-        [factor unit] (scale-time mean)]
+  [msg estimate scale-fn]
+  (let [mean          (Math/sqrt (first estimate))
+        [factor unit] (scale-fn mean)]
     (report "%32s : %s\n" msg (format-value mean factor unit))))
 
 (defn report-outliers [results]
-  (let [outliers (:outliers results)
-        values (vals outliers)
-        labels {:unaffected "unaffected"
-                :slight "slightly inflated"
-                :moderate "moderately inflated"
-                :severe "severely inflated"}
+  (let [outliers     (:outliers results)
+        values       (vals outliers)
+        labels       {:unaffected "unaffected"
+                      :slight     "slightly inflated"
+                      :moderate   "moderately inflated"
+                      :severe     "severely inflated"}
         sample-count (:sample-count results)
-        types ["low-severe" "low-mild" "high-mild" "high-severe"]]
+        types        ["low-severe" "low-mild" "high-mild" "high-severe"]]
     (when (some pos? values)
       (let [sum (reduce + values)]
         (report
-         "\nFound %d outliers in %d samples (%2.4f %%)\n"
-         sum sample-count (* 100.0 (/ sum sample-count))))
+          "\nFound %d outliers in %d samples (%2.4f %%)\n"
+          sum sample-count (* 100.0 (/ sum sample-count))))
       (doseq [[v c] (partition 2 (interleave (filter pos? values) types))]
         (report "\t%s\t %d (%2.4f %%)\n" c v (* 100.0 (/ v sample-count))))
       (report " Variance from outliers : %2.4f %%"
@@ -865,15 +907,46 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
       (report " Variance is %s by outliers\n"
               (-> (:outlier-variance results) outlier-effect labels)))))
 
-(defn report-result [results & opts]
-  (let [verbose (some #(= :verbose %) opts)
-        show-os (or verbose (some #(= :os %) opts))
+
+(defn report-sample-stats [results dimension scale-fn verbose]
+  (when verbose
+    (report-point-estimate
+      (str dimension " sample mean")
+      (:sample-mean results)
+      scale-fn))
+  (report-point-estimate (str dimension " mean") (:mean results) scale-fn)
+  (when verbose
+    (report-point-estimate-sqrt
+      (str dimension " sample std-deviation")
+      (:sample-variance results)
+      scale-fn))
+  (report-point-estimate-sqrt
+    (str dimension" std-deviation")
+    (:variance results)
+    scale-fn)
+  (report-point-estimate
+    (str dimension " lower quantile")
+    (:lower-q results) (:tail-quantile results)
+    scale-fn)
+  (report-point-estimate
+    (str dimension " upper quantile")
+    (:upper-q results) (- 1.0 (:tail-quantile results))
+    scale-fn)
+  (when-let [overhead (:overhead results)]
+    (when (pos? overhead)
+      (report-point-estimate "Overhead used" [overhead] scale-fn)))
+  (report-outliers results))
+
+
+(defn report-result [{:keys [execution-time] :as results} & opts]
+  (let [verbose      (some #(= :verbose %) opts)
+        show-os      (or verbose (some #(= :os %) opts))
         show-runtime (or verbose (some #(= :runtime %) opts))]
     (when show-os
       (apply println
              (->  (map
-                   #(%1 (:os-details results))
-                   [:arch :name :version :available-processors])
+                    #(%1 (:os-details results))
+                    [:arch :name :version :available-processors])
                   vec (conj "cpu(s)"))))
     (when show-runtime
       (let [runtime-details (:runtime-details results)]
@@ -884,38 +957,19 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
                                      (:sample-count results))
              "in" (:sample-count results) "samples of"
              (:execution-count results) "calls.")
-
-    (when verbose
-      (report-point-estimate
-       "Execution time sample mean" (:sample-mean results)))
-    (report-point-estimate "Execution time mean" (:mean results))
-    (when verbose
-      (report-point-estimate-sqrt
-       "Execution time sample std-deviation" (:sample-variance results)))
-    (report-point-estimate-sqrt
-     "Execution time std-deviation" (:variance results))
-    (report-point-estimate
-     "Execution time lower quantile"
-     (:lower-q results) (:tail-quantile results))
-    (report-point-estimate
-     "Execution time upper quantile"
-     (:upper-q results) (- 1.0 (:tail-quantile results)))
-    (when-let [overhead (:overhead results)]
-      (when (pos? overhead)
-        (report-point-estimate "Overhead used" [overhead])))
-    (report-outliers results)))
+    (report-sample-stats execution-time "Execution time" scale-time verbose)))
 
 (defmacro bench
   "Convenience macro for benchmarking an expression, expr.  Results are reported
   to *out* in human readable format. Options for report format are: :os,
-:runtime, and :verbose."
+  :runtime, and :verbose."
   [expr & opts]
   (let [[report-options options] (extract-report-options opts)]
     `(report-result
-      (benchmark
-       ~expr
-       ~(when (seq options) (apply hash-map options)))
-      ~@report-options)))
+       (benchmark
+         ~expr
+         ~(when (seq options) (apply hash-map options)))
+       ~@report-options)))
 
 (defmacro quick-bench
   "Convenience macro for benchmarking an expression, expr.  Results are reported

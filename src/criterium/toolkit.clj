@@ -104,6 +104,20 @@
        (update-in [:memory] assoc-delta)))
 
 
+(defmacro with-runtime-memory
+  "Execute expr, add compilation time to the data map.
+
+  Adds JvmClassLoaderState records to the :compilation key in data,
+  with the :before, :after, and :delta sub-keys.
+  "
+  [data expr]
+  `(-> ~data
+       (assoc-in [:runtime-memory :start] (jvm/runtime-memory))
+       ~expr
+       (assoc-in [:runtime-memory :finish] (jvm/runtime-memory))
+       (update-in [:runtime-memory] assoc-delta)))
+
+
 (defmacro with-finalization-count
   "Execute expr, add compilation time to the data map.
 
