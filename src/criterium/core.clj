@@ -154,9 +154,10 @@
   [expr]
   `(toolkit/deltas
      (toolkit/instrumented
-       (toolkit/with-time
-         (toolkit/with-expr-value
-           ~expr)))))
+       (toolkit/with-garbage-collector-stats
+         (toolkit/with-time
+           (toolkit/with-expr-value
+             ~expr))))))
 
 
 (defmacro time-expr-for-warmup
@@ -288,7 +289,6 @@
   execution time."  [warmup-period f]
   (debug "warmup-for-jit f" f)
   (let [ignore-first (time-expr-for-warmup (f))
-        _            (println ignore-first)
         deltas-1     (time-expr-for-warmup (f))
         t            (max 1 (elapsed-time deltas-1))
         _            (debug "  initial t" t)
@@ -627,8 +627,6 @@
               :target-execution-time       (* 0.5 s-to-ns)
               :overhead                    0
               :supress-jvm-option-warnings true})]
-    (println "est memory ohead"
-             (-> bm :memory-usage :lower-q first))
     (-> bm :execution-time :lower-q first)))
 
 (def estimated-overhead-cache nil)
@@ -671,7 +669,9 @@
   `(binding [*report-progress* true]
      ~expr))
 
-(defn sample-stats [values sample-count execution-count opts]
+(defn sample-stats
+  "Compute sample statistics for the given values."
+  [values sample-count execution-count opts]
   (let [outliers      (outliers values)
         tail-quantile (:tail-quantile opts)
         stats         (bootstrap-bca
@@ -712,17 +712,48 @@
      :execution-count  execution-count}))
 
 
-(defn benchmark-stats [data opts]
-  (let [execution-count (:execution-count data)
-        sample-count    (:sample-count data)
-        time-samples    (:sample-times data)
-        time-stats      (sample-stats
-                          time-samples
-                          sample-count
-                          execution-count
-                          opts)]
+(defn gc-sample-stats
+  "Compute sample statistics for the given GC data."
+  [counts times sample-count execution-count opts]
+  (let [num-with-gc          (->> counts (filter pos?) count)
+        total-num-gcs        (reduce + counts)
+        frac-samples-with-gc (/ num-with-gc (count counts))
+        total-gc-time        (reduce + times)
+        mean-gc-time         (/ total-gc-time (count times))]
+    {:num-with-gc          num-with-gc
+     :total-num-gcs        total-num-gcs
+     :frac-samples-with-gc frac-samples-with-gc
+     :total-gc-time        total-gc-time
+     :mean-gc-time         mean-gc-time
+     :sample-count         sample-count
+     :execution-count      execution-count}))
+
+
+(defn benchmark-stats
+  [data opts]
+  (let [execution-count  (:execution-count data)
+        sample-count     (:sample-count data)
+        time-samples     (:sample-times data)
+        time-stats       (sample-stats
+                           time-samples
+                           sample-count
+                           execution-count
+                           opts)
+        gc-count-samples (map
+                           #(-> % :garbage-collector :total :count)
+                           (:samples data))
+        gc-time-samples  (map
+                           #(-> % :garbage-collector :total :time)
+                           (:samples data))
+        gc-stats         (gc-sample-stats
+                           gc-count-samples
+                           gc-time-samples
+                           sample-count
+                           execution-count
+                           opts)]
     (merge data
            {:execution-time  time-stats
+            :gc-stats        gc-stats
             :os-details      (jvm/os-details)
             :options         opts
             :runtime-details (->
@@ -937,8 +968,16 @@
       (report-point-estimate "Overhead used" [overhead] scale-fn)))
   (report-outliers results))
 
+(defn report-gc-sample-stats
+  [results verbose]
+  (when (pos? (:num-with-gc results))
+    (println)
+    (println "Samples included" (:total-num-gcs results) "GCs.")
+    (println "  Effected samples:"
+             (* 100 (:frac-samples-with-gc results))
+             "%")))
 
-(defn report-result [{:keys [execution-time] :as results} & opts]
+(defn report-result [{:keys [execution-time gc-stats] :as results} & opts]
   (let [verbose      (some #(= :verbose %) opts)
         show-os      (or verbose (some #(= :os %) opts))
         show-runtime (or verbose (some #(= :runtime %) opts))]
@@ -957,7 +996,9 @@
                                      (:sample-count results))
              "in" (:sample-count results) "samples of"
              (:execution-count results) "calls.")
-    (report-sample-stats execution-time "Execution time" scale-time verbose)))
+    (println)
+    (report-sample-stats execution-time "Execution time" scale-time verbose)
+    (report-gc-sample-stats gc-stats verbose)))
 
 (defmacro bench
   "Convenience macro for benchmarking an expression, expr.  Results are reported
