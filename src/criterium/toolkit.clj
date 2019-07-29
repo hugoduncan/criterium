@@ -28,7 +28,16 @@
   "Introduces an instrumented expression expr.
 
   The expr contains nested with-* macro calls, and returns
-  a map with the collected data.
+  a map with the collected data.  The inner-most with- form
+  must be either with-expr, or with-expr-value.
+
+  e.g, to collect execution time, and result value for executing
+  some-expr, use:
+
+     (toolkit/instrumented
+       (toolkit/with-time
+         (toolkit/with-expr-value
+           some-expr)))
   "
   [expr]
   `(-> {} ~expr))
@@ -63,11 +72,13 @@
 
 
 (defmacro with-class-loader-counts
-  "Execute expr, add class loading counts to the data map.
+  "Execute expr, adding class loading counts to the data map.
 
-  Adds JvmClassLoaderState records to the :class-loader key in data,
-  with the :before, :after, and :delta sub-keys.
-  "
+  Adds maps to the :class-loader key in data, with the :before,
+  :after, and :delta sub-keys.  Each map contains the :loaded-count
+  and :unloaded-count keys.
+
+  Uses the ClassLoadingMXBean."
   [data expr]
   `(-> ~data
        (assoc-in [:class-loader :start] (jvm/class-loader-counts))
@@ -79,9 +90,10 @@
 (defmacro with-compilation-time
   "Execute expr, add compilation time to the data map.
 
-  Adds JvmClassLoaderState records to the :compilation key in data,
-  with the :before, :after, and :delta sub-keys.
-  "
+  Adds maps to the :compilation key in data, with the :before, :after,
+  and :delta sub-keys.  Each map contains the :compilation-time key.
+
+  Uses the CompilationMXBean."
   [data expr]
   `(-> ~data
        (assoc-in [:compilation :start] (jvm/compilation-time))
@@ -93,9 +105,12 @@
 (defmacro with-memory
   "Execute expr, add compilation time to the data map.
 
-  Adds JvmClassLoaderState records to the :compilation key in data,
-  with the :before, :after, and :delta sub-keys.
-  "
+  Adds maps to the :compilation key in data, with the :before, :after,
+  and :delta sub-keys.  Each map contains sub-maps for each type of memory,
+  and the total memory (on the :total key).  Each sub-map contains the
+  :init, :committed, :max and :used keys.
+
+  Uses the MemoryMXBean."
   [data expr]
   `(-> ~data
        (assoc-in [:memory :start] (jvm/memory))
@@ -107,9 +122,10 @@
 (defmacro with-runtime-memory
   "Execute expr, add compilation time to the data map.
 
-  Adds JvmClassLoaderState records to the :compilation key in data,
-  with the :before, :after, and :delta sub-keys.
-  "
+  Adds maps to the :compilation key in data, with the :before, :after,
+  and :delta sub-keys.
+
+  Uses the java Runtime class."
   [data expr]
   `(-> ~data
        (assoc-in [:runtime-memory :start] (jvm/runtime-memory))
@@ -121,9 +137,10 @@
 (defmacro with-finalization-count
   "Execute expr, add compilation time to the data map.
 
-  Adds JvmClassLoaderState records to the :compilation key in data,
-  with the :before, :after, and :delta sub-keys.
-  "
+  Adds maps to the :compilation key in data, with the :before, :after,
+  and :delta sub-keys.
+
+  Uses the MemoryMXBean."
   [data expr]
   `(-> ~data
        (assoc-in [:finalization :start] (jvm/finalization-count))
@@ -133,7 +150,9 @@
 
 
 (defmacro with-garbage-collector-stats
-  "Execute expr, add garbage collection counts and times to the data map."
+  "Execute expr, add garbage collection counts and times to the data map.
+
+  Uses the GarbageCollectorMXBean beans."
   [data expr]
   `(-> ~data
        (assoc-in [:garbage-collector :start] (jvm/garbage-collector-stats))
@@ -155,22 +174,3 @@
         (assoc data k v)))
     {}
     data))
-
-(comment
-  (assoc-delta {:start {:a 1} :finish {:a 4}})
-
-  (deltas
-    (instrumented
-      (with-garbage-collector-stats
-        (with-finalization-count
-          (with-compilation-time
-            (with-class-loader-counts
-              (with-time
-                (with-expr-value (Thread/sleep 1)))))))))
-
-  (deltas
-    (instrumented
-      (with-time
-        (with-expr (Thread/sleep 1)))))
-
-  )

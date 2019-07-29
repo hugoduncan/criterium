@@ -49,41 +49,43 @@
 
   See http://hackage.haskell.org/package/criterion for a Haskell benchmarking
   library that applies many of the same statistical techniques."
-  (:use clojure.set
-        criterium.stats)
-  (:require [criterium
+  (:use criterium.stats)
+  (:require [clojure.set :as set]
+            [criterium
              [jvm :as jvm]
              [toolkit :as toolkit]
              [util :as util]
-             [well :as well]])
-  (:import (java.lang.management ManagementFactory)))
+             [well :as well]]))
 
-(def ^{:doc "Fraction of excution time allowed for final cleanup before a
-             warning is issued."
-       :dynamic true}
-  *final-gc-problem-threshold* 0.01)
+
+;; Default values controlling behaviour
+
+(def ^:dynamic *final-gc-problem-threshold*
+  "Fraction of excution time allowed for final cleanup before a
+  warning is issued."
+  0.01)
 
 (def s-to-ns (* 1000 1000 1000)) ; in ns
 (def ns-to-s 1e-9) ; in ns
 
-(def ^{:doc "Time period used to let the code run so that jit compiler can do
-             its work."
-       :dynamic true}
-  *warmup-jit-period* (* 10 s-to-ns)) ; in ns
+(def ^:dynamic *warmup-jit-period*
+  "Time period used to let the code run so that jit compiler can do
+  its work."
+  (* 10 s-to-ns)) ; in ns
 
-(def ^{:doc "Number of executions required"
-       :dynamic true} *sample-count* 60)
+(def ^:dynamic *sample-count*
+  "Number of executions required"
+  60)
 
-(def ^{:doc "Target elapsed time for execution for a single measurement."
-       :dynamic true}
-  *target-execution-time* (* 1 s-to-ns)) ; in ns
+(def ^:dynamic *target-execution-time*
+  "Target elapsed time for execution for a single measurement."
+  (* 1 s-to-ns)) ; in ns
 
-(def ^{:doc "Maximum number of attempts to run finalisers and gc."
-       :dynamic true}
-  *max-gc-attempts* 100)
+(def ^:dynamic *max-gc-attempts*
+  "Maximum number of attempts to run finalisers and gc."
+  100)
 
-(def ^{:dynamic true}
-  *default-benchmark-opts*
+(def ^:dynamic *default-benchmark-opts*
   {:max-gc-attempts       *max-gc-attempts*
    :num-samples           *sample-count*
    :target-execution-time *target-execution-time*
@@ -91,8 +93,7 @@
    :tail-quantile         0.025
    :bootstrap-size        1000})
 
-(def ^{:dynamic true}
-  *default-quick-bench-opts*
+(def ^:dynamic *default-quick-bench-opts*
   {:max-gc-attempts       *max-gc-attempts*
    :num-samples           (/ *sample-count* 10)
    :target-execution-time (/ *target-execution-time* 10)
@@ -100,55 +101,48 @@
    :tail-quantile         0.025
    :bootstrap-size        500})
 
-;;; Progress reporting
-(def ^{:dynamic true} *report-progress* nil)
 
-(defn #^{:skip-wiki true}
-  progress
+;;; Progress reporting
+
+(def ^:dynamic *report-progress*
+  "Flag to control output of progress messages"
+  nil)
+
+(defn ^:skip-wiki progress
   "Conditionally report progress to *out*."
   [& message]
   (when *report-progress*
     (apply println message)))
 
-(def ^{:dynamic true} *report-debug* nil)
+(def ^:dynamic *report-debug*
+  "Flag to control output of debug messages"
+  nil)
 
-(defn #^{:skip-wiki true}
-  debug
+(defn ^:skip-wiki debug
   "Conditionally report debug to *out*."
   [& message]
   (when *report-debug*
     (apply println message)))
 
-(def ^{:dynamic true} *report-warn* nil)
+(def ^:dynamic *report-warn*
+  "Flag to control output of warning messages"
+  nil)
 
-(defn #^{:skip-wiki true}
-  warn
+(defn ^:skip-wiki warn
   "Conditionally report warn to *out*."
   [& message]
   (when *report-warn*
     (apply println "WARNING:" message)))
 
+(defmacro with-progress-reporting
+  "Macro to enable progress reporting during the benchmark."
+  [expr]
+  `(binding [*report-progress* true]
+     ~expr))
 
-;;; OS Specific Code
-(defn clear-cache-mac []
-  (.. Runtime getRuntime (exec "/usr/bin/purge") waitFor))
-
-(defn clear-cache-linux []
-  ;; not sure how to deal with the sudo
-  (.. Runtime getRuntime
-      (exec "sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches'") waitFor))
-
-(defn clear-cache []
-  (condp #(re-find %1 %2) (.. System getProperties (getProperty "os.name"))
-    #"Mac" (clear-cache-mac)
-    :else  (warn "don't know how to clear disk buffer cache for "
-                 (.. System getProperties (getProperty "os.name")))))
-
-
-(defn elapsed-time [data]
-  (-> data :time :elapsed))
 
 ;;; Execution timing
+
 (defmacro time-expr
   "Returns a map containing execution time and result of specified function."
   [expr]
@@ -158,7 +152,6 @@
          (toolkit/with-time
            (toolkit/with-expr-value
              ~expr))))))
-
 
 (defmacro time-expr-for-warmup
   "Returns a map containing execution time, change in loaded and unloaded
@@ -172,8 +165,14 @@
              (toolkit/with-expr
                ~expr)))))))
 
+(defn elapsed-time
+  "Helper to return the elapsed time from instrumentation data map."
+  [data]
+  (-> data :time :elapsed))
+
 
 ;;; Memory management
+
 (defn force-gc
   "Force garbage collection and finalisers so that execution time
   associated with this is not incurred at another time. Up to
@@ -218,22 +217,31 @@
      fractional-time
      final-gc-time]))
 
-;;; ## Core timing loop
 
-;;; A mutable field is used to store the result of each function call, to
-;;; prevent JIT optimising away the expression entirely.
+;;; Mutable place to avoid JIT removing expr evaluation altogether
 
 (defprotocol MutablePlace
-  "Provides a mutable place"
+  "Provides functions to get and set a mutable place"
   (set-place [_ v] "Set mutable field to value.")
   (get-place [_] "Get mutable field value."))
 
-(deftype Unsynchronized [^{:unsynchronized-mutable true :tag Object} v]
+(deftype Unsynchronized
+    [^{:unsynchronized-mutable true :tag Object} v]
   MutablePlace
   (set-place [_ value] (set! v value))
   (get-place [_] v))
 
-(def mutable-place (Unsynchronized. nil))
+(def mutable-place
+  "An object with a mutable, unsychronized field.
+
+  Used to store the result of each function call, to prevent JIT
+  optimising away the expression entirely.
+
+  The field is accessed with the MutablePlace protocol."
+  (Unsynchronized. nil))
+
+
+;;; Execution
 
 (defmacro execute-fn-n-times
   "Evaluates `(f)` `n` times, each time saving the
@@ -253,7 +261,6 @@
        (recur (unchecked-dec i#) (~f))
        v#)))
 
-;;; ## Execution
 (defn execute-expr
   "Time the execution of `n` invocations of `f`. See `execute-expr*`."
   [n f]
@@ -269,6 +276,11 @@
     deltas))
 
 (defn collect-samples
+  "Collect samples of invoking f execute-count times.
+
+  Collects an instrumentation data map for each invocation.
+  The data for each invocation is stored in an object array,
+  which is returned as the overall value."
   [sample-count execution-count f gc-before-sample]
   {:pre [(pos? sample-count)]}
   (let [result (object-array sample-count)]
@@ -281,7 +293,9 @@
           (recur (unchecked-inc i)))
         result))))
 
+
 ;;; Compilation
+
 (defn warmup-for-jit
   "Run expression for the given amount of time to enable JIT compilation.
 
@@ -329,7 +343,9 @@
                    0)
                  sum))))))
 
-;;; Execution parameters
+
+;;; Execution parameter estimation
+
 (defn estimate-execution-count
   "Estimate the number of executions required in order to have at least the
    specified execution period, check for the jvm to have constant class loader
@@ -360,7 +376,8 @@
                  (min (* 2 n) (inc (long (* n (/ period t)))))))))))
 
 
-;; benchmark
+;; Benchmarksx
+
 (defn run-benchmark
   "Benchmark an expression. This tries its best to eliminate sources of error.
    This also means that it runs for a while.  It will typically take 70s for a
@@ -508,6 +525,8 @@
     all-samples))
 
 
+;; Statistics
+
 (defn bootstrap-bca
   "Bootstrap a statistic. Statistic can produce multiple statistics as a vector
    so you can use juxt to pass multiple statistics.
@@ -525,11 +544,12 @@
    http://en.wikipedia.org/wiki/Bootstrapping_(statistics)"
   [data statistic size rng-factory]
   (progress "Bootstrapping ...")
-  (let [samples (bootstrap-sample data statistic size rng-factory)
+  (let [samples   (bootstrap-sample data statistic size rng-factory)
         transpose (fn [data] (apply map vector data))]
     (if (vector? (first samples))
       (map bootstrap-estimate samples)
       (bootstrap-estimate samples))))
+
 
 ;;; Outliers
 
@@ -539,9 +559,9 @@
   [var-out-min]
   (cond
     (< var-out-min 0.01) :unaffected
-    (< var-out-min 0.1) :slight
-    (< var-out-min 0.5) :moderate
-    :else :severe))
+    (< var-out-min 0.1)  :slight
+    (< var-out-min 0.5)  :moderate
+    :else                :severe))
 
 (defn point-estimate [estimate]
   (first estimate))
@@ -581,28 +601,26 @@
       0
       (/ (min-f var-out 1 (min-f c-max 0 mean-g-min)) variance-block))))
 
-
 (defrecord OutlierCount [low-severe low-mild high-mild high-severe])
 
 (defn outlier-count
   [low-severe low-mild high-mild high-severe]
   (OutlierCount. low-severe low-mild high-mild high-severe))
 
-
 (defn add-outlier [low-severe low-mild high-mild high-severe counts x]
   (outlier-count
-   (if (<= x low-severe)
-     (inc (:low-severe counts))
-     (:low-severe counts))
-   (if (< low-severe x low-mild)
-     (inc (:low-mild counts))
-     (:low-mild counts))
-   (if (> high-severe x high-mild)
-     (inc (:high-mild counts))
-     (:high-mild counts))
-   (if (>= x high-severe)
-     (inc (:high-severe counts))
-     (:high-severe counts))))
+    (if (<= x low-severe)
+      (inc (:low-severe counts))
+      (:low-severe counts))
+    (if (< low-severe x low-mild)
+      (inc (:low-mild counts))
+      (:low-mild counts))
+    (if (> high-severe x high-mild)
+      (inc (:high-mild counts))
+      (:high-mild counts))
+    (if (>= x high-severe)
+      (inc (:high-severe counts))
+      (:high-severe counts))))
 
 (defn outliers
   "Find the outliers in the data using a boxplot technique."
@@ -614,7 +632,9 @@
           (outlier-count 0 0 0 0)
           data))
 
-;;; overhead estimation
+
+;;; Overhead estimation
+
 (declare benchmark*)
 
 (defn estimate-overhead
@@ -636,22 +656,24 @@
   []
   (progress "Estimating sampling overhead")
   (alter-var-root
-   #'estimated-overhead-cache (constantly (estimate-overhead))))
+    #'estimated-overhead-cache (constantly (estimate-overhead))))
 
 (defn estimated-overhead
   []
   (or estimated-overhead-cache
       (estimated-overhead!)))
 
-;;; options
+
+;;; Options
+
 (defn extract-report-options
   "Extract reporting options from the given options vector.  Returns a two
   element vector containing the reporting options followed by the non-reporting
   options"
   [opts]
   (let [known-options #{:os :runtime :verbose}
-        option-set (set opts)]
-    [(intersection known-options option-set)
+        option-set    (set opts)]
+    [(set/intersection known-options option-set)
      (remove #(contains? known-options %1) opts)]))
 
 (defn add-default-options [options defaults]
@@ -662,12 +684,8 @@
                             %1)
                          options)))))
 
-;;; User top level functions
-(defmacro with-progress-reporting
-  "Macro to enable progress reporting during the benchmark."
-  [expr]
-  `(binding [*report-progress* true]
-     ~expr))
+
+;;; Sample statistic
 
 (defn sample-stats
   "Compute sample statistics for the given values."
@@ -710,7 +728,6 @@
      :tail-quantile    (:tail-quantile opts)
      :sample-count     sample-count
      :execution-count  execution-count}))
-
 
 (defn gc-sample-stats
   "Compute sample statistics for the given GC data."
@@ -765,15 +782,18 @@
 (defn warn-on-suspicious-jvm-options
   "Warn if the JIT options are suspicious looking."
   []
-  (let [compiler (jvm/jit-name)
+  (let [compiler                  (jvm/jit-name)
         {:keys [input-arguments]} (jvm/runtime-details)]
     (when-let [arg (and (re-find #"Tiered" compiler)
                         (some #(re-find #"TieredStopAtLevel=(.*)" %)
                               input-arguments))]
       (warn
-       "JVM argument" (first arg) "is active,"
-       "and may lead to unexpected results as JIT C2 compiler may not be active."
-       "See http://www.slideshare.net/CharlesNutter/javaone-2012-jvm-jit-for-dummies."))))
+        "JVM argument" (first arg) "is active,"
+        "and may lead to unexpected results as JIT C2 compiler may not be active."
+        "See http://www.slideshare.net/CharlesNutter/javaone-2012-jvm-jit-for-dummies."))))
+
+
+;;; User top level functions
 
 (defn benchmark*
   "Benchmark a function. This tries its best to eliminate sources of error.
@@ -842,6 +862,9 @@
   "Benchmark an expression. Less rigorous benchmark (higher uncertainty)."
   [expr options]
   `(quick-benchmark* (fn [] ~expr) ~options))
+
+
+;;; Reporting
 
 (defn report
   "Print format output"
@@ -1000,6 +1023,9 @@
     (report-sample-stats execution-time "Execution time" scale-time verbose)
     (report-gc-sample-stats gc-stats verbose)))
 
+
+;;; All in one invocations
+
 (defmacro bench
   "Convenience macro for benchmarking an expression, expr.  Results are reported
   to *out* in human readable format. Options for report format are: :os,
@@ -1014,12 +1040,12 @@
 
 (defmacro quick-bench
   "Convenience macro for benchmarking an expression, expr.  Results are reported
-to *out* in human readable format. Options for report format are: :os,
-:runtime, and :verbose."
+  to *out* in human readable format. Options for report format are: :os,
+  :runtime, and :verbose."
   [expr & opts]
   (let [[report-options options] (extract-report-options opts)]
     `(report-result
-      (quick-benchmark
-       ~expr
-       ~(when (seq options) (apply hash-map options)))
-      ~@report-options)))
+       (quick-benchmark
+         ~expr
+         ~(when (seq options) (apply hash-map options)))
+       ~@report-options)))
