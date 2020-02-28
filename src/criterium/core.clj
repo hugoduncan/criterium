@@ -824,8 +824,8 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
         (merge *default-benchmark-opts*
                {:overhead (or overhead (estimated-overhead))}
                options)
-        times (run-benchmark
-               samples warmup-jit-period target-execution-time f opts overhead)]
+        times (run-benchmark samples warmup-jit-period target-execution-time f
+                             gc-before-sample overhead)]
     (benchmark-stats times opts)))
 
 (defn benchmark-round-robin*
