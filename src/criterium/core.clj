@@ -352,15 +352,7 @@ class counts, change in compilation time and result of specified function."
   longs, and the storage of the return value.
 
   The JVM is not free to optimize away the calls to f because the return values
-  are saved in `mutable-place`.
-
-  This array is at most +max-obj-array-size+ elements long, to save
-  memory.  An artificially intelligent JVM might be able to determine
-  that if n is larger than +max-obj-array-size+, some of the return
-  values are overwritten and thus those calls need not be made.  I
-  doubt we will see that kind of optimization any time soon, and
-  perhaps some JVM rules even prohibit doing so since the writes to
-  ret-vals-arr could potentially be read by a different thread."
+  are saved in `mutable-place`."
   [n f]
   (time-body
    (loop [i (long (dec n))
