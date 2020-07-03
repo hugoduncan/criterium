@@ -1,4 +1,4 @@
-(defproject criterium "0.4.6"
+(defproject criterium "0.4.7-SNAPSHOT"
   :description "Benchmarking library"
   :url "https://github.com/hugoduncan/criterium"
   :license {:name "Eclipse Public License"
