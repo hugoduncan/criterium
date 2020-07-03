@@ -21,7 +21,7 @@ This includes:
 Add the following to your `:dependencies`:
 
 ```clj
-[criterium "0.4.5"]
+[criterium "0.4.6"]
 ```
 
 ### Maven
@@ -30,7 +30,7 @@ Add the following to your `:dependencies`:
 <dependency>
   <groupId>criterium</groupId>
   <artifactId>criterium</artifactId>
-  <version>0.4.5</version>
+  <version>0.4.6</version>
 </dependency>
 ```
 
@@ -103,6 +103,12 @@ Serial correlation detection.
 Multimodal distribution detection.
 Use kernel density estimators?
 
+## Releasing
+
+To release, run the `release.sh` script.  This requires that you have
+git-flow enabled your git repository with `git flow init`, and that
+you have configured your
+[credentials for clojars](https://github.com/technomancy/leiningen/blob/stable/doc/DEPLOY.md).
 
 ## YourKit
 
