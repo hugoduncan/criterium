@@ -1,5 +1,9 @@
 # Release Notes
 
+# 0.4.6
+
+- Pass correct gc-before-benchmark parameter value to run-benchmark
+
 # 0.4.5
 
 - Fix benchmark-round-robin
