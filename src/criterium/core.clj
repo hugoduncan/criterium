@@ -20,7 +20,7 @@
 (ns ^{:author "Hugo Duncan"
       :see-also
       [["http://github.com/hugoduncan/criterium" "Source code"]
-       ["http://hugoduncan.github.com/criterium" "API Documentation"]]}
+       ["http://hugoduncan.github.io/criterium" "API Documentation"]]}
   criterium.core
   "Criterium measures the computation time of an expression.  It is
 designed to address some of the pitfalls of benchmarking, and benchmarking on
