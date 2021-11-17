@@ -87,8 +87,8 @@ value.
 
 ## References
 
-[API Documentation](http://hugoduncan.github.com/criterium/0.4/api/)
-[Annotated Source](http://hugoduncan.github.com/criterium/0.4/uberdoc.html)
+[API Documentation](http://hugoduncan.github.io/criterium/0.4/api/)
+[Annotated Source](http://hugoduncan.github.io/criterium/0.4/uberdoc.html)
 
 See [Elliptic Group](http://www.ellipticgroup.com/html/benchmarkingArticle.html)
 for a Java benchmarking library.  The accompanying article describes many of the
