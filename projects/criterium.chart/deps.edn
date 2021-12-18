@@ -1,0 +1,18 @@
+{:deps
+ {criterium/criterium    {:mvn/version "0.5.244"}
+  metasoarous/oz         {:mvn/version "1.6.0-alpha36"}
+  org.slf4j/slf4j-simple {:mvn/version "2.0.0-alpha5"}
+  poly/criterium.chart   {:local/root "../../bases/criterium.chart"}}
+ :paths []
+
+ :aliases {:test  {:override-deps {criterium/criterium
+                                   {:local/root "../criterium"}}}
+           :build {:extra-paths ["."]
+                   :deps
+                   {io.github.hugoduncan/makejack
+                    #_ {:local/root "../../../makejack/projects/makejack-jar"}
+                    {:git/sha   "a92d409233c46250f7c5a6b3e0a0aa6dd2211de6"
+                     :deps/root "projects/makejack-jar"}}
+                   :ns-default  build
+                   :exec-fn     help
+                   :jvm-opts    ["-Dclojure.main.report=stderr"]}}}
