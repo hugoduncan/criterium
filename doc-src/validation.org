@@ -1,0 +1,141 @@
+#+STARTUP: inlineimages header
+#+PROPERTY: header-args :cache yes :exports both
+
+#+HTML_HEAD: <link rel="stylesheet" type="text/css" href="https://unpkg.com/purecss@2.0.3/build/pure-min.css" integrity="sha384-cg6SkqEOCV1NbJoCu11+bm0NvBRc8IYLRGXkmNrqUBfTjmMYwNKPWBTIKyw9mHNJ" crossorigin="anonymous"/>
+#+HTML_HEAD: <link rel="stylesheet" type="text/css" href="public/css/criterium.css" />
+
+#+begin_src clojure :results value silent
+(require '[criterium
+           [platform :as platform]
+           [time :as time]])
+#+end_src
+
+
+* System NanoTime
+
+See https://shipilev.net/blog/2014/nanotrusting-nanotime/, which proves
+LMH code for the below.
+
+These results are platform specific.
+
+** latency
+
+The latency measures how long it takes to make a call to
+~System/nanotime~.
+
+#+begin_src clojure :results file graphics :dir "data/images" :file "nanotime-latency.png" :var dir=(concat (file-name-directory (buffer-file-name)) "data/images/")
+(platform/nanotime-latency
+ {:limit-time-s 10
+  :histogram    {:title "nanoTime Latency"
+                 :file  "doc-src/data/images/nanotime-latency.png"}})
+#+end_src
+
+#+RESULTS:
+[[file:data/images/nanotime-latency.png]]
+
+
+We see that this reports around 31ns.  We would expext there to be a
+hard lower limit, so lets look at the bootstrapped estimate for the
+minimum.
+
+#+begin_src clojure :results pp
+(-> (platform/nanotime-latency
+     {:limit-time-s 10
+      :return-value [:stats]})
+    :elapsed-time :min)
+#+end_src
+
+
+
+
+
+
+
+#+RESULTS:
+: class clojure.lang.Compiler$CompilerException
+
+We can see there is a very tight bound for the minimum, at about 30.66ns.
+
+** granularity
+
+Test nanotime granularity
+
+#+begin_src clojure  :results file graphics :dir "doc-src/data/images" :file "nanotime-granularity.png" :var dir=(concat (file-name-directory (buffer-file-name)) "data/images/")
+(platform/nanotime-granularity
+ {:limit-time-s 10
+  :histogram    {:title "nanoTime Granularity"
+                 :file  "doc-src/data/images/nanotime-granularity.png"}})
+#+end_src
+
+#+RESULTS:
+[[file:doc-src/data/images/nanotime-granularity.png]]
+
+We see that this reports around 31ns, or about the same as latency.
+
+Again, we can look at the estimate for the minimum.
+
+#+begin_src clojure :results pp
+(-> (platform/nanotime-granularity
+     {:limit-time-s 10
+      :return-value [:stats]})
+    :elapsed-time :min)
+#+end_src
+
+#+RESULTS:
+: class clojure.lang.Compiler$CompilerException
+
+Here we see a tight estimate at about 30.65ns.
+
+* Criterium Measured Time
+** Zero accuracy and resolution
+
+The smallest thing criterium can measure is a constant expression.  The
+measurement comprises a loop and a call to JMH Blackhole/consume for
+every iteration.  The consume function is overloaded on value type, so
+the time will vary with type.
+
+Lets look at a histogram of the distributions of time for the main
+expression types.
+
+*** long values
+
+#+begin_src clojure :results file graphics :dir "data/images" :file "constant-long.png" :var dir=(concat (file-name-directory (buffer-file-name)) "data/images/")
+(platform/constant-long
+ {:histogram
+  {:title "Constant long"
+   :file  (str "doc-src/data/images/constant-long.png")}})
+#+end_src
+
+#+RESULTS:
+[[file:data/images/constant-long.png]]
+
+Gives a mean around 1ns.
+
+
+*** double values
+
+#+begin_src clojure :results file graphics :dir "data/images" :file "constant-double.png" :var dir=(concat (file-name-directory (buffer-file-name)) "data/images/")
+(platform/constant-double
+ {:histogram
+  {:title "Constant double"
+   :file  (str "doc-src/data/images/constant-double.png")}})
+#+end_src
+
+#+RESULTS:
+[[file:data/images/constant-double.png]]
+
+Gives a mean around 1.3ns.
+
+*** object values
+
+#+begin_src clojure :results file graphics :dir "data/images" :file "constant-object.png" :var dir=(concat (file-name-directory (buffer-file-name)) "data/images/")
+(platform/constant-object
+ {:histogram
+  {:title "Constant Object"
+   :file  (str "doc-src/data/images/constant-object.png")}})
+#+end_src
+
+#+RESULTS:
+[[file:data/images/constant-object.png]]
+
+Gives a mean around 1.8ns.

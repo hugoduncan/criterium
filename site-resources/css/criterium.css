@@ -1,0 +1,54 @@
+.navbar {
+  background-color: white;
+  margin: 0 100px 30px 100px;
+}
+
+.navbar-nav > .active > a,
+.navbar-nav > .active > a:hover,
+.navbar-nav > .active > a:focus {
+  color: #555555;
+  background-color: white;
+  font-weight: 500;
+}
+
+.navbar-brand {
+  color: #ee7777;
+}
+
+pre {
+  background-color: white;
+  border: none;
+}
+
+a code {
+  color: #428bca;
+  text-decoration: none;
+}
+
+a:hover code,
+a:focus code {
+  color: #2a6496;
+  text-decoration: underline;
+}
+
+a:focus code {
+  outline: thin dotted #333;
+  outline: 5px auto -webkit-focus-ring-color;
+  outline-offset: -2px;
+}
+
+#content {
+    margin: 0 auto;
+    padding: 0 2em;
+    max-width: 800px;
+    margin-bottom: 50px;
+    line-height: 1.6em;
+
+
+.example {
+    background-color: #e6e6e6;
+}
+
+.src {
+    background-color: #e6e6e6;
+}
