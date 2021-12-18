@@ -1,0 +1,3 @@
+{:deps {poly/criterium {:local/root "../bases/criterium"}
+        poly/criterium.arg-gen {:local/root "../bases/criterium.arg-gen"}
+        poly/criterium.chart {:local/root "../bases/criterium.chart"}}}

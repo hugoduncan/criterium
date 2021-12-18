@@ -1,0 +1,4 @@
+{:name        "all"
+ :group-id    "criterium"
+ :version-map #include "version.edn"
+ :version     #version-string #ref [:version-map]}

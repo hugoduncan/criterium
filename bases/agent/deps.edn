@@ -1,0 +1,16 @@
+{:paths         ["src/clj" "target/classes" "resources"]
+ :java-paths    ["src/java"]
+ :deps          {org.clojure/clojure {:mvn/version "1.10.3"}}
+ :deps/prep-lib {:ensure "target/classes/criterium/agent"
+                 :alias  :build
+                 :fn     javac}
+ :aliases       {:test  {:extra-paths ["test"]
+                         :extra-deps  {}}
+                 :build {:deps
+                         {io.github.hugoduncan/makejack
+                          #_ {:local/root "../makejack/projects/makejack-jar"}
+                          {:git/sha   "6966696979c9b9c0c97e54f82a5d4096e4105240"
+                           :deps/root "projects/makejack-jar"}}
+                         :ns-default makejack.tasks
+                         :exec-fn    help
+                         :jvm-opts   ["-Dclojure.main.report=stderr"]}} }

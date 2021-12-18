@@ -1,0 +1,33 @@
+{:deps    {poly/criterium {:local/root "../../bases/criterium"}}
+ :paths   []
+ :aliases {:test         {:extra-paths []
+                          :extra-deps  {}}
+           :build        {:extra-paths ["."]
+                          :deps
+                          {io.github.hugoduncan/makejack
+                           #_ {:local/root "../../../makejack/projects/makejack-jar"}
+                           {:git/sha   "a92d409233c46250f7c5a6b3e0a0aa6dd2211de6"
+                            :deps/root "projects/makejack-jar"}}
+                          :ns-default  build
+                          :exec-fn     help
+                          :jvm-opts    ["-Dclojure.main.report=stderr"]}
+           :platform     {:main-opts  ["-m" "criterium.platform"]
+                          ;; err, why is this needed?
+                          :extra-deps {org.clojure/test.check
+                                       {:mvn/version "1.1.0"}}
+                          :jvm-opts   ["-Dclojure.main.report=stderr"
+                                       "-Dclojure.spec.check-asserts=false"
+                                       ;; "-XX:+UnlockExperimentalVMOptions"
+                                       ;; "-XX:+UseEpsilonGC"
+                                       "-Xms1g"
+                                       "-Xmx1g"
+                                       ]}
+           :platform-1.8 {:main-opts  ["-m" "criterium.platform"]
+                          ;; err, why is this needed?
+                          :extra-deps {org.clojure/test.check
+                                       {:mvn/version "1.1.0"}}
+                          :jvm-opts   ["-Dclojure.main.report=stderr"
+                                       "-Dclojure.spec.check-asserts=false"
+                                       "-Xms1g"
+                                       "-Xmx1g"
+                                       ]}}}

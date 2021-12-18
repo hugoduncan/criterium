@@ -1,0 +1,14 @@
+{:deps {criterium/criterium                       {:local/root "../criterium"}
+        criterium/chart                           {:local/root
+                                                   "../criterium.chart"}
+        criterium/arg-gen                         {:local/root
+                                                   "../criterium.arg-gen"}
+        lambdaisland/kaocha                       {:mvn/version "1.0.641"}
+        lambdaisland/kaocha-cloverage             {:mvn/version "1.0-45"}
+        com.clojure-goes-fast/clj-java-decompiler {:mvn/version "0.3.0"}
+        com.clojure-goes-fast/clj-memory-meter    {:mvn/version "0.1.3"}}
+ :aliases
+ {:dev    {}
+  :kaocha {:extra-paths ["../criterium/test"
+                         "../criterium.graph/test"
+                         "../criterium.arg-gen/test"]}}}

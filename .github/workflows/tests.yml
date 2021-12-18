@@ -1,0 +1,89 @@
+# A workflow run is made up of one or more jobs that can run
+# sequentially or in parallel
+on: [push, pull_request]
+name: Run tests
+
+jobs:
+  tests:
+    name: Tests
+
+    strategy:
+      matrix:
+        # TODO add windows-latest
+        os: [ubuntu-latest, macOS-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - name: Prepare java
+      uses: actions/setup-java@v2
+      with:
+        distribution: 'zulu'
+        java-version: '11'
+
+    # - uses: joschi/setup-jdk@v2
+    #   with:
+    #     java-version: '11' # The OpenJDK version to make available on the path
+    #     architecture: 'x64' # defaults to 'x64'
+
+    - name: Install clojure tools
+      uses: DeLaGuardo/setup-clojure@3.5
+      with:
+        cli: 1.10.3.1029
+
+    - name: Install node
+      uses: actions/setup-node@v2
+      with:
+       node-version: '16'
+
+    - name: Install vega-cli
+      run: |
+        npm install -g vega vega-lite vega-cli
+
+    - name: Install babashka
+      uses: turtlequeue/setup-babashka@v1.3.0
+      with:
+        babashka-version: 0.7.0
+
+    - name: Install makejack
+      run: |
+        curl -O https://raw.githubusercontent.com/hugoduncan/makejack/6966696979c9b9c0c97e54f82a5d4096e4105240/mj
+        chmod 755 mj
+        mv mj /usr/local/bin
+
+    - name: Setup clojure-lsp
+      uses: clojure-lsp/setup-clojure-lsp@v1
+      with:
+        clojure-lsp-version: 2022.01.03-19.46.10
+
+    - name: Checkout
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0          # all commits for git-rev-count
+
+    - name: poly check
+      run: |
+        set -x
+        clojure -M:poly check
+
+    - name: build and install jar
+      run: |
+        set -x
+        (
+        cd projects/criterium
+        clojure -T:build build :verbose true
+        )
+
+    - name: poly test :all
+      run: |
+        set -x
+        mj compile-agent-cpp
+        mj javac-agent
+        clojure -M:poly test :all
+
+    - name: lint
+      run: |
+        set -x
+        clojure-lsp diagnostics
+        clojure-lsp clean-ns --dry
+        clojure-lsp format --dry
