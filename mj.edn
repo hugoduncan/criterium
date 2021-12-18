@@ -1,0 +1,64 @@
+#mj {:project #include "project.edn"
+     :modules ["criterium" "criterium.arg-gen" "criterium.chart"]
+     :targets
+     #merge
+     [#default-targets [:bump :pom :clean :jar :install :deploy]
+      {:api-doc {:doc     "Generate API documentation from sources."
+                 :invoker :clojure
+                 :aliases [:clj-xchart :test.check]
+                 :deps    {codox {:mvn/version "0.10.6"}}
+                 :options {:forward-options false
+                           :out             :inherit}
+                 :expr    (do (require '[codox.main :as codox])
+                              (codox/generate-docs
+                               {:metadata     {:doc/format :markdown}
+                                :source-paths ["criterium/src"
+                                               "criterium.arg-gen/src"
+                                               "criterium.chart/src"]
+                                :output-path  "doc/0.5/api"
+                                :source-uri   "https://github.com/hugoduncan/criterium/blob/{version}/{filepath}#L{line}"
+                                :version      #ref [:project :version]}))}
+       :publish {:invoker :shell
+                 :args    ["emacsclient"
+                           "--eval"
+                           #join [
+                                  "(progn (load \""
+                                  #ref [:project-root]
+                                  "/doc-src/publish.el\") (org-publish-all))"]]
+                 :options {:out :inherit}}
+
+       :modules       {:invoker :modules
+                       :modules #ref [:modules]}
+       :build-install {:doc     "pom, jar and install project"
+                       :invoker :chain
+                       :targets [:pom :jar :install]}
+       :build         {:doc     "Build all"
+                       :invoker :modules
+                       :modules #ref [:modules]
+                       :args    ["build-install"]
+                       :self    false}
+       :lint          {:doc     "Lint source"
+                       :invoker :modules
+                       :modules #ref [:modules]
+                       :args    ["lint"]
+                       :self    false}
+       :fmt           {:doc     "Check source formatting"
+                       :invoker :modules
+                       :modules #ref [:modules]
+                       :args    ["fmt"]
+                       :self    false}
+       :test          {:doc     "Run tests"
+                       :invoker :modules
+                       :modules #ref [:modules]
+                       :args    ["test"]
+                       :self    false}
+       :clean         {:doc     "Clean generated files"
+                       :invoker :modules
+                       :modules #ref [:modules]
+                       :args    ["clean"]
+                       :self    false}
+       :deploy        {:doc     "Deploy to clojars"
+                       :invoker :modules
+                       :modules #ref [:modules]
+                       :args    ["deploy"]
+                       :self    false}}]}

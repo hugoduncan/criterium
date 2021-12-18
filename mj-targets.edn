@@ -1,0 +1,21 @@
+;; targets for sub-projects
+#mj {:lint          {:invoker :shell
+                     :args    ["clj-kondo" "--lint" "src" "test"]}
+     :fmt           {:invoker   :clojure
+                     :deps      {cljfmt/cljfmt {:mvn/version "0.6.4"}}
+                     :main      cljfmt.main
+                     :main-args ["check"
+                                 "--indents" #join [#ref [:project-root]
+                                                    "/.cljfmt/indents.edn"]
+                                 "src" "test"]
+                     :options   {:out             :inherit
+                                 :forward-options false}}
+     :test          {:doc     "Run tests"
+                     :invoker :clojure
+                     :aliases [:kaocha]
+                     :options {:out             :inherit
+                               :report          "stderr"
+                               :forward-options false}}
+     :build-install {:doc     "pom, jar and install project"
+                     :invoker :chain
+                     :targets [:pom :jar :install]}}
