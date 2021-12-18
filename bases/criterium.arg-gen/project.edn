@@ -1,0 +1,4 @@
+{:name        "arg-gen"
+ :group-id    "criterium"
+ :version-map #include "../version.edn"
+ :version     #version-string #ref [:version-map]}
