@@ -1,0 +1,16 @@
+{:deps {poly/agent {:local/root "../../bases/agent"}}
+ :aliases
+ {:build {:extra-paths ["."]
+          :deps
+          {io.github.hugoduncan/makejack
+           #_ {:local/root "../../../makejack/projects/makejack-jar"}
+           {:git/sha   "a92d409233c46250f7c5a6b3e0a0aa6dd2211de6"
+            :deps/root "projects/makejack-jar"}}
+          :ns-default  build
+          :exec-fn     help
+          :jvm-opts    ["-Dclojure.main.report=stderr"]}
+  :test  {:extra-paths []
+          :extra-deps  {poly/criterium {:local/root "../../bases/criterium"}}
+          :jvm-opts    ["-XX:-OmitStackTraceInFastThrow"
+                        "-Dclojure.main.report=stderr"
+                        "-agentpath:../../agent-cpp/libcriterium.dylib"]}}}

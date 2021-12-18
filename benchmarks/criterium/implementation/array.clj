@@ -10,7 +10,7 @@
   (let [^objects arr ret-vals-arr
         arr-size-1 (long (dec (count arr)))
         init-j (rem (dec n) max-obj-array-size)]
-    (time-body
+    (time-expr
      (loop [i (long (dec n))
             j (long init-j)
             v (f)]
@@ -19,6 +19,12 @@
          (recur (unchecked-dec i)
                 (if (zero? j) arr-size-1 (unchecked-dec j))
                 (f)))))))
+
+
+(defn replace-ret-val-in-time-expr-result
+  [[elapsed-time _] new-ret-val]
+  [elapsed-time new-ret-val])
+
 
 (defn execute-expr-core-with-array
   [n f reduce-with]
@@ -30,7 +36,7 @@
            v (aget ret-vals-arr i)]
       (if (pos? i)
         (recur (dec i) (reduce-with v (aget ret-vals-arr (dec i))))
-        (replace-ret-val-in-time-body-result time-and-ret v)))))
+        (replace-ret-val-in-time-expr-result time-and-ret v)))))
 
 (defn with-array [f]
   (with-redefs [criterium.core/execute-expr execute-expr-core-with-array]

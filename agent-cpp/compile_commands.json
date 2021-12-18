@@ -1,0 +1,16 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/clang",
+      "-c",
+      "-std=c++17",
+      "-I.",
+      "-I/Library/Java/JavaVirtualMachines/jdk-11.0.12.jdk/Contents/Home/include",
+      "-I/Library/Java/JavaVirtualMachines/jdk-11.0.12.jdk/Contents/Home/include/darwin",
+      "-oliballocsampler.dylib",
+      "sampler.cpp"
+    ],
+    "directory": "/Users/duncan/projects/hugoduncan/criterium/allocation-sampler",
+    "file": "/Users/duncan/projects/hugoduncan/criterium/allocation-sampler/sampler.cpp"
+  }
+]

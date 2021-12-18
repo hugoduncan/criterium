@@ -1,0 +1,52 @@
+{:paths []
+ :aliases
+ {:dev
+  {:extra-paths ["development/src"]
+   :extra-deps
+   {poly/agent                    {:local/root "bases/agent"}
+    poly/criterium                {:local/root "bases/criterium"}
+    lambdaisland/kaocha           {:mvn/version "1.60.945"}
+    lambdaisland/kaocha-cloverage {:mvn/version "1.0.75"}
+    org.clojure/clojure           {:mvn/version "1.10.3"}}
+   :jvm-opts    ["-Djdk.attach.allowAttachSelf"]}
+  :test        {:extra-paths ["bases/criterium/test"]
+                :extra-deps
+                {lambdaisland/kaocha           {:mvn/version "1.60.945"}
+                 lambdaisland/kaocha-cloverage {:mvn/version "1.0.75"}
+                 local/agent                   {:local/root "bases/agent"}
+                 org.clojure/test.check        {:mvn/version "1.1.0"}}
+                :exec-fn     kaocha.runner/exec-fn
+                :exec-args   {}
+                :jvm-opts    ["-XX:-OmitStackTraceInFastThrow"
+                              "-Dclojure.main.report=stderr"
+                              "-agentpath:agent-cpp/libcriterium.dylib"]
+                :main-opts   ["-m" "kaocha.runner"]}
+  :poly        {:main-opts  ["-m" "polylith.clj.core.poly-cli.core"]
+                :extra-deps {polyfy/polylith
+                             {:git/url   "https://github.com/polyfy/polylith"
+                              :git/sha   "b32f37589f12c6be3955bf23f5bae9c55639468f"
+                              :deps/root "projects/poly"}}}
+  :mj          {:deps
+                {io.github.hugoduncan/makejack
+                 #_ {:local/root "../makejack/projects/makejack-jar"}
+                 {:git/sha   "6966696979c9b9c0c97e54f82a5d4096e4105240"
+                  :deps/root "projects/makejack-jar"}
+                 io.github.babashka/process
+                 {:git/sha "7847bdd56bb8db3293070a5c09b94dddc77c0155"}}
+                :ns-default build
+                :exec-fn    help
+                :jvm-opts   ["-Dclojure.main.report=stderr"]}
+  :cljfmt      {:deps      {cljfmt/cljfmt {:mvn/version "0.8.0"}}
+                :main-opts ["-m" "cljfmt.main"]}
+  :jit-info    {:jvm-opts ["-XX:+UnlockDiagnosticVMOptions"
+                           "-XX:+PrintInlining"]}
+  :compilation {:jvm-opts ["-XX:+UnlockDiagnosticVMOptions"
+                           "-XX:+PrintCompilation"]}
+  :disable-bg  {:jvm-opts ["-Xbatch"]}
+  :parallel-gc {:jvm-opts ["-XX:+UseParallelGC"]}
+  :g1-gc       {:jvm-opts ["-XX:+UseG1GC"]}
+  :epsilon-gc  {:jvm-opts ["-XX:+UnlockExperimentalVMOptions"
+                           "-XX:+UseEpsilonGC"]}
+  :server      {:jvm-opts ["-server"]}
+  }
+ }

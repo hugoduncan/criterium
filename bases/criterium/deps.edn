@@ -1,0 +1,14 @@
+{:paths   ["src"]
+ :deps    {org.openjdk.jmh/jmh-core {:mvn/version "1.33"}
+           org.clojure/clojure      {:mvn/version "1.10.3"}}
+ :aliases {:test
+           {:extra-paths ["test"]
+            :extra-deps
+            {local/agent                   {:local/root "../agent"}
+             expound/expound               {:mvn/version "0.8.10"}
+             lambdaisland/kaocha           {:mvn/version "1.60.945"}
+             lambdaisland/kaocha-cloverage {:mvn/version "1.0.75"}
+             orchestra/orchestra           {:mvn/version "2021.01.01-1"}
+             org.clojure/test.check        {:mvn/version "1.1.0"}}
+            :main-opts   ["-m" "kaocha.runner"]
+            :jvm-opts    ["-XX:-OmitStackTraceInFastThrow"]}}}

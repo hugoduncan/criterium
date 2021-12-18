@@ -12,3 +12,10 @@ java.hprof.*
 .ritz-exception-filters
 target
 checkouts
+pom.*
+.lsp
+version.edn
+*.dylib
+*.log
+*.dSYM
+.clj-kondo/*/

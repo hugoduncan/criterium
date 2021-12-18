@@ -1,5 +1,18 @@
 # Criterium
 
+
+## Alpha version
+
+Master is now on 0.5.x, which should be considered ALPHA, subject to
+breaking changes on new features.
+
+See [ALPHA Readme](README.ALPHA.md)
+
+If you try it, please give feedback on any breaking changes with 0.4.5.
+
+
+## Stable version 0.4.5
+
 Criterium measures the computation time of an expression.  It is
 designed to address some of the pitfalls of benchmarking, and benchmarking on
 the JVM in particular.
@@ -102,6 +115,12 @@ benchmarking library that applies many of the same statistical techniques.
 Serial correlation detection.
 Multimodal distribution detection.
 Use kernel density estimators?
+
+## Non-Goals
+
+Expressions are evaluated inside a function call.  We deliberately do
+not seek ultimate accuracy for very quick expressions where the
+function overhead may be significant.
 
 ## Releasing
 
