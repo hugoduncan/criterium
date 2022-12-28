@@ -30,7 +30,7 @@
   ^double [^double a ^double b]
   (unchecked-add a b))
 
-(defn ^double mean
+(defn mean
   "Arithmetic mean of data."
   (^double [data]
    (let [c (count data)]
