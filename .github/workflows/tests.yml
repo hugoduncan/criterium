@@ -54,7 +54,7 @@ jobs:
     - name: Setup clojure-lsp
       uses: clojure-lsp/setup-clojure-lsp@v1
       with:
-        clojure-lsp-version: 2022.01.03-19.46.10
+        clojure-lsp-version: 2022.12.09-15.51.10
 
     - name: Checkout
       uses: actions/checkout@v3
