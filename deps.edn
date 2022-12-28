@@ -5,16 +5,16 @@
    :extra-deps
    {poly/agent                    {:local/root "bases/agent"}
     poly/criterium                {:local/root "bases/criterium"}
-    lambdaisland/kaocha           {:mvn/version "1.60.945"}
-    lambdaisland/kaocha-cloverage {:mvn/version "1.0.75"}
-    org.clojure/clojure           {:mvn/version "1.10.3"}}
+    lambdaisland/kaocha           {:mvn/version "1.71.1119"}
+    lambdaisland/kaocha-cloverage {:mvn/version "1.1.89"}
+    org.clojure/clojure           {:mvn/version "1.11.1"}}
    :jvm-opts    ["-Djdk.attach.allowAttachSelf"]}
   :test        {:extra-paths ["bases/criterium/test"]
                 :extra-deps
-                {lambdaisland/kaocha           {:mvn/version "1.60.945"}
-                 lambdaisland/kaocha-cloverage {:mvn/version "1.0.75"}
+                {lambdaisland/kaocha           {:mvn/version "1.71.1119"}
+                 lambdaisland/kaocha-cloverage {:mvn/version "1.1.89"}
                  local/agent                   {:local/root "bases/agent"}
-                 org.clojure/test.check        {:mvn/version "1.1.0"}}
+                 org.clojure/test.check        {:mvn/version "1.1.1"}}
                 :exec-fn     kaocha.runner/exec-fn
                 :exec-args   {}
                 :jvm-opts    ["-XX:-OmitStackTraceInFastThrow"
@@ -32,12 +32,14 @@
                  {:git/sha   "6966696979c9b9c0c97e54f82a5d4096e4105240"
                   :deps/root "projects/makejack-jar"}
                  io.github.babashka/process
-                 {:git/sha "7847bdd56bb8db3293070a5c09b94dddc77c0155"}}
+                 {:git/sha "8c98184222033c0af375b47dd3e13ba56ae8fe9f"}}
                 :ns-default build
                 :exec-fn    help
                 :jvm-opts   ["-Dclojure.main.report=stderr"]}
-  :cljfmt      {:deps      {cljfmt/cljfmt {:mvn/version "0.8.0"}}
+  :cljfmt      {:deps      {cljfmt/cljfmt {:mvn/version "0.9.0"}}
                 :main-opts ["-m" "cljfmt.main"]}
+  :outdated    {:deps      {com.github.liquidz/antq {:mvn/version "RELEASE"}}
+                :main-opts ["-m" "antq.core"]}
   :jit-info    {:jvm-opts ["-XX:+UnlockDiagnosticVMOptions"
                            "-XX:+PrintInlining"]}
   :compilation {:jvm-opts ["-XX:+UnlockDiagnosticVMOptions"
