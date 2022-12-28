@@ -14,7 +14,7 @@
            :platform     {:main-opts  ["-m" "criterium.platform"]
                           ;; err, why is this needed?
                           :extra-deps {org.clojure/test.check
-                                       {:mvn/version "1.1.0"}}
+                                       {:mvn/version "1.1.1"}}
                           :jvm-opts   ["-Dclojure.main.report=stderr"
                                        "-Dclojure.spec.check-asserts=false"
                                        ;; "-XX:+UnlockExperimentalVMOptions"
@@ -25,7 +25,7 @@
            :platform-1.8 {:main-opts  ["-m" "criterium.platform"]
                           ;; err, why is this needed?
                           :extra-deps {org.clojure/test.check
-                                       {:mvn/version "1.1.0"}}
+                                       {:mvn/version "1.1.1"}}
                           :jvm-opts   ["-Dclojure.main.report=stderr"
                                        "-Dclojure.spec.check-asserts=false"
                                        "-Xms1g"

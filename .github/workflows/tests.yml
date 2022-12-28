@@ -16,7 +16,7 @@ jobs:
 
     steps:
     - name: Prepare java
-      uses: actions/setup-java@v2
+      uses: actions/setup-java@v3
       with:
         distribution: 'zulu'
         java-version: '11'
@@ -27,12 +27,12 @@ jobs:
     #     architecture: 'x64' # defaults to 'x64'
 
     - name: Install clojure tools
-      uses: DeLaGuardo/setup-clojure@3.5
+      uses: DeLaGuardo/setup-clojure@10.1
       with:
-        cli: 1.10.3.1029
+        cli: 1.11.1.1208
 
     - name: Install node
-      uses: actions/setup-node@v2
+      uses: actions/setup-node@v3
       with:
        node-version: '16'
 
@@ -41,7 +41,7 @@ jobs:
         npm install -g vega vega-lite vega-cli
 
     - name: Install babashka
-      uses: turtlequeue/setup-babashka@v1.3.0
+      uses: turtlequeue/setup-babashka@v1.5.0
       with:
         babashka-version: 0.7.0
 
@@ -57,7 +57,7 @@ jobs:
         clojure-lsp-version: 2022.01.03-19.46.10
 
     - name: Checkout
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         fetch-depth: 0          # all commits for git-rev-count
 

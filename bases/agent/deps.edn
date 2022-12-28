@@ -1,6 +1,6 @@
 {:paths         ["src/clj" "target/classes" "resources"]
  :java-paths    ["src/java"]
- :deps          {org.clojure/clojure {:mvn/version "1.10.3"}}
+ :deps          {org.clojure/clojure {:mvn/version "1.11.1"}}
  :deps/prep-lib {:ensure "target/classes/criterium/agent"
                  :alias  :build
                  :fn     javac}
