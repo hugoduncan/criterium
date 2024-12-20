@@ -6,6 +6,8 @@
    [criterium.collector :as collector]
    [criterium.util.helpers :as util]
    [criterium.util.units :as units]
+   [criterium.viewer.portal]
+   [criterium.viewer.pprint]
    [criterium.viewer.print]))
 
 (def default-config
