@@ -1,5 +1,21 @@
 (ns criterium.bench
-  "REPL based benchmarking."
+  "Perform sound benchmarking of Clojure code.
+
+  Provides functions and macros for measuring code performance while
+  accounting for:
+
+  - JVM warmup periods
+  - Garbage collection effects
+  - Statistical significance
+
+  Primary API:
+  - bench         - Macro for benchmarking expressions
+  - bench-measured - Function for benchmarking pre-wrapped measurements
+  - last-bench    - Access results from most recent benchmark
+
+  Example:
+  (bench (+ 1 1))                 ; Basic usage
+  (bench (+ 1 1) :viewer :pprint) ; With pretty-printed output"
   (:refer-clojure :exclude [time])
   (:require
    [criterium.bench.config :as bench-config]
@@ -11,12 +27,36 @@
 (def ^:no-doc last-bench* (volatile! nil))
 
 (defn last-bench
-  "Return the data from the last bench invocation."
+  "Returns the complete measurement data from the most recent benchmark.
+
+  The returned data structure contains all metrics, statistical analysis, and
+  raw measurements from the last call to bench or bench-measured.
+
+  Returns nil if no benchmarks have been run in the current session.
+
+  Example:
+  (bench (+ 1 1))
+  (let [results (last-bench)]
+    ;; Access detailed metrics from results
+    )"
   []
   @last-bench*)
 
 (defn measure
-  "Samples measured and returns evaluated measurement data."
+  "Executes the sampling plan and collects metrics.
+
+  Parameters:
+    collector-config  - Configuration for the metric collector
+    collect-plan     - Strategy for collecting samples
+    benchmark        - Function to process collected measurements
+    benchmark-options - Options passed to the benchmark function
+    measured         - The wrapped code/function to measure
+
+  Returns a map containing all collected metrics and measurements based on
+  the collector configuration and sampling plan.
+
+  This is a function for advance usage of criterium - most users should
+  use bench or bench-measured instead."
   [collector-config collect-plan benchmark benchmark-options
    measured]
   (let [pipeline        (collector/collector collector-config)
@@ -30,18 +70,20 @@
      (assoc (merge benchmark-options sampled)
             :metrics-configs metrics-configs))))
 
-(defn- return-value [config sampled]
+(defn- return-value
+  "Extract the returned value for the sampled."
+  [config sampled]
   (get-in sampled (-> config :return-value)))
 
 (defn bench-measured*
-  "Evaluates measured and outputs the time it took.
+  "Evaluate measured and output the benchmark time.
 
   By default, return the value of calling the measured's wrapped
   function.
 
   The timing info is available as a data structure by calling last-time.
 
-  Takes a configuration map that fully specifies the time behaviour."
+  Takes a configuration map that fully specifies the benchmark behaviour."
   [measured config]
   (output/with-progress-reporting (:verbose config)
     (->> (measure
@@ -54,56 +96,85 @@
          (return-value config))))
 
 (defn bench-measured
-  "Evaluates a measured and outputs the time it took.
+  "Evaluate and benchmark a pre-wrapped measurement.
 
-  By default, return the value of calling the measured's wrapped
-  function.
+  The metrics and output are controlled via parameters.
 
-  The timing info is available as a data structure by calling last-time.
+  Parameters:
+    measured - A wrapped function/expression prepared for measurement
+    options  - Map of configuration options:
+      :viewer      - Output format [:pprint, :portal, or nil(default)]
+      :benchmark   - Custom benchmark configuration map
+      :metric-ids  - Vector of metrics to collect, from:
+                     [:elapsed-time :garbage-collector :finalization
+                      :memory :thread-allocation :compilation
+                      :measured-args :class-loader]
+      :limit-time-s - Time limit in seconds (optional)
+      :collect-plan - Sampling strategy (optional)
 
-  Takes a map of options.
+  Return:
+  The value from evaluating the measured expression.
+  The complete benchmark data is available via (last-bench).
 
-  By default the output is printed, but can also be pretty printed or
-  sent to portal, by passing either `:pprint` or `:portal` to the
-  `:viewer` key.
+  Examples:
+  ;; Basic usage with a measured expression
+  (bench-measured my-measured {})
 
-  The analysis and output can be controlled by passing a benchmark map
-  to the `:benchmark` key.  Example benchmark maps can be found in the
-  `clojure.benchmarks` namespace.
+  ;; With pretty-printed output and specific metrics
+  (bench-measured my-measured
+    {:viewer :pprint
+     :metric-ids [:elapsed-time :memory]})
 
-  The :metric-ids option accepts a sequence of metric keyword
-  selectors. Valid metrics are:
-     :elapsed-time, :garbage-collector, :finalization, :memory,
-     :thread-allocation, :compilation, :measured-args
-     and :class-loader."
+  Notes:
+  - Ensures statistical significance through multiple samples
+  - Accounts for JVM warmup
+  - Handles GC interference"
   [measured options]
   (bench-measured* measured (bench-config/config-map options)))
 
 (defmacro bench
-  "Evaluates an expression and outputs benchmarks for it.
+  "Main macro for benchmarking Clojure expressions with statistical rigor.
 
-  The expression can not refer to locals.
+  Intended for simplified use at the REPL.
 
-  By default, return the value of calling the measured's wrapped
-  function.
+  Takes an expression to benchmark, and optional configuration options.
 
-  The timing info is available as a data structure by calling last-time.
+  The expression must be free of local references.
 
-  Takes optional ketword value option pairs.
+  Parameters:
+    expr    - Expression to benchmark
+    options - Keyword/value pairs for configuration:
+      :viewer      - Output format [:pprint, :portal, or nil(default)]
+      :benchmark   - Custom benchmark configuration map
+      :metric-ids  - Vector of metrics to collect, from:
+                     [:elapsed-time :garbage-collector :finalization
+                      :memory :thread-allocation :compilation
+                      :measured-args :class-loader]
+      :limit-time-s - Time limit in seconds (optional)
+      :collect-plan - Sampling strategy (optional)
+      :time-fn     - Custom timing function (optional)
 
-  By default the output is printed, but can also be pretty printed or
-  sent to portal, by passing either `:pprint` or `:portal` to the
-  `:viewer` key.
+  Returns:
+  The value from evaluating the expression.
+  Complete benchmark data available via (last-bench).
 
-  The analysis and output can be controlled by passing a benchmark map
-  to the `:benchmark` key.  Example benchmark maps can be found in the
-  `clojure.benchmarks` namespace.
+  Examples:
+  ;; Basic usage
+  (bench (+ 1 1))
 
-  The :metric-ids option accepts a sequence of metric keyword
-  selectors. Valid metrics are:
-     :elapsed-time, :garbage-collector, :finalization, :memory,
-     :thread-allocation, :compilation, :measured-args
-     and :class-loader."
+  ;; With pretty-printed output
+  (bench (+ 1 1) :viewer :pprint)
+
+  ;; With specific metrics and time limit
+  (bench (my-function)
+         :metric-ids [:elapsed-time :memory]
+         :limit-time-s 5)
+
+  Notes:
+  - Handles JVM warmup automatically
+  - Accounts for GC interference
+  - Ensures statistical significance
+  - Expression cannot refer to local bindings"
   [expr & options]
   (let [options-map  (apply hash-map options)
         expr-options (select-keys options-map [:time-fn])
