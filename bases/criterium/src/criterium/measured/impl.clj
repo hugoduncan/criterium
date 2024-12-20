@@ -140,7 +140,7 @@
     `(fn ~'measured
        [~arg-syms
         ;; explicitly not tagged as 'long, since this function is invoked
-        ;; non-literally, so the cslling value will always be an object.
+        ;; non-literally, so the calling value will always be an object.
         ~eval-count-sym]
        (let [~blackhole-sym  blackhole/blackhole ; hoist cast lookup out of loop
              ~@(mapcat binding-with-hint-or-cast arg-syms arg-metas)

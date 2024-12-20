@@ -66,6 +66,8 @@
 
   Guarantees zero garbage allocation during measurement."
   [measured state eval-count]
+  ;; NOTE eval-count is explicitly not tagged as 'long, since this function is
+  ;; invoked non-literally, so the calling value will always be an object.
   ((:f measured) state eval-count))
 
 (defn ^:no-doc symbolic
