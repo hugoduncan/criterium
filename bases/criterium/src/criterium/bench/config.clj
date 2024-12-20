@@ -80,6 +80,17 @@
                             benchmark
                             benchmarks/minimal-stats-summary))
 
+         (= scheme-type :without-jit-warmup)
+         (assoc :collect-plan
+                (collect-plan-config/no-warmup-collect-plan
+                 (cond-> (when (map? scheme-type) (merge scheme-type))
+                   limit-time-s
+                   (assoc :limit-time-ns
+                          (* (long limit-time-s) (long units/SEC-NS)))))
+                :benchmark (or
+                            benchmark
+                            benchmarks/minimal-stats-summary))
+
          (= scheme-type :one-shot)
          (assoc :collect-plan (collect-plan-config/one-shot-collect-plan
                                options-map)
