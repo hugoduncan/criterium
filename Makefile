@@ -14,7 +14,8 @@ cljfmt:
 	lein with-profile +$(VERSION),+cljfmt cljfmt check
 
 test:
-	clojure -A:kaocha$(FULL_PROFILES)
+	#clojure -A:kaocha$(FULL_PROFILES)
+	clojure -Srepro -M:poly test :all
 
 api-doc:
 	clj -A:codox$(FULL_PROFILES)

@@ -1,5 +1,9 @@
 # Agent for criterium
 
+Prepare with:
+
+clj -X:deps prep
+
 Provides:
 
 object-size

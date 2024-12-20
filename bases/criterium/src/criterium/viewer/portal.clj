@@ -337,7 +337,8 @@
         :tickCount 10}}
       :y       {:field field-name
                 :type  "quantitative"
-                :scale {:zero false}}
+                :scale {:zero false
+                        :type "log"}}
       :tooltip [{:field "p" :type "quantitative"}
                 {:field field-name :type "quantitative"}]}
      :mark    "point"}))

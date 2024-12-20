@@ -18,8 +18,8 @@
  :capture-output?                    #profile {:default true
                                                :dots    true
                                                :debug   false}
- :reporter                           #profile {:dots     kaocha.view/dots
-                                               :default  kaocha.view/documentation
+ :reporter                           #profile {:dots     kaocha.report/dots
+                                               :default  kaocha.report/documentation
                                                :progress kaocha.report.progress/report
                                                :debug    kaocha.view/debug}
  :kaocha.plugin.randomize/randomize? true

@@ -7,6 +7,7 @@ classes
 autodoc/**
 doc/**
 java.hprof.*
+.cpcache
 .lein-deps-sum
 .lein-failures
 .ritz-exception-filters
@@ -19,3 +20,4 @@ version.edn
 *.log
 *.dSYM
 .clj-kondo/*/
+.aider*
