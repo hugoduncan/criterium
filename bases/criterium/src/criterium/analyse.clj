@@ -14,9 +14,27 @@
 
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn transform-log
-  "Log transformation.
-  Return a function to calculate the natural log of quantitative, :time
-  dimension, samples."
+  "Performs logarithmic transformation on time-based samples.
+
+  Returns a function that takes a sampled data map and adds log-transformed samples
+  under a new key. Only transforms samples with :time dimension from quantitative
+  metrics.
+
+  Parameters:
+    opts - Optional map with keys:
+      :id         - Key for transformed samples in result (default: :log-samples)
+      :samples-id - Key for source samples in input (default: :samples)
+      :metric-ids - Set of metric ids to transform (default: all quantitative)
+
+  The returned function:
+  - Takes a sampled data map containing samples and metric configs
+  - Returns the map with transformed samples added under :id key
+  - Preserves original samples and adds transform metadata
+
+  Example:
+  (let [transform (transform-log {:id :my-logs})
+        result (transform {:samples {...} :metrics-configs {...}})]
+    (:my-logs result)) ;; Contains log-transformed values"
   ([] (transform-log {}))
   ([{:keys [id samples-id metric-ids]}]
    (fn transform-log [sampled]
@@ -43,8 +61,29 @@
 
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn quantiles
-  "Calculate sample quantiles.
-  Return a function to calculate the quantiles of quantitative samples."
+  "Calculates statistical quantiles for quantitative sample measurements.
+
+  Returns a function that computes sample quantiles (including quartiles and
+  custom percentiles) for each quantitative metric in the input data.
+
+  Parameters:
+    opts - Optional map with keys:
+      :id         - Key for quantile results in output (default: :quantiles)
+      :samples-id - Key for source samples in input (default: :samples)
+      :metric-ids - Set of metric ids to analyze (default: all quantitative)
+      :quantiles  - Vector of quantile values to calculate [0-1]
+                   (default: [0.25 0.5 0.75])
+
+  The returned function:
+  - Takes a sampled data map containing samples and metric configs
+  - Returns the map with quantile analysis added under :id key
+  - Preserves source data transforms for correct value scaling
+
+  Example:
+  (let [analyze (quantiles {:quantiles [0.05 0.95]})
+        result (analyze {:samples {...} :metrics-configs {...}})]
+    (get-in result [:quantiles :elapsed-time]))
+  ;; Returns map of quantiles for elapsed time metric"
   ([] (quantiles {}))
   ([{:keys [id samples-id metric-ids] :as analysis}]
    (fn quantiles [sampled]
@@ -116,8 +155,38 @@
 
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn outliers
-  "Calculate outiers.
-  Return a function to calculate the outliers of quantitative samples."
+  "Detects statistical outliers in sample measurements using boxplot criteria.
+
+  Returns a function that identifies outliers based on the interquartile range
+  (IQR) method, classifying them as mild or severe deviations.
+
+  Parameters:
+    opts - Optional map with keys:
+      :id           - Key for outlier results (default: :outliers)
+      :samples-id   - Key for source samples (default: :samples)
+      :quantiles-id - Key for required quantile analysis (default: :quantiles)
+      :metric-ids   - Set of metric ids to analyze (default: all quantitative)
+
+  The returned function:
+  - Takes a sampled data map containing samples, metrics config and quantiles
+  - Returns the map with outlier analysis added under :id key
+  - For each metric provides:
+    - outlier thresholds (IQR boundaries)
+    - identified outliers with indices
+    - counts by severity (low/high, mild/severe)
+  - Requires prior quantile analysis in input data
+
+  Outlier Classification:
+  - Mild: between 1.5 and 3.0 IQR from quartiles
+  - Severe: beyond 3.0 IQR from quartiles
+
+  Example:
+  (let [analyze (outliers)
+        result (analyze {:samples {...}
+                        :metrics-configs {...}
+                        :quantiles {...}})]
+    (get-in result [:outliers :elapsed-time]))
+  ;; Returns {:thresholds [...] :outliers {...} :outlier-counts {...}}"
   ([] (outliers {}))
   ([{:keys [id samples-id quantiles-id metric-ids]}]
    (fn [sampled]
@@ -145,9 +214,32 @@
 
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn stats
-  "Calculate descriptive statistics.
-  Return a function to calculate the summary statistics of quantitative
-  samples."
+  "Calculates comprehensive descriptive statistics for sample measurements.
+
+  Returns a function that computes key statistics including mean, variance,
+  standard deviation bounds (±3σ), and min/max values for quantitative metrics.
+
+  Parameters:
+    opts - Optional map with keys:
+      :id          - Key for stats in output (default: :stats)
+      :samples-id  - Key for source samples (default: :samples)
+      :outliers-id - Key for outlier analysis if available
+      :metric-ids  - Set of metric ids to analyze (default: all quantitative)
+
+  The returned function:
+  - Takes a sampled data map containing samples and metric configs
+  - Returns the map with statistics added under :id key
+  - For each metric, calculates:
+    - mean, variance
+    - mean ±3σ bounds
+    - min/max values
+  - Preserves data transforms for correct scaling
+
+  Example:
+  (let [analyze (stats)
+        result (analyze {:samples {...} :metrics-configs {...}})]
+    (get-in result [:stats :elapsed-time]))
+  ;; Returns {:mean 100.0 :variance 16.0 ...}"
   ([] (stats {}))
   ([{:keys [id samples-id outliers-id metric-ids]
      :as   analysis}]
@@ -176,8 +268,31 @@
 
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn event-stats
-  "Calculate event statistics.
-  Return a function to calculate the event statistics of event samples."
+  "Calculates statistics for discrete events captured during sampling.
+
+  Returns a function that aggregates event metrics like JIT compilation,
+  garbage collection, and class loading events that occur during benchmarking.
+
+  Parameters:
+    opts - Optional map with keys:
+      :id          - Key for event stats in output (default: :event-stats)
+      :samples-id  - Key for source samples (default: :samples)
+      :metric-ids  - Set of event metric ids to analyze (default: all events)
+
+  The returned function:
+  - Takes a sampled data map containing samples and metrics configs
+  - Returns the map with event statistics added under :id key
+  - For each event metric collects:
+    - Total counts/durations
+    - Number of samples containing events
+    - Metric-specific aggregations (e.g., loaded/unloaded classes)
+  - Only processes metrics of type :event
+
+  Example:
+  (let [analyze (event-stats)
+        result (analyze {:samples {...} :metrics-configs {...}})]
+    (:event-stats result))
+  ;; Returns {:compilation {:time-ms 8 :sample-count 2} ...}"
   ([] (event-stats {}))
   ([{:keys [id samples-id metric-ids] :as _analysis}]
    (let [id         (or id :event-stats)
@@ -198,9 +313,30 @@
   (min ^double (f q) ^double (f r)))
 
 (defn outlier-significance*
-  "Find the significance of outliers given mean and variance estimates.
-  Based on how well a gaussian can describe the sample stats.
-  See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
+  "Calculates the statistical significance of outliers using gaussian fit analysis.
+
+  Determines how well a gaussian distribution describes the sample statistics by
+  comparing the sample variance to the variance of a fitted gaussian model.
+  A high significance indicates the outliers substantially affect the distribution.
+
+  Based on the methodology described in:
+  http://www.ellipticgroup.com/misc/article_supplement.pdf, p17
+
+  Parameters:
+    mean     - Sample mean (must be non-zero)
+    variance - Sample variance
+    batch-size - Number of measurements per sample (must be >= 16)
+
+  Returns:
+    A value between 0 and 1 representing outlier significance:
+    - 0: No significant effect from outliers
+    - 1: Outliers heavily influence the distribution
+
+  Throws:
+    AssertionError if preconditions on inputs are not met
+
+  Example:
+  (outlier-significance* 100.0 16.0 67108864) ;; => 0.25"
   [^double mean ^double variance ^long batch-size]
   {:pre [(number? mean) (number? variance) (nat-int? batch-size)]}
   (if (or (zero? variance) (< batch-size 16))
@@ -260,8 +396,38 @@
 
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn outlier-significance
-  "Calculate outlier significance.
-  Return a function to calculate the significance of outliers."
+  "Analyzes the statistical significance of detected outliers.
+
+  Returns a function that calculates how much outliers affect the sample
+  distribution by comparing actual variance to an idealized gaussian model.
+
+  Parameters:
+    opts - Optional map with keys:
+      :id          - Key for significance results (default: :outlier-significance)
+      :outliers-id - Key for outlier analysis (default: :outliers)
+      :stats-id    - Key for statistical analysis (default: :stats)
+      :metric-ids  - Set of metric ids to analyze (default: all quantitative)
+
+  The returned function:
+  - Takes a sampled data map containing outlier analysis and statistics
+  - Returns the map with significance analysis added under :id key
+  - For each metric provides:
+    - significance: A value between 0-1 indicating outlier impact
+    - effect: Keyword describing impact (:unaffected, :slight, :moderate, :severe)
+  - Requires prior outlier and statistical analysis in input data
+
+  Effects are classified as:
+  - :unaffected - significance < 0.01
+  - :slight     - significance < 0.1
+  - :moderate   - significance < 0.5
+  - :severe     - significance >= 0.5
+
+  Example:
+  (let [analyze (outlier-significance)
+        result (analyze {:outliers {...}
+                        :stats {...}})]
+    (get-in result [:outlier-significance :elapsed-time]))
+  ;; Returns {:significance 0.25 :effect :moderate}"
   ([] (outlier-significance {}))
   ([{:keys [id outliers-id stats-id metric-ids] :as _analysis}]
    (fn [sampled]
