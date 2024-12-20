@@ -1,11 +1,12 @@
 (ns criterium.bench-test
   (:require
    [clojure.test :refer [deftest is testing]]
-   [criterium.bench :as bench]))
+   [criterium.bench :as bench]
+   [criterium.bench.impl :as bench-impl]))
 
 (deftest bench-test
   (testing "bench"
-    (vreset! bench/last-bench* nil)
+    (bench-impl/last-bench! nil)
     (is (nil? (bench/last-bench)))
     (let [out (with-out-str (bench/bench 1))]
       (testing "outputs the estimated time on stdout"
