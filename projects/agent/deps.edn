@@ -1,6 +1,10 @@
 {:deps {poly/agent {:local/root "../../bases/agent"}}
  :aliases
- {:build {:extra-paths ["."]
+ {:build {:deps       {local/build {:local/root "../../build"}}
+          :ns-default build.tasks
+          :exec-fn    help
+          :jvm-opts   ["-Dclojure.main.report=stderr"]}
+  #_     {:extra-paths ["."]
           :deps
           {io.github.hugoduncan/makejack
            #_ {:local/root "../../../makejack/projects/makejack-jar"}

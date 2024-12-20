@@ -1,11 +1,18 @@
 {:paths         ["src/clj" "target/classes" "resources"]
  :java-paths    ["src/java"]
- :deps          {org.clojure/clojure {:mvn/version "1.11.1"}}
+ :deps          {}
  :deps/prep-lib {:ensure "target/classes/criterium/agent"
                  :alias  :build
                  :fn     javac}
- :aliases       {:test  {:extra-paths ["test"]
-                         :extra-deps  {}}
+ :aliases       {:test
+                 {:extra-paths ["test"]
+                  :extra-deps
+                  {org.clojure/clojure {:mvn/version "1.12.0"}
+                   polylith-kaocha/kaocha-wrapper
+                   {:git/url   "https://github.com/imrekoszo/polylith-kaocha"
+                    :git/tag   "v0.8.4"
+                    :git/sha   "f096de8"
+                    :deps/root "projects/kaocha-wrapper"}}}
                  :build {:deps
                          {io.github.hugoduncan/makejack
                           #_ {:local/root "../makejack/projects/makejack-jar"}
