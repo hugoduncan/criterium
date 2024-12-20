@@ -52,6 +52,30 @@
    :num-warmup-samples     num-warmup-samples
    :num-measure-samples    num-measure-samples})
 
+(defn no-warmup-collect-plan
+  [{:keys [num-estimation-samples
+           num-warmup-samples
+           num-measure-samples
+           max-gc-attempts
+           thread-priority
+           limit-time-ns
+           batch-time-ns]
+    :or   {num-estimation-samples TARGET-ESTIMATION-SAMPLES
+           num-warmup-samples     0
+           num-measure-samples    TARGET-SAMPLES
+           limit-time-ns          DEFAULT-LIMIT-TIME-NS
+           batch-time-ns          DEFAULT-BATCH-TIME-NS
+           max-gc-attempts        6}
+    :as   _options}]
+  {:scheme-type            :with-jit-warmup
+   :batch-time-ns          batch-time-ns
+   :max-gc-attempts        max-gc-attempts
+   :thread-priority        thread-priority
+   :limit-time-ns          limit-time-ns
+   :num-estimation-samples num-estimation-samples
+   :num-warmup-samples     num-warmup-samples
+   :num-measure-samples    num-measure-samples})
+
 (defn one-shot-collect-plan
   [{:keys [max-gc-attempts]
     :as   _options}]
