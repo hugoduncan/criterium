@@ -16,7 +16,6 @@
   Example:
   (bench (+ 1 1))                 ; Basic usage
   (bench (+ 1 1) :viewer :pprint) ; With pretty-printed output"
-  (:refer-clojure :exclude [time])
   (:require
    [criterium.bench.config :as bench-config]
    [criterium.bench.impl :as impl]
