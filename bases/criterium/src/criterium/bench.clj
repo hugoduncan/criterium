@@ -19,12 +19,11 @@
   (:refer-clojure :exclude [time])
   (:require
    [criterium.bench.config :as bench-config]
+   [criterium.bench.impl :as impl]
    [criterium.collect-plan :as collect-plan]
    [criterium.collector :as collector]
    [criterium.measured :as measured]
    [criterium.util.output :as output]))
-
-(def ^:no-doc last-bench* (volatile! nil))
 
 (defn last-bench
   "Returns the complete measurement data from the most recent benchmark.
@@ -40,7 +39,7 @@
     ;; Access detailed metrics from results
     )"
   []
-  @last-bench*)
+  (impl/last-bench))
 
 (defn measure
   "Executes the sampling plan and collects metrics.
@@ -92,7 +91,7 @@
           (:benchmark config)
           {:viewer (:viewer config)}
           measured)
-         (vreset! last-bench*)
+         (impl/last-bench!)
          (return-value config))))
 
 (defn bench-measured
