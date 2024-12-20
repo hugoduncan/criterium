@@ -55,8 +55,7 @@
 
   This is a function for advance usage of criterium - most users should
   use bench or bench-measured instead."
-  [collector-config collect-plan benchmark benchmark-options
-   measured]
+  [collector-config collect-plan benchmark benchmark-options measured]
   (let [pipeline        (collector/collector collector-config)
         metrics-configs (:metrics-configs pipeline)
         sampled         (collect-plan/collect
@@ -167,6 +166,16 @@
   (bench (my-function)
          :metric-ids [:elapsed-time :memory]
          :limit-time-s 5)
+
+  (bench (+ 1 1)
+         :viewer :portal
+         :benchmark (criterium.benchmark/->benchmark
+                   {:analyse [[:quantiles {:quantiles [0.025 0.5 0.975]}]
+                              :outliers
+                              :stats]
+                   :view [:stats :quantiles :samples :histogram]}))
+
+  For the portal viewer, you will need to have portal connected to tap>.
 
   Notes:
   - Handles JVM warmup automatically

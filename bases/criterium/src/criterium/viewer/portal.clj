@@ -1,4 +1,5 @@
 (ns criterium.viewer.portal
+  "A viewer that outputs to portal using tap>."
   (:require
    [criterium.metric :as metric]
    [criterium.util.helpers :as util]
@@ -245,7 +246,6 @@
       :data     {:values [{}]}
       :encoding {:x {:field "index" :type "quantitative"}}
       :resolve  {:scale {:y "independent"}}
-      :padding  0
       :vconcat
       (into
        [{:height 800
@@ -280,24 +280,23 @@
                              (:source-id (meta stats)))]
     (portal-vega-lite
      {:$schema "https://vega.github.io/schema/vega-lite/v5.json"
-      :data    {:values [{}]}
+      :data    {:values []}
       :resolve {:scale {:x "independent" :y "independent"}}
-      :padding 0
       :vconcat (mapv
-                (fn [metric-config]
-                  {:resolve {:scale {:x "shared" :y "independent"}}
-                   :height  800
-                   :layer
-                   (into
-                    [(metric-histo-layer
-                      quant-samples transforms outlier-analysis metric-config)]
-                    (when stats
-                      (->>
-                       (metric-sample-stats-layer
-                        stats-transforms
-                        (get-in stats (:path metric-config))
-                        metric-config))))})
-                metric-configs)})))
+                    (fn [metric-config]
+                      {:resolve {:scale {:x "shared" :y "independent"}}
+                       :height  800
+                       :layer
+                       (into
+                        [(metric-histo-layer
+                          quant-samples transforms outlier-analysis metric-config)]
+                        (when stats
+                          (->>
+                           (metric-sample-stats-layer
+                            stats-transforms
+                            (get-in stats (:path metric-config))
+                            metric-config))))})
+                    metric-configs)})))
 
 (defn metric-percentile-layer
   [samples transforms metric]
@@ -320,10 +319,9 @@
                      vs
                      percentiles
                      xs)]
-    {:data    {:values data
-               :name   "vals"}
-     :padding 0
-     :height  800
+    {:data   {:values data
+              :name   "vals"}
+     :height 800
      :encoding
      {:x
       {:field "x" :type "quantitative"
@@ -341,7 +339,7 @@
                         :type "log"}}
       :tooltip [{:field "p" :type "quantitative"}
                 {:field field-name :type "quantitative"}]}
-     :mark    "point"}))
+     :mark   "point"}))
 
 (defmethod view/sample-percentiles* :portal
   [{:keys [metric-ids] :as view} sampled]
@@ -355,7 +353,6 @@
      {:$schema "https://vega.github.io/schema/vega-lite/v5.json"
       :data    {:values [{}]} ; for portal
       :resolve {:scale {:y "independent"}}
-      :padding 0
       :vconcat
       (into
        [{:layer
@@ -381,10 +378,9 @@
                     #(hash-map k %1 :x %2)
                     diffs
                     (range))]
-    {:data    {:values data
-               :name   "vals"}
-     :padding 0
-     :height  800
+    {:data   {:values data
+              :name   "vals"}
+     :height 800
      :encoding
      {:x
       {:field "x" :type "quantitative"}
@@ -392,7 +388,7 @@
                 :type  "quantitative"
                 :scale {:zero false}}
       :tooltip [{:field field-name :type "quantitative"}]}
-     :mark    "point"}))
+     :mark   "point"}))
 
 (defmethod view/sample-diffs* :portal
   [{:keys [metric-ids] :as view} sampled]
@@ -405,7 +401,6 @@
      {:$schema "https://vega.github.io/schema/vega-lite/v5.json"
       :data    {:values [{}]} ; for portal
       :resolve {:scale {:y "independent"}}
-      :padding 0
       :vconcat
       (into
        [{:layer
