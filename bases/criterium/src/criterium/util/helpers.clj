@@ -1,4 +1,6 @@
-(ns criterium.util.helpers)
+(ns criterium.util.helpers
+  (:require
+   [criterium.util.invariant :refer [have?]]))
 
 (defn- safe-keys
   [m]
