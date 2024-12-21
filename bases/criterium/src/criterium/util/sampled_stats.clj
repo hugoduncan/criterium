@@ -1,6 +1,7 @@
 (ns criterium.util.sampled-stats
   (:require
    [criterium.util.helpers :as util]
+   [criterium.util.invariant :refer [have have?]]
    [criterium.util.stats :as stats]))
 
 (defn pair-fn [k f]
@@ -16,6 +17,7 @@
 
 (defn sample-quantiles
   [quantiles vs]
+  {:pre [(have? seq vs)]}
   (reduce
    (fn [m q] (assoc m q (stats/quantile q vs)))
    {}
@@ -30,8 +32,10 @@
              :mean-plus-3sigma mean-plus-3sigma
              :mean-minus-3sigma mean-minus-3sigma))))
 
-(defn samples-for-path [samples path]
-  (->> (get samples path)
+(defn samples-for-path [metric->values path]
+  {:pre [(have? map? metric->values)]}
+  (->> (have seq (metric->values path)
+             {:path path :metric->values metric->values})
        (filterv some?)
        (mapv double)))
 
@@ -40,9 +44,11 @@
 
 (defn quantiles-for
   [path samples config transforms]
-  {:pre [(seq path) (seq samples)]}
-  (assert (:quantiles config))
-  (assert (not (:tail-quantile config)))
+  {:pre [(have? seq path)
+         (have? seq samples)
+         (have? map? samples)]}
+  (have :quantiles config)
+  (have (comp not :tail-quantile) config)
   (let [qs      (into [0.25 0.5 0.75] (:quantiles config))
         scale-1 (fn [v] (util/transform-sample-> v transforms))
         vs      (sort (samples-for-path samples path))]
@@ -59,6 +65,7 @@
 
 (defn quantiles
   [samples metric-configs transforms config]
+  {:pre [(have? seq samples)]}
   (reduce
    (fn [res path]
      (assoc-in
@@ -72,33 +79,37 @@
    (map :path metric-configs)))
 
 (defn sample-stats
-  [sampled samples-id outliers metric-configs config]
+  [result-map samples-id outliers metric-configs config]
+  {:pre [(have? util/result-map? result-map)]}
   (reduce
    (fn [res path]
-     (let [ols             (:outliers (get-in outliers path))
-           [vs transforms] (loop [samples-id samples-id]
-                             (when-not samples-id
-                               (throw
-                                (ex-info "Failed to get samples"
-                                         {:path    path
-                                          :sampled sampled})))
-                             (let [samples (get sampled samples-id)
-                                   vs      (samples-for-path samples path)]
-                               (when-not samples
-                                 (throw (ex-info "invalid samples-id"
-                                                 {:samples-id samples-id})))
-                               (if (not-empty vs)
-                                 [vs (util/get-transforms sampled samples-id)]
-                                 (recur (-> samples meta :source-id)))))]
+     (let [ols (:outliers (get-in outliers path) {})
+           [vs transforms]
+           (loop [samples-id samples-id]
+             (when-not samples-id
+               (throw
+                (ex-info "Failed to get samples"
+                         {:path    path
+                          :sampled result-map})))
+             (let [metrics-samples (result-map samples-id)
+                   metric->values  (util/metric->values metrics-samples)
+                   vs              (samples-for-path metric->values path)]
+               (when-not metrics-samples
+                 (throw (ex-info "invalid samples-id"
+                                 {:samples-id samples-id})))
+               (if (not-empty vs)
+                 [vs (util/get-transforms result-map samples-id)]
+                 (recur (:source-id metrics-samples)))))
+           without-outliers
+           (into []
+                 (comp
+                  (map-indexed (fn [i v] (when-not (ols i) v)))
+                  (filter some?))
+                 vs)]
        (assert (seq vs) path)
        (assoc-in
         res path
-        (stats-for
-         (->>
-          (map (fn [v i] (when-not (get ols i) v)) vs (range))
-          (filterv some?))
-         config
-         transforms))))
+        (stats-for without-outliers config transforms))))
    {}
    (map :path metric-configs)))
 

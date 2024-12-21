@@ -54,6 +54,15 @@
       (is (= 0.0 (-> stats :min-val)))
       (is (= 100.0 (-> stats :max-val)))))
 
+  (testing "stats on [9 9 9 10 10 10]"
+    (let [samples (mapv double [9 9 9 10 10 10])
+          stats   (sampled-stats/stats-for
+                   samples {:quantiles [0.05 0.95]} identity-transforms)]
+      (is (= 9.5 (-> stats :mean)))
+      (test-max-error 0.3 (-> stats :variance) 1e-5)
+      (is (= 9.0 (-> stats :min-val)))
+      (is (= 10.0 (-> stats :max-val)))))
+
   (testing "stats on [0..100]*2 (ie batch-size 2)"
     (let [samples    (mapv double (range 0 202 2))
           transforms (batch-transforms 2)
@@ -65,29 +74,29 @@
       (is (= 100.0 (-> stats :max-val))))))
 
 (deftest quantiles-for-test
-  (let [samples {[:v] (repeat 100 1)}
-        stats   (sampled-stats/quantiles-for
-                 [:v] samples {:quantiles [0.05 0.95]} identity-transforms)]
-    (is (= {0.25 1.0, 0.5 1.0, 0.75 1.0, 0.05 1.0, 0.95 1.0} stats)))
-
-  (testing "stats on [0..100]"
-    (let [samples {[:v] (range 101)}
-          stats   (sampled-stats/quantiles-for
+  (let [samples   {[:v] (repeat 100 1)}
+        quantiles (sampled-stats/quantiles-for
                    [:v] samples {:quantiles [0.05 0.95]} identity-transforms)]
-      (is (= {0.25 25.0, 0.5 50.0, 0.75 75.0, 0.05 5.0, 0.95 95.0} stats))))
+    (is (= {0.25 1.0, 0.5 1.0, 0.75 1.0, 0.05 1.0, 0.95 1.0} quantiles)))
 
-  (testing "stats on (reverse [0..100])"
-    (let [samples {[:v] (range 101)}
-          stats   (sampled-stats/quantiles-for
-                   [:v] samples {:quantiles [0.05 0.95]} identity-transforms)]
-      (is (= {0.25 25.0, 0.5 50.0, 0.75 75.0, 0.05 5.0, 0.95 95.0} stats))))
+  (testing "quantiles on [0..100]"
+    (let [samples   {[:v] (range 101)}
+          quantiles (sampled-stats/quantiles-for
+                     [:v] samples {:quantiles [0.05 0.95]} identity-transforms)]
+      (is (= {0.25 25.0, 0.5 50.0, 0.75 75.0, 0.05 5.0, 0.95 95.0} quantiles))))
 
-  (testing "stats on [0..100]*2 (ie batch-size 2)"
+  (testing "quantiles on (reverse [0..100])"
+    (let [samples   {[:v] (range 101)}
+          quantiles (sampled-stats/quantiles-for
+                     [:v] samples {:quantiles [0.05 0.95]} identity-transforms)]
+      (is (= {0.25 25.0, 0.5 50.0, 0.75 75.0, 0.05 5.0, 0.95 95.0} quantiles))))
+
+  (testing "quantiles on [0..100]*2 (ie batch-size 2)"
     (let [samples    {[:v] (range 0 202 2)}
           transforms (batch-transforms 2)
-          stats      (sampled-stats/quantiles-for
+          quantiles  (sampled-stats/quantiles-for
                       [:v] samples {:quantiles [0.05 0.95]} transforms)]
-      (is (= {0.25 25.0, 0.5 50.0, 0.75 75.0, 0.05 5.0, 0.95 95.0} stats)))))
+      (is (= {0.25 25.0, 0.5 50.0, 0.75 75.0, 0.05 5.0, 0.95 95.0} quantiles)))))
 
 (deftest stats-for-test-property-1
   (let [batch-size   10000

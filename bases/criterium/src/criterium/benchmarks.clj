@@ -6,13 +6,16 @@
    [criterium.benchmark :as benchmark]
    [criterium.view]))
 
-(def one-shot
+(defn one-shot
+  []
   (criterium.benchmark/->benchmark
    {:analyse [:event-stats]
     :view    [:metrics
-              :event-stats]}))
+              :event-stats
+              :collect-plan]}))
 
-(def minimal-stats-summary
+(defn minimal-stats-summary
+  []
   (criterium.benchmark/->benchmark
    {:analyse [:transform-log
               [:quantiles {:quantiles [0.9 0.99 0.99]}]
@@ -26,7 +29,8 @@
                  {:warn-threshold 0.01}]]}))
 
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
-(def log-histogram
+(defn log-histogram
+  []
   (criterium.benchmark/->benchmark
    {:analyse [:transform-log
               [:quantiles {:quantiles [0.9 0.99 0.99]}]

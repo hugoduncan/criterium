@@ -1,7 +1,10 @@
 (ns criterium.viewer.common
   (:require
    [clojure.string :as str]
-   [criterium.util.format :as format]))
+   [criterium.metric :as metric]
+   [criterium.util.format :as format]
+   [criterium.util.invariant :refer [have?]]
+   [criterium.util.helpers :as util]))
 
 (defn metrics-map
   [sample metrics]
@@ -23,7 +26,7 @@
      (let [stat (get-in stats (:path metric))]
        (conj res
              (reduce
-              (fn [res k]
+              (fn add-key-k [res k]
                 (assoc res k
                        (format/format-value
                         (:dimension metric)
@@ -32,47 +35,48 @@
               {:metric (:label metric)}
               [:mean :min-val :mean-minus-3sigma :mean-plus-3sigma :max-val]))))
    []
-   metric-configs))
+   (filterv (metric/type-pred :quantitative) metric-configs)))
 
 (defn composite-key [path]
   (keyword (str/join "-" (mapv name path))))
 
-(defn event-stats-metrics [event-stats res k metric]
-  {:pre [(map? metric)]}
-  (let [ms                (:values metric)
-        sample-count-path (conj (pop (:path (first ms))) :sample-count)
+(defn event-stats-metrics
+  [event-stats k metric ms]
+  {:post [(have? (some-fn nil? map?) %)]}
+  (let [sample-count-path (conj (pop (:path (first ms))) :sample-count)
         sample-count      (event-stats sample-count-path)]
-    (if (and sample-count (pos? sample-count))
-      (let [v (reduce
-               (fn [res m]
-                 (assoc res
-                        (composite-key (rest (:path m)))
-                        (format/format-value
-                         (:dimension m)
-                         (* (event-stats (:path m))
-                            (:scale m)))))
-               {:metric (:label metric)}
-               (into [{:path      [k :sample-count]
-                       :dimension :count
-                       :scale     1}]
-                     ms))]
-        (conj res v))
-      res)))
+    (when (and sample-count (pos? sample-count))
+      (reduce
+       (fn [res m]
+         (assoc res
+                (composite-key (rest (:path m)))
+                (format/format-value
+                 (:dimension m)
+                 (* (get event-stats (:path m))
+                    (:scale m)))))
+       {:metric (:label metric)}
+       (into [{:path      sample-count-path
+               :dimension :count
+               :scale     1}]
+             ms)))))
 
 (defn event-stats
-  [metrics ev-stats]
-  {:pre [ev-stats]}
+  [metrics-defs ev-stats]
+  {:pre  [ev-stats]
+   :post [(have? vector? %)]}
   (reduce-kv
    (fn [res k metric]
      (if-let [groups (:groups metric)]
        (into res (event-stats groups ev-stats))
-       (event-stats-metrics ev-stats res k metric)))
+       (if-let [m (event-stats-metrics ev-stats k metric (:values metric))]
+         (conj res m)
+         res)))
    []
-   metrics))
+   metrics-defs))
 
 (defn quantiles
   [metric-configs all-quantiles]
-  {:pre [all-quantiles]}
+  {:pre [(have? all-quantiles)]}
   (reduce
    (fn [res metric-config]
      (let [quantiles (get-in all-quantiles (:path metric-config))]
@@ -102,19 +106,22 @@
 
 (defn- sampled-scheme-data
   [sampled]
-  (assoc
-   (select-keys sampled [:batch-size :num-samples])
-   :num-evals
-   (* (:num-samples sampled) (:batch-size sampled))))
+  (when sampled
+    (assoc
+     (select-keys sampled [:batch-size :num-samples])
+     :num-evals
+     (* (:num-samples sampled) (:batch-size sampled)))))
 
 (defn collect-plan-data
-  [sampled]
-  [(merge
-    {:phase :sample}
-    (sampled-scheme-data sampled))
-   (merge
-    {:phase :warmup}
-    (sampled-scheme-data (sampled :warmup)))
-   (merge
-    {:phase :estimation}
-    (sampled-scheme-data (sampled :estimation)))])
+  [bench-map]
+  (let [samples-schema    (sampled-scheme-data
+                           (-> bench-map :data :samples))
+        warmup-scheme     (sampled-scheme-data
+                           (some-> bench-map :data :warmup))
+        estimation-scheme (sampled-scheme-data
+                           (some-> bench-map :data :estimation))]
+    (cond-> [(merge {:phase :sample} samples-schema)]
+      warmup-scheme
+      (conj (merge {:phase :warmup} warmup-scheme))
+      estimation-scheme
+      (conj (merge {:phase :estimation} estimation-scheme)))))

@@ -7,7 +7,10 @@
    [criterium.test-utils :refer [trimmed-lines]]
    [criterium.util.bootstrap :as bootstrap]
    [criterium.view :as view]
-   [criterium.viewer.print :as print]))
+   [criterium.viewer.print :as print]
+   [criterium.collect-plan.config :as collect-plan-config]
+   [criterium.collect-plan :as collect-plan]
+   [criterium.viewer.test-data :as test-data]))
 
 (deftest print-stat-test
   (testing "print-stat"
@@ -35,33 +38,75 @@
               (with-out-str
                 (view/stats*
                  {}
-                 {:metrics-configs (select-keys
-                                    (metrics/metrics)
-                                    [:elapsed-time])
-                  :samples         (identity-transform [])
-                  :stats           {:elapsed-time
-                                    {:mean              100.0
-                                     :variance          16.0
-                                     :mean-plus-3sigma  112.0
-                                     :mean-minus-3sigma 88.0
-                                     :min-val           89.0}}
-                  :viewer          :print})))))
+                 (->(test-data/bench-stats-map)
+                    (assoc :viewer :print)))))))
+
       (is (= ["Elapsed Time: 1.00 ns  3σ [1.00 1.00]  min 1.00"]
-             (let [sampled    {:metrics-configs (select-keys
-                                                 (metrics/metrics)
-                                                 [:elapsed-time])
-                               :samples         {[:elapsed-time] [1 1]}
-                               :batch-size      1
-                               :eval-count      1
-                               :elapsed-time    1
-                               :viewer          :print}
+             (let [bench-map  (-> (test-data/samples-with-2-values-map)
+                                  (assoc :viewer :print))
                    stats      (analyse/stats)
                    view-stats (view/stats)]
                (trimmed-lines
                 (with-out-str
-                  (-> sampled
+                  (-> bench-map
+                      stats
+                      view-stats))))))))
+  (testing "print-stats"
+    (testing "prints via output-view"
+      (is (= ["Elapsed Time: 100 ns  3σ [88.0 112]  min 89.0"]
+             (trimmed-lines
+              (with-out-str
+                (view/stats*
+                 {}
+                 (->(test-data/bench-stats-map)
+                    (assoc :viewer :print)))))))
+
+      (is (= ["Elapsed Time: 1.00 ns  3σ [1.00 1.00]  min 1.00"]
+             (let [bench-map  (-> (test-data/samples-with-2-values-map)
+                                  (assoc :viewer :print))
+                   stats      (analyse/stats)
+                   view-stats (view/stats)]
+               (trimmed-lines
+                (with-out-str
+                  (-> bench-map
+                      stats
+                      view-stats)))))))
+    (testing "prints via output-view"
+      (is (= ["Elapsed Time: 100 ns  3σ [88.0 112]  min 89.0"]
+             (trimmed-lines
+              (with-out-str
+                (view/stats*
+                 {}
+                 (->(test-data/bench-stats-map)
+                    (assoc :viewer :print)))))))
+
+      (is (= ["Elapsed Time: 5.00 ns  3σ [-5.39 15.4]  min 1.00"]
+             (let [bench-map  (-> (test-data/samples-with-variance-12-map)
+                                  (assoc :viewer :print))
+                   stats      (analyse/stats)
+                   view-stats (view/stats)]
+               (trimmed-lines
+                (with-out-str
+                  (-> bench-map
+                      stats
+                      view-stats))))))
+      (is (= ["Elapsed Time: 2.50 ns  3σ [-2.70 7.70]  min 0.500"]
+             (let [bench-map
+                   (-> (update-in
+                        (test-data/samples-with-variance-12-map)
+                        [:data :samples]
+                        merge
+                        {:batch-size 2
+                         :transform  (#'collect-plan/batch-transforms 2)})
+                       (assoc :viewer :print))
+                   stats      (analyse/stats)
+                   view-stats (view/stats)]
+               (trimmed-lines
+                (with-out-str
+                  (-> bench-map
                       stats
                       view-stats)))))))))
+
 
 (deftest print-booststrap-stat-test
   (testing "print-bootstrap-stat"
@@ -96,25 +141,52 @@
     (is (= ["Elapsed Time min: 1.00 ns CI [1.00 1.00] (0.025 0.975)"
             "Elapsed Time mean: 1.00 ns CI [1.00 1.00] (0.025 0.975)"
             "Elapsed Time 3σ: [1.00 1.00] ns"]
-           (let [sampled   {:metrics-configs (select-keys
-                                              (metrics/metrics)
-                                              [:elapsed-time])
-                            :samples         {[:elapsed-time] [1 1 1]}
-                            :batch-size      1
-                            :eval-count      1
-                            :elapsed-time    1
-                            :viewer          :print}
+           (let [bench-map
+                 {:metrics-configs (select-keys
+                                    (metrics/metrics)
+                                    [:elapsed-time])
+                  :data
+                  {:samples
+                   {:type           :criterium/collected-metrics-samples
+                    :metric->values {[:elapsed-time] [1 1 1]}
+                    :metrics-defs   (select-keys
+                                     (metrics/metrics)
+                                     [:elapsed-time])
+                    :transform      collect-plan/identity-transforms
+                    :batch-size     1
+                    :eval-count     1
+                    :elapsed-time   1}}
+                  :viewer          :print}
                  bootstrap (bootstrap/bootstrap-stats
                             {:quantiles          [0.025 0.975]
                              :estimate-quantiles [0.025 0.975]})
                  view      (view/bootstrap-stats)]
              (trimmed-lines
               (with-out-str
-                (-> sampled
+                (-> bench-map
                     bootstrap
                     view))))))))
 
-;; TODO
+(deftest print-samples-test
+  (testing "print-samples"
+    (testing "prints via view"
+      (is (= ["Samples: 7 samples with batch-size 1"
+              "[6] 10.0 µs high-severe"]
+             (let [bench-map
+                   (-> (test-data/samples-with-outliers-values-map)
+                       (assoc :viewer :print))
+                   quantiles (analyse/quantiles {:quantiles [0.9 0.99 0.99]})
+                   outliers  (analyse/outliers)
+                   stats     (analyse/stats)
+                   view      (view/samples)]
+               (trimmed-lines
+                (with-out-str
+                  (-> bench-map
+                      quantiles
+                      outliers
+                      stats
+                      view)))))))))
+
 (deftest print-outlier-count-test
   (testing "print-outlier-count"
     (testing "prints all outliers when all present"
@@ -147,18 +219,11 @@
               "high-mild\t 3 (300.0000 %)"]
              (trimmed-lines
               (with-out-str
-                (let [sampled
-                      {:metrics-configs (select-keys
-                                         (metrics/metrics)
-                                         [:elapsed-time])
-                       :num-samples     1
-                       :outliers        {:elapsed-time
-                                         {:outlier-counts
-                                          (analyse/outlier-count 0 2 3 0)
-                                          :outlier-significance 0.25}}
-                       :viewer          :print}
+                (let [bench-map
+                      (-> (test-data/outlier-count-map)
+                          (assoc :viewer :print))
                       view (view/outlier-counts)]
-                  (view sampled)))))))))
+                  (view bench-map)))))))))
 
 (deftest print-outlier-significance-test
   (testing "print-outlier-significance"
@@ -168,14 +233,8 @@
              (trimmed-lines
               (with-out-str
                 ((view/outlier-significance)
-                 {:metrics-configs      (select-keys
-                                         (metrics/metrics)
-                                         [:elapsed-time])
-                  :num-samples          1
-                  :outlier-significance {:elapsed-time
-                                         {:effect       :moderate
-                                          :significance 0.25}}
-                  :viewer               :print}))))))))
+                 (-> (test-data/outlier-significance-map)
+                     (assoc :viewer :print))))))))))
 
 (deftest print-event-stats-test
   (testing "print-event-stats"
@@ -185,43 +244,13 @@
             "JIT compilation: ran for 3.00 ms in 1 samples"
             (str "Garbage Collector: ran 2 times for a total of 1.00 ms "
                  "in 1 samples")]
-           (let [metrics-configs
-                 (->
-                  (select-keys
-                   (metrics/metrics)
-                   [:class-loader :compilation])
-                  (assoc-in
-                   [:garbage-collector]
-                   {:type :event
-                    :groups
-                    {:total
-                     {:summary
-                      (str "%s: ran %s times"
-                           " for a total of %s in %s samples")
-                      :values
-                      [{:path      [:garbage-collector :total :count]
-                        :scale     1
-                        :dimension :count}
-                       {:path      [:garbage-collector :total :time-ms]
-                        :scale     1e-3
-                        :dimension :time}]
-                      :label "Garbage Collector"}}}))
-                 sampled     {:metrics-configs metrics-configs
-                              :samples
-                              {[:elapsed-time]                      [1]
-                               [:compilation :time-ms]              [3]
-                               [:garbage-collector :total :time-ms] [1]
-                               [:garbage-collector :total :count]   [2]
-                               [:class-loader :loaded-count]        [1]
-                               [:class-loader :unloaded-count]      [1]}
-                              :batch-size      1
-                              :eval-count      1
-                              :viewer          :print}
+           (let [bench-map   (-> (test-data/samples-for-event-stats-map)
+                                 (assoc :viewer :print))
                  event-stats (analyse/event-stats)
                  view        (view/event-stats)]
              (trimmed-lines
               (with-out-str
-                (-> sampled
+                (-> bench-map
                     event-stats
                     view)))))))))
 
@@ -235,10 +264,17 @@
                                      [:elapsed-time :class-loader :compilation])
                                     (assoc-in
                                      [:garbage-collector :values]
-                                     [{:path [:garbage-collector :total :count]}
+                                     [{:path
+                                       [:garbage-collector :total :count]
+                                       :label     "GC total count"
+                                       :scale     1
+                                       :type      :event
+                                       :dimension :count}
                                       {:path
                                        [:garbage-collector :total :time-ms]
+                                       :label     "GC total time"
                                        :scale     1e-3
+                                       :type      :event
                                        :dimension :time}]))
                    view1           (view/final-gc-warnings
                                     {:warn-threshold 0.01
@@ -247,22 +283,31 @@
                                     {:view-type      :final-gc-warnings
                                      :warn-threshold 0.02
                                      :sampled-path   [:sampled]})
-                   sampled         {:metrics-configs metrics-configs
-                                    :samples         {[:elapsed-time]
-                                                      [99999999]}
-                                    :final-gc
-                                    {:samples
-                                     {[:compilation :time-ms]              [3]
-                                      [:garbage-collector :total :time-ms] [1]
-                                      [:elapsed-time]                      [1]}}
-                                    :batch-size      1
-                                    :eval-count      1
-                                    :elapsed-time    1
-                                    :viewer          :print}]
+                   bench-map
+                   {:data
+                    {:samples
+                     {:type         :criterium/collected-metrics-samples
+                      :metric->values
+                      {[:elapsed-time] [99999999]}
+                      :metrics-deps metrics-configs
+                      :batch-size   1
+                      :eval-count   1
+                      :elapsed-time 1}
+                     :final-gc
+                     {:type         :criterium/collected-metrics-samples
+                      :metric->values
+                      {[:compilation :time-ms]              [3]
+                       [:garbage-collector :total :time-ms] [1]
+                       [:elapsed-time]                      [1]}
+                      :metrics-deps metrics-configs
+                      :batch-size   1
+                      :eval-count   1
+                      :elapsed-time 1} }
+                    :viewer :print}]
                (trimmed-lines
                 (with-out-str
-                  (view1 sampled)
-                  (view2 sampled)))))))))
+                  (view1 bench-map)
+                  (view2 bench-map)))))))))
 
 (deftest print-os-test
   (let [s (with-out-str ((view/os) {:viewer :print}))]

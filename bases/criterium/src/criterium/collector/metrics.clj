@@ -12,9 +12,11 @@
               :scale     1e-9
               :type      :quantitative
               :label     "Elapsed Time"}
-             {:path  [:expr-value]
-              :type  :nominal
-              :label "Expr value"}]}
+             {:path      [:expr-value]
+              :dimension :fn-value
+              :scale     1
+              :type      :nominal
+              :label     "Expr value"}]}
    :memory
    {:type   :quantitative
     :values [{:path      [:memory :heap :used]
@@ -46,10 +48,12 @@
     :values  [{:path      [:class-loader :loaded-count]
                :dimension :count
                :scale     1
+               :type      :event
                :label     "Num loaded classes"}
               {:path      [:class-loader :unloaded-count]
                :dimension :count
                :scale     1
+               :type      :event
                :label     "Num unloaded classes"}]}
    :compilation
    {:type    :event
@@ -58,10 +62,11 @@
     :values  [{:path      [:compilation :time-ms]
                :dimension :time
                :scale     1e-3
+               :type      :event
                :label     "time"}]}
    :garbage-collector
-   {:type   :event
-    :label  "Garbage Collector"
+   {:type  :event
+    :label "Garbage Collector"
     :groups ; the groups map has the layout of the top level map
     (into
      {}
@@ -75,11 +80,13 @@
               :dimension :time
               :scale     1e-3
               :label     (str n  " time")
+              :type      :event
               :group     k}
              {:path      [:garbage-collector k :count]
               :dimension :count
               :scale     1
               :label     (str n " count")
+              :type      :event
               :group     k}])])
       (jvm/garbage-collector-names)
       (jvm/garbage-collector-keywords)))}})
