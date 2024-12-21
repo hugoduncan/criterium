@@ -4,28 +4,31 @@
    [criterium.collector :as collector]
    [criterium.jvm :as jvm]
    [criterium.measured :as measured]
-   [criterium.metric :as metric]))
+   [criterium.metric :as metric]
+   [criterium.util.helpers :as util]
+   [criterium.util.invariant :refer [have?]]))
 
 ;;; Transform of samples
 
 (defn- sample-arrays->sample-maps
-  [pipeline]
-  (fn [sample-arrays]
-    (mapv (partial collector/transform pipeline) sample-arrays)))
+  [sample-arrays pipeline]
+  (mapv (partial collector/transform pipeline) sample-arrays))
 
-(defn sample-maps->map-of-samples [metrics-configs]
-  (fn [samples]
-    (reduce
-     (fn [res {:keys [path]}]
-       (assoc res path (mapv #(get-in % path) samples)))
-     {}
-     (metric/all-metric-configs metrics-configs))))
+(defn sample-maps->map-of-samples
+  [samples metrics-configs]
+  (reduce
+   (fn [res {:keys [path]}]
+     (assoc res path (mapv #(get-in % path) samples)))
+   {}
+   (metric/all-metric-configs metrics-configs)))
 
 (defn transform
-  [metrics-configs pipeline sampled]
-  (-> sampled
-      (update :samples (sample-arrays->sample-maps pipeline))
-      (update :samples (sample-maps->map-of-samples metrics-configs))))
+  [collection-map]
+  (let [pipeline        (:pipeline collection-map)
+        metrics-configs (:metrics-configs pipeline)]
+    (-> (:collections collection-map)
+        (sample-arrays->sample-maps pipeline)
+        (sample-maps->map-of-samples metrics-configs))))
 
 ;;; Memory management
 (def ^:private force-gc-measured
@@ -58,18 +61,34 @@
 
   Must be zero garbage sampling. Execution time is not critical."
   [^long num-gcs]
-  (let [args            (measured/args force-gc-measured)
-        pipeline        force-gc-pipeline
-        metrics-configs (:metrics-configs pipeline)
-        samples         (make-array Object num-gcs)
-        max-attempts    (unchecked-dec num-gcs)]
-    (loop [attempt 0]
-      (let [sample (collector/collect-array pipeline force-gc-measured args 1)]
-        (aset ^objects samples attempt sample)
-        (when (< attempt max-attempts)
-          (recur (inc attempt)))))
-    ;; this will create garbage
-    (transform metrics-configs pipeline {:samples samples})))
+  {:post [(have? util/collection-map? %)]}
+  (let [args         (measured/args force-gc-measured)
+        pipeline     force-gc-pipeline
+        ti           (unchecked-dec ^long (:length pipeline))
+        collections  (make-array Object num-gcs)
+        max-attempts (unchecked-dec num-gcs)
+        [num-attempts elapsed-time]
+        (loop [attempt      0
+               elapsed-time 0]
+          (let [sample  (collector/collect-array
+                         pipeline
+                         force-gc-measured
+                         args
+                         1)
+                ^long t (.nth
+                         ^clojure.lang.PersistentVector
+                         (aget ^objects sample ti)
+                         0)]
+            (aset ^objects collections attempt sample)
+            (if (< attempt max-attempts)
+              (recur (inc attempt) (unchecked-add elapsed-time t))
+              [attempt elapsed-time])))]
+    {:eval-count   num-attempts
+     :elapsed-time elapsed-time
+     :collections  collections
+     :num-samples  num-attempts
+     :batch-size   1
+     :pipeline     pipeline}))
 
 ;;; Batch Size
 
@@ -109,8 +128,9 @@
    measured
    batch-size-obj
    num-samples]
+  {:post [(have? util/collection-map? %)]}
   (let [num-samples (max 2 ^long num-samples)
-        samples     (make-array Object num-samples)
+        collections (make-array Object num-samples)
         ti          (unchecked-dec ^long (:length pipeline))
         batch-size  (long batch-size-obj)]
     (loop [eval-count   0
@@ -128,16 +148,17 @@
                           0)
             elapsed-time (unchecked-add elapsed-time t)
             eval-count   (unchecked-add eval-count batch-size)]
-        (aset ^objects samples i sample)
+        (aset ^objects collections i sample)
         (if (< i (dec num-samples))
           (recur eval-count
                  elapsed-time
                  (unchecked-inc i))
           {:eval-count   eval-count
            :elapsed-time elapsed-time
-           :samples      samples
-           :num-samples  (count samples)
-           :batch-size   batch-size})))))
+           :collections  collections
+           :num-samples  (count collections)
+           :batch-size   batch-size
+           :pipeline     pipeline})))))
 
 (def ^:private elapsed-time-pipeline
   (collector/collector
@@ -163,21 +184,28 @@
   limit total execution time. Limit evaluations to eval-budget, or
   elapsed time to time-budget-ns."
   [measured num-samples ^long batch-size]
-  (let [sampled      (->>
-                      (collect-arrays
-                       elapsed-time-pipeline
-                       measured
-                       batch-size
-                       num-samples)
-                      (transform
-                       (:metrics-configs elapsed-time-pipeline)
-                       elapsed-time-pipeline))
-        elapsed-time ((:samples sampled) [:elapsed-time])
-        min-t        (max 1 (long (/ (long (reduce min elapsed-time))
-                                     batch-size)))
-        sum-t        (long (/ (long (reduce + elapsed-time))
-                              batch-size))]
-    (assoc sampled
+  {:post [(have? util/collection-map? %)]}
+  (let [collected   (collect-arrays
+                     elapsed-time-pipeline
+                     measured
+                     batch-size
+                     num-samples)
+        collections (:collections collected)
+        num-samples (long num-samples)
+        min-t       (loop [i 0 min-t Long/MAX_VALUE]
+                      (if (>= i num-samples)
+                        min-t
+                        (let [sample (aget ^objects collections i)
+                              vs     (aget ^objects sample 0)
+                              t      (long  (.nth
+                                             ^clojure.lang.PersistentVector vs
+                                             0))]
+                          (recur
+                           (unchecked-inc i)
+                           (if (< min-t t) min-t t)))))
+        min-t       (max 1 (long (/ (long min-t) batch-size)))
+        sum-t       (:elapsed-time collected)]
+    (assoc collected
            :t min-t
            :total-time sum-t)))
 
@@ -185,9 +213,10 @@
   "Run measured for the given number of collections to enable JIT compilation.
   Return a sampled map."
   [pipeline measured ^long num-samples ^long batch-size]
+  {:post [(have? util/collection-map? %)]}
   (loop [i            num-samples
          elapsed-time 0
-         samples      []]
+         collections  []]
     (let [args         (measured/args measured)
           collected    (collector/collect pipeline measured args batch-size)
           t            (metric/elapsed-time collected)
@@ -196,9 +225,10 @@
         (recur
          (unchecked-dec i)
          elapsed-time
-         (conj samples collected))
+         (conj collections collected))
         {:eval-count   (* num-samples batch-size)
          :elapsed-time elapsed-time
-         :samples      (conj samples collected)
-         :num-samples  (count samples)
-         :batch-size   batch-size}))))
+         :collections  (conj collections collected)
+         :num-samples  (count collections)
+         :batch-size   batch-size
+         :pipeline     pipeline}))))

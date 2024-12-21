@@ -7,7 +7,7 @@
 (defn- have* [x args truthy? &form]
   (let [[f x data] (if (seq args)
                      (into [x] args)
-                     ['criterium.util.helpers/truthy? (first args)])
+                     ['criterium.util.invariant/truthy? x])
         ns-sym     (ns-name *ns*)
         line       (:line (meta &form))
         column     (:column (meta &form) -1)

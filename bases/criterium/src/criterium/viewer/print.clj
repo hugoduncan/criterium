@@ -6,13 +6,16 @@
    [criterium.metric :as metric]
    [criterium.util.format :as format]
    [criterium.util.helpers :as util]
+   [criterium.util.invariant :refer [have have?]]
    [criterium.view :as view]
    [criterium.viewer.common :as viewer-common]))
 
+(set! *unchecked-math*  false)
+
 (defn print-metrics
-  [metrics sample]
+  [metrics metrics->values]
   (doseq [m metrics]
-    (when-let [v (first (sample (:path m)))]
+    (when-let [v (first (metrics->values (:path m)))]
       (println
        (format
         "%36s: %s"
@@ -20,13 +23,12 @@
         (format/format-value (:dimension m) (* v (:scale m))))))))
 
 (defmethod view/metrics* :print
-  [{:keys [samples-id metric-ids]} sampled]
+  [{:keys [samples-id]} bench-map]
   (let [samples-id      (or samples-id :samples)
-        metrics-configs (metric/metric-configs-of-type
-                         (:metrics-configs sampled)
-                         :quantitative metric-ids)
-        samples         (get sampled samples-id)]
-    (print-metrics metrics-configs samples)))
+        metrics-samples (-> bench-map :data samples-id)
+        metrics-defs    (:metrics-defs metrics-samples)
+        metric-configs  (metric/all-metric-configs metrics-defs)]
+    (print-metrics metric-configs (util/metric->values metrics-samples))))
 
 (defn print-stat
   [metric stat]
@@ -51,21 +53,19 @@
     (print-stat metric (get-in stats (:path metric)))))
 
 (defmethod view/stats* :print
-  [{:keys [stats-id metric-ids]} sampled]
+  [{:keys [stats-id]} bench-map]
   (let [stats-id       (or stats-id :stats)
-        metric-configs (metric/metric-configs-of-type
-                        (:metrics-configs sampled)
-                        :quantitative metric-ids)]
-    (print-stats
-     metric-configs
-     (get sampled stats-id))))
+        stats-map      (-> bench-map :data stats-id)
+        metrics-defs   (:metrics-defs stats-map)
+        metric-configs (metric/all-metric-configs metrics-defs)]
+    (print-stats metric-configs (util/stats stats-map))))
 
 (defn print-event-stats-metrics
   [event-stats metric ms]
   (let [sample-count-path
         (conj (vec (butlast (:path (first ms)))) :sample-count)]
     (when (and sample-count-path
-               (pos? (get event-stats sample-count-path)))
+               (pos? (event-stats sample-count-path)))
       (let [vals (mapv
                   (fn [m]
                     (format/format-value
@@ -78,21 +78,22 @@
         (println (apply format (:summary metric) (:label metric) vals))))))
 
 (defn print-event-stats
-  [metrics-configs event-stats]
+  [metrics-defs event-stats]
   {:pre [event-stats]}
-  (doseq [[_k metric] metrics-configs]
-    (if-let [gs (:groups metric)]
-      (print-event-stats gs event-stats)
+  (doseq [[_k metric] metrics-defs]
+    (if-let [groups (:groups metric)]
+      (print-event-stats groups event-stats)
       (print-event-stats-metrics event-stats metric (:values metric)))))
 
 (defmethod view/event-stats* :print
-  [{:keys [event-stats-id metric-ids]} sampled]
+  [{:keys [event-stats-id]} banch-map]
   (let [event-stats-id  (or event-stats-id :event-stats)
-        metrics-configs (metric/metrics-of-type
-                         (:metrics-configs sampled)
-                         :event metric-ids)
-        event-stats     (get sampled event-stats-id)]
-    (print-event-stats metrics-configs event-stats)))
+        event-stats-map (-> banch-map :data event-stats-id)
+        metrics-defs    (-> (:metrics-defs event-stats-map)
+                            (metric/filter-metrics
+                             (metric/type-pred :event)))
+        event-stats     (util/event-stats event-stats-map)]
+    (print-event-stats metrics-defs event-stats)))
 
 (defn print-bootstrap-stat
   [metric
@@ -135,14 +136,14 @@
              units))))
 
 (defn print-bootstrap-stats
-  [{:keys [bootstrap-stats-id metric-ids]} sampled]
+  [{:keys [bootstrap-stats-id]} bench-map]
   (let [bootstrap-stats-id (or bootstrap-stats-id :bootstrap-stats)
-        stats              (get sampled bootstrap-stats-id)
-        metric-configs     (metric/metric-configs-of-type
-                            (:metrics-configs sampled)
-                            :quantitative metric-ids)]
+        bootstrap-map      (-> bench-map :data bootstrap-stats-id)
+        metrics-defs       (:metrics-defs bootstrap-map)
+        metric-configs     (metric/all-metric-configs metrics-defs)
+        bootstrap          (util/bootstrap bootstrap-map)]
     (doseq [metric metric-configs]
-      (when-let [stat (get-in stats (:path metric))]
+      (when-let [stat (get-in bootstrap (:path metric))]
         (print-bootstrap-stat metric stat)))))
 
 (defmethod view/bootstrap-stats* :print
@@ -150,21 +151,23 @@
   (print-bootstrap-stats view sampled))
 
 (defn print-final-gc-warnings
-  [{:keys [final-gc-id samples-id warn-threshold]} sampled]
+  [{:keys [final-gc-id samples-id warn-threshold]} banch-map]
   {:pre [(number? warn-threshold)]}
   (let [final-gc-id       (or final-gc-id :final-gc)
         samples-id        (or samples-id :samples)
-        metrics-configs   (:metrics-configs sampled)
+        metrics-samples   (-> banch-map :data samples-id)
+        metrics-deps      (:metrics-deps metrics-samples)
         gc-metric-configs (metric/all-metric-configs
-                           (select-keys metrics-configs
-                                        [:elapsed-time :garbage-collector]))
+                           (select-keys
+                            metrics-deps
+                            [:elapsed-time :garbage-collector]))
         metric            (first gc-metric-configs)
         gc-time-metrics   (->> (next gc-metric-configs)
                                (filterv #(= :time (:dimension %))))
-        samples           (get sampled samples-id)
+        metric->values    (util/metric->values metrics-samples)
         total             (* (:scale metric)
-                             (reduce + (samples [:elapsed-time])))
-        gc-samples        (:samples (get sampled final-gc-id))
+                             (reduce + (metric->values [:elapsed-time])))
+        gc-samples        (-> banch-map :data final-gc-id util/metric->values)
         total-gc          (reduce
                            +
                            (mapv
@@ -179,8 +182,8 @@
                        (format/format-value :time total))))))
 
 (defmethod view/final-gc-warnings* :print
-  [view sampled]
-  (print-final-gc-warnings view sampled))
+  [view banch-map]
+  (print-final-gc-warnings view banch-map))
 
 (defn print-outlier-count
   [metric-config num-samples outliers]
@@ -199,23 +202,23 @@
          (name c) v (* 100.0 (/ v num-samples)))))))
 
 (defn print-outlier-counts
-  [{:keys [metric-ids outliers-id] :as _view} sampled]
+  [{:keys [outliers-id] :as _view} banch-map]
   (let [outliers-id    (or outliers-id :outliers)
-        outliers       (get sampled outliers-id)
-        metric-configs (metric/metric-configs-of-type
-                        (:metrics-configs sampled)
-                        :quantitative metric-ids)
-        num-samples    (:num-samples sampled)]
+        outliers-map   (-> banch-map :data outliers-id)
+        metrics-defs   (:metrics-defs  outliers-map)
+        metric-configs (metric/all-metric-configs metrics-defs)
+        num-samples    (have (:num-samples outliers-map))
+        outliers       (util/outliers outliers-map)]
     (doseq [m metric-configs]
       (print-outlier-count m num-samples (get-in outliers (:path m))))))
 
 (defmethod view/outlier-counts* :print
-  [view sampled]
-  (print-outlier-counts view sampled))
+  [view bench-map]
+  (print-outlier-counts view bench-map))
 
 (defn print-outlier-significance
   [metric-config outlier-significance]
-  {:pre [outlier-significance]}
+  {:pre [(have? outlier-significance)]}
   (let [labels {:unaffected "unaffected"
                 :slight     "slightly inflated"
                 :moderate   "moderately inflated"
@@ -228,64 +231,104 @@
                  (-> outlier-significance :effect labels))))
 
 (defn print-outlier-significances
-  [{:keys [metric-ids outlier-significance-id] :as _view} sampled]
-  (let [outlier-sig-id (or outlier-significance-id :outlier-significance)
-        outlier-sig    (get sampled outlier-sig-id)
-        metric-configs (metric/metric-configs-of-type
-                        (:metrics-configs sampled)
-                        :quantitative metric-ids)]
+  [{:keys [outlier-significance-id] :as _view} bench-map]
+  (let [outlier-sig-id  (or outlier-significance-id :outlier-significance)
+        outlier-sig-map (-> bench-map :data outlier-sig-id)
+        metrics-defs    (-> (:metrics-defs outlier-sig-map)
+                            (metric/filter-metrics
+                             (metric/type-pred :quantitative)))
+        metric-configs  (metric/all-metric-configs metrics-defs)
+        outlier-sig     (util/outlier-significance outlier-sig-map)]
     (doseq [m metric-configs]
-      (print-outlier-significance m (get-in outlier-sig (:path m))))))
+      (print-outlier-significance
+       m
+       (have seq (get-in outlier-sig (:path m))
+             {:metric m :outlier-sig outlier-sig})))))
 
 (defmethod view/outlier-significance* :print
-  [view sampled]
-  (print-outlier-significances view sampled))
+  [view bench-map]
+  (print-outlier-significances view bench-map))
+
+(defn- print-samples-with-outliers
+  [metric->values transforms outliers metric]
+  (let [path         (:path metric)
+        values       (metric->values path)
+        outlier-data (get-in outliers path)]
+    (doseq [[i v] (sort-by  first (:outliers  outlier-data))]
+      (println
+       (format "%36s[%5d] %s %s"
+               ""
+               i
+               (format/format-value
+                (:dimension metric)
+                (* (:scale metric)
+                   (util/transform-sample-> (values i) transforms)))
+               (name v))))))
 
 (defmethod view/samples* :print
-  [{:keys [samples-id outliers-id] :as _view} sampled]
-  (let [samples-id  (or samples-id :samples)
-        outliers-id (or outliers-id :outliers)
-        samples     (get sampled samples-id)
-        _outliers   (get sampled outliers-id)]
+  [{:keys [samples-id outliers-id] :as _view} bench-map]
+  (let [samples-id      (or samples-id :samples)
+        outliers-id     (or outliers-id :outliers)
+        metrics-samples (-> bench-map :data samples-id)
+        outliers        (-> bench-map :data outliers-id)
+        metrics-defs    (-> (:metrics-defs outliers)
+                            (metric/filter-metrics
+                             (metric/type-pred :quantitative)))
+        metric-configs  (metric/all-metric-configs metrics-defs)
+        transforms      (util/get-transforms (:data bench-map) samples-id)]
+
     (println
      (format "%32s: %d samples with batch-size %d"
              "Samples"
-             (count samples) (:batch-size sampled)))))
+             (:num-samples metrics-samples) (:batch-size metrics-samples)))
+    (when outliers
+      (doseq [metric metric-configs]
+        (println (format"%36s%s" "" (:label metric)))
+        (print-samples-with-outliers
+         (util/metric->values metrics-samples)
+         transforms
+         (util/outliers outliers)
+         metric))
+      (println))))
 
 (defmethod view/collect-plan* :print
-  [_view sampled]
-  (let [warmup (sampled :warmup)
-        est    (sampled :estimation)
-        fmt    "%32s: %d samples with batch-size %d (%d evaluations)"]
+  [_view banch-map]
+  (let [warmup  (some-> banch-map :data :warmup)
+        est     (some-> banch-map :data :estimation)
+        samples (-> banch-map :data :samples)
+        fmt     "%32s: %d samples with batch-size %d (%d evaluations)"]
     (println
      (format fmt
              "Sample Scheme"
-             (:num-samples sampled)
-             (:batch-size sampled)
-             (* (:num-samples sampled) (:batch-size sampled))))
-    (println
-     (format fmt
-             "Warmup"
-             (:num-samples warmup) (:batch-size warmup)
-             (* (:num-samples warmup) (:batch-size warmup))))
-    (println
-     (format fmt
-             "Estimation"
-             (:num-samples est) (:batch-size est)
-             (* (:num-samples est) (:batch-size est))))))
+             (:num-samples samples)
+             (:batch-size samples)
+             (:eval-count samples)))
+    (when warmup
+      (println
+       (format fmt
+               "Warmup"
+               (:num-samples warmup) (:batch-size warmup)
+               (* (:num-samples warmup) (:batch-size warmup)))))
+    (when est
+      (println
+       (format fmt
+               "Estimation"
+               (:num-samples est) (:batch-size est)
+               (* (:num-samples est) (:batch-size est)))))))
 
 (defmethod view/histogram* :print
-  [_view _sampled])
+  [view sampled]
+  (println "Histogram view for print is not implemented yet"))
 
 (defmethod view/quantiles* :print
-  [{:keys [quantiles-id metric-ids]} sampled]
+  [{:keys [quantiles-id]} bench-map]
   (let [quantiles-id   (or quantiles-id :quantiles)
-        metric-configs (metric/metric-configs-of-type
-                        (:metrics-configs sampled)
-                        :quantitative metric-ids)
+        quantiles-map  (have util/quantiles-map?
+                             (-> bench-map :data quantiles-id))
+        metric-configs (:metric-configs quantiles-map)
         table          (viewer-common/quantiles
                         metric-configs
-                        (get sampled quantiles-id))]
+                        (util/quantiles quantiles-map))]
     (doseq [vs table]
       (let [ks (sort (keys (dissoc vs :metric)))]
         (println

@@ -1,6 +1,7 @@
 (ns criterium.util.bootstrap
   "Bootsrap statistics"
   (:require
+   [criterium.collect-plan :as collect-plan]
    [criterium.metric :as metric]
    [criterium.util.helpers :as util]
    [criterium.util.probability :as probability]
@@ -188,13 +189,13 @@
                (zipmap quantiles (map scale-f (drop (count ks) stats)))))))
 
 (defn bootstrap-stats*
-  [samples metric-configs transforms config]
+  [metric->values metric-configs transforms config]
   (reduce
    (fn [res path]
      (assoc-in
       res path
       (bootstrap-stats-for
-       (get samples path)
+       (get metric->values path)
        config
        transforms)))
    {}
@@ -205,17 +206,27 @@
   ;; add stats to the result
   ([] (bootstrap-stats {}))
   ([{:keys [id metric-ids samples-id] :as analysis}]
-   (fn [sampled]
-     (let [id             (or id :bootstrap-stats)
-           samples-id     (or samples-id :samples)
-           metric-configs (metric/metric-configs-of-type
-                           (:metrics-configs sampled)
-                           :quantitative metric-ids)
-           samples        (get sampled samples-id)
-           transforms     (util/get-transforms sampled samples-id)
-           result         (bootstrap-stats*
-                           samples
-                           metric-configs
-                           transforms
-                           analysis)]
-       (assoc sampled id result)))))
+   (fn [bench-map]
+     (let [id              (or id :bootstrap-stats)
+           samples-id      (or samples-id :samples)
+           metrics-samples (-> bench-map :data samples-id)
+           metrics-defs    (-> (:metrics-defs metrics-samples)
+                               (metric/select-metrics metric-ids)
+                               (metric/filter-metrics
+                                (metric/type-pred :quantitative)))
+           metric-configs  (metric/all-metric-configs metrics-defs)
+           transforms      (util/get-transforms (:data bench-map) samples-id)
+           result          (bootstrap-stats*
+                            (util/metric->values metrics-samples)
+                            metric-configs
+                            transforms
+                            analysis)]
+       (assoc-in
+        bench-map
+        [:data id]
+        {:type         :criterium/bootstrap
+         :bootstrap    result
+         :metrics-defs metrics-defs
+         :transform    collect-plan/identity-transforms
+         :batch-size   (:batch-size metrics-samples)
+         :source-id    samples-id})))))

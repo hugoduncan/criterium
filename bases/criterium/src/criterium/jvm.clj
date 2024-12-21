@@ -36,8 +36,7 @@
   [^long ns]
   (let [start (timestamp)]
     (loop []
-      (if (>= (elapsed-time start (timestamp)) ns)
-        nil
+      (when (< (elapsed-time start (timestamp)) ns)
         (recur)))))
 
 ;;; GC control

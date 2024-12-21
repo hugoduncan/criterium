@@ -15,7 +15,17 @@
 
   This namespace provides functions for querying and filtering metric
   configurations.  It supports both flat and hierarchical metric
-  organization structures.")
+  organization structures."
+  (:require
+   [clojure.set :as set]
+   [criterium.util.invariant :refer [have?]]))
+
+(defn- metric-config?
+  [x]
+  (and (map? x)
+       (set/subset?
+        #{:path :dimension :scale :label} ; :group is optional
+        (set (keys x)))))
 
 (defn metric-configs
   "Returns a sequence of metric-config maps from a metrics configuration map.
@@ -31,8 +41,9 @@
   Returns:
    [{:type :timing, :name \"execution-time\"}
     {:type :memory, :name \"heap-usage\"}]"
-  [metrics-configs]
-  (mapcat :values (vals metrics-configs)))
+  [metric-defs]
+  {:post [(have? #(every? metric-config? %) %)]}
+  (mapcat :values (vals metric-defs)))
 
 (defn all-metric-configs
   "Return all metric configurations from both flat and nested structures.
@@ -49,7 +60,8 @@
 
   Return flat sequence of all metric configurations regardless of
   nesting."
-  [metrics-configs]
+  [metric-defs]
+  {:post [(have? #(every? metric-config? %) %)]}
   (reduce-kv
    (fn [res _k metric-group]
      (reduce
@@ -58,7 +70,7 @@
       (or (:values metric-group)
           (mapcat :values (vals (:groups metric-group))))))
    []
-   metrics-configs))
+   metric-defs))
 
 (defn- map-filter
   "Internal helper to filter map entries based on a predicate applied to values.
@@ -67,9 +79,16 @@
   returns true.  Used internally for filtering metrics by their
   configuration values."
   [pred m]
-  (select-keys m (for [[k v] m :when (pred v)] k)))
+  (into {} (filter (comp pred val) m)))
 
-  (defn metrics-of-type
+(defn select-metrics
+  [metrics-defs metric-ids]
+  {:pre [(have? map? metrics-defs)]}
+  (if metric-ids
+    (select-keys metrics-defs metric-ids)
+    metrics-defs))
+
+(defn metrics-of-type
   "Returns a map of metric configurations filtered by type and optional IDs.
 
   Given a metrics configuration map, returns configurations matching the
@@ -89,12 +108,10 @@
   (metrics-of-type config :timing [:exec-time :wait-time])
 
   Return only :timing metrics with the specified IDs."
-[metrics-config metric-type metric-ids]
-(->>
-(if metric-ids
-(select-keys metrics-config metric-ids)
-metrics-config)
-(map-filter #(= metric-type (:type %)))))
+  [metrics-config metric-type metric-ids]
+  (->>
+   (select-metrics metrics-config metric-ids)
+   (map-filter #(= metric-type (:type %)))))
 
 (defn metric-configs-of-type
   "Return a sequence of metric configurations filtered by type and optional IDs.
@@ -131,3 +148,54 @@ metrics-config)
   measured in nanoseconds."
   ^long [sample]
   (:elapsed-time sample))
+
+
+
+
+;;;;
+
+
+
+(defn filter-metric-values
+  "Filter a sequence of metric value maps using predicate"
+  [pred values]
+  (filterv pred values))
+
+(declare filter-metrics)
+
+(defn filter-metrics*
+  "Filter metrics tree keeping values matching predicate.
+  Preserves structure while only keeping values that match the predicate.
+  When filtering groups, removes empty groups after filtering."
+  [pred metrics]
+  (cond-> metrics
+    (:values metrics)
+    (update :values #(filterv pred %))
+
+    (:groups metrics)
+    (update :groups
+            (fn [g] (filter-metrics g pred))
+            #_(comment #(reduce-kv
+                         (fn [m k v]
+                           (let [filtered (filterv pred v)]
+                             (if (seq (:values filtered))
+                               (assoc m k filtered)
+                               m)))
+                         {}
+                         %)))))
+
+(defn filter-metrics
+  [metrics pred]
+  (->>
+   (update-vals metrics (partial filter-metrics* pred))
+   (map-filter #(or (seq (:values %)) (seq (:groups %))))))
+
+(defn dimension-pred
+  "Create predicate that matches metric values with given dimension"
+  [dim]
+  #(= dim (:dimension %)))
+
+(defn type-pred
+  "Create predicate that matches metric values with given type"
+  [typ]
+  #(= typ (:type %)))

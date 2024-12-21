@@ -1,6 +1,12 @@
 (ns criterium.util.helpers
   (:require
+   [clojure.set :as set]
    [criterium.util.invariant :refer [have?]]))
+
+(defn spy
+  [msg x]
+  (prn msg x)
+  x)
 
 (defn- safe-keys
   [m]
@@ -128,26 +134,202 @@
   [format-string & values]
   (print (apply format format-string values)))
 
+;;; Type predicates
+
+(defn collection-map?
+  [x]
+  (and (map? x)
+       (set/subset?
+        #{:eval-count
+          :elapsed-time
+          :collections
+          :num-samples
+          :batch-size
+          :pipeline}
+        (set (keys x)))))
+
+(defn data-entry-map?
+  [x]
+  (and (map? x)
+       (set/subset? #{:type :transform} (set (keys x)))))
+
+(defn collected-metrics-map?
+  [x]
+  (and (map? x)
+       (set/subset?
+        #{:type
+          :transform
+          :metric->values
+          :elapsed-time
+          :num-samples
+          :batch-size
+          :eval-count
+          :metrics-defs
+          :expr-value}
+        (set (keys x)))))
+
+(def metrics-samples-keys
+  #{:type
+    :transform
+    :source-id
+    :metric->values
+    :num-samples
+    :batch-size
+    :metrics-defs
+    :expr-value })
+
+(defn metrics-samples-map?
+  [x]
+  (and (map? x)
+       (= :criterium/metrics-samples (:type x))
+       (set/subset? metrics-samples-keys (set (keys x)))))
+
+(defn generic-metrics-samples-map?
+  [x]
+  (#{:criterium/metrics-samples :criterium/collected-metrics-samples}
+   (:type x)))
+
+(def quantiles-map-keys #{:type :quantiles :metrics-defs :source-id})
+
+(defn quantiles-map?
+  [x]
+  (and (map? x)
+       (= :criterium/quantiles (:type x))
+       (set/subset? quantiles-map-keys (set (keys x)))))
+
+(def outliers-map-keys
+  #{:type :outliers :metrics-defs :source-id :quantiles-id :num-samples
+    :transform})
+
+(defn outliers-map?
+  [x]
+  (and (map? x)
+       (= :criterium/outliers (:type x))
+       (set/subset? outliers-map-keys (set (keys x)))))
+
+(def stats-map-keys
+  #{:type :stats :metrics-defs :transform :batch-size :source-id
+    :outliers-id})
+
+(defn stats-map?
+  [x]
+  (and (map? x)
+       (= :criterium/stats (:type x))
+       (set/subset? stats-map-keys (set (keys x)))))
+
+(def event-stats-map-keys
+  #{:type :event-stats :metrics-defs :transform :batch-size :source-id})
+
+(defn event-stats-map?
+  [x]
+  (and (map? x)
+       (= :criterium/event-stats (:type x))
+       (set/subset? event-stats-map-keys (set (keys x)))))
+
+(def outlier-significance-map-keys
+  #{:type :outlier-significance :metrics-defs :source-id :outliers-id})
+
+(defn outlier-significance-map?
+  [x]
+  (and (map? x)
+       (= :criterium/outlier-significance (:type x))
+       (set/subset? outlier-significance-map-keys (set (keys x)))))
+
+(def bootstrap-map-keys
+  #{:type :bootstrap :metrics-defs :transform :batch-size :source-id})
+
+(defn bootstrap-map?
+  [x]
+  (and (map? x)
+       (= :criterium/bootstrap (:type x))
+       (set/subset? bootstrap-map-keys (set (keys x)))))
+
+(defn result-map?
+  [x]
+  (and (map? x)
+       (every? data-entry-map? (vals x))))
+
+(defn benchmark-map?
+  [x]
+  (and (map? x)
+       (result-map? (:data x))))
+
 ;;; Value transforms
 
 ;; These allow sample values to be transformed to mesurements, and vice versa.
 ;; This enables, using a log-normal transform of the samples.
 
-(defn add-transform-paths [v sample-> ->sample]
+(defn data-entry-map
+  [data type transform source-id]
+  {:data      data
+   :type      type
+   :transform transform
+   :source-id source-id})
+
+(defn data
+  [data-entry-map]
+  {:pre  [(have? :data data-entry-map)]
+   :post [(have? map? %)]}
+  (:data data-entry-map))
+
+(defn metric->values
+  [metrics-samples]
+  {:pre  [(have? generic-metrics-samples-map? metrics-samples)]
+   :post [(have? map? %)]}
+  (:metric->values metrics-samples))
+
+(defn quantiles
+  [quantiles-map]
+  {:pre  [(have? quantiles-map? quantiles-map)]
+   :post [(have? map? %)]}
+  (:quantiles quantiles-map))
+
+(defn outliers
+  [outliers-map]
+  {:pre  [(have? outliers-map? outliers-map)]
+   :post [(have? map? %)]}
+  (:outliers outliers-map))
+
+(defn outlier-significance
+  [outlier-significance-map]
+  {:pre  [(have? outlier-significance-map? outlier-significance-map)]
+   :post [(have? map? %)]}
+  (:outlier-significance outlier-significance-map))
+
+(defn stats
+  [stats-map]
+  {:pre  [(have? stats-map? stats-map)]
+   :post [(have? map? %)]}
+  (:stats stats-map))
+
+(defn event-stats
+  [event-stats-map]
+  {:pre  [(have? event-stats-map? event-stats-map)]
+   :post [(have? map? %)]}
+  (:event-stats event-stats-map))
+
+(defn bootstrap
+  [bootstrap-stats-map]
+  {:pre  [(have? bootstrap-map? bootstrap-stats-map)]
+   :post [(have? map? %)]}
+  (:bootstrap bootstrap-stats-map))
+
+(defn add-transform-paths
+  [v sample-> ->sample]
   (-> v
       (update :sample-> (fnil conj '()) sample->)
       (update :->sample (fnil conj '[]) ->sample)))
 
-(defn get-transforms [sampled path]
-  (loop [transforms (update-vals
-                     (-> sampled (get path) meta :transform)
-                     vector)
-         path       (-> sampled (get path) meta :source-id)]
+(defn get-transforms
+  [result-map path]
+  {:pre [(have? result-map? result-map)]}
+  (loop [transforms (update-vals (:transform (result-map path)) vector)
+         path       (:source-id (result-map path))]
     (if path
-      (let [t (-> sampled (get path) meta :transform)]
+      (let [t (:transform (result-map path))]
         (recur
          (add-transform-paths transforms (:sample-> t) (:->sample t))
-         (-> sampled (get path) meta :source-id)))
+         (:source-id (result-map path))))
       transforms)))
 
 (defn transform-sample-> [value transforms]
@@ -184,6 +366,7 @@
        (finally
          (when priority#
            (.setPriority (Thread/currentThread) orig-priority#))))))
+
 ;;; Resolve
 
 (defn maybe-ver-get-named

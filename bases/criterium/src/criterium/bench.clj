@@ -58,13 +58,13 @@
   [collector-config collect-plan benchmark benchmark-options measured]
   (let [pipeline        (collector/collector collector-config)
         metrics-configs (:metrics-configs pipeline)
-        sampled         (collect-plan/collect
+        results-map     (collect-plan/collect
                          collect-plan
                          metrics-configs
                          pipeline
                          measured)]
     (benchmark
-     (assoc (merge benchmark-options sampled)
+     (assoc (assoc benchmark-options :data results-map)
             :metrics-configs metrics-configs))))
 
 (defn- return-value
