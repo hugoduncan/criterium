@@ -8,11 +8,47 @@
    [criterium.view :as view]
    [criterium.viewer.common :as viewer-common]))
 
+
+(defonce tapped (atom {:values '()}))
+
+(defn submit
+  "Tap target function.
+
+  This allows criterium to control the order of tapped output.
+
+  ```clojure
+  (def submit (criterium.portal/submit #'portal.api/submit))
+  (add-tap #'submit)`
+  (remove-tap #'submit)
+  ``"
+  [portal-submit]
+  (swap! tapped assoc :portal-submit portal-submit)
+  (fn
+    [value]
+    (swap! tapped update :values conj value)))
+
+(defn flush
+  "Flush tapped output"
+  []
+  (let [{:keys [portal-submit values]} @tapped]
+    (doseq [value values]
+      (portal-submit value))
+    (swap! tapped assoc :values '())))
+
+(defmethod view/flush-viewer :portal [_]
+  (flush))
+
+(defn portal-heading [s]
+  (tap> (with-meta s {:portal.viewer/default :portal.viewer/hiccup})))
+
 (defn portal-table [s]
   (tap> (with-meta s {:portal.viewer/default :portal.viewer/table})))
 
 (defn portal-vega-lite [s]
   (tap> (with-meta s {:portal.viewer/default :portal.viewer/vega-lite})))
+
+(defn heading [s]
+  (portal-heading [:b s]))
 
 (defmethod view/metrics* :portal
   [{:keys [samples-id]} bench-map]
@@ -31,6 +67,7 @@
         stats-map      (-> bench-map :data stats-id)
         metrics-defs   (:metrics-defs stats-map)
         metric-configs (metric/all-metric-configs metrics-defs)]
+    (heading "Summary stats")
     (portal-table
      (viewer-common/stats-map (util/stats stats-map) metric-configs))))
 
@@ -39,6 +76,7 @@
   (let [event-stats-id  (or event-stats-id :event-stats)
         event-stats-map (-> bench-map :data event-stats-id)
         metrics-defs    (:metrics-defs event-stats-map)]
+    (heading "Event stats")
     (portal-table
      (viewer-common/event-stats
       metrics-defs
@@ -50,6 +88,7 @@
         quantiles-map  (-> bench-map :data quantilies-id)
         metrics-defs   (:metrics-defs quantiles-map)
         metric-configs (metric/all-metric-configs metrics-defs)]
+    (heading "Quantiles")
     (portal-table
      (viewer-common/quantiles
       metric-configs
@@ -61,6 +100,7 @@
         outliers-map   (-> bench-map :data outliers-id)
         metrics-defs   (:metrics-defs outliers-map)
         metric-configs (metric/all-metric-configs metrics-defs)]
+    (heading "Outliers")
     (portal-table
      (viewer-common/outlier-counts
       metric-configs
@@ -73,6 +113,7 @@
         outlier-sig     (util/outlier-significance outlier-sig-map)
         metrics-defs    (:metrics-defs outlier-sig-map)
         metric-configs  (metric/all-metric-configs metrics-defs)]
+    (heading "Outlier Significance")
     (portal-table
      (vec
       (for [m metric-configs]
@@ -80,6 +121,7 @@
 
 (defmethod view/collect-plan* :portal
   [_view bench-map]
+  (heading "Collect plan")
   (portal-table
    (viewer-common/collect-plan-data bench-map)))
 
@@ -248,6 +290,7 @@
         e-metric-configs (metric/all-metric-configs e-metrics-defs)
 
         transforms (util/get-transforms (:data bench-map) quant-samples-id)]
+    (heading "Samples")
     (portal-vega-lite
      {:$schema  "https://vega.github.io/schema/vega-lite/v5.json"
       :data     {:values [{}]}
@@ -292,6 +335,7 @@
         stats-transforms    (util/get-transforms
                              (:data bench-map)
                              (:source-id stats))]
+    (heading "Histogram")
     (portal-vega-lite
      {:$schema "https://vega.github.io/schema/vega-lite/v5.json"
       :data    {:values []}
@@ -369,6 +413,7 @@
         transforms       (util/get-transforms
                           (:data bench-map)
                           quant-samples-id)]
+    (heading "Percentiles")
     (portal-vega-lite
      {:$schema "https://vega.github.io/schema/vega-lite/v5.json"
       :data    {:values [{}]} ; for portal
@@ -417,6 +462,7 @@
   (let [quant-samples-id (:samples-id view :samples)
         quant-samples    (-> bench-map :data quant-samples-id)
         metric-configs   (:metric-configs quant-samples)]
+    (heading "Sample diffs")
     (portal-vega-lite
      {:$schema "https://vega.github.io/schema/vega-lite/v5.json"
       :data    {:values [{}]} ; for portal

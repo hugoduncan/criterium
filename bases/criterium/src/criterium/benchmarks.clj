@@ -37,11 +37,11 @@
               :outliers
               [:stats {:samples-id :log-samples}]
               :event-stats]
-    :view    [:samples
-              :sample-percentiles
-              :histogram
-              :stats
+    :view    [:stats
               :quantiles
               :event-stats
               :outlier-counts
-              :collect-plan]}))
+              :collect-plan
+              :histogram
+              :sample-percentiles
+              :samples]}))
