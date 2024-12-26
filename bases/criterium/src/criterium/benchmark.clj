@@ -3,7 +3,8 @@
    Provides functionality to construct benchmark functions from analysis and view
    configurations."
   (:require
-   [criterium.util.helpers :as util]))
+   [criterium.util.helpers :as util]
+   [criterium.view :as view]))
 
 (defn- resolve-analyse-fn
   "Resolves a single analysis function specification.
@@ -54,6 +55,7 @@
     (fn [sampled]
       (let [result (analysis-fn sampled)]
         (run! #(% result) view)
+        (view/flush-viewer (:viewer result))
         result))))
 
 (defn ->benchmark

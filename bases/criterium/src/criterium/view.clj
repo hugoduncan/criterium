@@ -42,3 +42,6 @@
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (def-multi-view samples)
 (def-multi-view stats)
+
+(defmulti flush-viewer (fn [viewer] viewer))
+(defmethod flush-viewer :default  [_])
