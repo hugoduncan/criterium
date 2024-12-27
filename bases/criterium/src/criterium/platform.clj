@@ -6,7 +6,8 @@
    [criterium.benchmark :as benchmark]
    [criterium.collector :as collector]
    [criterium.jvm :as jvm]
-   [criterium.measured :as measured])
+   [criterium.measured :as measured]
+   [criterium.util.helpers :as util])
   (:gen-class))
 
 (def benchmark
@@ -43,16 +44,16 @@
   [_ ^long eval-count]
   ;; this takes a while for the timestamp capture to synch with the change in
   ;; the timestamp.  Ideally we would throw away the first half of the samples.
-  (let [start  (jvm/timestamp)
-        finish (loop [n eval-count
-                      t start]
-                 (let [t1 (jvm/timestamp)]
-                   (if (= t t1)
-                     (recur n t1)
-                     (if (pos? n)
-                       (recur (unchecked-dec n) t1)
-                       t1))))
-        delta  (unchecked-subtract finish start)]
+  (let [start        (jvm/timestamp)
+        ^long finish (loop [n eval-count
+                            t start]
+                       (let [t1 (jvm/timestamp)]
+                         (if (= t t1)
+                           (recur n t1)
+                           (if (pos? n)
+                             (recur (unchecked-dec n) t1)
+                             t1))))
+        delta        (unchecked-subtract finish start)]
     [delta (long (/ delta eval-count))]))
 
 (def nanotime-granularity-measured
@@ -118,15 +119,18 @@
          res  []
          comp (jvm/compilation-sample)
          t    0]
-    (if (< i 400000)
+    (if (< i 4000000)
       (let [sample     (collector/collect
                         pipeline measured (measured/args measured) 1)
             comp2      (jvm/compilation-sample)
             comp-delta (jvm/compilation-change comp comp2)]
+        (when (= 0 (mod i 10000))
+          ;; pause to let compilation "catchup"/complete
+          (Thread/sleep 50))
         (recur
          (unchecked-inc i)
-         (if (pos? (:time-ms comp-delta))
-           (conj res i)
+         (if (pos? (long (:time-ms comp-delta)))
+           (conj res [i (:time-ms comp-delta)])
            res)
          comp2
          (unchecked-add t (long (:elapsed-time sample)))))
@@ -138,11 +142,14 @@
 (defn jit-threasholds
   "Estimate how many iterations are required for JIT compilation.
   This is not very accurate, as JIT runs in the background, and there
-  are several compilation targets."
+  are several compilation targets.
+
+  The highest value returned should be less than TARGET-WARMUP-SAMPLES for
+  our collection plans to be realistic."
   ([] (jit-threasholds {}))
   ([_options]
    (let [pipeline (collector/collector {:stages [] :terminator :elapsed-time})
-         measured (measured/expr nil)
+         measured (measured/expr 1)
          [res _t] (find-jit-threasholds measured pipeline)]
      res)))
 
@@ -164,7 +171,7 @@
   ([options]
    (let [options (merge
                   options
-                  {:return-value [:stats]})]
+                  {:return-value [:data :stats :stats]})]
      [(assoc (nanotime-latency options) :name "latency")
       (assoc (nanotime-granularity options) :name "granularity")
       (assoc (constant-long options) :name "constant-long")
@@ -194,9 +201,8 @@
       {}
       stats))))
 
-(defn -main
-  "Output a table of the platform min and mean point estimates."
-  []
+(defn exec-main
+  [opts]
   (pp/pprint (jvm/os-details))
   (pp/pprint (select-keys (jvm/runtime-details)
                           [:vm-version :vm-name :vm-vendor
@@ -214,3 +220,8 @@
     (println)
     (println "JIT compilation threasholds: " (jit-threasholds))
     (println)))
+
+(defn -main
+  "Output a table of the platform min and mean point estimates."
+  []
+  (exec-main {}))

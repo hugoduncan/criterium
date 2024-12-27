@@ -1,7 +1,7 @@
 {:paths []
  :aliases
  {:dev
-  {:extra-paths ["development/src"]
+  {:extra-paths ["bases/criterium/test" "development/src"]
    :extra-deps
    {poly/agent                    {:local/root "bases/agent"}
     poly/criterium                {:local/root "bases/criterium"}
@@ -21,6 +21,8 @@
                               "-Dclojure.main.report=stderr"
                               "-agentpath:agent-cpp/libcriterium.dylib"]
                 :main-opts   ["-m" "kaocha.runner"]}
+  :platform    {:exec-fn   criterium.platform/exec-main
+                :exec-args {}}
   :poly        {:main-opts ["-m" "polylith.clj.core.poly-cli.core"]
                 :extra-deps
                 {polylith/clj-poly
