@@ -57,6 +57,9 @@
   function behavior. The instrumentation stores the original function
   and sample data in the var's metadata.
 
+  This function is idempotent - calling it multiple times on the same var
+  will only instrument it once.
+
   You must use uninstrument! to remove the instrumentation and restore
   the original function.
 
@@ -69,9 +72,10 @@
     - Modifies the var's root binding to install the instrumented function
     - Adds metadata to track the original function and store samples"
   [v pipeline]
-  (let [sample-atom (atom [])]
+  (when-not (original-f (meta v))
+    (let [sample-atom (atom [])]
     (alter-meta! v assoc original-f @v samples sample-atom)
-    (alter-var-root v wrap sample-atom pipeline)))
+    (alter-var-root v wrap sample-atom pipeline))))
 
 (defn uninstrument!
   "Remove instrumentation from the var, v and restore original function.
@@ -80,7 +84,9 @@
   - Restoring the original function as the var's root binding
   - Removing tracking metadata added during instrumentation
 
-  Safe to call on vars that aren't instrumented."
+  This function is idempotent - calling it multiple times on the same var
+  is safe and will only uninstrument once. Safe to call on vars that
+  aren't instrumented."
   [v]
   (when-let [f (original-f (meta v))]
     (alter-var-root v (constantly f))
