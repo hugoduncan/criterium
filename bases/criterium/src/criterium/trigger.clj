@@ -13,7 +13,7 @@
     (fire! t)          ;; Record elapsed time
     (do-something-else)
     (fire! t)          ;; Record another sample
-    (let [samples (samples! t)] ;; Get samples and reset
+    (let [samples (sampler/samples-map t)] ;; Get samples and reset
       (analyze-samples samples)))"
   (:require
    [criterium.trigger.impl :as impl]))
@@ -28,7 +28,7 @@
   The trigger starts with no samples and must be fired at least twice
   to collect timing data."
   []
-  (volatile! (impl/trigger-data)))
+  (impl/trigger))
 
 (defn fire!
   "Records a timing event in the trigger sampler.
@@ -45,24 +45,6 @@
     trigger    - The trigger instance to fire
     extra-data - Optional map of additional data to attach to the sample"
   ([trigger]
-   (fire! trigger nil))
+   (impl/fire! trigger nil))
   ([trigger extra-data]
-   (vswap! trigger impl/update-data extra-data)))
-
-(defn samples!
-  "Returns collected samples and resets the trigger.
-
-  Returns a map containing:
-  - :batch-size      - Always 1 for triggers
-  - :eval-count      - Number of samples collected
-  - :metrics-configs - Configuration of metrics collected
-  - :samples         - Map of collected metrics, including :elapsed-time
-
-  The trigger is reset to its initial empty state after calling this function.
-
-  Parameters:
-    trigger - The trigger instance to get samples from"
-  [trigger]
-  (let [samples (:samples @trigger)]
-    (vreset! trigger (impl/trigger-data))
-    (impl/samples->samples-map samples)))
+   (impl/fire! trigger extra-data)))
