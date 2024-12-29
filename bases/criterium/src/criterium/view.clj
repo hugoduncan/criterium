@@ -45,3 +45,28 @@
 
 (defmulti flush-viewer (fn [viewer] viewer))
 (defmethod flush-viewer :default  [_])
+
+;; Null Viewer
+
+(defmethod bootstrap-stats* :none [_ _])
+(defmethod event-stats* :none [_ _])
+(defmethod final-gc-warnings* :none [_ _])
+#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
+(defmethod histogram* :none [_ _])
+#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
+(defmethod metrics* :none [_ _])
+(defmethod os* :none [_ _])
+(defmethod outlier-counts* :none [_ _])
+(defmethod outlier-significance* :none [_ _])
+#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
+(defmethod quantiles* :none [_ _])
+(defmethod runtime* :none [_ _])
+#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
+(defmethod sample-percentiles* :none [_ _])
+#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
+(defmethod sample-diffs* :none [_ _])
+#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
+(defmethod collect-plan* :none [_ _])
+#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
+(defmethod samples* :none [_ _])
+(defmethod stats* :none [_ _])
