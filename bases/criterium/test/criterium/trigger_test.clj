@@ -9,8 +9,10 @@
   (:require
    [clojure.test :refer [deftest is testing use-fixtures]]
    [criterium.analyse :as analyse]
+   [criterium.sampler :as sampler]
    [criterium.trigger :as trigger]
    [criterium.util.helpers :as util]))
+
 
 (def ^:private test-extra-data
   "Sample extra data for testing"
@@ -31,53 +33,63 @@
   (testing "A new trigger is initialized"
     (let [t (trigger/trigger)]
       (testing "Initial trigger state"
-        (is (zero? (:last-triggered @t)) "Last triggered should start at 0")
-        (is (empty? (:samples @t)) "Samples should start empty")))))
+        (is (zero? (-> t :state deref :last-triggered))
+            "Last triggered should start at 0")
+        (is (empty? (-> t :state deref :samples))
+            "Samples should start empty")))))
 
 (deftest trigger-firing-test
   (testing "A trigger"
     (testing "First fire only records timestamp"
       (trigger/fire! *trigger*)
-      (is (pos? (:last-triggered @*trigger*)) "Should record first timestamp")
-      (is (empty? (:samples @*trigger*)) "Should not collect sample on first fire")))
+      (is (pos? (-> *trigger* :state deref :last-triggered))
+          "Should record first timestamp")
+      (is (empty? (-> *trigger* :state deref :samples))
+          "Should not collect sample on first fire")))
 
   (testing "Second fire creates first sample"
     (trigger/fire! *trigger*)
-    (is (= 1 (count (:samples @*trigger*))) "Should collect first sample")
-    (let [sample (first (:samples @*trigger*))]
+    (is (= 1 (count (-> *trigger* :state deref :samples)))
+        "Should collect first sample")
+    (let [sample (first (-> *trigger* :state deref :samples))]
       (is (contains? sample :elapsed-time) "Sample should contain elapsed time")
       (is (pos? (:elapsed-time sample)) "Elapsed time should be positive")))
 
   (testing "Additional fires add more samples"
     (trigger/fire! *trigger*)
-    (is (= 2 (count (:samples @*trigger*))) "Should accumulate samples")))
+    (is (= 2 (count (-> *trigger* :state deref :samples)))
+        "Should accumulate samples")))
 
 (deftest extra-data-test
-  "Test attaching extra data to samples"
-  (testing "Samples include attached extra data"
-    (trigger/fire! *trigger*)
-    (trigger/fire! *trigger* test-extra-data)
-    (let [sample (first (:samples @*trigger*))]
-      (is (= test-extra-data (select-keys sample (keys test-extra-data)))
-          "Extra data should be merged into sample"))))
+  (testing "Test attaching extra data to samples"
+    (testing "Samples include attached extra data"
+      (trigger/fire! *trigger*)
+      (trigger/fire! *trigger* test-extra-data)
+      (let [sample (first (-> *trigger* :state deref :samples))]
+        (is (= test-extra-data (select-keys sample (keys test-extra-data)))
+            "Extra data should be merged into sample")))))
 
-(deftest samples-retrieval-test
+(deftest sampler-protocol-test
   (testing "trigger with extra data"
     (testing "Sample map structure"
       (trigger/fire! *trigger*)
       (trigger/fire! *trigger*)
-      (let [sampled (trigger/samples! *trigger*)]
-        (is (= 1 (:batch-size sampled)) "Batch size should be 1 for triggers")
-        (is (= 1 (:eval-count sampled)) "Eval count should match sample count")
-        (is (map? (:metric->values sampled))
+      (let [samples-map (sampler/samples-map *trigger*)]
+        (is (= 1 (:batch-size samples-map))
+            "Batch size should be 1 for triggers")
+        (is (= 1 (:eval-count samples-map))
+            "Eval count should match sample count")
+        (is (map? (:metric->values samples-map))
             "Samples should be returned as a map")
-        (is (pos? (first (get-in sampled [:metric->values [:elapsed-time]])))
+        (is (pos?
+             (first (get-in samples-map [:metric->values [:elapsed-time]])))
             "Samples should contain positive elapsed times"))))
 
   (testing "Trigger reset after sample retrieval"
-    (let [_ (trigger/samples! *trigger*)]
-      (is (zero? (:last-triggered @*trigger*)) "Trigger should reset timestamp")
-      (is (empty? (:samples @*trigger*)) "Samples should be cleared"))))
+    (sampler/reset-samples! *trigger*)
+    (let [samples-map (sampler/samples-map *trigger*)]
+      (is (empty? (get-in samples-map [:metric->values [:elapsed-time]]))
+          "Samples should be cleared"))))
 
 (deftest benchmark-integration-test
   (testing "A trigger sample map"
@@ -85,7 +97,7 @@
       (trigger/fire! *trigger*)
       (trigger/fire! *trigger*)
       (trigger/fire! *trigger*)
-      (let [samples-map (trigger/samples! *trigger*)
+      (let [samples-map (sampler/samples-map *trigger*)
             analyzed    ((analyse/stats {})
                          {:data {:samples samples-map}})]
         (is (-> analyzed :data :stats) "Should contain statistical analysis")
