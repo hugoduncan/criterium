@@ -4,6 +4,7 @@
    [criterium.collector :as collector]
    [criterium.instrument-fn :as instrument-fn]
    [criterium.jvm :as jvm]
+   [criterium.sampler :as sampler]
    [criterium.util.helpers :as util]))
 
 (def ^:private seen (volatile! 0))
@@ -27,8 +28,8 @@
                   :sample-count 1}
           inst-f (instrument-fn/instrument-fn busy-wait conf)]
 
-      (is (satisfies? instrument-fn/InstrumentationState inst-f)
-          "implements InstrumentationState")
+      (is (satisfies? sampler/Sampler inst-f)
+          "implements Sampler")
       (is (instance? clojure.lang.IFn inst-f)
           "implements IFn")
       (is (instance? Runnable inst-f)
@@ -38,13 +39,13 @@
 
       (inst-f 1)
       (is (= 1 @seen) "original function called")
-      (is (= 1 (count (-> (instrument-fn/samples-map inst-f)
+      (is (= 1 (count (-> (sampler/samples-map inst-f)
                           :metric->values
                           (get [:elapsed-time]))))
           "sample collected")
 
-      (instrument-fn/reset-samples! inst-f)
-      (is (empty? (-> (instrument-fn/samples-map inst-f)
+      (sampler/reset-samples! inst-f)
+      (is (empty? (-> (sampler/samples-map inst-f)
                       :metric->values
                       (get [:elapsed-time])))
           "samples can be reset")))
@@ -57,11 +58,10 @@
                   :sample-count 1}
           inst-f (instrument-fn/instrument-fn busy-wait conf)]
 
-      (.run inst-f)
+      (.run ^Runnable inst-f)
       (is (= 1 @seen) "Runnable.run works")
 
-
-      (.call inst-f)
+      (.call ^Callable inst-f)
       (is (= 2 @seen) "Callable.call works")
 
       (inst-f 1)
@@ -70,7 +70,7 @@
       (apply inst-f [1])
       (is (= 4 @seen) "apply works")
 
-      (is (= 4 (count (-> (instrument-fn/samples-map inst-f)
+      (is (= 4 (count (-> (sampler/samples-map inst-f)
                           :metric->values
                           (get [:elapsed-time]))))
           "all invocations collected samples")))
@@ -85,7 +85,7 @@
           _        (inst-f 2)
           finish   (jvm/timestamp)
           elapsed  (unchecked-subtract finish start)
-          sample-m (instrument-fn/samples-map inst-f)]
+          sample-m (sampler/samples-map inst-f)]
       (is (util/metrics-samples-map? sample-m))
       (is (= 2 (count ((:metric->values sample-m) [:elapsed-time])))
           "samples returned")

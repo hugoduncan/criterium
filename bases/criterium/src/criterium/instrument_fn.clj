@@ -10,14 +10,10 @@
    [criterium.collector :as collector]
    [criterium.jvm :as jvm]
    [criterium.measured :as measured]
+   [criterium.sampler :as sampler]
    [criterium.util.invariant :refer [have]])
   (:import
    [java.util.concurrent Callable]))
-
-(defprotocol InstrumentationState
-  "Protocol for accessing instrumentation state"
-  (samples-map [this] "Get the current samples collected")
-  (reset-samples! [this] "Clear all collected samples")  )
 
 (defn- measured [original-fn]
   (measured/measured
@@ -58,7 +54,7 @@
    pipeline
    measured
    ^:volatile-mutable samples]
-  InstrumentationState
+  sampler/Sampler
   (samples-map [_] (sample-map (:metrics-configs pipeline) samples))
   (reset-samples! [_] (set! samples []) nil)
 
