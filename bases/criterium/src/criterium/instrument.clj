@@ -115,15 +115,18 @@
   - metrics-configs: The original metrics configuration
 
   The returned map is compatible with criterium's analysis functions."
-  [metrics-configs samples]
-  {:batch-size      1
-   :eval-count      (count samples)
-   :samples         (with-meta
-                      ((collect/sample-maps->map-of-samples metrics-configs)
-                       samples)
-                      {:type      :criterium/samples
-                       :transform {:sample-> identity :->sample identity}})
-   :metrics-configs metrics-configs})
+  [metrics-defs samples]
+  {:type           :criterium/metrics-samples
+   :metric->values (collect/sample-maps->map-of-samples
+                    samples
+                    metrics-defs)
+   :transform      {:sample-> identity :->sample identity}
+   :batch-size     1
+   :eval-count     (count samples)
+   :num-samples    (count samples)
+   :metrics-defs   metrics-defs
+   :expr-value     nil
+   :source-id      nil   })
 
 (defmacro with-instrumentation
   "Provides a scope within which the top level function f is instrumented.

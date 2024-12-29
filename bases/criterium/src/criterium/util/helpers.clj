@@ -1,7 +1,8 @@
 (ns criterium.util.helpers
   (:require
    [clojure.set :as set]
-   [criterium.util.invariant :refer [have?]]))
+   [criterium.util.invariant :refer [have?]]
+   [criterium.util.invariant :as invariant]))
 
 (defn spy
   [msg x]
@@ -178,11 +179,29 @@
     :metrics-defs
     :expr-value })
 
+
 (defn metrics-samples-map?
   [x]
   (and (map? x)
-       (= :criterium/metrics-samples (:type x))
-       (set/subset? metrics-samples-keys (set (keys x)))))
+       (or
+        (= :criterium/metrics-samples (:type x))
+        (throw
+         (invariant/assertion-error
+          "Invalid tupe"
+          {:error-tupe ::invalid-type
+           :date       {:expected :criterium/metrics-samples
+                        :actual   (:type x)}})))
+       (or
+        (set/subset? metrics-samples-keys (set (keys x)))
+        (throw
+         (invariant/assertion-error
+          "Invalid keys"
+          {:error-tupe ::invalid-map-keys
+           :date       {:expected metrics-samples-keys
+                        :actual   (keys x)
+                        :missing  (set/difference
+                                   metrics-samples-keys
+                                   (set (keys x)))}})))))
 
 (defn generic-metrics-samples-map?
   [x]
