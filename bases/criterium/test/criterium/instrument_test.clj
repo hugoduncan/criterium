@@ -7,6 +7,7 @@
    [criterium.instrument :as instrument]
    [criterium.instrument-fn :as instrument-fn]
    [criterium.jvm :as jvm]
+   [criterium.sampler :as sampler]
    [criterium.util.helpers :as util]))
 
 ;; instrument's measured never have their `args-fn` called.
@@ -36,7 +37,7 @@
       (is (not= busy-wait v) "function is wrapped")
       (is (= orig-f (#'instrument/original-f (meta v)))
           "original function stored")
-      (is (util/metrics-samples-map? (instrument-fn/samples-map @v))
+      (is (util/metrics-samples-map? (sampler/samples-map @v))
           "samples atom added")
 
       ;; Test idempotency
@@ -47,7 +48,7 @@
       (is (= 1 @seen) "original function called")
       (is (= 1 (count
                 (-> @v
-                    (instrument-fn/samples-map)
+                    (sampler/samples-map)
                     :metric->values
                     (get [:elapsed-time]))))
           "sample collected")
@@ -97,13 +98,13 @@
     (instrument/uninstrument! #'busy-wait)
     (instrument/instrument! #'busy-wait collector-config)
     (is (original-f (meta #'busy-wait)) "function wrapped")
-    (is (util/metrics-samples-map? (instrument-fn/samples-map busy-wait))
+    (is (util/metrics-samples-map? (sampler/samples-map busy-wait))
         "sample atom added")
     (is (not= original-f @#'busy-wait) "wrapper is installed")
     (busy-wait 1)
     (is (= 1
            (-> busy-wait
-               instrument-fn/samples-map
+               sampler/samples-map
                :metric->values
                (get [:elapsed-time])
                count))
@@ -111,14 +112,14 @@
     (busy-wait 2)
     (is (= 2
            (-> busy-wait
-               instrument-fn/samples-map
+               sampler/samples-map
                :metric->values
                (get [:elapsed-time])
                count))
         "two samples added")
     (let [finish     (jvm/timestamp)
           elapsed    (unchecked-subtract finish start)
-          sample-map (instrument-fn/samples-map busy-wait)]
+          sample-map (sampler/samples-map busy-wait)]
       (is (= 2 @seen) "original function called twice")
 
       ;; (is result "result returned")
