@@ -280,8 +280,8 @@
        (debug/dtap> {:stats id})
        (let [outliers        (when outliers-id
                                (-> bench-map :data outliers-id))
-             metrics-samples (-> bench-map :data samples-id)
-             metrics-defs    (-> (:metrics-defs metrics-samples)
+             metrics-samples (have (-> bench-map :data samples-id))
+             metrics-defs    (-> (have (:metrics-defs metrics-samples))
                                  (metric/select-metrics metric-ids)
                                  (metric/filter-metrics
                                   (metric/type-pred :quantitative)))

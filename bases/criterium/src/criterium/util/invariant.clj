@@ -4,6 +4,11 @@
 (defn truthy? [x]
   (and (some? x) (not (false? x))))
 
+(defn assertion-error [msg data]
+  (AssertionError.
+   msg
+   (ex-info msg data)))
+
 (defn- have* [x args truthy? &form]
   (let [[f x data] (if (seq args)
                      (into [x] args)
@@ -24,19 +29,17 @@
                      "Invariant failed at "
                      ~(str ns-sym "[" line ":" column "] ")
                      (list '~f ~x-sym))]
-           (throw (new AssertionError
-                       msg#
-                       (ex-info
-                        msg#
-                        {:pred ~(list 'quote f)
-                         :arg  {:form  ~(list 'quote x)
-                                :value ~x-sym
-                                :type  (type ~x-sym)}
-                         :loc  {:ns     '~ns-sym
-                                :line   ~line
-                                :column ~column
-                                :file   ~*file*}
-                         :data ~data})))))
+           (throw (assertion-error
+                   msg#
+                   {:pred ~(list 'quote f)
+                    :arg  {:form  ~(list 'quote x)
+                           :value ~x-sym
+                           :type  (type ~x-sym)}
+                    :loc  {:ns     '~ns-sym
+                           :line   ~line
+                           :column ~column
+                           :file   ~*file*}
+                    :data ~data}))))
        ~(if truthy?
           true
           x-sym))))
