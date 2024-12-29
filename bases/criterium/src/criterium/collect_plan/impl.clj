@@ -32,5 +32,5 @@
       (println "  or consider benchmarks at a lower level.")
       [(max 10 (long (* (long num-warmup-samples) frac)))
        (max 10 (long (* (long num-measure-samples) frac)))])
-    [num-warmup-samples
-     num-measure-samples]))
+    [(max 1 num-warmup-samples)
+     (max 1 num-measure-samples)]))

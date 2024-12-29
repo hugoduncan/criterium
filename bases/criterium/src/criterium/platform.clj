@@ -6,11 +6,10 @@
    [criterium.benchmark :as benchmark]
    [criterium.collector :as collector]
    [criterium.jvm :as jvm]
-   [criterium.measured :as measured]
-   [criterium.util.helpers :as util])
+   [criterium.measured :as measured])
   (:gen-class))
 
-(def benchmark
+(def ^:private benchmark
   (benchmark/->benchmark
    {:analyse [:transform-log
               [:quantiles {:quantiles [0.9 0.99 0.99]}]
@@ -19,7 +18,7 @@
               :event-stats]}))
 
 ;;; nanoTime latency
-(def timestamp-measured
+(def ^:private timestamp-measured
   (measured/expr (jvm/timestamp)))
 
 (defn nanotime-latency
@@ -35,6 +34,7 @@
                      :num-measure-samples 1000}
       :limit-time-s 20
       :benchmark    benchmark
+      :viewer       :none
       :return-value [::nil]}
      options))))
 
@@ -202,7 +202,9 @@
       stats))))
 
 (defn exec-main
-  [opts]
+  "Output a table of the platform min and mean point estimates.
+  Compatible with deps.edn :exec-fn."
+  [_opts]
   (pp/pprint (jvm/os-details))
   (pp/pprint (select-keys (jvm/runtime-details)
                           [:vm-version :vm-name :vm-vendor
@@ -222,6 +224,7 @@
     (println)))
 
 (defn -main
-  "Output a table of the platform min and mean point estimates."
+  "Output a table of the platform min and mean point estimates.
+  Compatible with deps.edn :main."
   []
   (exec-main {}))
