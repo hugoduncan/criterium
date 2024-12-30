@@ -23,10 +23,15 @@
   [params]
   (tasks/clean params))
 
-(defn ^{:params []} clean
+(defn ^{:params []} jar
   "Build jar."
   [params]
   (tasks/jar params))
+
+(defn ^{:params []} install
+  "Install jar."
+  [params]
+  (tasks/install params))
 
 ;; (defn ^{:params []} cljfmt
 ;;   "Run `cljfmt check` on workspace"
