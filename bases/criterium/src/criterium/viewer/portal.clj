@@ -1,5 +1,6 @@
 (ns criterium.viewer.portal
   "A viewer that outputs to portal using tap>."
+  (:refer-clojure :exclude [flush])
   (:require
    [criterium.metric :as metric]
    [criterium.util.helpers :as util]
@@ -192,7 +193,7 @@
   (let [sigma       (Math/sqrt variance)
         #_#_min-val (* min-val 0.9)
         #_#_sigma   (Math/abs sigma)
-        delta       (/ (- max-val min-val) 120)
+        delta       (/ (- (double max-val) (double min-val)) 120)
         pdf         (probability/normal-pdf mean sigma)]
     (mapv
      (fn [z]
@@ -236,7 +237,7 @@
    (fn [res metric-config]
      (let [path (:path metric-config)
            v    (get (get events path) index)]
-       (if (pos? v)
+       (if (pos? (long v))
          (assoc res (viewer-common/composite-key path) v :index index)
          res)))
    nil
@@ -371,10 +372,12 @@
         n           (count vs)
         max-val     (Math/log10 (double n))
         xs          (mapv
-                     #(/ (- max-val (Math/log10 (- n %))) max-val)
+                     #(/ (- max-val (Math/log10 (- n (double %)))) max-val)
                      (range 0 n))
         delta       (/ 100.0 (dec n))
-        percentiles (take n (iterate #(+ delta %) 0))
+        percentiles (take n
+                          (iterate
+                           #(+ delta (double %)) 0))
         data        (mapv
                      #(hash-map k %1 :p %2 :x %3)
                      vs
@@ -436,8 +439,10 @@
         vs         (->> (get samples path)
                         sort
                         vec)
-        min-v      (first vs)
-        diffs      (-> (mapv #(- % min-v)  vs)
+        min-v      (double (first vs))
+        diffs      (-> (mapv
+                        #(- (double %) min-v)
+                        vs)
                        sort
                        distinct
                        vec)

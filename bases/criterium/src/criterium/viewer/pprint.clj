@@ -88,7 +88,7 @@
      (reduce
       (fn [res metric-config]
         (let [v (get (get sample  (:path metric-config)) index)]
-          (if (pos? v)
+          (if (pos? (long v))
             (assoc res
                    (viewer-common/composite-key
                     [(if-let [group (:group metric-config)]

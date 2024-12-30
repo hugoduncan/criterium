@@ -1,4 +1,5 @@
 (ns criterium.util.helpers
+  (:refer-clojure :exclude [update-vals])
   (:require
    [clojure.set :as set]
    [criterium.util.invariant :refer [have?]]

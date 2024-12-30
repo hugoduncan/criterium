@@ -15,29 +15,29 @@
 (defmethod scale :time                  ; seconds
   [_ value]
   (cond
-    (> value 60)   [(/ 60) "min"]
-    (< value 1e-6) [1e9 "ns"]
-    (< value 1e-3) [1e6 "µs"]
-    (< value 1)    [1e3 "ms"]
-    :else          [1 "s"]))
+    (> (long value) 60)   [(/ 60) "min"]
+    (< (long value) 1e-6) [1e9 "ns"]
+    (< (long value) 1e-3) [1e6 "µs"]
+    (< (long value) 1)    [1e3 "ms"]
+    :else                 [1 "s"]))
 
-(def ONE-KB 1024)
-(def ONE-MB (* 1024 1024))
-(def ONE-GB (* 1024 1024 1024))
+(def ^:const ONE-KB 1024)
+(def ^:const ONE-MB (* 1024 1024))
+(def ^:const ONE-GB (* 1024 1024 1024))
 
 (defmethod scale :memory
   [_ value]
   (cond
-    (< value ONE-KB) [1 "bytes"]
-    (< value ONE-MB) [(/ ONE-KB) "Kb"]
-    (< value ONE-GB) [(/ ONE-MB) "Mb"]
-    :else            [(/ ONE-GB) "Gb"]))
+    (< (long value) ONE-KB) [1 "bytes"]
+    (< (long value) ONE-MB) [(/ ONE-KB) "Kb"]
+    (< (long value) ONE-GB) [(/ ONE-MB) "Mb"]
+    :else                   [(/ ONE-GB) "Gb"]))
 
 (defn format-scaled
   ([value scale]
-   (format "%3.3g" (double (* scale value))))
+   (format "%3.3g" (double (* (double scale) (double value)))))
   ([value scale unit]
-   (format "%3.3g %s" (double (* scale value)) unit)))
+   (format "%3.3g %s" (double (* (double scale) (double value))) unit)))
 
 (defmulti format-value
   "Format value to 3 significant figures in an appropriate unit for the scale."
@@ -51,12 +51,12 @@
 (defmethod format-value :time
   [dimension value]
   (let [[scale unit] (scale dimension value)]
-    (format "%3.3g %s" (double (* scale value)) unit)))
+    (format "%3.3g %s" (double (* (double scale) (double value))) unit)))
 
 (defmethod format-value :memory
   [dimension value]
   (let [[scale unit] (scale dimension value)]
-    (format "%3.3f %s" (double (* scale value)) unit)))
+    (format "%3.3f %s" (double (* (double scale) (double value))) unit)))
 
 (defmulti format-metric
   #_{:clj-kondo/ignore [:unused-binding]}
@@ -64,7 +64,7 @@
 
 (defmethod format-metric :elapsed-time
   [_ val]
-  (let [v (/ val 1e9)]
+  (let [v (/ (double val) 1e9)]
     (format "%32s: %s\n" "Elapsed time" (format-value :time v))))
 
 (defn- format-count-time [[k {c :count t :time}]]

@@ -3,8 +3,7 @@
    [clojure.string :as str]
    [criterium.metric :as metric]
    [criterium.util.format :as format]
-   [criterium.util.invariant :refer [have?]]
-   [criterium.util.helpers :as util]))
+   [criterium.util.invariant :refer [have?]]))
 
 (defn metrics-map
   [sample metrics]
@@ -14,8 +13,8 @@
            {:metric (:label metric)
             :value  (format/format-value
                      (:dimension metric)
-                     (* (first (sample (:path metric)))
-                        (:scale metric)))}))
+                     (* (double (first (sample (:path metric))))
+                        (double (:scale metric))))}))
    []
    metrics))
 
@@ -30,8 +29,8 @@
                 (assoc res k
                        (format/format-value
                         (:dimension metric)
-                        (* (get stat k)
-                           (:scale metric)))))
+                        (* (double (get stat k))
+                           (double (:scale metric))))))
               {:metric (:label metric)}
               [:mean :min-val :mean-minus-3sigma :mean-plus-3sigma :max-val]))))
    []
@@ -45,15 +44,15 @@
   {:post [(have? (some-fn nil? map?) %)]}
   (let [sample-count-path (conj (pop (:path (first ms))) :sample-count)
         sample-count      (event-stats sample-count-path)]
-    (when (and sample-count (pos? sample-count))
+    (when (and sample-count (pos? (long sample-count)))
       (reduce
        (fn [res m]
          (assoc res
                 (composite-key (rest (:path m)))
                 (format/format-value
                  (:dimension m)
-                 (* (get event-stats (:path m))
-                    (:scale m)))))
+                 (* (double (get event-stats (:path m)))
+                    (double (:scale m))))))
        {:metric (:label metric)}
        (into [{:path      sample-count-path
                :dimension :count
@@ -87,7 +86,7 @@
                        q
                        (format/format-value
                         (:dimension metric-config)
-                        (* v (:scale metric-config)))))
+                        (* (double v) (double (:scale metric-config))))))
               {:metric (:label metric-config)}
               quantiles))))
    []
@@ -110,7 +109,7 @@
     (assoc
      (select-keys sampled [:batch-size :num-samples])
      :num-evals
-     (* (:num-samples sampled) (:batch-size sampled)))))
+     (* (long (:num-samples sampled)) (long (:batch-size sampled))))))
 
 (defn collect-plan-data
   [bench-map]
