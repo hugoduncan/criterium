@@ -1,2 +1,2 @@
 {:name    criterium/criterium
- :version "0.5.:git-rev-count-ALPHA"}
+ :version "0.5.{{git-rev-count}}-ALPHA"}
