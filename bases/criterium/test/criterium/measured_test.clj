@@ -5,6 +5,8 @@
    [criterium.jvm :as jvm]
    [criterium.measured :as measured]))
 
+(defn- inc-long [x] (inc (long x)))
+
 (defn invoke
   "Invoke the given Measured.
 
@@ -49,7 +51,7 @@
       (is (= ::value (second (invoke fncall-m))))))
   (testing "recursive function call"
     (let [call-count         (volatile! 0)
-          f                  (fn [v] (vswap! call-count inc) v)
+          f                  (fn [v] (vswap! call-count inc-long) v)
           recursive-fncall-m (measured/expr (f (f ::value)))]
       (is (= ::value (second (invoke recursive-fncall-m))))
       (is (= 2 @call-count))))
@@ -64,8 +66,8 @@
       (is (= 1 (second (invoke vec-nth-m))))))
   (testing "accepts time-fn option"
     (let [invokes (volatile! 0)
-          f       (fn []
-                    (vswap! invokes inc)
+          f       (fn ^long []
+                    (vswap! invokes inc-long)
                     (jvm/thread-cpu-time))
           m       (measured/expr 1 {:time-fn f})]
       (is (= 1 (second (invoke m))))
@@ -89,7 +91,7 @@
           {:keys [freed-bytes]} (-> thread-allocations
                                     agent/allocations-summary)]
       (is (zero? freed-bytes) thread-allocations)
-      (when-not (zero? freed-bytes)
+      (when-not (zero? (long freed-bytes))
         (tap> {:zero-garbage-test
                {:allocations (frequencies thread-allocations)}}))
       (is (= [1 2] ret) "hold reference to return value until end of test"))))
