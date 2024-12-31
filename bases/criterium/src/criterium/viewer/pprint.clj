@@ -82,7 +82,7 @@
   [view bench-map]
   (print-outlier-significances view bench-map))
 
-(defn- flatten-events [sample metrics-configs index]
+(defn- flatten-events [sample metrics-defs index]
   (reduce-kv
    (fn [res k metric-group]
      (reduce
@@ -101,7 +101,7 @@
       (or (:values metric-group)
           (mapcat :values (vals (:groups metric-group))))))
    {}
-   metrics-configs))
+   metrics-defs))
 
 (defn- outlier-values [outlier-analysis path index]
   (when-let [v (some-> outlier-analysis
@@ -126,8 +126,8 @@
         event-samples       (-> banech-map :data event-samples-id)
         outlier-analysis    (-> banech-map :data outlier-analysis-id)
 
-        metric-configs        (:metrics-configs quant-samples)
-        event-metrics-configs (:metrics-configs event-samples)
+        metric-configs     (:metrics-defs quant-samples)
+        event-metrics-defs (:metrics-defs event-samples)
 
         transforms (util/get-transforms (:data banech-map) quant-samples-id)
 
@@ -147,7 +147,7 @@
                           (or (:values metric-group)
                               (mapcat :values
                                       (vals (:groups metric-group))))))
-                       event-metrics-configs))
+                       event-metrics-defs))
         outlier-keys (when outlier-analysis
                        (mapv
                         #(viewer-common/composite-key [(last %) :outlier])
@@ -170,7 +170,7 @@
                        {}
                        (mapv :path metric-configs))
                       (flatten-events
-                       event-samples event-metrics-configs index)]))
+                       event-samples event-metrics-defs index)]))
                   (range (-> quant-samples
                              (get (:path (first metric-configs)))
                              count)))]

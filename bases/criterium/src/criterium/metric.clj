@@ -121,15 +121,15 @@
   matching configurations sequentially.
 
   Parameters:
-    metrics-configs - Map of metric configurations
+    metrics-defs - Map of metric configurations
     metric-type     - Keyword identifying the type of metrics to select
     metric-ids      - Optional sequence of metric IDs to filter by
 
   Example:
     (metric-configs-of-type config :memory nil)
     ; Returns sequence of all memory metric configurations"
-  [metrics-configs metric-type metric-ids]
-  (->> (metrics-of-type metrics-configs metric-type metric-ids)
+  [metrics-defs metric-type metric-ids]
+  (->> (metrics-of-type metrics-defs metric-type metric-ids)
        metric-configs
        (filterv #(= metric-type (:type %)))))
 

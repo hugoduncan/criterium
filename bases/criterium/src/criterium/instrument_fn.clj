@@ -55,7 +55,7 @@
    measured
    ^:volatile-mutable samples]
   sampler/Sampler
-  (samples-map [_] (sample-map (:metrics-configs pipeline) samples))
+  (samples-map [_] (sample-map (:metrics-defs pipeline) samples))
   (reset-samples! [_] (set! samples []) nil)
 
   clojure.lang.IFn

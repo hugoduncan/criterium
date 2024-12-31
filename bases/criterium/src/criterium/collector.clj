@@ -46,12 +46,12 @@
   "Build a metrics collector pipeline by specifying metric-ids.
 
   Returns a collector map, containing pipeline phase functions, :f
-  and :x, and :metrics-configs keys."
+  and :x, and :metrics-defs keys."
   [collector-config]
   (let [collector-config (impl/maybe-var-get-config collector-config)]
     (-> collector-config
         impl/pipeline*
-        (assoc :metrics-configs
+        (assoc :metrics-defs
                (select-keys (metrics/metrics)
                             (impl/metric-ids collector-config))))))
 

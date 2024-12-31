@@ -142,9 +142,9 @@
             "Elapsed Time mean: 1.00 ns CI [1.00 1.00] (0.025 0.975)"
             "Elapsed Time 3σ: [1.00 1.00] ns"]
            (let [bench-map
-                 {:metrics-configs (select-keys
-                                    (metrics/metrics)
-                                    [:elapsed-time])
+                 {:metrics-defs (select-keys
+                                 (metrics/metrics)
+                                 [:elapsed-time])
                   :data
                   {:samples
                    {:type           :criterium/collected-metrics-samples
@@ -156,7 +156,7 @@
                     :batch-size     1
                     :eval-count     1
                     :elapsed-time   1}}
-                  :viewer          :print}
+                  :viewer       :print}
                  bootstrap (bootstrap/bootstrap-stats
                             {:quantiles          [0.025 0.975]
                              :estimate-quantiles [0.025 0.975]})
@@ -258,38 +258,38 @@
   (testing "print-final-gc-warnings-test"
     (testing "prints via view"
       (is (= ["Final GC ran for 1.00 ms, 1.0% of total sampling time (100 ms)"]
-             (let [metrics-configs (->
-                                    (select-keys
-                                     (metrics/metrics)
-                                     [:elapsed-time :class-loader :compilation])
-                                    (assoc-in
-                                     [:garbage-collector :values]
-                                     [{:path
-                                       [:garbage-collector :total :count]
-                                       :label     "GC total count"
-                                       :scale     1
-                                       :type      :event
-                                       :dimension :count}
-                                      {:path
-                                       [:garbage-collector :total :time-ms]
-                                       :label     "GC total time"
-                                       :scale     1e-3
-                                       :type      :event
-                                       :dimension :time}]))
-                   view1           (view/final-gc-warnings
-                                    {:warn-threshold 0.01
-                                     :sampled-path   [:sampled]})
-                   view2           (view/final-gc-warnings
-                                    {:view-type      :final-gc-warnings
-                                     :warn-threshold 0.02
-                                     :sampled-path   [:sampled]})
+             (let [metrics-defs (->
+                                 (select-keys
+                                  (metrics/metrics)
+                                  [:elapsed-time :class-loader :compilation])
+                                 (assoc-in
+                                  [:garbage-collector :values]
+                                  [{:path
+                                    [:garbage-collector :total :count]
+                                    :label     "GC total count"
+                                    :scale     1
+                                    :type      :event
+                                    :dimension :count}
+                                   {:path
+                                    [:garbage-collector :total :time-ms]
+                                    :label     "GC total time"
+                                    :scale     1e-3
+                                    :type      :event
+                                    :dimension :time}]))
+                   view1        (view/final-gc-warnings
+                                 {:warn-threshold 0.01
+                                  :sampled-path   [:sampled]})
+                   view2        (view/final-gc-warnings
+                                 {:view-type      :final-gc-warnings
+                                  :warn-threshold 0.02
+                                  :sampled-path   [:sampled]})
                    bench-map
                    {:data
                     {:samples
                      {:type         :criterium/collected-metrics-samples
                       :metric->values
                       {[:elapsed-time] [99999999]}
-                      :metrics-deps metrics-configs
+                      :metrics-deps metrics-defs
                       :batch-size   1
                       :eval-count   1
                       :elapsed-time 1}
@@ -299,7 +299,7 @@
                       {[:compilation :time-ms]              [3]
                        [:garbage-collector :total :time-ms] [1]
                        [:elapsed-time]                      [1]}
-                      :metrics-deps metrics-configs
+                      :metrics-deps metrics-defs
                       :batch-size   1
                       :eval-count   1
                       :elapsed-time 1} }

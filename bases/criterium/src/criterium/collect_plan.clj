@@ -34,16 +34,16 @@
   ;; Collects a Single sample measured with no warmup of the measured function.
   ;; Forces GC.
   ;; Return a sampled data map.
-  [collect-plan metrics-configs pipeline measured]
+  [collect-plan metrics-defs pipeline measured]
   (let [args   (measured/args measured)
         sample (collector/collect pipeline measured args 1)]
     (collect/force-gc! (:max-gc-attempts collect-plan))
     {:samples
      {:type           :criterium/metrics-samples
-      :metrics-defs   (:metrics-configs pipeline)
+      :metrics-defs   (:metrics-defs pipeline)
       :metric->values (collect/sample-maps->map-of-samples
                        [sample]
-                       metrics-configs)
+                       metrics-defs)
       :transform      identity-transforms
       :batch-size     1
       :elapsed-time   (metric/elapsed-time sample)
@@ -68,7 +68,7 @@
      (merge
       collection-map
       {:metric->values metric->values
-       :metrics-defs   (:metrics-configs (:pipeline collection-map))
+       :metrics-defs   (:metrics-defs (:pipeline collection-map))
        :expr-value     (last (metric->values [:expr-value]))
        :type           :criterium/metrics-samples
        :transform      (if (= 1 batch-size)
@@ -78,7 +78,7 @@
 (defmethod impl/collect* :with-jit-warmup
   ;; Sample measured with estimation, warmup and forced GC.
   ;; Return a sampled data map.
-  [collect-plan metrics-configs pipeline measured]
+  [collect-plan metrics-defs pipeline measured]
   {:pre  [(fn? (:f pipeline))
           (measured/measured? measured)]
    :post [(have? util/result-map? %)]}
@@ -162,6 +162,6 @@
 (defn collect
   "Collect metrics from the measured according to the collect-plan.
   Return a results-map."
-  [collect-plan metrics-configs pipeline measured]
-  (-> (impl/collect* collect-plan metrics-configs pipeline measured)
+  [collect-plan metrics-defs pipeline measured]
+  (-> (impl/collect* collect-plan metrics-defs pipeline measured)
       (vary-meta assoc :type :criterium/sampled)))

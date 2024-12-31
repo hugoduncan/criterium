@@ -16,10 +16,10 @@
     {:type           :criterium/metrics-samples
      :batch-size     1
      :eval-count     (count samples)
-     :metrics-defs   (:metrics-configs collector)
+     :metrics-defs   (:metrics-defs collector)
      :metric->values (collect/sample-maps->map-of-samples
                       samples
-                      (:metrics-configs collector))
+                      (:metrics-defs collector))
      :transform      collect-plan/identity-transforms
      :num-samples    (count samples)
      :source-id      nil

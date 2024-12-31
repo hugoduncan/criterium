@@ -11,24 +11,24 @@
 ;;; Transform of samples
 
 (defn- sample-arrays->sample-maps
-  [sample-arrays pipeline]
-  (mapv (partial collector/transform pipeline) sample-arrays))
+  [sample-arrays collector]
+  (mapv (partial collector/transform collector) sample-arrays))
 
 (defn sample-maps->map-of-samples
-  [samples metrics-configs]
+  [samples metrics-defs]
   (reduce
    (fn [res {:keys [path]}]
      (assoc res path (mapv #(get-in % path) samples)))
    {}
-   (metric/all-metric-configs metrics-configs)))
+   (metric/all-metric-configs metrics-defs)))
 
 (defn transform
   [collection-map]
-  (let [pipeline        (:pipeline collection-map)
-        metrics-configs (:metrics-configs pipeline)]
+  (let [pipeline     (:pipeline collection-map)
+        metrics-defs (:metrics-defs pipeline)]
     (-> (:collections collection-map)
         (sample-arrays->sample-maps pipeline)
-        (sample-maps->map-of-samples metrics-configs))))
+        (sample-maps->map-of-samples metrics-defs))))
 
 ;;; Memory management
 (def ^:private force-gc-measured

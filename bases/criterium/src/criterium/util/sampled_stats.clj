@@ -115,7 +115,7 @@
 
 (defn event-stats
   "Return the stats for events like JIT compilation and garbage-collector."
-  [metrics-configs samples]
+  [metrics-defs samples]
   (reduce-kv
    (fn [stats _k metric]
      (if-let [groups (:groups metric)]
@@ -137,4 +137,4 @@
                      (conj (vec (butlast (:path (first ms)))) :sample-count)
                      sample-count))))))
    {}
-   metrics-configs))
+   metrics-defs))
