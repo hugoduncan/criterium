@@ -15,11 +15,11 @@
 (defmethod scale :time                  ; seconds
   [_ value]
   (cond
-    (> (long value) 60)   [(/ 60) "min"]
-    (< (long value) 1e-6) [1e9 "ns"]
-    (< (long value) 1e-3) [1e6 "µs"]
-    (< (long value) 1)    [1e3 "ms"]
-    :else                 [1 "s"]))
+    (> (double value) 60)   [(/ 60) "min"]
+    (< (double value) 1e-6) [1e9 "ns"]
+    (< (double value) 1e-3) [1e6 "µs"]
+    (< (double value) 1)    [1e3 "ms"]
+    :else                   [1 "s"]))
 
 (def ^:const ONE-KB 1024)
 (def ^:const ONE-MB (* 1024 1024))
@@ -53,7 +53,7 @@
 
 (defmethod format-value* :default
   [_ value opts]
-  (format "%d" value))
+  (format "%s" (str value)))
 
 (defn- double-format-str [sf]
   (case (long (or sf 0))
