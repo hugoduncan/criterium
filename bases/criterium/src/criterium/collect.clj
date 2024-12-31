@@ -216,6 +216,7 @@
   {:post [(have? util/collection-map? %)]}
   (loop [i            num-samples
          elapsed-time 0
+         min-time     Long/MAX_VALUE
          collections  []]
     (let [args         (measured/args measured)
           collected    (collector/collect pipeline measured args batch-size)
@@ -225,9 +226,11 @@
         (recur
          (unchecked-dec i)
          elapsed-time
+         (min min-time t)
          (conj collections collected))
         {:eval-count   (* num-samples batch-size)
          :elapsed-time elapsed-time
+         :min-time     min-time
          :collections  (conj collections collected)
          :num-samples  (count collections)
          :batch-size   batch-size

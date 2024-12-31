@@ -142,7 +142,11 @@
             warmup-data (collect/warmup
                          pipeline measured num-warmup-samples warmup-batch-size)
 
-            batch-size (Long. warmup-batch-size)
+            t2         (max
+                        1
+                        (double (/ (long (:min-time warmup-data))
+                                   warmup-batch-size)))
+            batch-size (collect/batch-size t2 batch-time-ns)
 
             ;; Enter garbage Free zone
             _             (collect/force-gc-no-capture! max-gc-attempts)
