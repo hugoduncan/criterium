@@ -30,6 +30,14 @@
   {:sample-> (fn sample-> ^double [v] v)
    :->sample (fn ->sample ^double [v] v)})
 
+(defn- batch-transforms
+  [batch-size]
+  (let [batch-size (double batch-size)] ; boxed to Double in closure
+    {:sample-> (fn sample-> ^double [v]
+                 (/ (double v) (double batch-size)))
+     :->sample (fn ->sample ^double [v]
+                 (* (double v) (double batch-size)))}))
+
 (defmethod impl/collect* :one-shot
   ;; Collects a Single sample measured with no warmup of the measured function.
   ;; Forces GC.
@@ -50,14 +58,6 @@
       :eval-count     1
       :num-samples    1
       :expr-value     (:expr-value sample)}}))
-
-(defn- batch-transforms
-  [batch-size]
-  (let [batch-size (double batch-size)] ; boxed to Double in closure
-    {:sample-> (fn sample-> ^double [v]
-                 (/ (double v) (double batch-size)))
-     :->sample (fn ->sample ^double [v]
-                 (* (double v) (double batch-size)))}))
 
 (defn- collected-data-map
   [collection-map]
