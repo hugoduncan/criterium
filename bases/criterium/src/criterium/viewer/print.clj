@@ -32,9 +32,10 @@
     (print-metrics metric-configs (util/metric->values metrics-samples))))
 
 (defn print-stat
-  [metric stat]
+  [metric stat transforms]
   (when-let [mean (:mean stat)]
-    (let [[scale unit] (format/scale
+    (let [stat         (util/transform-vals-> stat transforms)
+          [scale unit] (format/scale
                         (:dimension metric)
                         (* (:scale metric) mean))
           scale        (* scale (:scale metric))]
@@ -49,9 +50,9 @@
         (format/format-scaled (:min-val stat) scale))))))
 
 (defn print-stats
-  [metrics stats]
+  [metrics stats transforms]
   (doseq [metric metrics]
-    (print-stat metric (get-in stats (:path metric)))))
+    (print-stat metric (get-in stats (:path metric)) transforms)))
 
 (defmethod view/stats* :print
   [{:keys [stats-id]} bench-map]
@@ -59,7 +60,10 @@
         stats-map      (-> bench-map :data stats-id)
         metrics-defs   (:metrics-defs stats-map)
         metric-configs (metric/all-metric-configs metrics-defs)]
-    (print-stats metric-configs (util/stats stats-map))))
+    (print-stats
+     metric-configs
+     (util/stats stats-map)
+     (util/get-transforms (:data bench-map) stats-id))))
 
 (defn print-event-stats-metrics
   [event-stats metric ms]
@@ -339,11 +343,10 @@
                            transforms
                            %)
                          metric-configs)]
-    (println "\n")
     (doseq [h histograms]
       (println
-       (format "%32s" (str "Histogram of " (-> h :metric-config :label)) ))
-      (let [scale     (:scale (:metric-config h))
+       (format "%32s: Histogram" (-> h :metric-config :label) ))
+      (let [scale     (double  (:scale (:metric-config h)))
             dimension (:dimension (:metric-config h))]
         (run!
          (fn [[x bin-count density] ]
@@ -351,7 +354,7 @@
             (format
              "%36s %7s %5d  %.3g"
              ""
-             (format/format-value dimension (* x scale))
+             (format/format-value dimension (* (double x) scale) {:sf 4})
              bin-count density)))
          (mapv vector (:centers h) (:counts h) (:density h))))
       (println))))
@@ -361,16 +364,25 @@
   (let [quantiles-id   (or quantiles-id :quantiles)
         quantiles-map  (have util/quantiles-map?
                              (-> bench-map :data quantiles-id))
-        metric-configs (:metric-configs quantiles-map)
+        metrics-defs   (:metrics-defs quantiles-map)
+        metric-configs (metric/all-metric-configs metrics-defs)
+        transforms     (util/get-transforms
+                        (:data bench-map)
+                        quantiles-id)
         table          (viewer-common/quantiles
                         metric-configs
-                        (util/quantiles quantiles-map))]
+                        (util/quantiles quantiles-map)
+                        transforms)]
     (doseq [vs table]
-      (let [ks (sort (keys (dissoc vs :metric)))]
+      (let [ks  (sort (keys (dissoc vs :metric)))
+            pks (filterv #{0.25 0.5 0.75} ks)
+            oks (into [] (remove #{0.25 0.5 0.75}) ks)]
         (println
          (format "%22s Quantiles: %s"
                  (:metric vs)
-                 (str/join ", " (mapv #(str % " " (vs %)) ks))))))))
+                 (str/join ", " (mapv #(str % " " (vs %)) pks))))
+        (doseq [ok oks]
+          (println (format "%32s  %3.3g %s" "" ok (vs ok))))))))
 
 (defmethod view/os* :print
   [_ _sampled]

@@ -43,38 +43,30 @@
   (util/update-vals m scale-1))
 
 (defn quantiles-for
-  [path samples config transforms]
+  [path samples config]
   {:pre [(have? seq path)
          (have? seq samples)
          (have? map? samples)]}
   (have :quantiles config)
   (have (comp not :tail-quantile) config)
-  (let [qs      (into [0.25 0.5 0.75] (:quantiles config))
-        scale-1 (fn [v] (util/transform-sample-> v transforms))
-        vs      (sort (samples-for-path samples path))]
-    (scale-vals (sample-quantiles qs vs) scale-1)))
+  (let [qs (into [0.25 0.5 0.75] (:quantiles config))
+        vs (sort (samples-for-path samples path))]
+    (sample-quantiles qs vs)))
 
 (defn stats-for
-  [vs _config transforms]
-  {:pre [(seq vs)]}
-  (let [scale-1 (fn [v] (util/transform-sample-> v transforms))
-        vs      (sort vs)]
+  [vs _config]
+  {:pre [(have? seq vs)]}
+  (let [vs (sort vs)]
     (-> (into {} (stats-fns vs))
         (assoc-mean-3-sigma)
-        (scale-vals scale-1))))  ; variance scaled once to account for batching
+        (assoc :n (count vs)))))
 
 (defn quantiles
-  [samples metric-configs transforms config]
+  [samples metric-configs config]
   {:pre [(have? seq samples)]}
   (reduce
    (fn [res path]
-     (assoc-in
-      res path
-      (quantiles-for
-       path
-       samples
-       config
-       transforms)))
+     (assoc-in res path (quantiles-for path samples config)))
    {}
    (map :path metric-configs)))
 
@@ -84,22 +76,18 @@
   (reduce
    (fn [res path]
      (let [ols (:outliers (get-in outliers path) {})
-           [vs transforms]
-           (loop [samples-id samples-id]
-             (when-not samples-id
-               (throw
-                (ex-info "Failed to get samples"
-                         {:path    path
-                          :sampled result-map})))
-             (let [metrics-samples (result-map samples-id)
-                   metric->values  (util/metric->values metrics-samples)
-                   vs              (samples-for-path metric->values path)]
-               (when-not metrics-samples
-                 (throw (ex-info "invalid samples-id"
-                                 {:samples-id samples-id})))
-               (if (not-empty vs)
-                 [vs (util/get-transforms result-map samples-id)]
-                 (recur (:source-id metrics-samples)))))
+           _   (when-not samples-id
+                 (throw
+                  (ex-info "Failed to get samples"
+                           {:path    path
+                            :sampled result-map})))
+           vs  (let [metrics-samples (result-map samples-id)
+                     metric->values  (util/metric->values metrics-samples)
+                     vs              (samples-for-path metric->values path)]
+                 (when-not metrics-samples
+                   (throw (ex-info "invalid samples-id"
+                                   {:samples-id samples-id})))
+                 vs)
            without-outliers
            (into []
                  (comp
@@ -109,7 +97,7 @@
        (assert (seq vs) path)
        (assoc-in
         res path
-        (stats-for without-outliers config transforms))))
+        (stats-for without-outliers config))))
    {}
    (map :path metric-configs)))
 

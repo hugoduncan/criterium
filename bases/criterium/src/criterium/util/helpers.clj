@@ -2,7 +2,7 @@
   (:refer-clojure :exclude [update-vals])
   (:require
    [clojure.set :as set]
-   [criterium.util.invariant :refer [have?]]
+   [criterium.util.invariant :refer [have have?]]
    [criterium.util.invariant :as invariant]))
 
 (defn spy
@@ -343,7 +343,7 @@
 (defn get-transforms
   [result-map path]
   {:pre [(have? result-map? result-map)]}
-  (loop [transforms (update-vals (:transform (result-map path)) vector)
+  (loop [transforms (update-vals (:transform (have (result-map path))) vector)
          path       (:source-id (result-map path))]
     (if path
       (let [t (:transform (result-map path))]
@@ -352,8 +352,14 @@
          (:source-id (result-map path))))
       transforms)))
 
-(defn transform-sample-> [value transforms]
+(defn transform-sample->
+  ^double [value transforms]
   (reduce (fn [v f] (f v)) value (:sample-> transforms)))
+
+(defn transform-vals->
+  [m transforms]
+  (let [tform #(reduce (fn [v f] (f v)) % (:sample-> transforms))]
+    (update-vals m tform)))
 
 (defn transform->sample [value transforms]
   (reduce (fn [v f] (f v)) value (reverse (:->sample transforms))))

@@ -39,24 +39,43 @@
   ([value scale unit]
    (format "%3.3g %s" (double (* (double scale) (double value))) unit)))
 
-(defmulti format-value
+(defmulti format-value*
   "Format value to 3 significant figures in an appropriate unit for the scale."
   #_{:clj-kondo/ignore [:unused-binding]}
-  (fn [dimension value] dimension))
+  (fn [dimension value opts] dimension))
 
-(defmethod format-value :default
-  [_ value]
+(defn format-value
+  "Format in an appropriate unit and precision for the scale."
+  ([dimension value]
+   (format-value* dimension value {:sf 3}))
+  ([dimension value opts]
+   (format-value* dimension value (merge {:sf 3} opts))))
+
+(defmethod format-value* :default
+  [_ value opts]
   (format "%d" value))
 
-(defmethod format-value :time
-  [dimension value]
-  (let [[scale unit] (scale dimension value)]
-    (format "%3.3g %s" (double (* (double scale) (double value))) unit)))
+(defn- double-format-str [sf]
+  (case (long (or sf 0))
+    3 "%3.3g"
+    4 "%4.4g"
+    "%3.3g"))
 
-(defmethod format-value :memory
-  [dimension value]
+(defmethod format-value* :time
+  [dimension value opts]
   (let [[scale unit] (scale dimension value)]
-    (format "%3.3f %s" (double (* (double scale) (double value))) unit)))
+    (format
+     (str (double-format-str (:sf opts)) " %s")
+     (double (* (double scale) (double value)))
+     unit)))
+
+(defmethod format-value* :memory
+  [dimension value opts]
+  (let [[scale unit] (scale dimension value)]
+    (format
+     (str (double-format-str (:sf opts)) " %s")
+     (double (* (double scale) (double value)))
+     unit)))
 
 (defmulti format-metric
   #_{:clj-kondo/ignore [:unused-binding]}

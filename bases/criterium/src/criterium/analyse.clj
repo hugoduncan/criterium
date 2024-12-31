@@ -112,11 +112,9 @@
                                (metric/filter-metrics
                                 (metric/type-pred :quantitative)))
            metric-configs  (metric/all-metric-configs metrics-defs)
-           transforms      (util/get-transforms (:data bench-map) samples-id)
            quantiles       (sampled-stats/quantiles
                             (util/metric->values metrics-samples)
                             metric-configs
-                            transforms
                             analysis)
            quantiles-map   (have
                             util/quantiles-map?
@@ -144,7 +142,7 @@
            (> high-severe x high-mild) :high-mild
            (>= x high-severe)          :high-severe)])))
 
-(defn samples-outliers [metric-configs all-quantiles samples transforms]
+(defn samples-outliers [metric-configs all-quantiles samples]
   (reduce
    (fn sample-m [result metric-config]
      (let [path           (:path metric-config)
@@ -153,9 +151,6 @@
            thresholds     (stats/boxplot-outlier-thresholds
                            (get quantiles 0.25)
                            (get quantiles 0.75))
-           thresholds     (mapv
-                           #(util/transform->sample % transforms)
-                           thresholds)
            classifier     (classifier thresholds)
            outliers       (when (apply not= thresholds)
                             (into {}
@@ -219,8 +214,7 @@
            metrics-samples (have (-> bench-map :data samples-id))
            metrics-defs    (-> (:metrics-defs all-quantiles)
                                (metric/select-metrics metric-ids))
-           metric-configs  (metric/all-metric-configs metrics-defs)
-           transforms      (util/get-transforms (:data bench-map) samples-id)]
+           metric-configs  (metric/all-metric-configs metrics-defs)]
        (when-not all-quantiles
          (throw (ex-info
                  "outlier analysis requires quantiles analysis"
@@ -229,8 +223,7 @@
        (let [outliers     (samples-outliers
                            metric-configs
                            (util/quantiles all-quantiles)
-                           (util/metric->values metrics-samples)
-                           transforms)
+                           (util/metric->values metrics-samples))
              outliers-map (have
                            util/outliers-map?
                            {:type         :criterium/outliers

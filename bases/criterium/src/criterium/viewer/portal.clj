@@ -67,16 +67,20 @@
   (let [stats-id       (or stats-id :stats)
         stats-map      (-> bench-map :data stats-id)
         metrics-defs   (:metrics-defs stats-map)
-        metric-configs (metric/all-metric-configs metrics-defs)]
+        metric-configs (metric/all-metric-configs metrics-defs)
+        transforms     (util/get-transforms (:data bench-map) stats-id)]
     (heading "Summary stats")
     (portal-table
-     (viewer-common/stats-map (util/stats stats-map) metric-configs))))
+     (viewer-common/stats-map
+      (util/stats stats-map)
+      metric-configs
+      transforms))))
 
 (defmethod view/event-stats* :portal
   [{:keys [event-stats-id]} bench-map]
   (let [event-stats-id  (or event-stats-id :event-stats)
         event-stats-map (-> bench-map :data event-stats-id)
-        metrics-defs    (:metrics-defs event-stats-map)]
+        metrics-defs    (have (:metrics-defs event-stats-map))]
     (heading "Event stats")
     (portal-table
      (viewer-common/event-stats
@@ -84,16 +88,18 @@
       (util/event-stats event-stats-map)))))
 
 (defmethod view/quantiles* :portal
-  [{:keys [quantilies-id]} bench-map]
-  (let [quantilies-id  (or quantilies-id :quantiles)
-        quantiles-map  (-> bench-map :data quantilies-id)
+  [{:keys [quantiles-id]} bench-map]
+  (let [quantiles-id   (or quantiles-id :quantiles)
+        quantiles-map  (-> bench-map :data quantiles-id)
         metrics-defs   (:metrics-defs quantiles-map)
-        metric-configs (metric/all-metric-configs metrics-defs)]
+        metric-configs (metric/all-metric-configs metrics-defs)
+        transforms     (util/get-transforms (:data bench-map) quantiles-id)]
     (heading "Quantiles")
     (portal-table
      (viewer-common/quantiles
       metric-configs
-      (util/quantiles quantiles-map)))))
+      (util/quantiles quantiles-map)
+      transforms))))
 
 (defmethod view/outlier-counts* :portal
   [{:keys [outliers-id] :as _view} bench-map]
@@ -190,11 +196,9 @@
 
 (defn normal-pdf-points
   [min-val max-val mean variance transforms]
-  (let [sigma       (Math/sqrt variance)
-        #_#_min-val (* min-val 0.9)
-        #_#_sigma   (Math/abs sigma)
-        delta       (/ (- (double max-val) (double min-val)) 120)
-        pdf         (probability/normal-pdf mean sigma)]
+  (let [sigma (Math/sqrt variance)
+        delta (/ (- (double max-val) (double min-val)) 120)
+        pdf   (probability/normal-pdf mean sigma)]
     (mapv
      (fn [z]
        {:z (util/transform-sample-> z transforms)
@@ -208,10 +212,10 @@
         path (:path metric-config)
         k    (first path)
         data (normal-pdf-points
-              (util/transform->sample mean-minus-3sigma transforms)
-              (util/transform->sample mean-plus-3sigma transforms)
-              (util/transform->sample mean transforms)
-              (util/transform->sample variance transforms)
+              mean-minus-3sigma
+              mean-plus-3sigma
+              mean
+              variance
               transforms)]
     [{:resolve {:scale {:y "shared"}}
       :layer
@@ -224,7 +228,9 @@
                    :tooltip [{:field (name k)
                               :title (str "Normal")}]}
         :mark     {:type "line"}}
-       {:data     {:values [{k mean :title "mean"}]}
+       {:data     {:values [{k
+                             (util/transform-sample-> mean transforms)
+                             :title "mean"}]}
         :encoding {:x       {:field (name k)
                              :type  "quantitative"
                              :scale {:zero false}}
