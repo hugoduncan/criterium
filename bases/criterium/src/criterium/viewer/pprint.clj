@@ -28,7 +28,7 @@
         metric-configs (metric/all-metric-configs metrics-defs)
         transforms     (util/get-transforms (:data bench-map) stats-id)]
     (pprint/print-table
-     [:metric :mean-minus-3sigma :mean :mean-plus-3sigma :min-val :max-val]
+     [:_metric :mean-minus-3sigma :mean :mean-plus-3sigma :min-val :max-val]
      (viewer-common/stats-map
       (util/stats stats-map)
       metric-configs
@@ -68,7 +68,7 @@
         metrics-defs   (:metrics-defs outliers-map)
         metric-configs (metric/all-metric-configs metrics-defs)]
     (pprint/print-table
-     [:metric :low-severe :low-mild :high-mild :high-severe]
+     [:_metric :low-severe :low-mild :high-mild :high-severe]
      (viewer-common/outlier-counts
       metric-configs
       (util/outliers outliers-map)))))

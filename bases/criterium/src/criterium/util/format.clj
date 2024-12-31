@@ -1,12 +1,28 @@
 (ns criterium.util.format
   "Metric formatters")
 
+(defn round
+  "Round number to specified significant figures.
+
+   Parameters:
+     n - Number to round
+     sig-figs - Number of significant figures to keep
+
+   Returns:
+     Number rounded to specified significant figures"
+  [n sig-figs]
+  (let [magnitude (Math/floor (Math/log10 (Math/abs n)))
+        scale     (- sig-figs magnitude 1)]
+    (/ (Math/round (* n (Math/pow 10 scale)))
+       (Math/pow 10 scale))))
+
 (defmulti scale
   "Scale value with given dimensions keyword.
   Return a [scale units] tuple.
   scale is a multiplicative factor. units is a string."
   #_{:clj-kondo/ignore [:unused-binding]}
   (fn [dimension value] dimension))
+
 
 (defmethod scale :default
   [_ _value]

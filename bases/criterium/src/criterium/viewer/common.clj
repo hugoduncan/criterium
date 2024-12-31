@@ -24,18 +24,21 @@
   [stats metric-configs transforms]
   (reduce
    (fn [res metric]
-     (let [stat (util/transform-vals->
-                 (get-in stats (:path metric))
-                 transforms)]
+     (let [stat          (util/transform-vals->
+                          (get-in stats (:path metric))
+                          transforms)
+           min-val       (double (:min-val stat))
+           metric-scale  (double (:scale metric))
+           [scale label] (format/scale
+                          (:dimension metric)
+                          (* metric-scale min-val))
+           scale         (* (double scale) metric-scale)]
        (conj res
              (reduce
               (fn add-key-k [res k]
                 (assoc res k
-                       (format/format-value
-                        (:dimension metric)
-                        (* (double (get stat k))
-                           (double (:scale metric))))))
-              {:metric (:label metric)}
+                       (format/round (* (double (get stat k)) scale) 4)))
+              {:_metric (str  (:label metric) " " label)} ; underscore so it sorts first
               [:mean :min-val :mean-minus-3sigma :mean-plus-3sigma :max-val]))))
    []
    (filterv (metric/type-pred :quantitative) metric-configs)))
@@ -82,17 +85,24 @@
   {:pre [(have? all-quantiles)]}
   (reduce
    (fn [res metric-config]
-     (let [quantiles (get-in all-quantiles (:path metric-config))]
+     (let [quantiles    (get-in all-quantiles (:path metric-config))
+           median-val   (double
+                         (util/transform-sample-> (quantiles 0.5) transforms))
+           metric-scale (double (:scale metric-config))
+           [scale unit] (format/scale
+                         (:dimension metric-config)
+                         (* metric-scale median-val))
+           scale        (* (double scale) metric-scale)]
        (conj res
              (reduce-kv
               (fn [res q v]
-                (assoc res
-                       q
-                       (format/format-value
-                        (:dimension metric-config)
-                        (* (util/transform-sample-> (double v) transforms)
-                           (double (:scale metric-config))))))
-              {:metric (:label metric-config)}
+                (assoc
+                 res
+                 q
+                 (format/round
+                  (* (util/transform-sample-> (double v) transforms) scale)
+                  4)))
+              {:metric (str (:label metric-config) " " unit)}
               quantiles))))
    []
    metric-configs))
@@ -103,7 +113,7 @@
    (fn [res metric]
      (let [mcs (:outlier-counts (get-in outliers (:path metric)))]
        (if (some pos? (vals mcs))
-         (conj res (assoc mcs :metric (:label metric)))
+         (conj res (assoc mcs :_metric (:label metric)))
          res)))
    []
    metrics))
