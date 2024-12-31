@@ -31,10 +31,17 @@
 (defn flush
   "Flush tapped output"
   []
-  (let [{:keys [portal-submit values]} @tapped]
+  (tap> ::_)
+  (loop [i 0]
+    (when (not= ::_ (first (:values @tapped)))
+      (when (< i 1000)
+        (Thread/yield)
+        (recur (unchecked-inc i)))))
+
+  (let [[{:keys [portal-submit values]}] (swap-vals! tapped assoc :values '())]
     (doseq [value values]
-      (portal-submit value))
-    (swap! tapped assoc :values '())))
+      (when (not= ::_ value)
+        (portal-submit value)))))
 
 (defmethod view/flush-viewer :portal [_]
   (flush))
