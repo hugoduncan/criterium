@@ -3,6 +3,8 @@
    [clojure.string :as str]
    [criterium.metric :as metric]
    [criterium.util.format :as format]
+   [criterium.util.helpers :as util]
+   [criterium.util.histogram :as histogram]
    [criterium.util.invariant :refer [have?]]))
 
 (defn metrics-map
@@ -124,3 +126,39 @@
       (conj (merge {:phase :warmup} warmup-scheme))
       estimation-scheme
       (conj (merge {:phase :estimation} estimation-scheme)))))
+
+(defn column-data->maps
+  "Convert data where each column's values are stored in vectors."
+  [column-data column-keys column-tforms]
+  (let [make-row (fn [& vals]
+                   (zipmap
+                    column-keys
+                    (mapv
+                     (fn [k v] ((column-tforms k identity) v))
+                     column-keys vals)))]
+    (apply mapv make-row (map column-data column-keys))))
+
+(defn- remove-outliers
+  [samples outliers]
+  (into [] (comp
+            (filter some?)
+            (map-indexed (fn [i s] (when-not (outliers i) s))))
+        samples))
+
+(defn histogram
+  [metric->values quantiles outliers transforms metric-config]
+  (let [p         (:path metric-config)
+        iqr       (when-let [qs (get-in quantiles p)]
+                    (- (double (get qs 0.75)) (double (get qs 0.25))))
+        samples   (metric->values p)
+        outliers  (get-in outliers p)
+        samples   (if outliers
+                    (remove-outliers samples outliers)
+                    samples)
+        res       (histogram/histogram samples iqr)
+        transform #(util/transform-sample-> % transforms)]
+    (-> res
+        (update :centers #(mapv transform %))
+        (update :min  transform)
+        (update :max  transform)
+        (assoc :metric-config metric-config))))
