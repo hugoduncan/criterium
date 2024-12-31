@@ -6,6 +6,7 @@
    [criterium.metric :as metric]
    [criterium.util.format :as format]
    [criterium.util.helpers :as util]
+   [criterium.util.histogram :as histogram]
    [criterium.util.invariant :refer [have have?]]
    [criterium.view :as view]
    [criterium.viewer.common :as viewer-common]))
@@ -316,9 +317,44 @@
                (:num-samples est) (:batch-size est)
                (* (:num-samples est) (:batch-size est)))))))
 
+
 (defmethod view/histogram* :print
-  [view sampled]
-  (println "Histogram view for print is not implemented yet"))
+  [{:keys [samples-id quantiles-id outliers-id] :as _view} bench-map]
+  (let [samples-id      (or samples-id :samples)
+        quantiles-id    (or quantiles-id :quantiles)
+        outliers-id     (or outliers-id :outliers)
+        metrics-samples (-> bench-map :data samples-id)
+        quantiles       (-> bench-map :data quantiles-id)
+        outliers        (-> bench-map :data outliers-id)
+        metrics-defs    (-> (:metrics-defs metrics-samples)
+                            (metric/filter-metrics
+                             (metric/type-pred :quantitative)))
+        metric-configs  (metric/all-metric-configs metrics-defs)
+        transforms      (util/get-transforms (:data bench-map) samples-id)
+        histograms      (mapv
+                         #(viewer-common/histogram
+                           (util/metric->values metrics-samples)
+                           (util/quantiles quantiles)
+                           (util/outliers outliers)
+                           transforms
+                           %)
+                         metric-configs)]
+    (println "\n")
+    (doseq [h histograms]
+      (println
+       (format "%32s" (str "Histogram of " (-> h :metric-config :label)) ))
+      (let [scale     (:scale (:metric-config h))
+            dimension (:dimension (:metric-config h))]
+        (run!
+         (fn [[x bin-count density] ]
+           (println
+            (format
+             "%36s %7s %5d  %.3g"
+             ""
+             (format/format-value dimension (* x scale))
+             bin-count density)))
+         (mapv vector (:centers h) (:counts h) (:density h))))
+      (println))))
 
 (defmethod view/quantiles* :print
   [{:keys [quantiles-id]} bench-map]

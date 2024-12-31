@@ -3,6 +3,7 @@
   (:require
    [clojure.pprint :as pprint]
    [criterium.metric :as metric]
+   [criterium.util.format :as format]
    [criterium.util.helpers :as util]
    [criterium.view :as view]
    [criterium.viewer.common :as viewer-common]))
@@ -176,10 +177,38 @@
                              count)))]
     (pprint/print-table all-keys data)))
 
+
 (defmethod view/histogram* :pprint
-  [_view _bench-map]
-  ;; TODO
-  )
+  [{:keys [samples-id quantiles-id] :as _view} bench-map]
+  (let [samples-id      (or samples-id :samples)
+        quantiles-id    (or quantiles-id :quantiles)
+        metrics-samples (-> bench-map :data samples-id)
+        quantiles       (-> bench-map :data quantiles-id)
+        metrics-defs    (-> (:metrics-defs metrics-samples)
+                            (metric/filter-metrics
+                             (metric/type-pred :quantitative)))
+        metric-configs  (metric/all-metric-configs metrics-defs)
+        transforms      (util/get-transforms (:data bench-map) samples-id)
+        histograms      (mapv
+                         #(viewer-common/histogram
+                           (util/metric->values metrics-samples)
+                           (util/quantiles quantiles)
+                           transforms
+                           %)
+                         metric-configs)]
+    (doseq [h histograms]
+      (println (format "Histogram of %s" (-> h :metric-config :label) ))
+      (pprint/print-table
+       [:centers :counts :density]
+       (viewer-common/column-data->maps
+        h
+        [:centers :counts :density]
+        {:centers (let [scale     (double (-> h :metric-config :scale))
+                        dimension (-> h :metric-config :dimension)]
+                    (fn [^double v]
+                      (format/format-value dimension (* v scale))))
+         :density (fn [v] (format "%-8.3g" v))}))
+      (println))) )
 
 (defmethod view/sample-percentiles* :pprint
   [_view _banch-map]
