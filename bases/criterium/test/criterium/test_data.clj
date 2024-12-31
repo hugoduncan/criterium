@@ -1,4 +1,4 @@
-(ns criterium.viewer.test-data
+(ns criterium.test-data
   (:require
    [criterium.analyse :as analyse]
    [criterium.collect-plan :as collect-plan]

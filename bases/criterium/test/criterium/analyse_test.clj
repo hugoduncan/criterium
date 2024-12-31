@@ -7,7 +7,7 @@
    [criterium.collector.metrics :as metrics]
    [criterium.test-utils :refer [test-max-error]]
    [criterium.util.helpers :as util]
-   [criterium.viewer.test-data :as test-data]))
+   [criterium.test-data :as test-data]))
 
 (deftest outlier-significance-impl--test
   ;; http://www.ellipticgroup.com/misc/article_supplement.pdf, p22
@@ -19,9 +19,6 @@
               (/ (* 0.0013859776344426547 0.0013859776344426547)
                  batch-size)
               batch-size))))))
-
-(defn identity-transform [samples]
-  (with-meta samples {:transform {:sample-> identity :->sample identity}}))
 
 (deftest transform-log-test
   (testing "transform-log"
