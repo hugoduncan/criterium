@@ -46,7 +46,9 @@
   (tap> (with-meta s {:portal.viewer/default :portal.viewer/table})))
 
 (defn portal-vega-lite [s]
-  (tap> (with-meta s {:portal.viewer/default :portal.viewer/vega-lite})))
+  (tap> (with-meta
+          (assoc s :$schema  "https://vega.github.io/schema/vega-lite/v5.json")
+          {:portal.viewer/default :portal.viewer/vega-lite})))
 
 (defn heading [s]
   (portal-heading [:b s]))
@@ -299,8 +301,7 @@
         transforms (util/get-transforms (:data bench-map) quant-samples-id)]
     (heading "Samples")
     (portal-vega-lite
-     {:$schema  "https://vega.github.io/schema/vega-lite/v5.json"
-      :data     {:values [{}]}
+     {:data     {:values [{}]}
       :encoding {:x {:field "index" :type "quantitative"}}
       :resolve  {:scale {:y "independent"}}
       :vconcat
@@ -344,8 +345,7 @@
                              (:source-id stats))]
     (heading "Histogram")
     (portal-vega-lite
-     {:$schema "https://vega.github.io/schema/vega-lite/v5.json"
-      :data    {:values []}
+     {:data    {:values []}
       :resolve {:scale {:x "independent" :y "independent"}}
       :vconcat (mapv
                 (fn [metric-config]
@@ -424,8 +424,7 @@
                           quant-samples-id)]
     (heading "Percentiles")
     (portal-vega-lite
-     {:$schema "https://vega.github.io/schema/vega-lite/v5.json"
-      :data    {:values [{}]} ; for portal
+     {:data    {:values [{}]} ; for portal
       :resolve {:scale {:y "independent"}}
       :vconcat
       (into
@@ -475,8 +474,7 @@
         metric-configs   (:metric-configs quant-samples)]
     (heading "Sample diffs")
     (portal-vega-lite
-     {:$schema "https://vega.github.io/schema/vega-lite/v5.json"
-      :data    {:values [{}]} ; for portal
+     {:data    {:values [{}]} ; for portal
       :resolve {:scale {:y "independent"}}
       :vconcat
       (into
