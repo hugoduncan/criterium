@@ -37,7 +37,7 @@
 
   Example:
   (let [transform (transform-log {:id :my-logs})
-        result (transform {:samples {...} :metrics-configs {...}})]
+        result (transform {:samples {...} :metrics-defs {...}})]
     (:my-logs result)) ;; Contains log-transformed values"
   ([] (transform-log {}))
   ([{:keys [id samples-id metric-ids]}]
@@ -97,7 +97,7 @@
 
   Example:
   (let [analyze (quantiles {:quantiles [0.05 0.95]})
-        result (analyze {:samples {...} :metrics-configs {...}})]
+        result (analyze {:samples {...} :metrics-defs {...}})]
     (get-in result [:quantiles :elapsed-time]))
   ;; Returns map of quantiles for elapsed time metric"
   ([] (quantiles {}))
@@ -205,7 +205,7 @@
   Example:
   (let [analyze (outliers)
         result (analyze {:samples {...}
-                        :metrics-configs {...}
+                        :metrics-defs {...}
                         :quantiles {...}})]
     (get-in result [:outliers :elapsed-time]))
   ;; Returns {:thresholds [...] :outliers {...} :outlier-counts {...}}"
@@ -267,7 +267,7 @@
 
   Example:
   (let [analyze (stats)
-        result (analyze {:samples {...} :metrics-configs {...}})]
+        result (analyze {:samples {...} :metrics-defs {...}})]
     (get-in result [:stats :elapsed-time]))
   ;; Returns {:mean 100.0 :variance 16.0 ...}"
   ([] (stats {}))
@@ -327,7 +327,7 @@
 
   Example:
   (let [analyze (event-stats)
-        result (analyze {:samples {...} :metrics-configs {...}})]
+        result (analyze {:samples {...} :metrics-defs {...}})]
     (:event-stats result))
   ;; Returns {:compilation {:time-ms 8 :sample-count 2} ...}"
   ([] (event-stats {}))

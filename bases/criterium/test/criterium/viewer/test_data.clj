@@ -32,9 +32,9 @@
                     [:elapsed-time])}}})
 
 (defn samples-with-2-values-map []
-  {:metrics-configs (select-keys
-                     (metrics/metrics)
-                     [:elapsed-time])
+  {:metrics-defs (select-keys
+                  (metrics/metrics)
+                  [:elapsed-time])
    :data
    {:samples
     {:type           :criterium/collected-metrics-samples
@@ -43,15 +43,15 @@
                       [:elapsed-time])
      :metric->values {[:elapsed-time] [1 1]}
      :transform      collect-plan/identity-transforms}}
-   :batch-size      1
-   :eval-count      2
-   :num-samples     2
-   :elapsed-time    1})
+   :batch-size   1
+   :eval-count   2
+   :num-samples  2
+   :elapsed-time 1})
 
 (defn samples-with-transformed-values-map []
-  {:metrics-configs (select-keys
-                     (metrics/metrics)
-                     [:elapsed-time])
+  {:metrics-defs (select-keys
+                  (metrics/metrics)
+                  [:elapsed-time])
    :data
    {:samples
     {:type           :criterium/collected-metrics-samples
@@ -60,15 +60,15 @@
                       [:elapsed-time])
      :metric->values {[:elapsed-time] [2 4 8]}
      :transform      (#'collect-plan/batch-transforms 2)}}
-   :batch-size      3
-   :eval-count      6
-   :num-samples     3
-   :elapsed-time    14})
+   :batch-size   3
+   :eval-count   6
+   :num-samples  3
+   :elapsed-time 14})
 
 (defn samples-with-variance-12-map []
-  {:metrics-configs (select-keys
-                     (metrics/metrics)
-                     [:elapsed-time])
+  {:metrics-defs (select-keys
+                  (metrics/metrics)
+                  [:elapsed-time])
    :data
    {:samples
     {:type           :criterium/collected-metrics-samples
@@ -77,15 +77,15 @@
                       [:elapsed-time])
      :metric->values {[:elapsed-time] [1 1 1 5 5 5 9 9 9]}
      :transform      collect-plan/identity-transforms}}
-   :batch-size      1
-   :eval-count      9
-   :num-samples     9
-   :elapsed-time    42})
+   :batch-size   1
+   :eval-count   9
+   :num-samples  9
+   :elapsed-time 42})
 
 (defn samples-with-outliers-values-map []
-  {:metrics-configs (select-keys
-                     (metrics/metrics)
-                     [:elapsed-time])
+  {:metrics-defs (select-keys
+                  (metrics/metrics)
+                  [:elapsed-time])
    :data
    {:samples
     {:type           :criterium/collected-metrics-samples

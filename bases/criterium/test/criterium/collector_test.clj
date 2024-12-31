@@ -93,7 +93,7 @@
                       {:stages     (all-stages)
                        :terminator :elapsed-time})]
         (is (map? pipeline))
-        (is (contains? pipeline :metrics-configs))
+        (is (contains? pipeline :metrics-defs))
         (is (fn? (-> pipeline :f)))
         (is (fn? (-> pipeline :x)))))
     (testing "throws if passed a non keyword"

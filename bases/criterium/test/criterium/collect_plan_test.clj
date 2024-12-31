@@ -15,7 +15,7 @@
                                          :terminator :elapsed-time})
           sampled  (collect-plan/collect
                     (collect-plan-config/one-shot-collect-plan {})
-                    (:metrics-configs pipeline)
+                    (:metrics-defs pipeline)
                     pipeline
                     measured)]
       (is (map? sampled))
@@ -33,7 +33,7 @@
                                          :terminator :elapsed-time})
           sampled  (collect-plan/collect
                     (collect-plan-config/full-collect-plan {})
-                    (:metrics-configs pipeline)
+                    (:metrics-defs pipeline)
                     pipeline
                     measured)]
       (is (map? sampled))

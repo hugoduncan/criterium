@@ -165,17 +165,17 @@
                        :bootstrap-size     100
                        :sampled-path       [:sampled]
                        :output-path        [:analysis :bootstrap-stats]})
-                     {:metrics-configs {:v {:type   :quantitative
-                                            :values [{:path [:v]
-                                                      :type :quantitative}]}}
-                      :samples         (with-meta
+                     {:metrics-defs {:v {:type   :quantitative
+                                         :values [{:path [:v]
+                                                   :type :quantitative}]}}
+                      :samples      (with-meta
                                          samples
-                                         {:transform
-                                          {:sample-> #(/ % 100.0)
-                                           :->sample #(* 100.0 %)}})
-                      :batch-size      batch-size
-                      :eval-count      (* num-samples batch-size)
-                      :elapsed-time    1})
+                                      {:transform
+                                       {:sample-> #(/ % 100.0)
+                                        :->sample #(* 100.0 %)}})
+                      :batch-size   batch-size
+                      :eval-count   (* num-samples batch-size)
+                      :elapsed-time 1})
         point       (-> result
                         :bootstrap-stats
                         :v
