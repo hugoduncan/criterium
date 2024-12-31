@@ -25,21 +25,26 @@
   (let [stats-id       (or stats-id :stats)
         stats-map      (-> bench-map :data stats-id)
         metrics-defs   (:metrics-defs stats-map)
-        metric-configs (metric/all-metric-configs metrics-defs)]
+        metric-configs (metric/all-metric-configs metrics-defs)
+        transforms     (util/get-transforms (:data bench-map) stats-id)]
     (pprint/print-table
      [:metric :mean-minus-3sigma :mean :mean-plus-3sigma :min-val :max-val]
      (viewer-common/stats-map
       (util/stats stats-map)
-      metric-configs))))
+      metric-configs
+      transforms))))
 
 (defmethod view/quantiles* :pprint
   [{:keys [quantiles-id]} bench-map]
   (let [quantiles-id   (or quantiles-id :quantiles)
         quantiles-map  (-> bench-map :data quantiles-id)
-        metric-configs (:metric-configs quantiles-map)
+        metrics-defs   (:metrics-defs quantiles-map)
+        metric-configs (metric/all-metric-configs metrics-defs)
+        transforms     (util/get-transforms (:data bench-map) quantiles-id)
         table          (viewer-common/quantiles
                         metric-configs
-                        (util/quantiles quantiles-map))]
+                        (util/quantiles quantiles-map)
+                        transforms)]
     (pprint/print-table
      (into [:metric]
            (->> table first keys (filter #(not= % :metric)) sort))
@@ -127,13 +132,21 @@
         event-samples       (-> banech-map :data event-samples-id)
         outlier-analysis    (-> banech-map :data outlier-analysis-id)
 
-        metric-configs     (:metrics-defs quant-samples)
-        event-metrics-defs (:metrics-defs event-samples)
+        metric-defs        (metric/filter-metrics
+                            (:metrics-defs quant-samples)
+                            (metric/type-pred :quantitative))
+        event-metrics-defs (metric/filter-metrics
+                            (:metrics-defs event-samples)
+                            (metric/type-pred :event))
+
+        metric-configs       (metric/all-metric-configs metric-defs)
+        event-metric-configs (metric/all-metric-configs event-metrics-defs)
 
         transforms (util/get-transforms (:data banech-map) quant-samples-id)
 
         quant-ids    (mapv (comp last :path) metric-configs)
-        event-keys   (vec
+        event-keys   (into
+                      []
                       (mapcat
                        (fn [[k metric-group]]
                          (reduce
@@ -147,8 +160,8 @@
                           []
                           (or (:values metric-group)
                               (mapcat :values
-                                      (vals (:groups metric-group))))))
-                       event-metrics-defs))
+                                      (vals (:groups metric-group)))))))
+                      event-metrics-defs)
         outlier-keys (when outlier-analysis
                        (mapv
                         #(viewer-common/composite-key [(last %) :outlier])
@@ -179,11 +192,13 @@
 
 
 (defmethod view/histogram* :pprint
-  [{:keys [samples-id quantiles-id] :as _view} bench-map]
+  [{:keys [samples-id quantiles-id outliers-id] :as _view} bench-map]
   (let [samples-id      (or samples-id :samples)
         quantiles-id    (or quantiles-id :quantiles)
+        outliers-id     (or outliers-id :outliers)
         metrics-samples (-> bench-map :data samples-id)
         quantiles       (-> bench-map :data quantiles-id)
+        outliers        (-> bench-map :data outliers-id)
         metrics-defs    (-> (:metrics-defs metrics-samples)
                             (metric/filter-metrics
                              (metric/type-pred :quantitative)))
@@ -193,11 +208,12 @@
                          #(viewer-common/histogram
                            (util/metric->values metrics-samples)
                            (util/quantiles quantiles)
+                           (util/outliers outliers)
                            transforms
                            %)
                          metric-configs)]
     (doseq [h histograms]
-      (println (format "Histogram of %s" (-> h :metric-config :label) ))
+      (println (format "\nHistogram of %s" (-> h :metric-config :label) ))
       (pprint/print-table
        [:centers :counts :density]
        (viewer-common/column-data->maps
@@ -206,7 +222,7 @@
         {:centers (let [scale     (double (-> h :metric-config :scale))
                         dimension (-> h :metric-config :dimension)]
                     (fn [^double v]
-                      (format/format-value dimension (* v scale))))
+                      (format/format-value dimension (* v scale) {:sf 4})))
          :density (fn [v] (format "%-8.3g" v))}))
       (println))) )
 

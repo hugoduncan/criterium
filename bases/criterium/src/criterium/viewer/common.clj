@@ -5,7 +5,7 @@
    [criterium.util.format :as format]
    [criterium.util.helpers :as util]
    [criterium.util.histogram :as histogram]
-   [criterium.util.invariant :refer [have?]]))
+   [criterium.util.invariant :refer [have have?]]))
 
 (defn metrics-map
   [sample metrics]
@@ -21,10 +21,12 @@
    metrics))
 
 (defn stats-map
-  [stats metric-configs]
+  [stats metric-configs transforms]
   (reduce
    (fn [res metric]
-     (let [stat (get-in stats (:path metric))]
+     (let [stat (util/transform-vals->
+                 (get-in stats (:path metric))
+                 transforms)]
        (conj res
              (reduce
               (fn add-key-k [res k]
@@ -52,7 +54,7 @@
          (assoc res
                 (composite-key (rest (:path m)))
                 (format/format-value
-                 (:dimension m)
+                 (:dimension (have :dimension m))
                  (* (double (get event-stats (:path m)))
                     (double (:scale m))))))
        {:metric (:label metric)}
@@ -76,7 +78,7 @@
    metrics-defs))
 
 (defn quantiles
-  [metric-configs all-quantiles]
+  [metric-configs all-quantiles transforms]
   {:pre [(have? all-quantiles)]}
   (reduce
    (fn [res metric-config]
@@ -88,7 +90,8 @@
                        q
                        (format/format-value
                         (:dimension metric-config)
-                        (* (double v) (double (:scale metric-config))))))
+                        (* (util/transform-sample-> (double v) transforms)
+                           (double (:scale metric-config))))))
               {:metric (:label metric-config)}
               quantiles))))
    []
@@ -141,8 +144,9 @@
 (defn- remove-outliers
   [samples outliers]
   (into [] (comp
-            (filter some?)
-            (map-indexed (fn [i s] (when-not (outliers i) s))))
+            (map-indexed
+             (fn [i s] (when-not ((:outliers outliers) i) s)))
+            (filter some?))
         samples))
 
 (defn histogram
