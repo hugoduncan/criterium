@@ -10,7 +10,7 @@
    [criterium.viewer.print :as print]
    [criterium.collect-plan.config :as collect-plan-config]
    [criterium.collect-plan :as collect-plan]
-   [criterium.viewer.test-data :as test-data]))
+   [criterium.test-data :as test-data]))
 
 (deftest print-stat-test
   (testing "print-stat"

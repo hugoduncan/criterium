@@ -7,7 +7,7 @@
    [criterium.metric :as metric]
    [criterium.view :as view]
    [criterium.viewer.portal]
-   [criterium.viewer.test-data :as test-data]))
+   [criterium.test-data :as test-data]))
 
 (set! *unchecked-math*  false)
 
