@@ -345,18 +345,13 @@
                          metric-configs)]
     (doseq [h histograms]
       (println
-       (format "%32s: Histogram" (-> h :metric-config :label) ))
-      (let [scale     (double  (:scale (:metric-config h)))
-            dimension (:dimension (:metric-config h))]
-        (run!
-         (fn [[x bin-count density] ]
-           (println
-            (format
-             "%36s %7s %5d  %.3g"
-             ""
-             (format/format-value dimension (* (double x) scale) {:sf 4})
-             bin-count density)))
-         (mapv vector (:centers h) (:counts h) (:density h))))
+       (format "%32s: %s Histogram"
+               (-> h :metric-config :label)
+               (-> h :unit)))
+      (run!
+       (fn [[x bin-count density] ]
+         (println (format "%34s %-7.3f %5d  %-7.3g" "" x bin-count density)))
+       (mapv vector (:centers h) (:counts h) (:density h)))
       (println))))
 
 (defmethod view/quantiles* :print

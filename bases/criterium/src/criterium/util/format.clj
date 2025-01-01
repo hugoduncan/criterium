@@ -10,7 +10,7 @@
 
    Returns:
      Number rounded to specified significant figures"
-  [n sig-figs]
+  [^double n ^long sig-figs]
   (let [magnitude (Math/floor (Math/log10 (Math/abs n)))
         scale     (- sig-figs magnitude 1)]
     (/ (Math/round (* n (Math/pow 10 scale)))

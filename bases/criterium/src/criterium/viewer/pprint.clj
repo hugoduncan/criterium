@@ -213,17 +213,16 @@
                            %)
                          metric-configs)]
     (doseq [h histograms]
-      (println (format "\nHistogram of %s" (-> h :metric-config :label) ))
+      (println (format "\nHistogram of %s %s"
+                       (-> h :metric-config :label)
+                       (:unit h)))
       (pprint/print-table
        [:centers :counts :density]
        (viewer-common/column-data->maps
         h
         [:centers :counts :density]
-        {:centers (let [scale     (double (-> h :metric-config :scale))
-                        dimension (-> h :metric-config :dimension)]
-                    (fn [^double v]
-                      (format/format-value dimension (* v scale) {:sf 4})))
-         :density (fn [v] (format "%-8.3g" v))}))
+        {:centers #(format "%-7.3g" %)
+         :density #(format "%-7.3g" %)}))
       (println))) )
 
 (defmethod view/sample-percentiles* :pprint
