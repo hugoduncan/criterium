@@ -147,7 +147,7 @@
           :collections
           :num-samples
           :batch-size
-          :pipeline}
+          :collector}
         (set (keys x)))))
 
 (defn data-entry-map?

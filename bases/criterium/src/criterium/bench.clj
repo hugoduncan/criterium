@@ -56,16 +56,12 @@
   This is a function for advance usage of criterium - most users should
   use bench or bench-measured instead."
   [collector-config collect-plan benchmark benchmark-options measured]
-  (let [pipeline     (collector/collector collector-config)
-        metrics-defs (:metrics-defs pipeline)
-        results-map  (collect-plan/collect
-                      collect-plan
-                      metrics-defs
-                      pipeline
-                      measured)]
-    (benchmark
-     (assoc (assoc benchmark-options :data results-map)
-            :metrics-defs metrics-defs))))
+  (let [collector   (collector/collector collector-config)
+        results-map (collect-plan/collect
+                     collect-plan
+                     collector
+                     measured)]
+    (benchmark (assoc benchmark-options :data results-map))))
 
 (defn- return-value
   "Extract the returned value for the sampled."
