@@ -41,12 +41,12 @@
     (:my-logs result)) ;; Contains log-transformed values"
   ([] (transform-log {}))
   ([{:keys [id samples-id metric-ids]}]
-   (fn transform-log [bench-map]
+   (fn transform-log [data-map]
      (let [samples-id      (or samples-id :samples)
            id              (or id (keyword (str "log-" (name samples-id))))
            metrics-samples (have
                             util/generic-metrics-samples-map?
-                            (-> bench-map :data samples-id))
+                            (data-map samples-id))
            metrics-defs    (-> (:metrics-defs metrics-samples)
                                (metric/select-metrics metric-ids)
                                (metric/filter-metrics
@@ -73,7 +73,7 @@
                               :metric->values metric->values'
                               :transform      {:sample-> exp :->sample log}
                               :source-id      samples-id}))]
-       (assoc-in bench-map [:data id] transformed)))))
+       (assoc data-map id transformed)))))
 
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn quantiles
@@ -102,11 +102,11 @@
   ;; Returns map of quantiles for elapsed time metric"
   ([] (quantiles {}))
   ([{:keys [id samples-id metric-ids] :as analysis}]
-   (fn quantiles [bench-map]
-     {:pre [(have? util/benchmark-map? bench-map)]}
+   (fn quantiles [data-map]
+     {:pre [(have? util/result-map? data-map)]}
      (let [samples-id      (or samples-id :samples)
            id              (or id :quantiles)
-           metrics-samples (-> bench-map :data samples-id)
+           metrics-samples (data-map samples-id)
            metrics-defs    (-> (:metrics-defs metrics-samples)
                                (metric/select-metrics metric-ids)
                                (metric/filter-metrics
@@ -123,7 +123,7 @@
                              :quantiles    quantiles
                              :metrics-defs metrics-defs
                              :transform    collect-plan/identity-transforms})]
-       (assoc-in bench-map [:data id] quantiles-map)))))
+       (assoc data-map id quantiles-map)))))
 
 (defn outlier-count
   [low-severe low-mild high-mild high-severe]
@@ -206,12 +206,12 @@
   ;; Returns {:thresholds [...] :outliers {...} :outlier-counts {...}}"
   ([] (outliers {}))
   ([{:keys [id samples-id quantiles-id metric-ids]}]
-   (fn [bench-map]
+   (fn [data-map]
      (let [id              (or id :outliers)
            quantiles-id    (or quantiles-id :quantiles)
            samples-id      (or samples-id :samples)
-           all-quantiles   (have (-> bench-map :data quantiles-id))
-           metrics-samples (have (-> bench-map :data samples-id))
+           all-quantiles   (have (data-map quantiles-id))
+           metrics-samples (have (data-map samples-id))
            metrics-defs    (-> (:metrics-defs all-quantiles)
                                (metric/select-metrics metric-ids))
            metric-configs  (metric/all-metric-configs metrics-defs)]
@@ -219,7 +219,7 @@
          (throw (ex-info
                  "outlier analysis requires quantiles analysis"
                  {:quantiles-id  quantiles-id
-                  :available-ids (keys bench-map)})))
+                  :available-ids (keys data-map)})))
        (let [outliers     (samples-outliers
                            metric-configs
                            (util/quantiles all-quantiles)
@@ -233,7 +233,7 @@
                             :metrics-defs metrics-defs
                             :outliers     outliers
                             :num-samples  (:num-samples metrics-samples)})]
-         (assoc-in bench-map [:data id] outliers-map))))))
+         (assoc data-map id outliers-map))))))
 
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn stats
@@ -269,18 +269,18 @@
    (let [samples-id  (or samples-id :samples)
          id          (or id :stats)
          outliers-id (or outliers-id :outliers)]
-     (fn [bench-map]
+     (fn [data-map]
        (debug/dtap> {:stats id})
        (let [outliers        (when outliers-id
-                               (-> bench-map :data outliers-id))
-             metrics-samples (have (-> bench-map :data samples-id))
+                               (data-map outliers-id))
+             metrics-samples (have (data-map samples-id))
              metrics-defs    (-> (have (:metrics-defs metrics-samples))
                                  (metric/select-metrics metric-ids)
                                  (metric/filter-metrics
                                   (metric/type-pred :quantitative)))
              metric-configs  (metric/all-metric-configs metrics-defs)
              stats           (sampled-stats/sample-stats
-                              (:data bench-map)
+                              data-map
                               samples-id
                               (when outliers (util/outliers outliers))
                               metric-configs
@@ -294,7 +294,7 @@
                                :stats        stats
                                :transform    collect-plan/identity-transforms
                                :batch-size   (:batch-size metrics-samples)})]
-         (assoc-in bench-map [:data id] stats-map))))))
+         (assoc data-map id stats-map))))))
 
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn event-stats
@@ -327,9 +327,9 @@
   ([{:keys [id samples-id metric-ids] :as _analysis}]
    (let [id         (or id :event-stats)
          samples-id (or samples-id :samples)]
-     (fn [bench-map]
+     (fn [data-map]
        (debug/dtap> {:event-stats id})
-       (let [metrics-samples (-> bench-map :data samples-id)
+       (let [metrics-samples (data-map samples-id)
              metrics-defs    (-> (:metrics-defs metrics-samples)
                                  (metric/select-metrics metric-ids)
                                  (metric/filter-metrics
@@ -345,7 +345,7 @@
                                :metrics-defs metrics-defs
                                :event-stats  event-stats
                                :batch-size   (:batch-size metrics-samples)})]
-         (assoc-in bench-map [:data id] es-map))))))
+         (assoc data-map id es-map))))))
 
 (defn- min-f
   ^double [f ^double q ^double r]
@@ -470,12 +470,12 @@
   ;; Returns {:significance 0.25 :effect :moderate}"
   ([] (outlier-significance {}))
   ([{:keys [id outliers-id stats-id metric-ids] :as _analysis}]
-   (fn [bench-map]
+   (fn [data-map]
      (let [id             (or id :outlier-significance)
            outliers-id    (or outliers-id :outliers)
            stats-id       (or stats-id :stats)
-           outliers       (-> bench-map :data outliers-id)
-           stats          (-> bench-map :data stats-id)
+           outliers       (data-map outliers-id)
+           stats          (data-map stats-id)
            metrics-defs   (-> (:metrics-defs stats)
                               (metric/select-metrics metric-ids)
                               (metric/filter-metrics
@@ -485,7 +485,7 @@
          (throw (ex-info
                  "outlier significance requires outlier analysis"
                  {:outliers-id   outliers-id
-                  :available-ids (keys bench-map)})))
+                  :available-ids (keys data-map)})))
        (let [significance (samples-outlier-significance
                            (:batch-size stats)
                            (util/outliers outliers)
@@ -499,4 +499,4 @@
                             :metrics-defs         metrics-defs
                             :outliers-id          outliers-id
                             :source-id            stats-id})]
-         (assoc-in bench-map [:data id] os-map))))))
+         (assoc data-map id os-map))))))

@@ -80,6 +80,15 @@
   [m f]
   (provide-update-vals))
 
+(defn filter-map
+  "Internal helper to filter map entries based on a predicate applied to values.
+
+  Return a new map containing only the entries where (pred value)
+  returns true.  Used internally for filtering metrics by their
+  configuration values."
+  [pred m]
+  (into {} (filter (comp pred val) m)))
+
 ;; Modified version of clojure.walk to preserve metadata
 (defn walk
   "Traverses form, an arbitrary data structure.  inner and outer are

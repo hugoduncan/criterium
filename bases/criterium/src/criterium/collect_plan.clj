@@ -11,8 +11,9 @@
 
 (defn required-stages
   "Metrics collection stages required for the given collection-scheme"
-  [collect-plan]
-  (impl/required-stages* collect-plan))
+  [collect-plan-id]
+  {:pre [(have? keyword? collect-plan-id)]}
+  (impl/required-stages* collect-plan-id))
 
 (defmethod impl/required-stages* :one-shot
   [_collect-plan]
@@ -20,11 +21,9 @@
 
 (defmethod impl/required-stages* :with-jit-warmup
   [_collect-plan]
-  (mapv
-   collector/maybe-var-get-stage
-   [:measured-args
-    :compilation
-    :garbage-collector]))
+  [:measured-args
+   :compilation
+   :garbage-collector])
 
 (def identity-transforms
   {:sample-> (fn sample-> ^double [v] v)

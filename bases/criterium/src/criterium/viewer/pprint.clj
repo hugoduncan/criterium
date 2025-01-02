@@ -3,15 +3,14 @@
   (:require
    [clojure.pprint :as pprint]
    [criterium.metric :as metric]
-   [criterium.util.format :as format]
    [criterium.util.helpers :as util]
    [criterium.view :as view]
    [criterium.viewer.common :as viewer-common]))
 
 (defmethod view/metrics* :pprint
-  [{:keys [samples-id]} bench-map]
+  [_ {:keys [samples-id]} data-map]
   (let [samples-id      (or samples-id :samples)
-        metrics-samples (-> bench-map :data samples-id)
+        metrics-samples (data-map samples-id)
         metrics-defs    (:metrics-defs metrics-samples)
         metric-configs  (metric/all-metric-configs metrics-defs)]
     (pprint/print-table
@@ -21,12 +20,12 @@
       metric-configs))))
 
 (defmethod view/stats* :pprint
-  [{:keys [stats-id]} bench-map]
+  [_ {:keys [stats-id]} data-map]
   (let [stats-id       (or stats-id :stats)
-        stats-map      (-> bench-map :data stats-id)
+        stats-map      (data-map stats-id)
         metrics-defs   (:metrics-defs stats-map)
         metric-configs (metric/all-metric-configs metrics-defs)
-        transforms     (util/get-transforms (:data bench-map) stats-id)]
+        transforms     (util/get-transforms data-map stats-id)]
     (pprint/print-table
      [:_metric :mean-minus-3sigma :mean :mean-plus-3sigma :min-val :max-val]
      (viewer-common/stats-map
@@ -35,12 +34,12 @@
       transforms))))
 
 (defmethod view/quantiles* :pprint
-  [{:keys [quantiles-id]} bench-map]
+  [_ {:keys [quantiles-id]} data-map]
   (let [quantiles-id   (or quantiles-id :quantiles)
-        quantiles-map  (-> bench-map :data quantiles-id)
+        quantiles-map  (data-map quantiles-id)
         metrics-defs   (:metrics-defs quantiles-map)
         metric-configs (metric/all-metric-configs metrics-defs)
-        transforms     (util/get-transforms (:data bench-map) quantiles-id)
+        transforms     (util/get-transforms data-map quantiles-id)
         table          (viewer-common/quantiles
                         metric-configs
                         (util/quantiles quantiles-map)
@@ -51,9 +50,9 @@
      table)))
 
 (defmethod view/event-stats* :pprint
-  [{:keys [event-stats-id]} bench-map]
+  [_ {:keys [event-stats-id]} data-map]
   (let [event-stats-id  (or event-stats-id :event-stats)
-        event-stats-map (-> bench-map :data event-stats-id)
+        event-stats-map (data-map event-stats-id)
         metrics-defs    (:metrics-defs event-stats-map)
         res             (viewer-common/event-stats
                          metrics-defs
@@ -62,9 +61,9 @@
     (pprint/print-table (distinct ks) res)))
 
 (defmethod view/outlier-counts* :pprint
-  [{:keys [outliers-id] :as _view} bench-map]
+  [_ {:keys [outliers-id] :as _view} data-map]
   (let [outliers-id    (or outliers-id :outliers)
-        outliers-map   (-> bench-map :data outliers-id)
+        outliers-map   (data-map outliers-id)
         metrics-defs   (:metrics-defs outliers-map)
         metric-configs (metric/all-metric-configs metrics-defs)]
     (pprint/print-table
@@ -74,9 +73,9 @@
       (util/outliers outliers-map)))))
 
 (defn print-outlier-significances
-  [{:keys [outlier-significance-id] :as _view} bench-map]
+  [{:keys [outlier-significance-id] :as _view} data-map]
   (let [outlier-sig-id  (or outlier-significance-id :outlier-significance)
-        outlier-sig-map (-> bench-map :data outlier-sig-id)
+        outlier-sig-map (data-map outlier-sig-id)
         outlier-sig     (util/outlier-significance outlier-sig-map)
         metrics-defs    (:metrics-defs outlier-sig-map)
         metric-configs  (metric/all-metric-configs metrics-defs)]
@@ -85,8 +84,8 @@
        (get-in outlier-sig (:path m))))))
 
 (defmethod view/outlier-significance* :pprint
-  [view bench-map]
-  (print-outlier-significances view bench-map))
+  [view data-map]
+  (print-outlier-significances view data-map))
 
 (defn- flatten-events [sample metrics-defs index]
   (reduce-kv
@@ -118,19 +117,19 @@
       v]]))
 
 (defmethod view/collect-plan* :pprint
-  [_view bench-map]
+  [_ _view data-map]
   (pprint/print-table
    [:phase :num-samples :batch-size :num-evals]
-   (viewer-common/collect-plan-data bench-map)))
+   (viewer-common/collect-plan-data data-map)))
 
 (defmethod view/samples* :pprint
-  [{:keys [] :as view} banech-map]
+  [_ {:keys [] :as view} banech-map]
   (let [quant-samples-id    (:samples-id view :samples)
         event-samples-id    (:event-samples-id view quant-samples-id)
         outlier-analysis-id (:outlier-id view :outliers)
-        quant-samples       (-> banech-map :data quant-samples-id)
-        event-samples       (-> banech-map :data event-samples-id)
-        outlier-analysis    (-> banech-map :data outlier-analysis-id)
+        quant-samples       (banech-map quant-samples-id)
+        event-samples       (banech-map event-samples-id)
+        outlier-analysis    (banech-map outlier-analysis-id)
 
         metric-defs        (metric/filter-metrics
                             (:metrics-defs quant-samples)
@@ -142,7 +141,7 @@
         metric-configs       (metric/all-metric-configs metric-defs)
         event-metric-configs (metric/all-metric-configs event-metrics-defs)
 
-        transforms (util/get-transforms (:data banech-map) quant-samples-id)
+        transforms (util/get-transforms banech-map quant-samples-id)
 
         quant-ids    (mapv (comp last :path) metric-configs)
         event-keys   (into
@@ -192,18 +191,18 @@
 
 
 (defmethod view/histogram* :pprint
-  [{:keys [samples-id quantiles-id outliers-id] :as _view} bench-map]
+  [_ {:keys [samples-id quantiles-id outliers-id] :as _view} data-map]
   (let [samples-id      (or samples-id :samples)
         quantiles-id    (or quantiles-id :quantiles)
         outliers-id     (or outliers-id :outliers)
-        metrics-samples (-> bench-map :data samples-id)
-        quantiles       (-> bench-map :data quantiles-id)
-        outliers        (-> bench-map :data outliers-id)
+        metrics-samples (data-map samples-id)
+        quantiles       (data-map quantiles-id)
+        outliers        (data-map outliers-id)
         metrics-defs    (-> (:metrics-defs metrics-samples)
                             (metric/filter-metrics
                              (metric/type-pred :quantitative)))
         metric-configs  (metric/all-metric-configs metrics-defs)
-        transforms      (util/get-transforms (:data bench-map) samples-id)
+        transforms      (util/get-transforms data-map samples-id)
         histograms      (mapv
                          #(viewer-common/histogram
                            (util/metric->values metrics-samples)
@@ -226,6 +225,6 @@
       (println))) )
 
 (defmethod view/sample-percentiles* :pprint
-  [_view _banch-map]
+  [_ _view _banch-map]
   ;; TODO
   )

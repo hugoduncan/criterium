@@ -19,6 +19,7 @@
   (:require
    [criterium.bench.config :as bench-config]
    [criterium.bench.impl :as impl]
+   [criterium.benchmark :as benchmark]
    [criterium.collect-plan :as collect-plan]
    [criterium.collector :as collector]
    [criterium.measured :as measured]
@@ -40,35 +41,50 @@
   []
   (impl/last-bench))
 
-(defn measure
-  "Executes the sampling plan and collects metrics.
+(defn collect-data-map
+  "Collect metrics according to the sampling plan.
 
   Parameters:
-    collector-config  - Configuration for the metric collector
-    collect-plan     - Strategy for collecting samples
-    benchmark        - Function to process collected measurements
-    benchmark-options - Options passed to the benchmark function
-    measured         - The wrapped code/function to measure
+    collector-config - Configuration for the metric collector
+    collect-plan    - Strategy for collecting samples
+    measured        - The wrapped code/function to measure
 
-  Returns a map containing all collected metrics and measurements based on
-  the collector configuration and sampling plan.
+  Returns collected measurements."
+  [collector-config collect-plan measured]
+  (let [collector (collector/collector collector-config)]
+    (collect-plan/collect collect-plan collector measured)))
 
-  This is a function for advance usage of criterium - most users should
-  use bench or bench-measured instead."
-  [collector-config collect-plan benchmark benchmark-options measured]
-  (let [collector   (collector/collector collector-config)
-        results-map (collect-plan/collect
-                     collect-plan
-                     collector
-                     measured)]
-    (benchmark (assoc benchmark-options :data results-map))))
+(defn analyze
+  "Apply statistical analysis to collected metrics.
+
+  Parameters:
+    analyse-config - Vector of analysis steps to perform
+    metrics       - Raw metrics from collect-metrics
+
+  Returns analyzed metrics with statistical computations added."
+  [analyse-plan data-map]
+  (let [analyze (benchmark/->analyse analyse-plan)]
+    (analyze data-map)))
+
+(defn view
+  "Format and present analyzed metrics.
+
+  Parameters:
+    view-config - Vector of view components to include
+    metrics     - Analyzed metrics from analyze-metrics
+    options     - Additional view options like :viewer
+
+  Returns the viewed metrics data structure."
+  [view-plan viewer data-map]
+  (let [view (benchmark/->view view-plan)]
+    (view viewer data-map)))
 
 (defn- return-value
   "Extract the returned value for the sampled."
   [config bench-map]
   (get-in bench-map (-> config :return-value)))
 
-(defn bench-measured*
+(defn bench-measured
   "Evaluate measured and output the benchmark time.
 
   By default, return the value of calling the measured's wrapped
@@ -76,20 +92,19 @@
 
   The timing info is available as a data structure by calling last-time.
 
-  Takes a configuration map that fully specifies the benchmark behaviour."
-  [measured bench-plan]
+  Takes a bench-plan that fully specifies the benchmark behaviour."
+  [bench-plan measured]
   (output/with-progress-reporting (:verbose bench-plan)
-    (->> (measure
-          (:collector-config bench-plan)
-          (:collect-plan bench-plan)
-          (:benchmark bench-plan)
-          {:viewer (:viewer bench-plan)}
-          measured)
-         (impl/last-bench!)
-         (return-value bench-plan))))
+    (let [data-map (->> (collect-data-map
+                         (:collector-config bench-plan)
+                         (:collect-plan bench-plan) measured)
+                        (analyze (:analyse bench-plan)))]
+      (view (:view bench-plan) (:viewer bench-plan) data-map)
+      (impl/last-bench! {:bench-plan bench-plan :data data-map})
+      (return-value bench-plan data-map))))
 
-(defn bench-measured
-  "Evaluate and benchmark a pre-wrapped measurement.
+#_(defn bench-measured
+    "Evaluate and benchmark a pre-wrapped measurement.
 
   The metrics and output are controlled via parameters.
 
@@ -97,7 +112,8 @@
     measured - A wrapped function/expression prepared for measurement
     options  - Map of configuration options:
       :viewer      - Output format [:pprint, :portal, or nil(default)]
-      :benchmark   - Custom benchmark configuration map
+      :analyse     - Vector of analysis steps [[:outliers] [:stats]]
+      :view       - Vector of view components [:stats]
       :metric-ids  - Vector of metrics to collect, from:
                      [:elapsed-time :garbage-collector :finalization
                       :memory :thread-allocation :compilation
@@ -122,8 +138,14 @@
   - Ensures statistical significance through multiple samples
   - Accounts for JVM warmup
   - Handles GC interference"
-  [measured options]
-  (bench-measured* measured (bench-config/config-map options)))
+    [measured options]
+    (bench-measured* (bench-config/config-map options) measured))
+
+(defn options->bench-plan
+  "Explicit conversion of `bench` options into a bench-plan."
+  [& {:as options}]
+  (bench-config/config-map options))
+
 
 (defmacro bench
   "Main macro for benchmarking Clojure expressions with statistical rigor.
@@ -138,7 +160,8 @@
     expr    - Expression to benchmark
     options - Keyword/value pairs for configuration:
       :viewer      - Output format [:pprint, :portal, or nil(default)]
-      :benchmark   - Custom benchmark configuration map
+      :analyse     - Vector of analysis steps [[:outliers] [:stats]]
+      :view       - Vector of view components [:stats]
       :metric-ids  - Vector of metrics to collect, from:
                      [:elapsed-time :garbage-collector :finalization
                       :memory :thread-allocation :compilation
@@ -183,5 +206,5 @@
         expr-options (select-keys options-map [:time-fn])
         options      (dissoc options-map :time-fn)]
     `(bench-measured
-      (measured/expr ~expr ~expr-options)
-      ~options)))
+      (options->bench-plan ~options)
+      (measured/expr ~expr ~expr-options))))

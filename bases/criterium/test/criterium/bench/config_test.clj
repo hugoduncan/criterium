@@ -2,7 +2,7 @@
   (:require
    [clojure.test :refer [deftest is testing]]
    [criterium.bench.config :as bench-config]
-   [criterium.benchmarks :as benchmarks]
+   [criterium.bench-plans :as benchmarks]
    [criterium.collect-plan.config :as collect-plan-config]
    [criterium.collector :as collector]
    [criterium.measured :as measured]))

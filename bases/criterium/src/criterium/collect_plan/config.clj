@@ -1,6 +1,7 @@
 (ns criterium.collect-plan.config
   (:require
    [criterium.collect-plan :as collect-plan]
+   [criterium.util.invariant :refer [have?]]
    [criterium.util.units :as units]))
 
 (def ^Long DEFAULT-BATCH-TIME-NS
@@ -28,8 +29,23 @@
 (def TARGET-WARMUP-SAMPLES 150000)
 (def TARGET-SAMPLES 200)
 
-(defn full-collect-plan
-  [{:keys [num-estimation-samples
+(defmulti  collect-plan-config
+  (fn [collect-plan-id options] collect-plan-id))
+
+(defmethod collect-plan-config :default
+  [collect-plan-id _]
+  (throw (ex-info "Unknown collect-plan" {:collect-plan collect-plan-id})))
+
+(defmethod collect-plan-config :one-shot
+  [_collect-plan-id
+   {:keys [max-gc-attempts]
+    :as   _options}]
+  {:scheme-type     :one-shot
+   :max-gc-attempts (or max-gc-attempts 3)})
+
+(defmethod collect-plan-config :with-jit-warmup
+  [_collect-plan-id
+   {:keys [num-estimation-samples
            num-warmup-samples
            num-measure-samples
            max-gc-attempts
@@ -52,43 +68,21 @@
    :num-warmup-samples     num-warmup-samples
    :num-measure-samples    num-measure-samples})
 
-(defn no-warmup-collect-plan
-  [{:keys [num-estimation-samples
-           num-warmup-samples
-           num-measure-samples
-           max-gc-attempts
-           thread-priority
-           limit-time-ns
-           batch-time-ns]
-    :or   {num-estimation-samples TARGET-ESTIMATION-SAMPLES
-           num-warmup-samples     0
-           num-measure-samples    TARGET-SAMPLES
-           limit-time-ns          DEFAULT-LIMIT-TIME-NS
-           batch-time-ns          DEFAULT-BATCH-TIME-NS
-           max-gc-attempts        6}
-    :as   _options}]
-  {:scheme-type            :with-jit-warmup
-   :batch-time-ns          batch-time-ns
-   :max-gc-attempts        max-gc-attempts
-   :thread-priority        thread-priority
-   :limit-time-ns          limit-time-ns
-   :num-estimation-samples num-estimation-samples
-   :num-warmup-samples     num-warmup-samples
-   :num-measure-samples    num-measure-samples})
-
-(defn one-shot-collect-plan
-  [{:keys [max-gc-attempts]
-    :as   _options}]
-  {:scheme-type     :one-shot
-   :max-gc-attempts (or max-gc-attempts 3)})
+(defmethod collect-plan-config :without-jit-warmup
+  [_collect-plan-id
+   options]
+  (collect-plan-config
+   :without-jit-warmup
+   (merge {:num-warmup-samples 0} options)))
 
 (defn ensure-pipeline-stages
   "Add any injected stages that aren't already present."
-  [{:keys [collector-config collect-plan] :as options}]
+  [collect-plan-id collector-config]
+  {:pre [(have? keyword? collect-plan-id)]}
   (let [stages   (set (:stages collector-config))
-        injected (collect-plan/required-stages collect-plan)]
-    (update-in
-     options
-     [:collector-config :stages]
+        injected (collect-plan/required-stages collect-plan-id)]
+    (update
+     collector-config
+     :stages
      (fnil into [])
      (remove stages injected))))

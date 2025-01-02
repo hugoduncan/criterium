@@ -129,11 +129,11 @@
 (defn collect-plan-data
   [bench-map]
   (let [samples-schema    (sampled-scheme-data
-                           (-> bench-map :data :samples))
+                           (-> bench-map :samples))
         warmup-scheme     (sampled-scheme-data
-                           (some-> bench-map :data :warmup))
+                           (some-> bench-map :warmup))
         estimation-scheme (sampled-scheme-data
-                           (some-> bench-map :data :estimation))]
+                           (some-> bench-map :estimation))]
     (cond-> [(merge {:phase :sample} samples-schema)]
       warmup-scheme
       (conj (merge {:phase :warmup} warmup-scheme))

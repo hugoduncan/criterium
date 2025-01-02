@@ -61,9 +61,9 @@
   (portal-heading [:b s]))
 
 (defmethod view/metrics* :portal
-  [{:keys [samples-id]} bench-map]
+  [_ {:keys [samples-id]} data-map]
   (let [samples-id      (or samples-id :samples)
-        metrics-samples (-> bench-map :data samples-id)
+        metrics-samples (data-map samples-id)
         metrics-defs    (:metrics-defs metrics-samples)
         metric-configs  (metric/all-metric-configs metrics-defs)]
     (portal-table
@@ -72,12 +72,12 @@
       metric-configs))))
 
 (defmethod view/stats* :portal
-  [{:keys [stats-id]} bench-map]
+  [_ {:keys [stats-id]} data-map]
   (let [stats-id       (or stats-id :stats)
-        stats-map      (-> bench-map :data stats-id)
+        stats-map      (data-map stats-id)
         metrics-defs   (:metrics-defs stats-map)
         metric-configs (metric/all-metric-configs metrics-defs)
-        transforms     (util/get-transforms (:data bench-map) stats-id)]
+        transforms     (util/get-transforms data-map stats-id)]
     (heading "Summary stats")
     (portal-table
      (viewer-common/stats-map
@@ -86,9 +86,9 @@
       transforms))))
 
 (defmethod view/event-stats* :portal
-  [{:keys [event-stats-id]} bench-map]
+  [_ {:keys [event-stats-id]} data-map]
   (let [event-stats-id  (or event-stats-id :event-stats)
-        event-stats-map (-> bench-map :data event-stats-id)
+        event-stats-map (data-map event-stats-id)
         metrics-defs    (have (:metrics-defs event-stats-map))]
     (heading "Event stats")
     (portal-table
@@ -97,12 +97,12 @@
       (util/event-stats event-stats-map)))))
 
 (defmethod view/quantiles* :portal
-  [{:keys [quantiles-id]} bench-map]
+  [_ {:keys [quantiles-id]} data-map]
   (let [quantiles-id   (or quantiles-id :quantiles)
-        quantiles-map  (-> bench-map :data quantiles-id)
+        quantiles-map  (data-map quantiles-id)
         metrics-defs   (:metrics-defs quantiles-map)
         metric-configs (metric/all-metric-configs metrics-defs)
-        transforms     (util/get-transforms (:data bench-map) quantiles-id)]
+        transforms     (util/get-transforms data-map quantiles-id)]
     (heading "Quantiles")
     (portal-table
      (viewer-common/quantiles
@@ -111,9 +111,9 @@
       transforms))))
 
 (defmethod view/outlier-counts* :portal
-  [{:keys [outliers-id] :as _view} bench-map]
+  [_ {:keys [outliers-id] :as _view} data-map]
   (let [outliers-id    (or outliers-id :outliers)
-        outliers-map   (-> bench-map :data outliers-id)
+        outliers-map   (data-map outliers-id)
         metrics-defs   (:metrics-defs outliers-map)
         metric-configs (metric/all-metric-configs metrics-defs)]
     (heading "Outliers")
@@ -123,9 +123,9 @@
       (util/outliers outliers-map)))))
 
 (defmethod view/outlier-significance* :portal
-  [{:keys [outlier-significance-id] :as _view} bench-map]
+  [_ {:keys [outlier-significance-id] :as _view} data-map]
   (let [outlier-sig-id  (or outlier-significance-id :outlier-significance)
-        outlier-sig-map (-> bench-map :data outlier-sig-id)
+        outlier-sig-map (data-map outlier-sig-id)
         outlier-sig     (util/outlier-significance outlier-sig-map)
         metrics-defs    (:metrics-defs outlier-sig-map)
         metric-configs  (metric/all-metric-configs metrics-defs)]
@@ -136,10 +136,10 @@
         (get-in outlier-sig (:path m)))))))
 
 (defmethod view/collect-plan* :portal
-  [_view bench-map]
+  [_ _view data-map]
   (heading "Collect plan")
   (portal-table
-   (viewer-common/collect-plan-data bench-map)))
+   (viewer-common/collect-plan-data data-map)))
 
 (defn metric-layer
   [metric->values transforms outliers metric]
@@ -287,14 +287,14 @@
                    :strokeDash [2 2]}}])))
 
 (defmethod view/samples* :portal
-  [{:keys [] :as view} bench-map]
+  [_ {:keys [] :as view} data-map]
   (let [quant-samples-id     (:samples-id view :samples)
         event-samples-id     (:event-samples-id view quant-samples-id)
         outliers-analysis-id (:outliers-id view :outliers)
 
-        quant-samples (-> bench-map :data quant-samples-id)
-        event-samples (-> bench-map :data event-samples-id)
-        outliers      (-> bench-map :data outliers-analysis-id)
+        quant-samples (data-map quant-samples-id)
+        event-samples (data-map event-samples-id)
+        outliers      (data-map outliers-analysis-id)
 
         q-metrics-defs   (-> (:metrics-defs  quant-samples)
                              (metric/filter-metrics
@@ -305,7 +305,7 @@
         metric-configs   (metric/all-metric-configs q-metrics-defs)
         e-metric-configs (metric/all-metric-configs e-metrics-defs)
 
-        transforms (util/get-transforms (:data bench-map) quant-samples-id)]
+        transforms (util/get-transforms data-map quant-samples-id)]
     (heading "Samples")
     (portal-vega-lite
      {:data     {:values [{}]}
@@ -333,23 +333,19 @@
         e-metric-configs))})))
 
 (defmethod view/histogram* :portal
-  [{:keys [samples-id stats-id] :as view} bench-map]
+  [_ {:keys [samples-id stats-id] :as view} data-map]
   (let [stats-id            (or stats-id :stats)
         quant-samples-id    (or samples-id :samples)
         outlier-analysis-id (:outlier-id view :outliers)
-        quant-samples       (-> bench-map :data quant-samples-id)
-        outlier-analysis    (-> bench-map :data outlier-analysis-id)
-        stats               (-> bench-map :data stats-id)
+        quant-samples       (data-map quant-samples-id)
+        outlier-analysis    (data-map outlier-analysis-id)
+        stats               (data-map stats-id)
         metrics-defs        (-> (:metrics-defs quant-samples)
                                 (metric/filter-metrics
                                  (metric/type-pred :quantitative)))
         metric-configs      (metric/all-metric-configs metrics-defs)
-        transforms          (util/get-transforms
-                             (:data bench-map)
-                             quant-samples-id)
-        stats-transforms    (util/get-transforms
-                             (:data bench-map)
-                             (:source-id stats))]
+        transforms          (util/get-transforms data-map quant-samples-id)
+        stats-transforms    (util/get-transforms data-map (:source-id stats))]
     (heading "Histogram")
     (portal-vega-lite
      {:data    {:values []}
@@ -419,16 +415,14 @@
      :mark   "point"}))
 
 (defmethod view/sample-percentiles* :portal
-  [{:keys [metric-ids] :as view} bench-map]
+  [_ {:keys [metric-ids] :as view} data-map]
   (let [quant-samples-id (:samples-id view :samples)
-        quant-samples    (-> bench-map :data quant-samples-id)
+        quant-samples    (data-map quant-samples-id)
         metrics-defs     (-> (:metrics-defs quant-samples)
                              (metric/filter-metrics
                               (metric/type-pred :quantitative)))
         metric-configs   (metric/all-metric-configs metrics-defs)
-        transforms       (util/get-transforms
-                          (:data bench-map)
-                          quant-samples-id)]
+        transforms       (util/get-transforms data-map quant-samples-id)]
     (heading "Percentiles")
     (portal-vega-lite
      {:data    {:values [{}]} ; for portal
@@ -475,9 +469,9 @@
      :mark   "point"}))
 
 (defmethod view/sample-diffs* :portal
-  [{:keys [] :as view} bench-map]
+  [_ {:keys [] :as view} data-map]
   (let [quant-samples-id (:samples-id view :samples)
-        quant-samples    (-> bench-map :data quant-samples-id)
+        quant-samples    (data-map quant-samples-id)
         metric-configs   (:metric-configs quant-samples)]
     (heading "Sample diffs")
     (portal-vega-lite
