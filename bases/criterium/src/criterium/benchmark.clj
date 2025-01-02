@@ -38,25 +38,50 @@
   [spec]
   (mapv resolve-view-fn spec))
 
-(defn- compose
-  "Composes a benchmark function from analysis and view functions.
-   Returns a function that when given sampled data will:
-   1. Apply all analysis functions in sequence
-   2. Pass the analysis result to each view function
-   3. Return the analysis result"
-  [{:keys [analyse view]}]
-  (when-not (or (nil? analyse) (sequential? analyse))
+(defn ->analyse
+  "Creates a composite analysis function from a sequence of analysis specs.
+
+  Each spec is either a keyword/symbol to resolve a function, or a vector
+  with a keyword/symbol first element followed by arguments.
+
+  Analysis functions:
+  - Are composed in sequence from last to first
+  - Each takes a sampled map as input
+  - Each returns a modified sampled map
+
+  Example specs: [:stats [:quantiles {:quantiles [0.025 0.975]}]]
+
+  Returns a function that takes sampled data and returns analysis results."
+  [analyse-specs]
+  (when-not (or (nil? analyse-specs) (sequential? analyse-specs))
     (throw
-     (ex-info "analyse must be a sequence of functions" {:analyse analyse})))
-  (when-not (or (nil? view) (sequential? view))
+     (ex-info "analyse must be a sequence of specs" {:analyse analyse-specs})))
+  (let [fns (resolve-analyse-fns analyse-specs)]
+    (reduce comp (reverse fns))))
+
+(defn ->view
+  "Creates a composite view function from a sequence of view specs.
+
+  Each spec is either a keyword/symbol to resolve a function, or a vector
+  with a keyword/symbol first element followed by arguments.
+
+  View functions:
+  - Are called in order with the analysis result
+  - Are expected to produce side effects (printing, plotting etc.)
+  - Return values are ignored
+
+  Example specs: [:text-table]
+
+  Returns a function that takes analysis results and handles viewing."
+  [view-specs]
+  (when-not (or (nil? view-specs) (sequential? view-specs))
     (throw
-     (ex-info "view must be a sequence of functions" {:view view})))
-  (let [analysis-fn (reduce comp (reverse analyse))]
-    (fn [sampled]
-      (let [result (analysis-fn sampled)]
-        (run! #(% result) view)
-        (view/flush-viewer (:viewer result))
-        result))))
+     (ex-info "view must be a sequence of specs" {:view view-specs})))
+  (let [fns (resolve-view-fns view-specs)]
+    (fn [result]
+      (run! #(% result) fns)
+      (view/flush-viewer (:viewer result))
+      result)))
 
 (defn ->benchmark
   "Compose a benchmark based on a declarative map.
@@ -80,8 +105,10 @@
    :view [:text-table]}
 
   Returns a function that takes a sampled map and returns analysis results."
-  [benchmark-spec]
-  (-> benchmark-spec
-      (update :analyse resolve-analyse-fns)
-      (update :view resolve-view-fns)
-      compose))
+  [bench-plan]
+  (let [analyse-fn (->analyse (:analyse bench-plan))
+        view-fn    (->view (:view bench-plan))]
+    (fn [sampled]
+      (-> sampled
+          analyse-fn
+          view-fn))))
