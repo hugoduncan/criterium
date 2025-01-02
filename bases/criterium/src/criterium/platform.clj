@@ -114,14 +114,14 @@
      {:benchmark benchmark}
      options))))
 
-(defn- find-jit-threasholds [measured pipeline]
+(defn- find-jit-threasholds [measured collector]
   (loop [i    0
          res  []
          comp (jvm/compilation-sample)
          t    0]
     (if (< i 4000000)
       (let [sample     (collector/collect
-                        pipeline measured (measured/args measured) 1)
+                        collector measured (measured/args measured) 1)
             comp2      (jvm/compilation-sample)
             comp-delta (jvm/compilation-change comp comp2)]
         (when (= 0 (mod i 10000))
@@ -148,9 +148,9 @@
   our collection plans to be realistic."
   ([] (jit-threasholds {}))
   ([_options]
-   (let [pipeline (collector/collector {:stages [] :terminator :elapsed-time})
-         measured (measured/expr 1)
-         [res _t] (find-jit-threasholds measured pipeline)]
+   (let [collector (collector/collector {:stages [] :terminator :elapsed-time})
+         measured  (measured/expr 1)
+         [res _t]  (find-jit-threasholds measured collector)]
      res)))
 
 ;; (jit-threasholds)

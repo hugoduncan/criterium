@@ -9,7 +9,7 @@
 
 (defmulti collect*
   #_{:clj-kondo/ignore [:unused-binding]}
-  (fn [collect-plan metrics-defs pipeline measured]
+  (fn [collect-plan pipeline measured]
     (:scheme-type collect-plan)))
 
 (defn limit-samples

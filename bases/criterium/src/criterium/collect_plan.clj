@@ -42,16 +42,16 @@
   ;; Collects a Single sample measured with no warmup of the measured function.
   ;; Forces GC.
   ;; Return a sampled data map.
-  [collect-plan metrics-defs pipeline measured]
+  [collect-plan collector measured]
   (let [args   (measured/args measured)
-        sample (collector/collect pipeline measured args 1)]
+        sample (collector/collect collector measured args 1)]
     (collect/force-gc! (:max-gc-attempts collect-plan))
     {:samples
      {:type           :criterium/metrics-samples
-      :metrics-defs   (:metrics-defs pipeline)
+      :metrics-defs   (:metrics-defs collector)
       :metric->values (collect/sample-maps->map-of-samples
                        [sample]
-                       metrics-defs)
+                       (:metrics-defs collector))
       :transform      identity-transforms
       :batch-size     1
       :elapsed-time   (metric/elapsed-time sample)
@@ -68,7 +68,7 @@
      (merge
       collection-map
       {:metric->values metric->values
-       :metrics-defs   (:metrics-defs (:pipeline collection-map))
+       :metrics-defs   (have (:metrics-defs (:collector collection-map)))
        :expr-value     (last (metric->values [:expr-value]))
        :type           :criterium/metrics-samples
        :transform      (if (= 1 batch-size)
@@ -78,8 +78,8 @@
 (defmethod impl/collect* :with-jit-warmup
   ;; Sample measured with estimation, warmup and forced GC.
   ;; Return a sampled data map.
-  [collect-plan metrics-defs pipeline measured]
-  {:pre  [(fn? (:f pipeline))
+  g[collect-plan collector measured]
+  {:pre  [(fn? (:f collector))
           (measured/measured? measured)]
    :post [(have? util/result-map? %)]}
   (let [{:keys [^long batch-time-ns
@@ -95,10 +95,6 @@
 
     ;; Start by running GC.
     (collect/force-gc-no-capture! max-gc-attempts)
-
-    ;; ;; All evaluations in estimation and warmup are with different pipelines,
-    ;; ;; so we need to JIT the user specified pipeline.
-    ;; (toolkit/warmup-pipeline pipeline)
 
     ;; First sample is always much longer than subsequent ones
     (collect/throw-away-collection measured)
@@ -137,10 +133,11 @@
 
             _ (collect/force-gc! max-gc-attempts)
 
-            ;; Use the same batch size and pipeline for warmup and sampling to
-            ;; make use of any loop unrolling JIT has done.
             warmup-data (collect/warmup
-                         pipeline measured num-warmup-samples warmup-batch-size)
+                         collector
+                         measured
+                         num-warmup-samples
+                         warmup-batch-size)
 
             t2         (max
                         1
@@ -151,7 +148,7 @@
             ;; Enter garbage Free zone
             _             (collect/force-gc-no-capture! max-gc-attempts)
             sample-data   (collect/collect-arrays
-                           pipeline measured batch-size num-measure-samples)
+                           collector measured batch-size num-measure-samples)
             final-gc-data (collect/force-gc! max-gc-attempts)
             ;; Leave garbage Free zone
             ]
@@ -166,6 +163,6 @@
 (defn collect
   "Collect metrics from the measured according to the collect-plan.
   Return a results-map."
-  [collect-plan metrics-defs pipeline measured]
-  (-> (impl/collect* collect-plan metrics-defs pipeline measured)
+  [collect-plan collector measured]
+  (-> (impl/collect* collect-plan collector measured)
       (vary-meta assoc :type :criterium/sampled)))

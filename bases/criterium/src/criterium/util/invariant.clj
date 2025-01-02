@@ -5,9 +5,12 @@
   (and (some? x) (not (false? x))))
 
 (defn assertion-error [msg data]
-  (AssertionError.
-   msg
-   (ex-info msg data)))
+  (let [^Exception ex (ex-info msg data)
+        trace         (into-array StackTraceElement
+                                  (drop 2 (.getStackTrace ex)))]
+    ;; Hack the stack trace so it appears to come from the assertion site
+    (.setStackTrace ex trace)
+    (AssertionError. msg ex)))
 
 (defn- have* [x args truthy? &form]
   (let [[f x data] (if (seq args)

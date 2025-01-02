@@ -24,10 +24,10 @@
 
 (defn transform
   [collection-map]
-  (let [pipeline     (:pipeline collection-map)
-        metrics-defs (:metrics-defs pipeline)]
+  (let [collector    (:collector collection-map)
+        metrics-defs (:metrics-defs collector)]
     (-> (:collections collection-map)
-        (sample-arrays->sample-maps pipeline)
+        (sample-arrays->sample-maps collector)
         (sample-maps->map-of-samples metrics-defs))))
 
 ;;; Memory management
@@ -43,7 +43,7 @@
   (dotimes [_ num-gcs]
     (jvm/run-finalization-and-force-gc!)))
 
-(def ^:private force-gc-pipeline
+(def ^:private force-gc-collector
   (collector/collector
    {:stages     (mapv
                  collector/maybe-var-get-stage
@@ -63,15 +63,15 @@
   [^long num-gcs]
   {:post [(have? util/collection-map? %)]}
   (let [args         (measured/args force-gc-measured)
-        pipeline     force-gc-pipeline
-        ti           (unchecked-dec ^long (:length pipeline))
+        collector    force-gc-collector
+        ti           (unchecked-dec ^long (:length collector))
         collections  (make-array Object num-gcs)
         max-attempts (unchecked-dec num-gcs)
         [num-attempts elapsed-time]
         (loop [attempt      0
                elapsed-time 0]
           (let [sample  (collector/collect-array
-                         pipeline
+                         collector
                          force-gc-measured
                          args
                          1)
@@ -88,7 +88,7 @@
      :collections  collections
      :num-samples  num-attempts
      :batch-size   1
-     :pipeline     pipeline}))
+     :collector    collector}))
 
 ;;; Batch Size
 
@@ -99,7 +99,7 @@
 
 ;;; Timing
 
-(def ^:private throw-away-pipeline
+(def ^:private throw-away-collector
   (collector/collector
    {:stages     []
     :terminator :elapsed-time}))
@@ -109,7 +109,7 @@
   This function throws it away, returning nil."
   [measured]
   (collector/collect-array
-   throw-away-pipeline
+   throw-away-collector
    measured
    (measured/args measured)
    1)
@@ -118,20 +118,20 @@
 (defn collect-arrays
   "Take num-samples samples of measured using batch-size.
 
-  The pipeline is used to collect each sample.
+  The collector is used to collect each sample.
 
   This is memory allocation garbage free collection.
 
   Return a data map with the collected metric arrays on the :samples key.
   This will need to be transformed to get the metrics data."
-  [pipeline
+  [collector
    measured
    batch-size-obj
    num-samples]
   {:post [(have? util/collection-map? %)]}
   (let [num-samples (max 2 ^long num-samples)
         collections (make-array Object num-samples)
-        ti          (unchecked-dec ^long (:length pipeline))
+        ti          (unchecked-dec ^long (:length collector))
         batch-size  (long batch-size-obj)]
     (loop [eval-count   0
            elapsed-time 0
@@ -141,7 +141,7 @@
       (Thread/yield)
       (let [args         (measured/args measured)
             sample       (collector/collect-array
-                          pipeline measured args batch-size-obj)
+                          collector measured args batch-size-obj)
             ^long t      (.nth
                           ^clojure.lang.PersistentVector
                           (aget ^objects sample ti)
@@ -158,9 +158,9 @@
            :collections  collections
            :num-samples  (count collections)
            :batch-size   batch-size
-           :pipeline     pipeline})))))
+           :collector    collector})))))
 
-(def ^:private elapsed-time-pipeline
+(def ^:private elapsed-time-collector
   (collector/collector
    {:stages     []
     :terminator :elapsed-time}))
@@ -171,7 +171,7 @@
   Returns an estimated execution elapsed-time in ns."
   ^long [measured]
   (let [args (measured/args measured)
-        s0   (collector/collect elapsed-time-pipeline measured args 1)]
+        s0   (collector/collect elapsed-time-collector measured args 1)]
     (metric/elapsed-time s0)))
 
 (defn elapsed-time-min-estimate
@@ -186,7 +186,7 @@
   [measured num-samples ^long batch-size]
   {:post [(have? util/collection-map? %)]}
   (let [collected   (collect-arrays
-                     elapsed-time-pipeline
+                     elapsed-time-collector
                      measured
                      batch-size
                      num-samples)
@@ -212,14 +212,14 @@
 (defn warmup
   "Run measured for the given number of collections to enable JIT compilation.
   Return a sampled map."
-  [pipeline measured ^long num-samples ^long batch-size]
+  [collector measured ^long num-samples ^long batch-size]
   {:post [(have? util/collection-map? %)]}
   (loop [i            num-samples
          elapsed-time 0
          min-time     Long/MAX_VALUE
          collections  []]
     (let [args         (measured/args measured)
-          collected    (collector/collect pipeline measured args batch-size)
+          collected    (collector/collect collector measured args batch-size)
           t            (metric/elapsed-time collected)
           elapsed-time (unchecked-add elapsed-time t)]
       (if (pos? i)
@@ -234,4 +234,4 @@
          :collections  (conj collections collected)
          :num-samples  (count collections)
          :batch-size   batch-size
-         :pipeline     pipeline}))))
+         :collector    collector}))))

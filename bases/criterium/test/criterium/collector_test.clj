@@ -16,20 +16,20 @@
 
 (def base-keys #{:expr-value :elapsed-time})
 
-(defn run-pipeline
+(defn run-collector
   [collector-config measured]
-  (let [pipeline (collector/collector collector-config)
-        sample   (collector/collect-array
-                  pipeline
-                  measured
-                  (measured/args measured)
-                  1)]
-    (is (= (:length pipeline) (alength sample)))
-    (collector/transform pipeline sample)))
+  (let [collector (collector/collector collector-config)
+        sample    (collector/collect-array
+                   collector
+                   measured
+                   (measured/args measured)
+                   1)]
+    (is (= (:length collector) (alength sample)))
+    (collector/transform collector sample)))
 
 (deftest execute-test
   (testing "Execute a measured with time-metric"
-    (let [res (run-pipeline {:stages [] :terminator :elapsed-time} m)]
+    (let [res (run-collector {:stages [] :terminator :elapsed-time} m)]
       (is (map? res) res)
       (testing "Has the measured time on the :elapsed-time key"
         (is (= m-value (:elapsed-time res))))
@@ -40,7 +40,7 @@
 
 (deftest with-measured-args-test
   (testing "Execute a measured with measured-args"
-    (let [res (run-pipeline
+    (let [res (run-collector
                {:stages [:measured-args] :terminator :elapsed-time}
                m)]
       (testing "Has the measured state on the :state key"
@@ -65,7 +65,7 @@
 (deftest pipeline-fns-test
   (doseq [stage (all-stages)]
     (testing (str "Pipeline function " (:id stage))
-      (let [res (run-pipeline {:stages [stage] :terminator :elapsed-time} m)
+      (let [res (run-collector {:stages [stage] :terminator :elapsed-time} m)
             ks  (set (keys res))]
         (is (= base-keys (set/intersection base-keys ks)))))))
 
@@ -86,16 +86,16 @@
                     {:stages     (all-stages)
                      :terminator ::unknown}))))))
 
-(deftest pipeline-test
-  (testing "pipeline"
+(deftest collector-test
+  (testing "collector"
     (testing "builds a pipeline"
-      (let [pipeline (collector/collector
-                      {:stages     (all-stages)
-                       :terminator :elapsed-time})]
-        (is (map? pipeline))
-        (is (contains? pipeline :metrics-defs))
-        (is (fn? (-> pipeline :f)))
-        (is (fn? (-> pipeline :x)))))
+      (let [collector (collector/collector
+                       {:stages     (all-stages)
+                        :terminator :elapsed-time})]
+        (is (map? collector))
+        (is (contains? collector :metrics-defs))
+        (is (fn? (-> collector :f)))
+        (is (fn? (-> collector :x)))))
     (testing "throws if passed a non keyword"
       (is (thrown? clojure.lang.ExceptionInfo
                    {:config

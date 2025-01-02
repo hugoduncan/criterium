@@ -11,19 +11,19 @@
     (let [measured              (measured/measured
                                  (fn [] [:b])
                                  (fn [_ _] [10000000 1]))
-          pipeline              (collector/collector
+          collector              (collector/collector
                                  {:stages     [:garbage-collector :compilation]
                                   :terminator :elapsed-time})
-          ;; run pipeline for JIT
+          ;; run collector for JIT
           _                     (dotimes [_ 10000]
                                   (collect/collect-arrays
-                                   pipeline
+                                   collector
                                    measured
                                    1
                                    10))
           [allocations sampled] (agent/with-allocation-tracing
                                   (collect/collect-arrays
-                                   pipeline
+                                   collector
                                    measured
                                    1
                                    10))

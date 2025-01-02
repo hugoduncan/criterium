@@ -26,8 +26,8 @@
        [(unchecked-subtract finish start) res]))))
 
 (defmacro ^:private invoke-f
-  [pipeline measured args]
-  `(let [sample# (collector/collect ~pipeline ~measured ~args 1)]
+  [collector measured args]
+  `(let [sample# (collector/collect ~collector ~measured ~args 1)]
      (set! ~'samples (conj ~'samples sample#))
      (:expr-value sample#)))
 
@@ -51,109 +51,109 @@
 
 (deftype InstrumentedFn
   [original-fn
-   pipeline
+   collector
    measured
    ^:volatile-mutable samples]
   sampler/Sampler
-  (samples-map [_] (sample-map (:metrics-defs pipeline) samples))
+  (samples-map [_] (sample-map (:metrics-defs collector) samples))
   (reset-samples! [_] (set! samples []) nil)
 
   clojure.lang.IFn
   (invoke [this]
-    (invoke-f pipeline measured []))
+    (invoke-f collector measured []))
   (invoke [this a1]
-    (invoke-f pipeline measured [a1]))
+    (invoke-f collector measured [a1]))
   (invoke [this a1 a2]
-    (invoke-f pipeline measured [a1 a2]))
+    (invoke-f collector measured [a1 a2]))
   (invoke [this a1 a2 a3]
-    (invoke-f pipeline measured [a1 a2 a3]))
+    (invoke-f collector measured [a1 a2 a3]))
   (invoke [this a1 a2 a3 a4]
-    (invoke-f pipeline measured [a1 a2 a3 a4]))
+    (invoke-f collector measured [a1 a2 a3 a4]))
   (invoke [this a1 a2 a3 a4 a5]
-    (invoke-f pipeline measured [a1 a2 a3 a4 a5]))
+    (invoke-f collector measured [a1 a2 a3 a4 a5]))
   (invoke [this a1 a2 a3 a4 a5 a6]
-    (invoke-f pipeline measured [a1 a2 a3 a4 a5 a6]))
+    (invoke-f collector measured [a1 a2 a3 a4 a5 a6]))
   (invoke [this a1 a2 a3 a4 a5 a6 a7]
-    (invoke-f pipeline measured [a1 a2 a3 a4 a5 a6 a7]))
+    (invoke-f collector measured [a1 a2 a3 a4 a5 a6 a7]))
   (invoke [this a1 a2 a3 a4 a5 a6 a7 a8]
-    (invoke-f pipeline measured [a1 a2 a3 a4 a5 a6 a7 a8]))
+    (invoke-f collector measured [a1 a2 a3 a4 a5 a6 a7 a8]))
   (invoke [this a1 a2 a3 a4 a5 a6 a7 a8 a9]
-    (invoke-f pipeline measured [a1 a2 a3 a4 a5 a6 a7 a8 a9]))
+    (invoke-f collector measured [a1 a2 a3 a4 a5 a6 a7 a8 a9]))
   (invoke [this a1 a2 a3 a4 a5 a6 a7 a8 a9 a10]
-    (invoke-f pipeline measured [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10]))
+    (invoke-f collector measured [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10]))
   (invoke [this a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11]
-    (invoke-f pipeline measured [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11]))
+    (invoke-f collector measured [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11]))
   (invoke [this a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12]
-    (invoke-f pipeline measured [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12]))
+    (invoke-f collector measured [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12]))
   (invoke [this a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13]
-    (invoke-f pipeline measured [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13]))
+    (invoke-f collector measured [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13]))
   (invoke [this a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14]
     (invoke-f
-      pipeline
+      collector
       measured
       [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14]))
   (invoke [this a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15]
     (invoke-f
-      pipeline
+      collector
       measured
       [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15]))
   (invoke [this a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16]
     (invoke-f
-      pipeline
+      collector
       measured
       [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16]))
   (invoke [this a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17]
     (invoke-f
-      pipeline
+      collector
       measured
       [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17]))
   (invoke [this a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18]
     (invoke-f
-      pipeline
+      collector
       measured
       [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18]))
   (invoke
     [this a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18 a19]
     (invoke-f
-      pipeline
+      collector
       measured
       [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18 a19]))
   (invoke
     [this a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18 a19 a20]
     (invoke-f
-      pipeline
+      collector
       measured
       [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18 a19 a20]))
   (applyTo [this args]
-    (invoke-f pipeline measured args))
+    (invoke-f collector measured args))
 
   Runnable
   (run [this]
-    (invoke-f pipeline measured []))
+    (invoke-f collector measured []))
 
   Callable
   (call [this]
-    (invoke-f pipeline measured [])))
+    (invoke-f collector measured [])))
 
 (defn instrument-fn
   "Create an instrumented wrapper of function f.
 
-  Takes a function and a collector pipeline configuration and returns a
-  new function that wraps the original while collecting timing samples
+  Takes a function and a collector configuration and returns a new
+  function that wraps the original while collecting timing samples
   during execution.  The returned function implements IFn, Runnable, and
   Callable interfaces.
 
   Parameters:
-    f        - The function to instrument
-    pipeline - A collector pipeline configuration that defines how samples
-               are processed
+    f                - The function to instrument
+    collector-config - A collector configuration that defines how samples
+                       are processed
 
   Returns:
     An InstrumentedFn instance that wraps the original function and maintains
     its own sample collection state."
-  [f pipeline-config]
+  [f collector-config]
   (->InstrumentedFn
    f
-   (collector/collector pipeline-config)
+   (collector/collector collector-config)
    (measured f)
    []))

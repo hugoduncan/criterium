@@ -32,7 +32,7 @@
 (defn instrument!
   "Add instrumentation to the var, v, for performance sampling.
 
-  Takes a var and a pipeline configuration, wraps the function to
+  Takes a var and a collector configuration, wraps the function to
   collect timing samples during execution while preserving the original
   function behavior. The instrumentation stores the original function
   and sample data in the var's metadata.
@@ -44,16 +44,16 @@
   the original function.
 
   Parameters:
-    v               - The var to instrument (e.g. #'my-namespace/my-function)
-    pipeline-config - A collector pipeline configuration that defines
-                      how samples are processed
+    v                - The var to instrument (e.g. #'my-namespace/my-function)
+    collector-config - A collector pipeline configuration that defines
+                       how samples are processed
 
   Side effects:
     - Modifies the var's root binding to install the instrumented function
     - Adds metadata to track the original function and store samples"
-  [v pipeline-config]
+  [v collector-config]
   (when-not (original-f (meta v))
-    (let [inst-fn (instrument-fn/instrument-fn @v pipeline-config)]
+    (let [inst-fn (instrument-fn/instrument-fn @v collector-config)]
       (alter-meta! v assoc original-f @v)
       (alter-var-root v (constantly inst-fn)))))
 
