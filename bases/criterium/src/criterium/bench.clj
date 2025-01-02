@@ -77,16 +77,16 @@
   The timing info is available as a data structure by calling last-time.
 
   Takes a configuration map that fully specifies the benchmark behaviour."
-  [measured config]
-  (output/with-progress-reporting (:verbose config)
+  [measured bench-plan]
+  (output/with-progress-reporting (:verbose bench-plan)
     (->> (measure
-          (:collector-config config)
-          (:collect-plan config)
-          (:benchmark config)
-          {:viewer (:viewer config)}
+          (:collector-config bench-plan)
+          (:collect-plan bench-plan)
+          (:benchmark bench-plan)
+          {:viewer (:viewer bench-plan)}
           measured)
          (impl/last-bench!)
-         (return-value config))))
+         (return-value bench-plan))))
 
 (defn bench-measured
   "Evaluate and benchmark a pre-wrapped measurement.
