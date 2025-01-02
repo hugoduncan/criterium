@@ -4,8 +4,7 @@
 
 (defmulti required-stages*
   "Pipeline stages required for the given schema-type"
-  (fn [{:keys [scheme-type] :as _collect-plan}]
-    scheme-type))
+  (fn [scheme-type] scheme-type))
 
 (defmulti collect*
   #_{:clj-kondo/ignore [:unused-binding]}

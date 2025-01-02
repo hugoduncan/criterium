@@ -1,21 +1,21 @@
 (ns criterium.view
   (:require
-   [criterium.util.debug :as debug]))
-
-(defn viewer [_options sampled]
-  (:viewer sampled))
+   [criterium.util.debug :as debug]
+   [criterium.util.invariant :refer [have]]))
 
 (defn def-multi-view* [n]
   (let [mm-name (symbol (str (name n) "*"))]
     `(do
        (ns-unmap *ns* '~mm-name)
-       (defmulti ~mm-name viewer)
+       (defmulti ~mm-name
+         (fn [viewer# options# data-map#]
+           (have keyword? viewer#)))
        (defn ~n
          ([] (~n {}))
          ([options#]
-          (fn ~n [sampled#]
+          (fn ~n [viewer# data-map#]
             (debug/dtap> {:view '~n})
-            (~mm-name options# sampled#)))))))
+            (~mm-name viewer# options# data-map#)))))))
 
 (defmacro def-multi-view [n]
   (def-multi-view* n))
@@ -48,25 +48,25 @@
 
 ;; Null Viewer
 
-(defmethod bootstrap-stats* :none [_ _])
-(defmethod event-stats* :none [_ _])
-(defmethod final-gc-warnings* :none [_ _])
+(defmethod bootstrap-stats* :none [_ _ _])
+(defmethod event-stats* :none [_ _ _])
+(defmethod final-gc-warnings* :none [_ _ _])
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
-(defmethod histogram* :none [_ _])
+(defmethod histogram* :none [_ _ _])
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
-(defmethod metrics* :none [_ _])
-(defmethod os* :none [_ _])
-(defmethod outlier-counts* :none [_ _])
-(defmethod outlier-significance* :none [_ _])
+(defmethod metrics* :none [_ _ _])
+(defmethod os* :none [_ _ _])
+(defmethod outlier-counts* :none [_ _ _])
+(defmethod outlier-significance* :none [_ _ _])
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
-(defmethod quantiles* :none [_ _])
-(defmethod runtime* :none [_ _])
+(defmethod quantiles* :none [_ _ _])
+(defmethod runtime* :none [_ _ _])
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
-(defmethod sample-percentiles* :none [_ _])
+(defmethod sample-percentiles* :none [_ _ _])
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
-(defmethod sample-diffs* :none [_ _])
+(defmethod sample-diffs* :none [_ _ _])
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
-(defmethod collect-plan* :none [_ _])
+(defmethod collect-plan* :none [_ _ _])
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
-(defmethod samples* :none [_ _])
-(defmethod stats* :none [_ _])
+(defmethod samples* :none [_ _ _])
+(defmethod stats* :none [_ _ _])

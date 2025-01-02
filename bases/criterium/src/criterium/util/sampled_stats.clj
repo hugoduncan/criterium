@@ -73,33 +73,24 @@
 (defn sample-stats
   [result-map samples-id outliers metric-configs config]
   {:pre [(have? util/result-map? result-map)]}
-  (reduce
-   (fn [res path]
-     (let [ols (:outliers (get-in outliers path) {})
-           _   (when-not samples-id
-                 (throw
-                  (ex-info "Failed to get samples"
-                           {:path    path
-                            :sampled result-map})))
-           vs  (let [metrics-samples (result-map samples-id)
-                     metric->values  (util/metric->values metrics-samples)
-                     vs              (samples-for-path metric->values path)]
-                 (when-not metrics-samples
-                   (throw (ex-info "invalid samples-id"
-                                   {:samples-id samples-id})))
-                 vs)
-           without-outliers
-           (into []
-                 (comp
-                  (map-indexed (fn [i v] (when-not (ols i) v)))
-                  (filter some?))
-                 vs)]
-       (assert (seq vs) path)
-       (assoc-in
-        res path
-        (stats-for without-outliers config))))
-   {}
-   (map :path metric-configs)))
+  (let [metrics-samples (result-map samples-id)
+        metric->values  (have (util/metric->values metrics-samples))]
+    (reduce
+     (fn [res path]
+       (let [ols              (:outliers (get-in outliers path) {})
+             vs               (samples-for-path metric->values path)
+             without-outliers (if ols
+                                (into []
+                                      (comp
+                                       (map-indexed (fn [i v] (when-not (ols i) v)))
+                                       (filter some?))
+                                      vs)
+                                vs)]
+         (if (seq vs)
+           (assoc-in res path (stats-for without-outliers config))
+           res)))
+     {}
+     (mapv :path metric-configs))))
 
 (defn event-stats
   "Return the stats for events like JIT compilation and garbage-collector."

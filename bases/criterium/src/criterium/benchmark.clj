@@ -4,6 +4,7 @@
    configurations."
   (:require
    [criterium.util.helpers :as util]
+   [criterium.util.invariant :refer [have have?]]
    [criterium.view :as view]))
 
 (defn- resolve-analyse-fn
@@ -24,9 +25,12 @@
    Returns a function of one argument (the analysis result)."
   [x]
   (let [options {:default-ns 'criterium.view}]
-    (if (sequential? x)
-      (apply (util/maybe-var-get (first x) options) (rest x))
-      ((util/maybe-var-get x options)))))
+    (have
+     fn?
+     (if (sequential? x)
+       (apply (util/maybe-var-get (first x) options) (rest x))
+       ((util/maybe-var-get x options)))
+     {:x x})))
 
 (defn- resolve-analyse-fns
   "Resolves all analysis functions from a specification vector."
@@ -49,14 +53,15 @@
   - Each takes a sampled map as input
   - Each returns a modified sampled map
 
-  Example specs: [:stats [:quantiles {:quantiles [0.025 0.975]}]]
+  Example specs: [:stats
+                  [:quantiles {:quantiles [0.025 0.975]}]]
 
   Returns a function that takes sampled data and returns analysis results."
-  [analyse-specs]
-  (when-not (or (nil? analyse-specs) (sequential? analyse-specs))
+  [analyse-plan]
+  (when-not (or (nil? analyse-plan) (sequential? analyse-plan))
     (throw
-     (ex-info "analyse must be a sequence of specs" {:analyse analyse-specs})))
-  (let [fns (resolve-analyse-fns analyse-specs)]
+     (ex-info "analyse must be a sequence of specs" {:analyse analyse-plan})))
+  (let [fns (resolve-analyse-fns analyse-plan)]
     (reduce comp (reverse fns))))
 
 (defn ->view
@@ -73,14 +78,16 @@
   Example specs: [:text-table]
 
   Returns a function that takes analysis results and handles viewing."
-  [view-specs]
-  (when-not (or (nil? view-specs) (sequential? view-specs))
+  [view-plan]
+  (when-not (or (nil? view-plan) (sequential? view-plan))
     (throw
-     (ex-info "view must be a sequence of specs" {:view view-specs})))
-  (let [fns (resolve-view-fns view-specs)]
-    (fn [result]
-      (run! #(% result) fns)
-      (view/flush-viewer (:viewer result))
+     (ex-info "view must be a sequence of specs" {:view view-plan})))
+  (let [fns (resolve-view-fns view-plan)]
+    (fn [viewer result]
+      {:pre [(have? keyword? viewer)
+             (have? util/result-map? result)]}
+      (run! #(% viewer result) fns)
+      (view/flush-viewer viewer)
       result)))
 
 (defn ->benchmark

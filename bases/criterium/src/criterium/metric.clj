@@ -18,6 +18,7 @@
   organization structures."
   (:require
    [clojure.set :as set]
+   [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have?]]))
 
 (defn- metric-config?
@@ -72,15 +73,6 @@
    []
    metric-defs))
 
-(defn- map-filter
-  "Internal helper to filter map entries based on a predicate applied to values.
-
-  Return a new map containing only the entries where (pred value)
-  returns true.  Used internally for filtering metrics by their
-  configuration values."
-  [pred m]
-  (into {} (filter (comp pred val) m)))
-
 (defn select-metrics
   [metrics-defs metric-ids]
   {:pre [(have? map? metrics-defs)]}
@@ -111,7 +103,7 @@
   [metrics-config metric-type metric-ids]
   (->>
    (select-metrics metrics-config metric-ids)
-   (map-filter #(= metric-type (:type %)))))
+   (util/filter-map #(= metric-type (:type %)))))
 
 (defn metric-configs-of-type
   "Return a sequence of metric configurations filtered by type and optional IDs.
@@ -188,7 +180,7 @@
   [metrics pred]
   (->>
    (update-vals metrics (partial filter-metrics* pred))
-   (map-filter #(or (seq (:values %)) (seq (:groups %))))))
+   (util/filter-map #(or (seq (:values %)) (seq (:groups %))))))
 
 (defn dimension-pred
   "Create predicate that matches metric values with given dimension"
