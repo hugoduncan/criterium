@@ -20,10 +20,11 @@
       metric-configs))))
 
 (defmethod view/stats* :pprint
-  [_ {:keys [stats-id]} data-map]
+  [_ {:keys [stats-id metric-ids]} data-map]
   (let [stats-id       (or stats-id :stats)
         stats-map      (data-map stats-id)
-        metrics-defs   (:metrics-defs stats-map)
+        metrics-defs   (-> (:metrics-defs stats-map)
+                           (metric/select-metrics metric-ids))
         metric-configs (metric/all-metric-configs metrics-defs)
         transforms     (util/get-transforms data-map stats-id)]
     (pprint/print-table
@@ -203,14 +204,15 @@
                              (metric/type-pred :quantitative)))
         metric-configs  (metric/all-metric-configs metrics-defs)
         transforms      (util/get-transforms data-map samples-id)
-        histograms      (mapv
-                         #(viewer-common/histogram
-                           (util/metric->values metrics-samples)
-                           (util/quantiles quantiles)
-                           (util/outliers outliers)
-                           transforms
-                           %)
-                         metric-configs)]
+        histograms      (->> metric-configs
+                             (mapv
+                              #(viewer-common/histogram
+                                (util/metric->values metrics-samples)
+                                (util/quantiles quantiles)
+                                (util/outliers outliers)
+                                transforms
+                                %))
+                             (filterv some?))]
     (doseq [h histograms]
       (println (format "\nHistogram of %s %s"
                        (-> h :metric-config :label)

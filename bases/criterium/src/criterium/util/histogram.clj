@@ -82,17 +82,23 @@
    - :max - maximum value
 
    Throws:
-   - IllegalArgumentException for empty input
-   - IllegalArgumentException when all values are the same"
+   - ex-info {:error :histogram/no-values} for empty input
+   - ex-info {:error :histogram/same-values} when all values are the same"
   ([values]
    (histogram values nil))
   ([values precomputed-iqr]
    (when (empty? values)
-     (throw (IllegalArgumentException. "Input vector cannot be empty")))
+     (throw (ex-info
+             "Input vector cannot be empty"
+             {:error :histogram/no-values})))
    (let [min-val (reduce min values)
          max-val (reduce max values)]
      (when (= min-val max-val)
-       (throw (IllegalArgumentException. "All values are the same - cannot create histogram")))
+       (throw (ex-info
+               "All values are the same - cannot create histogram"
+               {:error   :histogram/same-values
+                :min-val min-val
+                :max-val max-val})))
      (let [iqr       (or precomputed-iqr (compute-iqr values))
            bin-width (compute-bin-width values iqr)
            {:keys [edges centers width num-bins]}
