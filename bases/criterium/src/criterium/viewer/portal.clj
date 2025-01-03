@@ -72,10 +72,11 @@
       metric-configs))))
 
 (defmethod view/stats* :portal
-  [_ {:keys [stats-id]} data-map]
+  [_ {:keys [stats-id metric-ids]} data-map]
   (let [stats-id       (or stats-id :stats)
         stats-map      (data-map stats-id)
-        metrics-defs   (:metrics-defs stats-map)
+        metrics-defs   (-> (:metrics-defs stats-map)
+                           (metric/select-metrics metric-ids))
         metric-configs (metric/all-metric-configs metrics-defs)
         transforms     (util/get-transforms data-map stats-id)]
     (heading "Summary stats")

@@ -155,36 +155,42 @@
   [samples outliers]
   (into [] (comp
             (map-indexed
-             (fn [i s] (when-not ((:outliers outliers) i) s)))
+             (fn [i s] (when-not (outliers i) s)))
             (filter some?))
         samples))
 
 (defn histogram
   [metric->values quantiles outliers transforms metric-config]
-  (let [p            (:path metric-config)
-        iqr          (when-let [qs (get-in quantiles p)]
-                       (- (double (get qs 0.75)) (double (get qs 0.25))))
-        samples      (metric->values p)
-        outliers     (get-in outliers p)
-        samples      (if outliers
-                       (remove-outliers samples outliers)
-                       samples)
-        res          (histogram/histogram samples iqr)
-        transform    #(util/transform-sample-> % transforms)
-        min-val      (double (transform (:min res)))
-        metric-scale (double (:scale metric-config))
-        [scale unit] (format/scale
-                      (:dimension metric-config)
-                      (* metric-scale min-val))
-        scale        (* (double scale) metric-scale)
-        round        #(format/round % 4)
-        t-center     (comp round (partial * scale) transform)
-        t-density    #(format/round % 3)]
-    (-> res
-        (update :centers #(mapv t-center %))
-        (update :min t-center)
-        (update :max t-center)
-        (update :density #(mapv t-density %))
-        (assoc
-         :metric-config metric-config
-         :unit unit))))
+  (try
+    (let [p            (:path metric-config)
+          iqr          (when-let [qs (get-in quantiles p)]
+                         (- (double (get qs 0.75)) (double (get qs 0.25))))
+          samples      (metric->values p)
+          outliers     (get-in outliers p)
+          samples      (if-let [ols (:outliers outliers)]
+                         (remove-outliers samples ols)
+                         samples)
+          res          (histogram/histogram samples iqr)
+          transform    #(util/transform-sample-> % transforms)
+          min-val      (double (transform (:min res)))
+          metric-scale (double (:scale metric-config))
+          [scale unit] (format/scale
+                        (:dimension metric-config)
+                        (* metric-scale min-val))
+          scale        (* (double scale) metric-scale)
+          round        #(format/round % 4)
+          t-center     (comp round (partial * scale) transform)
+          t-density    #(format/round % 3)]
+      (-> res
+          (update :centers #(mapv t-center %))
+          (update :min t-center)
+          (update :max t-center)
+          (update :density #(mapv t-density %))
+          (assoc
+           :metric-config metric-config
+           :unit unit)))
+    (catch clojure.lang.ExceptionInfo e
+      (let [data (ex-data e)]
+        (when-not (#{:histogram/no-values :histogram/same-values}
+                   (:error data))
+          (throw e))))))

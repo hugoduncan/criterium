@@ -335,14 +335,15 @@
                              (metric/type-pred :quantitative)))
         metric-configs  (metric/all-metric-configs metrics-defs)
         transforms      (util/get-transforms data-map samples-id)
-        histograms      (mapv
-                         #(viewer-common/histogram
-                           (util/metric->values metrics-samples)
-                           (util/quantiles quantiles)
-                           (util/outliers outliers)
-                           transforms
-                           %)
-                         metric-configs)]
+        histograms      (->> metric-configs
+                             (mapv
+                              #(viewer-common/histogram
+                                (util/metric->values metrics-samples)
+                                (util/quantiles quantiles)
+                                (util/outliers outliers)
+                                transforms
+                                %))
+                             (filterv some?))]
     (doseq [h histograms]
       (println
        (format "%32s: %s Histogram"
