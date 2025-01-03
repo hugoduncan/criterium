@@ -94,6 +94,16 @@
        :actual   ~actual
        :diff     diff#})))
 
+(defn approx= [a b & [rel-tolerance ulps]]
+  (let [comp (compare-doubles
+              a
+              b
+              (or rel-tolerance default-rel-tolerance)
+              (or ulps default-ulps))]
+    (when comp
+      (prn :a a :b b comp))
+    (nil? comp)))
+
 (defmacro test-max-error
   ([expected actual max-error]
    `(is (< (abs-error ~expected ~actual) ~max-error)))
@@ -112,6 +122,10 @@
       (fn [^long size]
         (let [s (min size r)]
           (gen/choose 0 s)))))))
+
+(defn gen-double [options]
+  (gen/double*
+   (merge {:infinite? false :NaN? false} options)))
 
 (defn trimmed-lines
   [s]
