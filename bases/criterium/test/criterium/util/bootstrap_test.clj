@@ -149,11 +149,12 @@
 (defn sample-values
   "Generate batched samples with the given mean and standard deviation."
   [batch-size num-samples random-seed mean sigma]
-  (let [values (->> (sampled-stats-test/random-values
-                     random-seed mean sigma)
-                    (take num-samples)
-                    vec)]
-    (mapv #(* % batch-size) values)))
+  (let [batch-size (long batch-size)
+        values     (->> (sampled-stats-test/random-values
+                         random-seed mean sigma)
+                        (take num-samples)
+                        vec)]
+    (mapv #(* (double %) batch-size) values)))
 
 (deftest analyse-bootstrap-test
   (let [batch-size  100
@@ -169,10 +170,10 @@
                                          :values [{:path [:v]
                                                    :type :quantitative}]}}
                       :samples      (with-meta
-                                         samples
+                                      samples
                                       {:transform
-                                       {:sample-> #(/ % 100.0)
-                                        :->sample #(* 100.0 %)}})
+                                       {:sample-> #(/ (double %) 100.0)
+                                        :->sample #(* 100.0 (double %))}})
                       :batch-size   batch-size
                       :eval-count   (* num-samples batch-size)
                       :elapsed-time 1})
