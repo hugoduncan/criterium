@@ -206,24 +206,24 @@
   ;; add stats to the result
   ([] (bootstrap-stats {}))
   ([{:keys [id metric-ids samples-id] :as analysis}]
-   (fn [bench-map]
+   (fn [data-map]
      (let [id              (or id :bootstrap-stats)
            samples-id      (or samples-id :samples)
-           metrics-samples (-> bench-map :data samples-id)
+           metrics-samples (data-map samples-id)
            metrics-defs    (-> (:metrics-defs metrics-samples)
                                (metric/select-metrics metric-ids)
                                (metric/filter-metrics
                                 (metric/type-pred :quantitative)))
            metric-configs  (metric/all-metric-configs metrics-defs)
-           transforms      (util/get-transforms (:data bench-map) samples-id)
+           transforms      (util/get-transforms data-map samples-id)
            result          (bootstrap-stats*
                             (util/metric->values metrics-samples)
                             metric-configs
                             transforms
                             analysis)]
-       (assoc-in
-        bench-map
-        [:data id]
+       (assoc
+        data-map
+        id
         {:type         :criterium/bootstrap
          :bootstrap    result
          :metrics-defs metrics-defs

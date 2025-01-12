@@ -1,11 +1,14 @@
 (ns criterium.util.bootstrap-test
   (:require
    [clojure.test :refer [deftest is testing]]
+   [criterium.analyse-test :refer [metrics-samples]]
    [criterium.test-utils :refer [test-max-error]]
    [criterium.util.bootstrap :as bootstrap]
+   [criterium.util.invariant :refer [have]]
    [criterium.util.sampled-stats-test :as sampled-stats-test]
    [criterium.util.stats :as stats]
-   [criterium.util.well :as well]))
+   [criterium.util.well :as well]
+   [criterium.util.helpers :as util]))
 
 (deftest bootstrap-estimate-test
   (is (= [1.0 0.0 [1.0 1.0]]
@@ -157,30 +160,30 @@
     (mapv #(* (double %) batch-size) values)))
 
 (deftest analyse-bootstrap-test
-  (let [batch-size  100
-        num-samples 1000
-        samples     {[:v] (sample-values batch-size num-samples 123 10.0 1.0)}
-        result      ((bootstrap/bootstrap-stats
-                      {:quantiles          [0.99]
-                       :estimate-quantiles [0.025 0.975]
-                       :bootstrap-size     100
-                       :sampled-path       [:sampled]
-                       :output-path        [:analysis :bootstrap-stats]})
-                     {:metrics-defs {:v {:type   :quantitative
-                                         :values [{:path [:v]
-                                                   :type :quantitative}]}}
-                      :samples      (with-meta
-                                      samples
-                                      {:transform
-                                       {:sample-> #(/ (double %) 100.0)
-                                        :->sample #(* 100.0 (double %))}})
-                      :batch-size   batch-size
-                      :eval-count   (* num-samples batch-size)
-                      :elapsed-time 1})
-        point       (-> result
-                        :bootstrap-stats
-                        :v
-                        :mean
-                        :point-estimate)]
+  (let [batch-size     100
+        num-samples    1000
+        samples        {[:v] (sample-values batch-size num-samples 123 10.0 1.0)}
+        metric-samples (assoc
+                        (metrics-samples samples batch-size)
+                        :metrics-defs
+                        {:v
+                         {:type   :quantitative
+                          :values [{:path      [:v]
+                                    :type      :quantitative
+                                    :dimension :time
+                                    :scale     1
+                                    :label     "v"}]}})
+        result         ((bootstrap/bootstrap-stats
+                         {:quantiles          [0.99]
+                          :estimate-quantiles [0.025 0.975]
+                          :bootstrap-size     100})
+                        {:samples metric-samples})
+        point          (have
+                        (-> result
+                            :bootstrap-stats
+                            util/bootstrap
+                            :v
+                            :mean
+                            :point-estimate))]
     (is (test-max-error 10.0 point 0.1 "mean")
         (str "Value: " point))))
