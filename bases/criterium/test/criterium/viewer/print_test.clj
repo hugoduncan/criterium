@@ -25,7 +25,8 @@
                 :variance          16.0
                 :mean-plus-3sigma  112.0
                 :mean-minus-3sigma 88.0
-                :min-val           89.0})))))))
+                :min-val           89.0}
+               [collect-plan/identity-transforms])))))))
 
 (defn identity-transform [samples]
   (with-meta samples {:transform {:sample-> identity :->sample identity}}))
@@ -37,75 +38,71 @@
              (trimmed-lines
               (with-out-str
                 (view/stats*
+                 :print
                  {}
-                 (->(test-data/bench-stats-map)
-                    (assoc :viewer :print)))))))
+                 (:data (test-data/bench-stats-map)))))))
 
       (is (= ["Elapsed Time: 1.00 ns  3σ [1.00 1.00]  min 1.00"]
-             (let [bench-map  (-> (test-data/samples-with-2-values-map)
-                                  (assoc :viewer :print))
+             (let [data-map   (:data (test-data/samples-with-2-values-map))
                    stats      (analyse/stats)
                    view-stats (view/stats)]
                (trimmed-lines
                 (with-out-str
-                  (-> bench-map
-                      stats
-                      view-stats))))))))
+                  (->> data-map
+                       stats
+                       (view-stats :print)))))))))
   (testing "print-stats"
     (testing "prints via output-view"
       (is (= ["Elapsed Time: 100 ns  3σ [88.0 112]  min 89.0"]
              (trimmed-lines
               (with-out-str
                 (view/stats*
+                 :print
                  {}
-                 (->(test-data/bench-stats-map)
-                    (assoc :viewer :print)))))))
+                 (:data (test-data/bench-stats-map)))))))
 
       (is (= ["Elapsed Time: 1.00 ns  3σ [1.00 1.00]  min 1.00"]
-             (let [bench-map  (-> (test-data/samples-with-2-values-map)
-                                  (assoc :viewer :print))
+             (let [data-map   (:data (test-data/samples-with-2-values-map))
                    stats      (analyse/stats)
                    view-stats (view/stats)]
                (trimmed-lines
                 (with-out-str
-                  (-> bench-map
-                      stats
-                      view-stats)))))))
+                  (->> data-map
+                       stats
+                       (view-stats :print))))))))
     (testing "prints via output-view"
       (is (= ["Elapsed Time: 100 ns  3σ [88.0 112]  min 89.0"]
              (trimmed-lines
               (with-out-str
                 (view/stats*
+                 :print
                  {}
-                 (->(test-data/bench-stats-map)
-                    (assoc :viewer :print)))))))
+                 (:data (test-data/bench-stats-map)))))))
 
       (is (= ["Elapsed Time: 5.00 ns  3σ [-5.39 15.4]  min 1.00"]
-             (let [bench-map  (-> (test-data/samples-with-variance-12-map)
-                                  (assoc :viewer :print))
+             (let [data-map   (:data (test-data/samples-with-variance-12-map))
                    stats      (analyse/stats)
                    view-stats (view/stats)]
                (trimmed-lines
                 (with-out-str
-                  (-> bench-map
-                      stats
-                      view-stats))))))
+                  (->> data-map
+                       stats
+                       (view-stats :print)))))))
       (is (= ["Elapsed Time: 2.50 ns  3σ [-2.70 7.70]  min 0.500"]
-             (let [bench-map
+             (let [data-map
                    (-> (update-in
-                        (test-data/samples-with-variance-12-map)
-                        [:data :samples]
+                        (:data (test-data/samples-with-variance-12-map))
+                        [:samples]
                         merge
                         {:batch-size 2
-                         :transform  (#'collect-plan/batch-transforms 2)})
-                       (assoc :viewer :print))
+                         :transform  (#'collect-plan/batch-transforms 2)}))
                    stats      (analyse/stats)
                    view-stats (view/stats)]
                (trimmed-lines
                 (with-out-str
-                  (-> bench-map
-                      stats
-                      view-stats)))))))))
+                  (->> data-map
+                       stats
+                       (view-stats :print))))))))))
 
 
 (deftest print-booststrap-stat-test
@@ -141,51 +138,46 @@
     (is (= ["Elapsed Time min: 1.00 ns CI [1.00 1.00] (0.025 0.975)"
             "Elapsed Time mean: 1.00 ns CI [1.00 1.00] (0.025 0.975)"
             "Elapsed Time 3σ: [1.00 1.00] ns"]
-           (let [bench-map
-                 {:metrics-defs (select-keys
-                                 (metrics/metrics)
-                                 [:elapsed-time])
-                  :data
-                  {:samples
-                   {:type           :criterium/collected-metrics-samples
-                    :metric->values {[:elapsed-time] [1 1 1]}
-                    :metrics-defs   (select-keys
-                                     (metrics/metrics)
-                                     [:elapsed-time])
-                    :transform      collect-plan/identity-transforms
-                    :batch-size     1
-                    :eval-count     1
-                    :elapsed-time   1}}
-                  :viewer       :print}
+           (let [data-map
+                 {:samples
+                  {:type           :criterium/collected-metrics-samples
+                   :metric->values {[:elapsed-time] [1 1 1]}
+                   :metrics-defs   (select-keys
+                                    (metrics/metrics)
+                                    [:elapsed-time])
+                   :transform      collect-plan/identity-transforms
+                   :batch-size     1
+                   :eval-count     1
+                   :elapsed-time   1}}
                  bootstrap (bootstrap/bootstrap-stats
                             {:quantiles          [0.025 0.975]
                              :estimate-quantiles [0.025 0.975]})
-                 view      (view/bootstrap-stats)]
+                 view      (view/bootstrap-stats {})]
              (trimmed-lines
               (with-out-str
-                (-> bench-map
-                    bootstrap
-                    view))))))))
+                (->> data-map
+                     bootstrap
+                     (view :print)))))))))
 
 (deftest print-samples-test
   (testing "print-samples"
     (testing "prints via view"
       (is (= ["Samples: 7 samples with batch-size 1"
-              "[6] 10.0 µs high-severe"]
+              "Elapsed Time"
+              "[    6] 10.0 µs high-severe"]
              (let [bench-map
-                   (-> (test-data/samples-with-outliers-values-map)
-                       (assoc :viewer :print))
+                   (:data (test-data/samples-with-outliers-values-map))
                    quantiles (analyse/quantiles {:quantiles [0.9 0.99 0.99]})
                    outliers  (analyse/outliers)
                    stats     (analyse/stats)
                    view      (view/samples)]
                (trimmed-lines
                 (with-out-str
-                  (-> bench-map
-                      quantiles
-                      outliers
-                      stats
-                      view)))))))))
+                  (->> bench-map
+                       quantiles
+                       outliers
+                       stats
+                       (view :print))))))))))
 
 (deftest print-outlier-count-test
   (testing "print-outlier-count"
@@ -219,11 +211,10 @@
               "high-mild\t 3 (300.0000 %)"]
              (trimmed-lines
               (with-out-str
-                (let [bench-map
-                      (-> (test-data/outlier-count-map)
-                          (assoc :viewer :print))
+                (let [data-map
+                      (:data (test-data/outlier-count-map))
                       view (view/outlier-counts)]
-                  (view bench-map)))))))))
+                  (view :print data-map)))))))))
 
 (deftest print-outlier-significance-test
   (testing "print-outlier-significance"
@@ -233,8 +224,8 @@
              (trimmed-lines
               (with-out-str
                 ((view/outlier-significance)
-                 (-> (test-data/outlier-significance-map)
-                     (assoc :viewer :print))))))))))
+                 :print
+                 (:data (test-data/outlier-significance-map))))))))))
 
 (deftest print-event-stats-test
   (testing "print-event-stats"
@@ -244,15 +235,14 @@
             "JIT compilation: ran for 3.00 ms in 1 samples"
             (str "Garbage Collector: ran 2 times for a total of 1.00 ms "
                  "in 1 samples")]
-           (let [bench-map   (-> (test-data/samples-for-event-stats-map)
-                                 (assoc :viewer :print))
+           (let [data-map    (:data (test-data/samples-for-event-stats-map))
                  event-stats (analyse/event-stats)
                  view        (view/event-stats)]
              (trimmed-lines
               (with-out-str
-                (-> bench-map
-                    event-stats
-                    view)))))))))
+                (->> data-map
+                     event-stats
+                     (view :print))))))))))
 
 (deftest print-final-gc-warnings-test
   (testing "print-final-gc-warnings-test"
@@ -283,36 +273,34 @@
                                  {:view-type      :final-gc-warnings
                                   :warn-threshold 0.02
                                   :sampled-path   [:sampled]})
-                   bench-map
-                   {:data
-                    {:samples
-                     {:type         :criterium/collected-metrics-samples
-                      :metric->values
-                      {[:elapsed-time] [99999999]}
-                      :metrics-deps metrics-defs
-                      :batch-size   1
-                      :eval-count   1
-                      :elapsed-time 1}
-                     :final-gc
-                     {:type         :criterium/collected-metrics-samples
-                      :metric->values
-                      {[:compilation :time-ms]              [3]
-                       [:garbage-collector :total :time-ms] [1]
-                       [:elapsed-time]                      [1]}
-                      :metrics-deps metrics-defs
-                      :batch-size   1
-                      :eval-count   1
-                      :elapsed-time 1} }
-                    :viewer :print}]
+                   data-map
+                   {:samples
+                    {:type         :criterium/collected-metrics-samples
+                     :metric->values
+                     {[:elapsed-time] [99999999]}
+                     :metrics-deps metrics-defs
+                     :batch-size   1
+                     :eval-count   1
+                     :elapsed-time 1}
+                    :final-gc
+                    {:type         :criterium/collected-metrics-samples
+                     :metric->values
+                     {[:compilation :time-ms]              [3]
+                      [:garbage-collector :total :time-ms] [1]
+                      [:elapsed-time]                      [1]}
+                     :metrics-deps metrics-defs
+                     :batch-size   1
+                     :eval-count   1
+                     :elapsed-time 1}}]
                (trimmed-lines
                 (with-out-str
-                  (view1 bench-map)
-                  (view2 bench-map)))))))))
+                  (view1 :print data-map)
+                  (view2 :print data-map)))))))))
 
 (deftest print-os-test
-  (let [s (with-out-str ((view/os) {:viewer :print}))]
+  (let [s (with-out-str ((view/os) :print {}))]
     (is (str/ends-with? s "cpu(s)\n"))))
 
 (deftest print-runtime-test
-  (let [s (with-out-str ((view/runtime) {:viewer :print}))]
+  (let [s (with-out-str ((view/runtime) :print {}))]
     (is (not (str/blank? s)))))
