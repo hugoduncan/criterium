@@ -19,14 +19,24 @@
   (:require
    [clojure.set :as set]
    [criterium.util.helpers :as util]
-   [criterium.util.invariant :refer [have?]]))
+   [criterium.util.invariant :as invariant :refer [have?]]))
+
+(def ^:private metric-keys
+  #{:path :dimension :scale :label})
 
 (defn- metric-config?
   [x]
   (and (map? x)
-       (set/subset?
-        #{:path :dimension :scale :label} ; :group is optional
-        (set (keys x)))))
+       (or (set/subset? metric-keys (set (keys x)))
+           (throw
+            (invariant/assertion-error
+             "Invalid keys"
+             {:error-tupe ::invalid-map-keys
+              :date       {:expected metric-keys
+                           :actual   (keys x)
+                           :missing  (set/difference
+                                      metric-keys
+                                      (set (keys x)))}})))))
 
 (defn metric-configs
   "Returns a sequence of metric-config maps from a metrics configuration map.
