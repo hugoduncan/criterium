@@ -11,6 +11,13 @@
    :jvm-opts    ["-Djdk.attach.allowAttachSelf"]}
   :test        {:extra-paths ["bases/criterium/test"]
                 :extra-deps
+                {local/agent            {:local/root "bases/agent"}
+                 org.clojure/test.check {:mvn/version "1.1.1"}}
+                :jvm-opts    ["-XX:-OmitStackTraceInFastThrow"
+                              "-Dclojure.main.report=stderr"
+                              "-agentpath:agent-cpp/libcriterium.dylib"]}
+  :kaocha      {:extra-paths ["bases/criterium/test"]
+                :extra-deps
                 {lambdaisland/kaocha           {:mvn/version "1.91.1392"}
                  lambdaisland/kaocha-cloverage {:mvn/version "1.1.89"}
                  local/agent                   {:local/root "bases/agent"}
