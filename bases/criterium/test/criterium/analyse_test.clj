@@ -5,8 +5,8 @@
    [criterium.benchmark :as benchmark]
    [criterium.collect-plan :as collect-plan]
    [criterium.collector.metrics :as metrics]
-   [criterium.test-data :as test-data]
-   [criterium.test-utils :refer [test-max-error]]
+   [criterium.test-utils]
+   [criterium.types :as types]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have?]]))
 
@@ -23,7 +23,7 @@
 
 (defn metrics-samples
   [data ^long batch-size]
-  {:post [(have? util/metrics-samples-map? %)]}
+  {:post [(have? types/metrics-samples-map? %)]}
   (let [n (count (first (vals data)))]
     {:type           :criterium/metrics-samples
      :metric->values data

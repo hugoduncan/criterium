@@ -45,7 +45,7 @@
   warning is issued."
   0.01)
 
-(def s-to-ns (* 1000 1000 1000)) ; in ns
+(def ^:const s-to-ns (* 1000 1000 1000)) ; in ns
 
 (def ^:dynamic *warmup-jit-period*
   "Time period used to let the code run so that jit compiler can do
@@ -74,9 +74,9 @@
 
 (def ^:dynamic *default-quick-bench-opts*
   {:max-gc-attempts       *max-gc-attempts*
-   :num-samples           (/ *sample-count* 10)
-   :target-execution-time (/ *target-execution-time* 10)
-   :warmup-jit-period     (/ *warmup-jit-period* 2)
+   :num-samples           (/ (long *sample-count*) 10)
+   :target-execution-time (/ (long *target-execution-time*) 10)
+   :warmup-jit-period     (/ (long *warmup-jit-period*) 2)
    :tail-quantile         0.025
    :bootstrap-size        500})
 

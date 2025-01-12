@@ -2,6 +2,7 @@
   (:require
    [criterium.collect-plan :as collect-plan]
    [criterium.metric :as metric]
+   [criterium.types :as types]
    [criterium.util.debug :as debug]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have have?]]
@@ -45,7 +46,7 @@
      (let [samples-id      (or samples-id :samples)
            id              (or id (keyword (str "log-" (name samples-id))))
            metrics-samples (have
-                            util/generic-metrics-samples-map?
+                            types/generic-metrics-samples-map?
                             (data-map samples-id))
            metrics-defs    (-> (:metrics-defs metrics-samples)
                                (metric/select-metrics metric-ids)
@@ -66,7 +67,7 @@
            transformed     (->
                             (select-keys
                              metrics-samples
-                             util/metrics-samples-keys)
+                             types/metrics-samples-keys)
                             (merge
                              {:type           :criterium/metrics-samples
                               :metrics-defs   metrics-defs
@@ -103,7 +104,7 @@
   ([] (quantiles {}))
   ([{:keys [id samples-id metric-ids] :as analysis}]
    (fn quantiles [data-map]
-     {:pre [(have? util/result-map? data-map)]}
+     {:pre [(have? types/result-map? data-map)]}
      (let [samples-id      (or samples-id :samples)
            id              (or id :quantiles)
            metrics-samples (data-map samples-id)
@@ -117,7 +118,7 @@
                             metric-configs
                             analysis)
            quantiles-map   (have
-                            util/quantiles-map?
+                            types/quantiles-map?
                             {:type         :criterium/quantiles
                              :source-id    samples-id
                              :quantiles    quantiles
@@ -225,7 +226,7 @@
                            (util/quantiles all-quantiles)
                            (util/metric->values metrics-samples))
              outliers-map (have
-                           util/outliers-map?
+                           types/outliers-map?
                            {:type         :criterium/outliers
                             :source-id    samples-id
                             :transform    collect-plan/identity-transforms
@@ -286,7 +287,7 @@
                               metric-configs
                               analysis)
              stats-map       (have
-                              util/stats-map?
+                              types/stats-map?
                               {:type         :criterium/stats
                                :metrics-defs metrics-defs
                                :source-id    samples-id
@@ -338,7 +339,7 @@
                               metrics-defs
                               (util/metric->values metrics-samples))
              es-map          (have
-                              util/event-stats-map?
+                              types/event-stats-map?
                               {:type         :criterium/event-stats
                                :transform    collect-plan/identity-transforms
                                :source-id    samples-id
@@ -492,7 +493,7 @@
                            (util/stats stats)
                            metric-configs)
              os-map       (have
-                           util/outlier-significance-map?
+                           types/outlier-significance-map?
                            {:type                 :criterium/outlier-significance
                             :transform            collect-plan/identity-transforms
                             :outlier-significance significance

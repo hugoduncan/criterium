@@ -3,14 +3,8 @@
    These control how cluster sizes are determined and affect accuracy in different ways."
   (:require    [criterium.util.invariant :refer [have?]]))
 
-(defn nan? [^double x]
-  (Double/isNaN x))
-
-(defn infinite? [^double x]
-  (Double/isInfinite x))
-
 (defn finite? [^double x]
-  (and (not (nan? x)) (not (infinite? x))))
+  (and (not (NaN? x)) (not (infinite? x))))
 
 (definterface Scale
   ;; "Convert quantile q to k-scale value using normalized compression."

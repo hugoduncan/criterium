@@ -6,6 +6,7 @@
    [criterium.collector :as collector]
    [criterium.measured :as measured]
    [criterium.metric :as metric]
+   [criterium.types :as types]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have have?]]))
 
@@ -61,7 +62,7 @@
 (defn- collected-data-map
   [collection-map]
   (have
-   util/collected-metrics-map?
+   types/collected-metrics-map?
    (let [metric->values (collect/transform collection-map)
          batch-size     (:batch-size collection-map)]
      (merge
@@ -80,7 +81,7 @@
   g[collect-plan collector measured]
   {:pre  [(fn? (:f collector))
           (measured/measured? measured)]
-   :post [(have? util/result-map? %)]}
+   :post [(have? types/result-map? %)]}
   (let [{:keys [^long batch-time-ns
                 ^long limit-time-ns
                 ^long max-gc-attempts

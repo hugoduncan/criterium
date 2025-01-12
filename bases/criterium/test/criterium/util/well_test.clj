@@ -26,26 +26,26 @@
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defspec add-mod-32-test-property 100
   (prop/for-all
-   [a gen/small-integer
-    b gen/small-integer]
-   (is (<= 0 (well/add-mod-32 a b) 31))))
+    [a gen/small-integer
+     b gen/small-integer]
+    (is (<= 0 (well/add-mod-32 (long a) (long b)) 31))))
 
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defspec well-1024a-test-property 100
   (prop/for-all
-   [random-seed (gen/large-integer* {:min 0x111111})
-    well-index (gen-bounded 0 31)]
-   (let [random-source (java.util.Random. random-seed)
-         ;; for well-state, we want random values that are not bounded by test-check's
-         ;; size
-         well-state    (->> #(.nextInt random-source)
-                            repeatedly
-                            (filter (complement zero?))
-                            (take 32)
-                            (map #(Math/abs %))
-                            long-array)
-         values        (->> (well/well-rng-1024a well-state well-index)
-                            (take 10000)
-                            vec)]
-     (test-max-error (stats/mean values) 0.5 2e-2)
-     (test-max-error (stats/variance values) (/ 1.0 12) 1e-2))))
+    [random-seed (gen/large-integer* {:min 0x111111})
+     well-index (gen-bounded 0 31)]
+    (let [random-source (java.util.Random. random-seed)
+          ;; for well-state, we want random values that are not bounded by test-check's
+          ;; size
+          well-state    (->> #(.nextInt random-source)
+                             repeatedly
+                             (filter (complement zero?))
+                             (take 32)
+                             (map #(Math/abs ^long %))
+                             long-array)
+          values        (->> (well/well-rng-1024a well-state well-index)
+                             (take 10000)
+                             vec)]
+      (test-max-error (stats/mean values) 0.5 2e-2)
+      (test-max-error (stats/variance values) (/ 1.0 12) 1e-2))))

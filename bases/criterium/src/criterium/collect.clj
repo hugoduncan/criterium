@@ -5,7 +5,7 @@
    [criterium.jvm :as jvm]
    [criterium.measured :as measured]
    [criterium.metric :as metric]
-   [criterium.util.helpers :as util]
+   [criterium.types :as types]
    [criterium.util.invariant :refer [have?]]))
 
 ;;; Transform of samples
@@ -61,7 +61,7 @@
 
   Must be zero garbage sampling. Execution time is not critical."
   [^long num-gcs]
-  {:post [(have? util/collection-map? %)]}
+  {:post [(have? types/collection-map? %)]}
   (let [args         (measured/args force-gc-measured)
         collector    force-gc-collector
         ti           (unchecked-dec ^long (:length collector))
@@ -128,7 +128,7 @@
    measured
    batch-size-obj
    num-samples]
-  {:post [(have? util/collection-map? %)]}
+  {:post [(have? types/collection-map? %)]}
   (let [num-samples (max 2 ^long num-samples)
         collections (make-array Object num-samples)
         ti          (unchecked-dec ^long (:length collector))
@@ -184,7 +184,7 @@
   limit total execution time. Limit evaluations to eval-budget, or
   elapsed time to time-budget-ns."
   [measured num-samples ^long batch-size]
-  {:post [(have? util/collection-map? %)]}
+  {:post [(have? types/collection-map? %)]}
   (let [collected   (collect-arrays
                      elapsed-time-collector
                      measured
@@ -213,7 +213,7 @@
   "Run measured for the given number of collections to enable JIT compilation.
   Return a sampled map."
   [collector measured ^long num-samples ^long batch-size]
-  {:post [(have? util/collection-map? %)]}
+  {:post [(have? types/collection-map? %)]}
   (loop [i            num-samples
          elapsed-time 0
          min-time     Long/MAX_VALUE
