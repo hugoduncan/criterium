@@ -136,27 +136,34 @@
   (let [blackhole-sym  (with-meta (gensym "blachole")
                          {:tag 'org.openjdk.jmh.infra.Blackhole})
         eval-count-sym (gensym "eval-count")
-        time-fn        (or time-fn `jvm/timestamp)]
+        time-fn        (when time-fn
+                         (with-meta
+                           time-fn
+                           {:tag 'clojure.lang.IFn$L}))]
     `(fn ~'measured
        [~arg-syms
         ;; explicitly not tagged as 'long, since this function is invoked
         ;; non-literally, so the calling value will always be an object.
         ~eval-count-sym]
-       (let [~blackhole-sym  blackhole/blackhole ; hoist cast lookup out of loop
+       (let [~blackhole-sym blackhole/blackhole ; hoist cast lookup out of loop
              ~@(mapcat binding-with-hint-or-cast arg-syms arg-metas)
              ;; primitive loop coounter.  Decrement since we evaluate
              ;; once outside the loop.
              ~(with-meta eval-count-sym {:tag 'long})
              ~eval-count-sym ; convert to 'long
-             n#              (long (unchecked-dec ~eval-count-sym))
-             start#          (~time-fn)
-             val#            ~expr]      ; evaluate once to get a return value
+             n#             (long (unchecked-dec ~eval-count-sym))
+             start#         ~(if time-fn
+                               `(. ~time-fn invokePrim)
+                               `(jvm/timestamp))
+             val#           ~expr]      ; evaluate once to get a return value
          (loop [i# n#]
            (when (pos? i#)
              ;; don't use a local inside the loop, to avoid locals clearing
              (.consume ~blackhole-sym ~expr)
              (recur (long (unchecked-dec i#)))))
-         (let [finish# (~time-fn)]
+         (let [finish# ~(if time-fn
+                          `(. ~time-fn invokePrim)
+                          `(jvm/timestamp))]
            (blackhole/evaporate)
            [(unchecked-subtract finish# start#) val#])))))
 
