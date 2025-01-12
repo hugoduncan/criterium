@@ -16,18 +16,13 @@
                 :jvm-opts    ["-XX:-OmitStackTraceInFastThrow"
                               "-Dclojure.main.report=stderr"
                               "-agentpath:agent-cpp/libcriterium.dylib"]}
-  :kaocha      {:extra-paths ["bases/criterium/test"]
-                :extra-deps
+  :kaocha      {:extra-deps
                 {lambdaisland/kaocha           {:mvn/version "1.91.1392"}
                  lambdaisland/kaocha-cloverage {:mvn/version "1.1.89"}
-                 local/agent                   {:local/root "bases/agent"}
-                 org.clojure/test.check        {:mvn/version "1.1.1"}}
-                :exec-fn     kaocha.runner/exec-fn
-                :exec-args   {}
-                :jvm-opts    ["-XX:-OmitStackTraceInFastThrow"
-                              "-Dclojure.main.report=stderr"
-                              "-agentpath:agent-cpp/libcriterium.dylib"]
-                :main-opts   ["-m" "kaocha.runner"]}
+                 local/agent                   {:local/root "bases/agent"}}
+                :exec-fn   kaocha.runner/exec-fn
+                :exec-args {}
+                :main-opts ["-m" "kaocha.runner"]}
   :platform    {:exec-fn   criterium.platform/exec-main
                 :exec-args {}}
   :poly        {:main-opts ["-m" "polylith.clj.core.poly-cli.core"]
