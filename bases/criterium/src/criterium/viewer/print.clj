@@ -153,8 +153,8 @@
         (print-bootstrap-stat metric stat)))))
 
 (defmethod view/bootstrap-stats* :print
-  [view sampled]
-  (print-bootstrap-stats view sampled))
+  [_ view data-map]
+  (print-bootstrap-stats view data-map))
 
 (defn print-final-gc-warnings
   [{:keys [final-gc-id samples-id warn-threshold]} data-map]
@@ -188,8 +188,8 @@
                        (format/format-value :time total))))))
 
 (defmethod view/final-gc-warnings* :print
-  [view banch-map]
-  (print-final-gc-warnings view banch-map))
+  [_ view data-map]
+  (print-final-gc-warnings view data-map))
 
 (defn print-outlier-count
   [metric-config num-samples outliers]
@@ -252,7 +252,7 @@
              {:metric m :outlier-sig outlier-sig})))))
 
 (defmethod view/outlier-significance* :print
-  [view data-map]
+  [_ view data-map]
   (print-outlier-significances view data-map))
 
 (defn- print-samples-with-outliers
@@ -380,7 +380,7 @@
           (println (format "%32s  %3.3g %s" "" ok (vs ok))))))))
 
 (defmethod view/os* :print
-  [_ _sampled]
+  [_ _ _sampled]
   (let [ks [:arch :name :version :available-processors]]
     (apply println
            (->  (map
@@ -389,7 +389,7 @@
                 vec (conj "cpu(s)")))))
 
 (defmethod view/runtime* :print
-  [_ _sampled]
+  [_ _ _sampled]
   (let [runtime-details (jvm/runtime-details)]
     (apply println (map #(%1 runtime-details) [:vm-name :vm-version]))
     (apply println "Runtime arguments:"
