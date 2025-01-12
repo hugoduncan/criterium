@@ -1,5 +1,6 @@
 (ns criterium.util.sampled-stats
   (:require
+   [criterium.types :as types]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have have?]]
    [criterium.util.stats :as stats]))
@@ -72,7 +73,7 @@
 
 (defn sample-stats
   [result-map samples-id outliers metric-configs config]
-  {:pre [(have? util/result-map? result-map)]}
+  {:pre [(have? types/result-map? result-map)]}
   (let [metrics-samples (result-map samples-id)
         metric->values  (have (util/metric->values metrics-samples))]
     (reduce

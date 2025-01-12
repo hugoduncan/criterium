@@ -15,7 +15,9 @@
                      {:stages     [:compilation :memory]
                       :terminator :elapsed-time})
           sampled   (collect-plan/collect
-                     (collect-plan-config/one-shot-collect-plan {})
+                     (collect-plan-config/collect-plan-config
+                      :one-sot
+                      {})
                      collector
                      measured)]
       (is (map? sampled))
@@ -32,7 +34,9 @@
           collector (collector/collector {:stages     [:compilation :memory]
                                           :terminator :elapsed-time})
           sampled   (collect-plan/collect
-                     (collect-plan-config/full-collect-plan {})
+                     (collect-plan-config/collect-plan-config
+                      :with-jit-warmup
+                      {})
                      collector
                      measured)]
       (is (map? sampled))

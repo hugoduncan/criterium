@@ -344,9 +344,10 @@
 (defspec cdf-monotonic-property
   100
   (prop/for-all [d gen-digest
-                 x gen-finite-double
-                 dx (gen/double* {:min       0.0   :max  100.0
-                                  :infinite? false :NaN? false})]
+                 ^double x gen-finite-double
+                 ^double dx (gen/double*
+                             {:min       0.0   :max  100.0
+                              :infinite? false :NaN? false})]
     (let [cdf-x    (md/cdf d x)
           cdf-x+dx (md/cdf d (+ x dx))]
       (when-not (>= cdf-x+dx cdf-x)
@@ -356,7 +357,7 @@
 (defspec cdf-continuous-property
   100
   (prop/for-all [d gen-digest
-                 x gen-finite-double]
+                 ^double x gen-finite-double]
     (let [epsilon 1e-10
           left    (md/cdf d (- x epsilon))
           right   (md/cdf d (+ x epsilon))]

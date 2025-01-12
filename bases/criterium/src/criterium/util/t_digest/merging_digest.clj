@@ -257,8 +257,7 @@
 (defn cdf
   "Returns cumulative probability at x.
    Returns NaN if digest is empty."
-  [ ^TDigest digest
-   ^double x]
+  ^double [^TDigest digest ^double x]
   (when (or (Double/isNaN x) (Double/isInfinite x))
     (throw (ex-info "Invalid value" {:x x})))
 

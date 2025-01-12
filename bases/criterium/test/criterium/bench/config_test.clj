@@ -11,11 +11,11 @@
   (let [measured (measured/expr 1)]
     (measured/invoke measured (measured/args measured) 1)
     (testing "config-map provides defaults"
-      (is (= (-> bench-config/default-config
+      (is (= (-> {} #_bench-config/default-config
                  (#'collect-plan-config/ensure-pipeline-stages))
              (bench-config/config-map {}))))
     (testing "config-map can specify the pipeline stages"
-      (is (= (-> (assoc bench-config/default-config
+      (is (= (-> (assoc {} #_ bench-config/default-config
                         :collector-config
                         {:stages     (mapv
                                       collector/maybe-var-get-stage
@@ -30,10 +30,10 @@
                             :compilation
                             :garbage-collector]}))))
     (testing "config-map can specify the sample scheme"
-      (is (= (-> bench-config/default-config
+      (is (= (-> {} #_bench-config/default-config
                  (assoc-in [:collector-config :stages] [])
                  (assoc
-                  :benchmark benchmarks/one-shot
+                  :benchmark {} #_benchmarks/one-shot
                   :collect-plan
-                  (collect-plan-config/one-shot-collect-plan {})))
+                  (collect-plan-config/collect-plan-config :one-sot {})))
              (bench-config/config-map {:collect-plan :one-shot}))))))

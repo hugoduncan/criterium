@@ -2,12 +2,10 @@
   (:require
    [clojure.test :refer [deftest is testing]]
    [criterium.analyse :as analyse]
-   [criterium.collect-plan :as collect-plan]
-   [criterium.collector.metrics :as metrics]
-   [criterium.metric :as metric]
+   [criterium.test-data :as test-data]
    [criterium.view :as view]
-   [criterium.viewer.portal]
-   [criterium.test-data :as test-data]))
+   [criterium.viewer.portal])
+  (:import    [java.util Queue]))
 
 (set! *unchecked-math*  false)
 
@@ -18,7 +16,7 @@
        (add-tap f#)
        ~@body
        (loop []
-         (when-not (.isEmpty @#'clojure.core/tapq)
+         (when-not (.isEmpty ^Queue @#'clojure.core/tapq)
            (recur)))
        (loop []
          (when (empty? @v#)

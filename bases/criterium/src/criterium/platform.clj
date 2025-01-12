@@ -2,6 +2,7 @@
   "Platform characterisation"
   (:require
    [clojure.pprint :as pp]
+   [criterium.analyse]
    [criterium.bench :as bench]
    [criterium.benchmark :as benchmark]
    [criterium.collector :as collector]

@@ -22,8 +22,8 @@
          (sampled-stats/stats-fns (range 101)))))
 
 (defn batch-transforms [^long batch-size]
-  {:sample-> (list (fn [v] (/ v batch-size)))
-   :->sample [(fn [v] (* v batch-size))]})
+  {:sample-> (list (fn [^double v] (/ v batch-size)))
+   :->sample [(fn [^double v] (* v batch-size))]})
 
 (def identity-transforms
   {:sample-> (list identity)

@@ -5,12 +5,12 @@
    [criterium.collector :as collector]
    [criterium.jvm :as jvm]
    [criterium.sampler :as sampler]
-   [criterium.util.helpers :as util]
+   [criterium.types :as types]
    [criterium.util.invariant :refer [have?]]))
 
 (defn samples->samples-map
   [samples]
-  {:post [(have? util/metrics-samples-map? %)]}
+  {:post [(have? types/metrics-samples-map? %)]}
   (let [collector (collector/collector
                    {:terminator :elapsed-time})]
     {:type           :criterium/metrics-samples
