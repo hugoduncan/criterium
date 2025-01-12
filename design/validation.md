@@ -1,1 +1,1 @@
-do not use spec for validation.
+Do not use spec or malli for validation.
