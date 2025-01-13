@@ -4,7 +4,7 @@
    [clojure.test.check.clojure-test :refer [defspec]]
    [clojure.test.check.generators :as gen]
    [clojure.test.check.properties :as prop]
-   [criterium.test-utils :refer [abs-error gen-bounded test-max-error]]
+   [criterium.test-utils :refer [abs-error approx= gen-bounded test-max-error]]
    [criterium.util.sampled-stats :as sampled-stats]
    [criterium.util.stats :as stats]
    [criterium.util.well :as well]
@@ -32,14 +32,14 @@
 (deftest stats-for-test
   (let [samples (mapv double (repeat 100 1))
         stats   (sampled-stats/stats-for
-                 samples {:quantiles [0.05 0.95]} identity-transforms)]
+                 samples {:quantiles [0.05 0.95]})]
     (is (= 1.0 (-> stats :mean)))
     (is (= 0.0 (-> stats :variance))))
 
   (testing "stats on [0..100]"
     (let [samples (mapv double (range 101))
           stats   (sampled-stats/stats-for
-                   samples {:quantiles [0.05 0.95]} identity-transforms)]
+                   samples {:quantiles [0.05 0.95]})]
       (is (= 50.0 (-> stats :mean)))
       (is (= 858.5 (-> stats :variance)))
       (is (= 0.0 (-> stats :min-val)))
@@ -48,7 +48,7 @@
   (testing "stats on (reverse [0..100])"
     (let [samples (mapv double (range 101))
           stats   (sampled-stats/stats-for
-                   samples {:quantiles [0.05 0.95]} identity-transforms)]
+                   samples {:quantiles [0.05 0.95]})]
       (is (= 50.0 (-> stats :mean)))
       (is (= 858.5 (-> stats :variance)))
       (is (= 0.0 (-> stats :min-val)))
@@ -57,65 +57,48 @@
   (testing "stats on [9 9 9 10 10 10]"
     (let [samples (mapv double [9 9 9 10 10 10])
           stats   (sampled-stats/stats-for
-                   samples {:quantiles [0.05 0.95]} identity-transforms)]
+                   samples {:quantiles [0.05 0.95]})]
       (is (= 9.5 (-> stats :mean)))
       (test-max-error 0.3 (-> stats :variance) 1e-5)
       (is (= 9.0 (-> stats :min-val)))
-      (is (= 10.0 (-> stats :max-val)))))
-
-  (testing "stats on [0..100]*2 (ie batch-size 2)"
-    (let [samples    (mapv double (range 0 202 2))
-          transforms (batch-transforms 2)
-          stats      (sampled-stats/stats-for
-                      samples {:quantiles [0.05 0.95]} transforms)]
-      (is (= 50.0 (-> stats :mean)))
-      (is (= 1717.0 (-> stats :variance)))
-      (is (= 0.0 (-> stats :min-val)))
-      (is (= 100.0 (-> stats :max-val))))))
+      (is (= 10.0 (-> stats :max-val))))))
 
 (deftest quantiles-for-test
   (let [samples   {[:v] (repeat 100 1)}
         quantiles (sampled-stats/quantiles-for
-                   [:v] samples {:quantiles [0.05 0.95]} identity-transforms)]
+                   [:v] samples {:quantiles [0.05 0.95]})]
     (is (= {0.25 1.0, 0.5 1.0, 0.75 1.0, 0.05 1.0, 0.95 1.0} quantiles)))
 
   (testing "quantiles on [0..100]"
     (let [samples   {[:v] (range 101)}
           quantiles (sampled-stats/quantiles-for
-                     [:v] samples {:quantiles [0.05 0.95]} identity-transforms)]
+                     [:v] samples {:quantiles [0.05 0.95]})]
       (is (= {0.25 25.0, 0.5 50.0, 0.75 75.0, 0.05 5.0, 0.95 95.0} quantiles))))
 
   (testing "quantiles on (reverse [0..100])"
     (let [samples   {[:v] (range 101)}
           quantiles (sampled-stats/quantiles-for
-                     [:v] samples {:quantiles [0.05 0.95]} identity-transforms)]
-      (is (= {0.25 25.0, 0.5 50.0, 0.75 75.0, 0.05 5.0, 0.95 95.0} quantiles))))
-
-  (testing "quantiles on [0..100]*2 (ie batch-size 2)"
-    (let [samples    {[:v] (range 0 202 2)}
-          transforms (batch-transforms 2)
-          quantiles  (sampled-stats/quantiles-for
-                      [:v] samples {:quantiles [0.05 0.95]} transforms)]
-      (is (= {0.25 25.0, 0.5 50.0, 0.75 75.0, 0.05 5.0, 0.95 95.0} quantiles)))))
+                     [:v] samples {:quantiles [0.05 0.95]})]
+      (is (= {0.25 25.0, 0.5 50.0, 0.75 75.0, 0.05 5.0, 0.95 95.0}
+             quantiles)))))
 
 (deftest stats-for-test-property-1
-  (let [batch-size   10000
-        num-samples  100
+  (let [batch-size   5000
+        num-samples  200
         values       (take
                       (* batch-size num-samples)
                       (ziggurat/random-normal-zig
                        (well/well-rng-1024a)))
         sample-vals  (partition batch-size values)
         samples      (mapv #(stats/sum (mapv double %)) sample-vals)
-        transforms   (batch-transforms batch-size)
         stats        (sampled-stats/stats-for
-                      samples {:quantiles [0.05 0.95]} transforms)
+                      samples {:quantiles [0.05 0.95]})
         mean-hat     (-> stats :mean)
         variance-hat (-> stats :variance)
         mean         (stats/mean values)
         variance     (stats/variance values)]
-    (test-max-error mean mean-hat 1e-5)
-    (test-max-error variance variance-hat 0.35)))
+    (test-max-error (* mean batch-size) mean-hat 1e-5)
+    (is (approx= (* variance batch-size) variance-hat 2e-1))))
 
 (defn random-values
   "Return a sequence of values with the given mean an standard deviation."
@@ -179,10 +162,9 @@
 (defn stats-values [batch-size num-samples random-seed mean sigma]
   (let [{:keys [samples values]} (sample-values
                                   batch-size num-samples random-seed mean sigma)
-        transforms               (batch-transforms batch-size)
         stats                    (sampled-stats/stats-for
                                   (samples [:v])
-                                  {:quantiles [0.05 0.95]} transforms)
+                                  {:quantiles [0.05 0.95]})
         mean-hat                 (-> stats :mean)
         variance-hat             (-> stats :variance)
         mean                     (stats/mean values)
@@ -196,18 +178,18 @@
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defspec stats-for-test-property 10
   (prop/for-all
-   [^long batch-size (gen-bounded 1 1000)
-    random-seed gen/nat]
-   (let [num-samples    (long (quot 10000 batch-size))
-         mean           10
-         sigma          3
-         {:keys [mean variance mean-hat variance-hat]}
-         (stats-values batch-size num-samples random-seed mean sigma)
-         mean-error     (abs-error mean mean-hat)
-         variance-error (abs-error variance variance-hat)
-         mean-tol       (max (* sigma 1e-1) 1e-2)
-         variance-tol   (* ^double variance 5e-1)]
-     (is (< mean-error mean-tol))
-     (is (< variance-error variance-tol))
-     (and (< mean-error mean-tol)
-          (< variance-error variance-tol)))))
+    [^long batch-size (gen-bounded 1 1000)
+     random-seed gen/nat]
+    (let [num-samples    (long (quot 10000 batch-size))
+          mean           10
+          sigma          3
+          {:keys [^double mean ^double variance mean-hat variance-hat]}
+          (stats-values batch-size num-samples random-seed mean sigma)
+          mean-error     (abs-error (* batch-size mean) mean-hat)
+          variance-error (abs-error (* batch-size variance) variance-hat)
+          mean-tol       (max (* sigma 1e-1) 1e-2)
+          variance-tol   (* ^double variance 5e-1)]
+      (is (< mean-error mean-tol))
+      (is (< variance-error variance-tol))
+      (and (< mean-error mean-tol)
+           (< variance-error variance-tol)))))
