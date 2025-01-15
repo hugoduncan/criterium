@@ -164,5 +164,4 @@
   "Collect metrics from the measured according to the collect-plan.
   Return a results-map."
   [collect-plan collector measured]
-  (-> (impl/collect* collect-plan collector measured)
-      (vary-meta assoc :type :criterium/sampled)))
+  (impl/collect* collect-plan collector measured))

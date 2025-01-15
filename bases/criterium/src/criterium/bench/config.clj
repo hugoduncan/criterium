@@ -83,7 +83,9 @@
                    :collect-plan collect-plan
                    :collector-config collector-config
                    :viewer (:viewer options-map :print)
-                   :return-value (:return-value options-map [:expr-value]))
+                   :return-value (:return-value
+                                  options-map
+                                  [:samples :expr-value]))
 
       (= scheme-type :with-jit-warmup)
       (assoc :analyse (or analyse

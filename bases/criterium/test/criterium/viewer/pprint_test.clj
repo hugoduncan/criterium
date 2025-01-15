@@ -12,15 +12,15 @@
 
 (def expected-stats-1
   [""
-   "|      :metric | :mean-minus-3sigma |  :mean | :mean-plus-3sigma | :min-val | :max-val |"
-   "|--------------+--------------------+--------+-------------------+----------+----------|"
-   "| Elapsed Time |            88.0 ns | 100 ns |            112 ns |  89.0 ns |   114 ns |"])
+   "|        :_metric | :mean-minus-3sigma | :mean | :mean-plus-3sigma | :min-val | :max-val |"
+   "|-----------------+--------------------+-------+-------------------+----------+----------|"
+   "| Elapsed Time ns |               88.0 | 100.0 |             112.0 |     89.0 |    114.0 |"])
 
 (def expected-stats-2
   [""
-   "|      :metric | :mean-minus-3sigma |   :mean | :mean-plus-3sigma | :min-val | :max-val |"
-   "|--------------+--------------------+---------+-------------------+----------+----------|"
-   "| Elapsed Time |            1.00 ns | 1.00 ns |           1.00 ns |  1.00 ns |  1.00 ns |"])
+   "|        :_metric | :mean-minus-3sigma | :mean | :mean-plus-3sigma | :min-val | :max-val |"
+   "|-----------------+--------------------+-------+-------------------+----------+----------|"
+   "| Elapsed Time ns |                1.0 |   1.0 |               1.0 |      1.0 |      1.0 |"])
 
 (deftest pprint-stats-test
   (testing "print-stats"
@@ -29,24 +29,23 @@
              (trimmed-lines
               (with-out-str
                 (view/stats*
+                 :pprint
                  {}
-                 (-> (test-data/bench-stats-map)
-                     (assoc :viewer :pprint)))))))
+                 (:data (test-data/bench-stats-map)))))))
 
       (is (= expected-stats-2
-             (let [bench-map  (-> (test-data/samples-with-2-values-map)
-                                  (assoc :viewer :pprint))
+             (let [data-map   (:data (test-data/samples-with-2-values-map))
                    stats      (analyse/stats)
                    view-stats (view/stats)]
                (trimmed-lines
                 (with-out-str
-                  (-> bench-map
-                      stats
-                      view-stats)))))))))
+                  (->> data-map
+                       stats
+                       (view-stats :pprint))))))))))
 
 (def expected-counts
   [""
-   "|      :metric | :low-severe | :low-mild | :high-mild | :high-severe |"
+   "|     :_metric | :low-severe | :low-mild | :high-mild | :high-severe |"
    "|--------------+-------------+-----------+------------+--------------|"
    "| Elapsed Time |           0 |         2 |          3 |            0 |"])
 
@@ -58,8 +57,8 @@
           (trimmed-lines
            (with-out-str
              ((view/outlier-counts)
-              (-> (test-data/outlier-count-map)
-                  (assoc :viewer :pprint))))))))))
+              :pprint
+              (:data (test-data/outlier-count-map))))))))))
 
 (deftest print-outlier-significance-test
   (testing "print-outlier-significance"
@@ -71,27 +70,26 @@
              (trimmed-lines
               (with-out-str
                 ((view/outlier-significance)
-                 (-> (test-data/outlier-significance-map)
-                     (assoc :viewer :pprint))))))))))
+                 :pprint
+                 (:data (test-data/outlier-significance-map))))))))))
 
 (def ^:private expected-event-stats
   [""
    "|           :metric | :sample-count | :loaded-count | :unloaded-count | :time-ms | :total-sample-count | :total-count | :total-time-ms |"
    "|-------------------+---------------+---------------+-----------------+----------+---------------------+--------------+----------------|"
-   "|       ClassLoader |             1 |             1 |               1 |          |                     |              |                |"
-   "|   JIT compilation |             1 |               |                 |  3.00 ms |                     |              |                |"
-   "| Garbage Collector |               |               |                 |          |                   1 |            2 |        1.00 ms |"])
+   "|       ClassLoader |           1.0 |           1.0 |             1.0 |          |                     |              |                |"
+   "|   JIT compilation |           1.0 |               |                 |  3.00 ms |                     |              |                |"
+   "| Garbage Collector |               |               |                 |          |                 1.0 |          2.0 |        1.00 ms |"])
 
 (deftest pprint-event-stats-test
   (testing "print-event-stats"
     (testing "prints via report"
       (is (= expected-event-stats
-             (let [bench-map   (-> (test-data/samples-for-event-stats-map)
-                                   (assoc :viewer :pprint))
+             (let [data-map    (:data (test-data/samples-for-event-stats-map))
                    event-stats (analyse/event-stats)
                    view        (view/event-stats)]
                (trimmed-lines
                 (with-out-str
-                  (-> bench-map
-                      event-stats
-                      view)))))))))
+                  (->> data-map
+                       event-stats
+                       (view :pprint))))))))))
