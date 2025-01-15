@@ -85,7 +85,7 @@
        (get-in outlier-sig (:path m))))))
 
 (defmethod view/outlier-significance* :pprint
-  [view data-map]
+  [_ view data-map]
   (print-outlier-significances view data-map))
 
 (defn- flatten-events [sample metrics-defs index]

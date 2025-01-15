@@ -82,7 +82,7 @@
 (defn- return-value
   "Extract the returned value for the sampled."
   [config bench-map]
-  (get-in bench-map (-> config :return-value)))
+  (get-in bench-map (:return-value config)))
 
 (defn bench-measured
   "Evaluate measured and output the benchmark time.

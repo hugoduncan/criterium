@@ -4,19 +4,19 @@
    [clojure.pprint :as pp]
    [criterium.analyse]
    [criterium.bench :as bench]
-   [criterium.benchmark :as benchmark]
+   [criterium.collect-plan.config :as collect-plan-config]
    [criterium.collector :as collector]
    [criterium.jvm :as jvm]
    [criterium.measured :as measured])
   (:gen-class))
 
 (def ^:private benchmark
-  (benchmark/->benchmark
-   {:analyse [:transform-log
-              [:quantiles {:quantiles [0.9 0.99 0.99]}]
-              :outliers
-              [:stats {:samples-id :log-samples}]
-              :event-stats]}))
+  {:analyse [:transform-log
+             [:quantiles {:quantiles [0.9 0.99 0.99]}]
+             :outliers
+             [:stats {:samples-id :log-samples}]
+             :event-stats]
+   :view    []})
 
 ;;; nanoTime latency
 (def ^:private timestamp-measured
@@ -28,16 +28,21 @@
   ([] (nanotime-latency {}))
   ([options]
    (bench/bench-measured
-    timestamp-measured
     (merge
-     {:collect-plan {:scheme-type         :with-jit-warmup
-                     :batch-time-ns       100000
-                     :num-measure-samples 1000}
-      :limit-time-s 20
-      :benchmark    benchmark
-      :viewer       :none
-      :return-value [::nil]}
-     options))))
+     benchmark
+     {:collect-plan
+      (collect-plan-config/collect-plan-config
+       :with-jit-warmup
+       {:batch-time-ns       100000
+        :num-measure-samples 1000
+        :limit-time-ns       20000000000})
+      :collector-config
+      {:stages     [:measured-args :compilation :garbage-collector],
+       :terminator :elapsed-time}
+      :return-value [::nil]
+      :viewer       :none}
+     options)
+    timestamp-measured)))
 
 ;;; nanoTime granularity
 
@@ -172,7 +177,7 @@
   ([options]
    (let [options (merge
                   options
-                  {:return-value [:data :stats :stats]})]
+                  {:return-value [:stats :stats]})]
      [(assoc (nanotime-latency options) :name "latency")
       (assoc (nanotime-granularity options) :name "granularity")
       (assoc (constant-long options) :name "constant-long")
