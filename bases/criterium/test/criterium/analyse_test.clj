@@ -40,16 +40,16 @@
      :expr-value     (ffirst (vals data))}))
 
 (defn transformed-metric-values
-  [bench-map id p]
-  (let [m          (-> bench-map :data id)
-        transforms (util/get-transforms (:data bench-map) id)]
+  [data-map id p]
+  (let [m          (-> data-map id)
+        transforms (util/get-transforms data-map id)]
     (mapv
      #(util/transform-sample-> % transforms)
      (get (:metric->values m) p))))
 
 (defn transformed-values
-  [bench-map id vs]
-  (let [transforms (util/get-transforms (:data bench-map) id)]
+  [data-map id vs]
+  (let [transforms (util/get-transforms data-map id)]
     (prn :transforms transforms)
     (mapv
      #(util/transform-sample-> % transforms)
@@ -57,22 +57,21 @@
 
 (deftest transform-log-test
   (testing "transform-log"
-    (let [raw-data  [(Math/exp 1) (Math/exp 2) (Math/exp 3)]
-          samples   (metrics-samples
-                     {[:elapsed-time]         raw-data
-                      [:compilation :time-ms] [0 0 0]}
-                     10)
-          bench-map {:data {:samples samples}}
-          result    ((analyse/transform-log) bench-map)]
+    (let [raw-data [(Math/exp 1) (Math/exp 2) (Math/exp 3)]
+          samples  (metrics-samples
+                    {[:elapsed-time]         raw-data
+                     [:compilation :time-ms] [0 0 0]}
+                    10)
+          data-map {:samples samples}
+          result   ((analyse/transform-log) data-map)]
       (testing "puts the log transformed metrics into the result-path"
         (is (= [1.0 2.0 3.0]
                (-> result
-                   :data
                    :log-samples
                    :metric->values
                    (get [:elapsed-time])))))
       (testing "doesnot change original samples"
-        (is (= samples (-> result :data :samples))))
+        (is (= samples (:samples result))))
       (testing "adds transfprms for the values"
         (is (approx=
              (mapv
@@ -84,17 +83,17 @@
 
 (deftest quantiles-test
   (testing "quantiles"
-    (let [raw-data  [10 20 30]
-          samples   (metrics-samples
-                     {[:elapsed-time]         raw-data
-                      [:compilation :time-ms] [0 0 0]}
-                     10)
-          bench-map {:data {:samples samples}}
-          result    ((analyse/quantiles {:quantiles [0.025 0.975]})
-                     bench-map)]
+    (let [raw-data [10 20 30]
+          samples  (metrics-samples
+                    {[:elapsed-time]         raw-data
+                     [:compilation :time-ms] [0 0 0]}
+                    10)
+          data-map {:samples samples}
+          result   ((analyse/quantiles {:quantiles [0.025 0.975]})
+                    data-map)]
       (testing "puts the quantiles into the result-path"
         (let [qs [0.25 0.5 0.75 0.025 0.975]
-              vs (-> result :data :quantiles util/quantiles :elapsed-time)]
+              vs (-> result :quantiles util/quantiles :elapsed-time)]
           (is (approx=
                [15 20 25 10.5 29.5]
                (mapv vs qs)))
@@ -104,9 +103,9 @@
       (testing "doesn't transform event-metrics "
         (is (every?
              #(not (contains? % :compilation))
-             (->> result :data :quantiles)))
+             (->> result :quantiles)))
         (is (= [:elapsed-time]
-               (->> result :data :quantiles util/quantiles keys)))))))
+               (->> result :quantiles util/quantiles keys)))))))
 
 (deftest outliers-test
   ;; http://www.ellipticgroup.com/misc/article_supplement.pdf, p22
@@ -116,14 +115,13 @@
                      {[:elapsed-time]         raw-data
                       [:compilation :time-ms] [0 0 0]}
                      10)
-          bench-map {:data {:samples samples}}
+          data-map  {:samples samples}
           quantiles (analyse/quantiles {:quantiles []})
           outliers  (analyse/outliers)]
       (is (= {:low-severe 0, :low-mild 0, :high-mild 0, :high-severe 1}
-             (-> bench-map
+             (-> data-map
                  quantiles
                  outliers
-                 :data
                  :outliers
                  util/outliers
                  :elapsed-time
@@ -132,24 +130,21 @@
 (deftest outlier-counts-test
   ;; http://www.ellipticgroup.com/misc/article_supplement.pdf, p22
   (testing "Outlier counts"
-    (let [bench-map
-          {:data
-           {:samples
-            {:type           :criterium/collected-metrics-samples
-             :metric->values {[:elapsed-time] [1 1 1 1000]}
-             :transform      collect-plan/identity-transforms
-             :batch-size     1
-             :eval-count     4
-             :metrics-defs   (select-keys
-                              (metrics/metrics)
-                              [:elapsed-time])}}}
-          benchmark (benchmark/->benchmark
-                     {:analyse
-                      [[:quantiles {:quantiles [0.025 0.975]}]
-                       :outliers]})]
+    (let [data-map
+          {:samples
+           {:type           :criterium/collected-metrics-samples
+            :metric->values {[:elapsed-time] [1 1 1 1000]}
+            :transform      collect-plan/identity-transforms
+            :batch-size     1
+            :eval-count     4
+            :metrics-defs   (select-keys
+                             (metrics/metrics)
+                             [:elapsed-time])}}
+          analyse (benchmark/->analyse
+                   [[:quantiles {:quantiles [0.025 0.975]}]
+                    :outliers])]
       (is (= {:low-severe 0, :low-mild 0, :high-mild 0, :high-severe 1}
-             (-> (benchmark bench-map)
-                 :data
+             (-> (analyse data-map)
                  :outliers
                  util/outliers
                  :elapsed-time
@@ -157,13 +152,13 @@
 
 (deftest stats-test
   (testing "stats"
-    (let [raw-data  [1 2 3]
-          samples   (metrics-samples
-                     {[:elapsed-time]         raw-data
-                      [:compilation :time-ms] [0 0 0]}
-                     10)
-          bench-map {:data {:samples samples}}
-          result    ((analyse/stats) bench-map)]
+    (let [raw-data [1 2 3]
+          samples  (metrics-samples
+                    {[:elapsed-time]         raw-data
+                     [:compilation :time-ms] [0 0 0]}
+                    10)
+          data-map {:samples samples}
+          result   ((analyse/stats) data-map)]
       (testing "puts the stats into the result-path"
         (is (= {:min-val           1.0,
                 :max-val           3.0,
@@ -172,55 +167,54 @@
                 :variance          1.0,
                 :mean-minus-3sigma -1.0
                 :n                 3}
-               (->> result :data :stats util/stats :elapsed-time))))
+               (->> result :stats util/stats :elapsed-time))))
       (testing "doesn't transform event-metrics "
         (is (every?
              #(not (contains? % :compilation))
              (->> result :stats)))
         (is (= [:elapsed-time]
-               (->> result :data :stats util/stats keys))))))
+               (->> result :stats util/stats keys))))))
   (testing "stats variance"
-    (let [raw-data  [1 1 1 5 5 5 9 9 9]
-          samples   (metrics-samples
-                     {[:elapsed-time]         raw-data
-                      [:compilation :time-ms] [0 0 0]}
-                     1)
-          bench-map {:data {:samples samples}}
-          result    ((analyse/stats) bench-map)]
+    (let [raw-data [1 1 1 5 5 5 9 9 9]
+          samples  (metrics-samples
+                    {[:elapsed-time]         raw-data
+                     [:compilation :time-ms] [0 0 0]}
+                    1)
+          data-map {:samples samples}
+          result   ((analyse/stats) data-map)]
       (testing "calculates sample variance"
-        (is (= 12.0 (:variance
-                     (->> result :data :stats util/stats :elapsed-time))))))
-    (let [raw-data  [1 1 1 5 5 5 9 9 9]
-          samples   (metrics-samples
-                     {[:elapsed-time]         raw-data
-                      [:compilation :time-ms] [0 0 0]}
-                     10)
-          bench-map {:data {:samples samples}}
-          result    ((analyse/stats) bench-map)]
+        (is (= 12.0 (:variance (->> result :stats util/stats :elapsed-time))))))
+    (let [raw-data [1 1 1 5 5 5 9 9 9]
+          samples  (metrics-samples
+                    {[:elapsed-time]         raw-data
+                     [:compilation :time-ms] [0 0 0]}
+                    10)
+          data-map {:samples samples}
+          result   ((analyse/stats) data-map)]
       (testing "scales with batch size"
-        (let [v (:variance (->> result :data :stats util/stats :elapsed-time))]
+        (let [v (:variance (->> result :stats util/stats :elapsed-time))]
           (is (= 12.0 v))
           (is (= 1.20 (util/transform-sample->
                        v
-                       (util/get-transforms (:data result) :stats))))))))
+                       (util/get-transforms result :stats))))))))
   (testing "excludes outliers"
     (let [raw-data  [9 10 9 10 9 10 10000]
           samples   (metrics-samples
                      {[:elapsed-time]         raw-data
                       [:compilation :time-ms] [0 0 0]}
                      1)
-          bench-map {:data {:samples samples}}
+          data-map  {:samples samples}
           quantiles (analyse/quantiles {:quantiles [0.9 0.99 0.99]})
           outliers  (analyse/outliers)
           stats     (analyse/stats)
-          result    (-> bench-map
+          result    (-> data-map
                         quantiles
                         outliers
                         stats)
-          smap      (->> result :data :stats util/stats :elapsed-time)
+          smap      (->> result :stats util/stats :elapsed-time)
           smap'     (util/transform-vals->
-                     (->> result :data :stats util/stats :elapsed-time)
-                     (util/get-transforms (:data result) :stats))]
+                     (->> result :stats util/stats :elapsed-time)
+                     (util/get-transforms result :stats))]
       (testing "calculates sample variance"
         (is (approx= 9.5 (:mean smap)))
         (is (approx= 0.3 (:variance smap)))
@@ -244,14 +238,14 @@
                         [:compilation :time-ms] [0 0 0]}
                        2)
             quantiles (analyse/quantiles {:quantiles [0.9 0.99 0.99]})
-            bench-map {:data {:samples samples}}
+            data-map  {:samples samples}
             outliers  (analyse/outliers)
             stats     (analyse/stats)
-            result    (-> bench-map quantiles outliers stats)
-            smap      (-> result :data :stats util/stats :elapsed-time)
+            result    (-> data-map quantiles outliers stats)
+            smap      (-> result :stats util/stats :elapsed-time)
             smap'     (util/transform-vals->
-                       (-> result :data :stats util/stats :elapsed-time)
-                       (util/get-transforms (:data result) :stats))]
+                       (-> result :stats util/stats :elapsed-time)
+                       (util/get-transforms result :stats))]
         (is (approx= 9.5 (:mean smap)))
         (is (approx= 0.3 (:variance smap)))
         (is (approx= 9 (:min-val smap)))
@@ -268,44 +262,43 @@
 
 (deftest event-stats-test
   (testing "event-stats"
-    (let [bench-map
-          {:data
-           {:samples
-            {:type           :criterium/collected-metrics-samples
-             :metrics-defs
-             (-> (select-keys
-                  (metrics/metrics)
-                  [:class-loader :compilation
-                   :elapsed-time :garbage-collector])
-                 (assoc-in
-                  [:garbage-collector]
-                  {:type :event
-                   :groups
-                   {:total
-                    {:summary
-                     (str "%32s: ran %s times"
-                          " for a total of %s in %s samples")
-                     :values
-                     [{:path      [:garbage-collector :total :count]
-                       :scale     1
-                       :dimension :count
-                       :label     "GC total count"
-                       :type      :event}
-                      {:path      [:garbage-collector :total :time-ms]
-                       :scale     1e-3
-                       :dimension :time
-                       :label     "GC total time"
-                       :type      :event}]
-                     :label "Garbage Collector"}}}))
-             :metric->values {[:elapsed-time]                      [1 2 3]
-                              [:compilation :time-ms]              [3 5 0]
-                              [:garbage-collector :total :time-ms] [1 1 1]
-                              [:garbage-collector :total :count]   [2 1 1]
-                              [:class-loader :loaded-count]        [2 2 0]
-                              [:class-loader :unloaded-count]      [0 0 0]}
-             :batch-size     1
-             :eval-count     3}}}
-          result ((analyse/event-stats) bench-map)]
+    (let [data-map
+          {:samples
+           {:type           :criterium/collected-metrics-samples
+            :metrics-defs
+            (-> (select-keys
+                 (metrics/metrics)
+                 [:class-loader :compilation
+                  :elapsed-time :garbage-collector])
+                (assoc-in
+                 [:garbage-collector]
+                 {:type :event
+                  :groups
+                  {:total
+                   {:summary
+                    (str "%32s: ran %s times"
+                         " for a total of %s in %s samples")
+                    :values
+                    [{:path      [:garbage-collector :total :count]
+                      :scale     1
+                      :dimension :count
+                      :label     "GC total count"
+                      :type      :event}
+                     {:path      [:garbage-collector :total :time-ms]
+                      :scale     1e-3
+                      :dimension :time
+                      :label     "GC total time"
+                      :type      :event}]
+                    :label "Garbage Collector"}}}))
+            :metric->values {[:elapsed-time]                      [1 2 3]
+                             [:compilation :time-ms]              [3 5 0]
+                             [:garbage-collector :total :time-ms] [1 1 1]
+                             [:garbage-collector :total :count]   [2 1 1]
+                             [:class-loader :loaded-count]        [2 2 0]
+                             [:class-loader :unloaded-count]      [0 0 0]}
+            :batch-size     1
+            :eval-count     3}}
+          result ((analyse/event-stats) data-map)]
       (testing "puts the event-stats into the output-path"
         (is (= {[:class-loader :loaded-count]             4,
                 [:class-loader :unloaded-count]           0,
@@ -320,7 +313,7 @@
                                       {:time-ms 3 :count 4 :sample-count 3}}
                   :class-loader      {:sample-count 2
                                       :loaded-count 4 :unloaded-count 0}}
-               (->> result :data :event-stats util/event-stats)))))))
+               (->> result :event-stats util/event-stats)))))))
 
 (deftest outlier-effect-test
   (is (= :unaffected (analyse/outlier-effect 0.009)))
@@ -331,28 +324,25 @@
 (deftest outlier-significance-test
   ;; http://www.ellipticgroup.com/misc/article_supplement.pdf, p22
   (testing "Outlier counts"
-    (let [bench-map
-          {:data
-           {:samples
-            {:type           :criterium/collected-metrics-samples
-             :metric->values {[:elapsed-time] [1 1 1 1000]}
-             :transform      collect-plan/identity-transforms
-             :batch-size     1
-             :eval-count     4
-             :metrics-defs   (select-keys
-                              (metrics/metrics)
-                              [:elapsed-time])}}}
-          benchmark (benchmark/->benchmark
-                     {:analyse
-                      [[:quantiles {:quantiles [0.025 0.975]}]
-                       :outliers
-                       :stats
-                       :outlier-significance]})]
+    (let [data-map
+          {:samples
+           {:type           :criterium/collected-metrics-samples
+            :metric->values {[:elapsed-time] [1 1 1 1000]}
+            :transform      collect-plan/identity-transforms
+            :batch-size     1
+            :eval-count     4
+            :metrics-defs   (select-keys
+                             (metrics/metrics)
+                             [:elapsed-time])}}
+          analyse (benchmark/->analyse
+                   [[:quantiles {:quantiles [0.025 0.975]}]
+                    :outliers
+                    :stats
+                    :outlier-significance])]
 
       (is (= {:significance 0
               :effect       :unaffected}
-             (-> (benchmark bench-map)
-                 :data
+             (-> (analyse data-map)
                  :outlier-significance
                  util/outlier-significance
                  :elapsed-time))))))
