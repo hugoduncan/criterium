@@ -130,9 +130,8 @@
       (is (= 1  (:batch-size sample-map)) "batch-size is correct")
       (is (>= elapsed (reduce + ((:metric->values sample-map) [:elapsed-time])))
           "elapsed time is sane")
-      (let [bench-map ((analyse/stats) {:data {:samples sample-map}})
-            mean-time (-> bench-map
-                          :data
+      (let [data-map  ((analyse/stats) {:samples sample-map})
+            mean-time (-> data-map
                           :stats util/stats
                           :elapsed-time
                           :mean)]
