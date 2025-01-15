@@ -7,7 +7,8 @@
    [criterium.collect-plan.config :as collect-plan-config]
    [criterium.collector :as collector]
    [criterium.jvm :as jvm]
-   [criterium.measured :as measured])
+   [criterium.measured :as measured]
+   [criterium.collect :as collect])
   (:gen-class))
 
 (def ^:private benchmark
@@ -17,6 +18,18 @@
              [:stats {:samples-id :log-samples}]
              :event-stats]
    :view    []})
+
+(def ^:private collection
+  {:collect-plan
+   (collect-plan-config/collect-plan-config
+    :with-jit-warmup
+    {:batch-time-ns       100000
+     :num-measure-samples 500})
+   :collector-config
+   {:stages     [:measured-args :compilation :garbage-collector],
+    :terminator :elapsed-time}
+   :return-value [::nil]
+   :viewer       :none})
 
 ;;; nanoTime latency
 (def ^:private timestamp-measured
@@ -72,15 +85,20 @@
   ([] (nanotime-granularity {}))
   ([options]
    (bench/bench-measured
-    nanotime-granularity-measured
     (merge
-     {:collect-plan {:scheme-type         :with-jit-warmup
-                     :batch-time-ns       100000
-                     :num-measure-samples 500}
-      :limit-time-s 25
-      :benchmark    benchmark
-      :return-value [::nil]}
-     options))))
+     benchmark
+     {:collect-plan
+      (collect-plan-config/collect-plan-config
+       :with-jit-warmup
+       {:batch-time-ns       100000
+        :num-measure-samples 500})
+      :collector-config
+      {:stages     [:measured-args :compilation :garbage-collector],
+       :terminator :elapsed-time}
+      :return-value [::nil]
+      :viewer       :none}
+     options)
+    nanotime-granularity-measured)))
 
 ;;; Minimum measured time
 
@@ -88,37 +106,45 @@
   ([] (constant-long {}))
   ([options]
    (bench/bench-measured
-    (measured/expr 1)
     (merge
-     {:benchmark benchmark}
-     options))))
+     {:viewer :none}
+     benchmark
+     collection
+     options)
+    (measured/expr 1))))
 
 (defn constant-double
   ([] (constant-double {}))
   ([options]
    (bench/bench-measured
-    (measured/expr 1.0)
     (merge
-     {:benchmark benchmark}
-     options))))
+     {:viewer :none}
+     benchmark
+     collection
+     options)
+    (measured/expr 1.0))))
 
 (defn constant-object
   ([] (constant-double {}))
   ([options]
    (bench/bench-measured
-    (measured/expr {})
     (merge
-     {:benchmark benchmark}
-     options))))
+     {:viewer :none}
+     benchmark
+     collection
+     options)
+    (measured/expr {}))))
 
 (defn constant-nil
   ([] (constant-nil {}))
   ([options]
    (bench/bench-measured
-    (measured/expr nil)
     (merge
-     {:benchmark benchmark}
-     options))))
+     {:viewer :none}
+     benchmark
+     collection
+     options)
+    (measured/expr nil))))
 
 (defn- find-jit-threasholds [measured collector]
   (loop [i    0
