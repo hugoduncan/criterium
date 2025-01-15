@@ -28,7 +28,10 @@
               "Unknown metric-ids"
               {:metric-ids (keys unknown)})))
     {:stages     (filterv stages metric-ids)
-     :terminator (key (first terminator))}))
+     :terminator (or (some-> terminator
+                             first
+                             key)
+                     :elapsed-time)}))
 
 (defn config-map
   "Convert option arguments into a criterium configuration map.
