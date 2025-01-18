@@ -99,9 +99,9 @@
       (trigger/fire! *trigger*)
       (let [samples-map (sampler/samples-map *trigger*)
             analyzed    ((analyse/stats {})
-                         {:data {:samples samples-map}})]
-        (is (-> analyzed :data :stats) "Should contain statistical analysis")
+                         {:samples samples-map})]
+        (is (-> analyzed :stats) "Should contain statistical analysis")
         (is (pos? (get-in
-                   (-> analyzed :data :stats util/stats)
+                   (-> analyzed :stats util/stats)
                    [:elapsed-time :mean]))
             "Should calculate positive mean elapsed time")))))
