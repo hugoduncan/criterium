@@ -30,22 +30,23 @@
 
 (deftest filter-metrics-test
   (testing "filter-metrics"
-    (let [metric-map {:type   :quantitative
-                      :values [{:dimension :time :value 1}
-                               {:dimension :memory :value 2}]
-                      :groups {"group1"
-                               {:values [{:dimension :time :value 3}
-                                         {:dimension :count :value 4}]}
-                               "group2"
-                               {:values [{:dimension :memory :value 5}]}}}]
+    (let [metric-map {:top-level
+                      {:type   :quantitative
+                       :values [{:dimension :time :value 1}
+                                {:dimension :memory :value 2}]
+                       :groups {"group1"
+                                {:values [{:dimension :time :value 3}
+                                          {:dimension :count :value 4}]}
+                                "group2"
+                                {:values [{:dimension :memory :value 5}]}}}}]
 
       (testing "filters values at top level"
         (let [result (metric/filter-metrics
                       metric-map
                       #(= :time (:dimension %)))]
           (is (= [{:dimension :time :value 1}]
-                 (:values result)))
-          (is (contains? result :type))))
+                 (:values (:top-level result))))
+          (is (contains? (:top-level result) :type))))
 
       (testing "filters nested groups"
         (let [result (metric/filter-metrics
@@ -53,7 +54,7 @@
                       #(= :time (:dimension %)))]
           (is (= {"group1"
                   {:values [{:dimension :time :value 3}]}}
-                 (:groups result)))))
+                 (:groups (:top-level result))))))
 
       (testing "removes empty groups"
         (let [result (metric/filter-metrics
@@ -61,8 +62,8 @@
                       #(= :count (:dimension %)))]
           (is (= {"group1"
                   {:values [{:dimension :count :value 4}]}}
-                 (:groups result)))
-          (is (empty? (:values result))))))))
+                 (:groups (:top-level result))))
+          (is (empty? (:values (:top-level result)))))))))
 
 (deftest dimension-pred-test
   (testing "dimension-pred"
@@ -90,37 +91,37 @@
 
 (deftest gc-integration-test
   (testing "garbage collector metric filtering"
-    (let [gc-metric (:garbage-collector (metrics/metrics))]
+    (let [metrics (metrics/metrics)]
       (testing "filters time dimension across groups"
         (let [result (metric/filter-metrics
-                      gc-metric
+                      metrics
                       (metric/dimension-pred :time))]
           (is (every? (comp #{:time} :dimension)
                       (mapcat
                        (comp :values second)
-                       (:groups result))))
-          (is (= (count (:groups gc-metric))
-                 (count (:groups result))))))
+                       (:groups (:garbage-collector result)))))
+          (is (= (count (:groups (:garbage-collector metrics)))
+                 (count (:groups (:garbage-collector result)))))))
 
       (testing "filters count dimension across groups"
         (let [result (metric/filter-metrics
-                      gc-metric
+                      metrics
                       (metric/dimension-pred :count))]
           (is (every? (comp #{:count} :dimension)
                       (mapcat
                        (comp :values second)
                        (:groups result))))
-          (is (= (count (:groups gc-metric))
+          (is (= (count (:groups metrics))
                  (count (:groups result))))))
 
       (testing "filters by event type"
         (let [result (metric/filter-metrics
-                      gc-metric
+                      metrics
                       (metric/type-pred :event))]
-          (is (= gc-metric result))))
+          (is (= (:garbage-collector metrics) (:garbage-collector result)))))
 
       (testing "removes all groups for non-matching type"
         (let [result (metric/filter-metrics
-                      gc-metric
+                      metrics
                       (metric/type-pred :quantitative))]
           (is (empty? (:groups result))))))))

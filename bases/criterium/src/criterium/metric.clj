@@ -175,16 +175,7 @@
     (update :values #(filterv pred %))
 
     (:groups metrics)
-    (update :groups
-            (fn [g] (filter-metrics g pred))
-            #_(comment #(reduce-kv
-                         (fn [m k v]
-                           (let [filtered (filterv pred v)]
-                             (if (seq (:values filtered))
-                               (assoc m k filtered)
-                               m)))
-                         {}
-                         %)))))
+    (update :groups (fn [g] (filter-metrics g pred)))))
 
 (defn filter-metrics
   [metrics pred]
