@@ -2,7 +2,7 @@
       :see-also
       [["http://github.com/hugoduncan/criterium" "Source code"]
        ["http://hugoduncan.github.com/criterium" "API Documentation"]]}
- criterium.core
+  criterium.core
   "Criterium measures the computation time of an expression.  It is
   designed to address some of the pitfalls of benchmarking, and benchmarking on
   the JVM in particular.
@@ -35,7 +35,9 @@
    [criterium.bench :as bench]
    [criterium.benchmark :as benchmark]
    [criterium.jvm :as jvm]
-   [criterium.measured :as measured]))
+   [criterium.measured :as measured]
+   [criterium.collector-configs :as collector-configs]
+   [criterium.collect-plan.config :as collect-plan-config]))
 
 ;; Default values controlling behaviour
 
@@ -84,20 +86,23 @@
   [{:keys [max-gc-attempts target-execution-time warmup-jit-period]
     :as   options}]
   {:collect-plan
-   {:scheme-type      :with-jit-warmup
-    :max-gc-attempts  max-gc-attempts
-    :batch-time-ns    target-execution-time
-    :warmup-period-ns warmup-jit-period}
-   :benchmark (benchmark/->benchmark
-               {:analyse [:stats
-                          :event-stats]
-                :view    (into (filterv some?
-                                        [(when (:os options)
-                                           :os)
-                                         (when (:runtime options)
-                                           :runtime)])
-                               [:stats
-                                :event-stats])})})
+   (collect-plan-config/collect-plan-config
+    :with-jit-warmup
+    {:max-gc-attempts  max-gc-attempts
+     :batch-time-ns    target-execution-time
+     :warmup-period-ns warmup-jit-period})
+   :collector-config collector-configs/default-collector-config
+   :analyse          [:stats
+                      :event-stats]
+   :view             (into (filterv some?
+                                    [(when (:os options)
+                                       :os)
+                                     (when (:runtime options)
+                                       :runtime)])
+                           [:stats
+                            :event-stats])
+   :return-value     [:samples :expr-value]
+   :viewer           :print})
 
 ;;; Progress reporting
 
@@ -190,7 +195,7 @@
     (warn-on-suspicious-jvm-options))
   (let [opts   (merge *default-benchmark-opts* options)
         config (options->time-config opts)]
-    (bench/bench-measured measured config)))
+    (bench/bench-measured config measured)))
 
 (defmacro ^:deprecated benchmark
   "Benchmark an expression. This tries its best to eliminate sources of error.
