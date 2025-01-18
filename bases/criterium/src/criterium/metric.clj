@@ -24,7 +24,7 @@
 (def ^:private metric-keys
   #{:path :dimension :scale :label})
 
-(defn- metric-config?
+(defn metric-config?
   [x]
   (and (map? x)
        (or (set/subset? metric-keys (set (keys x)))
