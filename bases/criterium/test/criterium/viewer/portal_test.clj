@@ -4,14 +4,17 @@
    [criterium.analyse :as analyse]
    [criterium.test-data :as test-data]
    [criterium.view :as view]
-   [criterium.viewer.portal])
-  (:import    [java.util Queue]))
+   [criterium.viewer.portal :as portal])
+  (:import
+   [java.util Queue]))
 
 (set! *unchecked-math*  false)
 
 (defmacro with-tap-out [& body]
   `(let [v# (volatile! [])
-         f# (fn [x#] (vswap! v# conj x#))]
+         f# (fn [x#]
+              (when-not (= ::portal/_ x#)
+                (vswap! v# conj x#)))]
      (try
        (add-tap f#)
        ~@body
@@ -21,6 +24,7 @@
        (loop []
          (when (empty? @v#)
            (recur)))
+       (portal/flush)
        @v#
        (finally
          (remove-tap f#)))))
