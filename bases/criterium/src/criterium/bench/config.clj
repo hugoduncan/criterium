@@ -37,16 +37,26 @@
   "Convert option arguments into a criterium configuration map.
   The config map specifies how criterium will execute."
   [options-map]
-  (let [limit-time-s     (:limit-time-s options-map)
+  (let [unknown-keys     (set/difference
+                          (set (keys options-map))
+                          #{:limit-time-s
+                            :metric-ids
+                            :return-value
+                            :collect-plan
+                            :analyse
+                            :view
+                            :bench-plan
+                            :verbose
+                            :viewer})
+        limit-time-s     (:limit-time-s options-map)
         analyse          (:analyse options-map)
         view             (:view options-map)
         bench-plan       (:bench-plan options-map)
         options-map      (cond-> options-map
                            (:limit-time-s options-map)
-                           (assoc
-                            (assoc :limit-time-ns
-                                   (* (long limit-time-s)
-                                      (long units/SEC-NS)))))
+                           (assoc :limit-time-ns
+                                  (* (long limit-time-s)
+                                     (long units/SEC-NS))))
         collect-plan     (or (:collect-plan options-map)
                              (:collect-plan bench-plan)
                              :with-jit-warmup)
@@ -64,19 +74,7 @@
                               (:collector-config bench-plan)
                               collector-configs/default-collector-config)
                           (collect-plan-config/ensure-pipeline-stages
-                           scheme-type))
-
-        unknown-keys (set/difference
-                      (set (keys options-map))
-                      #{:limit-time-s
-                        :metric-ids
-                        :return-value
-                        :collect-plan
-                        :analyse
-                        :view
-                        :bench-plan
-                        :verbose
-                        :viewer})]
+                           scheme-type))]
 
     (when (seq unknown-keys)
       (throw (ex-info "Unknown options" {:options unknown-keys})))
