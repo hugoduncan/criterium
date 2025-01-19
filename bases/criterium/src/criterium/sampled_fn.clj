@@ -5,17 +5,13 @@
   that collects performance data during execution. The instrumented functions
   are first-class objects that maintain their own sample collection state."
   (:require
-   [criterium.collect :as collect]
    [criterium.collect-plan :as collect-plan]
    [criterium.collector :as collector]
    [criterium.jvm :as jvm]
    [criterium.measured :as measured]
    [criterium.sampler :as sampler]
    [criterium.util.invariant :refer [have]]
-   [criterium.util.t-digest :as t-digest]
-   [criterium.metric :as metric]
-   [criterium.collector.metrics :as metrics]
-   [criterium.collector-configs :as collector-configs])
+   [criterium.util.t-digest :as t-digest])
   (:import
    [java.util.concurrent Callable]))
 
