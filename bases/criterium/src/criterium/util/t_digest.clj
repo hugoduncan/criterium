@@ -19,7 +19,7 @@
   "Return estimated value at given quantile [0,1].
    Return nil if digest is empty."
   ^double [digest ^double x]
-  (md/cdf digest x))
+  (md/quantile digest x))
 
 (defn cdf
   "Return the cumulative probability at x.
