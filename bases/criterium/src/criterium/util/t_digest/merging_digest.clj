@@ -233,7 +233,10 @@
                           (unreduced right-unit)
                           (let [z1 (- index weight-so-far ^double left-unit)
                                 z2 (- (+ weight-so-far dw) index ^double right-unit)]
-                            (weighted-average (.mean c1) z2 (.mean c2) z1)))))
+                            (if (and (zero? z1) (zero? z2))
+                              ;; Both weights are zero, return midpoint
+                              (/ (+ (.mean c1) (.mean c2)) 2.0)
+                              (weighted-average (.mean c1) z2 (.mean c2) z1))))))
                     (recur (+ weight-so-far dw) (into [c2] rest))))))))))))
 
 (defn interpolate
