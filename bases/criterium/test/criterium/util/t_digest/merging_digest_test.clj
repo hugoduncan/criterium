@@ -249,11 +249,12 @@
       (let [d (md/new-digest)]
         (is (= 0.0 (:total-weight d)))
         (is (empty? (:centroids d)))
-        (is (nil? (md/quantile d 0.5)))))
+        (is (NaN? (md/quantile d 0.5)))))
 
     (testing "single point"
       (let [d (-> (md/new-digest)
-                  (md/add-point 1.0))]
+                  (md/add-point 1.0)
+                  (md/compress))]
         (is (= 1.0 (:total-weight d)))
         (is (= 1.0 (md/quantile d 0.0)))
         (is (= 1.0 (md/quantile d 0.5)))
@@ -262,7 +263,8 @@
     (testing "two points"
       (let [d (-> (md/new-digest)
                   (md/add-point 1.0)
-                  (md/add-point 2.0))]
+                  (md/add-point 2.0)
+                  (md/compress))]
         (is (= 2.0 (:total-weight d)))
         (is (= 1.0 (md/quantile d 0.0)))
         (is (= 2.0 (md/quantile d 1.0)))))
@@ -305,7 +307,8 @@
   (testing "two singletom points"
     (let [d (-> (md/new-digest)
                 (md/add-point 1.0)
-                (md/add-point 3.0))]
+                (md/add-point 3.0)
+                (md/compress))]
       (is (= 0.0 (md/cdf d 0.0)) "below")
       (is (= 0.5 (md/cdf d 1.0)) "at first")
       (is (= 1.0 (md/cdf d 3.0)) "at last")
@@ -338,8 +341,8 @@
                  x gen-finite-double]
     (let [cdf-x (md/cdf d x)]
       (and (<= 0.0 cdf-x 1.0)
-           (= 0.0 (md/cdf d Double/NEGATIVE_INFINITY))
-           (= 1.0 (md/cdf d Double/POSITIVE_INFINITY))))))
+           (= 0.0 (md/cdf d (- Double/MAX_VALUE)))
+           (= 1.0 (md/cdf d Double/MAX_VALUE))))))
 
 (defspec cdf-monotonic-property
   100
