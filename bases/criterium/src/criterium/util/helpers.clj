@@ -181,6 +181,10 @@
    :post [(have? map? %)]}
   (:metric->values metrics-samples))
 
+(defn metric->digest
+  [digest-samples]
+  (:metric->digest digest-samples))
+
 (defn quantiles
   [quantiles-map]
   {:pre  [(have? types/quantiles-map? quantiles-map)]

@@ -1,5 +1,8 @@
 (ns criterium.analyse
   (:require
+   [criterium.analyse.digest-samples]
+   [criterium.analyse.methods :as methods]
+   [criterium.analyse.metrics-samples]
    [criterium.collect-plan :as collect-plan]
    [criterium.metric :as metric]
    [criterium.types :as types]
@@ -41,7 +44,7 @@
         result (transform {:samples {...} :metrics-defs {...}})]
     (:my-logs result)) ;; Contains log-transformed values"
   ([] (transform-log {}))
-  ([{:keys [id samples-id metric-ids]}]
+  ([{:keys [id samples-id metric-ids] :as options}]
    (fn transform-log [data-map]
      (let [samples-id      (or samples-id :samples)
            id              (or id (keyword (str "log-" (name samples-id))))
@@ -55,25 +58,15 @@
                                  (metric/type-pred :quantitative)
                                  (metric/dimension-pred :time))))
            metric-configs  (metric/all-metric-configs metrics-defs)
-           metric->values  (util/metric->values metrics-samples)
-           metric->values' (reduce
-                            (fn x-path [result path]
-                              (assoc
-                               result
-                               path
-                               (mapv log (metric->values path))))
-                            {}
-                            (mapv :path metric-configs))
            transformed     (->
-                            (select-keys
+                            (methods/transform
                              metrics-samples
-                             types/metrics-samples-keys)
+                             metric-configs
+                             log
+                             exp
+                             options)
                             (merge
-                             {:type           :criterium/metrics-samples
-                              :metrics-defs   metrics-defs
-                              :metric->values metric->values'
-                              :transform      {:sample-> exp :->sample log}
-                              :source-id      samples-id}))]
+                             {:source-id samples-id}))]
        (assoc data-map id transformed)))))
 
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}

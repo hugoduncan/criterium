@@ -73,9 +73,44 @@
                                    metrics-samples-keys
                                    (set (keys x)))}})))))
 
+(def digest-samples-keys
+  #{:type
+    :transform
+    :source-id
+    :metric->digest
+    :num-samples
+    :batch-size
+    :metrics-defs
+    :expr-value })
+
+(defn digest-samples-map?
+  [x]
+  (and (map? x)
+       (or
+        (= :criterium/digest (:type x))
+        (throw
+         (invariant/assertion-error
+          "Invalid tupe"
+          {:error-tupe ::invalid-type
+           :date       {:expected :criterium/digest
+                        :actual   (:type x)}})))
+       (or
+        (set/subset? digest-samples-keys (set (keys x)))
+        (throw
+         (invariant/assertion-error
+          "Invalid keys"
+          {:error-tupe ::invalid-map-keys
+           :date       {:expected digest-samples-keys
+                        :actual   (keys x)
+                        :missing  (set/difference
+                                   digest-samples-keys
+                                   (set (keys x)))}})))))
+
 (defn generic-metrics-samples-map?
   [x]
-  (#{:criterium/metrics-samples :criterium/collected-metrics-samples}
+  (#{:criterium/metrics-samples
+     :criterium/collected-metrics-samples
+     :criterium/digest}
    (:type x)))
 
 (def quantiles-map-keys #{:type :quantiles :metrics-defs :source-id})
