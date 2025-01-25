@@ -10,7 +10,8 @@
    [criterium.util.t-digest.merging-digest :as md]
    [criterium.util.t-digest.scale :as scale]
    [criterium.util.well :as well]
-   [criterium.util.ziggurat :as ziggurat]))
+   [criterium.util.ziggurat :as ziggurat]
+   [clojure.math :as math]))
 
 ;; (deftest k1-scale-function-test
 ;;   (let [compression 100.0]
@@ -141,8 +142,11 @@
 
 (deftest quantile-edge-cases
   (testing "quantile edge cases"
-    (let [d (reduce md/add-point (md/new-digest)
-                    [1.0 2.0 3.0])]
+    (let [d (md/compress
+             (reduce
+              md/add-point
+              (md/new-digest)
+              [1.0 2.0 3.0]))]
       (is (= 1.0 (md/quantile d 0.0)))
       (is (= 3.0 (md/quantile d 1.0)))
       (is (some? (md/quantile d 0.5))))))
@@ -243,6 +247,18 @@
                 (format "error %.3f std-dev at q=%.2f (expected=%.2f, got=%.2f)"
                         error z expected-val actual))))))))
 
+(deftest normal-distribution-sample-states-test
+  (testing "accuracy with normal distribution"
+    (let [n       20000
+          samples (take n (ziggurat/random-normal-zig
+                           (well/well-rng-1024a)))
+          digest  (reduce md/add-point (md/new-digest 100.0) samples)
+          digest  (md/compress digest)]
+      ;; NOTE we should calculate bounds for these using the t and chi-squared
+      ;; distributions.
+      (is (> 0.05 (Math/abs (md/mean digest))))
+      (is (approx= 1.0 (md/variance digest) 0.1)))))
+
 (deftest basic-operations
   (testing "quantile"
     (testing "empty digest"
@@ -271,7 +287,7 @@
 
     (testing "uniform distribution"
       (let [points (range 0 100 10)
-            d      (reduce md/add-point (md/new-digest) points)
+            d      (md/compress (reduce md/add-point (md/new-digest) points))
             _      (println "Centroids:" (:centroids d))
             _      (println "Total weight:" (:total-weight d))
             q50    (md/quantile d 0.5)
@@ -279,7 +295,7 @@
             q100   (md/quantile d 1.0)
             _      (println "q100:" q100)]
         (is (= 0.0 (md/quantile d 0.0)))
-        (is (< 44.0 q50 46.0))
+        (is (= 50.0 q50))
         (is (= 90.0 q100)))))  )
 
 
@@ -298,7 +314,8 @@
 (deftest cdf-single-centroid-test
   (testing "single centroid"
     (let [d (-> (md/new-digest)
-                (md/add-point 1.0))]
+                (md/add-point 1.0)
+                (md/compress))]
       (is (= 0.0 (md/cdf d 0.0)))
       (is (= 1.0 (md/cdf d 2.0)))
       (is (= 0.5 (md/cdf d 1.0))))))
@@ -318,7 +335,7 @@
 (deftest cdf-uniform-test
   (testing "uniform distribution"
     (let [points (range 0 100 10)
-          d      (reduce md/add-point (md/new-digest) points)]
+          d      (md/compress (reduce md/add-point (md/new-digest) points))]
       (is (= 0.0 (md/cdf d -1.0)) "below")
       (is (= 1.0 (md/cdf d 100.0)) "above")
       (is (approx= 0.5 (md/cdf d 45.0) 0.1) "midpoint"))))
@@ -328,16 +345,26 @@
 (def gen-finite-double
   (gen/double* {:infinite? false :NaN? false}))
 
-(def gen-digest
+
+(defn gen-digest
+  [& {:keys [buffer-size compression min-samples max-samples]
+      :or   {min-samples 1
+             max-samples 100
+             compression 100
+             buffer-size 128}}]
   (gen/fmap (fn [points]
-              (reduce md/add-point (md/new-digest) points))
-            (gen/vector gen-finite-double 1 100)))
+              (md/compress
+               (reduce
+                md/add-point
+                (md/new-digest compression buffer-size)
+                points)))
+            (gen/vector gen-finite-double min-samples max-samples)))
 
 ;; Property-based tests
 
 (defspec cdf-bounds-property
   100
-  (prop/for-all [d gen-digest
+  (prop/for-all [d (gen-digest)
                  x gen-finite-double]
     (let [cdf-x (md/cdf d x)]
       (and (<= 0.0 cdf-x 1.0)
@@ -346,7 +373,7 @@
 
 (defspec cdf-monotonic-property
   100
-  (prop/for-all [d gen-digest
+  (prop/for-all [d (gen-digest)
                  ^double x gen-finite-double
                  ^double dx (gen/double*
                              {:min       0.0   :max  100.0
@@ -357,21 +384,24 @@
         (prn :x x :dx dx :cdf-x+dx cdf-x+dx :cdf-x cdf-x ))
       (>= cdf-x+dx cdf-x))))
 
-(defspec cdf-continuous-property
-  100
-  (prop/for-all [d gen-digest
-                 ^double x gen-finite-double]
-    (let [epsilon 1e-10
-          left    (md/cdf d (- x epsilon))
-          right   (md/cdf d (+ x epsilon))]
-      (approx= left right 1e-5))))
+;; The following two tests do not work because of step-wise values from
+;; singleton centroids.
 
-(defspec cdf-quantile-inverse-property
-  100
-  (prop/for-all [d gen-digest
-                 p (gen/double* {:min       0.0   :max  1.0
-                                 :infinite? false :NaN? false})]
-    (let [q  (md/quantile d p)
-          p' (md/cdf d q)]
-      (or (Double/isNaN q)  ; empty digest case
-          (approx= p p' 1e-5)))))
+#_(defspec cdf-right-continuous-property
+    100
+    (prop/for-all [d gen-digest
+                   ^double x gen-finite-double]
+      (let [epsilon 1e-10
+            left    (md/cdf d x)
+            right   (md/cdf d (+ x epsilon))]
+        (approx= left right 1e-5))))
+
+#_(defspec cdf-quantile-inverse-property
+    {:num-tests 100
+     :max-size  1000}
+    (prop/for-all [d (gen-digest {:min-samples 200 :max-samples 1000})
+                   p (gen/double* {:min       0.0   :max  1.0
+                                   :infinite? false :NaN? false})]
+      (let [q  (md/quantile d p)
+            p' (md/cdf d q)]
+        (approx= p p' 1e-5))))

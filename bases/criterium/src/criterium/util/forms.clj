@@ -11,6 +11,7 @@
        :let [b (+ a 1)]
        (bar? b) (handle-bar b)
        :else (default-handler a b))"
+  {:style/indent 1}
   [& clauses]
   (letfn [(process [clauses]
             (when (seq clauses)
