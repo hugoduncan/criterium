@@ -27,6 +27,14 @@
   ^double [digest ^double x]
   (md/cdf digest x))
 
+(defn minimum
+  ^double [digest]
+  (md/minimum digest))
+
+(defn maximum
+  ^double [digest]
+  (md/maximum digest))
+
 (defn mean
   "Return the mean estimate.
    Return NaN if digest is empty."

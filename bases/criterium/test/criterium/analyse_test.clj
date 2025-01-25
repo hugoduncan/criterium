@@ -74,9 +74,7 @@
         (is (= samples (:samples result))))
       (testing "adds transfprms for the values"
         (is (approx=
-             (mapv
-              (fn [^double v] (/ v 10.0))
-              [(Math/exp 1) (Math/exp 2) (Math/exp 3)])
+             (mapv (fn [^double v] (/ v 10.0)) raw-data)
              (transformed-metric-values result :log-samples [:elapsed-time]))))
       (testing "doesn't transform event-metrics "
         (is (not (contains? (:log-samples result) [:compilation])))))))
