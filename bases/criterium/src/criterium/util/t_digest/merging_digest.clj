@@ -51,8 +51,8 @@
     []    ; temp-centroids
     0.0   ; total-weight
     0.0   ; unmerged-weight
-    Double/POSITIVE_INFINITY  ; minimum
-    Double/NEGATIVE_INFINITY  ; maximum
+    Double/NaN  ; minimum
+    Double/NaN ; maximum
     scale/k2
     buffer-size)))
 
@@ -153,16 +153,16 @@
      (throw (ex-info "Cannot add NaN to t-digest" {:value value})))
    (let [buffer-size     (.buffer-size digest)
          ^TDigest digest (if (>= (count temp-centroids) buffer-size)
-                                (merge-new-values digest)
-                                digest)
+                           (merge-new-values digest)
+                           digest)
          minimum         (.minimum digest)
          maximum         (.maximum digest)
-         new-min         (if (Double/isInfinite minimum)
-                       value
-                       (min value minimum))
-         new-max         (if (Double/isInfinite maximum)
-                       value
-                       (max value maximum))]
+         new-min         (if (NaN? minimum)
+                           value
+                           (min value minimum))
+         new-max         (if (NaN? maximum)
+                           value
+                           (max value maximum))]
      (-> digest
          (update :temp-centroids conj (->Centroid value weight))
          (update :unmerged-weight + weight)
@@ -395,22 +395,27 @@
 (defn transform
   [{:keys [buffer-size
            compression
-           centroids
-           total-weight
-           minimum
-           maxiumum]
+           centroids]
     :as   ^TDigest digest} f]
   (have compressed? digest)
   (->TDigest
    (double compression)
    (mapv (partial transform-centroid f) centroids) ; centroids
    []                                   ; temp-centroids
-   total-weight                         ; total-weight
+   (.total-weight digest) ; total-weight
    0.0                                  ; unmerged-weight
-   (f minimum)                          ; minimum
-   (f maxiumum)                         ; maximum
+   (f (.minimum digest))                          ; minimum
+   (f (.maximum digest))                         ; maximum
    scale/k2
    buffer-size))
+
+(defn minimum
+  ^double [^TDigest digest]
+  (.minimum digest))
+
+(defn maximum
+  ^double [^TDigest digest]
+  (.maximum digest))
 
 (defn mean
   ^double [{:keys [centroids] :as ^TDigest digest}]
