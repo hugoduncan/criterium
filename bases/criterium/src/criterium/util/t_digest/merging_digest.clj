@@ -164,80 +164,79 @@
   ^double [^TDigest digest ^double q]
   {:pre [(have? #(<= 0.0 % 1.0) q)]}
   (let [{:keys [centroids] :as ^TDigest digest} (merge-new-values digest)]
-    (when (seq centroids)
-      (let [sorted-centroids         (sort-by :mean centroids)
-            n                        (count sorted-centroids)
-            total-weight             (.total-weight digest)
-            minimum                  (.minimum digest)
-            maximum                  (.maximum digest)
-            ^Centroid first-centroid (first sorted-centroids)]
-        (cond
-          ;; no centroids or single centroid
-          (<= n 0) Double/NaN
-          (= n 1)  (.mean first-centroid)
+    (let [sorted-centroids         (sort-by :mean centroids)
+          n                        (count sorted-centroids)
+          total-weight             (.total-weight digest)
+          minimum                  (.minimum digest)
+          maximum                  (.maximum digest)
+          ^Centroid first-centroid (first sorted-centroids)]
+      (cond
+        ;; no centroids or single centroid
+        (<= n 0) Double/NaN
+        (= n 1)  (.mean first-centroid)
 
-          ;; multiple centroids
-          :else
-          (let [index (* q total-weight)]
-            (cond
-              ;; boundaries return min/max
-              (< index 1)
-              minimum
+        ;; multiple centroids
+        :else
+        (let [index (* q total-weight)]
+          (cond
+            ;; boundaries return min/max
+            (< index 1)
+            minimum
 
-              ;; left centroid interpolation
-              (and (> (.weight first-centroid) 1.0)
-                   (< index (/ (.weight first-centroid) 2.0)))
-              (+ minimum
-                 (/ (* (- index 1)
-                       (- (.mean first-centroid) minimum))
-                    (- (/ (.weight first-centroid) 2.0) 1.0)))
+            ;; left centroid interpolation
+            (and (> (.weight first-centroid) 1.0)
+                 (< index (/ (.weight first-centroid) 2.0)))
+            (+ minimum
+               (/ (* (- index 1)
+                     (- (.mean first-centroid) minimum))
+                  (- (/ (.weight first-centroid) 2.0) 1.0)))
 
-              (> index (- total-weight 1.0))
-              maximum
+            (> index (- total-weight 1.0))
+            maximum
 
-              ;; right centroid interpolation
-              (and (> (.weight ^Centroid (last sorted-centroids)) 1)
-                   (<= (- total-weight index)
-                       (/ (.weight ^Centroid (last sorted-centroids)) 2)))
-              (- maximum
-                 (/ (* (- total-weight index 1)
-                       (- maximum (.mean ^Centroid (last sorted-centroids))))
-                    (- (/ (.weight ^Centroid (last sorted-centroids)) 2) 1)))
+            ;; right centroid interpolation
+            (and (> (.weight ^Centroid (last sorted-centroids)) 1)
+                 (<= (- total-weight index)
+                     (/ (.weight ^Centroid (last sorted-centroids)) 2)))
+            (- maximum
+               (/ (* (- total-weight index 1)
+                     (- maximum (.mean ^Centroid (last sorted-centroids))))
+                  (- (/ (.weight ^Centroid (last sorted-centroids)) 2) 1)))
 
-              ;; interpolate between centroids
-              :else
-              (loop [weight-so-far
-                     (/ (.weight first-centroid) 2)
-                     [^Centroid c1 ^Centroid c2 & rest] sorted-centroids]
-                (let [dw (/ (+ (.weight c1) (.weight c2)) 2)]
-                  (if (> (+ weight-so-far dw) index)
-                    ;; centroids c1 and c2 bracket our point
-                    (let [left-unit
-                          (if (= (.weight c1) 1.0)
-                            (if (< (- index weight-so-far) 0.5)
-                              ;; within singleton's sphere
-                              (reduced (.mean c1))
-                              0.5)
-                            0)
-                          right-unit
-                          (if (= (.weight c2) 1.0)
-                            (if (<= (- (+ weight-so-far dw) index) 0.5)
-                              ;; near singleton
-                              (reduced (.mean c2))
-                              0.5)
-                            0)]
-                      ;; handle early returns from unit weight checks
-                      (if (reduced? left-unit)
-                        (unreduced left-unit)
-                        (if (reduced? right-unit)
-                          (unreduced right-unit)
-                          (let [z1 (- index weight-so-far ^double left-unit)
-                                z2 (- (+ weight-so-far dw) index ^double right-unit)]
-                            (if (and (zero? z1) (zero? z2))
-                              ;; Both weights are zero, return midpoint
-                              (/ (+ (.mean c1) (.mean c2)) 2.0)
-                              (weighted-average (.mean c1) z2 (.mean c2) z1))))))
-                    (recur (+ weight-so-far dw) (into [c2] rest))))))))))))
+            ;; interpolate between centroids
+            :else
+            (loop [weight-so-far
+                   (/ (.weight first-centroid) 2)
+                   [^Centroid c1 ^Centroid c2 & rest] sorted-centroids]
+              (let [dw (/ (+ (.weight c1) (.weight c2)) 2)]
+                (if (> (+ weight-so-far dw) index)
+                  ;; centroids c1 and c2 bracket our point
+                  (let [left-unit
+                        (if (= (.weight c1) 1.0)
+                          (if (< (- index weight-so-far) 0.5)
+                            ;; within singleton's sphere
+                            (reduced (.mean c1))
+                            0.5)
+                          0)
+                        right-unit
+                        (if (= (.weight c2) 1.0)
+                          (if (<= (- (+ weight-so-far dw) index) 0.5)
+                            ;; near singleton
+                            (reduced (.mean c2))
+                            0.5)
+                          0)]
+                    ;; handle early returns from unit weight checks
+                    (if (reduced? left-unit)
+                      (unreduced left-unit)
+                      (if (reduced? right-unit)
+                        (unreduced right-unit)
+                        (let [z1 (- index weight-so-far ^double left-unit)
+                              z2 (- (+ weight-so-far dw) index ^double right-unit)]
+                          (if (and (zero? z1) (zero? z2))
+                            ;; Both weights are zero, return midpoint
+                            (/ (+ (.mean c1) (.mean c2)) 2.0)
+                            (weighted-average (.mean c1) z2 (.mean c2) z1))))))
+                  (recur (+ weight-so-far dw) (into [c2] rest)))))))))))
 
 (defn interpolate
   ^double [^Centroid left ^Centroid right ^double x]
