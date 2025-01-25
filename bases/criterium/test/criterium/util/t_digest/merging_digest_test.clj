@@ -10,44 +10,7 @@
    [criterium.util.t-digest.merging-digest :as md]
    [criterium.util.t-digest.scale :as scale]
    [criterium.util.well :as well]
-   [criterium.util.ziggurat :as ziggurat]
-   [clojure.math :as math]))
-
-;; (deftest k1-scale-function-test
-;;   (let [compression 100.0]
-;;     (testing "k1 monotonicity and symmetry"
-;;       (let [qs           [0.0 0.1 0.2 0.3 0.4]
-;;             k-first-half (mapv #(#'md/integrated-location % compression) qs)]
-;;         ;; Values should increase monotonically
-;;         (is (approx= k-first-half (sort k-first-half)))
-;;         ;; Check symmetry around q=0.5
-;;         (is (approx= k-first-half
-;;                      (mapv #(- (#'md/integrated-location (- 1.0 %) compression))
-;;                            qs)))))))
-
-
-;; (defspec k1-scale-function-properties-test
-;;   (prop/for-all [q      (gen/double* {:min 0.0 :max 0.5 :NaN? false})
-;;                  comp   (gen/double* {:min 1.0 :max 1000.0 :NaN? false})]
-;;     (let [k1 (#'md/integrated-location q comp)]
-;;       (prn :q q :comp comp)
-;;       (and
-;;        ;; k1 should increase monotonically with q
-;;        (> (#'md/integrated-location (+ q 0.1) comp) k1)
-;;        ;; k1 should be symmetric around q=0.5
-;;        (approx= k1 (- (#'md/integrated-location (- 1.0 q) comp)) 1e-7 5)))))
-
-;; (defspec k1-scale-function-properties-test
-;;   (prop/for-all [q      (gen/double* {:min 0.0 :max 0.5 :NaN? false})
-;;                  comp   (gen/double* {:min 1.0 :max 1000.0 :NaN? false})]
-;;     (let [scale scale/k1
-;;           k1    (scale/k scale q comp)]
-;;       (prn :q q :comp comp)
-;;       (and
-;;        ;; k1 should increase monotonically with q
-;;        (> (scale/k scale (+ q 0.1) comp) k1)
-;;        ;; k1 should be symmetric around q=0.5
-;;        (approx= k1 (- (scale/k scale (- 1.0 q) comp)) 1e-7 5)))))
+   [criterium.util.ziggurat :as ziggurat]))
 
 #_(deftest merge-centroids-invariants
     (let [compression 100.0]
@@ -309,7 +272,11 @@
 (deftest cdf-empty-test
   (testing "empty digest"
     (let [d (md/new-digest)]
-      (is (Double/isNaN (md/cdf d 0.0))))))
+      (is (NaN? (md/cdf d 0.0)))
+      (is (NaN? (md/mean d)))
+      (is (NaN? (md/variance d)))
+      (is (NaN? (md/minimum d)))
+      (is (NaN? (md/maximum d))))))
 
 (deftest cdf-single-centroid-test
   (testing "single centroid"
@@ -405,3 +372,50 @@
       (let [q  (md/quantile d p)
             p' (md/cdf d q)]
         (approx= p p' 1e-5))))
+
+
+(deftest transform-operations
+  (testing "linear transformation"
+    (let [digest      (-> (md/new-digest)
+                          (md/add-point 1.0)
+                          (md/add-point 2.0)
+                          (md/add-point 3.0)
+                          md/compress)
+          transformed (md/transform digest (fn [^double x] (+ x 10.0)))]
+      (is (= [11.0 12.0 13.0] (map :mean (:centroids transformed))))
+      (is (= 11.0 (:minimum transformed)))
+      (is (= 13.0 (:maximum transformed)))
+      (is (= (:total-weight digest) (:total-weight transformed)))
+      (is (empty? (:temp-centroids transformed)))))
+
+  (testing "non-linear transformation with sign change"
+    (let [digest      (-> (md/new-digest)
+                          (md/add-point -2.0)
+                          (md/add-point 0.0)
+                          (md/add-point 3.0)
+                          md/compress)
+          transformed (md/transform digest (fn [^double x] (* x x)))]
+      (is (= [4.0 0.0 9.0] (map :mean (:centroids transformed))))
+      (is (= 4.0 (:minimum transformed)) "Minimum from original min (-2)^2")
+      (is (= 9.0 (:maximum transformed)) "Maximum from original max 3^2")
+      (is (= (:total-weight digest) (:total-weight transformed)))
+      (is (empty? (:temp-centroids transformed)))))
+
+  (testing "empty digest transformation"
+    (let [digest      (md/new-digest)
+          transformed (md/transform digest (constantly 5.0))]
+      (is (empty? (:centroids transformed)))
+      (is (= 5.0 (:minimum transformed)))
+      (is (= 5.0 (:maximum transformed)))
+      (is (empty? (:temp-centroids transformed)))))
+
+  (testing "single centroid transformation"
+    (let [digest      (-> (md/new-digest)
+                          (md/add-point 5.0)
+                          md/compress)
+          transformed (md/transform digest (fn [^double x] (* x 2.0)))]
+      (is (= [10.0] (map :mean (:centroids transformed))))
+      (is (= 10.0 (:minimum transformed)))
+      (is (= 10.0 (:maximum transformed)))
+      (is (= (:total-weight digest) (:total-weight transformed)))
+      (is (empty? (:temp-centroids transformed))))))
