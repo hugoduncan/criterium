@@ -2,6 +2,7 @@
   "Implementation of the t-digest algorithm for streaming quantile estimation.
    Based on the MergingDigest variant from https://github.com/tdunning/t-digest"
   (:require
+   [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have have?]]
    [criterium.util.t-digest.scale :as scale])
   (:import
@@ -11,6 +12,14 @@
 (defrecord Centroid
   [^double mean
    ^double weight])
+
+(defn centroid-weight
+  ^double [^Centroid centroid]
+  (.weight centroid))
+
+(defn centroid-mean
+  ^double [^Centroid centroid]
+  (.mean centroid))
 
 (defrecord TDigest
   [^double compression
@@ -333,3 +342,57 @@
               :else
               (let [dw (/ (+ (.weight c1) (.weight c2)) 2)]
                 (recur (+ weight-so-far dw) (into [c2] more))))))))))
+
+(defn compressed?
+  [{:keys [temp-centroids] :as _digest}]
+  (empty temp-centroids))
+
+(defn- transform-centroid
+  [f ^Centroid centroid]
+  (update centroid :mean f))
+
+(defn transform
+  [{:keys [buffer-size
+           compression
+           centroids
+           total-weight
+           minimum
+           maxiumum]
+    :as   ^TDigest digest} f]
+  (have compressed? digest)
+  (->TDigest
+   (double compression)
+   (mapv (partial transform-centroid f) centroids) ; centroids
+   []                                   ; temp-centroids
+   total-weight                         ; total-weight
+   0.0                                  ; unmerged-weight
+   (f minimum)                          ; minimum
+   (f maxiumum)                         ; maximum
+   scale/k2
+   buffer-size))
+
+(defn mean
+  [{:keys [centroids] :as ^TDigest digest}]
+  (let [sum-weights  (.total-weight digest)
+        weighted-sum (util/reduce-double-vector
+                      (fn ^double [^double acc ^Centroid centroid]
+                        (+ acc (.mean centroid) (.weight centroid)))
+                      0.0
+                      centroids)]
+    (/ weighted-sum sum-weights)))
+
+(defn variance
+  (^double [digest]
+   (variance digest (mean digest)))
+  (^double [{:keys [centroids] :as ^TDigest digest} ^double mean]
+   (let [sum-weights (.total-weight digest)
+         sum-squares (util/reduce-double-vector
+                      (fn ^double [^double acc ^Centroid centroid ]
+                        (+ acc
+                           (* (* (.mean centroid)
+                                 (.mean centroid))
+                              (.weight centroid))))
+                      0.0
+                      centroids)
+         e-x-squared (/ sum-squares sum-weights)]
+     (- e-x-squared (* mean mean)))))

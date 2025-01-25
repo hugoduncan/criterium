@@ -4,6 +4,10 @@
    [criterium.types :as types]
    [criterium.util.invariant :as invariant :refer [have have?]]))
 
+
+(defn assoc-tag [sym t]
+  (vary-meta sym assoc :tag t))
+
 (defn spy
   [msg x]
   (prn msg x)
@@ -86,7 +90,19 @@
   returns true.  Used internally for filtering metrics by their
   configuration values."
   [pred m]
-  (into {} (filter (comp pred val) m)))
+  (into {} (filter (comp pred val)) m))
+
+(defn reduce-double-vector
+  "Reduce a double primitive value over a vector."
+  ^double [^clojure.lang.IFn$DOD f
+           ^double init
+           ^clojure.lang.APersistentVector v]
+  (let [n (.count v)]
+    (loop [acc init
+           i   0]
+      (if (< i n)
+        (recur (.invokePrim f acc (.nth v i)) (unchecked-inc i))
+        acc))))
 
 ;; Modified version of clojure.walk to preserve metadata
 (defn walk

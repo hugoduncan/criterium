@@ -26,3 +26,21 @@
    Return NaN if digest is empty."
   ^double [digest ^double x]
   (md/cdf digest x))
+
+(defn mean
+  "Return the mean estimate.
+   Return NaN if digest is empty."
+  ^double [digest]
+  (md/mean digest))
+
+(defn variance
+  "Return the mean estimate.
+   Return NaN if digest is empty."
+  (^double [digest]
+   (md/variance digest))
+  (^double [digest ^double mean]
+   (md/variance digest mean)))
+
+(defn transform
+  [digest f]
+  (md/transform digest f))
