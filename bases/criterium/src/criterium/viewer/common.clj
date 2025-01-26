@@ -163,12 +163,24 @@
         scale        (* (double scale) metric-scale)
         round        #(format/round % 4)
         t-center     (comp round (partial * scale) transform)
-        t-density    #(format/round % 3)]
-    (-> histogram
-        (update :centers #(mapv t-center %))
-        (update :min t-center)
-        (update :max t-center)
-        (update :density #(mapv t-density %))
-        (assoc
-         :metric-config metric-config
-         :unit unit))))
+        t-density    #(format/round % 3)
+        histogram    (if (= :criterium/histogram-fixed-width (:type histogram))
+                       histogram
+                       (-> histogram
+                           #_(assoc
+                              :density
+                              (mapv
+                               (fn [^double d ^double w]
+                                 (* d w))
+                               (:density histogram)
+                               (:widths histogram )))
+                           (update :widths #(mapv t-density %))))
+        histogram    (-> histogram
+                         (update :centers #(mapv t-center %))
+                         (update :min t-center)
+                         (update :max t-center)
+                         (update :density #(mapv t-density %))
+                         (assoc
+                          :metric-config metric-config
+                          :unit unit))]
+    histogram))

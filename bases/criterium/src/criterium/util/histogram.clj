@@ -106,7 +106,8 @@
            counts    (count-values-in-bins values edges)
            n         (count values)
            density   (compute-density counts n)]
-       {:counts   counts
+       {:type     :criterium/histogram-fixed-width
+        :counts   counts
         :centers  centers
         :width    width
         :density  density

@@ -451,3 +451,55 @@
 (defn centroid-means
   [digest]
   (mapv centroid-mean (:centroids digest)))
+
+(defn histogram
+  "Returns a histogram of the digest using centroid centers as bin locations.
+   - counts: Number of samples in each bin
+   - centers: Bin center locations
+   - widths: Width of each bin
+   - density: Normalized density (count/width) for each bin
+   - n: Total sample count
+   - num-bins: Number of bins
+   - min: Minimum value
+   - max: Maximum value"
+  [^TDigest digest ^double iqr]
+  (let [centroids (:centroids digest)
+        num-bins  (count centroids)
+        centers   (mapv centroid-mean centroids)
+        counts    (mapv centroid-weight centroids)
+        n         (.total-weight digest)
+        widths    (cond
+                    ;; Single bin case
+                    (= num-bins 1)
+                    [(max (* 2.0 iqr) 1.0)]
+
+                    ;; Multiple bins - calculate gaps between centers
+                    :else
+                    (vec
+                     (concat
+                      ;; First bin - use distance to next bin
+                      [(- (double (nth centers 1)) (double (nth centers 0)))]
+                      ;; Middle bins - average of gaps to neighbors
+                      (map (fn [^long i]
+                             (/ (- (double (nth centers (inc i)))
+                                   (double (nth centers (dec i))))
+                                2.0))
+                           (range 1 (dec num-bins)))
+                      ;; Last bin - use distance from previous bin
+                      [(- (double (peek centers))
+                          (double (nth centers (- num-bins 2))))])))
+        density (mapv (fn [^double c ^double w]
+                        (if (pos? w)
+                          (/ c n)
+                          0.0))
+                      counts
+                      widths) ]
+    {:type     :criterium/histogram-variable-width
+     :counts   counts
+     :centers  centers
+     :widths   widths
+     :density  density
+     :n        n
+     :num-bins num-bins
+     :min      (.minimum digest)
+     :max      (.maximum digest)}))
