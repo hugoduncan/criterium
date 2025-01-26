@@ -160,6 +160,25 @@
        (= :criterium/event-stats (:type x))
        (set/subset? event-stats-map-keys (set (keys x)))))
 
+(def histogram-map-keys
+  #{:type :histograms :metrics-defs :transform :batch-size :source-id
+    :outliers-id})
+
+(defn histogram-map?
+  [x]
+  (and (map? x)
+       (= :criterium/histogram (:type x))
+       (or (set/subset? histogram-map-keys (set (keys x)))
+           (throw
+            (invariant/assertion-error
+             "Invalid keys"
+             {:error-tupe ::invalid-map-keys
+              :date       {:expected histogram-map-keys
+                           :actual   (keys x)
+                           :missing  (set/difference
+                                      histogram-map-keys
+                                      (set (keys x)))}})))))
+
 (def outlier-significance-map-keys
   #{:type :outlier-significance :metrics-defs :source-id :outliers-id})
 

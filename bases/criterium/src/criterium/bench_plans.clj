@@ -39,6 +39,7 @@
                       :outliers
                       [:stats {}]
                       [:stats {:samples-id :log-samples :id :log-stats}]
+                      :histogram
                       :event-stats]
    :view             [[:stats {:metric-ids [:memory]}]
                       [:stats {:stats-id :log-stats}]

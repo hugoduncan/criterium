@@ -8,9 +8,7 @@
    [criterium.types :as types]
    [criterium.util.debug :as debug]
    [criterium.util.helpers :as util]
-   [criterium.util.invariant :refer [have have?]]
-   [criterium.util.sampled-stats :as sampled-stats]
-   [criterium.util.stats :as stats]))
+   [criterium.util.invariant :refer [have have?]]))
 
 (defn exp [v]
   (Math/exp v))
@@ -294,6 +292,62 @@
                                 :metrics-defs metrics-defs}
                                event-stats))]
          (assoc data-map id es-map))))))
+
+#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
+(defn histogram
+  "Calculate a histogram for sample measurements.
+
+  Returns a function that computes histograms for quantitative metrics.
+
+  Parameters:
+    opts - Optional map with keys:
+      :id          - Key for stats in output (default: :stats)
+      :samples-id  - Key for source samples (default: :samples)
+      :outliers-id - Key for outlier analysis if available
+      :metric-ids  - Set of metric ids to analyze (default: all quantitative)
+
+  The returned function:
+  - Takes a sampled data map containing samples
+  - Returns the map with histograms added under :id key
+  - Preserves data transforms for correct scaling
+
+  Example:
+  (let [analyze (histogram)
+        result (analyze {:samples {...} :outliers {...}})]
+    (get-in result [:histogram :elapsed-time]))"
+  ([] (histogram {}))
+  ([{:keys [id samples-id quantiles-id outliers-id metric-ids]
+     :as   analysis}]
+   (let [samples-id   (or samples-id :samples)
+         id           (or id :histograms)
+         quantiles-id (or quantiles-id :quantiles)
+         outliers-id  (or outliers-id :outliers)         ]
+     (fn [data-map]
+       (let [outliers        (when outliers-id
+                               (data-map outliers-id))
+             quantiles       (util/lookup-data data-map quantiles-id)
+             metrics-samples (util/lookup-data data-map samples-id)
+             metrics-defs    (-> (have (:metrics-defs metrics-samples))
+                                 (metric/select-metrics metric-ids)
+                                 (metric/filter-metrics
+                                  (metric/type-pred :quantitative)))
+             metric-configs  (metric/all-metric-configs metrics-defs)
+             histogram       (methods/histogram
+                              metrics-samples
+                              quantiles
+                              outliers
+                              metric-configs
+                              analysis)
+             histogram-map   (have
+                              types/histogram-map?
+                              (merge
+                               {:type         :criterium/histogram
+                                :metrics-defs metrics-defs
+                                :source-id    samples-id
+                                :outliers-id  outliers-id
+                                :batch-size   (:batch-size metrics-samples)}
+                               histogram))]
+         (assoc data-map id histogram-map))))))
 
 (defn- min-f
   ^double [f ^double q ^double r]

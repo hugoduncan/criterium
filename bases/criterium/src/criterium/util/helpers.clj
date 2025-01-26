@@ -235,7 +235,10 @@
 (defn get-transforms
   [result-map path]
   {:pre [(have? types/result-map? result-map)]}
-  (loop [transforms (update-vals (:transform (have (result-map path))) vector)
+  (loop [transforms (update-vals
+                     (:transform
+                      (have some? (result-map path) {:path path}))
+                     vector)
          path       (:source-id (result-map path))]
     (if path
       (let [t (:transform (result-map path))]
@@ -301,3 +304,10 @@
   (if (or (keyword? x) (symbol? x))
     (maybe-ver-get-named x options)
     x))
+
+(defn lookup-data
+  [data-map id]
+  (or (data-map id)
+      (throw (ex-info "Failed to find data set"
+                      {:available-ids (keys data-map)
+                       :id            id}))))
