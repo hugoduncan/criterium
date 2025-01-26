@@ -72,26 +72,23 @@
    (map :path metric-configs)))
 
 (defn sample-stats
-  [result-map samples-id outliers metric-configs config]
-  {:pre [(have? types/result-map? result-map)]}
-  (let [metrics-samples (result-map samples-id)
-        metric->values  (have (util/metric->values metrics-samples))]
-    (reduce
-     (fn [res path]
-       (let [ols              (:outliers (get-in outliers path) {})
-             vs               (samples-for-path metric->values path)
-             without-outliers (if ols
-                                (into []
-                                      (comp
-                                       (map-indexed (fn [i v] (when-not (ols i) v)))
-                                       (filter some?))
-                                      vs)
-                                vs)]
-         (if (seq vs)
-           (assoc-in res path (stats-for without-outliers config))
-           res)))
-     {}
-     (mapv :path metric-configs))))
+  [metric->values outliers metric-configs config]
+  (reduce
+   (fn [res path]
+     (let [ols              (:outliers (get-in outliers path) {})
+           vs               (samples-for-path metric->values path)
+           without-outliers (if ols
+                              (into []
+                                    (comp
+                                     (map-indexed (fn [i v] (when-not (ols i) v)))
+                                     (filter some?))
+                                    vs)
+                              vs)]
+       (if (seq vs)
+         (assoc-in res path (stats-for without-outliers config))
+         res)))
+   {}
+   (mapv :path metric-configs)))
 
 (defn event-stats
   "Return the stats for events like JIT compilation and garbage-collector."

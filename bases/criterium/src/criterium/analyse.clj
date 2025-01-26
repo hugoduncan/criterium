@@ -106,63 +106,18 @@
                                (metric/filter-metrics
                                 (metric/type-pred :quantitative)))
            metric-configs  (metric/all-metric-configs metrics-defs)
-           quantiles       (sampled-stats/quantiles
-                            (util/metric->values metrics-samples)
+           quantiles       (methods/quantiles
+                            metrics-samples
                             metric-configs
                             analysis)
            quantiles-map   (have
                             types/quantiles-map?
-                            {:type         :criterium/quantiles
-                             :source-id    samples-id
-                             :quantiles    quantiles
-                             :metrics-defs metrics-defs
-                             :transform    collect-plan/identity-transforms})]
+                            (merge
+                             {:type         :criterium/quantiles
+                              :source-id    samples-id
+                              :metrics-defs metrics-defs}
+                             quantiles))]
        (assoc data-map id quantiles-map)))))
-
-(defn outlier-count
-  [low-severe low-mild high-mild high-severe]
-  {:low-severe  low-severe
-   :low-mild    low-mild
-   :high-mild   high-mild
-   :high-severe high-severe})
-
-(defn classifier
-  [[^double low-severe ^double low-mild ^double high-mild ^double high-severe]]
-  (fn [^double x i]
-    (when-not (<= low-mild x high-mild)
-      [i (cond
-           (<= x low-severe)           :low-severe
-           (< low-severe x low-mild)   :low-mild
-           (> high-severe x high-mild) :high-mild
-           (>= x high-severe)          :high-severe)])))
-
-(defn samples-outliers [metric-configs all-quantiles samples]
-  (reduce
-   (fn sample-m [result metric-config]
-     (let [path           (:path metric-config)
-           quantiles      (have map? (get-in all-quantiles path)
-                                {:all-quantiles all-quantiles})
-           thresholds     (stats/boxplot-outlier-thresholds
-                           (get quantiles 0.25)
-                           (get quantiles 0.75))
-           classifier     (classifier thresholds)
-           outliers       (when (apply not= thresholds)
-                            (into {}
-                                  (mapv classifier
-                                        (get samples path)
-                                        (range))))
-           outlier-counts (reduce-kv
-                           (fn [counts _i v]
-                             (update counts v inc))
-                           (outlier-count 0 0 0 0)
-                           outliers)]
-       (update-in result path
-                  assoc
-                  :thresholds thresholds
-                  :outliers outliers
-                  :outlier-counts outlier-counts)))
-   {}
-   metric-configs))
 
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn outliers
@@ -214,19 +169,19 @@
                  "outlier analysis requires quantiles analysis"
                  {:quantiles-id  quantiles-id
                   :available-ids (keys data-map)})))
-       (let [outliers     (samples-outliers
+       (let [outliers     (methods/outliers
+                           metrics-samples
+                           all-quantiles
                            metric-configs
-                           (util/quantiles all-quantiles)
-                           (util/metric->values metrics-samples))
+                           {})
              outliers-map (have
                            types/outliers-map?
-                           {:type         :criterium/outliers
-                            :source-id    samples-id
-                            :transform    collect-plan/identity-transforms
-                            :quantiles-id quantiles-id
-                            :metrics-defs metrics-defs
-                            :outliers     outliers
-                            :num-samples  (:num-samples metrics-samples)})]
+                           (merge
+                            {:type         :criterium/outliers
+                             :source-id    samples-id
+                             :quantiles-id quantiles-id
+                             :metrics-defs metrics-defs}
+                            outliers))]
          (assoc data-map id outliers-map))))))
 
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
@@ -273,21 +228,20 @@
                                  (metric/filter-metrics
                                   (metric/type-pred :quantitative)))
              metric-configs  (metric/all-metric-configs metrics-defs)
-             stats           (sampled-stats/sample-stats
-                              data-map
-                              samples-id
-                              (when outliers (util/outliers outliers))
+             stats           (methods/stats
+                              metrics-samples
+                              outliers
                               metric-configs
                               analysis)
              stats-map       (have
                               types/stats-map?
-                              {:type         :criterium/stats
-                               :metrics-defs metrics-defs
-                               :source-id    samples-id
-                               :outliers-id  outliers-id
-                               :stats        stats
-                               :transform    collect-plan/identity-transforms
-                               :batch-size   (:batch-size metrics-samples)})]
+                              (merge
+                               {:type         :criterium/stats
+                                :metrics-defs metrics-defs
+                                :source-id    samples-id
+                                :outliers-id  outliers-id
+                                :batch-size   (:batch-size metrics-samples)}
+                               stats))]
          (assoc data-map id stats-map))))))
 
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
@@ -318,7 +272,7 @@
     (:event-stats result))
   ;; Returns {:compilation {:time-ms 8 :sample-count 2} ...}"
   ([] (event-stats {}))
-  ([{:keys [id samples-id metric-ids] :as _analysis}]
+  ([{:keys [id samples-id metric-ids] :as analysis}]
    (let [id         (or id :event-stats)
          samples-id (or samples-id :samples)]
      (fn [data-map]
@@ -328,17 +282,17 @@
                                  (metric/select-metrics metric-ids)
                                  (metric/filter-metrics
                                   (metric/type-pred :event)))
-             event-stats     (sampled-stats/event-stats
+             event-stats     (methods/event-stats
+                              metrics-samples
                               metrics-defs
-                              (util/metric->values metrics-samples))
+                              analysis)
              es-map          (have
                               types/event-stats-map?
-                              {:type         :criterium/event-stats
-                               :transform    collect-plan/identity-transforms
-                               :source-id    samples-id
-                               :metrics-defs metrics-defs
-                               :event-stats  event-stats
-                               :batch-size   (:batch-size metrics-samples)})]
+                              (merge
+                               {:type         :criterium/event-stats
+                                :source-id    samples-id
+                                :metrics-defs metrics-defs}
+                               event-stats))]
          (assoc data-map id es-map))))))
 
 (defn- min-f

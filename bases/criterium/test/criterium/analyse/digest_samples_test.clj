@@ -39,12 +39,17 @@
      :source-id      nil
      :expr-value     (ffirst (vals data))}))
 
+(defn transformed-value-fn
+  [data-map id]
+  (let [m          (-> data-map id)
+        transforms (util/get-transforms data-map id)]
+    #(util/transform-sample-> % transforms)))
+
 (defn transformed-digest-values
   [data-map id p]
-  (let [m          (-> data-map id)
-        transforms (util/get-transforms data-map id)
-        digest     (get (:metric->digest m) p)
-        tform      #(util/transform-sample-> % transforms)]
+  (let [m      (-> data-map id)
+        digest (get (:metric->digest m) p)
+        tform  (transformed-value-fn data-map id)]
     (-> digest
         (update :minimum tform)
         (update :maximum tform)
@@ -83,3 +88,159 @@
         (is (approx= 3.0 (t-digest/maximum digest))))
       (testing "doesn't transform event-metrics "
         (is (not (contains? (:log-samples result) [:compilation])))))))
+
+(deftest digest-quantiles-test
+  (testing "quantiles"
+    (let [raw-data [10 20 30]
+          samples  (digest-samples
+                    {[:elapsed-time]         raw-data
+                     [:compilation :time-ms] [0 0 0]}
+                    10)
+          data-map {:samples samples}
+          result   ((analyse/quantiles {:quantiles [0.025 0.975]})
+                    data-map)
+          tform    (transformed-value-fn data-map :samples)]
+      (testing "puts the quantiles into the result-path"
+        (let [qs [0.25 0.5 0.75 0.025 0.975]
+              vs (-> result :quantiles util/quantiles :elapsed-time)]
+          (is (approx= [10 20 30 10 30] (mapv vs qs)))
+          (is (approx=
+               [1.0 2.0 3.0 1.0 3.0]
+               (mapv
+                tform
+                (-> result :quantiles util/quantiles :elapsed-time vals))))))
+      (testing "doesn't transform event-metrics "
+        (is (every?
+             #(not (contains? % :compilation))
+             (->> result :quantiles)))
+        (is (= [:elapsed-time]
+               (->> result :quantiles util/quantiles keys)))))))
+
+(deftest digest-outliers-test
+  (testing "Outliers"
+    (let [raw-data  [9 10 9 10 9 10 10000]
+          samples   (digest-samples
+                     {[:elapsed-time]         raw-data
+                      [:compilation :time-ms] [0 0 0]}
+                     10)
+          data-map  {:samples samples}
+          quantiles (analyse/quantiles {:quantiles []})
+          outliers  (analyse/outliers)]
+      (is (= {:low-severe 0, :low-mild 0, :high-mild 0, :high-severe 1}
+             (-> data-map
+                 quantiles
+                 outliers
+                 :outliers
+                 util/outliers
+                 :elapsed-time
+                 :outlier-counts))))))
+
+(deftest digest-stats-test
+  (testing "stats"
+    (let [raw-data [1 2 3]
+          samples  (digest-samples
+                    {[:elapsed-time]         raw-data
+                     [:compilation :time-ms] [0 0 0]}
+                    10)
+          data-map {:samples samples}
+          result   ((analyse/stats) data-map)]
+      (testing "puts the stats into the result-path"
+        (is (= {:min-val           1.0,
+                :max-val           3.0,
+                :mean              2.0,
+                :mean-plus-3sigma  5.0,
+                :variance          1.0,
+                :mean-minus-3sigma -1.0
+                :n                 3}
+               (->> result :stats util/stats :elapsed-time))))
+      (testing "doesn't transform event-metrics "
+        (is (every?
+             #(not (contains? % :compilation))
+             (->> result :stats)))
+        (is (= [:elapsed-time]
+               (->> result :stats util/stats keys))))))
+  (testing "stats variance"
+    (let [raw-data [1 1 1 5 5 5 9 9 9]
+          samples  (digest-samples
+                    {[:elapsed-time]         raw-data
+                     [:compilation :time-ms] [0 0 0]}
+                    1)
+          data-map {:samples samples}
+          result   ((analyse/stats) data-map)]
+      (testing "calculates sample variance"
+        (is (= 12.0 (:variance (->> result :stats util/stats :elapsed-time))))))
+    (let [raw-data [1 1 1 5 5 5 9 9 9]
+          samples  (digest-samples
+                    {[:elapsed-time]         raw-data
+                     [:compilation :time-ms] [0 0 0]}
+                    10)
+          data-map {:samples samples}
+          result   ((analyse/stats) data-map)]
+      (testing "scales with batch size"
+        (let [v (:variance (->> result :stats util/stats :elapsed-time))]
+          (is (= 12.0 v))
+          (is (= 1.20 (util/transform-sample->
+                       v
+                       (util/get-transforms result :stats))))))))
+  (testing "excludes outliers"
+    (let [raw-data  [9 10 9 10 9 10 10000]
+          samples   (digest-samples
+                     {[:elapsed-time]         raw-data
+                      [:compilation :time-ms] [0 0 0]}
+                     1)
+          data-map  {:samples samples}
+          quantiles (analyse/quantiles {:quantiles [0.9 0.99 0.99]})
+          outliers  (analyse/outliers)
+          stats     (analyse/stats)
+          result    (-> data-map
+                        quantiles
+                        outliers
+                        stats)
+          smap      (->> result :stats util/stats :elapsed-time)
+          smap'     (util/transform-vals->
+                     (->> result :stats util/stats :elapsed-time)
+                     (util/get-transforms result :stats))]
+      (testing "calculates sample variance"
+        (is (approx= 9.5 (:mean smap)))
+        (is (approx= 0.3 (:variance smap)))
+        (is (approx= 9 (:min-val smap)))
+        (is (approx= 10 (:max-val smap)))
+        (is (approx= 11.14316767 (:mean-plus-3sigma smap)))
+        (is (approx= 7.8568323274845016 (:mean-minus-3sigma smap)))
+        (is (= 6 (:n smap)))
+
+        (is (approx= 9.5 (:mean smap')))
+        (is (approx= 0.3 (:variance smap')))
+        (is (approx= 9 (:min-val smap')))
+        (is (approx= 10 (:max-val smap')))
+        (is (approx= 11.14316767 (:mean-plus-3sigma smap')))
+        (is (approx= 7.8568323274845016 (:mean-minus-3sigma smap')))))
+
+    (testing "scales with batch size"
+      (let [raw-data  [9 10 9 10 9 10 10000]
+            samples   (digest-samples
+                       {[:elapsed-time]         raw-data
+                        [:compilation :time-ms] [0 0 0]}
+                       2)
+            quantiles (analyse/quantiles {:quantiles [0.9 0.99 0.99]})
+            data-map  {:samples samples}
+            outliers  (analyse/outliers)
+            stats     (analyse/stats)
+            result    (-> data-map quantiles outliers stats)
+            smap      (-> result :stats util/stats :elapsed-time)
+            smap'     (util/transform-vals->
+                       (-> result :stats util/stats :elapsed-time)
+                       (util/get-transforms result :stats))]
+        (is (approx= 9.5 (:mean smap)))
+        (is (approx= 0.3 (:variance smap)))
+        (is (approx= 9 (:min-val smap)))
+        (is (approx= 10 (:max-val smap)))
+        (is (approx= 11.14316767 (:mean-plus-3sigma smap)))
+        (is (approx= 7.8568323274845016 (:mean-minus-3sigma smap)))
+
+        (is (approx= (/ 9.5 2.0) (:mean smap')))
+        (is (approx= (/ 0.3 2.0) (:variance smap')))
+        (is (approx= 4.5 (:min-val smap')))
+        (is (approx= 5 (:max-val smap')))
+        (is (approx= (/ 11.14316767 2) (:mean-plus-3sigma smap')))
+        (is (approx= (/ 7.8568323274845016 2) (:mean-minus-3sigma smap')))))))

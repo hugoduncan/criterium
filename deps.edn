@@ -5,6 +5,7 @@
    :extra-deps
    {poly/agent                    {:local/root "bases/agent"}
     poly/criterium                {:local/root "bases/criterium"}
+    poly/notebooks                {:local/root "bases/notebooks"}
     lambdaisland/kaocha           {:mvn/version "1.87.1366"}
     lambdaisland/kaocha-cloverage {:mvn/version "1.1.89"}
     org.clojure/clojure           {:mvn/version "1.12.0"}}

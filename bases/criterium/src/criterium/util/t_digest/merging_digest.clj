@@ -203,6 +203,7 @@
   ^double [{:keys [^IPersistentVector  centroids] :as ^TDigest digest}
            ^double q]
   {:pre [(have? #(<= 0.0 % 1.0) q)
+         (have? digest)
          (have? vector? centroids)]}
   (let [n            (count centroids)
         total-weight (.total-weight digest)
@@ -409,6 +410,10 @@
    scale/k2
    buffer-size))
 
+(defn sample-count
+  ^double [^TDigest digest]
+  (.total-weight digest))
+
 (defn minimum
   ^double [^TDigest digest]
   (.minimum digest))
@@ -442,3 +447,7 @@
                       centroids)
          e-x-squared (/ sum-squares sum-weights)]
      (- e-x-squared (* mean mean)))))
+
+(defn centroid-means
+  [digest]
+  (mapv centroid-mean (:centroids digest)))

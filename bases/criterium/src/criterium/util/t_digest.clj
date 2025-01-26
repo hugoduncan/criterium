@@ -27,6 +27,10 @@
   ^double [digest ^double x]
   (md/cdf digest x))
 
+(defn sample-count
+  ^double [digest]
+  (md/sample-count digest))
+
 (defn minimum
   ^double [digest]
   (md/minimum digest))
@@ -52,3 +56,7 @@
 (defn transform
   [digest f]
   (md/transform digest f))
+
+(defn centroid-means
+  [digest]
+  (md/centroid-means digest))

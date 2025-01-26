@@ -129,7 +129,17 @@
   [x]
   (and (map? x)
        (= :criterium/outliers (:type x))
-       (set/subset? outliers-map-keys (set (keys x)))))
+       (or
+        (set/subset? outliers-map-keys (set (keys x)))
+        (throw
+         (invariant/assertion-error
+          "Invalid keys"
+          {:error-tupe ::invalid-map-keys
+           :date       {:expected outliers-map-keys
+                        :actual   (keys x)
+                        :missing  (set/difference
+                                   outliers-map-keys
+                                   (set (keys x)))}})))))
 
 (def stats-map-keys
   #{:type :stats :metrics-defs :transform :batch-size :source-id
