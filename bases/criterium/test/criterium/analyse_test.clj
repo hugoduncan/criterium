@@ -262,7 +262,7 @@
   (testing "event-stats"
     (let [data-map
           {:samples
-           {:type           :criterium/collected-metrics-samples
+           {:type           :criterium/metrics-samples
             :metrics-defs
             (-> (select-keys
                  (metrics/metrics)

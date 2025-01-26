@@ -11,7 +11,8 @@
    [criterium.measured :as measured]
    [criterium.sampler :as sampler]
    [criterium.util.invariant :refer [have]]
-   [criterium.util.t-digest :as t-digest])
+   [criterium.util.t-digest :as t-digest]
+   [criterium.metric :as metric])
   (:import
    [java.util.concurrent Callable]))
 
@@ -30,7 +31,7 @@
   `(let [sample# (collector/collect ~collector ~measured ~args 1)]
      (set! ~'digests (reduce
                       (fn [ds# k#]
-                        (update ds# k# t-digest/add-point (sample# k#)))
+                        (update ds# k# t-digest/add-point (get-in sample# k#)))
                       ~'digests
                       ~metric-keys))
      (:expr-value sample#)))
@@ -160,8 +161,12 @@
     An InstrumentedFn instance that wraps the original function and maintains
     its own sample collection state."
   [f collector-config]
-  (let [collector   (collector/collector collector-config)
-        metric-keys (keys (:metrics-defs collector))]
+  (let [collector      (collector/collector collector-config)
+        metrics-defs   (-> (:metrics-defs collector)
+                           (metric/filter-metrics
+                            (metric/type-pred :quantitative)))
+        metric-configs (metric/all-metric-configs metrics-defs)
+        metric-keys    (mapv :path metric-configs)]
     (->SampledFn
      f
      metric-keys
