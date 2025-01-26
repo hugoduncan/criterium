@@ -4,6 +4,7 @@
    [criterium.collect-plan :as collect-plan]
    [criterium.types :as types]
    [criterium.util.helpers :as util]
+   [criterium.util.histogram :as histogram]
    [criterium.util.invariant :refer [have have?]]
    [criterium.util.sampled-stats :as sampled-stats]
    [criterium.util.stats :as stats]))
@@ -118,3 +119,46 @@
      :event-stats event-stats
      :batch-size  (:batch-size metrics-samples)
      :transform   collect-plan/identity-transforms}))
+
+(defn- remove-outliers
+  [samples outliers]
+  (into [] (comp
+            (map-indexed
+             (fn [i s] (when-not (outliers i) s)))
+            (filter some?))
+        samples))
+
+(defn histogram
+  [metric->values quantiles outliers metric-config]
+  (try
+    (let [p        (:path metric-config)
+          iqr      (when-let [qs (get-in quantiles p)]
+                     (- (double (get qs 0.75)) (double (get qs 0.25))))
+          samples  (metric->values p)
+          outliers (get-in outliers p)
+          samples  (if-let [ols (:outliers outliers)]
+                     (remove-outliers samples ols)
+                     samples)]
+      (histogram/histogram samples iqr))
+    (catch clojure.lang.ExceptionInfo e
+      (let [data (ex-data e)]
+        (when-not (#{:histogram/no-values :histogram/same-values}
+                   (:error data))
+          (throw e))))))
+
+(defmethod methods/histogram :criterium/metrics-samples
+  [metrics-samples quantiles outliers metric-configs options]
+  {:have [(have? types/digest-samples-map? metrics-samples)]}
+  (let [histograms (->> metric-configs
+                        (mapv
+                         (juxt :path
+                               #(histogram
+                                 (util/metric->values metrics-samples)
+                                 (util/quantiles quantiles)
+                                 (util/outliers outliers)
+                                 %)))
+                        (filterv (comp some? second))
+                        (into {}))]
+    {:type       :criterium/histogram
+     :histograms histograms
+     :transform  collect-plan/identity-transforms}))

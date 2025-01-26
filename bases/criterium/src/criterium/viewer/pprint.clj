@@ -4,6 +4,7 @@
    [clojure.pprint :as pprint]
    [criterium.metric :as metric]
    [criterium.util.helpers :as util]
+   [criterium.util.invariant :refer [have]]
    [criterium.view :as view]
    [criterium.viewer.common :as viewer-common]))
 
@@ -190,29 +191,25 @@
                              count)))]
     (pprint/print-table all-keys data)))
 
-
 (defmethod view/histogram* :pprint
-  [_ {:keys [samples-id quantiles-id outliers-id] :as _view} data-map]
-  (let [samples-id      (or samples-id :samples)
-        quantiles-id    (or quantiles-id :quantiles)
-        outliers-id     (or outliers-id :outliers)
-        metrics-samples (data-map samples-id)
-        quantiles       (data-map quantiles-id)
-        outliers        (data-map outliers-id)
-        metrics-defs    (-> (:metrics-defs metrics-samples)
-                            (metric/filter-metrics
-                             (metric/type-pred :quantitative)))
-        metric-configs  (metric/all-metric-configs metrics-defs)
-        transforms      (util/get-transforms data-map samples-id)
-        histograms      (->> metric-configs
-                             (mapv
-                              #(viewer-common/histogram
-                                (util/metric->values metrics-samples)
-                                (util/quantiles quantiles)
-                                (util/outliers outliers)
-                                transforms
-                                %))
-                             (filterv some?))]
+  [_ {:keys [histogram-id] :as _view} data-map]
+  (let [histogram-id   (or histogram-id :histograms)
+        histograms     (util/lookup-data data-map histogram-id)
+        metrics-defs   (-> (:metrics-defs histograms)
+                           (metric/filter-metrics
+                            (metric/type-pred :quantitative)))
+        metric-configs (metric/all-metric-configs metrics-defs)
+        transforms     (util/get-transforms data-map histogram-id)
+        histograms     (->> metric-configs
+                            (mapv
+                             #(viewer-common/histogram
+                               (have
+                                some?
+                                ((:histograms histograms) (:path %))
+                                {:keys (keys (:histograms histograms))
+                                 :path %})
+                               transforms
+                               %)))]
     (doseq [h histograms]
       (println (format "\nHistogram of %s %s"
                        (-> h :metric-config :label)

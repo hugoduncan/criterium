@@ -24,3 +24,8 @@
   "Calculate sample statistics for events."
   (fn [sample-map metric-configs options]
     (:type sample-map)))
+
+(defmulti histogram
+  "Calculate histogram."
+  (fn [sample-map quantiles outliers metric-configs options]
+    (:type sample-map)))
