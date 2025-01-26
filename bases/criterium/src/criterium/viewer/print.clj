@@ -349,7 +349,8 @@
                (-> h :unit)))
       (run!
        (fn [[x bin-count density] ]
-         (println (format "%34s %-7.3f %5d  %-7.3g" "" x bin-count density)))
+         (println
+          (format "%34s %-7.3f %5d  %-7.3g" "" x (long bin-count) density)))
        (mapv vector (:centers h) (:counts h) (:density h)))
       (println))))
 

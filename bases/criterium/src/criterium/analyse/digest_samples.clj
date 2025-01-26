@@ -138,3 +138,39 @@
     {:type      :criterium/stats
      :stats     stats
      :transform collect-plan/identity-transforms}))
+
+
+(defn histogram
+  [metric->digest quantiles outliers metric-config]
+  (try
+    (let [p            (:path metric-config)
+          iqr          (when-let [qs (get-in quantiles p)]
+                        (- (double (get qs 0.75)) (double (get qs 0.25))))
+          digest       (metric->digest p)
+          outliers     (get-in outliers p)
+          #_#__samples (if-let [ols (:outliers outliers)]
+                         (remove-outliers samples ols)
+                         samples)]
+      (t-digest/histogram digest iqr))
+    (catch clojure.lang.ExceptionInfo e
+      (let [data (ex-data e)]
+        (when-not (#{:histogram/no-values :histogram/same-values}
+                   (:error data))
+          (throw e))))))
+
+(defmethod methods/histogram :criterium/digest
+  [digest-samples quantiles outliers metric-configs _options]
+  {:have [(have? types/digest-samples-map? digest-samples)]}
+  (let [histograms (->> metric-configs
+                        (mapv
+                         (juxt :path
+                               #(histogram
+                                 (util/metric->digest digest-samples)
+                                 (util/quantiles quantiles)
+                                 (util/outliers outliers)
+                                 %)))
+                        (filterv (comp some? second))
+                        (into {}))]
+    {:type       :criterium/histogram
+     :histograms histograms
+     :transform  collect-plan/identity-transforms}))
