@@ -174,35 +174,47 @@
                 :color   {:field "outlier"}}
      :mark     "point"}))
 
-(defn metric-histo-layer
-  [metric->values transforms outliers metric]
-  {:pre [metric->values]}
+(defn metric-computed-histo-layer
+  [transforms histogram metric layer-num]
   (let [path       (:path metric)
         k          (first path)
         field-name (name k)
-        data       (mapv
-                    #(let [outlier (get
-                                    (:outliers (get-in outliers path))
-                                    %2
-                                    "")]
-                       (assoc
-                        {k
-                         (util/transform-sample->
-                          %1
-                          transforms)}
-                        :index %2
-                        :outlier outlier))
-                    (metric->values path)
-                    (range))]
-    {:data     {:values data}
-     :encoding {:y     {:aggregate "count"
-                        :type      "quantitative"}
-                :x     {:field field-name
-                        :type  "quantitative"
-                        :bin   {:maxbins 100}
-                        :scale {:zero false}}
-                :color {:field "outlier"}}
-     :mark     "bar"}))
+        {:keys [counts centers density widths width density]}
+        histogram
+
+        tform   #(util/transform-sample-> % transforms)
+        centers (mapv tform centers)
+        widths  (when widths (mapv tform widths))
+        width   (when width (tform width))
+        data    (if widths
+                  ;; Variable width histogram
+                  (mapv (fn [count ^double center ^double width density]
+                          (let [half-w (* 0.95 (/ width 2.0))]
+                            {field-name (- center half-w)
+                             "end"      (+ center half-w)
+                             "density"  density}))
+                        counts centers widths density)
+                  ;; Fixed width histogram
+                  (mapv (fn [count ^double center ^double density]
+                          (let [half-w (* 0.95 (/ (double width) 2.0))]
+                            {field-name (- center half-w)
+                             "end"      (+ center half-w)
+                             "density"  density}))
+                        counts centers density))]
+    {:data      {:values data}
+     :transform [{:calculate (str "'" "Histogram " (:label metric) "'") :as "layer"}]
+     :encoding  {:y2    {:datum 0
+                         :type  "quantitative"}
+                 :y     {:field "density"
+                         :type  "quantitative"}
+                 :x     {:field field-name
+                         :type  "quantitative"
+                         :scale {:zero false}}
+                 :x2    {:field "end"
+                         :type  "quantitative"}
+                 :color {:field "layer" :type "nominal"}}
+     :mark      {:type       "bar"
+                 :binSpacing 0}}))
 
 (defn normal-pdf-points
   [min-val max-val mean variance transforms]
@@ -216,7 +228,7 @@
      (range min-val max-val delta))))
 
 (defn metric-sample-stats-layer
-  [transforms stats metric-config]
+  [transforms stats metric-config layer-num]
   (let [{:keys [mean-minus-3sigma mean-plus-3sigma mean variance]}
         stats
         path (:path metric-config)
@@ -229,15 +241,19 @@
               transforms)]
     [{:resolve {:scale {:y "shared"}}
       :layer
-      [{:data     {:values data}
-        :encoding {:x       {:field "z"
-                             :type  "quantitative"
-                             :scale {:zero false}}
-                   :y       {:field "p"
-                             :type  "quantitative"}
-                   :tooltip [{:field (name k)
-                              :title (str "Normal")}]}
-        :mark     {:type "line"}}
+      [{:data      {:values data}
+        :transform [{:calculate
+                     (str "'" "LogNormal fit " (:label metric-config) "'")
+                     :as "layer"}]
+        :encoding  {:x       {:field "z"
+                              :type  "quantitative"
+                              :scale {:zero false}}
+                    :y       {:field "p"
+                              :type  "quantitative"}
+                    :tooltip [{:field (name k)
+                               :title (str "Normal")}]
+                    :color   {:field "layer" :type "nominal"}}
+        :mark      {:type "line"}}
        {:data     {:values [{k
                              (util/transform-sample-> mean transforms)
                              :title "mean"}]}
@@ -334,40 +350,46 @@
         e-metric-configs))})))
 
 (defmethod view/histogram* :portal
-  [_ {:keys [samples-id stats-id] :as view} data-map]
-  (let [stats-id            (or stats-id :stats)
-        quant-samples-id    (or samples-id :samples)
-        outlier-analysis-id (:outlier-id view :outliers)
-        quant-samples       (data-map quant-samples-id)
-        outlier-analysis    (data-map outlier-analysis-id)
-        stats               (data-map stats-id)
-        metrics-defs        (-> (:metrics-defs quant-samples)
-                                (metric/filter-metrics
-                                 (metric/type-pred :quantitative)))
-        metric-configs      (metric/all-metric-configs metrics-defs)
-        transforms          (util/get-transforms data-map quant-samples-id)
-        stats-transforms    (util/get-transforms data-map (:source-id stats))]
+  [_ {:keys [histogram-id samples-id stats-id] :as view} data-map]
+  (let [histogram-id     (or histogram-id :histograms)
+        stats-id         (or stats-id :stats)
+        quant-samples-id (or samples-id :samples)
+        quant-samples    (data-map quant-samples-id)
+        stats            (data-map stats-id)
+        histograms-map   (util/lookup-data data-map histogram-id)
+        histograms       (:histograms histograms-map)
+        metrics-defs     (-> (:metrics-defs quant-samples)
+                             (metric/filter-metrics
+                              (metric/type-pred :quantitative)))
+        metric-configs   (metric/all-metric-configs metrics-defs)
+        transforms       (util/get-transforms data-map quant-samples-id)
+        hist-transforms  (util/get-transforms data-map histogram-id)
+        stats-transforms (util/get-transforms data-map (:source-id stats))
+        layer-num        (volatile! 0)]
     (heading "Histogram")
     (portal-vega-lite
      {:data    {:values []}
-      :resolve {:scale {:x "independent" :y "independent"}}
+      :resolve {:scale {:x     "independent"
+                        :y     "independent"
+                        :color "shared"}}
       :vconcat (mapv
                 (fn [metric-config]
                   {:resolve {:scale {:x "shared" :y "independent"}}
                    :height  800
                    :layer
                    (into
-                    [(metric-histo-layer
-                      (util/metric->values quant-samples)
-                      transforms
-                      (util/outliers outlier-analysis)
-                      metric-config)]
+                    [(metric-computed-histo-layer
+                      hist-transforms
+                      (histograms (:path metric-config))
+                      metric-config
+                      (vswap! layer-num inc))]
                     (when stats
                       (->>
                        (metric-sample-stats-layer
                         stats-transforms
                         (get-in (util/stats stats) (:path metric-config))
-                        metric-config))))})
+                        metric-config
+                        (vswap! layer-num inc)))))})
                 metric-configs)})))
 
 (defn metric-percentile-layer
