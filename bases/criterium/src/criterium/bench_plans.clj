@@ -47,7 +47,7 @@
                       :event-stats
                       :outlier-counts
                       :collect-plan
-                      :histogram
+                      [:histogram {:stats-id :log-stats}]
                       :sample-percentiles
                       :samples]
    :viewer           :print})
