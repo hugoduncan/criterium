@@ -11,6 +11,12 @@
 #include <thread>
 #include <vector>
 
+#ifdef DEBUG
+#define DEBUG_PRINT(...) printf(__VA_ARGS__)
+#else
+#define DEBUG_PRINT(...)
+#endif
+
 
 // global ref to the JVMTI environment
 static jvmtiEnv* jvmti = NULL;
@@ -721,7 +727,7 @@ enum Commands : jlong {
 
 void JNICALL Agent_command(JNIEnv* env, jclass klass, jlong cmd) {
   // Dispatch commands from the Agent class.
-  // printf("received command %ld in state %ld\n", cmd, agent_state);
+  DEBUG_PRINT("Received command %ld in state %ld\n", cmd, agent_state);
 
 
   if (ping == cmd) {
@@ -737,7 +743,7 @@ void JNICALL Agent_command(JNIEnv* env, jclass klass, jlong cmd) {
   } else if (report_allocation_tracing == cmd) {
     allocation_tracing_report(env);
   } else {
-    printf("Received unknown command: %ld\n", cmd);
+    printf("ERROR: Received unknown command: %ld\n", cmd);
   }
 }
 
@@ -887,7 +893,7 @@ Agent_OnLoad(JavaVM* vm, char* options, void* reserved) {
   jvmti->SetHeapSamplingInterval(0);
 
   parse_options(jvmti, options);
-  // printf("\nallocation sampler loaded\n");
+  DEBUG_PRINT("\nallocation sampler loaded\n");
 
   return JNI_OK;
 }
