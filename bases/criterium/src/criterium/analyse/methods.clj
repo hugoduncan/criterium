@@ -1,4 +1,5 @@
-(ns criterium.analyse.methods)
+(ns criterium.analyse.methods
+  "Analysis dispatch based on ample-map type")
 
 (defmulti transform
   "Transform sample values."

@@ -1,6 +1,7 @@
 (ns criterium.test-data
   (:require
    [criterium.analyse :as analyse]
+   [criterium.analyse.metrics-samples :as metrics-samples]
    [criterium.collect-plan :as collect-plan]
    [criterium.collector.metrics :as metrics]
    [criterium.metric :as metric]))
@@ -8,12 +9,15 @@
 (defn bench-stats-map []
   {:data
    {:samples
-    {:type           :criterium/collected-metrics-samples
+    {:type           :criterium/metrics-samples
      :metrics-defs   (select-keys
                       (metrics/metrics)
                       [:elapsed-time])
-     :metric->values {}
-     :transform      collect-plan/identity-transforms}
+     :metric->values {[:elapsed-time] []}
+     :transform      collect-plan/identity-transforms
+     :batch-size     1
+     :eval-count     1
+     :num-samples    0}
     :stats
     {:type         :criterium/stats
      :stats        {:elapsed-time
@@ -32,101 +36,90 @@
                     [:elapsed-time])}}})
 
 (defn samples-with-2-values-map []
-  {:metrics-defs (select-keys
-                  (metrics/metrics)
-                  [:elapsed-time])
-   :data
-   {:samples
-    {:type           :criterium/collected-metrics-samples
-     :metrics-defs   (select-keys
-                      (metrics/metrics)
-                      [:elapsed-time])
-     :metric->values {[:elapsed-time] [1 1]}
-     :transform      collect-plan/identity-transforms}}
-   :batch-size   1
-   :eval-count   2
-   :num-samples  2
-   :elapsed-time 1})
+  (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])]
+    {:metrics-defs metrics-defs
+     :data
+     {:samples
+      {:type           :criterium/metrics-samples
+       :metrics-defs   metrics-defs
+       :metric->values {[:elapsed-time] [1 1]}
+       :transform      collect-plan/identity-transforms
+       :batch-size     1
+       :eval-count     2
+       :num-samples    2
+       :elapsed-time   1}}}))
 
 (defn samples-with-transformed-values-map []
-  {:metrics-defs (select-keys
-                  (metrics/metrics)
-                  [:elapsed-time])
-   :data
-   {:samples
-    {:type           :criterium/collected-metrics-samples
-     :metrics-defs   (select-keys
-                      (metrics/metrics)
-                      [:elapsed-time])
-     :metric->values {[:elapsed-time] [2 4 8]}
-     :transform      (#'collect-plan/batch-transforms 2)}}
-   :batch-size   3
-   :eval-count   6
-   :num-samples  3
-   :elapsed-time 14})
+  (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])]
+    {:metrics-defs metrics-defs
+     :data
+     {:samples
+      {:type           :criterium/metrics-samples
+       :metrics-defs   metrics-defs
+       :metric->values {[:elapsed-time] [2 4 8]}
+       :transform      (#'collect-plan/batch-transforms 2)
+       :batch-size     3
+       :eval-count     6
+       :num-samples    3
+       :elapsed-time   14}}}))
 
 (defn samples-with-variance-12-map []
-  {:metrics-defs (select-keys
-                  (metrics/metrics)
-                  [:elapsed-time])
-   :data
-   {:samples
-    {:type           :criterium/collected-metrics-samples
-     :metrics-defs   (select-keys
-                      (metrics/metrics)
-                      [:elapsed-time])
-     :metric->values {[:elapsed-time] [1 1 1 5 5 5 9 9 9]}
-     :transform      collect-plan/identity-transforms}}
-   :batch-size   1
-   :eval-count   9
-   :num-samples  9
-   :elapsed-time 42})
+  (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])]
+    {:metrics-defs metrics-defs
+     :data
+     {:samples
+      {:type           :criterium/metrics-samples
+       :metrics-defs   metrics-defs
+       :metric->values {[:elapsed-time] [1 1 1 5 5 5 9 9 9]}
+       :transform      collect-plan/identity-transforms
+       :batch-size     1
+       :eval-count     9
+       :num-samples    9
+       :elapsed-time   42}}}))
 
 (defn samples-with-outliers-values-map []
-  {:metrics-defs (select-keys
-                  (metrics/metrics)
-                  [:elapsed-time])
-   :data
-   {:samples
-    {:type           :criterium/collected-metrics-samples
-     :metrics-defs   (select-keys (metrics/metrics) [:elapsed-time])
-     :metric->values {[:elapsed-time] [9 10 9 10 9 10 10000]}
-     :transform      collect-plan/identity-transforms
-     :batch-size     1
-     :num-samples    7
-     :eval-count     1
-     :elapsed-time   1}}})
+  (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])]
+    {:metrics-defs metrics-defs
+     :data
+     {:samples
+      {:type           :criterium/metrics-samples
+       :metrics-defs   metrics-defs
+       :metric->values {[:elapsed-time] [9 10 9 10 9 10 10000]}
+       :transform      collect-plan/identity-transforms
+       :batch-size     1
+       :num-samples    7
+       :eval-count     1
+       :elapsed-time   1}}}))
 
 (defn outlier-count-map []
-  {:data
-   {:outliers
-    {:type         :criterium/outliers
-     :metrics-defs (select-keys (metrics/metrics) [:elapsed-time])
-     :outliers     {:elapsed-time
-                    {:outlier-counts
-                     (analyse/outlier-count 0 2 3 0)}}
-     :num-samples  1
-     :source-id    :samples
-     :quantiles-id :quantiles
-     :transform    collect-plan/identity-transforms}} })
+  (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])]
+    {:data
+     {:outliers
+      {:type         :criterium/outliers
+       :metrics-defs metrics-defs
+       :outliers     {:elapsed-time
+                      {:outlier-counts
+                       (metrics-samples/outlier-count 0 2 3 0)}}
+       :num-samples  1
+       :source-id    :samples
+       :quantiles-id :quantiles
+       :transform    collect-plan/identity-transforms}}}))
 
 (defn outlier-significance-map []
-  {:data
-   {:outlier-significance
-    {:type                 :criterium/outlier-significance
-     :outlier-significance {:elapsed-time
-                            {:effect       :moderate
-                             :significance 0.25}}
-     :metrics-defs         (-> (metrics/metrics)
-                               (metric/select-metrics
-                                [:elapsed-time])
-                               (metric/filter-metrics
-                                (metric/type-pred
-                                 :quantitative)))
-     :num-samples          1
-     :source-id            :samples
-     :outliers-id          :outliers
-     :transform            collect-plan/identity-transforms}}})
+  (let [metrics-defs (-> (metrics/metrics)
+                         (metric/select-metrics [:elapsed-time])
+                         (metric/filter-metrics
+                          (metric/type-pred :quantitative)))]
+    {:data
+     {:outlier-significance
+      {:type                 :criterium/outlier-significance
+       :outlier-significance {:elapsed-time
+                              {:effect       :moderate
+                               :significance 0.25}}
+       :metrics-defs         metrics-defs
+       :source-id            :samples
+       :outliers-id          :outliers
+       :transform            collect-plan/identity-transforms}}}))
 
 (defn samples-for-event-stats-map
   []
@@ -157,7 +150,7 @@
              :label "Garbage Collector"}}}))]
     {:data
      {:samples
-      {:type           :criterium/collected-metrics-samples
+      {:type           :criterium/metrics-samples
        :metrics-defs   metrics-defs
        :metric->values {[:elapsed-time]                      [1]
                         [:compilation :time-ms]              [3]
