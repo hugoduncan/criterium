@@ -3,12 +3,12 @@
    [clojure.string :as str]
    [clojure.test :refer [deftest is testing]]
    [criterium.analyse :as analyse]
+   [criterium.analyse.metrics-samples :as metrics-samples]
    [criterium.collector.metrics :as metrics]
    [criterium.test-utils :refer [trimmed-lines]]
    [criterium.util.bootstrap :as bootstrap]
    [criterium.view :as view]
    [criterium.viewer.print :as print]
-   [criterium.collect-plan.config :as collect-plan-config]
    [criterium.collect-plan :as collect-plan]
    [criterium.test-data :as test-data]))
 
@@ -192,7 +192,7 @@
                              {:label "M"}
                              100
                              {:outlier-counts
-                              (analyse/outlier-count 1 2 3 4)}))))))
+                              (metrics-samples/outlier-count 1 2 3 4)}))))))
     (testing "prints only present outliers"
       (is (= ["M: Found 5 outliers in 100 samples (5.00 %)"
               "low-mild\t 2 (2.0000 %)"
@@ -203,7 +203,7 @@
                  {:label "M"}
                  100
                  {:outlier-counts
-                  (analyse/outlier-count
+                  (metrics-samples/outlier-count
                    0 2 3 0)}))))))
     (testing "prints via view"
       (is (= ["Elapsed Time: Found 5 outliers in 1 samples (500 %)"
