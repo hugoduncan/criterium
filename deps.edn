@@ -15,8 +15,8 @@
                 {local/agent            {:local/root "bases/agent"}
                  org.clojure/test.check {:mvn/version "1.1.1"}}
                 :jvm-opts    ["-XX:-OmitStackTraceInFastThrow"
-                              "-Dclojure.main.report=stderr"
-                              #_"-agentpath:agent-cpp/libcriterium.dylib"]}
+                              "-Dclojure.main.report=stderr"]}
+  :with-agent  {:jvm-opts ["-agentpath:agent-cpp/libcriterium.dylib"]}
   :kaocha      {:extra-deps
                 {lambdaisland/kaocha           {:mvn/version "1.91.1392"}
                  lambdaisland/kaocha-cloverage {:mvn/version "1.1.89"}
