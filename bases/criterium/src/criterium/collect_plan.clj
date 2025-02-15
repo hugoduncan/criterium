@@ -104,12 +104,14 @@
                              num-warmup-samples
                              num-measure-samples)
 
-            t0              (collect/elapsed-time-point-estimate measured)
-            est-batch-size  (collect/batch-size t0 batch-time-ns)
+            t0             (collect/elapsed-time-point-estimate measured)
+            est-batch-size (collect/batch-size t0 batch-time-ns)
+
             frac-est        (double (/ num-estimation-samples total-samples))
-            num-est-samples (min num-estimation-samples
-                                 (long (/ (* limit-time-ns frac-est)
-                                          (* t0 est-batch-size))))
+            num-est-samples (max  (min num-estimation-samples
+                                       (long (/ (* limit-time-ns frac-est)
+                                                (* t0 est-batch-size))))
+                                  1)
             est-data        (collect/elapsed-time-min-estimate
                              measured
                              num-est-samples
@@ -120,7 +122,8 @@
             remaining-samples (+ num-warmup-samples num-measure-samples)
             remaining-time    (- limit-time-ns (long (:total-time est-data)) t0)
             batch-time        (* t1 warmup-batch-size)
-            projected-time    (* batch-time remaining-samples)
+
+            projected-time (* batch-time remaining-samples)
 
             [num-warmup-samples
              num-measure-samples] (impl/limit-samples

@@ -229,7 +229,7 @@
 
 (comment
   (deftest transient-persistent-overhead-test
-    (is (= 48
+    (is (= [48 {}]
            (let [x (transient {})]
              (jvm/allocated-bytes (persistent! x)))))))
 

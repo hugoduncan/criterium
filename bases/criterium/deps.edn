@@ -1,8 +1,8 @@
 {:paths   ["src"]
- :deps    {org.openjdk.jmh/jmh-core {:mvn/version "1.37"}}
+ :deps    {org.openjdk.jmh/jmh-core {:mvn/version "1.37"}
+           poly/agent               {:local/root "../agent"}}
  :aliases {:test
-           {:extra-paths
-            ["test"]
+           {:extra-paths ["test"]
             :extra-deps
             {local/agent            {:local/root "../agent"}
              org.clojure/clojure    {:mvn/version "1.11.2"}
