@@ -91,3 +91,9 @@
   Useful for getting high-level metrics from allocation tracking results."
   [records]
   (core/allocations-summary records))
+
+
+(with-allocation-tracing
+  (comment
+    ;; this is here to get the HeapSamplingInterval to come into effect.
+    ))

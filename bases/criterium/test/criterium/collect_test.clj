@@ -11,7 +11,7 @@
     (let [measured              (measured/measured
                                  (fn [] [:b])
                                  (fn [_ _] [10000000 1]))
-          collector              (collector/collector
+          collector             (collector/collector
                                  {:stages     [:garbage-collector :compilation]
                                   :terminator :elapsed-time})
           ;; run collector for JIT
@@ -27,6 +27,7 @@
                                    measured
                                    1
                                    10))
+          _                     (prn :allocations allocations)
           {:keys [freed-bytes]} (->> allocations
                                      (filterv (agent/allocation-on-thread?))
                                      agent/allocations-summary)]

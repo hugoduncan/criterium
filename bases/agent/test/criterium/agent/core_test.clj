@@ -52,25 +52,23 @@
     (is (keyword? (agent-core/agent-state))
         "Agent state should be a keyword")
     (is (contains? #{:not-attached :passive
-                    :allocation-tracing-starting :allocation-tracing-active
-                    :allocation-tracing-stopping :allocation-tracing-flushing
-                    :allocation-tracing-flushed}
-                  (agent-core/agent-state))
+                     :allocation-tracing-starting :allocation-tracing-active
+                     :allocation-tracing-stopping :allocation-tracing-flushing
+                     :allocation-tracing-flushed :allocation-tracing-reporting
+                     :allocation-tracing-reported}
+                   (agent-core/agent-state))
         "Agent state should be a valid state keyword"))
 
   (testing "State caching and updates"
     (let [initial-state (agent-core/agent-state)
-          second-state (agent-core/agent-state)]
+          second-state  (agent-core/agent-state)]
       (is (= initial-state second-state)
           "State should be stable between reads"))))
 
 (deftest agent-command-test
   (testing "Basic command sending"
-    (is (number? (agent-core/agent-command :ping))
-        "Ping command should return a numeric response")
-
-    (is (number? (agent-core/agent-command :sync-state))
-        "Sync command should return a numeric response"))
+    (is (nil? (agent-core/agent-command :ping)))
+    (is (nil? (agent-core/agent-command :sync-state))))
   (testing "Invalid commands"
     (is (thrown? IllegalArgumentException
                  (agent-core/agent-command :invalid-command))
@@ -118,13 +116,17 @@
   (testing "Complete allocation tracking cycle"
     (when (agent-core/attached?)
       (let [result (with-timeout 5000
-                    #(do
-                       (agent-core/allocation-tracing-start!)
-                       (let [_ (Object.)]
-                         (System/gc)
-                         (Thread/sleep 100)
-                         (agent-core/allocation-tracing-stop!)
-                         @agent-core/records)))]
+                     #(do
+                        (agent-core/allocation-tracing-start!)
+                        (try
+                          (let [_ (Object.)]
+                            (System/gc)
+                            (Thread/sleep 100)
+                            (System/gc))
+                          (finally
+                            (agent-core/allocation-tracing-stop!)
+                            (agent-core/collect-allocaton-records)))
+                        @agent-core/records))]
         (is (not= :timeout result)
             "Allocation cycle should complete within timeout")
         (when-not (= :timeout result)

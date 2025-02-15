@@ -150,5 +150,5 @@
             "Should correctly filter thread allocations")))))
 
 ;; Warmup for allocation tests
-(dotimes [_ 100]
+(dotimes [i 100]
   (agent/with-allocation-tracing 1))

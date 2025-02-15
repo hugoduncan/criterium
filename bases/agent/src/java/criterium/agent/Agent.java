@@ -8,7 +8,7 @@ import clojure.lang.IFn;
 // and the agent can start with minimal capabilities and overhead.
 
 public class Agent {
-  public static long state = -1;
+  public static volatile long state = -1;
   public static IFn handler;
 
   // clojure has trouble getting the static field without garbage
