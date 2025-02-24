@@ -1,321 +1,26 @@
+#include "jni.h"
 #include <algorithm>
+#include <array>
 #include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <iostream>
 #include <jvmti.h>
 #include <map>
+#include <memory>
 #include <pthread.h>
-#include <sstream>
 #include <string>
 #include <thread>
-#include <vector>
 
 #ifdef DEBUG
-#define DEBUG_PRINT(...) printf(__VA_ARGS__)
+#define DEBUG_PRINT(...) (std::cout << __VA_ARGS__)
+#define DEBUG_PRINTLN(...) (std::cout << __VA_ARGS__ << '\n')
 #else
 #define DEBUG_PRINT(...)
+#define DEBUG_PRINTLN(...)
 #endif
 
-// global ref to the JVMTI environment
-static jvmtiEnv* jvmti = nullptr;
-static JavaVM* cached_vm = nullptr;
-static bool vm_dead = false;
-
-template <typename T>
-class allocated  {
-  T _ptr;
-public:
-  allocated() noexcept : _ptr(0) {}
-  allocated(allocated<T>&& l) noexcept
-    : _ptr(std::exchange(l._ptr, static_cast<T>(0)))
-  {}
-  ~allocated() { jvmti->Deallocate((unsigned char*)_ptr);}
-  operator T& () { return _ptr; }
-  T* operator & () { return &_ptr; }
-};
-
-template <typename T>
-class local_ref {
-  T _ref;
-  JNIEnv* _env;
-public:
-  local_ref(JNIEnv* env, T ref) : _ref(std::move(ref)), _env(env) {}
-  local_ref(JNIEnv* env) : _ref(NULL), _env(env) {}
-  local_ref(local_ref&& l)
-    : _ref(std::exchange(l._ref, NULL)),
-      _env(std::exchange(l._env, NULL))
-  {}
-  ~local_ref() {
-    if (_ref != NULL && !vm_dead) {
-      _env->DeleteLocalRef(_ref);
-      _ref = NULL;
-    }
-  }
-  auto operator = (T ref) { _ref = ref; return *this; }
-  T* operator & () { return &_ref; }
-  operator T& () { return _ref; }
-};
-
-template <typename T>
-class global_ref {
-  T _ref;
-  JNIEnv* _env;
-public:
-  global_ref(JNIEnv* env, T ref)
-    : _env(env) {
-    _ref = static_cast<T>(env->NewGlobalRef(ref));
-  }
-  ~global_ref() {
-    if (_ref != NULL && !vm_dead) {
-      _env->DeleteGlobalRef(_ref);
-      _ref = NULL;
-    }
-  }
-  T* operator & () { return &_ref; }
-  operator T& () { return _ref; }
-};
-
-template <typename T> local_ref<T> mk_local_ref(JNIEnv* env, T t) {
-  return local_ref<T>(env, t);
-}
-
-// Event/Command structures
-struct AllocationEvent {
-  jobject object;
-  jclass object_klass;
-  jthread thread;
-  jlong size;
-  jlong tag;
-
-  void delete_global_refs(JNIEnv* env) {
-    env->DeleteGlobalRef(object_klass);
-    env->DeleteGlobalRef(object);
-    env->DeleteGlobalRef(thread);
-  }
-};
-
-struct ObjectFreeEvent {
-    jlong tag;
-};
-
-struct Command {
-    jlong cmd;
-};
-
-// Queue message type
-using Message = std::variant<AllocationEvent, ObjectFreeEvent, Command>;
-
-// Thread-safe queue
-class MessageQueue {
-    std::queue<Message> queue;
-    std::mutex mutex;
-    std::condition_variable cond;
-    bool stopped = false;
-
-public:
-    void push(Message msg) {
-        std::lock_guard<std::mutex> lock(mutex);
-        queue.push(std::move(msg));
-        cond.notify_one();
-    }
-
-    bool pop(Message& msg) {
-        std::unique_lock<std::mutex> lock(mutex);
-        while (queue.empty() && !stopped) {
-            cond.wait(lock);
-        }
-        if (stopped && queue.empty()) {
-            return false;
-        }
-        msg = std::move(queue.front());
-        queue.pop();
-        return true;
-    }
-
-    void stop() {
-        std::lock_guard<std::mutex> lock(mutex);
-        stopped = true;
-        cond.notify_all();
-    }
-};
-
-static MessageQueue message_queue;
-
-
-static jrawMonitorID control_lock;
-static bool disable_object_free_event = false;
-
-class raw_monitor {
-  jrawMonitorID id;
-public:
-  raw_monitor(jrawMonitorID id) : id(id) {
-    jvmti->RawMonitorEnter(id);
-  }
-  ~raw_monitor() {
-    jvmti->RawMonitorExit(id);
-  }
-};
-
-
-static jrawMonitorID sample_lock;
-static jrawMonitorID tag_lock;
-
-static jmethodID thread_getId_method = NULL;
-
-static std::unique_ptr<global_ref<jclass>> agent_class;
-static std::unique_ptr<global_ref<jclass>> agent_allocation_start_marker_class;
-static std::unique_ptr<global_ref<jclass>> agent_allocation_finish_marker_class;
-static std::unique_ptr<global_ref<jclass>> agent_allocation_class;
-
-static jmethodID agent_allocation_ctor = NULL;
-static char const* agent_allocation_class_args =
-  "(Ljava/lang/String;JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;JJJ)V";
-
-static jmethodID agent_data1_method = NULL;
-static jmethodID agent_data8_method = NULL;
-static jfieldID agent_state_field = NULL;
-
-enum States : jlong {
-  passive,
-  allocation_tracing_starting = 10,
-  allocation_tracing_active = 11,
-  allocation_tracing_stopping = 15,
-  allocation_tracing_flushing = 16,
-  allocation_tracing_flushed = 17,
-  allocation_tracing_reporting = 18,
-  allocation_tracing_reported = 19,
-};
-
-static char const* allocation_start_marker =
-  "Lcriterium/agent/Agent$AllocationStartMarker;";
-
-static char const* allocation_finish_marker =
-  "Lcriterium/agent/Agent$AllocationFinishMarker;";
-
-static char const* allocation_class_name =
-  "Lcriterium/agent/Allocation;";
-
-static std::string allocation_sampler_name("Lcriterium/agent/core/AllocationSampler");
-
-static jlong next_object_tag = 0; // read and inc with next_tag()
-
-const char *IFn = "clojure/lang/IFn";
-
-jclass ifn(JNIEnv* env) {
-  auto ifn = (env)->FindClass(IFn);
-  if (ifn == NULL) {
-    printf("Ifn not found\n");
-  }else {
-    // printf("IFn found \n");
-  }
-  return ifn;
-}
-
-const char *invoke_sig = "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;";
-
-jmethodID invoke_method_id(JNIEnv* env) {
-  auto klass = ifn(env);
-  auto invoke = (env)->GetMethodID(klass, "invoke", invoke_sig);
-  if (invoke == NULL) {
-      printf("invoke method not found\n");
-    } else {
-    // DEBUG_PRINT("invoke method found\n");
-    }
-  return invoke;
-}
-
-jmethodID class_invoke_method_id(JNIEnv* env, jclass klass) {
-  auto invoke = (env)->GetMethodID(klass, "invoke", invoke_sig);
-  if (invoke == NULL) {
-      printf("invoke method not found\n");
-    } else {
-    // DEBUG_PRINT("invoke method found\n");
-    }
-  return invoke;
-}
-
-jlong next_tag() {
-  auto monitor = std::make_unique<raw_monitor>(tag_lock);
-  return next_object_tag++;
-}
-
-static char const *no_file_name = "NO_SOURCE";
-
-// Structure used to record allocations
-struct alloc_rec {
-  std::string obj_class;
-  jlong obj_size;
-
-  std::string call_class;
-  std::string call_method;
-  std::string call_file;
-  jlong call_line;
-
-  std::string alloc_class;
-  std::string alloc_method;
-  std::string alloc_file;
-  jlong alloc_line;
-
-  jlong thread_id;
-  jlong freed;
-
-  jlong tag;
-  bool start_marker;
-  bool disable_marker;
-
-  alloc_rec(char const * obj_class,
-            jlong obj_size,
-            char const * call_class,
-            char const * call_method,
-            char const * call_file,
-            jlong call_line,
-            char const * alloc_class,
-            char const * alloc_method,
-            char const * alloc_file,
-            jlong alloc_line,
-            jlong thread_id,
-            jlong tag)
-    : obj_class(obj_class),
-      obj_size(obj_size),
-      call_class(call_class == nullptr ? "" : call_class),
-      call_method(call_method == nullptr ? "" : call_method),
-      call_file(call_file == NULL ? no_file_name : call_file),
-      call_line(call_line),
-      alloc_class(alloc_class == nullptr ? "" : alloc_class),
-      alloc_method(alloc_method == nullptr ? "" : alloc_method),
-      alloc_file(alloc_file == NULL ? no_file_name : alloc_file),
-      alloc_line(alloc_line),
-      thread_id(thread_id),
-      tag(tag),
-      freed(false),
-      start_marker(false),
-      disable_marker(false)
-  { }
-};
-
-typedef std::vector<std::unique_ptr<alloc_rec>> allocs_t;
-typedef std::map<jlong, alloc_rec*> allocs_by_tag_t;
-/* static allocs_t allocs; */
-/* static auto allocs_by_tag = allocs_by_tag_t(); */
-
-enum Commands : jlong {
-  ping,
-  sync_state,
-  start_allocation_tracing = 10,
-  stop_allocation_tracing = 11,
-  report_allocation_tracing = 12
-};
-
-
-namespace java {
-  local_ref<jstring> string(JNIEnv* env, const char* s) {
-    return mk_local_ref(env, (env)->NewStringUTF(s));
-  }
-  local_ref<jstring> string(JNIEnv* env, const std::string& s) {
-    return mk_local_ref(env, (env)->NewStringUTF(s.c_str()));
-  }
-}
+const jint MAX_FRAMES = 1024;
 
 void debug_print_jvmti_err(jvmtiError err) {
   switch (err) {
@@ -372,11 +77,226 @@ void debug_print_jvmti_err(jvmtiError err) {
     break;
 
   default:
-    DEBUG_PRINT(">> Unexpected error %d\n", err);
+    DEBUG_PRINTLN(">> Unexpected error " << err);
     break;
   }
-
 }
+
+static constexpr char const* const allocation_start_marker =
+  "Lcriterium/agent/Agent$AllocationStartMarker;";
+
+static constexpr char const* const allocation_finish_marker =
+  "Lcriterium/agent/Agent$AllocationFinishMarker;";
+
+static constexpr char const* const allocation_class_name =
+  "Lcriterium/agent/Allocation;";
+
+static constexpr std::string_view allocation_sampler_name
+    = "Lcriterium/agent/core/AllocationSampler";
+
+static constexpr char const* IFn  = "clojure/lang/IFn";
+
+static constexpr char const *invoke_sig =
+  "(Ljava/lang/Object;"
+  "Ljava/lang/Object;"
+  "Ljava/lang/Object;"
+  "Ljava/lang/Object;"
+  "Ljava/lang/Object;"
+  "Ljava/lang/Object;"
+  "Ljava/lang/Object;"
+  ")Ljava/lang/Object;";
+
+static constexpr char const *agent_allocation_class_args =
+  "(Ljava/lang/String;"
+  "JLjava/lang/String;"
+  "Ljava/lang/String;"
+  "Ljava/lang/String;"
+  "JLjava/lang/String;"
+  "Ljava/lang/String;"
+  "Ljava/lang/String;"
+  "JJJ)V";
+
+static constexpr char const* data8_sig =
+  "(Ljava/lang/Object;"
+  "Ljava/lang/Object;"
+  "Ljava/lang/Object;"
+  "Ljava/lang/Object;"
+  "Ljava/lang/Object;"
+  "Ljava/lang/Object;"
+  "Ljava/lang/Object;"
+  "Ljava/lang/Object;)V";
+
+static constexpr char const *no_file_name = "NO_SOURCE";
+
+jclass ifn(JNIEnv* env) {
+  auto *ifn = (env)->FindClass(IFn);
+  if (ifn == nullptr) {
+    std::cout << "Ifn not found\n";
+  }else {
+    // printf("IFn found \n");
+  }
+  return ifn;
+}
+
+jmethodID invoke_method_id(JNIEnv* env) {
+  auto *klass = ifn(env);
+  auto *invoke = (env)->GetMethodID(klass, "invoke", invoke_sig);
+  if (invoke == NULL) {
+      std::cout << "invoke method not found\n";
+    } else {
+    // DEBUG_PRINT("invoke method found\n");
+    }
+  return invoke;
+}
+
+jmethodID class_invoke_method_id(JNIEnv* env, jclass klass) {
+  auto *invoke = (env)->GetMethodID(klass, "invoke", invoke_sig);
+  if (invoke == NULL) {
+    std::cout << "invoke method not found\n";
+    } else {
+    // DEBUG_PRINT("invoke method found\n");
+    }
+  return invoke;
+}
+
+// NOLINTNEXTLINE(performance-enum-size)
+enum States : jlong {
+  passive = 0,
+  allocation_tracing_starting = 10,
+  allocation_tracing_active = 11,
+  allocation_tracing_stopping = 15,
+  allocation_tracing_flushing = 16,
+  allocation_tracing_flushed = 17,
+  allocation_tracing_reporting = 18,
+  allocation_tracing_reported = 19,
+};
+
+// NOLINTNEXTLINE(performance-enum-size)
+enum Commands : jlong {
+  ping = 0,
+  sync_state = 1,
+  start_allocation_tracing = 10,
+  stop_allocation_tracing = 11,
+  report_allocation_tracing = 12
+};
+
+// Event/Command structures
+struct AllocationEvent {
+  jobject object;
+  jclass object_klass;
+  jthread thread;
+  jlong size;
+  jlong tag;
+
+  void delete_global_refs(JNIEnv* env) const {
+    env->DeleteGlobalRef(object_klass);
+    env->DeleteGlobalRef(object);
+    env->DeleteGlobalRef(thread);
+  }
+};
+
+struct ObjectFreeEvent {
+    jlong tag;
+};
+
+struct Command {
+    jlong cmd;
+};
+
+// Queue message type
+using Message = std::variant<AllocationEvent, ObjectFreeEvent, Command>;
+
+// Thread-safe queue
+class MessageQueue {
+    std::queue<Message> queue;
+    std::mutex mutex;
+    std::condition_variable cond;
+    bool stopped = false;
+
+public:
+    void push(Message msg) {
+        std::lock_guard<std::mutex> lock(mutex);
+        queue.push(msg);
+        cond.notify_one();
+    }
+
+    bool pop(Message& msg) {
+        std::unique_lock<std::mutex> lock(mutex);
+        while (queue.empty() && !stopped) {
+            cond.wait(lock);
+        }
+        if (stopped && queue.empty()) {
+            return false;
+        }
+        msg = queue.front();
+        queue.pop();
+        return true;
+    }
+
+    void stop() {
+        std::lock_guard<std::mutex> lock(mutex);
+        stopped = true;
+        cond.notify_all();
+    }
+};
+
+// Structure used to record allocations
+struct alloc_rec {
+  std::string obj_class;
+  jlong obj_size;
+
+  std::string call_class;
+  std::string call_method;
+  std::string call_file;
+  jlong call_line;
+
+  std::string alloc_class;
+  std::string alloc_method;
+  std::string alloc_file;
+  jlong alloc_line;
+
+  jlong thread_id;
+  jlong freed{};
+
+  jlong tag;
+  bool start_marker{};
+  bool disable_marker{};
+
+  alloc_rec(char const * obj_class,
+            jlong obj_size,
+	    // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
+            char const * call_class,
+            char const * call_method,
+            char const * call_file,
+            jlong call_line,
+	    // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
+            char const * alloc_class,
+            char const * alloc_method,
+            char const * alloc_file,
+	    // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
+            jlong alloc_line,
+            jlong thread_id,
+            jlong tag)
+    : obj_class(obj_class),
+      obj_size(obj_size),
+      call_class(call_class == nullptr ? "" : call_class),
+      call_method(call_method == nullptr ? "" : call_method),
+      call_file(call_file == NULL ? no_file_name : call_file),
+      call_line(call_line),
+      alloc_class(alloc_class == nullptr ? "" : alloc_class),
+      alloc_method(alloc_method == nullptr ? "" : alloc_method),
+      alloc_file(alloc_file == NULL ? no_file_name : alloc_file),
+      alloc_line(alloc_line),
+      thread_id(thread_id),
+      tag(tag)
+  { }
+};
+
+typedef std::vector<std::unique_ptr<alloc_rec>> allocs_t;
+typedef std::map<jlong, alloc_rec*> allocs_by_tag_t;
+/* static allocs_t allocs; */
+/* static auto allocs_by_tag = allocs_by_tag_t(); */
+
 
 auto all_tags(allocs_t& allocs) {
   auto tags=std::vector<jlong>(allocs.size());
@@ -387,249 +307,551 @@ auto all_tags(allocs_t& allocs) {
   return tags;
 }
 
-void untag_objects(jvmtiEnv* jvmti, allocs_t& allocs, allocs_by_tag_t& allocs_by_tag) {
-  // auto monitor = std::make_unique<raw_monitor>(sample_lock);
-  auto tags = all_tags(allocs);
-  if (tags.size()>0) {
-    jint count;
-    auto objects = allocated<jobject*>();
-    auto object_tags = allocated<jlong*>();
-    auto err = jvmti->GetObjectsWithTags(tags.size(),
-                                         tags.data(),
-                                         &count,
-                                         &objects,
-                                         &object_tags);
-    if (err!= JVMTI_ERROR_NONE) {
-      printf("problem %d", err);
-    }
-    // printf("found %d objects to untag\n", count);
-    for (jint i=0; i< count; ++i) {
-      jvmti->SetTag(objects[i], 0);
-    }
 
-    // TODO unreference the objects
-  }
-  // printf("remove tags done\n");
+class VMContext {
+private:
+  bool _vm_dead = true;
+  JavaVM* cached_vm = nullptr;
 
-  allocs_by_tag.clear();
-  // printf("Disabled\n");
-}
+  VMContext() {}
 
-void allocation_tracing_report(JNIEnv* env, allocs_t& allocs, allocs_by_tag_t& allocs_by_tag) {
-
-  auto monitor = std::make_unique<raw_monitor>(sample_lock);
-
-  for (auto& alloc : allocs) {
-    auto class_jstr = java::string(env, alloc->obj_class);
-
-    auto alloc_class_jstr = java::string(env, alloc->alloc_class);
-    auto alloc_method_jstr = java::string(env, alloc->alloc_method);
-    auto alloc_file_jstr = java::string(env, alloc->alloc_file);
-
-    auto call_class_jstr = java::string(env, alloc->call_class);
-    auto call_method_jstr = java::string(env, alloc->call_method);
-    auto call_file_jstr = java::string(env, alloc->call_file);
-
-    local_ref<jobject> rec =
-      local_ref<jobject>(env,
-                         env->NewObject(*agent_allocation_class,
-                                        agent_allocation_ctor,
-                                        (jstring)class_jstr,
-                                        alloc->obj_size,
-                                        (jstring)call_class_jstr,
-                                        (jstring)call_method_jstr,
-                                        (jstring)call_file_jstr,
-                                        alloc->call_line,
-                                        (jstring)alloc_class_jstr,
-                                        (jstring)alloc_method_jstr,
-                                        (jstring)alloc_file_jstr,
-                                        alloc->alloc_line,
-                                        alloc->thread_id,
-                                        alloc->freed));
-
-    /* printf("calling data 1\n"); */
-    env->CallStaticVoidMethod(*agent_class,
-                              agent_data1_method,
-                              (jobject&)rec);
+public:
+  static VMContext& getInstance() {
+    static VMContext instance;
+    return instance;
   }
 
-  untag_objects(jvmti, allocs, allocs_by_tag);
-  allocs.clear();
-}
+  bool vm_dead() const {
+    return _vm_dead;
+  }
 
-#define MAX_FRAMES 1024
+  void set_vm_dead() {
+    _vm_dead = true;
+  }
 
-auto calling_frame(jvmtiEnv* jvmti,
-                   JNIEnv* env,
-                   jvmtiFrameInfo* frames,
-                   jint num_frames) {
-  jint framei = 0;
-  auto class_name = allocated<char*>();
+  JavaVM* vm() const {
+    return cached_vm;
+  }
 
-  for (; framei < num_frames; framei++) {
-    auto declaring_class = local_ref<jclass>(env);
-    auto err = jvmti->GetMethodDeclaringClass(frames[framei].method,
-                                              &declaring_class);
-    if (err!=JVMTI_ERROR_NONE) {
-      printf("Error gettimg declaring class: %d\n", err);
-    } else {
-      err = jvmti->GetClassSignature(declaring_class,
-                                     &class_name,
-                                     NULL);
-      if (err!=JVMTI_ERROR_NONE) {
-        printf("Error gettimg declaring class name: %d\n", err);
-      } else {
-        // printf("class : %d %s\n", framei, (char*)class_name);
-        // TODO make the filters configurable
-        if (strncmp(class_name, "Ljava/", 6)!=0
-            && strncmp(class_name, "Lcom/sun/", 9) != 0
-            && strncmp(class_name, "Ljdk/", 5) != 0
-            && strncmp(class_name, "Ljavax/", 7)!=0
-            && strncmp(class_name, "Lsun/management", 15) != 0
-            && strncmp(class_name, "Lclojure/", 9) != 0
-            ) {
-          break;
-        }
+  void cache_vm(JNIEnv *env) {
+    env->GetJavaVM(&cached_vm);
+    _vm_dead = false;
+  }
+
+  template <typename T>
+  class local_ref {
+    T _ref;
+    JNIEnv* _env;
+  public:
+    local_ref(const local_ref &) = delete;
+    local_ref &operator=(const local_ref &) = delete;
+    local_ref &operator=(local_ref &&) = delete;
+    local_ref(JNIEnv *env, T ref) : _ref(std::move(ref)), _env(env) {}
+    local_ref(JNIEnv* env) : _ref(NULL), _env(env) {}
+    local_ref(local_ref&& other) noexcept
+      : _ref(std::exchange(other._ref, NULL)),
+	_env(std::exchange(other._env, NULL))
+    {}
+    ~local_ref() {
+      if (_ref != NULL && !VMContext::getInstance().vm_dead()) {
+	_env->DeleteLocalRef(_ref);
+	_ref = NULL;
       }
     }
-  }
-  if (framei>=num_frames) {
-    framei = 0;
-  }
-  return std::make_tuple(framei, std::move(class_name));
-}
+    local_ref& operator = (T ref) { _ref = ref; return *this; }
+    T* operator & () { return &_ref; }
+    operator T& () { return _ref; }
+  };
 
-
-auto frame_detail(jvmtiEnv* jvmti, JNIEnv* env, jvmtiFrameInfo& frame) {
-  auto declaring_class = local_ref<jclass>(env);
-  auto err = jvmti->GetMethodDeclaringClass(frame.method, &declaring_class);
-
-  auto class_name = allocated<char*>();
-  err = jvmti->GetClassSignature(declaring_class,
-                                 &class_name,
-                                 NULL);
-
-  auto method_name = allocated<char*>();
-  err = (jvmti)->GetMethodName(frame.method,
-                                    &method_name,
-                                    NULL,
-                                    NULL);
-
-  jint entry_count;
-  auto line_table = allocated<jvmtiLineNumberEntry*>();
-
-  auto error = (jvmti)->GetLineNumberTable(frame.method,
-                                           &entry_count,
-                                           &line_table);
-  jint line_num;
-
-  if (error == JVMTI_ERROR_NONE) {
-    line_num = line_table[0].line_number;
-    for ( auto i = 1 ; i < entry_count ; i++ ) {
-      if ( frame.location < line_table[i].start_location) {
-        break;
+  template <typename T>
+  class global_ref {
+    T _ref;
+    JNIEnv* _env;
+  public:
+    global_ref(const global_ref &) = delete;
+    global_ref(global_ref &&) = delete;
+    global_ref &operator=(const global_ref &) = delete;
+    global_ref &operator=(global_ref &&) = delete;
+    global_ref(JNIEnv *env, T ref)
+        : _ref(static_cast<T>(env->NewGlobalRef(ref))), _env(env) {}
+    ~global_ref() {
+      if (_ref != NULL && !VMContext::getInstance().vm_dead()) {
+	_env->DeleteGlobalRef(_ref);
+	_ref = NULL;
       }
-      line_num = line_table[i].line_number;
     }
-  } else {
-    line_num = -1;
+    T* operator & () { return &_ref; }
+    operator T& () { return _ref; }
+  };
+
+  template <typename T> local_ref<T> mk_local_ref(JNIEnv* env, T value) {
+    return local_ref<T>(env, value);
   }
 
-  auto source_name = allocated<char*>();
-  err = jvmti->GetSourceFileName(declaring_class, &source_name);
-  if (err == JVMTI_ERROR_ABSENT_INFORMATION) {
-    // do nothing - should have source_name == 0
-  } else if (err!=JVMTI_ERROR_NONE) {
-    printf("Failed to get source file name: %d\n", err);
+  void attach_current_thread_as_daemon(JNIEnv **env) const {
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+    auto penv = reinterpret_cast<void **>(env);
+    auto res = cached_vm->AttachCurrentThreadAsDaemon(penv, nullptr);
+    if (res != JNI_OK) {
+      DEBUG_PRINT("Failed to attach queue consumer thread to JVM\n");
+      return;
+    }
+  }
+};
+
+void start_queue_consumer();
+
+class AgentContext {
+
+private:
+  VMContext& vm_context;
+  jvmtiEnv* jvmti = nullptr;
+
+  static jvmtiEnv* get_jvmti() { return getInstance().jvmti; }
+
+public:
+  template <typename T>
+  class allocated  {
+    T _ptr;
+  public:
+    allocated() noexcept : _ptr(0) {}
+    allocated(const allocated &) = delete;
+    allocated &operator=(const allocated &) = delete;
+    allocated &operator=(allocated &&) = delete;
+    allocated(allocated<T> &&other) noexcept
+        : _ptr(std::exchange(other._ptr, static_cast<T>(0))) {}
+    ~allocated() { get_jvmti()->Deallocate((unsigned char*)_ptr);}
+    operator T& () { return _ptr; }
+    T* operator & () { return &_ptr; }
+  };
+
+  class raw_monitor {
+    jrawMonitorID id;
+  public:
+    raw_monitor(const raw_monitor &) = default;
+    raw_monitor(raw_monitor &&) = delete;
+    raw_monitor &operator=(const raw_monitor &) = default;
+    raw_monitor &operator=(raw_monitor &&) = delete;
+    raw_monitor(jrawMonitorID mid)
+        : id(mid)
+          { get_jvmti()->RawMonitorEnter(mid); }
+    ~raw_monitor() {
+      get_jvmti()->RawMonitorExit(id);
+    }
+  };
+
+private:
+  MessageQueue message_queue;
+
+  // Locks
+  jrawMonitorID tag_lock{};
+
+  // Method/class refs
+  jmethodID thread_getId_method{};
+
+  jlong next_object_tag = 0; // read and inc with next_tag()
+
+  jlong next_tag() {
+    auto monitor = std::make_unique<raw_monitor>(tag_lock);
+    return next_object_tag++;
   }
 
-  return std::make_tuple(std::move(class_name),
-                         std::move(method_name),
-                         std::move(source_name),
-                         line_num);
+  static void set_callbacks(jvmtiEventCallbacks& callbacks);
+
+  AgentContext() : vm_context(VMContext::getInstance()) {}
+
+public:
+  static AgentContext& getInstance() {
+    static AgentContext instance;
+    return instance;
+  }
+
+  void initialize(JavaVM *jvm);
+
+  MessageQueue& get_message_queue() { return message_queue; }
+
+  void vm_death(jvmtiEnv* jvmti, JNIEnv* env) {
+    vm_context.set_vm_dead();
+    message_queue.stop();
+    jvmti = nullptr;
+  }
+
+  jint on_load(JavaVM* jvm, char* options, void* reserved) {
+    std::cout << "Loading criterium agent\n";
+
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+    jvm->GetEnv(reinterpret_cast<void **>(&jvmti), JVMTI_VERSION_1_0);
+
+    jvmti->CreateRawMonitor("tag_lock", &tag_lock);
+
+    jvmtiCapabilities capabilities = {0};
+    capabilities.can_generate_sampled_object_alloc_events = 1;
+    capabilities.can_generate_field_modification_events = 1;
+    capabilities.can_get_line_numbers = 1;
+    capabilities.can_get_source_file_name = 1;
+    capabilities.can_tag_objects = 1;
+    capabilities.can_generate_object_free_events = 1;
+
+    {
+      auto err = jvmti->AddCapabilities(&capabilities);
+      if (err != JVMTI_ERROR_NONE) {
+	std::cout << "Failed to add capabilities: " << err << '\n';
+	debug_print_jvmti_err(err);
+      }
+    }
+
+    jvmtiEventCallbacks callbacks = {0};
+    set_callbacks(callbacks);
+    jvmti->SetEventCallbacks(&callbacks, sizeof(callbacks));
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
+    jvmti->SetEventNotificationMode(JVMTI_ENABLE,
+				    JVMTI_EVENT_FIELD_MODIFICATION,
+				    nullptr);
+
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
+    jvmti->SetEventNotificationMode(JVMTI_ENABLE,
+				    JVMTI_EVENT_VM_INIT,
+				    nullptr);
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
+    jvmti->SetEventNotificationMode(JVMTI_ENABLE,
+				    JVMTI_EVENT_VM_DEATH,
+				    nullptr);
+
+    // Set this as early as possible
+    set_sampling_interval(0);
+
+    DEBUG_PRINT("\nallocation sampler loaded\n");
+
+    return JNI_OK;
+  }
+
+  jint on_attach(JavaVM* jvm, char* options, void* reserved) {
+    if (jvmti != NULL) {
+      return 0;
+    }
+    return on_load(jvm, options, reserved);
+  }
+
+  void vm_init(jvmtiEnv* jvmti, JNIEnv* env, jthread thread) {
+
+    // set this as early as possible.  repeated here, as not sure it works from
+    // OnLoad.
+    set_sampling_interval(0);
+
+    // Get JavaVM pointer
+    vm_context.cache_vm(env);
+
+    jclass thread_klass = env->GetObjectClass(thread);
+    thread_getId_method = env->GetMethodID(thread_klass, "getId", "()J");
+
+    // Start queue consumer thread
+    start_queue_consumer();
+    message_queue.push(Command{sync_state});
+  }
+
+  void sampled_object_alloc(jvmtiEnv* jvmti, JNIEnv* env,
+			    jthread thread, jobject object,
+			    jclass object_klass, jlong size) {
+    auto tag = next_tag();
+    auto err = jvmti->SetTag(object, tag);
+    if (err != JVMTI_ERROR_NONE) {
+      std::cout << "Failed to tag object: " << err << '\n';
+      debug_print_jvmti_err(err);
+    }
+    message_queue.push(AllocationEvent{
+	env->NewGlobalRef(object),
+	// NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+	reinterpret_cast<jclass>(env->NewGlobalRef(object_klass)),
+	static_cast<jthread>(env->NewGlobalRef(thread)),
+	size,
+	tag
+      });
+  }
+
+  void object_free(jvmtiEnv *jvmti, jlong tag) {
+    // DEBUG_PRINT("ObjectFree\n");
+    message_queue.push(ObjectFreeEvent{tag});
+  }
+
+  /* Call sent by java Agent class */
+  void agent_command(JNIEnv* env, jclass klass, jlong cmd) {
+    if (cmd != 1) {
+      DEBUG_PRINTLN("Agent command: %ld\n" << cmd);
+    }
+    message_queue.push(Command{cmd});
+  }
+
+  jlong thread_id(JNIEnv *env, jthread thread) {
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
+    return env->CallLongMethod(thread, thread_getId_method);
+  }
+
+  bool get_class_signature(jclass klass, char** class_sig) {
+    auto err = jvmti->GetClassSignature(klass, class_sig, NULL);
+    if ( err != 0) {
+      std::cout << "Failed to get class name\n";
+      debug_print_jvmti_err(err);
+      return false;
+    }
+    return true;
+  }
+
+  bool get_source_file_name(jclass klass, char** source_name) {
+    auto err = jvmti->GetSourceFileName(klass, source_name);
+    if (err != 0) {
+      std::cout << "Failed to get source file name\n";
+      debug_print_jvmti_err(err);
+      return false;
+    }
+    return true;
+  }
+
+  bool get_method_declaring_class(jmethodID method,
+                                         jclass* declaring_class) {
+    auto err = jvmti->GetMethodDeclaringClass(method, declaring_class);
+    if (err != 0) {
+      std::cout << "Failed to get method declaring class\n";
+      debug_print_jvmti_err(err);
+      return false;
+    }
+    return true;
+  }
+
+  bool get_method_name(jmethodID method, char** method_name) {
+    auto err = (jvmti)->GetMethodName(method, method_name, NULL, NULL);
+    if (err != 0) {
+      std::cout << "Failed to get method name\n";
+      debug_print_jvmti_err(err);
+      return false;
+    }
+    return true;
+  }
+
+  bool get_stack_trace(jthread thread, jvmtiFrameInfo *frames,
+                              jint* count) {
+    auto err = jvmti->GetStackTrace(thread, 0, MAX_FRAMES, frames, count);
+    if (err != 0) {
+      std::cout << "Failed to get stack\n";
+      debug_print_jvmti_err(err);
+      return false;
+    }
+    return true;
+  }
+
+  bool get_line_number_table(jmethodID method, jint *entry_count,
+                                    jvmtiLineNumberEntry** line_table) {
+    auto err = jvmti->GetLineNumberTable(method, entry_count, line_table);
+    if (err != 0) {
+      std::cout << "Failed to get line number table\n";
+      debug_print_jvmti_err(err);
+      return false;
+    }
+    return true;
+  }
+
+  bool set_tag(jobject object, jlong tag) {
+    auto err = jvmti->SetTag(object, 0);
+    if (err != 0) {
+      std::cout << "Failed to set tag\n";
+      debug_print_jvmti_err(err);
+      return false;
+    }
+    return true;
+  }
+
+  bool get_objects_with_tags(jint ntags, jlong *tag_data, jint *count,
+                                    jobject** objects, jlong** tags) {
+    auto err = jvmti->GetObjectsWithTags(ntags, tag_data, count, objects, tags);
+    if (err != 0) {
+      std::cout << "Failed to get objects with tags\n";
+      debug_print_jvmti_err(err);
+      return false;
+    }
+    return true;
+  }
+
+  static void call_static_void_method(JNIEnv *env, jclass klass,
+                                      jmethodID method, jobject arg) {
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
+    env->CallStaticVoidMethod(klass, method, arg);
+  }
+
+  template <typename... Args>
+  static jobject new_object(JNIEnv *env, jclass klass, jmethodID method,
+			    Args... args) {
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
+    return env->NewObject(klass, method, args...);
+  }
+
+  void set_sampling_interval(jint n) {
+    auto err = jvmti->SetHeapSamplingInterval(n);
+    if (err != JVMTI_ERROR_NONE) {
+      std::cout << "Failed to set the sampling interval: " << err << '\n';
+      debug_print_jvmti_err(err);
+    }
+  }
+
+  void enable_sampled_object_alloc() {
+    DEBUG_PRINT("Enabling JVMTI_EVENT_SAMPLED_OBJECT_ALLOC\n");
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
+    auto err = jvmti->SetEventNotificationMode(JVMTI_ENABLE,
+					       JVMTI_EVENT_SAMPLED_OBJECT_ALLOC,
+					       nullptr);
+    if (err != JVMTI_ERROR_NONE) {
+      std::cout << "Failed to enable allocation sampling " << err << '\n';
+      debug_print_jvmti_err(err);
+    }
+  }
+
+  void enable_object_free() {
+    DEBUG_PRINT("Enabling JVMTI_EVENT_OBJECT_FREE\n");
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
+    auto err = jvmti->SetEventNotificationMode(JVMTI_ENABLE,
+					  JVMTI_EVENT_OBJECT_FREE,
+					  nullptr);
+    if (err != JVMTI_ERROR_NONE) {
+      std::cout << "Failed to enable object free notifications " << err << '\n';
+      debug_print_jvmti_err(err);
+    }
+  }
+
+  void disable_sampled_object_alloc() {
+    DEBUG_PRINT("Enabling JVMTI_EVENT_SAMPLED_OBJECT_ALLOC\n");
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
+    auto err = jvmti->SetEventNotificationMode(JVMTI_DISABLE,
+					       JVMTI_EVENT_SAMPLED_OBJECT_ALLOC,
+					       nullptr);
+    if (err != JVMTI_ERROR_NONE) {
+      std::cout << "Failed to disable allocation sampling " << err << '\n';
+      debug_print_jvmti_err(err);
+    }
+  }
+
+  void disable_object_free() {
+    DEBUG_PRINT("Enabling JVMTI_EVENT_OBJECT_FREE\n");
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
+    auto err = jvmti->SetEventNotificationMode(JVMTI_DISABLE,
+					  JVMTI_EVENT_OBJECT_FREE,
+					  nullptr);
+    if (err != JVMTI_ERROR_NONE) {
+      std::cout << "Failed to disable object free notifications "
+                << err
+		<< '\n';
+      debug_print_jvmti_err(err);
+    }
+  }
+
+};
+
+
+// Modified event callbacks to use queue
+void JNICALL SampledObjectAlloc(jvmtiEnv* jvmti, JNIEnv* env,
+                               jthread thread, jobject object,
+                               jclass object_klass, jlong size) {
+  auto& context = AgentContext::getInstance();
+  context.sampled_object_alloc(jvmti, env, thread, object, object_klass, size);
 }
 
-void set_sampling_interval(long n)
-{
-  auto err = jvmti->SetHeapSamplingInterval(n);
-  if (err != JVMTI_ERROR_NONE) {
-    printf("Failed to set the sampling interval: %d\n", err);
-    debug_print_jvmti_err(err);
+void JNICALL ObjectFree(jvmtiEnv *jvmti, jlong tag) {
+  // DEBUG_PRINT("ObjectFree\n");
+  auto& context = AgentContext::getInstance();
+  context.object_free(jvmti, tag);
+}
+
+void JNICALL VMInit(jvmtiEnv* jvmti, JNIEnv* env, jthread thread) {
+  auto& context = AgentContext::getInstance();
+  context.vm_init(jvmti, env, thread);
+}
+
+void JNICALL VMDeath(jvmtiEnv* jvmti, JNIEnv* env) {
+  auto& context = AgentContext::getInstance();
+  context.vm_death(jvmti, env);
+}
+
+JNIEXPORT jint JNICALL
+Agent_OnLoad(JavaVM* jvm, char* options, void* reserved) {
+  DEBUG_PRINT("Loading criterium agent\n");
+  auto& context = AgentContext::getInstance();
+  return context.on_load(jvm, options, reserved);
+}
+
+JNIEXPORT jint JNICALL
+Agent_OnAttach(JavaVM* jvm, char* options, void* reserved) {
+  auto& context = AgentContext::getInstance();
+  return context.on_attach(jvm, options, reserved);
+}
+
+void AgentContext::set_callbacks(jvmtiEventCallbacks& callbacks) {
+  callbacks.SampledObjectAlloc = SampledObjectAlloc;
+  callbacks.ObjectFree = ObjectFree;
+  callbacks.VMInit = VMInit;
+  callbacks.VMDeath = VMDeath;
+}
+
+namespace java {
+  VMContext::local_ref<jstring> string(JNIEnv* env, const char* str) {
+    return VMContext::getInstance().mk_local_ref(env, (env)->NewStringUTF(str));
+  }
+  VMContext::local_ref<jstring> string(JNIEnv* env, const std::string& str) {
+    return VMContext::getInstance()
+        .mk_local_ref(env, (env)->NewStringUTF(str.c_str()));
   }
 }
 
-auto allocation_record(jvmtiEnv* jvmti,
-                       JNIEnv* env,
-                       const char* class_sig,
-                       jlong size,
-                       jthread thread,
-                       jint num_frames,
-                       jvmtiFrameInfo* frames,
-		       jlong tag) {
-
-
-  jint framei=0;
-
-  auto [f0_class_name, f0_method, f0_source, f0_line ]
-    = frame_detail(jvmti, env, frames[0]);
-
-
-  auto cf = calling_frame(jvmti, env, frames, num_frames);
-  framei = std::get<0>(cf);
-
-  auto [fi_class_name, fi_method, fi_source, fi_line ]
-   = frame_detail(jvmti, env, frames[framei]);
-
-  jlong tid = env->CallLongMethod(thread, thread_getId_method);
-
-  return std::make_unique<alloc_rec>(class_sig,
-                                     size,
-                                     fi_class_name,
-                                     fi_method,
-                                     fi_source,
-                                     static_cast<jlong>(fi_line),
-                                     f0_class_name,
-                                     f0_method,
-                                     f0_source,
-                                     static_cast<jlong>(f0_line),
-                                     tid,
-                                     tag);
+/* Call sent by java Agent class */
+void JNICALL Agent_command(JNIEnv* env, jclass klass, jlong cmd) {
+  if (cmd != 1) {
+    DEBUG_PRINTLN("Agent command: " << cmd);
+  }
+  auto& context = AgentContext::getInstance();
+  context.agent_command(env, klass, cmd);
 }
 
-auto allocation_record(JNIEnv* env,
-                       const char* class_sig,
-                       jlong size,
-                       jthread thread,
-		       jlong tag) {
-  jlong tid = env->CallLongMethod(thread, thread_getId_method);
-  return std::make_unique<alloc_rec>(class_sig,
-                                     size,
-                                     nullptr,
-                                     nullptr,
-                                     nullptr,
-                                     -1,
-                                     nullptr,
-                                     nullptr,
-                                     nullptr,
-                                     -1,
-                                     tid,
-                                     tag);
-}
+struct PrefixEntry {
+    const char* prefix;
+    size_t length;
+};
 
-bool is_allocs_empty(const allocs_t& allocs) {
-  auto monitor = std::make_unique<raw_monitor>(sample_lock);
-  return allocs.empty();
+constexpr std::array<PrefixEntry, 6> SYSTEM_PREFIXES{{
+    {"Ljava/", 6},
+    {"Lcom/sun/", 9},
+    {"Ljdk/", 5},
+    {"Ljavax/", 7},
+    {"Lsun/management", 15},
+    {"Lclojure/", 9}
+}};
+
+bool is_system_class(const char* class_name) {
+    return std::any_of(SYSTEM_PREFIXES.begin(), SYSTEM_PREFIXES.end(),
+        [class_name](const PrefixEntry& entry) {
+            return strncmp(class_name, entry.prefix, entry.length) == 0;
+        });
 }
 
 // State management class
 class AgentState {
+private:
+  // NOLINTNEXTLINE(cppcoreguidelines-avoid-const-or-ref-data-members)
+  VMContext &vm_context;
+  // NOLINTNEXTLINE(cppcoreguidelines-avoid-const-or-ref-data-members)
+  AgentContext& agent_context;
+
   jlong agent_state = passive;
   std::vector<std::unique_ptr<alloc_rec>> allocs;
   std::map<jlong, alloc_rec*> allocs_by_tag;
 
+  std::unique_ptr<VMContext::global_ref<jclass>> agent_class;
+  std::unique_ptr<VMContext::global_ref<jclass>> agent_allocation_start_marker_class;
+  std::unique_ptr<VMContext::global_ref<jclass>> agent_allocation_finish_marker_class;
+  std::unique_ptr<VMContext::global_ref<jclass>> agent_allocation_class;
+  jmethodID agent_allocation_ctor;
+  jmethodID agent_data1_method;
+  jmethodID agent_data8_method;
+  jfieldID agent_state_field;
+
   void set_state(jlong state) {
     agent_state = state;
-    DEBUG_PRINT("In state %ld\n", state);
+    DEBUG_PRINTLN("In state " << state);
   }
 
   void set_state(JNIEnv* env, jlong state) {
@@ -642,46 +864,132 @@ class AgentState {
     set_state(env, allocation_tracing_starting);
 
     {
-      auto monitor = std::make_unique<raw_monitor>(sample_lock);
       allocs.clear();
       allocs_by_tag.clear();
     }
 
     // here just for good measure, should already be set
-    set_sampling_interval(0);
-
-    DEBUG_PRINT("Enabling JVMTI_EVENT_SAMPLED_OBJECT_ALLOC\n");
-    auto err = jvmti->SetEventNotificationMode(JVMTI_ENABLE,
-					       JVMTI_EVENT_SAMPLED_OBJECT_ALLOC,
-					       nullptr);
-    if (err != JVMTI_ERROR_NONE) {
-      printf("Failed to enable allocation sampling %d\n", err);
-      debug_print_jvmti_err(err);
-    }
-    DEBUG_PRINT("Enabling JVMTI_EVENT_OBJECT_FREE\n");
-    err = jvmti->SetEventNotificationMode(JVMTI_ENABLE,
-					  JVMTI_EVENT_OBJECT_FREE,
-					  nullptr);
-    if (err != JVMTI_ERROR_NONE) {
-      printf("Failed to enable object free notifications %d\n", err);
-      debug_print_jvmti_err(err);
-    }
+    agent_context.set_sampling_interval(0);
+    agent_context.enable_sampled_object_alloc();
+    agent_context.enable_object_free();
   }
 
   void disable_allocation_tracing(JNIEnv* env) {
     set_state(env, allocation_tracing_stopping);
   }
 
+  void untag_objects(allocs_t &allocs, allocs_by_tag_t &allocs_by_tag);
+  auto calling_frame(JNIEnv *env, jvmtiFrameInfo *frames, jint num_frames);
+  auto frame_detail(JNIEnv *env, jvmtiFrameInfo &frame);
+  std::unique_ptr<alloc_rec> allocation_record(JNIEnv* env,
+					       const char* class_sig,
+					       jlong size,
+					       jthread thread,
+					       jlong tag);
+  std::unique_ptr<alloc_rec> allocation_record(JNIEnv *env,
+                                               const char *class_sig,
+                                               jlong size,
+					       jthread thread, jint num_frames,
+					       jvmtiFrameInfo *frames, jlong tag);
+
+  void allocation_tracing_report(JNIEnv *env, allocs_t &allocs,
+				 allocs_by_tag_t &allocs_by_tag);
+
 public:
+  AgentState(VMContext& vm_context, AgentContext& agent_context)
+      : vm_context(vm_context),	agent_context(agent_context) {}
+
+
+  void init(VMContext& vm_context, AgentContext& agent_context, JNIEnv* env) {
+    auto klass = vm_context.mk_local_ref(env,
+                                         env->FindClass("criterium/agent/Agent"));
+    if (klass == nullptr) {
+      std::cout << "Failed to find Agent class\n";
+      return;
+    }
+
+    auto allocation_start_marker_klass =
+      vm_context.mk_local_ref(env, env->FindClass(allocation_start_marker));
+    if (allocation_start_marker_klass == nullptr) {
+      std::cout << "Failed to find Agent$AllocationStartMarker class\n";
+      return;
+    }
+
+    auto allocation_finish_marker_klass =
+      vm_context.mk_local_ref(env, env->FindClass(allocation_finish_marker));
+    if (allocation_finish_marker_klass == nullptr) {
+      std::cout << "Failed to find Agent$AllocationFinishMarker class\n";
+      return;
+    }
+
+    auto allocation_klass =
+      vm_context.mk_local_ref(env, env->FindClass(allocation_class_name));
+    if (allocation_klass == nullptr) {
+      std::cout << "Failed to find Allocation class\n";
+      return;
+    }
+
+    static std::array<JNINativeMethod, 1> registry = {
+      {
+	// NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+          const_cast<char *>("command"),
+          // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+          const_cast<char *>("(J)V"),
+	  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+       reinterpret_cast<void*>(Agent_command)}
+    };
+
+    auto err = env->RegisterNatives(klass, registry.data(), 1);
+    if (err != JVMTI_ERROR_NONE ) {
+      std::cout << "Registration of native methods on Agent failed "
+          << err << '\n';
+      return;
+    }
+
+    auto *data1_method =
+      env->GetStaticMethodID(klass, "data1", "(Ljava/lang/Object;)V");
+    if (data1_method == nullptr ) {
+      std::cout << "failed to find Agent.data1 method\n";
+      return;
+    }
+    auto *data8_method =
+      env->GetStaticMethodID(klass, "data8", data8_sig);
+    if (data8_method == nullptr ) {
+      std::cout << "failed to find Agent.data8 method\n";
+      return;
+    }
+
+    auto *state_field = env->GetStaticFieldID(klass, "state", "J");
+    if (state_field == nullptr ) {
+      std::cout << "failed to find Agent.state field\n";
+      return;
+    }
+
+
+    agent_class = std::make_unique<VMContext::global_ref<jclass>>(env, klass);
+    agent_allocation_start_marker_class =
+      std::make_unique<VMContext::global_ref<jclass>>(env, allocation_start_marker_klass);
+    agent_allocation_finish_marker_class =
+      std::make_unique<VMContext::global_ref<jclass>>(env, allocation_finish_marker_klass);
+    agent_allocation_class =
+      std::make_unique<VMContext::global_ref<jclass>>(env, allocation_klass);
+
+    agent_allocation_ctor = env->GetMethodID(*agent_allocation_class,
+					     "<init>",
+					     agent_allocation_class_args);
+    if (agent_allocation_ctor == nullptr) {
+      std::cout << "Failed to get Allocation constructor\n";
+    }
+
+    agent_data1_method = data1_method;
+    agent_data8_method = data8_method;
+    agent_state_field = state_field;
+  }
+
   void process_allocation_event(JNIEnv* env, const AllocationEvent& event) {
-    auto class_sig = allocated<char*>();
-    {
-      auto err = jvmti->GetClassSignature(event.object_klass, &class_sig, NULL);
-      if ( err != 0) {
-	printf("Failed to get class name\n" );
-	debug_print_jvmti_err(err);
-	return;
-      }
+    auto class_sig = AgentContext::allocated<char*>();
+    if (!agent_context.get_class_signature(event.object_klass, &class_sig)) {
+        return;
     }
 
     auto starting =
@@ -694,21 +1002,20 @@ public:
 
     auto internal = !(starting || stopping);
 
-    jvmtiFrameInfo frames[MAX_FRAMES];
+    std::array<jvmtiFrameInfo, MAX_FRAMES> frames = {};
     jint count=0;
 
     if (!internal) {
-      auto err = jvmti->GetStackTrace(event.thread, 0, MAX_FRAMES, frames, &count);
-      if (err != 0) {
-	printf("Failed to get stack %s\n", static_cast<const char*>(class_sig));
-	return;
+      if (!agent_context.get_stack_trace(event.thread, frames.data(), &count)) {
+      	return;
       }
     }
 
-    auto rec =
-      internal ?
-      allocation_record(env, class_sig, event.size, event.thread, event.tag) :
-      allocation_record(jvmti, env, class_sig, event.size, event.thread, count, frames, event.tag);
+    auto rec = internal ? allocation_record(env, class_sig, event.size,
+                                            event.thread, event.tag)
+                        : allocation_record(env, class_sig, event.size,
+                                            event.thread, count,
+                                            frames.data(), event.tag);
 
     if (starting) {
       // DEBUG_PRINT("Start marker seen\n");
@@ -717,24 +1024,20 @@ public:
 
     if (stopping) {
 	DEBUG_PRINT("Disabling JVMTI_EVENT_SAMPLED_OBJECT_ALLOC\n");
-	jvmti->SetEventNotificationMode(JVMTI_DISABLE,
-					JVMTI_EVENT_SAMPLED_OBJECT_ALLOC,
-					nullptr);
+	agent_context.disable_sampled_object_alloc();
 	rec->disable_marker = true;
 	set_state(env, allocation_tracing_flushing);
       }
 
-    auto monitor = std::make_unique<raw_monitor>(sample_lock);
     allocs_by_tag.emplace(rec->tag, rec.get());
     allocs.push_back(std::move(rec));
   }
 
   void process_object_free_event(JNIEnv* env, const ObjectFreeEvent& event) {
     // DEBUG_PRINT("Free\n");
-    auto monitor = std::make_unique<raw_monitor>(sample_lock);
     try {
       alloc_rec* rec = allocs_by_tag.at(event.tag);
-      rec->freed = true;
+      rec->freed = 1;
       // DEBUG_PRINT("Free %d %d\n", rec->start_marker, rec->disable_marker);
 
       if (rec->start_marker && agent_state == start_allocation_tracing) {
@@ -745,13 +1048,7 @@ public:
       }
       if (agent_state == allocation_tracing_flushing && rec->disable_marker) {
 	DEBUG_PRINT("Disabling JVMTI_EVENT_OBJECT_FREE\n");
-	auto err = jvmti->SetEventNotificationMode(JVMTI_DISABLE,
-						   JVMTI_EVENT_OBJECT_FREE,
-						   nullptr);
-	if (err != JVMTI_ERROR_NONE) {
-	  printf("Disable JVMTI_EVENT_OBJECT_FREE failed %d\n", err);
-	  debug_print_jvmti_err(err);
-	}
+	agent_context.disable_object_free();
 	DEBUG_PRINT("Disabled\n");
 	set_state(env, allocation_tracing_flushed);
       }
@@ -774,313 +1071,236 @@ public:
       set_state(env, allocation_tracing_reported);
       break;
     case ping:
-      env->CallStaticVoidMethod(*agent_class,
-				agent_data1_method,
-				env->NewStringUTF("Alive"));
+      AgentContext::call_static_void_method(env,
+                                            *agent_class,
+					    agent_data1_method,
+					    env->NewStringUTF("Alive"));
       break;
     case sync_state:
       set_state(env, agent_state);
       break;
+    default:
+      std::cout << "Invalid command: " << cmd.cmd << '\n';
     }
   }
 };
 
-// Queue consumer thread
-void queue_consumer_thread(JavaVM* jvm) {
-    JNIEnv* env;
-    // Attach thread to JVM
-    jint res = jvm->AttachCurrentThreadAsDaemon((void**)&env, NULL);
-    if (res != JNI_OK) {
-        DEBUG_PRINT("Failed to attach queue consumer thread to JVM\n");
-        return;
-    }
+auto AgentState::calling_frame(JNIEnv* env,
+			       jvmtiFrameInfo* frames,
+			       jint num_frames) {
+  jint framei = 0;
+  auto class_name = AgentContext::allocated<char*>();
 
-    AgentState state;
-    Message msg;
-
-    while (!vm_dead && message_queue.pop(msg)) {
-        std::visit([&](auto&& arg) {
-            using T = std::decay_t<decltype(arg)>;
-            if constexpr (std::is_same_v<T, AllocationEvent>) {
-	      // DEBUG_PRINT("Process AllocationEvent\n");
-	      state.process_allocation_event(env, arg);
-	      arg.delete_global_refs(env);
-            }
-            else if constexpr (std::is_same_v<T, ObjectFreeEvent>) {
-	      // DEBUG_PRINT("Process ObjectFreeEvent\n");
-	      state.process_object_free_event(env, arg);
-            }
-            else if constexpr (std::is_same_v<T, Command>) {
-	      DEBUG_PRINT("Process command\n");
-	      state.process_command(env, arg);
-            }
-        }, msg);
+  for (; framei < num_frames; framei++) {
+    auto declaring_class = VMContext::local_ref<jclass>(env);
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    if (agent_context.get_method_declaring_class(frames[framei].method,
+							&declaring_class)) {
+      if (agent_context.get_class_signature(declaring_class, &class_name)) {
+        // printf("class : %d %s\n", framei, (char*)class_name);
+        // TODO make the filters configurable
+        if (is_system_class(class_name)) {
+          break;
+        }
+      }
     }
-    // Detach thread from JVM
-    if (jvm != nullptr) {
-        jvm->DetachCurrentThread();
-    }
-}
-
-// Modified event callbacks to use queue
-void JNICALL SampledObjectAlloc(jvmtiEnv* jvmti, JNIEnv* env,
-                               jthread thread, jobject object,
-                               jclass object_klass, jlong size) {
-  auto tag = next_tag();
-  auto err = jvmti->SetTag(object, tag);
-  if (err != JVMTI_ERROR_NONE) {
-    printf("Failed to tag object: %d\n", err);
-    debug_print_jvmti_err(err);
   }
-  message_queue.push(AllocationEvent{
-      static_cast<jobject>(env->NewGlobalRef(object)),
-      static_cast<jclass>(env->NewGlobalRef(object_klass)),
-      static_cast<jthread>(env->NewGlobalRef(thread)),
-      size,
-      tag
-    });
-}
-
-void JNICALL ObjectFree(jvmtiEnv *jvmti, jlong tag) {
-  // DEBUG_PRINT("ObjectFree\n");
-  message_queue.push(ObjectFreeEvent{tag});
-}
-
-/* Call sent by java Agent class */
-void JNICALL Agent_command(JNIEnv* env, jclass klass, jlong cmd) {
-  if (cmd != 1) {
-    DEBUG_PRINT("Agent command: %ld\n", cmd);
+  if (framei>=num_frames) {
+    framei = 0;
   }
-  message_queue.push(Command{cmd});
+  return std::make_tuple(framei, std::move(class_name));
 }
 
-static char* terminate_string(char* class_name) {
-    class_name[strlen(class_name) - 1] = 0;
-    return class_name + 1;
-}
+auto AgentState::frame_detail(JNIEnv* env, jvmtiFrameInfo& frame) {
+  auto declaring_class = VMContext::local_ref<jclass>(env);
+  agent_context.get_method_declaring_class(frame.method, &declaring_class);
 
+  auto class_name = AgentContext::allocated<char*>();
+  agent_context.get_class_signature(declaring_class, &class_name);
 
-void watch_field(jvmtiEnv* jvmti,
-                 JNIEnv* env,
-                 jthread thread,
-                 jclass klass,
-                 const char* field_name,
-                 const char* field_sig=NULL) {
-  jfieldID field_id = (env)->GetFieldID(klass, field_name, field_sig);
-  if (field_id != NULL) {
-    // printf("found field\n");
+  auto method_name = AgentContext::allocated<char*>();
+  agent_context.get_method_name(frame.method, &method_name);
+
+  jint entry_count = 0;
+  auto line_table = AgentContext::allocated<jvmtiLineNumberEntry*>();
+
+  jint line_num = -1;
+
+  if (agent_context.get_line_number_table(frame.method, &entry_count,
+                                          &line_table)) {
+    line_num = line_table[0].line_number;
+    for ( auto i = 1 ; i < entry_count ; i++ ) {
+      if ( frame.location < line_table[i].start_location) {
+        break;
+      }
+      line_num = line_table[i].line_number;
+    }
   } else {
-    printf("field not found\n");
+    line_num = -1;
   }
 
-  auto err = (jvmti)->SetFieldModificationWatch(klass, field_id);
+  auto source_name = AgentContext::allocated<char *>();
+  agent_context.get_source_file_name(declaring_class, &source_name);
+
+  return std::make_tuple(std::move(class_name),
+                         std::move(method_name),
+                         std::move(source_name),
+                         line_num);
 }
 
-void JNICALL FieldModification(jvmtiEnv* jvmti,
-                               JNIEnv* env,
-                               jthread thread,
-                               jmethodID method,
-                               jlocation location,
-                               jclass field_klass,
-                               jobject object,
-                               jfieldID field,
-                               char signature_type,
-                               jvalue new_value) {
-  // printf("\nField modification\n");
-  // bool value = new_value.z;
-  // // printf("got modified field value %d\n", value);
+std::unique_ptr<alloc_rec> AgentState::allocation_record(JNIEnv* env,
+							 const char* class_sig,
+							 jlong size,
+							 jthread thread,
+							 jint num_frames,
+							 jvmtiFrameInfo* frames,
+							 jlong tag) {
+  jint framei=0;
 
-  // if (!!value) {
-  //   enable_allocation_tracing(env, thread, object);
-  // } else {
-  //   disable_allocation_tracing(jvmti, env, thread, object);
-  // }
+  auto [f0_class_name, f0_method, f0_source, f0_line]
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+      = frame_detail(env, frames[0]);
+
+  auto cframe = calling_frame(env, frames, num_frames);
+  framei = std::get<0>(cframe);
+
+  auto [fi_class_name, fi_method, fi_source, fi_line]
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+   = frame_detail(env, frames[framei]);
+
+  jlong tid = AgentContext::getInstance().thread_id(env, thread);
+
+  return std::make_unique<alloc_rec>(class_sig,
+                                     size,
+                                     fi_class_name,
+                                     fi_method,
+                                     fi_source,
+                                     static_cast<jlong>(fi_line),
+                                     f0_class_name,
+                                     f0_method,
+                                     f0_source,
+                                     static_cast<jlong>(f0_line),
+                                     tid,
+                                     tag);
 }
 
-void JNICALL ClassLoad(jvmtiEnv* jvmti,
-                       JNIEnv* env,
-                       jthread thread,
-                       jclass klass) {
-  char *className;
-  int err = (jvmti)->GetClassSignature(klass, &className, NULL);
-  if (className != NULL) {
-    terminate_string(className);
-    if (allocation_sampler_name == className) {
-      // printf("\nFound allocation sampler\n");
-      watch_field(jvmti, env, thread, klass, "enabled", "Z");
+std::unique_ptr<alloc_rec> AgentState::allocation_record(JNIEnv* env,
+							 const char* class_sig,
+							 jlong size,
+							 jthread thread,
+							 jlong tag) {
+  jlong tid = agent_context.thread_id(env, thread);
+  return std::make_unique<alloc_rec>(class_sig,
+                                     size,
+                                     nullptr,
+                                     nullptr,
+                                     nullptr,
+                                     -1,
+                                     nullptr,
+                                     nullptr,
+                                     nullptr,
+                                     -1,
+                                     tid,
+                                     tag);
+}
+
+void AgentState::untag_objects(allocs_t &allocs,
+                               allocs_by_tag_t& allocs_by_tag) {
+  auto tags = all_tags(allocs);
+  if (!tags.empty()) {
+    jint count = 0;
+    auto objects = AgentContext::allocated<jobject*>();
+    auto object_tags = AgentContext::allocated<jlong*>();
+    agent_context.get_objects_with_tags(static_cast<jint>(tags.size()),
+					tags.data(),
+					&count,
+					&objects,
+					&object_tags);
+    for (jint i=0; i< count; ++i) {
+      agent_context.set_tag(objects[i], 0);
     }
   }
+  // DEBUG_PRINT("remove tags done\n");
+
+  allocs_by_tag.clear();
 }
 
-void JNICALL VMInit(jvmtiEnv* jvmti, JNIEnv* env, jthread thread) {
+void AgentState::allocation_tracing_report(JNIEnv *env, allocs_t &allocs,
+                                           allocs_by_tag_t& allocs_by_tag) {
+  for (auto& alloc : allocs) {
+    auto class_jstr = java::string(env, alloc->obj_class);
 
-  // set this as early as possible.  repeated here, as not sure it works from
-  // OnLoad.
-  set_sampling_interval(0);
+    auto alloc_class_jstr = java::string(env, alloc->alloc_class);
+    auto alloc_method_jstr = java::string(env, alloc->alloc_method);
+    auto alloc_file_jstr = java::string(env, alloc->alloc_file);
 
-  // Get JavaVM pointer
-  env->GetJavaVM(&cached_vm);
+    auto call_class_jstr = java::string(env, alloc->call_class);
+    auto call_method_jstr = java::string(env, alloc->call_method);
+    auto call_file_jstr = java::string(env, alloc->call_file);
 
-  auto monitor = std::make_unique<raw_monitor>(sample_lock);
+    auto rec = VMContext::local_ref<jobject>
+      (env, AgentContext::new_object
+       (env,
+	*agent_allocation_class,
+	agent_allocation_ctor,
+	(jstring)class_jstr,
+	alloc->obj_size,
+	(jstring)call_class_jstr,
+	(jstring)call_method_jstr,
+	(jstring)call_file_jstr,
+	alloc->call_line,
+	(jstring)alloc_class_jstr,
+	(jstring)alloc_method_jstr,
+	(jstring)alloc_file_jstr,
+	alloc->alloc_line,
+	alloc->thread_id,
+	alloc->freed));
 
-  jclass thread_klass = env->GetObjectClass(thread);
-  thread_getId_method = env->GetMethodID(thread_klass, "getId", "()J");
-
-  auto klass = mk_local_ref(env, env->FindClass("criterium/agent/Agent"));
-  if (klass == NULL) {
-    printf("Failed to find Agent class\n");
-    return;
+    AgentContext::call_static_void_method(env, *agent_class, agent_data1_method,
+                                          (jobject&)rec);
   }
 
-  auto allocation_start_marker_klass =
-    mk_local_ref(env, env->FindClass(allocation_start_marker));
-  if (allocation_start_marker_klass == NULL) {
-    printf("Failed to find Agent$AllocationStartMarker class\n");
-    return;
-  }
-
-  auto allocation_finish_marker_klass =
-    mk_local_ref(env, env->FindClass(allocation_finish_marker));
-  if (allocation_finish_marker_klass == NULL) {
-    printf("Failed to find Agent$AllocationFinishMarker class\n");
-    return;
-  }
-
-  auto allocation_klass =
-    mk_local_ref(env, env->FindClass(allocation_class_name));
-  if (allocation_klass == NULL) {
-    printf("Failed to find Allocation class\n");
-    return;
-  }
-
-  static JNINativeMethod registry[1] = {
-    {const_cast<char*>("command"),
-     const_cast<char*>("(J)V"),
-     (void*)Agent_command}
-  };
-
-  auto err = env->RegisterNatives(klass, registry, 1);
-  if (err != JVMTI_ERROR_NONE ) {
-    printf("Registration of native methods on Agent failed %d\n", err);
-    return;
-  }
-
-  auto data1_method =
-    env->GetStaticMethodID(klass, "data1", "(Ljava/lang/Object;)V");
-  if (data1_method == NULL ) {
-    printf("failed to find Agent.data1 method\n");
-    return;
-  }
-  auto data8_method =
-    env->GetStaticMethodID(klass, "data8", "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)V");
-  if (data8_method == NULL ) {
-    printf("failed to find Agent.data8 method\n");
-    return;
-  }
-
-  auto state_field = env->GetStaticFieldID(klass, "state", "J");
-  if (state_field == NULL ) {
-    printf("failed to find Agent.state field\n");
-    return;
-  }
-
-
-  agent_class = std::make_unique<global_ref<jclass>>(env, klass);
-  agent_allocation_start_marker_class =
-    std::make_unique<global_ref<jclass>>(env, allocation_start_marker_klass);
-  agent_allocation_finish_marker_class =
-    std::make_unique<global_ref<jclass>>(env, allocation_finish_marker_klass);
-  agent_allocation_class =
-    std::make_unique<global_ref<jclass>>(env, allocation_klass);
-
-  agent_allocation_ctor = env->GetMethodID(*agent_allocation_class,
-                                           "<init>",
-                                           agent_allocation_class_args);
-  if (agent_allocation_ctor == NULL) {
-    printf("Failed to get Allocation constructor\n");
-  }
-
-  agent_data1_method = data1_method;
-  agent_data8_method = data8_method;
-  agent_state_field = state_field;
-
-  // Start queue consumer thread
-  std::thread consumer(queue_consumer_thread, cached_vm);
-    consumer.detach();
-    message_queue.push(Command{sync_state});
+  untag_objects(allocs, allocs_by_tag);
+  allocs.clear();
 }
 
-void JNICALL VMDeath(jvmtiEnv* jvmti, JNIEnv* env) {
-  vm_dead = true;
-  message_queue.stop();
-}
+// Queue consumer thread
+void queue_consumer_thread() {
+  JNIEnv *env = nullptr;
+  VMContext& vm_context = VMContext::getInstance();
+  AgentContext& agent_context = AgentContext::getInstance();
+  // Attach thread to JVM
+  vm_context.attach_current_thread_as_daemon(&env);
 
-void parse_options(jvmtiEnv* jvmti, char* options) {
-  /* if (options != NULL && options[0] >= '0' && options[0] <= '9') { */
-  /*   jvmti->SetHeapSamplingInterval(std::atoi(options)); */
-  /* } */
-}
+  AgentState state(vm_context, agent_context);
+  state.init(vm_context, agent_context, env);
+  Message msg;
 
-JNIEXPORT jint JNICALL
-Agent_OnLoad(JavaVM* vm, char* options, void* reserved) {
-  printf("Loading criterium agent\n");
-
-  vm->GetEnv((void**) &jvmti, JVMTI_VERSION_1_0);
-
-  jvmti->CreateRawMonitor("sample_lock", &sample_lock);
-  jvmti->CreateRawMonitor("tag_lock", &tag_lock);
-  jvmti->CreateRawMonitor("control_lock", &control_lock);
-
-  jvmtiCapabilities capabilities = {0};
-  capabilities.can_generate_sampled_object_alloc_events = 1;
-  capabilities.can_generate_field_modification_events = 1;
-  capabilities.can_get_line_numbers = 1;
-  capabilities.can_get_source_file_name = 1;
-  capabilities.can_tag_objects = 1;
-  capabilities.can_generate_object_free_events = 1;
-
-  {
-    auto err = jvmti->AddCapabilities(&capabilities);
-    if (err != JVMTI_ERROR_NONE) {
-      printf("Failed to add capabilities: %d\n", err);
-      debug_print_jvmti_err(err);
-    }
+  while (!vm_context.vm_dead() && agent_context.get_message_queue().pop(msg)) {
+    std::visit([&](auto&& arg) {
+      using T = std::decay_t<decltype(arg)>;
+      if constexpr (std::is_same_v<T, AllocationEvent>) {
+	// DEBUG_PRINT("Process AllocationEvent\n");
+	state.process_allocation_event(env, arg);
+	arg.delete_global_refs(env);
+      }
+      else if constexpr (std::is_same_v<T, ObjectFreeEvent>) {
+	// DEBUG_PRINT("Process ObjectFreeEvent\n");
+	state.process_object_free_event(env, arg);
+      }
+      else if constexpr (std::is_same_v<T, Command>) {
+	DEBUG_PRINT("Process command\n");
+	state.process_command(env, arg);
+      }
+    }, msg);
   }
-
-  jvmtiEventCallbacks callbacks = {0};
-  callbacks.SampledObjectAlloc = SampledObjectAlloc;
-  callbacks.ObjectFree = ObjectFree;
-  callbacks.FieldModification = FieldModification;
-  callbacks.VMInit = VMInit;
-  callbacks.VMDeath = VMDeath;
-  jvmti->SetEventCallbacks(&callbacks, sizeof(callbacks));
-  jvmti->SetEventNotificationMode(JVMTI_ENABLE,
-                                  JVMTI_EVENT_FIELD_MODIFICATION,
-                                  nullptr);
-
-  jvmti->SetEventNotificationMode(JVMTI_ENABLE,
-                                  JVMTI_EVENT_VM_INIT,
-                                  nullptr);
-  jvmti->SetEventNotificationMode(JVMTI_ENABLE,
-				  JVMTI_EVENT_VM_DEATH,
-                                  nullptr);
-
-  // Set this as early as possible
-  set_sampling_interval(0);
-
-  DEBUG_PRINT("\nallocation sampler loaded\n");
-
-  return JNI_OK;
-}
-
-JNIEXPORT jint JNICALL
-Agent_OnAttach(JavaVM* vm, char* options, void* reserved) {
-  if (jvmti != NULL) {
-    return 0;
+  // Detach thread from JVM
+  if (vm_context.vm() != nullptr) {
+    vm_context.vm()->DetachCurrentThread();
   }
-  return Agent_OnLoad(vm, options, reserved);
 }
 
-JNIEXPORT void JNICALL Java_criterium_agent_sayHello(JNIEnv *) {
-  printf("hello\n");
+void start_queue_consumer() {
+  std::thread consumer(queue_consumer_thread);
+  consumer.detach();
 }

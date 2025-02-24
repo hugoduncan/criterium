@@ -21,3 +21,4 @@ version.edn
 *.dSYM
 .clj-kondo/*/
 .aider*
+agent-cpp/build/
