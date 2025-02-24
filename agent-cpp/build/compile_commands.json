@@ -1,0 +1,14 @@
+[
+{
+  "directory": "/Users/duncan/projects/hugoduncan/criterium/agent-cpp/build",
+  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ -DDEBUG -Dcriterium_EXPORTS -I/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home/include -I/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home/include/darwin -std=gnu++17 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -fPIC -o CMakeFiles/criterium.dir/agent.cpp.o -c /Users/duncan/projects/hugoduncan/criterium/agent-cpp/agent.cpp",
+  "file": "/Users/duncan/projects/hugoduncan/criterium/agent-cpp/agent.cpp",
+  "output": "CMakeFiles/criterium.dir/agent.cpp.o"
+},
+{
+  "directory": "/Users/duncan/projects/hugoduncan/criterium/agent-cpp/build",
+  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ -DDEBUG -Dcriterium_EXPORTS -I/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home/include -I/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home/include/darwin -std=gnu++17 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -fPIC -o CMakeFiles/criterium.dir/CMakeFiles/3.31.5/CompilerIdCXX/CMakeCXXCompilerId.cpp.o -c /Users/duncan/projects/hugoduncan/criterium/agent-cpp/build/CMakeFiles/3.31.5/CompilerIdCXX/CMakeCXXCompilerId.cpp",
+  "file": "/Users/duncan/projects/hugoduncan/criterium/agent-cpp/build/CMakeFiles/3.31.5/CompilerIdCXX/CMakeCXXCompilerId.cpp",
+  "output": "CMakeFiles/criterium.dir/CMakeFiles/3.31.5/CompilerIdCXX/CMakeCXXCompilerId.cpp.o"
+}
+]

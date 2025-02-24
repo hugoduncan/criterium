@@ -1,0 +1,21 @@
+Checks: >
+  bugprone-*,
+  cert-*,
+  cppcoreguidelines-*,
+  clang-analyzer-*,
+  performance-*,
+  portability-*,
+  readability-*,
+  -modernize-use-trailing-return-type,
+  -fuchsia-*,
+  -google-*,
+  -hicpp-deprecated-headers,
+  -modernize-deprecated-headers
+
+WarningsAsErrors: '*'
+HeaderFilterRegex: '^(?!.*jni\.h|.*jni_md\.h|.*jvmti\.h)'
+SourceFilterRegex: '^(?!.*CMakeCXXCompilerId\.cpp)'
+
+CheckOptions:
+  - key: llvm-header-guard.HeaderFileExtensions
+    value: ',h,hh,hpp,hxx'
