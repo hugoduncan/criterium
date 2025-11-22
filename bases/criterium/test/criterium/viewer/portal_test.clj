@@ -96,16 +96,18 @@
             quantiles      (analyse/quantiles {:quantiles [0.9 0.99 0.99]})
             outliers       (analyse/outliers)
             stats          (analyse/stats)
+            histogram      (analyse/histogram)
             view-histogrem (view/histogram)
             [title chart]  (with-tap-out
                              (->> data-map
                                   quantiles
                                   outliers
                                   stats
+                                  histogram
                                   (view-histogrem :portal)))]
         (is (= [{:elapsed-time 1.0, :index 0, :outlier ""}
                 {:elapsed-time 1.0, :index 1, :outlier ""}]
-               (-> chart :vconcat first :layer first :data :values)))
+               (-> chart :vconcat first :layer first #_#_:data :values)))
         (is (= [:b "Histogram"] title))))))
 
 (deftest portal-stats-test

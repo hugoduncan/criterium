@@ -46,9 +46,7 @@
    (fn transform-log [data-map]
      (let [samples-id      (or samples-id :samples)
            id              (or id (keyword (str "log-" (name samples-id))))
-           metrics-samples (have
-                            types/generic-metrics-samples-map?
-                            (data-map samples-id))
+           metrics-samples (have types/generic-data-map? (data-map samples-id))
            metrics-defs    (-> (:metrics-defs metrics-samples)
                                (metric/select-metrics metric-ids)
                                (metric/filter-metrics
@@ -64,7 +62,7 @@
                              exp
                              options)
                             (merge
-                             {:source-id samples-id}))]
+                             {:source-id samples-id :metrics-defs metrics-defs}))]
        (assoc data-map id transformed)))))
 
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}

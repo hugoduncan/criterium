@@ -18,7 +18,7 @@
   This allows criterium to control the order of tapped output.
 
   ```clojure
-  (def submit (criterium.portal/submit #'portal.api/submit))
+  (def submit (criterium.viewer.portal/submit #'portal.api/submit))
   (add-tap #'submit)`
   (remove-tap #'submit)
   ``"

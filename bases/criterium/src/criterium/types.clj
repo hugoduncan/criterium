@@ -109,6 +109,12 @@
 (defn generic-metrics-samples-map?
   [x]
   (#{:criterium/metrics-samples
+     :criterium/collected-metrics-samples}
+   (:type x)))
+
+(defn generic-data-map?
+  [x]
+  (#{:criterium/metrics-samples
      :criterium/collected-metrics-samples
      :criterium/digest}
    (:type x)))

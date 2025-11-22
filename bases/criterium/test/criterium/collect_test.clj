@@ -27,11 +27,12 @@
                                    measured
                                    1
                                    10))
-          _                     (prn :allocations allocations)
           {:keys [freed-bytes]} (->> allocations
                                      (filterv (agent/allocation-on-thread?))
+                                     (filterv agent/allocation-freed?)
                                      agent/allocations-summary)]
-      (is (= 10 (alength ^objects (:samples sampled))))
+      (is (= 10 (alength ^objects (:collections sampled)))
+          (pr-str sampled))
       (is (zero? freed-bytes)
           (->> allocations
                (filterv (agent/allocation-on-thread?))

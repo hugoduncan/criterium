@@ -10,7 +10,7 @@
 
 (defmethod methods/transform :criterium/digest
   [digest-samples metric-configs f inv-f options]
-  {:have [(have? types/digest-samples-map? digest-samples)]}
+  {:pre [(have? types/digest-samples-map? digest-samples)]}
   (let [metric->digest  (util/metric->digest digest-samples)
         metric->digest' (reduce
                          (fn x-path [result path]
@@ -32,7 +32,7 @@
 
 (defmethod methods/quantiles :criterium/digest
   [digest-samples metric-configs options]
-  {:have [(have? types/digest-samples-map? digest-samples)]}
+  {:pre [(have? types/digest-samples-map? digest-samples)]}
   (let [metric->digest (util/metric->digest digest-samples)
         quantiles      (into [0.25 0.5 0.75] (:quantiles options))
         quantiles      (reduce
@@ -90,7 +90,7 @@
 
 (defmethod methods/outliers :criterium/digest
   [digest-samples all-quantiles metric-configs _options]
-  {:have [(have? types/digest-samples-map? digest-samples)]}
+  {:pre [(have? types/digest-samples-map? digest-samples)]}
   (let [metric->digest (util/metric->digest digest-samples)
         quantiles      (util/quantiles all-quantiles)
         outliers       (reduce
@@ -107,8 +107,8 @@
      :num-samples (t-digest/sample-count (first (vals metric->digest)))
      :transform   collect-plan/identity-transforms}))
 
-(defn- digest-sample-states
-  [digest outliers]
+(defn- digest-sample-stats
+  [digest]
   (let [mean        (t-digest/mean digest)
         variance    (t-digest/variance digest mean)
         sigma       (Math/sqrt variance)
@@ -124,15 +124,22 @@
 
 (defmethod methods/stats :criterium/digest
   [digest-samples outliers metric-configs options]
-  {:have [(have? types/digest-samples-map? digest-samples)]}
+  {:pre [(have? types/digest-samples-map? digest-samples)]}
   (let [metric->digest (util/metric->digest digest-samples)
         outliers       (when outliers (util/outliers outliers))
         stats          (reduce
                         (fn qs [result path]
-                          (let [digest (have (metric->digest path))]
+                          (let [digest   (have (metric->digest path))
+                                digest   (t-digest/compress digest)
+                                outliers (when outliers (get-in outliers path))
+                                digest   (if outliers
+                                           (t-digest/filter-outliers
+                                            digest
+                                            outliers)
+                                           digest)]
                             (assoc-in
                              result path
-                             (digest-sample-states digest outliers) )))
+                             (digest-sample-stats digest))))
                         {}
                         (mapv :path metric-configs))]
     {:type      :criterium/stats
@@ -160,7 +167,7 @@
 
 (defmethod methods/histogram :criterium/digest
   [digest-samples quantiles outliers metric-configs _options]
-  {:have [(have? types/digest-samples-map? digest-samples)]}
+  {:pre [(have? types/digest-samples-map? digest-samples)]}
   (let [histograms (->> metric-configs
                         (mapv
                          (juxt :path
