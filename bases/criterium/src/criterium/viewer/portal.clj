@@ -382,14 +382,14 @@
                       hist-transforms
                       (histograms (:path metric-config))
                       metric-config
-                      (vswap! layer-num inc))]
+                      (vswap! layer-num unchecked-inc))]
                     (when stats
                       (->>
                        (metric-sample-stats-layer
                         stats-transforms
                         (get-in (util/stats stats) (:path metric-config))
                         metric-config
-                        (vswap! layer-num inc)))))})
+                        (vswap! layer-num unchecked-inc)))))})
                 metric-configs)})))
 
 (defn metric-percentile-layer
