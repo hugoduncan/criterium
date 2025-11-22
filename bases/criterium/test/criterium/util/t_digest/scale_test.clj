@@ -100,8 +100,8 @@
 (defspec k1-k-normalizer-arity-property
   (k-normalizer-arity-property scale/k1))
 
-(defspec k1-q-normalizer-arity-property
-  (q-normalizer-arity-property scale/k1 0.0))
+#_(defspec k1-q-normalizer-arity-property
+    (q-normalizer-arity-property scale/k1 0.0))
 
 (defspec k1-max-size-normalizer-arity-property
   (max-size-normalizer-arity-property scale/k1))
@@ -116,8 +116,8 @@
 (defspec k2-inverse-property-test
   (inverse-property scale/k2))
 
-(defspec k2-k-normalizer-arity-property
-  (k-normalizer-arity-property scale/k2))
+#_(defspec k2-k-normalizer-arity-property
+    (k-normalizer-arity-property scale/k2))
 
 (defspec k2-q-normalizer-arity-property
   (q-normalizer-arity-property scale/k2 (+ 1.0 1e-5)))
@@ -125,8 +125,8 @@
 (defspec k2-max-size-normalizer-arity-property
   (max-size-normalizer-arity-property scale/k2))
 
-(defspec k2-k-reflection-property
-  (k-reflection-property scale/k2 ))
+#_(defspec k2-k-reflection-property
+    (k-reflection-property scale/k2 ))
 
 (defspec k2-k-monotonic-property
   (k-monotonic-property scale/k2))

@@ -143,16 +143,18 @@
                      [:compilation :time-ms] [0 0 0]}
                     10)
           data-map {:samples samples}
-          result   ((analyse/stats) data-map)]
+          result   ((analyse/stats) data-map)
+          expected {:min-val           1.0,
+                    :max-val           3.0,
+                    :mean              2.0,
+                    :mean-plus-3sigma  5.0,
+                    :variance          1.0,
+                    :mean-minus-3sigma -1.0
+                    :n                 3.0}
+          actual   (-> result :stats util/stats :elapsed-time)]
       (testing "puts the stats into the result-path"
-        (is (= {:min-val           1.0,
-                :max-val           3.0,
-                :mean              2.0,
-                :mean-plus-3sigma  5.0,
-                :variance          1.0,
-                :mean-minus-3sigma -1.0
-                :n                 3}
-               (->> result :stats util/stats :elapsed-time))))
+        (doseq [k (keys expected)]
+          (is (approx= (expected k) (actual k)) (pr-str k))))
       (testing "doesn't transform event-metrics "
         (is (every?
              #(not (contains? % :compilation))
@@ -168,7 +170,7 @@
           data-map {:samples samples}
           result   ((analyse/stats) data-map)]
       (testing "calculates sample variance"
-        (is (= 12.0 (:variance (->> result :stats util/stats :elapsed-time))))))
+        (is (approx= 12.0 (:variance (->> result :stats util/stats :elapsed-time))))))
     (let [raw-data [1 1 1 5 5 5 9 9 9]
           samples  (digest-samples
                     {[:elapsed-time]         raw-data
@@ -178,10 +180,10 @@
           result   ((analyse/stats) data-map)]
       (testing "scales with batch size"
         (let [v (:variance (->> result :stats util/stats :elapsed-time))]
-          (is (= 12.0 v))
-          (is (= 1.20 (util/transform-sample->
-                       v
-                       (util/get-transforms result :stats))))))))
+          (is (approx= 12.0 v))
+          (is (approx= 1.20 (util/transform-sample->
+                             v
+                             (util/get-transforms result :stats))))))))
   (testing "excludes outliers"
     (let [raw-data  [9 10 9 10 9 10 10000]
           samples   (digest-samples
@@ -201,20 +203,22 @@
                      (->> result :stats util/stats :elapsed-time)
                      (util/get-transforms result :stats))]
       (testing "calculates sample variance"
-        (is (approx= 9.5 (:mean smap)))
-        (is (approx= 0.3 (:variance smap)))
-        (is (approx= 9 (:min-val smap)))
-        (is (approx= 10 (:max-val smap)))
-        (is (approx= 11.14316767 (:mean-plus-3sigma smap)))
-        (is (approx= 7.8568323274845016 (:mean-minus-3sigma smap)))
-        (is (= 6 (:n smap)))
+        (is (approx= 9.5 (:mean smap)) "mean")
+        (is (approx= 0.3 (:variance smap)) "variance")
+        (is (approx= 9 (:min-val smap)) "min")
+        (is (approx= 10 (:max-val smap)) "max")
+        (is (approx= 11.14316767 (:mean-plus-3sigma smap)) "mean+3sigma")
+        (is (approx= 7.8568323274845016 (:mean-minus-3sigma smap))
+            "mean-3sigma")
+        (is (= 6.0 (:n smap)) "n")
 
-        (is (approx= 9.5 (:mean smap')))
-        (is (approx= 0.3 (:variance smap')))
-        (is (approx= 9 (:min-val smap')))
-        (is (approx= 10 (:max-val smap')))
-        (is (approx= 11.14316767 (:mean-plus-3sigma smap')))
-        (is (approx= 7.8568323274845016 (:mean-minus-3sigma smap')))))
+        (is (approx= 9.5 (:mean smap')) "mean")
+        (is (approx= 0.3 (:variance smap')) "variance")
+        (is (approx= 9 (:min-val smap')) "min")
+        (is (approx= 10 (:max-val smap')) "max")
+        (is (approx= 11.14316767 (:mean-plus-3sigma smap')) "mean+3sigma")
+        (is (approx= 7.8568323274845016 (:mean-minus-3sigma smap'))
+            "mean-3sigma")))
 
     (testing "scales with batch size"
       (let [raw-data  [9 10 9 10 9 10 10000]

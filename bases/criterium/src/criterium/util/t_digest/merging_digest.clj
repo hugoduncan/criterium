@@ -433,12 +433,15 @@
     (/ weighted-sum sum-weights)))
 
 (defn variance
+  "Returns the sample variance of the distribution represented by the t-digest.
+   Uses n-1 in the denominator (Bessel's correction)."
   (^double [digest]
    (variance digest (mean digest)))
   (^double [{:keys [centroids] :as ^TDigest digest} ^double mean]
    (let [sum-weights (.total-weight digest)
+         n-1         (dec sum-weights)
          sum-squares (util/reduce-double-vector
-                      (fn ^double [^double acc ^Centroid centroid ]
+                      (fn ^double [^double acc ^Centroid centroid]
                         (+ acc
                            (* (* (.mean centroid)
                                  (.mean centroid))
@@ -446,7 +449,8 @@
                       0.0
                       centroids)
          e-x-squared (/ sum-squares sum-weights)]
-     (- e-x-squared (* mean mean)))))
+     (* (/ sum-weights n-1)  ; Bessel's correction factor
+        (- e-x-squared (* mean mean))))))
 
 (defn centroid-means
   [digest]
@@ -503,3 +507,26 @@
      :num-bins num-bins
      :min      (.minimum digest)
      :max      (.maximum digest)}))
+
+
+(defn filter-outliers
+  [^TDigest digest outliers]
+  (let [thresholds (:thresholds outliers)
+        low        (first thresholds)
+        high       (nth thresholds 2)
+        centroids  (filterv
+                    (fn [^Centroid centroid] (<= low (.mean centroid) high))
+                    (:centroids digest))
+        sum        (reduce + 0.0 (mapv #(.weight ^Centroid %) centroids))
+        minimum    (reduce min (mapv #(.mean ^Centroid %) centroids))
+        maximum    (reduce max (mapv #(.mean ^Centroid %) centroids))]
+    (->TDigest
+     (.compression digest)
+     centroids
+     []
+     sum
+     0.0
+     minimum
+     maximum
+     (.scale digest)
+     (.buffer-size digest))))

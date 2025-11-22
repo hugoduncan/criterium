@@ -318,8 +318,7 @@
         (System/gc)
         (recur (unchecked-dec i))))
     (when (not= (agent-state) :allocation-tracing-flushed)
-      (println "WARNING allocation tracing failed to stop promptly"))
-    (println "allocation tracing stopped")))
+      (println "WARNING allocation tracing failed to stop promptly"))))
 
 (defn collect-allocaton-records
   []

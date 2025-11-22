@@ -9,6 +9,8 @@
    [criterium.util.sampled-stats :as sampled-stats]
    [criterium.util.stats :as stats]))
 
+(derive :criterium/collected-metrics-samples :criterium/metrics-samples)
+
 (defmethod methods/transform :criterium/metrics-samples
   [metrics-samples metric-configs f inv-f options]
   (let [metric->values  (util/metric->values metrics-samples)
@@ -23,7 +25,7 @@
     (->
      (select-keys
       metrics-samples
-      types/metrics-samples-keys)
+      (disj types/metrics-samples-keys :metrics-defs))
      (merge
       {:metric->values metric->values'
        :transform      {:sample-> inv-f :->sample f}}))))
@@ -85,7 +87,7 @@
 
 (defmethod methods/outliers :criterium/metrics-samples
   [metrics-samples all-quantiles metric-configs _options]
-  {:have [(have? types/digest-samples-map? metrics-samples)]}
+  {:pre [(have? types/generic-metrics-samples-map? metrics-samples)]}
   (let [outliers (samples-outliers
                   metric-configs
                   (util/quantiles all-quantiles)
@@ -97,7 +99,7 @@
 
 (defmethod methods/stats :criterium/metrics-samples
   [metrics-samples outliers metric-configs options]
-  {:have [(have? types/digest-samples-map? metrics-samples)]}
+  {:pre [(have? types/generic-metrics-samples-map? metrics-samples)]}
   (let [metric->values (util/metric->values metrics-samples)
         stats          (sampled-stats/sample-stats
                         metric->values
@@ -110,7 +112,7 @@
 
 (defmethod methods/event-stats :criterium/metrics-samples
   [metrics-samples metrics-defs _options]
-  {:have [(have? types/digest-samples-map? metrics-samples)]}
+  {:pre [(have? types/generic-metrics-samples-map? metrics-samples)]}
   (let [metric->values (util/metric->values metrics-samples)
         event-stats    (sampled-stats/event-stats
                         metrics-defs
@@ -148,7 +150,7 @@
 
 (defmethod methods/histogram :criterium/metrics-samples
   [metrics-samples quantiles outliers metric-configs options]
-  {:have [(have? types/digest-samples-map? metrics-samples)]}
+  {:pre [(have? types/generic-metrics-samples-map? metrics-samples)]}
   (let [histograms (->> metric-configs
                         (mapv
                          (juxt :path

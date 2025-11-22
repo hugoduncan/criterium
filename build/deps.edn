@@ -1,0 +1,7 @@
+{:deps {babashka/fs                   {:mvn/version "0.5.20"}
+        com.taoensso/truss            {:mvn/version "1.12.0"}
+        io.github.clojure/tools.build {:git/tag "v0.10.0"
+                                       :git/sha "3a2c484"}
+        org.clojure/clojure           {:mvn/version "1.11.2"}
+        rewrite-clj/rewrite-clj       {:mvn/version "1.1.47"}
+        slipset/deps-deploy           {:mvn/version "0.2.2"}}}

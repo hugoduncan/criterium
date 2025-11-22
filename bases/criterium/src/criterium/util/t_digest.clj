@@ -64,3 +64,7 @@
 (defn histogram [digest iqr]
   [digest]
   (md/histogram digest iqr))
+
+(defn filter-outliers
+  [digest outliers]
+  (md/filter-outliers digest outliers))

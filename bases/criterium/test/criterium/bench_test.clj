@@ -1,6 +1,7 @@
 (ns criterium.bench-test
   (:require
    [clojure.test :refer [deftest is testing]]
+   [criterium.analyse]
    [criterium.bench :as bench]
    [criterium.bench.impl :as bench-impl]))
 
@@ -29,14 +30,14 @@
   (testing "all pipelines"
     (with-out-str
       (let [v (bench/bench
-               1
-               :limit-time-s 0.1
-               :metric-ids [:elapsed-time
-                            :memory
-                            :thread-allocation
-                            :garbage-collector
-                            :finalization
-                            :compilation
-                            :measured-args
-                            :class-loader])]
+                1
+                :limit-time-s 0.1
+                :metric-ids [:elapsed-time
+                             :memory
+                             :thread-allocation
+                             :garbage-collector
+                             :finalization
+                             :compilation
+                             :measured-args
+                             :class-loader])]
         (is (= 1 v))))))
