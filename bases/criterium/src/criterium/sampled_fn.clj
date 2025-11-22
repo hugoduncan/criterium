@@ -58,7 +58,7 @@
 
   sampler/Sampler
   (samples-map [_] (sample-map (:metrics-defs collector) digests))
-  (reset-samples! [_] (set! digests (zipmap metric-keys (t-digest/new-digest))))
+  (reset-samples! [_] (set! digests (zipmap metric-keys (repeat (t-digest/new-digest)))))
 
   clojure.lang.IFn
   (invoke [this]
