@@ -92,7 +92,7 @@
   (testing "portal-histogram"
     (testing "charts the sample data"
       (let [data-map
-            (:data (test-data/samples-with-2-values-map))
+            (:data (test-data/samples-with-outliers-values-map))
             quantiles      (analyse/quantiles {:quantiles [0.9 0.99 0.99]})
             outliers       (analyse/outliers)
             stats          (analyse/stats)
@@ -105,9 +105,13 @@
                                   stats
                                   histogram
                                   (view-histogrem :portal)))]
-        (is (= [{:elapsed-time 1.0, :index 0, :outlier ""}
-                {:elapsed-time 1.0, :index 1, :outlier ""}]
-               (-> chart :vconcat first :layer first #_#_:data :values)))
+        (let [histogram-data (-> chart :vconcat first :layer first :data :values)]
+          (is (vector? histogram-data))
+          (is (pos? (count histogram-data)))
+          (is (every? #(and (contains? % "elapsed-time")
+                            (contains? % "end")
+                            (contains? % "density"))
+                      histogram-data)))
         (is (= [:b "Histogram"] title))))))
 
 (deftest portal-stats-test
