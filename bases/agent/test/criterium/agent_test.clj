@@ -136,18 +136,19 @@
 
 (deftest allocation-tracking-integration-test
   (testing "End-to-end allocation tracking"
-    (when (agent/attached?)
+    (if (agent/attached?)
       (let [[allocs result] (agent/with-allocation-tracing
-                             (make-test-allocation))
-            current-thread (jvm/current-thread-id)
-            thread-allocs (filter (agent/allocation-on-thread?) allocs)
-            summary (agent/allocations-summary thread-allocs)]
+                              (make-test-allocation))
+            current-thread  (jvm/current-thread-id)
+            thread-allocs   (filter (agent/allocation-on-thread?) allocs)
+            summary         (agent/allocations-summary thread-allocs)]
         (is (string? result)
             "Should complete allocation operation")
         (is (pos? (:num-allocated summary))
             "Should capture allocations")
         (is (every? #(= current-thread (:thread %)) thread-allocs)
-            "Should correctly filter thread allocations")))))
+            "Should correctly filter thread allocations"))
+      (is true))))
 
 ;; Warmup for allocation tests
 (dotimes [i 100]

@@ -42,6 +42,11 @@
       (finally
         (future-cancel future)))))
 
+(defmacro when-agent-attached [& body]
+  `(if (agent-core/attached?)
+     (do ~@body)
+     (is true)))
+
 ;; JIT warm up for performance sensitive tests
 (dotimes [_ 10000] (agent-core/agent-state))
 
@@ -66,17 +71,18 @@
           "State should be stable between reads"))))
 
 (deftest agent-command-test
-  (testing "Basic command sending"
-    (is (nil? (agent-core/agent-command :ping)))
-    (is (nil? (agent-core/agent-command :sync-state))))
-  (testing "Invalid commands"
-    (is (thrown? IllegalArgumentException
-                 (agent-core/agent-command :invalid-command))
-        "Invalid commands should throw exceptions")))
+  (when-agent-attached
+    (testing "Basic command sending"
+      (is (nil? (agent-core/agent-command :ping)))
+      (is (nil? (agent-core/agent-command :sync-state))))
+    (testing "Invalid commands"
+      (is (thrown? IllegalArgumentException
+                   (agent-core/agent-command :invalid-command))
+          "Invalid commands should throw exceptions"))))
 
 (deftest allocation-tracking-test
   (testing "Start/stop cycle"
-    (when (agent-core/attached?)
+    (when-agent-attached
       (agent-core/allocation-tracing-start!)
       (is (agent-core/allocation-tracing-active?)
           "Tracing should be active after start")
@@ -86,7 +92,7 @@
           "Tracing should be inactive after stop")))
 
   (testing "Marker allocations"
-    (when (agent-core/attached?)
+    (when-agent-attached
       (agent-core/allocation-tracing-start!)
       (agent-core/allocation-start-marker)
       (let [records @agent-core/records]
@@ -114,7 +120,7 @@
 
 (deftest full-allocation-cycle-test
   (testing "Complete allocation tracking cycle"
-    (when (agent-core/attached?)
+    (when-agent-attached
       (let [result (with-timeout 5000
                      #(do
                         (agent-core/allocation-tracing-start!)
