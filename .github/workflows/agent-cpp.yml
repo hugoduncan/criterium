@@ -1,0 +1,68 @@
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      debug_build:
+        description: 'Build with DEBUG flag enabled'
+        required: false
+        default: false
+        type: boolean
+
+name: Build C++ Agent
+
+jobs:
+  build:
+    name: Build agent-cpp
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macOS-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - name: Prepare java
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'zulu'
+        java-version: '11'
+
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Set OSNAME for Linux
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        echo "OSNAME=linux" >> $GITHUB_ENV
+        echo "PLATFORM=linux" >> $GITHUB_ENV
+
+    - name: Set OSNAME for macOS
+      if: matrix.os == 'macOS-latest'
+      run: |
+        echo "OSNAME=darwin" >> $GITHUB_ENV
+        echo "PLATFORM=macos" >> $GITHUB_ENV
+
+    - name: Set DEBUG flag
+      if: github.event.inputs.debug_build == 'true'
+      run: echo "DEBUG=1" >> $GITHUB_ENV
+
+    - name: Build agent-cpp
+      working-directory: agent-cpp
+      run: make JAVA_HOME=$JAVA_HOME OSNAME=$OSNAME DEBUG=${DEBUG:-0}
+
+    - name: Verify library exists (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      working-directory: agent-cpp
+      run: test -f libcriterium.so
+
+    - name: Verify library exists (macOS)
+      if: matrix.os == 'macOS-latest'
+      working-directory: agent-cpp
+      run: test -f libcriterium.dylib
+
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: agent-cpp-${{ env.PLATFORM }}
+        path: agent-cpp/libcriterium.*
