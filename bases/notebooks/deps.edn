@@ -1,2 +1,3 @@
-{:deps {poly/criterium   {:local/root "../criterium"}
-        org.scicloj/clay {:mvn/version "2-beta28"}}}
+{:paths ["src"]
+ :deps  {poly/criterium   {:local/root "../criterium"}
+         org.scicloj/clay {:mvn/version "2-beta28"}}}
