@@ -27,6 +27,11 @@
 (try
   (require 'lambdaisland.deep-diff2)
   (catch Exception _))
+(try
+  (require 'nrepl.core)
+  (require 'nrepl.middleware)
+  (require 'nrepl.middleware.session)
+  (catch Exception _))
 
 (alter-var-root #'*unchecked-math* (constantly :warn-on-boxed))
 (alter-var-root #'*warn-on-reflection* (constantly true))

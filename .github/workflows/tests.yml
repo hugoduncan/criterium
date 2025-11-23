@@ -45,12 +45,6 @@ jobs:
       with:
         babashka-version: 0.7.0
 
-    - name: Install makejack
-      run: |
-        curl -O https://raw.githubusercontent.com/hugoduncan/makejack/6966696979c9b9c0c97e54f82a5d4096e4105240/mj
-        chmod 755 mj
-        mv mj /usr/local/bin
-
     - name: Setup clojure-lsp
       uses: clojure-lsp/setup-clojure-lsp@v1
       with:
@@ -77,7 +71,7 @@ jobs:
     - name: poly test :all
       run: |
         set -x
-        mj javac-agent
+        clojure -T:build javac :project :agent
         clojure -M:poly test :all
 
     - name: lint
