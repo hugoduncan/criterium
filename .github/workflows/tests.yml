@@ -77,7 +77,6 @@ jobs:
     - name: poly test :all
       run: |
         set -x
-        mj compile-agent-cpp
         mj javac-agent
         clojure -M:poly test :all
 

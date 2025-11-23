@@ -1,6 +1,7 @@
 #include "jni.h"
 #include <algorithm>
 #include <array>
+#include <condition_variable>
 #include <cstdlib>
 #include <cstring>
 #include <functional>
@@ -8,9 +9,13 @@
 #include <jvmti.h>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <pthread.h>
+#include <queue>
 #include <string>
 #include <thread>
+#include <utility>
+#include <variant>
 
 #ifdef DEBUG
 #define DEBUG_PRINT(...) (std::cout << __VA_ARGS__)
