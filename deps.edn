@@ -3,64 +3,65 @@
  {:dev
   {:extra-paths ["bases/criterium/test" "development/src"]
    :extra-deps
-   {poly/agent                    {:local/root "bases/agent"}
-    poly/criterium                {:local/root "bases/criterium"}
-    poly/notebooks                {:local/root "bases/notebooks"}
-    lambdaisland/kaocha           {:mvn/version "1.87.1366"}
+   {poly/agent {:local/root "bases/agent"}
+    poly/criterium {:local/root "bases/criterium"}
+    poly/notebooks {:local/root "bases/notebooks"}
+    lambdaisland/kaocha {:mvn/version "1.87.1366"}
     lambdaisland/kaocha-cloverage {:mvn/version "1.1.89"}
-    org.clojure/clojure           {:mvn/version "1.12.0"}}
-   :jvm-opts    ["-Djdk.attach.allowAttachSelf"]}
-  :test        {:extra-paths ["bases/criterium/test"]
-                :extra-deps
-                {local/agent            {:local/root "bases/agent"}
-                 org.clojure/test.check {:mvn/version "1.1.1"}}
-                :jvm-opts    ["-XX:-OmitStackTraceInFastThrow"
-                              "-Dclojure.main.report=stderr"]}
-  :with-agent  {:jvm-opts ["-agentpath:agent-cpp/build/libcriterium.dylib"]}
-  :kaocha      {:extra-deps
-                {lambdaisland/kaocha           {:mvn/version "1.91.1392"}
-                 lambdaisland/kaocha-cloverage {:mvn/version "1.1.89"}
-                 local/agent                   {:local/root "bases/agent"}}
-                :exec-fn   kaocha.runner/exec-fn
-                :exec-args {}
-                :main-opts ["-m" "kaocha.runner"]}
-  :platform    {:exec-fn   criterium.platform/exec-main
-                :exec-args {}}
-  :poly        {:main-opts ["-m" "polylith.clj.core.poly-cli.core"]
-                :extra-deps
-                {polylith/clj-poly
-                 {:git/url   "https://github.com/polyfy/polylith"
-                  :git/tag   "v0.2.19"
-                  :git/sha   "e488b44"
-                  :deps/root "projects/poly"}
-                 org.apache.logging.log4j/log4j-api
-                 {:mvn/version "2.20.0"}
-                 org.apache.logging.log4j/log4j-slf4j-impl
-                 {:mvn/version "2.20.0"}
-                 polylith-kaocha/test-runner
-                 {:git/url   "https://github.com/imrekoszo/polylith-kaocha"
-                  :git/tag   "v0.8.4"
-                  :git/sha   "f096de8"
-                  :deps/root "projects/test-runner"}}}
-  :build       {;; :extra-paths ["build/src"]
-                :deps       {local/build {:local/root "build"}}
-                :ns-default build.tasks
-                :exec-fn    help
-                :jvm-opts   ["-Dclojure.main.report=stderr"]}
-  :cljfmt      {:deps      {cljfmt/cljfmt {:mvn/version "0.9.0"}}
-                :main-opts ["-m" "cljfmt.main"]}
-  :outdated    {:deps      {com.github.liquidz/antq {:mvn/version "RELEASE"}}
-                :main-opts ["-m" "antq.core"]}
-  :jit-info    {:jvm-opts ["-XX:+UnlockDiagnosticVMOptions"
-                           "-XX:+PrintInlining"]}
+    org.clojure/clojure {:mvn/version "1.12.0"}}
+   :jvm-opts ["-Djdk.attach.allowAttachSelf"]}
+  :test {:extra-paths ["bases/criterium/test"]
+         :extra-deps
+         {local/agent {:local/root "bases/agent"}
+          org.clojure/test.check {:mvn/version "1.1.1"}}
+         :jvm-opts ["-XX:-OmitStackTraceInFastThrow"
+                    "-Dclojure.main.report=stderr"]}
+  :with-agent-mac {:jvm-opts ["-agentpath:agent-cpp/libcriterium.dylib"]}
+  :with-agent-linux {:jvm-opts ["-agentpath:agent-cpp/libcriterium.so"]}
+  :kaocha {:extra-deps
+           {lambdaisland/kaocha {:mvn/version "1.91.1392"}
+            lambdaisland/kaocha-cloverage {:mvn/version "1.1.89"}
+            local/agent {:local/root "bases/agent"}
+            local/build {:local/root "build"}}
+           :exec-fn kaocha.runner/exec-fn
+           :exec-args {}
+           :main-opts ["-m" "kaocha.runner"]}
+  :platform {:exec-fn criterium.platform/exec-main
+             :exec-args {}}
+  :poly {:main-opts ["-m" "polylith.clj.core.poly-cli.core"]
+         :extra-deps
+         {polylith/clj-poly
+          {:git/url "https://github.com/polyfy/polylith"
+           :git/tag "v0.2.19"
+           :git/sha "e488b44"
+           :deps/root "projects/poly"}
+          org.apache.logging.log4j/log4j-api
+          {:mvn/version "2.20.0"}
+          org.apache.logging.log4j/log4j-slf4j-impl
+          {:mvn/version "2.20.0"}
+          polylith-kaocha/test-runner
+          {:git/url "https://github.com/imrekoszo/polylith-kaocha"
+           :git/tag "v0.8.4"
+           :git/sha "f096de8"
+           :deps/root "projects/test-runner"}}}
+  :build {;; :extra-paths ["build/src"]
+          :deps {local/build {:local/root "build"}}
+          :ns-default build.tasks
+          :exec-fn help
+          :jvm-opts ["-Dclojure.main.report=stderr"]}
+  :cljfmt {:deps {cljfmt/cljfmt {:mvn/version "0.9.0"}}
+           :main-opts ["-m" "cljfmt.main"]}
+  :outdated {:deps {com.github.liquidz/antq {:mvn/version "RELEASE"}}
+             :main-opts ["-m" "antq.core"]}
+  :jit-info {:jvm-opts ["-XX:+UnlockDiagnosticVMOptions"
+                        "-XX:+PrintInlining"]}
   :compilation {:jvm-opts ["-XX:+UnlockDiagnosticVMOptions"
                            "-XX:+PrintCompilation"]}
-  :disable-bg  {:jvm-opts ["-Xbatch"]}
+  :disable-bg {:jvm-opts ["-Xbatch"]}
   :parallel-gc {:jvm-opts ["-XX:+UseParallelGC"]}
-  :g1-gc       {:jvm-opts ["-XX:+UseG1GC"]}
-  :epsilon-gc  {:jvm-opts ["-XX:+UnlockExperimentalVMOptions"
-                           "-XX:+UseEpsilonGC"]}
-  :server      {:jvm-opts ["-server"]}
-  :nrepl       {:extra-deps
-                {nrepl/nrepl       {:mvn/version "1.3.1"}
-                 cider/cider-nrepl {:mvn/version "0.52.0"}}}}}
+  :g1-gc {:jvm-opts ["-XX:+UseG1GC"]}
+  :epsilon-gc {:jvm-opts ["-XX:+UnlockExperimentalVMOptions"
+                          "-XX:+UseEpsilonGC"]}
+  :server {:jvm-opts ["-server"]}
+  :nrepl {:extra-deps {nrepl/nrepl {:mvn/version "1.5.1"}}
+          :main-opts ["-m" "nrepl.cmdline"]}}}

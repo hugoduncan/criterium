@@ -15,8 +15,11 @@ This is currently version 0.5.x (ALPHA) which represents a significant architect
 # Run tests with Kaocha
 clojure -M:kaocha:dev:test --reporter dots
 
-# Run tests with Kaocha with the agent attached
-clojure -M:kaocha:dev:test:with-agent --reporter dots
+# Run tests with Kaocha with the agent attached (macOS)
+clojure -M:kaocha:dev:test:with-agent-mac --reporter dots
+
+# Run tests with Kaocha with the agent attached (Linux)
+clojure -M:kaocha:dev:test:with-agent-linux --reporter dots
 ```
 
 ### Building and Packaging
@@ -63,8 +66,11 @@ make DEBUG=1
 # Start development REPL
 clojure -M:dev
 
-# With agent support
-clojure -M:dev:with-agent
+# With agent support (macOS)
+clojure -M:dev:with-agent-mac
+
+# With agent support (Linux)
+clojure -M:dev:with-agent-linux
 
 # For exploring with Portal viewer
 clojure -M:dev
@@ -130,8 +136,8 @@ Skip slow tests with `:skip-meta [:very-slow]` in test metadata.
 The C++ agent (`agent-cpp/`) provides enhanced allocation tracking:
 - Built with CMake or Make
 - Supports both Linux and macOS
-- Enable with `:with-agent` alias when running Clojure
-- Requires `"-agentpath:agent-cpp/build/libcriterium.dylib"` JVM option
+- Enable with `:with-agent-mac` alias (macOS) or `:with-agent-linux` alias (Linux) when running Clojure
+- Builds to `agent-cpp/libcriterium.dylib` (macOS) or `agent-cpp/libcriterium.so` (Linux)
 
 ## Design Patterns
 

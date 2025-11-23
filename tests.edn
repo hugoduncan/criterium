@@ -3,11 +3,14 @@
           :id                   :all
           :ns-patterns          ["-test$"]
           :source-paths         ["bases/criterium/src"
-                                 "bases/agent/src"]
+                                 "bases/agent/src"
+                                 "build/src"]
           :kaocha/source-paths  ["bases/criterium/src"
-                                 "bases/agent/src"]
+                                 "bases/agent/src"
+                                 "build/src"]
           :test-paths           ["bases/criterium/test"
-                                 "bases/agent/test"]
+                                 "bases/agent/test"
+                                 "build/test"]
           :skip-meta            [:very-slow]}]
 
  :plugins                            [:kaocha.plugin/randomize

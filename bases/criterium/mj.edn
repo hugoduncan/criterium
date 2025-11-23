@@ -1,5 +1,0 @@
-#mj {:project #include "project.edn"
-     :targets
-     #merge
-     [#default-targets [:pom :clean :jar :install :deploy]
-      #include "../mj-targets.edn"]}
