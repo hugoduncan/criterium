@@ -16,6 +16,7 @@
     (:require
      [clojure.test :refer [deftest is testing use-fixtures]]
      [criterium.agent :as agent]
+     [criterium.agent.core :as agent-core]
      [criterium.jvm :as jvm]))
 
 ;; Test Fixtures
@@ -41,12 +42,31 @@
 ;; Unit Tests
 
 (deftest attached?-test
-         (testing "Agent attachment status"
-                  (is (boolean? (agent/attached?))
-                      "Should return a boolean indicating attachment status")))
+  ;; Test that attached? works with both loading methods
+         (testing "attached?"
+                  (testing "returns boolean"
+                           (is (boolean? (agent/attached?))
+                               "Should return a boolean indicating attachment status"))
+
+                  (testing "detects agent via -agentpath"
+                    ;; When agent is loaded via -agentpath, state will be set by native library
+                           (with-redefs [agent-core/agent-state (constantly :passive)]
+                                        (is (agent/attached?)
+                                            "Should detect agent loaded via -agentpath")))
+
+                  (testing "detects agent via load-agent!"
+                    ;; After load-agent!, state is also updated by native library
+                           (with-redefs [agent-core/agent-state (constantly :passive)]
+                                        (is (agent/attached?)
+                                            "Should detect agent loaded via load-agent!")))
+
+                  (testing "returns false when not attached"
+                           (with-redefs [agent-core/agent-state (constantly :not-attached)]
+                                        (is (not (agent/attached?))
+                                            "Should return false when agent not loaded")))))
 
 (deftest loaded?-test
-  ;; Agent loaded status check
+  ;; Test that loaded? is an alias for attached? and works with both loading methods
          (testing "loaded?"
                   (testing "returns boolean"
                            (is (boolean? (agent/loaded?))
@@ -54,7 +74,30 @@
 
                   (testing "matches attached? behavior"
                            (is (= (agent/attached?) (agent/loaded?))
-                               "loaded? should match attached? result"))))
+                               "loaded? should match attached? result"))
+
+                  (testing "detects agent via -agentpath"
+                    ;; Both attached? and loaded? should work for -agentpath loading
+                           (with-redefs [agent-core/agent-state (constantly :passive)]
+                                        (is (agent/loaded?)
+                                            "Should detect agent loaded via -agentpath")
+                                        (is (= (agent/attached?) (agent/loaded?))
+                                            "loaded? and attached? should agree")))
+
+                  (testing "detects agent via load-agent!"
+                    ;; Both attached? and loaded? should work for programmatic loading
+                           (with-redefs [agent-core/agent-state (constantly :passive)]
+                                        (is (agent/loaded?)
+                                            "Should detect agent loaded via load-agent!")
+                                        (is (= (agent/attached?) (agent/loaded?))
+                                            "loaded? and attached? should agree")))
+
+                  (testing "returns false when not attached"
+                           (with-redefs [agent-core/agent-state (constantly :not-attached)]
+                                        (is (not (agent/loaded?))
+                                            "Should return false when agent not loaded")
+                                        (is (= (agent/attached?) (agent/loaded?))
+                                            "loaded? and attached? should agree")))))
 
 (deftest with-allocation-tracing-test
          (testing "Basic tracing functionality"
