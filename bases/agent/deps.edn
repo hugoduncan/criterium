@@ -15,4 +15,5 @@
               :deps/root "projects/kaocha-wrapper"}}}
            :build {:deps {local/build {:local/root "../../build"}}
                    :ns-default build.tasks
-                   :exec-fn javac}}}
+                   :exec-fn javac
+                   :exec-args {:class-dir "target/classes"}}}}

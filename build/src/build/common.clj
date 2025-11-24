@@ -33,3 +33,15 @@
   (assoc params :project-root (ensure-project-root
                                (have (:task params))
                                (have (:project params)))))
+
+(defn resolve-project-data
+  "Conditionally resolve project data if :project is present in params.
+
+  When :project is provided, enriches params with project-root and
+  project-data. Otherwise returns params unchanged."
+  [params]
+  (if (:project params)
+    (-> params
+        project-root
+        ((requiring-resolve 'build.project-data/project-data)))
+    params))
