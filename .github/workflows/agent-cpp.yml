@@ -35,13 +35,13 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         echo "OSNAME=linux" >> $GITHUB_ENV
-        echo "PLATFORM=linux" >> $GITHUB_ENV
+        echo "PLATFORM=linux-x64" >> $GITHUB_ENV
 
     - name: Set OSNAME for macOS
       if: matrix.os == 'macOS-latest'
       run: |
         echo "OSNAME=darwin" >> $GITHUB_ENV
-        echo "PLATFORM=macos" >> $GITHUB_ENV
+        echo "PLATFORM=macos-x64" >> $GITHUB_ENV
 
     - name: Set DEBUG flag
       if: github.event.inputs.debug_build == 'true'

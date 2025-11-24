@@ -6,6 +6,7 @@ lib
 classes
 autodoc/**
 doc/**
+!docs/**
 java.hprof.*
 .cpcache
 .lein-deps-sum
