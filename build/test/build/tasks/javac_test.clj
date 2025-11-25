@@ -27,7 +27,7 @@
                                       (testing "returns opts with populated fields"
                                                (is (= [(str src-dir)] (:src-dirs result)))
                                                (is (some? (:basis result)))
-                                               (is (= ["-source" "11" "-target" "11"] (:javac-opts result))))
+                                               (is (= ["--release" "11"] (:javac-opts result))))
 
                                       (testing "creates .class files"
                                                (is (fs/exists? (fs/path class-dir "com" "example" "Hello.class")))))
