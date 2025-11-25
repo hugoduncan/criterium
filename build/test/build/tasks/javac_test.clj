@@ -79,7 +79,7 @@
                                  (spit (fs/file src-dir "com" "example" "Simple.java")
                                        "package com.example;\npublic class Simple {}")
 
-                                 (let [custom-opts ["-source" "17" "-target" "17"]
+                                 (let [custom-opts ["-Xlint:unchecked"]
                                        opts {:src-dirs [(str src-dir)]
                                              :class-dir (str class-dir)
                                              :javac-opts custom-opts}
