@@ -12,14 +12,9 @@ on:
 name: Build C++ Agent
 
 jobs:
-  build:
-    name: Build agent-cpp
-
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macOS-latest]
-
-    runs-on: ${{ matrix.os }}
+  build-linux:
+    name: Build agent-cpp (Linux x64)
+    runs-on: ubuntu-latest
 
     steps:
     - name: Prepare java
@@ -31,38 +26,86 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v3
 
-    - name: Set OSNAME for Linux
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        echo "OSNAME=linux" >> $GITHUB_ENV
-        echo "PLATFORM=linux" >> $GITHUB_ENV
-
-    - name: Set OSNAME for macOS
-      if: matrix.os == 'macOS-latest'
-      run: |
-        echo "OSNAME=darwin" >> $GITHUB_ENV
-        echo "PLATFORM=macos" >> $GITHUB_ENV
-
     - name: Set DEBUG flag
       if: github.event.inputs.debug_build == 'true'
       run: echo "DEBUG=1" >> $GITHUB_ENV
 
     - name: Build agent-cpp
       working-directory: agent-cpp
-      run: make JAVA_HOME=$JAVA_HOME OSNAME=$OSNAME DEBUG=${DEBUG:-0}
+      run: make JAVA_HOME=$JAVA_HOME OSNAME=linux DEBUG=${DEBUG:-0}
 
-    - name: Verify library exists (Linux)
-      if: matrix.os == 'ubuntu-latest'
+    - name: Verify library exists
       working-directory: agent-cpp
       run: test -f libcriterium.so
 
-    - name: Verify library exists (macOS)
-      if: matrix.os == 'macOS-latest'
+    - name: Generate SHA256 hash
       working-directory: agent-cpp
-      run: test -f libcriterium.dylib
+      run: sha256sum libcriterium.so | awk '{print $1}' > libcriterium.so.sha256
 
     - name: Upload build artifact
       uses: actions/upload-artifact@v4
       with:
-        name: agent-cpp-${{ env.PLATFORM }}
+        name: agent-cpp-linux-x64
+        path: agent-cpp/libcriterium.*
+
+  build-macos:
+    name: Build agent-cpp (macOS)
+    runs-on: macos-latest
+
+    steps:
+    - name: Prepare java
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'zulu'
+        java-version: '11'
+
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Set DEBUG flag
+      if: github.event.inputs.debug_build == 'true'
+      run: echo "DEBUG=1" >> $GITHUB_ENV
+
+    - name: Build agent-cpp (ARM64)
+      working-directory: agent-cpp
+      run: make JAVA_HOME=$JAVA_HOME OSNAME=darwin ARCH=arm64 DEBUG=${DEBUG:-0}
+
+    - name: Verify ARM64 library exists
+      working-directory: agent-cpp
+      run: |
+        test -f libcriterium.dylib
+        file libcriterium.dylib | grep -q arm64
+
+    - name: Generate SHA256 hash (ARM64)
+      working-directory: agent-cpp
+      run: shasum -a 256 libcriterium.dylib | awk '{print $1}' > libcriterium.dylib.sha256
+
+    - name: Upload ARM64 artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: agent-cpp-macos-arm64
+        path: agent-cpp/libcriterium.*
+
+    - name: Clean for x86_64 build
+      working-directory: agent-cpp
+      run: rm -f libcriterium.dylib libcriterium.dylib.sha256
+
+    - name: Build agent-cpp (x86_64)
+      working-directory: agent-cpp
+      run: make JAVA_HOME=$JAVA_HOME OSNAME=darwin ARCH=x86_64 DEBUG=${DEBUG:-0}
+
+    - name: Verify x86_64 library exists
+      working-directory: agent-cpp
+      run: |
+        test -f libcriterium.dylib
+        file libcriterium.dylib | grep -q x86_64
+
+    - name: Generate SHA256 hash (x86_64)
+      working-directory: agent-cpp
+      run: shasum -a 256 libcriterium.dylib | awk '{print $1}' > libcriterium.dylib.sha256
+
+    - name: Upload x86_64 artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: agent-cpp-macos-x64
         path: agent-cpp/libcriterium.*
