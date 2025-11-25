@@ -218,6 +218,18 @@
          (defn ^:internal agent-state []
                (get states (agent-state*)))
 
+         (defn attached?
+               "Returns true if the Criterium native agent is currently loaded.
+
+  Checks whether the agent was loaded via -agentpath JVM arguments or
+  programmatically via load-agent!. The agent is considered attached if
+  its state is anything other than :not-attached.
+
+  This is the core implementation used by criterium.agent/attached? and
+  criterium.agent/loaded?."
+               []
+               (not= (agent-state) :not-attached))
+
          (comment
           (agent-command :ping))
 
