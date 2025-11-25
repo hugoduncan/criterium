@@ -55,21 +55,20 @@ jobs:
       with:
         fetch-depth: 0          # all commits for git-rev-count
 
-    - name: poly check
-      run: |
-        set -x
-        clojure -M:poly check
-
-    - name: build and install jar
+    - name: build jar
       run: |
         set -x
         clojure -T:build jar :project :criterium :verbose true
 
-    - name: poly test :all
+    - name: prep deps
       run: |
         set -x
-        clojure -T:build javac :project :agent
-        clojure -M:poly test :all
+        clojure -T:build javac :project :agent :class-dir '"bases/agent/target/classes"'
+
+    - name: test
+      run: |
+        set -x
+        clojure -M:kaocha:dev:test --reporter dots
 
     - name: lint
       run: |
