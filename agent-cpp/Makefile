@@ -17,7 +17,9 @@ endif
 
 ifeq ($(OSNAME), darwin)
     CC=clang
-    PLATFORM_CFLAGS=-std=c++17 -g -shared $(if $(filter 1,$(DEBUG)),-DDEBUG,)
+    # ARCH can be x86_64, arm64, or empty (native)
+    ARCH_FLAG=$(if $(ARCH),-arch $(ARCH),)
+    PLATFORM_CFLAGS=-std=c++17 -g -shared $(ARCH_FLAG) $(if $(filter 1,$(DEBUG)),-DDEBUG,)
     CFLAGS += -I$(JDK)/include -I$(JDK)/include/$(OSNAME)
     LIBRARY=lib$(LIBNAME).dylib
     LDFLAGS=-lstdc++

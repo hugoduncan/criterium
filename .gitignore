@@ -6,6 +6,7 @@ lib
 classes
 autodoc/**
 doc/**
+!docs/**
 java.hprof.*
 .cpcache
 .lein-deps-sum
@@ -22,3 +23,7 @@ version.edn
 .clj-kondo/*/
 .aider*
 agent-cpp/build/
+# Native agent binaries (downloaded from CI before JAR builds)
+bases/agent/resources/native/**/*.so
+bases/agent/resources/native/**/*.dylib
+bases/agent/resources/native/**/*.sha256
