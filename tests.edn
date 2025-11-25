@@ -14,7 +14,7 @@
                                  "bases/agent/test"
                                  "build/test"
                                  "projects/agent/test"]
-          :skip-meta            [:very-slow]}]
+          :skip-meta            [:very-slow :requires-build-artifacts]}]
 
  :plugins                            [:kaocha.plugin/randomize
                                       :kaocha.plugin/filter

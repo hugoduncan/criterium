@@ -1,13 +1,25 @@
 (ns build.tasks.smoke-test
     (:require
      [babashka.fs :as fs]
-     [clojure.java.io :as io]
      [clojure.java.shell :as shell]
      [clojure.test :refer [deftest is testing]]
      [clojure.xml :as xml])
     (:import
-     [java.io ByteArrayInputStream]
-     [java.util.jar JarFile Manifest]))
+     [java.util.jar JarFile]))
+
+;;; Test utilities
+
+(defmacro with-clean-dir
+  "Execute body with a clean directory. Deletes dir before and after execution."
+  [dir & body]
+  `(let [dir# ~dir]
+     (try
+       (when (fs/exists? dir#)
+         (fs/delete-tree dir#))
+       ~@body
+       (finally
+         (when (fs/exists? dir#)
+           (fs/delete-tree dir#))))))
 
 ;;; JAR validation
 
@@ -91,7 +103,7 @@
 
 ;;; Smoke tests
 
-(deftest criterium-jar-smoke-test
+(deftest ^:requires-build-artifacts criterium-jar-smoke-test
   ;; Test validates the criterium JAR artifact produced by the build system
          (testing "criterium JAR"
                   (testing "exists in target directory"
@@ -121,7 +133,7 @@
                                      (is (some #(.startsWith ^String % "criterium/") entries)
                                          "JAR should contain criterium namespace files"))))))
 
-(deftest agent-jar-smoke-test
+(deftest ^:requires-build-artifacts agent-jar-smoke-test
   ;; Test validates the agent JAR artifact including Java compilation and manifest
          (testing "agent JAR"
                   (testing "exists in target directory"
@@ -158,30 +170,23 @@
 (deftest deps-prep-agent-test
   ;; Test validates that deps prep works for agent project
   ;; Ensures no regression of the truss assertion error
-         (testing "deps prep for agent project"
-                  (let [agent-project-dir "projects/agent"
-                        class-dir (fs/path "bases" "agent" "target" "classes")]
-                       (try
-                        (when (fs/exists? class-dir)
-                          (fs/delete-tree class-dir))
+  (testing "deps prep for agent project"
+    (let [agent-project-dir "projects/agent"
+          class-dir (fs/path "bases" "agent" "target" "classes")]
+      (with-clean-dir class-dir
+        (testing "runs without truss assertion error"
+          (let [result (shell/sh "clojure" "-X:deps" "prep"
+                                 :dir agent-project-dir)]
+            (is (zero? (:exit result))
+                (str "deps prep failed with exit code " (:exit result)
+                     "\nstdout: " (:out result)
+                     "\nstderr: " (:err result)))
+            (is (not (re-find #"Invariant failed.*:project.*params"
+                              (:err result)))
+                "Should not have truss assertion error about missing :project param")))
 
-                        (testing "runs without truss assertion error"
-                                 (let [result (shell/sh "clojure" "-X:deps" "prep"
-                                                         :dir agent-project-dir)]
-                                      (is (zero? (:exit result))
-                                          (str "deps prep failed with exit code " (:exit result)
-                                               "\nstdout: " (:out result)
-                                               "\nstderr: " (:err result)))
-                                      (is (not (re-find #"Invariant failed.*:project.*params"
-                                                        (:err result)))
-                                          "Should not have truss assertion error about missing :project param")))
-
-                        (testing "creates .class files"
-                                 (is (fs/exists? (fs/path class-dir "criterium" "agent" "Agent.class"))
-                                     "Agent.class should exist")
-                                 (is (fs/exists? (fs/path class-dir "criterium" "agent" "Allocation.class"))
-                                     "Allocation.class should exist"))
-
-                        (finally
-                         (when (fs/exists? class-dir)
-                           (fs/delete-tree class-dir)))))))
+        (testing "creates .class files"
+          (is (fs/exists? (fs/path class-dir "criterium" "agent" "Agent.class"))
+              "Agent.class should exist")
+          (is (fs/exists? (fs/path class-dir "criterium" "agent" "Allocation.class"))
+              "Allocation.class should exist"))))))

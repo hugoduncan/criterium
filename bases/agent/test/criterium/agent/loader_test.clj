@@ -83,7 +83,8 @@
   ;; File permission setting and verification
          (testing "set-executable! and verify-permissions!"
                   (testing "sets and verifies permissions on temp file"
-                           (let [temp-file (Files/createTempFile "test-agent-" ".dylib" (into-array []))]
+                           (let [temp-file (Files/createTempFile "test-agent-" ".dylib"
+                                                           (into-array java.nio.file.attribute.FileAttribute []))]
                                 (try
       ;; Set executable permissions
                                  (#'loader/set-executable! temp-file)

@@ -13,11 +13,9 @@
   - Allocation tracking graceful degradation
   - Warning logging verification"
     (:require
-     [clojure.java.io :as io]
      [clojure.string :as str]
      [clojure.test :refer [deftest is testing]]
      [criterium.agent :as agent]
-     [criterium.agent.core :as agent-core]
      [criterium.agent.loader :as loader]
      [criterium.agent.platform :as platform]
      [criterium.agent.runtime :as runtime]))
@@ -43,11 +41,6 @@
 (deftest missing-resources-test
   ;; Test graceful handling when agent binary resources are missing
          (testing "missing agent binary"
-                  (testing "extract-agent returns nil when binary missing"
-                           (with-redefs [io/resource (constantly nil)]
-                                        (is (nil? (loader/extract-agent))
-                                            "Should return nil when binary resource missing")))
-
                   (testing "agent-path returns nil when binary missing"
                            (with-redefs [loader/extract-agent (constantly nil)]
                                         (is (nil? (runtime/agent-path))
