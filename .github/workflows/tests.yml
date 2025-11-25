@@ -63,10 +63,7 @@ jobs:
     - name: build and install jar
       run: |
         set -x
-        (
-        cd projects/criterium
-        clojure -T:build build :verbose true
-        )
+        clojure -T:build jar :project :criterium :verbose true
 
     - name: poly test :all
       run: |
