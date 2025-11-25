@@ -15,10 +15,10 @@ This is currently version 0.5.x (ALPHA) which represents a significant architect
 # Run tests with Kaocha
 clojure -M:kaocha:dev:test --reporter dots
 
-# Run tests with Kaocha with the agent attached (macOS)
+# For agent development: Test with locally-built agent (macOS)
 clojure -M:kaocha:dev:test:with-agent-mac --reporter dots
 
-# Run tests with Kaocha with the agent attached (Linux)
+# For agent development: Test with locally-built agent (Linux)
 clojure -M:kaocha:dev:test:with-agent-linux --reporter dots
 ```
 
@@ -63,13 +63,13 @@ make DEBUG=1
 
 ### REPL Development
 ```bash
-# Start development REPL
+# Start development REPL (agent auto-loads when available)
 clojure -M:dev
 
-# With agent support (macOS)
+# For agent development: Use locally-built agent (macOS)
 clojure -M:dev:with-agent-mac
 
-# With agent support (Linux)
+# For agent development: Use locally-built agent (Linux)
 clojure -M:dev:with-agent-linux
 
 # For exploring with Portal viewer
@@ -133,11 +133,19 @@ Skip slow tests with `:skip-meta [:very-slow]` in test metadata.
 
 ## Native Agent
 
-The C++ agent (`agent-cpp/`) provides enhanced allocation tracking:
-- Built with CMake or Make
-- Supports both Linux and macOS
-- Enable with `:with-agent-mac` alias (macOS) or `:with-agent-linux` alias (Linux) when running Clojure
-- Builds to `agent-cpp/libcriterium.dylib` (macOS) or `agent-cpp/libcriterium.so` (Linux)
+The C++ agent (`agent-cpp/`) provides enhanced allocation tracking and is bundled in the JAR for supported platforms (linux-x64, macos-x64):
+
+**Normal Usage:**
+- Agent automatically loads when available for your platform
+- No configuration required - just use `criterium.bench/bench`
+- Gracefully degrades on unsupported platforms (logs warning, continues without allocation tracking)
+
+**Agent Development:**
+When modifying the C++ agent itself, use the `:with-agent-*` aliases to test local builds:
+- Built with CMake or Make in `agent-cpp/` directory
+- `:with-agent-mac` alias (macOS) - loads locally-built `agent-cpp/libcriterium.dylib`
+- `:with-agent-linux` alias (Linux) - loads locally-built `agent-cpp/libcriterium.so`
+- See `docs/contributor/building-agent.md` for updating bundled binaries
 
 ## Design Patterns
 
