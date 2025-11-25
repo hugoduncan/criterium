@@ -26,9 +26,11 @@ The GitHub Actions workflow `.github/workflows/agent-cpp.yml` automatically buil
 - `ubuntu-latest` → `agent-cpp-linux-x64`
 - `macOS-latest` → `agent-cpp-macos-x64`
 
-Each build produces an artifact containing the platform-specific shared library:
-- Linux: `libcriterium.so`
-- macOS: `libcriterium.dylib`
+Each build produces an artifact containing the platform-specific shared library and its SHA256 hash:
+- Linux: `libcriterium.so` and `libcriterium.so.sha256`
+- macOS: `libcriterium.dylib` and `libcriterium.dylib.sha256`
+
+The SHA256 hash files are used by the runtime extraction mechanism to generate unique filenames and verify binary integrity.
 
 ## Downloading CI Artifacts
 
@@ -60,21 +62,24 @@ This creates directories named `agent-cpp-linux-x64/` and `agent-cpp-macos-x64/`
 
 ### 3. Place in Resources Directory
 
-Move the downloaded binaries to the appropriate resource paths:
+Move the downloaded binaries and hash files to the appropriate resource paths:
 
 ```bash
 # Create resource directories if they don't exist
 mkdir -p projects/agent/resources/native/linux-x64
 mkdir -p projects/agent/resources/native/macos-x64
 
-# Copy binaries to resource paths
+# Copy binaries and hash files to resource paths
 cp agent-cpp-linux-x64/libcriterium.so projects/agent/resources/native/linux-x64/
+cp agent-cpp-linux-x64/libcriterium.so.sha256 projects/agent/resources/native/linux-x64/
 cp agent-cpp-macos-x64/libcriterium.dylib projects/agent/resources/native/macos-x64/
+cp agent-cpp-macos-x64/libcriterium.dylib.sha256 projects/agent/resources/native/macos-x64/
 ```
 
 **Resource Path Convention:**
 ```
 projects/agent/resources/native/{platform}/libcriterium.{ext}
+projects/agent/resources/native/{platform}/libcriterium.{ext}.sha256
 ```
 
 Where:
