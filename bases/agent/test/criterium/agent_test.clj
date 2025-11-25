@@ -99,6 +99,39 @@
                                         (is (= (agent/attached?) (agent/loaded?))
                                             "loaded? and attached? should agree")))))
 
+(deftest jvm-opts-test
+  ;; Test that jvm-opts returns correct JVM argument format
+         (testing "jvm-opts"
+                  (testing "returns vector"
+                           (let [opts (agent/jvm-opts)]
+                                (is (vector? opts)
+                                    "Should return a vector")))
+
+                  (testing "returns -agentpath argument when agent available"
+                           (with-redefs [agent-core/agent-path (constantly "/tmp/test-agent.so")]
+                                        (let [opts (agent/jvm-opts)]
+                                             (is (= 1 (count opts))
+                                                 "Should return single argument")
+                                             (is (= "-agentpath:/tmp/test-agent.so" (first opts))
+                                                 "Should format -agentpath with agent path"))))
+
+                  (testing "returns empty vector when agent unavailable"
+                           (with-redefs [agent-core/agent-path (constantly nil)]
+                                        (let [opts (agent/jvm-opts)]
+                                             (is (= [] opts)
+                                                 "Should return empty vector when agent unavailable"))))
+
+                  (testing "handles platform-specific extensions"
+                           (with-redefs [agent-core/agent-path (constantly "/tmp/criterium-agent-linux-x64-abc123.so")]
+                                        (let [opts (agent/jvm-opts)]
+                                             (is (= "-agentpath:/tmp/criterium-agent-linux-x64-abc123.so" (first opts))
+                                                 "Should handle .so extension")))
+
+                           (with-redefs [agent-core/agent-path (constantly "/tmp/criterium-agent-macos-x64-abc123.dylib")]
+                                        (let [opts (agent/jvm-opts)]
+                                             (is (= "-agentpath:/tmp/criterium-agent-macos-x64-abc123.dylib" (first opts))
+                                                 "Should handle .dylib extension"))))))
+
 (deftest with-allocation-tracing-test
          (testing "Basic tracing functionality"
                   (let [[allocs rv] (agent/with-allocation-tracing 1)]

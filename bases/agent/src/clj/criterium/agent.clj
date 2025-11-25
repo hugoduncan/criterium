@@ -43,6 +43,20 @@
       []
       (core/attached?))
 
+(defn jvm-opts
+      "Returns a vector of JVM arguments for loading the native agent.
+
+  Returns a vector like [\"-agentpath:/tmp/criterium-agent-...\"] that can be
+  used when spawning subprocesses or configuring REPL JVM options. Returns an
+  empty vector if the agent is unavailable or the platform is unsupported.
+
+  Useful for configuring JVM processes to use the bundled agent without manual
+  -agentpath specification."
+      []
+      (if-let [path (core/agent-path)]
+              [(str "-agentpath:" path)]
+              []))
+
 (defmacro with-allocation-tracing
           "Creates a scope in which all JVM heap allocations and releases are tracked.
 
