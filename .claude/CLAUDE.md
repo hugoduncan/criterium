@@ -27,8 +27,11 @@ clojure -M:kaocha:dev:test:with-agent-linux --reporter dots
 # Build jar
 clojure -M:build jar
 
-# Install locally
+# Install locally (requires all platform agent binaries)
 clojure -M:build install
+
+# Install locally with only current platform's agent (for development)
+clojure -T:build build/install-local
 
 # Deploy to repository
 clojure -M:build deploy

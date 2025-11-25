@@ -5,7 +5,8 @@
           :ns-default build
           :exec-fn help
           :jvm-opts ["-Dclojure.main.report=stderr"]}
-  :test {:extra-paths []
-         :extra-deps {poly/criterium {:local/root "../../bases/criterium"}}
+  :test {:extra-paths ["test" "."]
+         :extra-deps {poly/criterium {:local/root "../../bases/criterium"}
+                      local/build {:local/root "../../build"}}
          :jvm-opts ["-XX:-OmitStackTraceInFastThrow"
                     "-Dclojure.main.report=stderr"]}}}
