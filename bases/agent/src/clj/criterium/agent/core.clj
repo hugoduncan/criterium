@@ -7,12 +7,12 @@
 
   Key Components:
   - Native Agent Commands: Protocol for controlling agent behavior
-  - State Management: Track and validate agent state transitions  
+  - State Management: Track and validate agent state transitions
   - Allocation Recording: Capture and store allocation events
   - Data Processing: Transform raw allocation data into usable records
 
   Implementation Notes:
-  - Uses JNI bindings to communicate with native agent via reflection
+  - Uses JNI bindings to communicate with native agent via MethodHandles
   - Manages thread-local and global agent state
   - Optimized for minimal allocation overhead during tracing
   - Handles concurrent access to shared state
@@ -25,7 +25,9 @@
   criterium.agent instead."
     (:require
      [clojure.string :as str]
-     [criterium.util.invariant :refer [have?]]))
+     [criterium.util.invariant :refer [have?]])
+    (:import
+     [java.lang.invoke MethodHandle MethodHandles MethodType]))
 
 ;;; Agent Class Access via Reflection
 
@@ -53,6 +55,28 @@
        (Class/forName "criterium.agent.Allocation")
        (catch ClassNotFoundException _
               nil))))
+
+(def ^:private get-state-handle
+     "Cached MethodHandle for Agent.getState() for fast invocation."
+     (delay
+      (when-let [cls @agent-class]
+        (try
+         (let [lookup (MethodHandles/publicLookup)
+               mt (MethodType/methodType Integer/TYPE)]
+           (.findVirtual lookup cls "getState" mt))
+         (catch Exception _
+                nil)))))
+
+(def ^:private command-handle
+     "Cached MethodHandle for Agent.command(int) for fast invocation."
+     (delay
+      (when-let [cls @agent-class]
+        (try
+         (let [lookup (MethodHandles/publicLookup)
+               mt (MethodType/methodType Void/TYPE Integer/TYPE)]
+           (.findStatic lookup cls "command" mt))
+         (catch Exception _
+                nil)))))
 
 ;;; Native Agent
 
@@ -241,18 +265,16 @@
   - Thread-safe but may synchronize on agent state
   - May trigger state transitions
   - Command acknowledgement is synchronous
-  - Uses reflection to avoid compile-time dependency on Agent class"
+  - Uses cached MethodHandle for fast invocation"
       [cmd]
-      (when-not @agent-class
+      (when-not @command-handle
                 (throw (IllegalStateException. "Agent class not available - agent not loaded")))
       (ensure-handler-set!)
       (let [cmd-num (commands cmd)]
            (when-not cmd-num
                      (throw
                       (IllegalArgumentException. (str "Unknown command: " (pr-str cmd)))))
-           (let [command-method (.getMethod @agent-class "command"
-                                            (into-array Class [Integer/TYPE]))]
-                (.invoke command-method nil (into-array Object [(int cmd-num)])))))
+           (.invokeWithArguments ^MethodHandle @command-handle (object-array [(int cmd-num)]))))
 
 ;;; Agent State Management
 
@@ -270,23 +292,24 @@
 
 (defn ^:internal agent-state
       "Get current agent state as a keyword.
-  
+
   Returns :not-attached if agent is not loaded or not available.
-  
+
   Implementation Notes:
-  - Uses reflection for Agent access
+  - Uses cached MethodHandle for fast invocation
   - Thread-safe but uncoordinated
   - Returns state keywords from states map"
       []
-      (if (and @agent-class @agent-instance)
+      (if-let [^MethodHandle mh @get-state-handle]
+        (if-let [instance @agent-instance]
           (try
-           (let [get-state-method (.getMethod @agent-class "getState" (make-array Class 0))
-                 state-num (.invoke get-state-method @agent-instance (make-array Object 0))]
-                (get states (long state-num) :not-attached))
+           (let [state-num (.invokeWithArguments mh (object-array [instance]))]
+             (get states (long state-num) :not-attached))
            (catch Exception e
                   (println "WARNING: Failed to get agent state:" (.getMessage e))
                   :not-attached))
-          :not-attached))
+          :not-attached)
+        :not-attached))
 
 (defn attached?
       "Returns true if the Criterium native agent is currently loaded.
