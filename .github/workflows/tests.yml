@@ -63,7 +63,7 @@ jobs:
     - name: prep deps
       run: |
         set -x
-        clojure -T:build javac :project :agent :class-dir '"bases/agent/target/classes"'
+        clojure -T:build javac :project :agent :class-dir bases/agent/target/classes
 
     - name: test
       run: |
