@@ -4,7 +4,6 @@
    [criterium.bench-plans :as bench-plans]
    [criterium.bench.config :as bench-config]
    [criterium.collect-plan.config :as collect-plan-config]
-   [criterium.collector :as collector]
    [criterium.collector-configs :as collector-configs]
    [criterium.measured :as measured]))
 

@@ -2,7 +2,7 @@
   "Type predicates and accessors for benchmarking data structures"
   (:require
    [clojure.set :as set]
-   [criterium.util.invariant :as invariant :refer [have?]]))
+   [criterium.util.invariant :as invariant]))
 
 ;;; Type predicates
 

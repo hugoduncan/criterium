@@ -10,7 +10,9 @@
   - macos-x64: macOS on x86-64 architecture
   - macos-arm64: macOS on ARM64 architecture (Apple Silicon)
 
-  Returns nil for unsupported platforms to enable graceful degradation.")
+  Returns nil for unsupported platforms to enable graceful degradation."
+    (:require
+     [clojure.string]))
 
 (def ^:private os-name-mapping
      "Map Java os.name system property values to canonical OS names."

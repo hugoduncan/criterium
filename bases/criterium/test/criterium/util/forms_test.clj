@@ -59,4 +59,4 @@
     (testing "Early return prevents later binding"
       (is (= 10 (cond*
                   true 10
-                  :let [x (throw (Exception. "Shouldn't execute"))]))))))
+                  :let [_ (throw (Exception. "Shouldn't execute"))]))))))
