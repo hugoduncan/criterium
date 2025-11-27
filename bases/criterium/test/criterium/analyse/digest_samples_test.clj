@@ -41,14 +41,12 @@
 
 (defn transformed-value-fn
   [data-map id]
-  (let [m          (-> data-map id)
-        transforms (util/get-transforms data-map id)]
+  (let [transforms (util/get-transforms data-map id)]
     #(util/transform-sample-> % transforms)))
 
 (defn transformed-digest-values
   [data-map id p]
-  (let [m      (-> data-map id)
-        digest (get (:metric->digest m) p)
+  (let [digest (get (:metric->digest (-> data-map id)) p)
         tform  (transformed-value-fn data-map id)]
     (-> digest
         (update :minimum tform)

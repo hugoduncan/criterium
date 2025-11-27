@@ -7,8 +7,7 @@
    [criterium.collect-plan.config :as collect-plan-config]
    [criterium.collector :as collector]
    [criterium.jvm :as jvm]
-   [criterium.measured :as measured]
-   [criterium.collect :as collect])
+   [criterium.measured :as measured])
   (:gen-class))
 
 (def ^:private benchmark

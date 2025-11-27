@@ -4,7 +4,6 @@
    [criterium.metric :as metric]
    [criterium.util.format :as format]
    [criterium.util.helpers :as util]
-   [criterium.util.histogram :as histogram]
    [criterium.util.invariant :refer [have have?]]))
 
 (defn metrics-map
@@ -47,7 +46,7 @@
   (keyword (str/join "-" (mapv name path))))
 
 (defn event-stats-metrics
-  [event-stats k metric ms]
+  [event-stats _k metric ms]
   {:post [(have? (some-fn nil? map?) %)]}
   (let [sample-count-path (conj (pop (:path (first ms))) :sample-count)
         sample-count      (event-stats sample-count-path)]

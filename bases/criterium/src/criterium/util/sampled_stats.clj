@@ -1,6 +1,5 @@
 (ns criterium.util.sampled-stats
   (:require
-   [criterium.types :as types]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have have?]]
    [criterium.util.stats :as stats]))

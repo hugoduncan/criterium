@@ -5,7 +5,7 @@
    [criterium.benchmark :as benchmark]
    [criterium.collect-plan :as collect-plan]
    [criterium.collector.metrics :as metrics]
-   [criterium.test-utils]
+   [criterium.test-utils :refer [approx=]]
    [criterium.types :as types]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have?]]))

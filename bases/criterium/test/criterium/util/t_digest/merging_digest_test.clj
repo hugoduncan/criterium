@@ -189,7 +189,6 @@
 (deftest normal-distribution-cdf-test
   (testing "accuracy with normal distribution"
     (let [n            20000
-          mean         0.0
           std-dev      1.0
           samples      (take n (ziggurat/random-normal-zig
                                 (well/well-rng-1024a)))

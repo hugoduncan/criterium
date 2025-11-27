@@ -86,7 +86,7 @@
 
     (max_size [_ _ normalizer]
       (/ 1.0 normalizer))
-    (max-size [_ _ compression _n]
+    (max_size [_ _ compression _n]
       (/ 2.0 compression))
 
     (normalizer [_ compression _n]
@@ -116,7 +116,7 @@
       (let [q (limit q k1-q-limit-low k1-q-limit-high)]
         (* normalizer (Math/asin (- (* 2.0 q) 1.0)))))
 
-    (q [_ k compression n]
+    (q [_ k compression _n]
       (let [k (limit
                k
                (* compression k1-q-limit-f-high)
@@ -128,13 +128,13 @@
             x (limit x k1-x-limit-low k1-x-limit-high)]
         (/ (+ (Math/sin x) 1.0) 2.0)))
 
-    (max-size [_ q compression _n]
+    (max_size [_ q compression _n]
       (if (or (<= q 0.0) (>= q 1.0))
         0.0
         (* 2.0
            (Math/sin (/ Math/PI compression))
            (Math/sqrt (* q (- 1.0 q))))))
-    (max-size [_ q normalizer]
+    (max_size [_ q normalizer]
       (if (or (<= q 0.0) (>= q 1.0))
         0.0
         (* 2.0
@@ -189,10 +189,10 @@
           1.0
           (/ w (+ 1.0 w)))))
 
-    (max-size [_ q compression n]
+    (max_size [_ q compression n]
       (/ (* (zk2 compression n) q (- 1.0 q)) compression))
 
-    (max-size [_ q normalizer]
+    (max_size [_ q normalizer]
       (/ (* q (- 1.0 q)) normalizer))
 
     (normalizer [_ compression n]
