@@ -16,7 +16,6 @@
 (defn log [v]
   (Math/log v))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn transform-log
   "Performs logarithmic transformation on time-based samples.
 
@@ -65,7 +64,6 @@
                              {:source-id samples-id :metrics-defs metrics-defs}))]
        (assoc data-map id transformed)))))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn quantiles
   "Calculates statistical quantiles for quantitative sample measurements.
 
@@ -115,7 +113,6 @@
                              quantiles))]
        (assoc data-map id quantiles-map)))))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn outliers
   "Detects statistical outliers in sample measurements using boxplot criteria.
 
@@ -180,7 +177,6 @@
                             outliers))]
          (assoc data-map id outliers-map))))))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn stats
   "Calculates comprehensive descriptive statistics for sample measurements.
 
@@ -240,7 +236,6 @@
                                stats))]
          (assoc data-map id stats-map))))))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn event-stats
   "Calculates statistics for discrete events captured during sampling.
 
@@ -291,7 +286,6 @@
                                event-stats))]
          (assoc data-map id es-map))))))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn histogram
   "Calculate a histogram for sample measurements.
 
@@ -434,7 +428,6 @@
    {}
    metric-configs))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn outlier-significance
   "Analyzes the statistical significance of detected outliers.
 

@@ -40,7 +40,6 @@
 
 ;; Default values controlling behaviour
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (def ^:dynamic *final-gc-problem-threshold*
   "Fraction of excution time allowed for final cleanup before a
   warning is issued."
@@ -109,7 +108,6 @@
   "Flag to control output of progress messages"
   nil)
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn ^:skip-wiki progress
   "Conditionally report progress to *out*."
   [& message]
@@ -120,7 +118,6 @@
   "Flag to control output of debug messages"
   nil)
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn ^:skip-wiki debug
   "Conditionally report debug to *out*."
   [& message]
@@ -137,7 +134,6 @@
   (when *report-warn*
     (apply println "WARNING:" message)))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defmacro with-progress-reporting
   "Macro to enable progress reporting during the benchmark."
   [expr]

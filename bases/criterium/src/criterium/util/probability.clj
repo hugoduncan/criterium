@@ -41,7 +41,7 @@
   (let [d (* sigma (double sqrt-2pi))]
     (fn ^double [^double x]
       (let [e (/ (- x mu) sigma)]
-        (/ (Math/exp (* -0.5 (* e e)))
+        (/ (Math/exp (* -0.5 e e))
            d)))))
 
 ((normal-pdf 1.0 1.0) 1.0)

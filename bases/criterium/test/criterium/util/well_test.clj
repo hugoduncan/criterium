@@ -23,14 +23,12 @@
                 0))
          well-1024a-res0)))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defspec add-mod-32-test-property 100
   (prop/for-all
     [a gen/small-integer
      b gen/small-integer]
     (is (<= 0 (well/add-mod-32 (long a) (long b)) 31))))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defspec well-1024a-test-property 100
   (prop/for-all
     [random-seed (gen/large-integer* {:min 0x111111})

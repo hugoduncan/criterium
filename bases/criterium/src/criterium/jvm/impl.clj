@@ -235,7 +235,6 @@
                    ^com.sun.management.ThreadMXBean bean
                    id)})
 
-  #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
   (defn threads-summary-sample
     []
     {:count         (.getThreadCount bean)

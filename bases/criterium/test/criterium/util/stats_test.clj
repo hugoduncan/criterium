@@ -54,7 +54,6 @@
     (is (= 3.5 (stats/quantile 0.5 [1 2 2 5 7 8])))
     (is (= 6.5 (stats/quantile 0.75 [1 2 2 5 7 8])))))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defspec sample-uniform-test
   (testing "sample-uniform"
     (testing "returns values in [0..n)]"
@@ -64,7 +63,6 @@
         #(<= 0 % t)
         (stats/sample-uniform 100 t (well/well-rng-1024a)))))))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defspec sample-uniform-count-test
   (testing "sample-uniform"
     (testing "returns the correct number of samples"

@@ -13,7 +13,6 @@
                       :collect-plan]
    :viewer           :print})
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (def default-with-warmup
   {:collector-config default-collector-config
    :analyse          [:transform-log
@@ -31,7 +30,6 @@
    :viewer           :print})
 
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (def log-histogram
   {:collector-config default-collector-config
    :analyse          [:transform-log

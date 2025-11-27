@@ -9,7 +9,6 @@
   airquality[c(\"Ozone\")]
   ")
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (def ozone
   [41 36 12 18 28 23 19 8 7 16 11 14 18 14 34 6 30 11 1 11 4 32 23 45 115 37
    29 71 39 23 21 37 20 12 13 135 49 32 64 40 77 97 97 85 10 27 7 48 35 61 79

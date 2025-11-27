@@ -31,15 +31,6 @@
 
 ;;; Agent Class Access via Reflection
 
-(defn- agent-class-available?
-       "Check if the Agent class is available (i.e., agent is loaded)."
-       []
-       (try
-        (Class/forName "criterium.agent.Agent")
-        true
-        (catch ClassNotFoundException _
-               false)))
-
 (def ^:private agent-class
      "Lazily resolved Agent class, or nil if not available."
      (delay

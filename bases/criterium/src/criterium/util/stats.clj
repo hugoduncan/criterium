@@ -173,7 +173,6 @@
 ;;; Maximum likelihood kernel density estimation: On the potential of convolution sieves.
 ;;; Jones and Henderson. Computational Statistics and Data Analysis (2009)
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn modal-estimation-constant
   "Kernel function for estimation of multi-modality.
   h-k is the critical bandwidth, sample-variance is the observed sample variance.
@@ -182,7 +181,6 @@
   [^double h-k ^double sample-variance]
   (Math/sqrt (+ 1 (/ (util/sqr h-k) sample-variance))))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn smoothed-sample
   "Smoothed estimation function."
   [^double c-k ^double h-k data deviates]
@@ -193,14 +191,12 @@
     (when-let [n (next data)]
       (smoothed-sample c-k h-k n (next deviates))))))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn gaussian-weight
   "Weight function for gaussian kernel."
   [^double t]
   (let [k (Math/pow (* 2 Math/PI) -0.5)]
     (* k (Math/exp (/ (* t t) -2)))))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn kernel-density-estimator
   "Kernel density estimator for x, given n samples X, weights K and width h."
   [h K n X x]
@@ -216,7 +212,6 @@
 
 (defn- muld ^double [^double a ^double b] (* a b))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn linear-regression
   [xs ys]
   (let [n             (count xs)

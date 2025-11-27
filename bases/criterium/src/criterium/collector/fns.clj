@@ -74,7 +74,6 @@
            :expr-value   (v 1)})
     nil))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (def elapsed-time
   (with-meta
     (->SampleStage elapsed-time-sample-m elapsed-time-xform :elapsed-time)
@@ -103,7 +102,6 @@
           {:args (aget ^objects sample result-index)})
     nil))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (def measured-args
   (->SampleStage measured-args-sample-m measured-args-xform :measured-args))
 
@@ -128,7 +126,6 @@
            (apply jvm/class-loader-counts-change
                   (aget ^objects sample result-index))})))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (def class-loader
   (->SampleStage class-loader-sample-m class-loader-xform :class-loader))
 
@@ -153,7 +150,6 @@
            (apply jvm/compilation-change
                   (aget ^objects sample result-index))})))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (def compilation
   (->SampleStage compilation-sample-m compilation-xform :compilation))
 
@@ -184,7 +180,6 @@
           {:memory (apply jvm/memory-change
                           (aget ^objects sample result-index))})))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (def memory
   (->SampleStage memory-sample-m memory-xform :memory))
 
@@ -216,7 +211,6 @@
            (apply jvm/finalization-change
                   (aget ^objects sample result-index))})))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (def finalization
   (->SampleStage finalization-sample-m finalization-xform :finalization))
 
@@ -246,7 +240,6 @@
            (apply jvm/garbage-collector-change
                   (aget ^objects sample result-index))})))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (def garbage-collector
   (->SampleStage
    garbage-collector-sample-m garbage-collector-xform :garbage-collector))
@@ -275,7 +268,6 @@
            (apply jvm/thread-allocated-change
                   (aget ^objects sample result-index))})))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (def thread-allocation
   (->SampleStage
    thread-allocation-sample-m thread-allocation-xform :thread-allocation))

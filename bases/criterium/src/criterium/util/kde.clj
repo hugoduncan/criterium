@@ -28,7 +28,6 @@
   (gamma-fn 5)  ; 24
   )
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn mellin-transform
   "Mellin transform.
 
