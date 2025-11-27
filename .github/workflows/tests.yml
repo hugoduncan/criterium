@@ -45,10 +45,10 @@ jobs:
       with:
         babashka-version: 0.7.0
 
-    - name: Setup clojure-lsp
-      uses: clojure-lsp/setup-clojure-lsp@v1
+    - name: Setup clj-kondo
+      uses: DeLaGuardo/setup-clj-kondo@master
       with:
-        clojure-lsp-version: 2022.12.09-15.51.10
+        version: '2024.09.27'
 
     - name: Checkout
       uses: actions/checkout@v3
@@ -75,6 +75,4 @@ jobs:
     - name: lint
       run: |
         set -x
-        clojure-lsp diagnostics
-        clojure-lsp clean-ns --dry
-        clojure-lsp format --dry
+        clj-kondo --lint src test --fail-level warning
