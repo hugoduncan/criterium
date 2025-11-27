@@ -72,7 +72,12 @@ jobs:
         set -x
         clojure -M:kaocha:dev:test --reporter dots
 
+    - name: cache clj-kondo configs
+      run: |
+        set -x
+        clj-kondo --lint $(clojure -Spath -A:dev:test) --dependencies --copy-configs --skip-lint
+
     - name: lint
       run: |
         set -x
-        clj-kondo --lint src test --fail-level warning
+        clj-kondo --lint bases projects --fail-level warning
