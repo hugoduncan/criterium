@@ -30,7 +30,7 @@
          (inc i)
          (Math/exp (* -0.5e0 (sqr (aget s-adzigx i)))))))
 
-    (for [#^Integer i (range c)]
+    (doseq [#^Integer i (range c)]
       (let [j (int i)]
         (aset s-adzigr j (/ (aget s-adzigx (inc j)) (aget s-adzigx j)))))
     [s-adzigr s-adzigx r (dec c)]))

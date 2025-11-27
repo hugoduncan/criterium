@@ -4,13 +4,13 @@
    [clojure.test :refer [deftest is testing]]
    [criterium.analyse :as analyse]
    [criterium.analyse.metrics-samples :as metrics-samples]
+   [criterium.collect-plan :as collect-plan]
    [criterium.collector.metrics :as metrics]
+   [criterium.test-data :as test-data]
    [criterium.test-utils :refer [trimmed-lines]]
    [criterium.util.bootstrap :as bootstrap]
    [criterium.view :as view]
-   [criterium.viewer.print :as print]
-   [criterium.collect-plan :as collect-plan]
-   [criterium.test-data :as test-data]))
+   [criterium.viewer.print :as print]))
 
 (deftest print-stat-test
   (testing "print-stat"

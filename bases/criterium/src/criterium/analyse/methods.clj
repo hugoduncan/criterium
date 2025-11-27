@@ -3,30 +3,30 @@
 
 (defmulti transform
   "Transform sample values."
-  (fn [sample-map metric-configs f inv-f options]
+  (fn [sample-map _metric-configs _f _inv-f _options]
     (:type sample-map)))
 
 (defmulti quantiles
   "Calculate quantiles."
-  (fn [sample-map metric-configs options]
+  (fn [sample-map _metric-configs _options]
     (:type sample-map)))
 
 (defmulti outliers
   "Calculate outliers."
-  (fn [sample-map quantiles metric-configs options]
+  (fn [sample-map _quantiles _metric-configs _options]
     (:type sample-map)))
 
 (defmulti stats
   "Calculate sample statistics."
-  (fn [sample-map outliers metric-configs options]
+  (fn [sample-map _outliers _metric-configs _options]
     (:type sample-map)))
 
 (defmulti event-stats
   "Calculate sample statistics for events."
-  (fn [sample-map metric-configs options]
+  (fn [sample-map _metric-configs _options]
     (:type sample-map)))
 
 (defmulti histogram
   "Calculate histogram."
-  (fn [sample-map quantiles outliers metric-configs options]
+  (fn [sample-map _quantiles _outliers _metric-configs _options]
     (:type sample-map)))

@@ -33,11 +33,10 @@
   (:require
    [clojure.set :as set]
    [criterium.bench :as bench]
-   [criterium.benchmark :as benchmark]
-   [criterium.jvm :as jvm]
-   [criterium.measured :as measured]
+   [criterium.collect-plan.config :as collect-plan-config]
    [criterium.collector-configs :as collector-configs]
-   [criterium.collect-plan.config :as collect-plan-config]))
+   [criterium.jvm :as jvm]
+   [criterium.measured :as measured]))
 
 ;; Default values controlling behaviour
 
