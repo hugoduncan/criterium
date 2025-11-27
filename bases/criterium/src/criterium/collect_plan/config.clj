@@ -30,7 +30,7 @@
 (def TARGET-SAMPLES 200)
 
 (defmulti  collect-plan-config
-  (fn [collect-plan-id options] collect-plan-id))
+  (fn [collect-plan-id _options] collect-plan-id))
 
 (defmethod collect-plan-config :default
   [collect-plan-id _]

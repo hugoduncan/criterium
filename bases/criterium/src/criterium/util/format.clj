@@ -68,7 +68,7 @@
    (format-value* dimension value (merge {:sf 3} opts))))
 
 (defmethod format-value* :default
-  [_ value opts]
+  [_ value _opts]
   (format "%s" (str value)))
 
 (defn- double-format-str [sf]

@@ -1,6 +1,5 @@
 (ns criterium.test-data
   (:require
-   [criterium.analyse :as analyse]
    [criterium.analyse.metrics-samples :as metrics-samples]
    [criterium.collect-plan :as collect-plan]
    [criterium.collector.metrics :as metrics]

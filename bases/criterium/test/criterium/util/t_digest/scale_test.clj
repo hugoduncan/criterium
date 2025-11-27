@@ -67,8 +67,7 @@
   [scale]
   (prop/for-all [^double q      (gen-double {:min 0.0 :max 0.5})
                  norm   (gen-double {:min 1.0 :max 1000.0})]
-    (let [k  (scale/k scale q norm)
-          k' (scale/k scale (+ q 0.1) norm)]
+    (let [k (scale/k scale q norm)]
       ;; k1 should increase monotonically with q
       (> (scale/k scale (+ q 0.1) norm) k))))
 

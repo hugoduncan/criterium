@@ -1,7 +1,7 @@
 (ns criterium.jvm.impl-test
   (:require
-   [clojure.test :refer [deftest is testing use-fixtures]]
    [clojure.string :as str]
+   [clojure.test :refer [deftest is testing use-fixtures]]
    [criterium.jvm.impl :as impl]))
 
 ;; Fixtures
