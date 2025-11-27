@@ -140,10 +140,8 @@
                             (:metrics-defs event-samples)
                             (metric/type-pred :event))
 
-        metric-configs       (metric/all-metric-configs metric-defs)
-        event-metric-configs (metric/all-metric-configs event-metrics-defs)
-
-        transforms (util/get-transforms banech-map quant-samples-id)
+        metric-configs (metric/all-metric-configs metric-defs)
+        transforms     (util/get-transforms banech-map quant-samples-id)
 
         quant-ids    (mapv (comp last :path) metric-configs)
         event-keys   (into

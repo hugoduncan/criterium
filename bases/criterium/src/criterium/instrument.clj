@@ -24,7 +24,6 @@
   scope which is sampled."
   (:refer-clojure :exclude [reset!])
   (:require
-   [criterium.collector :as collector]
    [criterium.instrument-fn :as instrument-fn]))
 
 (def ^:private original-f ::original-f)

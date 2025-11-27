@@ -54,7 +54,7 @@
 
   (testing "Edge cases"
     (testing "Only let bindings"
-      (is (nil? (cond* :let [a 1] :let [b 2]))))
+      (is (nil? (cond* :let [_ 1] :let [_ 2]))))
 
     (testing "Early return prevents later binding"
       (is (= 10 (cond*

@@ -9,7 +9,7 @@
    [criterium.util.t-digest :as t-digest]))
 
 (defmethod methods/transform :criterium/digest
-  [digest-samples metric-configs f inv-f options]
+  [digest-samples metric-configs f inv-f _options]
   {:pre [(have? types/digest-samples-map? digest-samples)]}
   (let [metric->digest  (util/metric->digest digest-samples)
         metric->digest' (reduce
@@ -123,7 +123,7 @@
      :max-val           (t-digest/maximum digest)}))
 
 (defmethod methods/stats :criterium/digest
-  [digest-samples outliers metric-configs options]
+  [digest-samples outliers metric-configs _options]
   {:pre [(have? types/digest-samples-map? digest-samples)]}
   (let [metric->digest (util/metric->digest digest-samples)
         outliers       (when outliers (util/outliers outliers))
@@ -151,10 +151,10 @@
   [metric->digest quantiles outliers metric-config]
   (try
     (let [p            (:path metric-config)
-          iqr          (when-let [qs (get-in quantiles p)]
-                        (- (double (get qs 0.75)) (double (get qs 0.25))))
-          digest       (metric->digest p)
-          outliers     (get-in outliers p)
+          iqr      (when-let [qs (get-in quantiles p)]
+                     (- (double (get qs 0.75)) (double (get qs 0.25))))
+          digest   (metric->digest p)
+          _outliers (get-in outliers p)
           #_#__samples (if-let [ols (:outliers outliers)]
                          (remove-outliers samples ols)
                          samples)]

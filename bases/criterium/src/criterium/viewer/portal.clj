@@ -175,11 +175,11 @@
      :mark     "point"}))
 
 (defn metric-computed-histo-layer
-  [transforms histogram metric layer-num]
+  [transforms histogram metric _layer-num]
   (let [path       (:path metric)
         k          (first path)
         field-name (name k)
-        {:keys [counts centers density widths width density]}
+        {:keys [counts centers widths width density]}
         histogram
 
         tform   #(util/transform-sample-> % transforms)
@@ -188,14 +188,14 @@
         width   (when width (tform width))
         data    (if widths
                   ;; Variable width histogram
-                  (mapv (fn [count ^double center ^double width density]
+                  (mapv (fn [_count ^double center ^double width density]
                           (let [half-w (* 0.95 (/ width 2.0))]
                             {field-name (- center half-w)
                              "end"      (+ center half-w)
                              "density"  density}))
                         counts centers widths density)
                   ;; Fixed width histogram
-                  (mapv (fn [count ^double center ^double density]
+                  (mapv (fn [_count ^double center ^double density]
                           (let [half-w (* 0.95 (/ (double width) 2.0))]
                             {field-name (- center half-w)
                              "end"      (+ center half-w)
@@ -228,7 +228,7 @@
      (range min-val max-val delta))))
 
 (defn metric-sample-stats-layer
-  [transforms stats metric-config layer-num]
+  [transforms stats metric-config _layer-num]
   (let [{:keys [mean-minus-3sigma mean-plus-3sigma mean variance]}
         stats
         path (:path metric-config)
@@ -251,7 +251,7 @@
                     :y       {:field "p"
                               :type  "quantitative"}
                     :tooltip [{:field (name k)
-                               :title (str "Normal")}]
+                               :title "Normal"}]
                     :color   {:field "layer" :type "nominal"}}
         :mark      {:type "line"}}
        {:data     {:values [{k
@@ -350,7 +350,7 @@
         e-metric-configs))})))
 
 (defmethod view/histogram* :portal
-  [_ {:keys [histogram-id samples-id stats-id] :as view} data-map]
+  [_ {:keys [histogram-id samples-id stats-id]} data-map]
   (let [histogram-id     (or histogram-id :histograms)
         stats-id         (or stats-id :stats)
         quant-samples-id (or samples-id :samples)
@@ -362,7 +362,6 @@
                              (metric/filter-metrics
                               (metric/type-pred :quantitative)))
         metric-configs   (metric/all-metric-configs metrics-defs)
-        transforms       (util/get-transforms data-map quant-samples-id)
         hist-transforms  (util/get-transforms data-map histogram-id)
         stats-transforms (util/get-transforms data-map (:source-id stats))
         layer-num        (volatile! 0)]
@@ -438,7 +437,7 @@
      :mark   "point"}))
 
 (defmethod view/sample-percentiles* :portal
-  [_ {:keys [metric-ids] :as view} data-map]
+  [_ view data-map]
   (let [quant-samples-id (:samples-id view :samples)
         quant-samples    (data-map quant-samples-id)
         metrics-defs     (-> (:metrics-defs quant-samples)

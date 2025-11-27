@@ -2,13 +2,10 @@
   (:require
    [clojure.test :refer [deftest is testing]]
    [criterium.analyse :as analyse]
-   [criterium.collect-plan :as collect-plan]
-   [criterium.collector.metrics :as metrics]
-   [criterium.metric :as metric]
+   [criterium.test-data :as test-data]
    [criterium.test-utils :refer [trimmed-lines]]
    [criterium.view :as view]
-   [criterium.viewer.pprint]
-   [criterium.test-data :as test-data]))
+   [criterium.viewer.pprint]))
 
 (def expected-stats-1
   [""

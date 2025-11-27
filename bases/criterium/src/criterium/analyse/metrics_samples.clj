@@ -12,7 +12,7 @@
 (derive :criterium/collected-metrics-samples :criterium/metrics-samples)
 
 (defmethod methods/transform :criterium/metrics-samples
-  [metrics-samples metric-configs f inv-f options]
+  [metrics-samples metric-configs f inv-f _options]
   (let [metric->values  (util/metric->values metrics-samples)
         metric->values' (reduce
                          (fn x-path [result path]
@@ -149,7 +149,7 @@
           (throw e))))))
 
 (defmethod methods/histogram :criterium/metrics-samples
-  [metrics-samples quantiles outliers metric-configs options]
+  [metrics-samples quantiles outliers metric-configs _options]
   {:pre [(have? types/generic-metrics-samples-map? metrics-samples)]}
   (let [histograms (->> metric-configs
                         (mapv
