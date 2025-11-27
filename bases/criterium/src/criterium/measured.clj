@@ -96,7 +96,6 @@
   ([expr options]
    (impl/measured-expr* expr options)))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defmacro callable
   "Return a Measured for the given no arg function."
   ([f]

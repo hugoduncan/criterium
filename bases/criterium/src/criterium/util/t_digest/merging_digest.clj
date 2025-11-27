@@ -443,8 +443,8 @@
          sum-squares (util/reduce-double-vector
                       (fn ^double [^double acc ^Centroid centroid]
                         (+ acc
-                           (* (* (.mean centroid)
-                                 (.mean centroid))
+                           (* (.mean centroid)
+                              (.mean centroid)
                               (.weight centroid))))
                       0.0
                       centroids)

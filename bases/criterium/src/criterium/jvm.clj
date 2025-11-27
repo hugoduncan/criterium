@@ -66,7 +66,6 @@
   ^long [^long first-timestamp ^long last-timestamp]
   (unchecked-subtract last-timestamp first-timestamp))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn wait
   "Busy-wait for a specified number of nanoseconds.
 
@@ -190,7 +189,6 @@
   [first-sample last-sample]
   (impl/class-loader-counts-change first-sample last-sample))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn set-verbose-classloading
   "Set whether the classloader is verbose or not."
   [flag]
@@ -242,7 +240,6 @@
   ^long []
   (impl/finalization-sample))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn finalization
   "Return the pending finalization count map for the JVM instance."
   ([] (impl/finalization (impl/finalization-sample)))
@@ -302,7 +299,6 @@
   [first-memory-sample last-memory-sample]
   (impl/memory-change first-memory-sample last-memory-sample))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn set-memory-verbose!
   "Set whether the memory collection system emits verbose output."
   [flag]
@@ -310,7 +306,6 @@
 
 ;;; MemoryPoolMXBeans
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn memory-pool-names
   "Return the names of the JVM's memory pools."
   []
@@ -361,7 +356,6 @@
   ([memory-pools-sample]
    (impl/memory-pools memory-pools-sample)))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn memory-pools-change
   "Return a map of the difference between two memory pool samples."
   [first-sample last-sample]
@@ -436,7 +430,6 @@
 
 ;;; ThreadMXBean
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn thread-ids
   "Return thread ID's for all threads"
   []
@@ -473,7 +466,6 @@
   ([] (impl/thread (thread-sample (current-thread-id))))
   ([sample] (impl/thread sample)))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn thread-change
   "Return a map of data on the difference between two thread samples,
   Defaults to the current thread."
@@ -505,7 +497,6 @@
   (^long [] (impl/thread-cpu-time (current-thread-id)))
   (^long [id] (impl/thread-cpu-time id)))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn thread-user-time
   "Return a sample of the total user time consumed by a thread.
    Defaults to the current thread."
@@ -556,15 +547,12 @@
   ^long [^long first-sample ^long last-sample]
   (- last-sample first-sample))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn set-thread-contention-monitoring-enabled [flag]
   (impl/set-thread-contention-monitoring-enabled flag))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn set-thread-cpu-time-enabled [flag]
   (impl/set-thread-cpu-time-enabled flag))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defmacro allocated-bytes
   "Measure bytes allocated during execution of body expressions.
 
@@ -598,7 +586,6 @@
    :memory-pools        memory-pools
    :thread              thread})
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (def metric-sample-fns
   {:class-loader-counts class-loader-counts
    :compilation         compilation-sample
@@ -628,11 +615,9 @@
   [k]
   ((metric-fns k)))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn collect-metric-sample [k]
   ((metric-fns k)))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn collect
   "Collect multiple metrics from JVM management beans.
 
@@ -711,7 +696,6 @@
   []
   (impl/runtime-details))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn system-properties
   "Return the operating system details."
   []
@@ -719,7 +703,6 @@
 
 ;;; Memory reporting
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn heap-used
   "Return the current heap memory usage in bytes.
 
@@ -746,7 +729,6 @@
   (let [runtime (Runtime/getRuntime)]
     (- (.totalMemory runtime) (.freeMemory runtime))))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn runtime-memory
   "Return a snapshot of JVM memory metrics.
 

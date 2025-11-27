@@ -8,7 +8,6 @@
    [criterium.util.stats :as stats]
    [criterium.util.ziggurat :as ziggurat]))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defspec random-normal-zig-test-property 10
   (prop/for-all
    [random-seed gen/small-integer]

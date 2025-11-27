@@ -2,7 +2,6 @@
 
 (def _debug (volatile! nil))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn debug!
   ([]
    (debug! true))

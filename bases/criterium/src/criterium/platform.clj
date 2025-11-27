@@ -169,7 +169,6 @@
 
 ;;; JIT compilation thresholds
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn jit-threasholds
   "Estimate how many iterations are required for JIT compilation.
   This is not very accurate, as JIT runs in the background, and there
@@ -210,7 +209,6 @@
       (assoc (constant-object options) :name "constant-object")
       (assoc (constant-nil options) :name "constant-nil")])))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn platform-point-estimates
   "Return estimates for times that describe the accuracy of timing.
 

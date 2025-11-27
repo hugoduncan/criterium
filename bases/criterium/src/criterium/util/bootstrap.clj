@@ -201,7 +201,6 @@
    {}
    (map :path metric-configs)))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn bootstrap-stats
   ;; add stats to the result
   ([] (bootstrap-stats {}))

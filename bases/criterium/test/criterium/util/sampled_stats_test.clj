@@ -110,7 +110,6 @@
          (map (fn [^double x] (+ mean (* sigma x)))))))
 
 (comment
-  #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
   (defspec random-values-test-property 10
     (prop/for-all
      [random-seed gen/large-integer
@@ -139,7 +138,6 @@
      :values  values}))
 
 (comment
-  #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
   (defspec sample-values-test-property 10
     (prop/for-all
      [batch-size (gen-bounded 1 1)
@@ -175,7 +173,6 @@
      :variance-hat variance-hat
      :samples      samples}))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defspec stats-for-test-property 10
   (prop/for-all
     [^long batch-size (gen-bounded 1 1000)

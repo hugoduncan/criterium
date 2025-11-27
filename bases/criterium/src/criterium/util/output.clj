@@ -4,7 +4,6 @@
   "Flag to control output of progress messages"
   nil)
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn ^:skip-wiki progress
   "Conditionally report progress to *out*."
   [& message]

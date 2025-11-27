@@ -10,7 +10,6 @@
   risks in psychiatric treatment. Journal of the Royal Statistical
   Society. Series A, 143(2), 167-176")
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (def days-of-treatment
   "The dataset comprises lengths (in days) of psychiatric treatment spells for
   patients used as controls in a study of suicide risks. The data have been
