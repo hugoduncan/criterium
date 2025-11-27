@@ -241,5 +241,5 @@
             (is true)))))))
 
 ;; Warmup for allocation tests
-(dotimes [i 100]
+(dotimes [_ 100]
          (agent/with-allocation-tracing 1))
