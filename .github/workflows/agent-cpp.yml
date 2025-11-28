@@ -8,6 +8,13 @@ on:
         required: false
         default: false
         type: boolean
+  workflow_call:
+    inputs:
+      debug_build:
+        description: 'Build with DEBUG flag enabled'
+        required: false
+        default: false
+        type: boolean
 
 name: Build C++ Agent
 
