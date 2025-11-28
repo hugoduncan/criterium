@@ -96,9 +96,6 @@ static constexpr char const* const allocation_finish_marker =
 static constexpr char const* const allocation_class_name =
   "Lcriterium/agent/Allocation;";
 
-static constexpr std::string_view allocation_sampler_name
-    = "Lcriterium/agent/core/AllocationSampler";
-
 static constexpr char const* IFn  = "clojure/lang/IFn";
 
 static constexpr char const *invoke_sig =
@@ -409,7 +406,6 @@ void start_queue_consumer();
 class AgentContext {
 
 private:
-  VMContext& vm_context;
   jvmtiEnv* jvmti = nullptr;
 
   static jvmtiEnv* get_jvmti() { return getInstance().jvmti; }
@@ -463,7 +459,7 @@ private:
 
   static void set_callbacks(jvmtiEventCallbacks& callbacks);
 
-  AgentContext() : vm_context(VMContext::getInstance()) {}
+  AgentContext() = default;
 
 public:
   static AgentContext& getInstance() {
@@ -475,13 +471,16 @@ public:
 
   MessageQueue& get_message_queue() { return message_queue; }
 
-  void vm_death(jvmtiEnv* jvmti, JNIEnv* env) {
-    vm_context.set_vm_dead();
+  void vm_death([[maybe_unused]] jvmtiEnv* jvmti_env,
+                [[maybe_unused]] JNIEnv* env) {
+    VMContext::getInstance().set_vm_dead();
     message_queue.stop();
     jvmti = nullptr;
   }
 
-  jint on_load(JavaVM* jvm, char* options, void* reserved) {
+  jint on_load(JavaVM* jvm,
+               [[maybe_unused]] char* options,
+               [[maybe_unused]] void* reserved) {
     std::cout << "Loading criterium agent\n";
 
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
@@ -489,7 +488,7 @@ public:
 
     jvmti->CreateRawMonitor("tag_lock", &tag_lock);
 
-    jvmtiCapabilities capabilities = {0};
+    jvmtiCapabilities capabilities = {};
     capabilities.can_generate_sampled_object_alloc_events = 1;
     capabilities.can_generate_field_modification_events = 1;
     capabilities.can_get_line_numbers = 1;
@@ -505,7 +504,7 @@ public:
       }
     }
 
-    jvmtiEventCallbacks callbacks = {0};
+    jvmtiEventCallbacks callbacks = {};
     set_callbacks(callbacks);
     jvmti->SetEventCallbacks(&callbacks, sizeof(callbacks));
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
@@ -537,14 +536,14 @@ public:
     return on_load(jvm, options, reserved);
   }
 
-  void vm_init(jvmtiEnv* jvmti, JNIEnv* env, jthread thread) {
-
+  void vm_init([[maybe_unused]] jvmtiEnv* jvmti_env,
+               JNIEnv* env, jthread thread) {
     // set this as early as possible.  repeated here, as not sure it works from
     // OnLoad.
     set_sampling_interval(0);
 
     // Get JavaVM pointer
-    vm_context.cache_vm(env);
+    VMContext::getInstance().cache_vm(env);
 
     jclass thread_klass = env->GetObjectClass(thread);
     thread_getId_method = env->GetMethodID(thread_klass, "getId", "()J");
@@ -573,13 +572,13 @@ public:
       });
   }
 
-  void object_free(jvmtiEnv *jvmti, jlong tag) {
-    // DEBUG_PRINT("ObjectFree\n");
+  void object_free([[maybe_unused]] jvmtiEnv* jvmti_env, jlong tag) {
     message_queue.push(ObjectFreeEvent{tag});
   }
 
-  /* Call sent by java Agent class */
-  void agent_command(JNIEnv* env, jclass klass, jlong cmd) {
+  void agent_command([[maybe_unused]] JNIEnv* env,
+                     [[maybe_unused]] jclass klass,
+                     jlong cmd) {
     if (cmd != 1) {
       DEBUG_PRINTLN("Agent command: %ld\n" << cmd);
     }
@@ -654,7 +653,7 @@ public:
     return true;
   }
 
-  bool set_tag(jobject object, jlong tag) {
+  bool set_tag(jobject object, [[maybe_unused]] jlong tag) {
     auto err = jvmti->SetTag(object, 0);
     if (err != 0) {
       std::cout << "Failed to set tag\n";
@@ -905,7 +904,7 @@ public:
       : vm_context(vm_context),	agent_context(agent_context) {}
 
 
-  void init(VMContext& vm_context, AgentContext& agent_context, JNIEnv* env) {
+  void init(JNIEnv* env) {
     auto klass = vm_context.mk_local_ref(env,
                                          env->FindClass("criterium/agent/Agent"));
     if (klass == nullptr) {
@@ -934,15 +933,16 @@ public:
       return;
     }
 
-    static std::array<JNINativeMethod, 1> registry = {
+    static std::array<JNINativeMethod, 1> registry = {{
       {
-	// NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-          const_cast<char *>("command"),
-          // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-          const_cast<char *>("(J)V"),
-	  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-       reinterpret_cast<void*>(Agent_command)}
-    };
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+        const_cast<char *>("command"),
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+        const_cast<char *>("(J)V"),
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+        reinterpret_cast<void*>(Agent_command)
+      }
+    }};
 
     auto err = env->RegisterNatives(klass, registry.data(), 1);
     if (err != JVMTI_ERROR_NONE ) {
@@ -1278,7 +1278,7 @@ void queue_consumer_thread() {
   vm_context.attach_current_thread_as_daemon(&env);
 
   AgentState state(vm_context, agent_context);
-  state.init(vm_context, agent_context, env);
+  state.init(env);
   Message msg;
 
   while (!vm_context.vm_dead() && agent_context.get_message_queue().pop(msg)) {
