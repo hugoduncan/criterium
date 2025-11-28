@@ -92,7 +92,7 @@
             (throw (IllegalStateException. "Agent is already loaded")))
       (if-let [path (agent-path)]
               (try
-               (.loadAgent ^VirtualMachine (VirtualMachine/attach ^String (pid)) ^String path)
+               (.loadAgentPath ^VirtualMachine (VirtualMachine/attach ^String (pid)) ^String path)
                (catch Exception e
                       (throw (RuntimeException. (str "Failed to load agent from " path) e))))
               (throw (RuntimeException. "Agent not available for current platform"))))
