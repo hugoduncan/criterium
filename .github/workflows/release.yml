@@ -1,0 +1,220 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (skip tag, deploy, and GitHub release)'
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  build-agents:
+    name: Build Agents
+    uses: ./.github/workflows/agent-cpp.yml
+
+  test:
+    name: Test and Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Prepare java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '11'
+
+      - name: Install clojure tools
+        uses: DeLaGuardo/setup-clojure@10.1
+        with:
+          cli: 1.11.1.1208
+
+      - name: Setup clj-kondo
+        uses: DeLaGuardo/setup-clj-kondo@master
+        with:
+          version: '2024.09.27'
+
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Prep deps
+        run: |
+          clojure -T:build javac :project :agent :class-dir '"bases/agent/target/classes"' :verbose true
+          clojure -P -A:test:dev
+
+      - name: Run tests
+        run: clojure -M:kaocha:dev:test --reporter dots
+
+      - name: Cache clj-kondo configs
+        run: clj-kondo --lint $(clojure -Spath -A:dev:test) --dependencies --copy-configs --skip-lint
+
+      - name: Lint
+        run: clj-kondo --lint bases projects --fail-level warning
+
+  release:
+    name: Release
+    needs: [build-agents, test]
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.dry_run == 'false' && 'Release' || '' }}
+
+    steps:
+      - name: Check branch for non-dry-run
+        if: github.event.inputs.dry_run == 'false' && github.ref != 'refs/heads/master'
+        run: |
+          echo "::error::Non-dry-run releases are only allowed from the master branch"
+          exit 1
+
+      - name: Prepare java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '11'
+
+      - name: Install clojure tools
+        uses: DeLaGuardo/setup-clojure@10.1
+        with:
+          cli: 1.11.1.1208
+
+      - name: Install git-cliff
+        uses: taiki-e/install-action@v2
+        with:
+          tool: git-cliff
+
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION=$(clojure -T:build version :project :criterium)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Check tag does not exist
+        if: github.event.inputs.dry_run == 'false'
+        run: |
+          if git rev-parse "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "::error::Tag ${{ steps.version.outputs.tag }} already exists"
+            exit 1
+          fi
+
+      - name: Download Linux x64 agent
+        uses: actions/download-artifact@v4
+        with:
+          name: agent-cpp-linux-x64
+          path: bases/criterium/resources/criterium/agent/linux-x64
+
+      - name: Download macOS ARM64 agent
+        uses: actions/download-artifact@v4
+        with:
+          name: agent-cpp-macos-arm64
+          path: bases/criterium/resources/criterium/agent/macos-arm64
+
+      - name: Download macOS x64 agent
+        uses: actions/download-artifact@v4
+        with:
+          name: agent-cpp-macos-x64
+          path: bases/criterium/resources/criterium/agent/macos-x64
+
+      - name: Verify agent files downloaded
+        run: |
+          echo "Linux x64:"
+          ls -la bases/criterium/resources/criterium/agent/linux-x64/
+          echo "macOS ARM64:"
+          ls -la bases/criterium/resources/criterium/agent/macos-arm64/
+          echo "macOS x64:"
+          ls -la bases/criterium/resources/criterium/agent/macos-x64/
+
+      - name: Build JAR
+        run: clojure -T:build jar :project :criterium :verbose true
+
+      - name: Smoke test - verify agents in JAR
+        run: |
+          JAR_FILE="target/criterium-${{ steps.version.outputs.version }}.jar"
+          echo "Checking JAR: $JAR_FILE"
+          
+          # Verify JAR exists
+          test -f "$JAR_FILE" || { echo "::error::JAR file not found"; exit 1; }
+          
+          # Check for agent libraries
+          echo "Verifying agent libraries in JAR..."
+          unzip -l "$JAR_FILE" | grep -q "criterium/agent/linux-x64/libcriterium.so" || { echo "::error::Linux agent not found in JAR"; exit 1; }
+          unzip -l "$JAR_FILE" | grep -q "criterium/agent/macos-arm64/libcriterium.dylib" || { echo "::error::macOS ARM64 agent not found in JAR"; exit 1; }
+          unzip -l "$JAR_FILE" | grep -q "criterium/agent/macos-x64/libcriterium.dylib" || { echo "::error::macOS x64 agent not found in JAR"; exit 1; }
+          
+          echo "All agent libraries present in JAR"
+
+      - name: Smoke test - run benchmark
+        run: |
+          JAR_FILE="target/criterium-${{ steps.version.outputs.version }}.jar"
+          echo "Running smoke test benchmark..."
+          clojure -Sdeps "{:deps {criterium/criterium {:local/root \"$JAR_FILE\"} org.clojure/clojure {:mvn/version \"1.11.2\"}}}" \
+            -M -e "(require 'criterium.core) (criterium.core/quick-bench (+ 1 1)) (println \"Smoke test passed\")"
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Generate changelog for this release
+          git-cliff --config cliff.toml --unreleased --tag ${{ steps.version.outputs.tag }} > RELEASE_NOTES.md
+          echo "Release notes:"
+          cat RELEASE_NOTES.md
+          
+          # Update CHANGELOG.md with full history
+          git-cliff --config cliff.toml --tag ${{ steps.version.outputs.tag }} > CHANGELOG.md
+
+      - name: Commit changelog
+        if: github.event.inputs.dry_run == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git commit -m "docs: update changelog for ${{ steps.version.outputs.tag }}"
+          git push
+
+      - name: Create and push tag
+        if: github.event.inputs.dry_run == 'false'
+        run: |
+          git tag -a ${{ steps.version.outputs.tag }} -m "Release ${{ steps.version.outputs.tag }}"
+          git push origin ${{ steps.version.outputs.tag }}
+
+      - name: Deploy to Clojars
+        if: github.event.inputs.dry_run == 'false'
+        env:
+          CLOJARS_USERNAME: ${{ secrets.CLOJARS_USERNAME }}
+          CLOJARS_PASSWORD: ${{ secrets.CLOJARS_PASSWORD }}
+        run: clojure -T:build deploy :project :criterium
+
+      - name: Create GitHub Release
+        if: github.event.inputs.dry_run == 'false'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          body_path: RELEASE_NOTES.md
+          files: target/criterium-${{ steps.version.outputs.version }}.jar
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Dry run summary
+        if: github.event.inputs.dry_run == 'true'
+        run: |
+          echo "## Dry Run Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Smoke Tests" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Agent libraries verified in JAR" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Benchmark smoke test passed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Release Notes Preview" >> $GITHUB_STEP_SUMMARY
+          cat RELEASE_NOTES.md >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "*This was a dry run. No tag, deployment, or release was created.*" >> $GITHUB_STEP_SUMMARY
