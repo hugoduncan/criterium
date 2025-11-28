@@ -42,6 +42,34 @@ If you are using portal, try:
 - agent to allow capture of all allocations during the execution of an
   expression.
 
+### Using the Native Agent
+
+The native agent provides detailed allocation tracking. Due to JVMTI limitations, it must be loaded at JVM startup:
+
+```bash
+# Get the agent path
+clojure -Sdeps '{:deps {io.github.hugoduncan/criterium {:git/sha "xxxx" :deps/root "projects/criterium"}}}' \
+  -e '(require '"'"'[criterium.agent :as agent]) (println (first (agent/jvm-opts)))'
+
+# Restart with the agent (use the path from above)
+clojure -J-agentpath:/tmp/criterium-agent-macos-x64-abc123.dylib -M:dev
+```
+
+In your REPL:
+
+```clojure
+(require '[criterium.agent :as agent])
+
+;; Verify agent is loaded
+(agent/loaded?)
+;; => true
+
+;; Benchmarks now include allocation tracking
+(bench/bench (reduce + (range 1000)))
+```
+
+See [projects/agent/README.md](projects/agent/README.md) for complete documentation.
+
 ## Design
 
 The `bench` cli is a thin layer over the following.
