@@ -154,10 +154,12 @@ For development with local agent modifications, build manually instead of using 
 ```bash
 # Build agent locally (from agent-cpp/ directory)
 cd agent-cpp
-make
+cmake -B build
+cmake --build build
 
 # Build with debug symbols
-make DEBUG=1
+cmake -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build
 
 # Use :with-agent-* aliases to load local build
 clojure -M:dev:with-agent-mac      # macOS
@@ -178,12 +180,15 @@ The current process is manual to reduce initial complexity. Future improvements 
 ## Architecture Notes
 
 **Cross-Compilation:**
-The macOS build uses cross-compilation to produce both x86_64 and ARM64 binaries from a single runner. The Makefile accepts an `ARCH` parameter to specify the target architecture:
+The macOS build uses cross-compilation to produce both x86_64 and ARM64 binaries from a single runner. CMake uses the `CMAKE_OSX_ARCHITECTURES` variable to specify the target architecture:
 
 ```bash
 # Build for specific architecture
-make ARCH=x86_64   # Intel Macs
-make ARCH=arm64    # Apple Silicon
+cmake -B build -DCMAKE_OSX_ARCHITECTURES=x86_64   # Intel Macs
+cmake --build build
+
+cmake -B build -DCMAKE_OSX_ARCHITECTURES=arm64    # Apple Silicon
+cmake --build build
 ```
 
 **Binary Size:**
