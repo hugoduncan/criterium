@@ -10,11 +10,16 @@
   - Allocation Records: Detailed data about each object allocation
   - Thread Filtering: Ability to focus on allocations from specific threads
 
-  Auto-Loading:
-  The agent automatically loads from bundled platform-specific binaries in the JAR
-  for supported platforms (linux-x64, macos-x64) when you first use allocation
-  tracking functions. For unsupported platforms or custom builds, use the -agentpath
-  JVM argument.
+  Agent Loading:
+  Due to JVMTI limitations, the agent MUST be loaded at JVM startup using
+  -agentpath for allocation tracking to work. The required capability
+  (can_generate_sampled_object_alloc_events) can only be requested during
+  VM initialization, not during runtime attachment.
+
+  Start your JVM with:
+    clojure -J-agentpath:/path/to/libcriterium.dylib -M:dev
+
+  Or use (jvm-opts) to get the correct path, then restart your JVM with that option.
 
   Example usage:
 
@@ -24,14 +29,6 @@
     ;; Filter to current thread
     (let [thread-allocs (filter (allocation-on-thread?) allocations)]
       (allocations-summary thread-allocs)))
-  ```
-
-  Manual Loading:
-  You can also manually control agent loading:
-
-  ```clojure
-  (require '[criterium.agent.runtime :as runtime])
-  (runtime/load-agent!)  ; Explicitly load before use
   ```
 
   For more details, see the README in projects/agent/."

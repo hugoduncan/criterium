@@ -2,28 +2,43 @@
 
 The Criterium agent is a native JVM agent that provides enhanced allocation tracking capabilities for more accurate benchmarking.
 
-## Zero-Configuration Usage
+## Usage
 
-Starting with version 0.5.x, the agent is **bundled in the JAR** with pre-compiled binaries for supported platforms. No manual build or `-agentpath` configuration is required.
+Starting with version 0.5.x, the agent is **bundled in the JAR** with pre-compiled binaries for supported platforms.
 
-### Automatic Loading
+### Loading the Agent
+
+**IMPORTANT**: Due to JVMTI limitations, the agent **must be loaded at JVM startup** using `-agentpath` for allocation tracking to work. Programmatic loading via `load-agent!` will fail because the required `can_generate_sampled_object_alloc_events` capability can only be requested during VM initialization.
+
+#### Recommended: JVM Startup Loading
+
+```bash
+# Start REPL with agent
+clojure -J-agentpath:/path/to/libcriterium.dylib -M:dev
+
+# Or use agent/jvm-opts to get the path
+clojure -Sdeps '{:deps {criterium/criterium {:mvn/version "0.5.x"}}}' \
+  -e '(require '"'"'[criterium.agent :as agent]) (println (first (agent/jvm-opts)))'
+# Then restart with that path
+```
+
+#### Alternative: Let Criterium Configure JVM Options
+
+For development, you can let Criterium handle the agent path:
 
 ```clojure
 (require '[criterium.agent :as agent])
 
-;; Check if agent is available for your platform
+;; Get JVM arguments for restarting with agent
+(agent/jvm-opts)
+;; => ["-agentpath:/tmp/criterium-agent-macos-x64-abc123.dylib"]
+
+;; Check if agent is loaded
 (agent/loaded?)
-;; => true (if platform supported) or false
-
-;; Load the agent programmatically
-(agent/load-agent!)
-
-;; Use allocation tracking in benchmarks
-(require '[criterium.bench :as bench])
-(bench/bench (reduce + (range 1000)))
+;; => true (if started with -agentpath) or false
 ```
 
-The agent will be automatically extracted from the JAR to a temporary directory and loaded into the JVM on first use.
+**Note**: Programmatic loading via `load-agent!` is not supported for allocation tracking. The agent must be loaded at JVM startup.
 
 ### Spawning Subprocesses
 
@@ -195,10 +210,13 @@ Extracted agents are reused across JVM restarts if the hash matches.
 
 **`criterium.agent` namespace:**
 
-- `(loaded?)` - Returns true if agent is currently loaded (via `-agentpath` or programmatic loading)
-- `(load-agent!)` - Programmatically loads the bundled agent if available. Throws exception if already loaded or platform unsupported.
+- `(loaded?)` - Returns true if agent is currently loaded via `-agentpath` JVM argument
 - `(agent-path)` - Returns absolute path to extracted agent binary, or nil if unavailable
-- `(jvm-opts)` - Returns vector of JVM arguments for spawning subprocesses with agent, or empty vector if unavailable
+- `(jvm-opts)` - Returns vector of JVM arguments for spawning subprocesses with agent (e.g., `["-agentpath:/tmp/..."]`), or empty vector if unavailable
+
+**Deprecated:**
+
+- `(load-agent!)` - Programmatic loading does not work for allocation tracking due to JVMTI limitations. The `can_generate_sampled_object_alloc_events` capability must be requested at VM startup. Use `-agentpath` at JVM startup instead.
 
 **Low-level API (`criterium.agent.core`):**
 
