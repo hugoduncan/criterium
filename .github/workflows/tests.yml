@@ -68,23 +68,23 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: agent-cpp-linux-x64
-        path: agent-cpp
+        path: agent-cpp/build
 
     - name: Download agent artifact (macOS)
       if: matrix.with-agent && matrix.os == 'macOS-latest'
       uses: actions/download-artifact@v4
       with:
         name: agent-cpp-macos-arm64
-        path: agent-cpp
+        path: agent-cpp/build
 
     - name: Verify agent binary
       if: matrix.with-agent
       run: |
-        ls -la agent-cpp/
+        ls -la agent-cpp/build/
         if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-          test -f agent-cpp/libcriterium.so
+          test -f agent-cpp/build/libcriterium.so
         else
-          test -f agent-cpp/libcriterium.dylib
+          test -f agent-cpp/build/libcriterium.dylib
         fi
 
     - name: build jar
