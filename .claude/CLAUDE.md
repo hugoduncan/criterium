@@ -56,10 +56,12 @@ clojure -M:outdated
 ### C++ Agent Development
 ```bash
 # Build the native agent (from agent-cpp/ directory)
-make
+cmake -B build
+cmake --build build
 
 # Build with debug symbols
-make DEBUG=1
+cmake -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build
 
 # The agent provides allocation tracking capabilities
 ```
@@ -145,7 +147,7 @@ The C++ agent (`agent-cpp/`) provides enhanced allocation tracking and is bundle
 
 **Agent Development:**
 When modifying the C++ agent itself, use the `:with-agent-*` aliases to test local builds:
-- Built with CMake or Make in `agent-cpp/` directory
+- Built with CMake in `agent-cpp/` directory
 - `:with-agent-mac` alias (macOS) - loads locally-built `agent-cpp/libcriterium.dylib`
 - `:with-agent-linux` alias (Linux) - loads locally-built `agent-cpp/libcriterium.so`
 - See `docs/contributor/building-agent.md` for updating bundled binaries

@@ -33,13 +33,20 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v3
 
-    - name: Set DEBUG flag
-      if: github.event.inputs.debug_build == 'true'
-      run: echo "DEBUG=1" >> $GITHUB_ENV
+    - name: Configure CMake
+      working-directory: agent-cpp
+      run: |
+        cmake -B build \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DDEBUG=${{ github.event.inputs.debug_build == 'true' && 'ON' || 'OFF' }}
 
     - name: Build agent-cpp
       working-directory: agent-cpp
-      run: make JAVA_HOME=$JAVA_HOME OSNAME=linux DEBUG=${DEBUG:-0}
+      run: cmake --build build
+
+    - name: Copy library to expected location
+      working-directory: agent-cpp
+      run: cp build/libcriterium.so .
 
     - name: Verify library exists
       working-directory: agent-cpp
@@ -69,13 +76,21 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v3
 
-    - name: Set DEBUG flag
-      if: github.event.inputs.debug_build == 'true'
-      run: echo "DEBUG=1" >> $GITHUB_ENV
+    - name: Configure CMake (ARM64)
+      working-directory: agent-cpp
+      run: |
+        cmake -B build \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_OSX_ARCHITECTURES=arm64 \
+          -DDEBUG=${{ github.event.inputs.debug_build == 'true' && 'ON' || 'OFF' }}
 
     - name: Build agent-cpp (ARM64)
       working-directory: agent-cpp
-      run: make JAVA_HOME=$JAVA_HOME OSNAME=darwin ARCH=arm64 DEBUG=${DEBUG:-0}
+      run: cmake --build build
+
+    - name: Copy ARM64 library to expected location
+      working-directory: agent-cpp
+      run: cp build/libcriterium.dylib .
 
     - name: Verify ARM64 library exists
       working-directory: agent-cpp
@@ -95,11 +110,23 @@ jobs:
 
     - name: Clean for x86_64 build
       working-directory: agent-cpp
-      run: rm -f libcriterium.dylib libcriterium.dylib.sha256
+      run: rm -rf build libcriterium.dylib libcriterium.dylib.sha256
+
+    - name: Configure CMake (x86_64)
+      working-directory: agent-cpp
+      run: |
+        cmake -B build \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_OSX_ARCHITECTURES=x86_64 \
+          -DDEBUG=${{ github.event.inputs.debug_build == 'true' && 'ON' || 'OFF' }}
 
     - name: Build agent-cpp (x86_64)
       working-directory: agent-cpp
-      run: make JAVA_HOME=$JAVA_HOME OSNAME=darwin ARCH=x86_64 DEBUG=${DEBUG:-0}
+      run: cmake --build build
+
+    - name: Copy x86_64 library to expected location
+      working-directory: agent-cpp
+      run: cp build/libcriterium.dylib .
 
     - name: Verify x86_64 library exists
       working-directory: agent-cpp
