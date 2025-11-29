@@ -1,6 +1,9 @@
 # A workflow run is made up of one or more jobs that can run
 # sequentially or in parallel
-on: [push, pull_request]
+on:
+  push:
+    branches: [master, develop]
+  pull_request:
 name: Run tests
 
 jobs:
