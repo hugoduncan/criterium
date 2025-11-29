@@ -18,8 +18,8 @@
           org.clojure/test.check {:mvn/version "1.1.1"}}
          :jvm-opts ["-XX:-OmitStackTraceInFastThrow"
                     "-Dclojure.main.report=stderr"]}
-  :with-agent-mac {:jvm-opts ["-agentpath:agent-cpp/libcriterium.dylib"]}
-  :with-agent-linux {:jvm-opts ["-agentpath:agent-cpp/libcriterium.so"]}
+  :with-agent-mac {:jvm-opts ["-agentpath:agent-cpp/build/libcriterium.dylib"]}
+  :with-agent-linux {:jvm-opts ["-agentpath:agent-cpp/build/libcriterium.so"]}
   :kaocha {:extra-deps
            {lambdaisland/kaocha {:mvn/version "1.91.1392"}
             lambdaisland/kaocha-cloverage {:mvn/version "1.1.89"}

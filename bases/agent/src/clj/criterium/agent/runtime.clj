@@ -15,7 +15,7 @@
     ;; Load agent at runtime
     (require '[criterium.agent.runtime :as runtime])
     (runtime/load-agent!)
-    
+
     ;; Now safe to require core namespace
     (require '[criterium.agent.core :as core])
 
@@ -92,7 +92,10 @@
             (throw (IllegalStateException. "Agent is already loaded")))
       (if-let [path (agent-path)]
               (try
-               (.loadAgentPath ^VirtualMachine (VirtualMachine/attach ^String (pid)) ^String path)
+                (.loadAgentPath
+                 ^VirtualMachine (VirtualMachine/attach ^String (pid))
+                 ^String path)
+                (println "Dynamically attached criterium agent")
                (catch Exception e
                       (throw (RuntimeException. (str "Failed to load agent from " path) e))))
               (throw (RuntimeException. "Agent not available for current platform"))))

@@ -128,7 +128,7 @@
       [record] (core/allocation-freed? record))
 
 (defn allocations-summary
-      "Returns a summary of allocation statistics for the given records.
+  "Returns a summary of allocation statistics for the given records.
 
   Takes a sequence of allocation records and returns a map with:
   {:num-allocated   - Total number of objects allocated
@@ -137,10 +137,10 @@
    :freed-bytes    - Total bytes from freed objects}
 
   Useful for getting high-level metrics from allocation tracking results."
-      [records]
-      (core/allocations-summary records))
+  [records]
+  (core/allocations-summary records))
 
 (with-allocation-tracing
- (comment
+  (comment
     ;; this is here to get the HeapSamplingInterval to come into effect.
-  ))
+    ))

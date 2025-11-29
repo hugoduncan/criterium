@@ -66,6 +66,9 @@ void debug_print_jvmti_err([[maybe_unused]] jvmtiError err) {
   case JVMTI_ERROR_UNATTACHED_THREAD:
     DEBUG_PRINT(">> Unattached thread\n");
     break;
+  case JVMTI_ERROR_NATIVE_METHOD:
+    DEBUG_PRINT(">> Native Thread\n");
+    break;
   case JVMTI_ERROR_INTERNAL:
     DEBUG_PRINT(">> Internal JVM error occurred\n");
     break;
@@ -571,7 +574,7 @@ public:
                      [[maybe_unused]] jclass klass,
                      jlong cmd) {
     if (cmd != 1) {
-      DEBUG_PRINTLN("Agent command: %ld\n" << cmd);
+      DEBUG_PRINTLN("Agent command: " << cmd);
     }
     message_queue.push(Command{cmd});
   }
@@ -1135,8 +1138,6 @@ auto AgentState::frame_detail(JNIEnv* env, jvmtiFrameInfo& frame) {
       line_num = line_table[i].line_number;
     }
     // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
-  } else {
-    line_num = -1;
   }
 
   auto source_name = AgentContext::allocated<char *>();

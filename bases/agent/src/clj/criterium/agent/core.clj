@@ -56,7 +56,7 @@
       (when-let [cls @agent-class]
                 (try
                  (let [lookup (MethodHandles/publicLookup)
-                       mt (MethodType/methodType Integer/TYPE)]
+                       mt (MethodType/methodType Long/TYPE)]
                       (.findVirtual lookup cls "getState" mt))
                  (catch Exception _
                         nil)))))

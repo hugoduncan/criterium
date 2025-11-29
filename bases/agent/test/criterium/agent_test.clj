@@ -232,9 +232,9 @@
           (if (agent/attached?)
             (let [[allocs result] (agent/with-allocation-tracing
                                     (make-test-allocation))
-                  current-thread (jvm/current-thread-id)
-                  thread-allocs (filter (agent/allocation-on-thread?) allocs)
-                  summary (agent/allocations-summary thread-allocs)]
+                  current-thread  (jvm/current-thread-id)
+                  thread-allocs   (filter (agent/allocation-on-thread?) allocs)
+                  summary         (agent/allocations-summary thread-allocs)]
               (is (string? result))
               (is (pos? (:num-allocated summary)))
               (is (every? #(= current-thread (:thread %)) thread-allocs)))
@@ -242,4 +242,4 @@
 
 ;; Warmup for allocation tests
 (dotimes [_ 100]
-         (agent/with-allocation-tracing 1))
+  (agent/with-allocation-tracing 1))
