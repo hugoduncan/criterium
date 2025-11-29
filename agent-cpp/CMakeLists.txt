@@ -36,7 +36,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O2")
 endif()
 
-file(GLOB_RECURSE sources *.cpp *.h)
+set(sources agent.cpp)
 
 find_package(JNI REQUIRED)
 include_directories(${JNI_INCLUDE_DIRS})
