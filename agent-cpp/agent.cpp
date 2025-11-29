@@ -1008,6 +1008,7 @@ public:
       }
     }
 
+    // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
     auto rec = internal ? allocation_record(env, class_sig, event.size,
                                             event.thread, event.tag)
                         : allocation_record(env, class_sig, event.size,
@@ -1028,7 +1029,7 @@ public:
 
     allocs_by_tag.emplace(rec->tag, rec.get());
     allocs.push_back(std::move(rec));
-  }
+  }  // NOLINT(clang-analyzer-cplusplus.NewDeleteLeaks)
 
   void process_object_free_event(JNIEnv* env, const ObjectFreeEvent& event) {
     // DEBUG_PRINT("Free\n");
