@@ -66,6 +66,7 @@
              :class-dir (str class-dir)
              :lib (symbol name)
              :version version
+             :src-pom :none
              :pom-data pom-data})
 
            (verbose/println "POM written successfully")
