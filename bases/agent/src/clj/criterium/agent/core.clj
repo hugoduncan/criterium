@@ -114,25 +114,25 @@
 (def ^:private allocation-finish-marker-jvm-type
      "Lcriterium/agent/Agent$AllocationFinishMarker;")
 
-(defn- ^Class get-allocation-class
-       "Returns the allocation class with proper type hint to avoid reflection."
-       []
-       @allocation-class)
+(defn- get-allocation-class
+  "Returns the allocation class with proper type hint to avoid reflection."
+  ^Class []
+  @allocation-class)
 
-(defn- ^Class get-agent-class
-       "Returns the agent class with proper type hint to avoid reflection."
-       []
-       @agent-class)
+(defn- get-agent-class
+  "Returns the agent class with proper type hint to avoid reflection."
+  ^Class []
+  @agent-class)
 
-(defn- ^java.lang.invoke.MethodHandle get-state-method-handle
-       "Returns the getState MethodHandle with proper type hint to avoid reflection."
-       []
-       @get-state-handle)
+(defn- get-state-method-handle
+  "Returns the getState MethodHandle with proper type hint to avoid reflection."
+  ^MethodHandle []
+  @get-state-handle)
 
-(defn- ^java.lang.invoke.MethodHandle get-command-method-handle
-       "Returns the command MethodHandle with proper type hint to avoid reflection."
-       []
-       @command-handle)
+(defn- get-command-method-handle
+  "Returns the command MethodHandle with proper type hint to avoid reflection."
+  ^MethodHandle  []
+  @command-handle)
 
 (defn- blank->nil [s]
        (when-not (str/blank? s)
@@ -286,7 +286,9 @@
            (when-not cmd-num
                      (throw
                       (IllegalArgumentException. (str "Unknown command: " (pr-str cmd)))))
-           (.invokeWithArguments (get-command-method-handle) (object-array [(int cmd-num)]))))
+           (.invokeWithArguments
+            (get-command-method-handle)
+            (object-array [(long cmd-num)]))))
 
 ;;; Agent State Management
 
