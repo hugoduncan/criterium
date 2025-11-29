@@ -197,7 +197,11 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: ${{ steps.version.outputs.tag }}
           body_path: RELEASE_NOTES.md
-          files: target/criterium-${{ steps.version.outputs.version }}.jar
+          files: |
+            target/criterium-${{ steps.version.outputs.version }}.jar
+            bases/criterium/resources/criterium/agent/linux-x64/libcriterium.so
+            bases/criterium/resources/criterium/agent/macos-arm64/libcriterium.dylib
+            bases/criterium/resources/criterium/agent/macos-x64/libcriterium.dylib
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
