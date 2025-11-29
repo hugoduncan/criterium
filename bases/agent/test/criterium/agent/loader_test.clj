@@ -20,16 +20,16 @@
 
 (deftest read-hash-test
   ;; Hash file reading from bundled resources
-         (testing "read-hash"
-                  (testing "returns nil for unsupported platform"
-                           (is (nil? (#'loader/read-hash "unsupported-platform"))))
+  (testing "read-hash"
+    (testing "returns nil for unsupported platform"
+      (is (nil? (#'loader/read-hash "unsupported-platform"))))
 
-                  (testing "throws clear error when hash file missing for supported platform"
+    (testing "throws clear error when hash file missing for supported platform"
       ;; Currently no hash files bundled, so this should throw
-                           (let [ex (is (thrown? RuntimeException (#'loader/read-hash "linux-x64")))]
-                                (is (str/includes? (.getMessage ex) "SHA256 hash file not found"))
-                                (is (str/includes? (.getMessage ex) "native/linux-x64/libcriterium.so.sha256"))
-                                (is (str/includes? (.getMessage ex) "building-agent.md"))))))
+      (let [ex (is (thrown? RuntimeException (#'loader/read-hash "linux-x64")))]
+        (is (str/includes? (ex-message ex) "SHA256 hash file not found"))
+        (is (str/includes? (ex-message ex) "native/linux-x64/libcriterium.so.sha256"))
+        (is (str/includes? (ex-message ex) "building-agent.md"))))))
 
 (deftest temp-path-test
   ;; Temp path construction
@@ -63,21 +63,21 @@
 
 (deftest extract-agent-missing-hash-test
   ;; Missing hash file handling - throws exception with clear message
-         (testing "extract-agent with missing hash file"
-                  (testing "throws exception when hash file not found"
-                           (with-redefs [platform/detect (constantly "linux-x64")]
+  (testing "extract-agent with missing hash file"
+    (testing "throws exception when hash file not found"
+      (with-redefs [platform/detect (constantly "linux-x64")]
         ;; No .sha256 files bundled yet, so should throw
-                                        (let [ex (is (thrown? RuntimeException (loader/extract-agent)))]
-                                             (is (str/includes? (.getMessage ex) "SHA256 hash file not found")))))))
+        (let [ex (is (thrown? RuntimeException (loader/extract-agent)))]
+          (is (str/includes? (ex-message ex) "SHA256 hash file not found")))))))
 
 (deftest extract-agent-missing-binary-test
   ;; Missing binary file handling
-         (testing "extract-agent with missing binary"
-                  (testing "returns nil when agent binary not found"
-                           (with-redefs [platform/detect (constantly "linux-x64")
-                                         loader/read-hash (constantly "testhash123")]
+  (testing "extract-agent with missing binary"
+    (testing "returns nil when agent binary not found"
+      (with-redefs [platform/detect  (constantly "linux-x64")
+                    loader/read-hash (constantly "testhash123")]
         ;; No binaries bundled yet, so should return nil
-                                        (is (nil? (loader/extract-agent)))))))
+        (is (nil? (loader/extract-agent)))))))
 
 (deftest permission-functions-test
   ;; File permission setting and verification
