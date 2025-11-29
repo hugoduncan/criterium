@@ -51,23 +51,23 @@
      "Cached MethodHandle for Agent.getState() for fast invocation."
      (delay
       (when-let [cls @agent-class]
-        (try
-         (let [lookup (MethodHandles/publicLookup)
-               mt (MethodType/methodType Integer/TYPE)]
-           (.findVirtual lookup cls "getState" mt))
-         (catch Exception _
-                nil)))))
+                (try
+                 (let [lookup (MethodHandles/publicLookup)
+                       mt (MethodType/methodType Integer/TYPE)]
+                      (.findVirtual lookup cls "getState" mt))
+                 (catch Exception _
+                        nil)))))
 
 (def ^:private command-handle
      "Cached MethodHandle for Agent.command(int) for fast invocation."
      (delay
       (when-let [cls @agent-class]
-        (try
-         (let [lookup (MethodHandles/publicLookup)
-               mt (MethodType/methodType Void/TYPE Integer/TYPE)]
-           (.findStatic lookup cls "command" mt))
-         (catch Exception _
-                nil)))))
+                (try
+                 (let [lookup (MethodHandles/publicLookup)
+                       mt (MethodType/methodType Void/TYPE Long/TYPE)]
+                      (.findStatic lookup cls "command" mt))
+                 (catch Exception _
+                        nil)))))
 
 ;;; Native Agent
 
@@ -114,6 +114,26 @@
 (def ^:private allocation-finish-marker-jvm-type
      "Lcriterium/agent/Agent$AllocationFinishMarker;")
 
+(defn- ^Class get-allocation-class
+       "Returns the allocation class with proper type hint to avoid reflection."
+       []
+       @allocation-class)
+
+(defn- ^Class get-agent-class
+       "Returns the agent class with proper type hint to avoid reflection."
+       []
+       @agent-class)
+
+(defn- ^java.lang.invoke.MethodHandle get-state-method-handle
+       "Returns the getState MethodHandle with proper type hint to avoid reflection."
+       []
+       @get-state-handle)
+
+(defn- ^java.lang.invoke.MethodHandle get-command-method-handle
+       "Returns the command MethodHandle with proper type hint to avoid reflection."
+       []
+       @command-handle)
+
 (defn- blank->nil [s]
        (when-not (str/blank? s)
                  s))
@@ -137,19 +157,19 @@
        ([object]
         (cond
      ;; Use reflection to check instance type
-         (and @allocation-class (.isInstance @allocation-class object))
-         (let [object-type (.getField @allocation-class "object_type")
-               object-size (.getField @allocation-class "object_size")
-               call-class (.getField @allocation-class "call_class")
-               call-method (.getField @allocation-class "call_method")
-               call-file (.getField @allocation-class "call_file")
-               call-line (.getField @allocation-class "call_line")
-               alloc-class (.getField @allocation-class "alloc_class")
-               alloc-method (.getField @allocation-class "alloc_method")
-               alloc-file (.getField @allocation-class "alloc_file")
-               alloc-line (.getField @allocation-class "alloc_line")
-               thread-field (.getField @allocation-class "thread")
-               freed (.getField @allocation-class "freed")
+         (and @allocation-class (.isInstance (get-allocation-class) object))
+         (let [object-type (.getField (get-allocation-class) "object_type")
+               object-size (.getField (get-allocation-class) "object_size")
+               call-class (.getField (get-allocation-class) "call_class")
+               call-method (.getField (get-allocation-class) "call_method")
+               call-file (.getField (get-allocation-class) "call_file")
+               call-line (.getField (get-allocation-class) "call_line")
+               alloc-class (.getField (get-allocation-class) "alloc_class")
+               alloc-method (.getField (get-allocation-class) "alloc_method")
+               alloc-file (.getField (get-allocation-class) "alloc_file")
+               alloc-line (.getField (get-allocation-class) "alloc_line")
+               thread-field (.getField (get-allocation-class) "thread")
+               freed (.getField (get-allocation-class) "freed")
                obj-type (.get object-type object)]
               (when (and (not= obj-type allocation-start-marker-jvm-type)
                          (not= obj-type allocation-finish-marker-jvm-type))
@@ -196,13 +216,14 @@
 
 (defn- ensure-handler-set!
        "Ensure the data-fn callback is registered with the Agent class.
-  
+
   Only sets the handler once, even if called multiple times.
   Requires the Agent class to be loaded."
        []
        (when (and @agent-class (not @handler-set?))
-             (let [set-handler (.getMethod @agent-class "set_handler"
-                                           (into-array Class [Object]))]
+             (let [set-handler (.getMethod
+                                (get-agent-class) "set_handler"
+                                (into-array Class [clojure.lang.IFn]))]
                   (.invoke set-handler nil (into-array Object [data-fn]))
                   (reset! handler-set? true))))
 
@@ -265,18 +286,18 @@
            (when-not cmd-num
                      (throw
                       (IllegalArgumentException. (str "Unknown command: " (pr-str cmd)))))
-           (.invokeWithArguments ^MethodHandle @command-handle (object-array [(int cmd-num)]))))
+           (.invokeWithArguments (get-command-method-handle) (object-array [(int cmd-num)]))))
 
 ;;; Agent State Management
 
 (def ^:private agent-instance
      "Lazily created Agent instance for state queries.
-  
+
   Uses reflection to avoid compile-time dependency on Agent class."
      (delay
       (when @agent-class
             (try
-             (.newInstance @agent-class)
+             (.newInstance (get-agent-class))
              (catch Exception e
                     (println "WARNING: Failed to create Agent instance:" (.getMessage e))
                     nil)))))
@@ -291,16 +312,16 @@
   - Thread-safe but uncoordinated
   - Returns state keywords from states map"
       []
-      (if-let [^MethodHandle mh @get-state-handle]
-        (if-let [instance @agent-instance]
-          (try
-           (let [state-num (.invokeWithArguments mh (object-array [instance]))]
-             (get states (long state-num) :not-attached))
-           (catch Exception e
-                  (println "WARNING: Failed to get agent state:" (.getMessage e))
-                  :not-attached))
-          :not-attached)
-        :not-attached))
+      (if-let [mh (get-state-method-handle)]
+              (if-let [instance @agent-instance]
+                      (try
+                       (let [state-num (.invokeWithArguments mh (object-array [instance]))]
+                            (get states (long state-num) :not-attached))
+                       (catch Exception e
+                              (println "WARNING: Failed to get agent state:" (.getMessage e))
+                              :not-attached))
+                      :not-attached)
+              :not-attached))
 
 (defn attached?
       "Returns true if the Criterium native agent is currently loaded.
@@ -328,16 +349,20 @@
   - Used for state transition timing"
       []
       (when @agent-class
-            (let [marker-method (.getMethod @agent-class "allocation_start_marker"
-                                            (make-array Class 0))]
+            (let [marker-method (.getMethod
+                                 (get-agent-class)
+                                 "allocation_start_marker"
+                                 (make-array Class 0))]
                  (.invoke marker-method nil (make-array Object 0)))))
 
 (defn ^:internal allocation-finish-marker
       "Create a marker allocation to track end of allocation sequence."
       []
       (when @agent-class
-            (let [marker-method (.getMethod @agent-class "allocation_finish_marker"
-                                            (make-array Class 0))]
+            (let [marker-method (.getMethod
+                                 (get-agent-class)
+                                 "allocation_finish_marker"
+                                 (make-array Class 0))]
                  (.invoke marker-method nil (make-array Object 0)))))
 
 (defn ^:internal allocation-tracing-active?
