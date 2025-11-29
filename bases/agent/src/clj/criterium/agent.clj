@@ -103,10 +103,19 @@
                        (runtime/load-agent!)
                        (catch Exception e#
                               (println "WARNING: Failed to auto-load agent:" (.getMessage e#)))))
-     ;; Execute with or without tracing based on availability
-            (if (runtime/loaded?)
-                ~(core/with-allocation-tracing-enabled body)
-                ~(core/with-allocation-tracing-disabled body))))
+     ;; Execute with or without tracing based on runtime availability
+            (if (attached?)
+                (let [active?# (core/allocation-tracing-active?)
+                      res# (if active?#
+                               (do ~@body)
+                               (try
+                                (core/allocation-tracing-start!)
+                                ~@body
+                                (finally
+                                 (core/allocation-tracing-stop!))))]
+                     (core/collect-allocation-records)
+                     [@core/records res#])
+                [nil (do ~@body)])))
 
 (defn allocation-on-thread?
       "Returns a predicate function for filtering allocation records by thread.
@@ -128,7 +137,7 @@
       [record] (core/allocation-freed? record))
 
 (defn allocations-summary
-  "Returns a summary of allocation statistics for the given records.
+      "Returns a summary of allocation statistics for the given records.
 
   Takes a sequence of allocation records and returns a map with:
   {:num-allocated   - Total number of objects allocated
@@ -137,10 +146,10 @@
    :freed-bytes    - Total bytes from freed objects}
 
   Useful for getting high-level metrics from allocation tracking results."
-  [records]
-  (core/allocations-summary records))
+      [records]
+      (core/allocations-summary records))
 
 (with-allocation-tracing
-  (comment
+ (comment
     ;; this is here to get the HeapSamplingInterval to come into effect.
-    ))
+  ))
