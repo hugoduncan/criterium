@@ -39,7 +39,7 @@ jobs:
       run: |
         cmake -B build \
           -DCMAKE_BUILD_TYPE=Release \
-          -DDEBUG=${{ github.event.inputs.debug_build == 'true' && 'ON' || 'OFF' }}
+          -DDEBUG=${{ (github.event.inputs.debug_build == 'true' || inputs.debug_build) && 'ON' || 'OFF' }}
 
     - name: Build agent-cpp
       working-directory: agent-cpp
@@ -83,7 +83,7 @@ jobs:
         cmake -B build \
           -DCMAKE_BUILD_TYPE=Release \
           -DCMAKE_OSX_ARCHITECTURES=arm64 \
-          -DDEBUG=${{ github.event.inputs.debug_build == 'true' && 'ON' || 'OFF' }}
+          -DDEBUG=${{ (github.event.inputs.debug_build == 'true' || inputs.debug_build) && 'ON' || 'OFF' }}
 
     - name: Build agent-cpp (ARM64)
       working-directory: agent-cpp
@@ -119,7 +119,7 @@ jobs:
         cmake -B build \
           -DCMAKE_BUILD_TYPE=Release \
           -DCMAKE_OSX_ARCHITECTURES=x86_64 \
-          -DDEBUG=${{ github.event.inputs.debug_build == 'true' && 'ON' || 'OFF' }}
+          -DDEBUG=${{ (github.event.inputs.debug_build == 'true' || inputs.debug_build) && 'ON' || 'OFF' }}
 
     - name: Build agent-cpp (x86_64)
       working-directory: agent-cpp

@@ -6,14 +6,24 @@ on:
   pull_request:
 name: Run tests
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  build-agent:
+    name: Build Agent
+    uses: ./.github/workflows/agent-cpp.yml
+
   tests:
-    name: Tests
+    name: Tests (${{ matrix.os }}, agent=${{ matrix.with-agent }})
+    needs: build-agent
 
     strategy:
       matrix:
         # TODO add windows-latest
         os: [ubuntu-latest, macOS-latest]
+        with-agent: [false, true]
 
     runs-on: ${{ matrix.os }}
 
@@ -23,11 +33,6 @@ jobs:
       with:
         distribution: 'zulu'
         java-version: '11'
-
-    # - uses: joschi/setup-jdk@v2
-    #   with:
-    #     java-version: '11' # The OpenJDK version to make available on the path
-    #     architecture: 'x64' # defaults to 'x64'
 
     - name: Install clojure tools
       uses: DeLaGuardo/setup-clojure@10.1
@@ -58,6 +63,30 @@ jobs:
       with:
         fetch-depth: 0          # all commits for git-rev-count
 
+    - name: Download agent artifact (Linux)
+      if: matrix.with-agent && matrix.os == 'ubuntu-latest'
+      uses: actions/download-artifact@v4
+      with:
+        name: agent-cpp-linux-x64
+        path: agent-cpp
+
+    - name: Download agent artifact (macOS)
+      if: matrix.with-agent && matrix.os == 'macOS-latest'
+      uses: actions/download-artifact@v4
+      with:
+        name: agent-cpp-macos-arm64
+        path: agent-cpp
+
+    - name: Verify agent binary
+      if: matrix.with-agent
+      run: |
+        ls -la agent-cpp/
+        if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+          test -f agent-cpp/libcriterium.so
+        else
+          test -f agent-cpp/libcriterium.dylib
+        fi
+
     - name: build jar
       run: |
         set -x
@@ -73,7 +102,15 @@ jobs:
     - name: test
       run: |
         set -x
-        clojure -M:kaocha:dev:test --reporter dots
+        if [[ "${{ matrix.with-agent }}" == "true" ]]; then
+          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            clojure -M:kaocha:dev:test:with-agent-linux --reporter dots
+          else
+            clojure -M:kaocha:dev:test:with-agent-mac --reporter dots
+          fi
+        else
+          clojure -M:kaocha:dev:test --reporter dots
+        fi
 
     - name: cache clj-kondo configs
       run: |
