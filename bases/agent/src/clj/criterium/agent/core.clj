@@ -27,7 +27,10 @@
      [clojure.string :as str]
      [criterium.util.invariant :refer [have?]])
     (:import
-     [java.lang.invoke MethodHandle MethodHandles MethodType]))
+     [java.lang.invoke
+      MethodHandle
+      MethodHandles
+      MethodType]))
 
 ;;; Agent Class Access via Reflection
 
