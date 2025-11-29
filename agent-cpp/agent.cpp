@@ -27,64 +27,53 @@
 
 const jint MAX_FRAMES = 1024;
 
-void debug_print_jvmti_err(jvmtiError err) {
+// NOLINTNEXTLINE(bugprone-branch-clone)
+void debug_print_jvmti_err([[maybe_unused]] jvmtiError err) {
+#ifdef DEBUG
   switch (err) {
-
   case JVMTI_ERROR_NONE:
     break;
-
   case JVMTI_ERROR_INVALID_THREAD:
     DEBUG_PRINT(">> Invalid thread\n");
     break;
-
   case JVMTI_ERROR_NULL_POINTER:
     DEBUG_PRINT(">> Invalid NULL jvmtiEnv or argument\n");
     break;
-
   case JVMTI_ERROR_INVALID_ENVIRONMENT:
     DEBUG_PRINT(">> JVMTI environment is invalid\n");
     break;
-
   case JVMTI_ERROR_ILLEGAL_ARGUMENT:
     DEBUG_PRINT(">> Invalid parameters (e.g., non-NULL thread for global event)\n");
     break;
-
   case JVMTI_ERROR_WRONG_PHASE:
     DEBUG_PRINT(">> JVM is in wrong phase (e.g., after VM death)\n");
     break;
-
   case JVMTI_ERROR_INVALID_EVENT_TYPE:
     DEBUG_PRINT(">> Invalid event type\n");
     break;
-
   case JVMTI_ERROR_INVALID_CLASS:
     DEBUG_PRINT(">> Invalid class\n");
     break;
-
   case JVMTI_ERROR_THREAD_NOT_ALIVE:
     DEBUG_PRINT(">> Thread not alive\n");
     break;
-
   case JVMTI_ERROR_MUST_POSSESS_CAPABILITY:
     DEBUG_PRINT(">> Must possess capability\n");
     break;
-
   case JVMTI_ERROR_ABSENT_INFORMATION:
     DEBUG_PRINT(">> Absent information\n");
     break;
-
   case JVMTI_ERROR_UNATTACHED_THREAD:
     DEBUG_PRINT(">> Unattached thread\n");
     break;
-
   case JVMTI_ERROR_INTERNAL:
     DEBUG_PRINT(">> Internal JVM error occurred\n");
     break;
-
   default:
     DEBUG_PRINTLN(">> Unexpected error " << err);
     break;
   }
+#endif
 }
 
 static constexpr char const* const allocation_start_marker =
@@ -161,8 +150,9 @@ jmethodID class_invoke_method_id(JNIEnv* env, jclass klass) {
   return invoke;
 }
 
-// NOLINTNEXTLINE(performance-enum-size)
-enum States : jlong {
+// NOLINTBEGIN(performance-enum-size)
+// Using unscoped enums for implicit conversion to jlong
+enum States : jlong {  // NOLINT(cppcoreguidelines-use-enum-class)
   passive = 0,
   allocation_tracing_starting = 10,
   allocation_tracing_active = 11,
@@ -173,14 +163,14 @@ enum States : jlong {
   allocation_tracing_reported = 19,
 };
 
-// NOLINTNEXTLINE(performance-enum-size)
-enum Commands : jlong {
+enum Commands : jlong {  // NOLINT(cppcoreguidelines-use-enum-class)
   ping = 0,
   sync_state = 1,
   start_allocation_tracing = 10,
   stop_allocation_tracing = 11,
   report_allocation_tracing = 12
 };
+// NOLINTEND(performance-enum-size)
 
 // Event/Command structures
 struct AllocationEvent {
@@ -392,7 +382,8 @@ public:
 
   void attach_current_thread_as_daemon(JNIEnv **env) const {
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-    auto penv = reinterpret_cast<void **>(env);
+    auto *penv = reinterpret_cast<void **>(env);
+    // NOLINTNEXTLINE(clang-analyzer-core.CallAndMessage)
     auto res = cached_vm->AttachCurrentThreadAsDaemon(penv, nullptr);
     if (res != JNI_OK) {
       DEBUG_PRINT("Failed to attach queue consumer thread to JVM\n");
@@ -688,6 +679,7 @@ public:
   }
 
   void set_sampling_interval(jint n) {
+    // NOLINTNEXTLINE(clang-analyzer-core.CallAndMessage)
     auto err = jvmti->SetHeapSamplingInterval(n);
     if (err != JVMTI_ERROR_NONE) {
       std::cout << "Failed to set the sampling interval: " << err << '\n';
@@ -848,10 +840,10 @@ private:
   std::unique_ptr<VMContext::global_ref<jclass>> agent_allocation_start_marker_class;
   std::unique_ptr<VMContext::global_ref<jclass>> agent_allocation_finish_marker_class;
   std::unique_ptr<VMContext::global_ref<jclass>> agent_allocation_class;
-  jmethodID agent_allocation_ctor;
-  jmethodID agent_data1_method;
-  jmethodID agent_data8_method;
-  jfieldID agent_state_field;
+  jmethodID agent_allocation_ctor{};
+  jmethodID agent_data1_method{};
+  jmethodID agent_data8_method{};
+  jfieldID agent_state_field{};
 
   void set_state(jlong state) {
     agent_state = state;
@@ -1133,6 +1125,7 @@ auto AgentState::frame_detail(JNIEnv* env, jvmtiFrameInfo& frame) {
 
   if (agent_context.get_line_number_table(frame.method, &entry_count,
                                           &line_table)) {
+    // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
     line_num = line_table[0].line_number;
     for ( auto i = 1 ; i < entry_count ; i++ ) {
       if ( frame.location < line_table[i].start_location) {
@@ -1140,6 +1133,7 @@ auto AgentState::frame_detail(JNIEnv* env, jvmtiFrameInfo& frame) {
       }
       line_num = line_table[i].line_number;
     }
+    // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
   } else {
     line_num = -1;
   }
@@ -1222,6 +1216,7 @@ void AgentState::untag_objects(allocs_t &allocs,
 					&objects,
 					&object_tags);
     for (jint i=0; i< count; ++i) {
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
       agent_context.set_tag(objects[i], 0);
     }
   }
