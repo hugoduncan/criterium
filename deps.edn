@@ -46,8 +46,8 @@
            :git/tag "v0.8.4"
            :git/sha "f096de8"
            :deps/root "projects/test-runner"}}}
-  :build {;; :extra-paths ["build/src"]
-          :deps {local/build {:local/root "build"}}
+  :build {:extra-deps {org.clojure/clojure {:mvn/version "1.12.3"}
+                       local/build {:local/root "build"}}
           :ns-default build.tasks
           :exec-fn help
           :jvm-opts ["-Dclojure.main.report=stderr"]}
