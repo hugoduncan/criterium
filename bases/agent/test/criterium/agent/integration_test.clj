@@ -85,23 +85,23 @@
                                                 "Filename should match expected pattern"))))))))
 
 (deftest ^:requires-agent loading-flow-test
-         ;; Programmatic agent loading
-         (testing "load-agent! loading flow"
-                  (when-agent-binary-available
-                   (when-agent-not-attached
-                    (testing "loads agent successfully"
-                             (is (nil? (runtime/load-agent!))
-                                 "load-agent! should return nil on success")
-                             (is (agent-core/attached?)
-                                 "Agent should be attached after load-agent!")
-                             (is (agent/loaded?)
-                                 "loaded? should return true after load-agent!"))
+  ;; Programmatic agent loading
+  (testing "load-agent! loading flow"
+    (when-agent-binary-available
+      (when-agent-not-attached
+        (testing "loads agent successfully"
+          (is (nil? (runtime/load-agent!))
+              "load-agent! should return nil on success")
+          (is (agent-core/attached?)
+              "Agent should be attached after load-agent!")
+          (is (agent/loaded?)
+              "loaded? should return true after load-agent!"))
 
-                    (testing "throws IllegalStateException on second load attempt"
-                             (when (agent-core/attached?)
-                                   (is (thrown? IllegalStateException
-                                                (runtime/load-agent!))
-                                       "Should throw when agent already loaded")))))))
+        (testing "throws IllegalStateException on second load attempt"
+          (when (agent-core/attached?)
+            (is (thrown? IllegalStateException
+                         (runtime/load-agent!))
+                "Should throw when agent already loaded")))))))
 
 (deftest ^:requires-agent jni-interface-test
          ;; JNI interface verification
@@ -132,45 +132,46 @@
                                       "Tracing should be inactive after stop"))))))
 
 (deftest ^:requires-agent allocation-tracking-smoke-test
-         ;; Smoke test for full allocation tracking
-         (testing "allocation tracking after agent extraction and loading"
-                  (when-agent-binary-available
-                   (when-agent-not-attached
-                    (runtime/load-agent!))
+  ;; Smoke test for full allocation tracking
+  (testing "allocation tracking after agent extraction and loading"
+    (when-agent-binary-available
+      (when-agent-not-attached
+        (runtime/load-agent!))
 
-                   (when (agent-core/attached?)
-                         (testing "captures allocations"
-                                  (reset! agent-core/records [])
-                                  (agent-core/allocation-tracing-start!)
-                                  (try
-                                   ;; Allocate some objects
-                                   (let [_ (Object.)
-                                         _ (String. "test")
-                                         _ (java.util.ArrayList.)]
-                                        (System/gc)
-                                        (Thread/sleep 50))
-                                   (finally
-                                    (agent-core/allocation-tracing-stop!)
-                                    (agent-core/collect-allocation-records)))
+      (if (agent-core/attached?)
+        (testing "captures allocations"
+          (reset! agent-core/records [])
+          (agent-core/allocation-tracing-start!)
+          (try
+            ;; Allocate some objects
+            (let [_ (Object.)
+                  _ (String. "test")
+                  _ (java.util.ArrayList.)]
+              (System/gc)
+              (Thread/sleep 50))
+            (finally
+              (agent-core/allocation-tracing-stop!)
+              (agent-core/collect-allocation-records)))
 
-                                  (let [records @agent-core/records]
-                                       (is (seq records)
-                                           "Should capture some allocations")
-                                       (when (seq records)
-                                             (is (every? map? records)
-                                                 "Each record should be a map")
-                                             (is (some #(= (:object-type %) "java.lang.Object") records)
-                                                 "Should capture Object allocation"))))))))
+          (let [records @agent-core/records]
+            (is (seq records)
+                "Should capture some allocations")
+            (when (seq records)
+              (is (every? map? records)
+                  "Each record should be a map")
+              (is (some #(= (:object-type %) "java.lang.Object") records)
+                  "Should capture Object allocation"))))
+        (is true "no agent attached")))))
 
 (deftest ^:requires-agent concurrent-extraction-test
-         ;; Concurrent extraction safety
-         (testing "concurrent agent-path calls"
-                  (when-agent-binary-available
-                   (testing "multiple threads extract safely"
-                            (let [paths (doall
-                                         (pmap (fn [_] (runtime/agent-path))
-                                               (range 10)))]
-                                 (is (every? some? paths)
-                                     "All threads should get a path")
-                                 (is (apply = paths)
-                                     "All threads should get the same path"))))))
+  ;; Concurrent extraction safety
+  (testing "concurrent agent-path calls"
+    (when-agent-binary-available
+      (testing "multiple threads extract safely"
+        (let [paths (doall
+                     (pmap (fn [_] (runtime/agent-path))
+                           (range 10)))]
+          (is (every? some? paths)
+              "All threads should get a path")
+          (is (apply = paths)
+              "All threads should get the same path"))))))
