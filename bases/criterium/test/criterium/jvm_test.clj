@@ -21,6 +21,7 @@
     (:require
      [clojure.test :refer [deftest is testing use-fixtures]]
      [criterium.agent :as agent]
+     [criterium.agent.core :as agent-core]
      [criterium.jvm :as jvm]))
 
 ;; Test fixture for cleanup
@@ -162,7 +163,7 @@
                            (dotimes [_ warmup-count]
                                     (agent/with-allocation-tracing (jvm/class-loader-counts)))
       ;; clear any allocations from warmup
-                           (reset! criterium.agent.core/records [])
+                           (reset! agent-core/records [])
                            (let [[allocations _res] (agent/with-allocation-tracing
                                                      (jvm/class-loader-counts))
                                  {:keys [freed-bytes]} (->> allocations
@@ -172,7 +173,7 @@
                   (testing "for compilation"
                            (dotimes [_ warmup-count]
                                     (agent/with-allocation-tracing (jvm/compilation-sample)))
-                           (reset! criterium.agent.core/records [])
+                           (reset! agent-core/records [])
                            (let [[allocations _res] (agent/with-allocation-tracing
                                                      (jvm/compilation-sample))
                                  {:keys [freed-bytes]} (->> allocations
@@ -185,7 +186,7 @@
                   (testing "for garbage-collectpr"
                            (dotimes [_ warmup-count]
                                     (agent/with-allocation-tracing (jvm/garbage-collector-sample)))
-                           (reset! criterium.agent.core/records [])
+                           (reset! agent-core/records [])
                            (let [[allocations _res] (agent/with-allocation-tracing
                                                      (jvm/garbage-collector-sample))
                                  {:keys [freed-bytes]} (->> allocations
@@ -198,7 +199,7 @@
                   (testing "for memory"
                            (dotimes [_ warmup-count]
                                     (agent/with-allocation-tracing (jvm/memory-sample)))
-                           (reset! criterium.agent.core/records [])
+                           (reset! agent-core/records [])
                            (let [[allocations _res] (agent/with-allocation-tracing
                                                      (jvm/memory-sample))
                                  {:keys [freed-bytes]} (->> allocations
@@ -211,7 +212,7 @@
                   (testing "for memory-pools"
                            (dotimes [_ warmup-count]
                                     (agent/with-allocation-tracing (jvm/memory-pools-sample)))
-                           (reset! criterium.agent.core/records [])
+                           (reset! agent-core/records [])
                            (let [[allocations _res] (agent/with-allocation-tracing
                                                      (jvm/memory-pools-sample))
                                  {:keys [freed-bytes]} (->> allocations
