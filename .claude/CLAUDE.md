@@ -59,9 +59,13 @@ clojure -M:outdated
 cmake -B build
 cmake --build build
 
-# Build with debug symbols
-cmake -B build -DCMAKE_BUILD_TYPE=Debug
+# Build with debug symbols and debug output
+cmake -B build -DCMAKE_BUILD_TYPE=Debug -DDEBUG=ON
 cmake --build build
+
+# Cross-compile for different architectures (macOS)
+cmake -B build -DCMAKE_OSX_ARCHITECTURES=arm64
+cmake -B build -DCMAKE_OSX_ARCHITECTURES=x86_64
 
 # The agent provides allocation tracking capabilities
 ```
