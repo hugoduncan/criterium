@@ -32,6 +32,7 @@
   library that applies many of the same statistical techniques."
   (:require
    [clojure.set :as set]
+   [criterium.analyse]
    [criterium.bench :as bench]
    [criterium.collect-plan.config :as collect-plan-config]
    [criterium.collector-configs :as collector-configs]
@@ -81,13 +82,12 @@
    :bootstrap-size        500})
 
 (defn options->time-config
-  [{:keys [max-gc-attempts target-execution-time warmup-jit-period]
+  [{:keys [max-gc-attempts warmup-jit-period]
     :as   options}]
   {:collect-plan
    (collect-plan-config/collect-plan-config
     :with-jit-warmup
     {:max-gc-attempts  max-gc-attempts
-     :batch-time-ns    target-execution-time
      :warmup-period-ns warmup-jit-period})
    :collector-config collector-configs/default-collector-config
    :analyse          [:stats
