@@ -640,8 +640,10 @@ public:
                                     jvmtiLineNumberEntry** line_table) {
     auto err = jvmti->GetLineNumberTable(method, entry_count, line_table);
     if (err != 0) {
-      std::cout << "Failed to get line number table\n";
-      debug_print_jvmti_err(err);
+      if (err != JVMTI_ERROR_NATIVE_METHOD) {
+	std::cout << "Failed to get line number table\n";
+	debug_print_jvmti_err(err);
+      }
       return false;
     }
     return true;
