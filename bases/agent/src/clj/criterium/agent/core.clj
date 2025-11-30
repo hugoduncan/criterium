@@ -12,7 +12,7 @@
   - Data Processing: Transform raw allocation data into usable records
 
   Implementation Notes:
-  - Uses JNI bindings to communicate with native agent via MethodHandles
+  - Uses wrapper namespace for zero-allocation Agent access
   - Manages thread-local and global agent state
   - Optimized for minimal allocation overhead during tracing
   - Handles concurrent access to shared state
@@ -25,22 +25,46 @@
   criterium.agent instead."
   (:require
    [clojure.string :as str]
-   [criterium.util.invariant :refer [have?]])
-  (:import
-   [java.lang.invoke
-    MethodHandle
-    MethodHandles
-    MethodType]))
+   [criterium.util.invariant :refer [have?]]))
 
-;;; Agent Class Access via Reflection
+;;; Wrapper functions - zero-allocation direct access when available
 
-(def ^:private agent-class
-  "Lazily resolved Agent class, or nil if not available."
+(def ^:private wrapper-read-state
+  "Lazily resolved wrapper/read-state, or nil if wrapper can't load."
   (delay
     (try
-      (Class/forName "criterium.agent.Agent")
-      (catch ClassNotFoundException _
-        nil))))
+      (requiring-resolve 'criterium.agent.wrapper/read-state)
+      (catch Exception _ nil))))
+
+(def ^:private wrapper-send-command
+  "Lazily resolved wrapper/send-command, or nil if wrapper can't load."
+  (delay
+    (try
+      (requiring-resolve 'criterium.agent.wrapper/send-command)
+      (catch Exception _ nil))))
+
+(def ^:private wrapper-start-marker
+  "Lazily resolved wrapper/allocation-start-marker, or nil if wrapper can't load."
+  (delay
+    (try
+      (requiring-resolve 'criterium.agent.wrapper/allocation-start-marker)
+      (catch Exception _ nil))))
+
+(def ^:private wrapper-finish-marker
+  "Lazily resolved wrapper/allocation-finish-marker, or nil if wrapper can't load."
+  (delay
+    (try
+      (requiring-resolve 'criterium.agent.wrapper/allocation-finish-marker)
+      (catch Exception _ nil))))
+
+(def ^:private wrapper-set-handler
+  "Lazily resolved wrapper/set-handler, or nil if wrapper can't load."
+  (delay
+    (try
+      (requiring-resolve 'criterium.agent.wrapper/set-handler)
+      (catch Exception _ nil))))
+
+;;; Agent Class Access via Reflection
 
 (def ^:private allocation-class
   "Lazily resolved Allocation class, or nil if not available."
@@ -49,28 +73,6 @@
       (Class/forName "criterium.agent.Allocation")
       (catch ClassNotFoundException _
         nil))))
-
-(def ^:private get-state-handle
-  "Cached MethodHandle for Agent.getState() for fast invocation."
-  (delay
-    (when-let [cls @agent-class]
-      (try
-        (let [lookup (MethodHandles/publicLookup)
-              mt (MethodType/methodType Long/TYPE)]
-          (.findVirtual lookup cls "getState" mt))
-        (catch Exception _
-          nil)))))
-
-(def ^:private command-handle
-  "Cached MethodHandle for Agent.command(int) for fast invocation."
-  (delay
-    (when-let [cls @agent-class]
-      (try
-        (let [lookup (MethodHandles/publicLookup)
-              mt (MethodType/methodType Void/TYPE Long/TYPE)]
-          (.findStatic lookup cls "command" mt))
-        (catch Exception _
-          nil)))))
 
 ;;; Native Agent
 
@@ -121,21 +123,6 @@
   "Returns the allocation class with proper type hint to avoid reflection."
   ^Class []
   @allocation-class)
-
-(defn- get-agent-class
-  "Returns the agent class with proper type hint to avoid reflection."
-  ^Class []
-  @agent-class)
-
-(defn- get-state-method-handle
-  "Returns the getState MethodHandle with proper type hint to avoid reflection."
-  ^MethodHandle []
-  @get-state-handle)
-
-(defn- get-command-method-handle
-  "Returns the command MethodHandle with proper type hint to avoid reflection."
-  ^MethodHandle  []
-  @command-handle)
 
 (defn- blank->nil [s]
   (when-not (str/blank? s)
@@ -223,12 +210,10 @@
   Only sets the handler once, even if called multiple times.
   Requires the Agent class to be loaded."
   []
-  (when (and @agent-class (not @handler-set?))
-    (let [set-handler (.getMethod
-                       (get-agent-class) "set_handler"
-                       (into-array Class [clojure.lang.IFn]))]
-      (.invoke set-handler nil (into-array Object [data-fn]))
-      (reset! handler-set? true))))
+  (when-not @handler-set?
+    (assert @wrapper-set-handler "Agent not loaded")
+    (@wrapper-set-handler data-fn)
+    (reset! handler-set? true)))
 
 (def ^:private commands
   "Map of command keywords to their numeric protocol values.
@@ -279,33 +264,18 @@
   Implementation Notes:
   - Thread-safe but may synchronize on agent state
   - May trigger state transitions
-  - Command acknowledgement is synchronous
-  - Uses cached MethodHandle for fast invocation"
+  - Command acknowledgement is synchronous"
   [cmd]
-  (when-not @command-handle
-    (throw (IllegalStateException. "Agent class not available - agent not loaded")))
   (ensure-handler-set!)
   (let [cmd-num (commands cmd)]
     (when-not cmd-num
       (throw
        (IllegalArgumentException. (str "Unknown command: " (pr-str cmd)))))
-    (.invokeWithArguments
-     (get-command-method-handle)
-     (object-array [(long cmd-num)]))))
+    (let [f @wrapper-send-command]
+      (assert f "Agent not loaded")
+      (f cmd-num))))
 
 ;;; Agent State Management
-
-(def ^:private agent-instance
-  "Lazily created Agent instance for state queries.
-
-  Uses reflection to avoid compile-time dependency on Agent class."
-  (delay
-    (when @agent-class
-      (try
-        (.newInstance (get-agent-class))
-        (catch Exception e
-          (println "WARNING: Failed to create Agent instance:" (.getMessage e))
-          nil)))))
 
 (defn ^:internal agent-state
   "Get current agent state as a keyword.
@@ -313,19 +283,11 @@
   Returns :not-attached if agent is not loaded or not available.
 
   Implementation Notes:
-  - Uses cached MethodHandle for fast invocation
   - Thread-safe but uncoordinated
   - Returns state keywords from states map"
   []
-  (if-let [mh (get-state-method-handle)]
-    (if-let [instance @agent-instance]
-      (try
-        (let [state-num (.invokeWithArguments mh (object-array [instance]))]
-          (get states (long state-num) :not-attached))
-        (catch Exception e
-          (println "WARNING: Failed to get agent state:" (.getMessage e))
-          :not-attached))
-      :not-attached)
+  (if-let [f @wrapper-read-state]
+    (get states (long (f)) :not-attached)
     :not-attached))
 
 (defn attached?
@@ -353,22 +315,14 @@
   - Filtered from final results
   - Used for state transition timing"
   []
-  (when @agent-class
-    (let [marker-method (.getMethod
-                         (get-agent-class)
-                         "allocation_start_marker"
-                         (make-array Class 0))]
-      (.invoke marker-method nil (make-array Object 0)))))
+  (assert @wrapper-start-marker "Agent not loaded")
+  (@wrapper-start-marker))
 
 (defn ^:internal allocation-finish-marker
   "Create a marker allocation to track end of allocation sequence."
   []
-  (when @agent-class
-    (let [marker-method (.getMethod
-                         (get-agent-class)
-                         "allocation_finish_marker"
-                         (make-array Class 0))]
-      (.invoke marker-method nil (make-array Object 0)))))
+  (assert @wrapper-finish-marker "Agent not loaded")
+  (@wrapper-finish-marker))
 
 (defn ^:internal allocation-tracing-active?
   "Test if allocation tracing is currently active.
