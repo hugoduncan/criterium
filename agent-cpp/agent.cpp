@@ -856,8 +856,14 @@ private:
   }
 
   void set_state(JNIEnv* env, jlong state) {
-    env->SetStaticLongField(*agent_class, agent_state_field, state);
+    if (agent_class) {
+      env->SetStaticLongField(*agent_class, agent_state_field, state);
+    }
     set_state(state);
+  }
+
+  bool initialized() const {
+    return agent_class != nullptr;
   }
 
   void enable_allocation_tracing(JNIEnv* env) {
@@ -1074,10 +1080,12 @@ public:
       set_state(env, allocation_tracing_reported);
       break;
     case ping:
-      AgentContext::call_static_void_method(env,
-                                            *agent_class,
-					    agent_data1_method,
-					    env->NewStringUTF("Alive"));
+      if (agent_class) {
+        AgentContext::call_static_void_method(env,
+                                              *agent_class,
+                                              agent_data1_method,
+                                              env->NewStringUTF("Alive"));
+      }
       break;
     case sync_state:
       set_state(env, agent_state);
@@ -1231,37 +1239,39 @@ void AgentState::untag_objects(allocs_t &allocs,
 
 void AgentState::allocation_tracing_report(JNIEnv *env, allocs_t &allocs,
                                            allocs_by_tag_t& allocs_by_tag) {
-  for (auto& alloc : allocs) {
-    auto class_jstr = java::string(env, alloc->obj_class);
+  if (agent_class && agent_allocation_class) {
+    for (auto& alloc : allocs) {
+      auto class_jstr = java::string(env, alloc->obj_class);
 
-    auto alloc_class_jstr = java::string(env, alloc->alloc_class);
-    auto alloc_method_jstr = java::string(env, alloc->alloc_method);
-    auto alloc_file_jstr = java::string(env, alloc->alloc_file);
+      auto alloc_class_jstr = java::string(env, alloc->alloc_class);
+      auto alloc_method_jstr = java::string(env, alloc->alloc_method);
+      auto alloc_file_jstr = java::string(env, alloc->alloc_file);
 
-    auto call_class_jstr = java::string(env, alloc->call_class);
-    auto call_method_jstr = java::string(env, alloc->call_method);
-    auto call_file_jstr = java::string(env, alloc->call_file);
+      auto call_class_jstr = java::string(env, alloc->call_class);
+      auto call_method_jstr = java::string(env, alloc->call_method);
+      auto call_file_jstr = java::string(env, alloc->call_file);
 
-    auto rec = VMContext::local_ref<jobject>
-      (env, AgentContext::new_object
-       (env,
-	*agent_allocation_class,
-	agent_allocation_ctor,
-	(jstring)class_jstr,
-	alloc->obj_size,
-	(jstring)call_class_jstr,
-	(jstring)call_method_jstr,
-	(jstring)call_file_jstr,
-	alloc->call_line,
-	(jstring)alloc_class_jstr,
-	(jstring)alloc_method_jstr,
-	(jstring)alloc_file_jstr,
-	alloc->alloc_line,
-	alloc->thread_id,
-	alloc->freed));
+      auto rec = VMContext::local_ref<jobject>
+        (env, AgentContext::new_object
+         (env,
+          *agent_allocation_class,
+          agent_allocation_ctor,
+          (jstring)class_jstr,
+          alloc->obj_size,
+          (jstring)call_class_jstr,
+          (jstring)call_method_jstr,
+          (jstring)call_file_jstr,
+          alloc->call_line,
+          (jstring)alloc_class_jstr,
+          (jstring)alloc_method_jstr,
+          (jstring)alloc_file_jstr,
+          alloc->alloc_line,
+          alloc->thread_id,
+          alloc->freed));
 
-    AgentContext::call_static_void_method(env, *agent_class, agent_data1_method,
-                                          (jobject&)rec);
+      AgentContext::call_static_void_method(env, *agent_class, agent_data1_method,
+                                            (jobject&)rec);
+    }
   }
 
   untag_objects(allocs, allocs_by_tag);
