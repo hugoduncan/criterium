@@ -8,10 +8,13 @@
   (require 'babashka.fs)
   (catch Exception _))
 (try
-  (require 'cider.nrepl.middleware.util.instrument)
+  (require 'cider.nrepl.inlined.deps.toolsreader.v1v4v1.clojure.tools.reader)
   (catch Exception _))
 (try
-  (require 'cider.nrepl.inlined.deps.toolsreader.v1v4v1.clojure.tools.reader)
+  (require 'cider.nrepl.middleware.test)
+  (catch Exception _))
+(try
+  (require 'cider.nrepl.middleware.util.instrument)
   (catch Exception _))
 (try
   (require 'clojure.test.check)
