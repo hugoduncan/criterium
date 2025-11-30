@@ -5,6 +5,9 @@
   (require 'aero.alpha.core)
   (catch Exception _))
 (try
+  (require 'babashka.fs)
+  (catch Exception _))
+(try
   (require 'cider.nrepl.middleware.util.instrument)
   (catch Exception _))
 (try
@@ -18,6 +21,9 @@
   (catch Exception _))
 (try
   (require 'clojure.tools.cli)
+  (catch Exception _))
+(try
+  (require 'clojure.tools.deps)
   (catch Exception _))
 (try
   (require 'clojure.tools.gitlibs)

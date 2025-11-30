@@ -95,7 +95,6 @@
                 (.loadAgentPath
                  ^VirtualMachine (VirtualMachine/attach ^String (pid))
                  ^String path)
-                (println "Dynamically attached criterium agent")
                (catch Exception e
                       (throw (RuntimeException. (str "Failed to load agent from " path) e))))
               (throw (RuntimeException. "Agent not available for current platform"))))
