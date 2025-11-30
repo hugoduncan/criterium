@@ -82,7 +82,8 @@
 
   Performance:
     - Zero garbage allocation
-    - ~10 microsecond minimum practical resolution
+    - ~10 microsecond minimum practical resolution, limited by the
+      elapsed time of the (timestamp) call
     - High CPU usage during wait
     - May be affected by OS scheduling
 
@@ -98,9 +99,11 @@
     Intended for criterium internal testing only.
     Not recommended for production timing control."
   [^long ns]
-  (let [start (timestamp)]
+  (let [start                   (timestamp)
+        ;; this avoids a getRawRoot() call on the function var
+        ^clojure.lang.IFn$LLL f @#'elapsed-time]
     (loop []
-      (when (< (elapsed-time start (timestamp)) ns)
+      (when (< (.invokePrim f start (timestamp)) ns)
         (recur)))))
 
 ;;; GC control
