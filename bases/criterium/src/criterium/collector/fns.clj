@@ -10,8 +10,7 @@
   Each pipeline function collects one or metrics around the measured's
   invocation."
   (:require
-   [criterium.jvm :as jvm]
-   [criterium.measured :as measured]))
+   [criterium.jvm :as jvm]))
 
 ;;; Helpers
 
@@ -57,14 +56,18 @@
     - the number of evals on the :eval-count key."
   [next-fns sample measured state eval-count result-index]
   {:pre [(empty? next-fns)]}
-  (let [sample-sym (sample-gensym)]
+  (let [sample-sym   (sample-gensym)
+        ;; Use vary-meta to preserve type hint through syntax-quote
+        measured-sym (vary-meta (gensym "measured")
+                                assoc :tag 'criterium.measured.impl.Measured)]
     `(let [~sample-sym   ~sample
-           measured#     ~measured
+           ~measured-sym ~measured
            state#        ~state
            eval-count#   ~eval-count
            result-index# ~result-index]
+       ;; Direct field access with type hint avoids reflection
        (aset ~sample-sym result-index#
-             (measured/invoke measured# state# eval-count#)))))
+             ((.-f ~measured-sym) state# eval-count#)))))
 
 (defn- elapsed-time-xform
   [sample ^long result-index]

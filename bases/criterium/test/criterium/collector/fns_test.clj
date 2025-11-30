@@ -2,6 +2,7 @@
   (:require
    [clojure.test :refer [deftest is testing]]
    [criterium.agent :as agent]
+   [criterium.agent.core :as agent-core]
    [criterium.collector :as collector]
    [criterium.measured :as measured]))
 
@@ -77,17 +78,17 @@
               p                     (collector/collector
                                      {:stages [] :terminator :elapsed-time})
               _                     (dotimes [_ 10]
-                                      ((:f p) sample measured state 1 0))
+                                      (agent/with-allocation-tracing
+                                        ((:f p) sample measured state 1 0)))
+              ;; clear any allocations from warmup
+              _                     (reset! agent-core/records [])
               [allocations res]     (agent/with-allocation-tracing
                                       ((:f p) sample measured state 1 0))
-              {:keys [freed-bytes]} (->> allocations
-                                         (filterv (agent/allocation-on-thread?))
-                                         agent/allocations-summary)]
+              relevant-allocations  (filterv (agent/allocation-on-thread?) allocations)
+              {:keys [freed-bytes]} (agent/allocations-summary relevant-allocations)]
           (is (= [1 1] res))
           (is (zero? freed-bytes)
-              (->> allocations
-                   (filterv (agent/allocation-on-thread?))
-                   (filterv agent/allocation-freed?)))
+              (filterv agent/allocation-freed? relevant-allocations))
           (is (some? sample)
               "Make sure sample isn't collected until after garbage check")))
       (testing "for measured-args"
@@ -96,17 +97,17 @@
                                      {:stages     [:measured-args]
                                       :terminator :elapsed-time})
               _                     (dotimes [_ 10]
-                                      ((:f p) sample measured state 1 0))
+                                      (agent/with-allocation-tracing
+                                        ((:f p) sample measured state 1 0)))
+              ;; clear any allocations from warmup
+              _                     (reset! agent-core/records [])
               [allocations res]     (agent/with-allocation-tracing
                                       ((:f p) sample measured state 1 0))
-              {:keys [freed-bytes]} (->> allocations
-                                         (filterv (agent/allocation-on-thread?))
-                                         agent/allocations-summary)]
+              relevant-allocations  (filterv (agent/allocation-on-thread?) allocations)
+              {:keys [freed-bytes]} (agent/allocations-summary relevant-allocations)]
           (is (nil? res))
           (is (zero? freed-bytes)
-              (->> allocations
-                   (filterv (agent/allocation-on-thread?))
-                   (filterv agent/allocation-freed?)))
+              (filterv agent/allocation-freed? relevant-allocations))
           (is (some? sample)
               "Make sure sample isn't collected until after garbage check")))
       (testing "for class-loader"
@@ -115,17 +116,17 @@
                                      {:stages     [:class-loader]
                                       :terminator :elapsed-time})
               _                     (dotimes [_ 10]
-                                      ((:f p) sample measured state 1 0))
+                                      (agent/with-allocation-tracing
+                                        ((:f p) sample measured state 1 0)))
+              ;; clear any allocations from warmup
+              _                     (reset! agent-core/records [])
               [allocations res]     (agent/with-allocation-tracing
                                       ((:f p) sample measured state 1 0))
-              {:keys [freed-bytes]} (->> allocations
-                                         (filterv (agent/allocation-on-thread?))
-                                         agent/allocations-summary)]
+              relevant-allocations  (filterv (agent/allocation-on-thread?) allocations)
+              {:keys [freed-bytes]} (agent/allocations-summary relevant-allocations)]
           (is (nil? res))
           (is (zero? freed-bytes)
-              (->> allocations
-                   (filterv (agent/allocation-on-thread?))
-                   (filterv agent/allocation-freed?)))
+              (filterv agent/allocation-freed? relevant-allocations))
           (is (some? sample)
               "Make sure sample isn't collected until after garbage check")))
       (testing "for compilation"
@@ -134,17 +135,17 @@
                                      {:stages     [:compilation]
                                       :terminator :elapsed-time})
               _                     (dotimes [_ 10]
-                                      ((:f p) sample measured state 1 0))
+                                      (agent/with-allocation-tracing
+                                        ((:f p) sample measured state 1 0)))
+              ;; clear any allocations from warmup
+              _                     (reset! agent-core/records [])
               [allocations res]     (agent/with-allocation-tracing
                                       ((:f p) sample measured state 1 0))
-              {:keys [freed-bytes]} (->> allocations
-                                         (filterv (agent/allocation-on-thread?))
-                                         agent/allocations-summary)]
+              relevant-allocations  (filterv (agent/allocation-on-thread?) allocations)
+              {:keys [freed-bytes]} (agent/allocations-summary relevant-allocations)]
           (is (nil? res))
           (is (zero? freed-bytes)
-              (->> allocations
-                   (filterv (agent/allocation-on-thread?))
-                   (filterv agent/allocation-freed?)))
+              (filterv agent/allocation-freed? relevant-allocations))
           (is (some? sample)
               "Make sure sample isn't collected until after garbage check")))
       (testing "for memory"
@@ -153,17 +154,17 @@
                                      {:stages     [:memory]
                                       :terminator :elapsed-time})
               _                     (dotimes [_ 10]
-                                      ((:f p) sample measured state 1 0))
+                                      (agent/with-allocation-tracing
+                                        ((:f p) sample measured state 1 0)))
+              ;; clear any allocations from warmup
+              _                     (reset! agent-core/records [])
               [allocations res]     (agent/with-allocation-tracing
                                       ((:f p) sample measured state 1 0))
-              {:keys [freed-bytes]} (->> allocations
-                                         (filterv (agent/allocation-on-thread?))
-                                         agent/allocations-summary)]
+              relevant-allocations  (filterv (agent/allocation-on-thread?) allocations)
+              {:keys [freed-bytes]} (agent/allocations-summary relevant-allocations)]
           (is (nil? res))
           (is (zero? freed-bytes)
-              (->> allocations
-                   (filterv (agent/allocation-on-thread?))
-                   (filterv agent/allocation-freed?)))
+              (filterv agent/allocation-freed? relevant-allocations))
           (is (some? sample)
               "Make sure sample isn't collected until after garbage check")))
       (testing "for finalization"
@@ -172,17 +173,17 @@
                                      {:stages     [:finalization]
                                       :terminator :elapsed-time})
               _                     (dotimes [_ 10]
-                                      ((:f p) sample measured state 1 0))
+                                      (agent/with-allocation-tracing
+                                        ((:f p) sample measured state 1 0)))
+              ;; clear any allocations from warmup
+              _                     (reset! agent-core/records [])
               [allocations res]     (agent/with-allocation-tracing
                                       ((:f p) sample measured state 1 0))
-              {:keys [freed-bytes]} (->> allocations
-                                         (filterv (agent/allocation-on-thread?))
-                                         agent/allocations-summary)]
+              relevant-allocations  (filterv (agent/allocation-on-thread?) allocations)
+              {:keys [freed-bytes]} (agent/allocations-summary relevant-allocations)]
           (is (nil? res))
           (is (zero? freed-bytes)
-              (->> allocations
-                   (filterv (agent/allocation-on-thread?))
-                   (filterv agent/allocation-freed?)))
+              (filterv agent/allocation-freed? relevant-allocations))
           (is (some? sample)
               "Make sure sample isn't collected until after garbage check")))
       (testing "for garbage-collector"
@@ -191,17 +192,17 @@
                                      {:stages     [:garbage-collector]
                                       :terminator :elapsed-time})
               _                     (dotimes [_ 10]
-                                      ((:f p) sample measured state 1 0))
+                                      (agent/with-allocation-tracing
+                                        ((:f p) sample measured state 1 0)))
+              ;; clear any allocations from warmup
+              _                     (reset! agent-core/records [])
               [allocations res]     (agent/with-allocation-tracing
                                       ((:f p) sample measured state 1 0))
-              {:keys [freed-bytes]} (->> allocations
-                                         (filterv (agent/allocation-on-thread?))
-                                         agent/allocations-summary)]
+              relevant-allocations  (filterv (agent/allocation-on-thread?) allocations)
+              {:keys [freed-bytes]} (agent/allocations-summary relevant-allocations)]
           (is (nil? res))
           (is (zero? freed-bytes)
-              (->> allocations
-                   (filterv (agent/allocation-on-thread?))
-                   (filterv agent/allocation-freed?)))
+              (filterv agent/allocation-freed? relevant-allocations))
           (is (some? sample)
               "Make sure sample isn't collected until after garbage check")))
       (testing "for thread-allocation"
@@ -210,16 +211,16 @@
                                      {:stages     [:thread-allocation]
                                       :terminator :elapsed-time})
               _                     (dotimes [_ 10]
-                                      ((:f p) sample measured state 1 0))
+                                      (agent/with-allocation-tracing
+                                        ((:f p) sample measured state 1 0)))
+              ;; clear any allocations from warmup
+              _                     (reset! agent-core/records [])
               [allocations res]     (agent/with-allocation-tracing
                                       ((:f p) sample measured state 1 0))
-              {:keys [freed-bytes]} (->> allocations
-                                         (filterv (agent/allocation-on-thread?))
-                                         agent/allocations-summary)]
+              relevant-allocations  (filterv (agent/allocation-on-thread?) allocations)
+              {:keys [freed-bytes]} (agent/allocations-summary relevant-allocations)]
           (is (nil? res))
           (is (zero? freed-bytes)
-              (->> allocations
-                   (filterv (agent/allocation-on-thread?))
-                   (filterv agent/allocation-freed?)))
+              (filterv agent/allocation-freed? relevant-allocations))
           (is (some? sample)
               "Make sure sample isn't collected until after garbage check"))))))

@@ -15,7 +15,9 @@
   While Criterium automatically creates Measured instances for expressions,
   you can also construct custom ones for special measurement needs."
   (:require
-   [criterium.measured.impl :as impl]))
+   [criterium.measured.impl :as impl])
+  (:import
+   [criterium.measured.impl Measured]))
 
 ;;; Measured type
 
@@ -68,7 +70,8 @@
   [measured state eval-count]
   ;; NOTE eval-count is explicitly not tagged as 'long, since this function is
   ;; invoked non-literally, so the calling value will always be an object.
-  ((:f measured) state eval-count))
+  ;; Use direct field access to avoid method handle allocations from keyword lookup
+  ((.-f ^Measured measured) state eval-count))
 
 (defn ^:no-doc symbolic
   "Return a symbolic representation of the measured.
