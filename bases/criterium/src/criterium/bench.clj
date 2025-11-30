@@ -146,7 +146,6 @@
   [& {:as options}]
   (bench-config/config-map options))
 
-
 (defmacro bench
   "Main macro for benchmarking Clojure expressions with statistical rigor.
 

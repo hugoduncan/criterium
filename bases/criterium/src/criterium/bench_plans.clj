@@ -29,7 +29,6 @@
                          {:warn-threshold 0.01}]]
    :viewer           :print})
 
-
 (def log-histogram
   {:collector-config default-collector-config
    :analyse          [:transform-log

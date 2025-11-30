@@ -9,7 +9,6 @@
    [criterium.view :as view]
    [criterium.viewer.common :as viewer-common]))
 
-
 (defonce tapped (atom {:values '()}))
 
 (defn submit

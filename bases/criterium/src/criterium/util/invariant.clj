@@ -20,7 +20,7 @@
         line       (:line (meta &form))
         column     (:column (meta &form) -1)
         x-sym      (gensym "x")]
-    (when (>(count args) 3)
+    (when (> (count args) 3)
       (throw
        (ex-info
         "have expects at most three arguments"
@@ -49,7 +49,7 @@
 
 (defmacro have
   "Assertion macro inspired by truss."
-  {:arglists '[[x][f x][f x data]]}
+  {:arglists '[[x] [f x] [f x data]]}
   ([x & args]
    (if *assert*
      (have* x args (not :truthy) &form)

@@ -50,10 +50,10 @@
    :source-id      nil})
 
 (deftype InstrumentedFn
-  [original-fn
-   collector
-   measured
-   ^:volatile-mutable samples]
+         [original-fn
+          collector
+          measured
+          ^:volatile-mutable samples]
   sampler/Sampler
   (samples-map [_] (sample-map (:metrics-defs collector) samples))
   (reset-samples! [_] (set! samples []) nil)
@@ -89,41 +89,41 @@
     (invoke-f collector measured [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13]))
   (invoke [_ a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14]
     (invoke-f
-      collector
-      measured
-      [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14]))
+     collector
+     measured
+     [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14]))
   (invoke [_ a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15]
     (invoke-f
-      collector
-      measured
-      [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15]))
+     collector
+     measured
+     [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15]))
   (invoke [_ a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16]
     (invoke-f
-      collector
-      measured
-      [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16]))
+     collector
+     measured
+     [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16]))
   (invoke [_ a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17]
     (invoke-f
-      collector
-      measured
-      [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17]))
+     collector
+     measured
+     [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17]))
   (invoke [_ a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18]
     (invoke-f
-      collector
-      measured
-      [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18]))
+     collector
+     measured
+     [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18]))
   (invoke
     [_ a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18 a19]
     (invoke-f
-      collector
-      measured
-      [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18 a19]))
+     collector
+     measured
+     [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18 a19]))
   (invoke
     [_ a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18 a19 a20]
     (invoke-f
-      collector
-      measured
-      [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18 a19 a20]))
+     collector
+     measured
+     [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18 a19 a20]))
   (applyTo [_ args]
     (invoke-f collector measured args))
 

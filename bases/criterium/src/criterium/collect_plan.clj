@@ -78,7 +78,7 @@
 (defmethod impl/collect* :with-jit-warmup
   ;; Sample measured with estimation, warmup and forced GC.
   ;; Return a sampled data map.
-  g[collect-plan collector measured]
+  g [collect-plan collector measured]
   {:pre  [(fn? (:f collector))
           (measured/measured? measured)]
    :post [(have? types/result-map? %)]}

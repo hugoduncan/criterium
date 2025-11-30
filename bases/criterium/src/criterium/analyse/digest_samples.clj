@@ -99,7 +99,7 @@
                                 quantiles (get-in quantiles path)]
                             (assoc-in
                              result path
-                             (digest-outliers digest quantiles) )))
+                             (digest-outliers digest quantiles))))
                         {}
                         (mapv :path metric-configs))]
     {:type        :criterium/outliers
@@ -145,7 +145,6 @@
     {:type      :criterium/stats
      :stats     stats
      :transform collect-plan/identity-transforms}))
-
 
 (defn histogram
   [metric->digest quantiles outliers metric-config]

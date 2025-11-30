@@ -47,8 +47,7 @@
     :num-samples
     :batch-size
     :metrics-defs
-    :expr-value })
-
+    :expr-value})
 
 (defn metrics-samples-map?
   [x]
@@ -81,7 +80,7 @@
     :num-samples
     :batch-size
     :metrics-defs
-    :expr-value })
+    :expr-value})
 
 (defn digest-samples-map?
   [x]

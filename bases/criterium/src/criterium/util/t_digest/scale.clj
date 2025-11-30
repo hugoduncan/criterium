@@ -8,53 +8,53 @@
 
 (definterface Scale
   ;; "Convert quantile q to k-scale value using normalized compression."
-  (k [ ^double q ^double normalizer])
-  (k [ ^double q ^double compression ^double n])
+  (k [^double q ^double normalizer])
+  (k [^double q ^double compression ^double n])
   ;; "Convert k-scale value back to quantile q using normalized compression."
-  (q [ ^double k ^double normalizer])
-  (q [ ^double k ^double compression ^double n])
+  (q [^double k ^double normalizer])
+  (q [^double k ^double compression ^double n])
   ;; "Maximum allowed cluster size at quantile q using normalized compression."
-  (max_size [ ^double q ^double normalizer])
-  (max_size[ ^double q ^double compression ^double n])
+  (max_size [^double q ^double normalizer])
+  (max_size [^double q ^double compression ^double n])
   ;; "Normalizing factor for compression."
-  (normalizer [ ^double compression ^double n]))
+  (normalizer [^double compression ^double n]))
 
 (defn k
   "Convert quantile q to k-scale value using normalized compression."
   (^double [^Scale scale ^double q ^double normalizer]
-   {:pre  [(have? finite? q)(have? finite? normalizer)]
+   {:pre  [(have? finite? q) (have? finite? normalizer)]
     :post [#(have? finite? %)]}
    (.k scale q normalizer))
   (^double [^Scale scale ^double q ^double compression ^double n]
-   {:pre  [(have? finite? q)(have? finite? compression)(have? finite? n)]
+   {:pre  [(have? finite? q) (have? finite? compression) (have? finite? n)]
     :post [#(have? finite? %)]}
    (.k scale q compression n)))
 
 (defn q
   "Convert k-scale value back to quantile q using normalized compression."
   (^double [^Scale scale ^double k ^double normalizer]
-   {:pre  [(have? finite? k)(have? finite? normalizer)]
+   {:pre  [(have? finite? k) (have? finite? normalizer)]
     :post [#(have? finite? %)]}
    (.q scale k normalizer))
   (^double [^Scale scale ^double k ^double compression ^double n]
-   {:pre  [(have? finite? k)(have? finite? compression)(have? finite? n)]
+   {:pre  [(have? finite? k) (have? finite? compression) (have? finite? n)]
     :post [#(have? finite? %)]}
    (.q scale k compression n)))
 
 (defn max-size
   "Maximum allowed cluster size at quantile q using normalized compression."
   (^double [^Scale scale ^double q ^double normalizer]
-   {:pre  [(have? finite? q)(have? finite? normalizer)]
+   {:pre  [(have? finite? q) (have? finite? normalizer)]
     :post [#(have? finite? %)]}   (.max_size scale q normalizer))
   (^double [^Scale scale ^double q ^double compression ^double n]
-   {:pre  [(have? finite? q)(have? finite? compression)(have? finite? n)]
+   {:pre  [(have? finite? q) (have? finite? compression) (have? finite? n)]
     :post [#(have? finite? %)]}
    (.max_size scale q compression n)))
 
 (defn normalizer
   ;; "Normalizing factor for compression."
   ^double [^Scale scale ^double compression ^double n]
-  {:pre  [(have? finite? compression)(have? finite? n)]
+  {:pre  [(have? finite? compression) (have? finite? n)]
    :post [#(have? finite? %)]}
   (.normalizer scale compression n))
 
@@ -65,10 +65,10 @@
     :else      x))
 
 (defn bound [^double x]
-(cond
-  (< x 0.0) 0.0
-  (> x 1)   1
-  :else     x))
+  (cond
+    (< x 0.0) 0.0
+    (> x 1)   1
+    :else     x))
 
 (def k0
   "Scale function that generates uniform cluster sizes.
@@ -121,7 +121,7 @@
                k
                (* compression k1-q-limit-f-high)
                (* compression k1-q-limit-high))]
-        (/ (+ 1.0 (Math/sin  (* k (/ (* 2.0 Math/PI) compression))) 1.0) 2.0) ))
+        (/ (+ 1.0 (Math/sin  (* k (/ (* 2.0 Math/PI) compression))) 1.0) 2.0)))
 
     (q [_ k normalizer]
       (let [x (/ k normalizer)
@@ -156,9 +156,8 @@
 ;;   (prn :k-limit' (/ c 4.0))
 ;;   (prn :xx (/ c xx)))
 
-
 (defn- zk2 ^double [^double compression ^double n]
-  (+ (* 4.0 (Math/log (/ n compression)) ) 24.0))
+  (+ (* 4.0 (Math/log (/ n compression))) 24.0))
 
 (def k2
   "Scale function that generates cluster sizes proportional to q*(1-q).
@@ -171,11 +170,11 @@
           (>= q 1.0) 10.0
           :else      0.0)
         (let [q (limit q k1-q-limit-low k1-q-limit-high)]
-          (/ (* compression (Math/log (/ q (- 1.0 q))) )
+          (/ (* compression (Math/log (/ q (- 1.0 q))))
              (zk2 compression n)))))
     (k [_ q normalizer]
       (let [q (limit q k1-q-limit-low k1-q-limit-high)]
-        (* normalizer (Math/log (/ q (- 1.0 q))) ) ))
+        (* normalizer (Math/log (/ q (- 1.0 q))))))
 
     (q [_ k compression n]
       (let [w (Math/exp (/ (* k (zk2 compression n)) compression))]

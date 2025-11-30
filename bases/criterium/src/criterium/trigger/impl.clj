@@ -34,10 +34,10 @@
 
   sampler/Sampler
   (samples-map [_]
-    (samples->samples-map (:samples @state)))
+               (samples->samples-map (:samples @state)))
   (reset-samples! [_]
-    (reset! state (->TriggerData 0 []))
-    nil))
+                  (reset! state (->TriggerData 0 []))
+                  nil))
 
 (defn fire! [^Trigger trigger extra-data]
   (swap! (:state trigger)

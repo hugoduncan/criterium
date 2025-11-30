@@ -289,7 +289,7 @@
              (:num-samples metrics-samples) (:batch-size metrics-samples)))
     (when outliers
       (doseq [metric metric-configs]
-        (println (format"%36s%s" "" (:label metric)))
+        (println (format "%36s%s" "" (:label metric)))
         (print-samples-with-outliers
          (util/metric->values metrics-samples)
          transforms
@@ -322,7 +322,6 @@
                (:num-samples est) (:batch-size est)
                (* (:num-samples est) (:batch-size est)))))))
 
-
 (defmethod view/histogram* :print
   [_ {:keys [histogram-id] :as _view} data-map]
   (let [histogram-id   (or histogram-id :histograms)
@@ -348,7 +347,7 @@
                (-> h :metric-config :label)
                (-> h :unit)))
       (run!
-       (fn [[x bin-count density] ]
+       (fn [[x bin-count density]]
          (println
           (format "%34s %-7.3f %5d  %-7.3g" "" x (long bin-count) density)))
        (mapv vector (:centers h) (:counts h) (:density h)))

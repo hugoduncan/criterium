@@ -313,7 +313,7 @@
    (let [samples-id   (or samples-id :samples)
          id           (or id :histograms)
          quantiles-id (or quantiles-id :quantiles)
-         outliers-id  (or outliers-id :outliers)         ]
+         outliers-id  (or outliers-id :outliers)]
      (fn [data-map]
        (let [outliers        (when outliers-id
                                (data-map outliers-id))

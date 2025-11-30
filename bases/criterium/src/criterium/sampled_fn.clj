@@ -50,11 +50,11 @@
    :source-id      nil})
 
 (deftype SampledFn
-  [^clojure.lang.IFn original-fn
-   metric-keys
-   collector
-   measured
-   ^:volatile-mutable digests]
+         [^clojure.lang.IFn original-fn
+          metric-keys
+          collector
+          measured
+          ^:volatile-mutable digests]
 
   sampler/Sampler
   (samples-map [_] (sample-map (:metrics-defs collector) digests))
@@ -91,48 +91,48 @@
     (invoke-f collector measured metric-keys [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13]))
   (invoke [_ a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14]
     (invoke-f
-      collector
-      measured
-      metric-keys
-      [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14]))
+     collector
+     measured
+     metric-keys
+     [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14]))
   (invoke [_ a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15]
     (invoke-f
-      collector
-      measured
-      metric-keys
-      [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15]))
+     collector
+     measured
+     metric-keys
+     [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15]))
   (invoke [_ a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16]
     (invoke-f
-      collector
-      measured
-      metric-keys
-      [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16]))
+     collector
+     measured
+     metric-keys
+     [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16]))
   (invoke [_ a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17]
     (invoke-f
-      collector
-      measured
-      metric-keys
-      [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17]))
+     collector
+     measured
+     metric-keys
+     [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17]))
   (invoke [_ a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18]
     (invoke-f
-      collector
-      measured
-      metric-keys
-      [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18]))
+     collector
+     measured
+     metric-keys
+     [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18]))
   (invoke
     [_ a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18 a19]
     (invoke-f
-      collector
-      measured
-      metric-keys
-      [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18 a19]))
+     collector
+     measured
+     metric-keys
+     [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18 a19]))
   (invoke
     [_ a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18 a19 a20]
     (invoke-f
-      collector
-      measured
-      metric-keys
-      [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18 a19 a20]))
+     collector
+     measured
+     metric-keys
+     [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18 a19 a20]))
   (applyTo [_ args]
     (invoke-f collector measured metric-keys args))
 

@@ -1,5 +1,5 @@
 (ns criterium.agent.core
-    "Low-level interface to the Criterium native agent for allocation tracking.
+  "Low-level interface to the Criterium native agent for allocation tracking.
 
   This namespace provides the core implementation for interacting with the
   agent that tracks JVM heap allocations. It manages agent state, handles
@@ -23,59 +23,59 @@
 
   This is an internal implementation namespace. Most users should use
   criterium.agent instead."
-    (:require
-     [clojure.string :as str]
-     [criterium.util.invariant :refer [have?]])
-    (:import
-     [java.lang.invoke
-      MethodHandle
-      MethodHandles
-      MethodType]))
+  (:require
+   [clojure.string :as str]
+   [criterium.util.invariant :refer [have?]])
+  (:import
+   [java.lang.invoke
+    MethodHandle
+    MethodHandles
+    MethodType]))
 
 ;;; Agent Class Access via Reflection
 
 (def ^:private agent-class
-     "Lazily resolved Agent class, or nil if not available."
-     (delay
-      (try
-       (Class/forName "criterium.agent.Agent")
-       (catch ClassNotFoundException _
-              nil))))
+  "Lazily resolved Agent class, or nil if not available."
+  (delay
+    (try
+      (Class/forName "criterium.agent.Agent")
+      (catch ClassNotFoundException _
+        nil))))
 
 (def ^:private allocation-class
-     "Lazily resolved Allocation class, or nil if not available."
-     (delay
-      (try
-       (Class/forName "criterium.agent.Allocation")
-       (catch ClassNotFoundException _
-              nil))))
+  "Lazily resolved Allocation class, or nil if not available."
+  (delay
+    (try
+      (Class/forName "criterium.agent.Allocation")
+      (catch ClassNotFoundException _
+        nil))))
 
 (def ^:private get-state-handle
-     "Cached MethodHandle for Agent.getState() for fast invocation."
-     (delay
-      (when-let [cls @agent-class]
-                (try
-                 (let [lookup (MethodHandles/publicLookup)
-                       mt (MethodType/methodType Long/TYPE)]
-                      (.findVirtual lookup cls "getState" mt))
-                 (catch Exception _
-                        nil)))))
+  "Cached MethodHandle for Agent.getState() for fast invocation."
+  (delay
+    (when-let [cls @agent-class]
+      (try
+        (let [lookup (MethodHandles/publicLookup)
+              mt (MethodType/methodType Long/TYPE)]
+          (.findVirtual lookup cls "getState" mt))
+        (catch Exception _
+          nil)))))
 
 (def ^:private command-handle
-     "Cached MethodHandle for Agent.command(int) for fast invocation."
-     (delay
-      (when-let [cls @agent-class]
-                (try
-                 (let [lookup (MethodHandles/publicLookup)
-                       mt (MethodType/methodType Void/TYPE Long/TYPE)]
-                      (.findStatic lookup cls "command" mt))
-                 (catch Exception _
-                        nil)))))
+  "Cached MethodHandle for Agent.command(int) for fast invocation."
+  (delay
+    (when-let [cls @agent-class]
+      (try
+        (let [lookup (MethodHandles/publicLookup)
+              mt (MethodType/methodType Void/TYPE Long/TYPE)]
+          (.findStatic lookup cls "command" mt))
+        (catch Exception _
+          nil)))))
 
 ;;; Native Agent
 
 (def ^:internal records
-     "Atom containing the current set of allocation records.
+  "Atom containing the current set of allocation records.
 
   Records are captured during allocation tracing and stored here until
   retrieved. The atom is cleared at the start of each tracing session.
@@ -88,10 +88,10 @@
   - :alloc-*      - Allocator information
   - :thread       - Thread ID
   - :freed        - GC status"
-     (atom []))
+  (atom []))
 
 (defn internal->class-name
-      "Convert an internal JVM class name to standard Java/Clojure class name.
+  "Convert an internal JVM class name to standard Java/Clojure class name.
 
   Parameter:
     internal-name - String in JVM internal format (e.g. 'Ljava/lang/String;')
@@ -102,20 +102,20 @@
   Example:
     (internal->class-name \"Ljava/util/List;\")
     => \"java.util.List\""
-      [internal-name]
-      {:pre [(have? string? internal-name)
-             (have? #(str/starts-with? % "L") internal-name)
-             (have? #(str/includes? % "/") internal-name)
-             (have? #(str/ends-with? % ";") internal-name)]}
-      (-> internal-name
-          (subs 1 (dec (count internal-name)))
-          (str/replace "/" ".")))
+  [internal-name]
+  {:pre [(have? string? internal-name)
+         (have? #(str/starts-with? % "L") internal-name)
+         (have? #(str/includes? % "/") internal-name)
+         (have? #(str/ends-with? % ";") internal-name)]}
+  (-> internal-name
+      (subs 1 (dec (count internal-name)))
+      (str/replace "/" ".")))
 
 (def ^:private allocation-start-marker-jvm-type
-     "Lcriterium/agent/Agent$AllocationStartMarker;")
+  "Lcriterium/agent/Agent$AllocationStartMarker;")
 
 (def ^:private allocation-finish-marker-jvm-type
-     "Lcriterium/agent/Agent$AllocationFinishMarker;")
+  "Lcriterium/agent/Agent$AllocationFinishMarker;")
 
 (defn- get-allocation-class
   "Returns the allocation class with proper type hint to avoid reflection."
@@ -138,11 +138,11 @@
   @command-handle)
 
 (defn- blank->nil [s]
-       (when-not (str/blank? s)
-                 s))
+  (when-not (str/blank? s)
+    s))
 
 (defn- data-fn
-       "Callback function invoked by the native agent for allocation events.
+  "Callback function invoked by the native agent for allocation events.
 
   Processes allocation events from the native agent and stores them in
   the records atom. Handles both object and primitive allocation
@@ -157,81 +157,81 @@
   Called in two forms:
   1. Single object form for complex allocations
   2. Multi-argument form for primitive allocations"
-       ([object]
-        (cond
+  ([object]
+   (cond
      ;; Use reflection to check instance type
-         (and @allocation-class (.isInstance (get-allocation-class) object))
-         (let [object-type (.getField (get-allocation-class) "object_type")
-               object-size (.getField (get-allocation-class) "object_size")
-               call-class (.getField (get-allocation-class) "call_class")
-               call-method (.getField (get-allocation-class) "call_method")
-               call-file (.getField (get-allocation-class) "call_file")
-               call-line (.getField (get-allocation-class) "call_line")
-               alloc-class (.getField (get-allocation-class) "alloc_class")
-               alloc-method (.getField (get-allocation-class) "alloc_method")
-               alloc-file (.getField (get-allocation-class) "alloc_file")
-               alloc-line (.getField (get-allocation-class) "alloc_line")
-               thread-field (.getField (get-allocation-class) "thread")
-               freed (.getField (get-allocation-class) "freed")
-               obj-type (.get object-type object)]
-              (when (and (not= obj-type allocation-start-marker-jvm-type)
-                         (not= obj-type allocation-finish-marker-jvm-type))
-                    (swap! records conj
-                           {:object-type (internal->class-name obj-type)
-                            :object_size (.get object-size object)
-                            :call-class (some->
-                                         (.get call-class object)
-                                         blank->nil
-                                         internal->class-name)
-                            :call-method (.get call-method object)
-                            :call-file (.get call-file object)
-                            :call-line (.get call-line object)
-                            :alloc-class (some->
-                                          (.get alloc-class object)
-                                          blank->nil
-                                          internal->class-name)
-                            :alloc-method (.get alloc-method object)
-                            :alloc-file (.get alloc-file object)
-                            :alloc-line (.get alloc-line object)
-                            :thread (.get thread-field object)
-                            :freed (.get freed object)})))
+     (and @allocation-class (.isInstance (get-allocation-class) object))
+     (let [object-type (.getField (get-allocation-class) "object_type")
+           object-size (.getField (get-allocation-class) "object_size")
+           call-class (.getField (get-allocation-class) "call_class")
+           call-method (.getField (get-allocation-class) "call_method")
+           call-file (.getField (get-allocation-class) "call_file")
+           call-line (.getField (get-allocation-class) "call_line")
+           alloc-class (.getField (get-allocation-class) "alloc_class")
+           alloc-method (.getField (get-allocation-class) "alloc_method")
+           alloc-file (.getField (get-allocation-class) "alloc_file")
+           alloc-line (.getField (get-allocation-class) "alloc_line")
+           thread-field (.getField (get-allocation-class) "thread")
+           freed (.getField (get-allocation-class) "freed")
+           obj-type (.get object-type object)]
+       (when (and (not= obj-type allocation-start-marker-jvm-type)
+                  (not= obj-type allocation-finish-marker-jvm-type))
+         (swap! records conj
+                {:object-type (internal->class-name obj-type)
+                 :object_size (.get object-size object)
+                 :call-class (some->
+                              (.get call-class object)
+                              blank->nil
+                              internal->class-name)
+                 :call-method (.get call-method object)
+                 :call-file (.get call-file object)
+                 :call-line (.get call-line object)
+                 :alloc-class (some->
+                               (.get alloc-class object)
+                               blank->nil
+                               internal->class-name)
+                 :alloc-method (.get alloc-method object)
+                 :alloc-file (.get alloc-file object)
+                 :alloc-line (.get alloc-line object)
+                 :thread (.get thread-field object)
+                 :freed (.get freed object)})))
 
-         :else
-         (prn :received object (type object))))
-       ([a b c d e f g h]
-        (when (and (not= c "allocation_start_marker")
-                   (not= c "allocation_finish_marker"))
-              (swap! records conj
-                     {:object-type a
-                      :call-class b
-                      :call-method c
-                      :file d
-                      :size (Long/parseLong e)
-                      :thread (Long/parseLong f)
-                      :line (Long/parseLong g)
-                      :freed (Long/parseLong h)}))))
+     :else
+     (prn :received object (type object))))
+  ([a b c d e f g h]
+   (when (and (not= c "allocation_start_marker")
+              (not= c "allocation_finish_marker"))
+     (swap! records conj
+            {:object-type a
+             :call-class b
+             :call-method c
+             :file d
+             :size (Long/parseLong e)
+             :thread (Long/parseLong f)
+             :line (Long/parseLong g)
+             :freed (Long/parseLong h)}))))
 
 ;;; Lazy Agent Initialization
 
 (def ^:private handler-set?
-     "Track whether we've set the handler on the Agent class."
-     (atom false))
+  "Track whether we've set the handler on the Agent class."
+  (atom false))
 
 (defn- ensure-handler-set!
-       "Ensure the data-fn callback is registered with the Agent class.
+  "Ensure the data-fn callback is registered with the Agent class.
 
   Only sets the handler once, even if called multiple times.
   Requires the Agent class to be loaded."
-       []
-       (when (and @agent-class (not @handler-set?))
-             (let [set-handler (.getMethod
-                                (get-agent-class) "set_handler"
-                                (into-array Class [clojure.lang.IFn]))]
-                  (.invoke set-handler nil (into-array Object [data-fn]))
-                  (reset! handler-set? true))))
+  []
+  (when (and @agent-class (not @handler-set?))
+    (let [set-handler (.getMethod
+                       (get-agent-class) "set_handler"
+                       (into-array Class [clojure.lang.IFn]))]
+      (.invoke set-handler nil (into-array Object [data-fn]))
+      (reset! handler-set? true))))
 
 (def ^:private commands
-     "Map of command keywords to their numeric protocol values.
+  "Map of command keywords to their numeric protocol values.
 
   Commands control agent behavior:
   - :ping - Check agent responsiveness
@@ -241,14 +241,14 @@
   - :report-allocation-tracing - Retrieve allocation data
 
   Values correspond to the native agent protocol constants."
-     {:ping 0
-      :sync-state 1
-      :start-allocation-tracing 10
-      :stop-allocation-tracing 11
-      :report-allocation-tracing 12})
+  {:ping 0
+   :sync-state 1
+   :start-allocation-tracing 10
+   :stop-allocation-tracing 11
+   :report-allocation-tracing 12})
 
 (def ^:private states
-     "Map of numeric state codes to their keyword representations.
+  "Map of numeric state codes to their keyword representations.
 
   Agent States and Transitions:
   :not-attached (-1) - Agent not loaded or initialized
@@ -260,18 +260,18 @@
   :allocation-tracing-flushed (17) - Data ready for collection
 
   State transitions are managed by agent commands."
-     {-1 :not-attached
-      0 :passive
-      10 :allocation-tracing-starting
-      11 :allocation-tracing-active
-      15 :allocation-tracing-stopping
-      16 :allocation-tracing-flushing
-      17 :allocation-tracing-flushed
-      18 :allocation-tracing-reporting
-      19 :allocation-tracing-reported})
+  {-1 :not-attached
+   0 :passive
+   10 :allocation-tracing-starting
+   11 :allocation-tracing-active
+   15 :allocation-tracing-stopping
+   16 :allocation-tracing-flushing
+   17 :allocation-tracing-flushed
+   18 :allocation-tracing-reporting
+   19 :allocation-tracing-reported})
 
 (defn ^:internal agent-command
-      "Send a command to the native agent.
+  "Send a command to the native agent.
 
   Commands are sent via JNI and may block until the agent responds.
   See commands map for valid command values.
@@ -281,34 +281,34 @@
   - May trigger state transitions
   - Command acknowledgement is synchronous
   - Uses cached MethodHandle for fast invocation"
-      [cmd]
-      (when-not @command-handle
-                (throw (IllegalStateException. "Agent class not available - agent not loaded")))
-      (ensure-handler-set!)
-      (let [cmd-num (commands cmd)]
-           (when-not cmd-num
-                     (throw
-                      (IllegalArgumentException. (str "Unknown command: " (pr-str cmd)))))
-           (.invokeWithArguments
-            (get-command-method-handle)
-            (object-array [(long cmd-num)]))))
+  [cmd]
+  (when-not @command-handle
+    (throw (IllegalStateException. "Agent class not available - agent not loaded")))
+  (ensure-handler-set!)
+  (let [cmd-num (commands cmd)]
+    (when-not cmd-num
+      (throw
+       (IllegalArgumentException. (str "Unknown command: " (pr-str cmd)))))
+    (.invokeWithArguments
+     (get-command-method-handle)
+     (object-array [(long cmd-num)]))))
 
 ;;; Agent State Management
 
 (def ^:private agent-instance
-     "Lazily created Agent instance for state queries.
+  "Lazily created Agent instance for state queries.
 
   Uses reflection to avoid compile-time dependency on Agent class."
-     (delay
-      (when @agent-class
-            (try
-             (.newInstance (get-agent-class))
-             (catch Exception e
-                    (println "WARNING: Failed to create Agent instance:" (.getMessage e))
-                    nil)))))
+  (delay
+    (when @agent-class
+      (try
+        (.newInstance (get-agent-class))
+        (catch Exception e
+          (println "WARNING: Failed to create Agent instance:" (.getMessage e))
+          nil)))))
 
 (defn ^:internal agent-state
-      "Get current agent state as a keyword.
+  "Get current agent state as a keyword.
 
   Returns :not-attached if agent is not loaded or not available.
 
@@ -316,20 +316,20 @@
   - Uses cached MethodHandle for fast invocation
   - Thread-safe but uncoordinated
   - Returns state keywords from states map"
-      []
-      (if-let [mh (get-state-method-handle)]
-              (if-let [instance @agent-instance]
-                      (try
-                       (let [state-num (.invokeWithArguments mh (object-array [instance]))]
-                            (get states (long state-num) :not-attached))
-                       (catch Exception e
-                              (println "WARNING: Failed to get agent state:" (.getMessage e))
-                              :not-attached))
-                      :not-attached)
-              :not-attached))
+  []
+  (if-let [mh (get-state-method-handle)]
+    (if-let [instance @agent-instance]
+      (try
+        (let [state-num (.invokeWithArguments mh (object-array [instance]))]
+          (get states (long state-num) :not-attached))
+        (catch Exception e
+          (println "WARNING: Failed to get agent state:" (.getMessage e))
+          :not-attached))
+      :not-attached)
+    :not-attached))
 
 (defn attached?
-      "Returns true if the Criterium native agent is currently loaded.
+  "Returns true if the Criterium native agent is currently loaded.
 
   Checks whether the agent was loaded via -agentpath JVM arguments or
   programmatically via load-agent!. The agent is considered attached if
@@ -337,13 +337,13 @@
 
   This is the core implementation used by criterium.agent/attached? and
   criterium.agent/loaded?."
-      []
-      (not= (agent-state) :not-attached))
+  []
+  (not= (agent-state) :not-attached))
 
 ;;; Allocation Tracing Control
 
 (defn ^:internal allocation-start-marker
-      "Create a marker allocation to track start of allocation sequence.
+  "Create a marker allocation to track start of allocation sequence.
 
   Used to synchronize the start of allocation tracking by creating a
   recognizable allocation pattern.
@@ -352,26 +352,26 @@
   - Creates a specific allocation pattern
   - Filtered from final results
   - Used for state transition timing"
-      []
-      (when @agent-class
-            (let [marker-method (.getMethod
-                                 (get-agent-class)
-                                 "allocation_start_marker"
-                                 (make-array Class 0))]
-                 (.invoke marker-method nil (make-array Object 0)))))
+  []
+  (when @agent-class
+    (let [marker-method (.getMethod
+                         (get-agent-class)
+                         "allocation_start_marker"
+                         (make-array Class 0))]
+      (.invoke marker-method nil (make-array Object 0)))))
 
 (defn ^:internal allocation-finish-marker
-      "Create a marker allocation to track end of allocation sequence."
-      []
-      (when @agent-class
-            (let [marker-method (.getMethod
-                                 (get-agent-class)
-                                 "allocation_finish_marker"
-                                 (make-array Class 0))]
-                 (.invoke marker-method nil (make-array Object 0)))))
+  "Create a marker allocation to track end of allocation sequence."
+  []
+  (when @agent-class
+    (let [marker-method (.getMethod
+                         (get-agent-class)
+                         "allocation_finish_marker"
+                         (make-array Class 0))]
+      (.invoke marker-method nil (make-array Object 0)))))
 
 (defn ^:internal allocation-tracing-active?
-      "Test if allocation tracing is currently active.
+  "Test if allocation tracing is currently active.
 
   Returns true only when the agent is in the :allocation-tracing-active state
   and fully initialized.
@@ -380,11 +380,11 @@
   - Thread-safe state check
   - Used to verify tracing preconditions
   - Optimized for frequent checking"
-      []
-      (= (agent-state) :allocation-tracing-active))
+  []
+  (= (agent-state) :allocation-tracing-active))
 
 (defn ^:internal allocation-tracing-start!
-      "Initialize and start allocation tracing.
+  "Initialize and start allocation tracing.
 
   Sequence:
   1. Send start command to agent
@@ -397,21 +397,21 @@
   - Creates synchronization allocations
   - May timeout if agent doesn't respond
   - Thread-safe but should not be called concurrently"
-      []
-      (agent-command :start-allocation-tracing)
+  []
+  (agent-command :start-allocation-tracing)
+  (System/gc)
+  (System/gc)
+  (System/gc)
+  (loop [i 1000000]
+    (allocation-start-marker)
+    (when (and (pos? i) (not (allocation-tracing-active?)))
       (System/gc)
-      (System/gc)
-      (System/gc)
-      (loop [i 1000000]
-            (allocation-start-marker)
-            (when (and (pos? i) (not (allocation-tracing-active?)))
-                  (System/gc)
-                  (recur (unchecked-dec i))))
-      (when (not= (agent-state) :allocation-tracing-active)
-            (println "WARNING allocation tracing failed to start promptly")))
+      (recur (unchecked-dec i))))
+  (when (not= (agent-state) :allocation-tracing-active)
+    (println "WARNING allocation tracing failed to start promptly")))
 
 (defn ^:internal allocation-tracing-stop!
-      "Stop allocation tracing and collect final results.
+  "Stop allocation tracing and collect final results.
 
   Sequence:
   1. Send stop command to agent
@@ -424,51 +424,51 @@
   - Creates marker allocations
   - Thread-safe but should not be called concurrently
   - May timeout if agent doesn't respond"
-      []
-      (agent-command :stop-allocation-tracing)
+  []
+  (agent-command :stop-allocation-tracing)
+  (allocation-finish-marker)
+  (System/gc)
+  (loop [i 1000000]
+    (when (and (pos? i)
+               (not= (agent-state) :allocation-tracing-flushed))
       (allocation-finish-marker)
       (System/gc)
-      (loop [i 1000000]
-            (when (and (pos? i)
-                       (not= (agent-state) :allocation-tracing-flushed))
-                  (allocation-finish-marker)
-                  (System/gc)
-                  (recur (unchecked-dec i))))
-      (when (not= (agent-state) :allocation-tracing-flushed)
-            (println "WARNING allocation tracing failed to stop promptly")))
+      (recur (unchecked-dec i))))
+  (when (not= (agent-state) :allocation-tracing-flushed)
+    (println "WARNING allocation tracing failed to stop promptly")))
 
 (defn collect-allocation-records
-      []
-      (reset! records [])
-      (agent-command :report-allocation-tracing)
-      (loop [i 100000]
-            (when (and (pos? i)
-                       (not= (agent-state) :allocation-tracing-reported))
-                  (Thread/yield)
-                  (recur (unchecked-dec i))))
-      (when (not= (agent-state) :allocation-tracing-reported)
-            (println "WARNING allocation tracing failed to collect results promptly")))
+  []
+  (reset! records [])
+  (agent-command :report-allocation-tracing)
+  (loop [i 100000]
+    (when (and (pos? i)
+               (not= (agent-state) :allocation-tracing-reported))
+      (Thread/yield)
+      (recur (unchecked-dec i))))
+  (when (not= (agent-state) :allocation-tracing-reported)
+    (println "WARNING allocation tracing failed to collect results promptly")))
 
 (defn with-allocation-tracing-enabled [body]
-      `(let [active?# (allocation-tracing-active?)
-             res# (if active?#
-                      (do
-                       ~@body)
-                      (try
-                       (allocation-tracing-start!)
-                       ~@body
-                       (finally
-                        (allocation-tracing-stop!))))]
-            (collect-allocation-records)
-            [@records res#]))
+  `(let [active?# (allocation-tracing-active?)
+         res# (if active?#
+                (do
+                  ~@body)
+                (try
+                  (allocation-tracing-start!)
+                  ~@body
+                  (finally
+                    (allocation-tracing-stop!))))]
+     (collect-allocation-records)
+     [@records res#]))
 
 (defn with-allocation-tracing-disabled [body]
-      `[nil (do ~@body)])
+  `[nil (do ~@body)])
 
 ;;; Allocation Record Processing
 
 (defn allocation-on-thread?
-      "Returns a predicate function for filtering allocation records by thread.
+  "Returns a predicate function for filtering allocation records by thread.
 
   The returned function takes an allocation record and returns true if the
   allocation occurred on the specified thread. Useful for filtering allocation
@@ -479,13 +479,13 @@
 
   Returns a function that takes an allocation record and returns true if
   the record's thread matches the specified thread-id."
-      [thread-id]
-      (fn allocation-on-thread?
-          [record]
-          (= thread-id (:thread record))))
+  [thread-id]
+  (fn allocation-on-thread?
+    [record]
+    (= thread-id (:thread record))))
 
 (defn allocation-freed?
-      "Predicate that returns true if the allocation record indicates the object was freed.
+  "Predicate that returns true if the allocation record indicates the object was freed.
 
   An object is considered freed when it has been garbage collected during the
   allocation tracking session. This helps identify temporary allocations vs
@@ -495,11 +495,11 @@
   record - The allocation record to check
 
   Returns true if the record indicates the object was freed during tracking."
-      [record]
-      (pos? (long (:freed record))))
+  [record]
+  (pos? (long (:freed record))))
 
 (defn allocations-summary
-      "Returns a summary of allocation statistics for the given records.
+  "Returns a summary of allocation statistics for the given records.
 
   Takes a sequence of allocation records and returns a map with:
   {:num-allocated   - Total number of objects allocated
@@ -511,9 +511,9 @@
   records - Sequence of allocation records to summarize
 
   Returns a map containing allocation statistics."
-      [records]
-      (let [freed (filterv allocation-freed? records)]
-           {:num-allocated (count records)
-            :num-freed (count freed)
-            :allocated-bytes (reduce + (map :object_size records))
-            :freed-bytes (reduce + (map :object_size freed))}))
+  [records]
+  (let [freed (filterv allocation-freed? records)]
+    {:num-allocated (count records)
+     :num-freed (count freed)
+     :allocated-bytes (reduce + (map :object_size records))
+     :freed-bytes (reduce + (map :object_size freed))}))

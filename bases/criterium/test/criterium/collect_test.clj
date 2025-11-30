@@ -1,40 +1,40 @@
 (ns criterium.collect-test
-  (:require
-   [clojure.test :refer [deftest is testing]]
-   [criterium.agent :as agent]
-   [criterium.collect :as collect]
-   [criterium.collector :as collector]
-   [criterium.measured :as measured]))
+    (:require
+     [clojure.test :refer [deftest is testing]]
+     [criterium.agent :as agent]
+     [criterium.collect :as collect]
+     [criterium.collector :as collector]
+     [criterium.measured :as measured]))
 
 (deftest full-zero-garbage-test
-  (testing "full sampling"
-    (let [measured              (measured/measured
-                                 (fn [] [:b])
-                                 (fn [_ _] [10000000 1]))
-          collector             (collector/collector
-                                 {:stages     [:garbage-collector :compilation]
-                                  :terminator :elapsed-time})
+         (testing "full sampling"
+                  (let [measured              (measured/measured
+                                               (fn [] [:b])
+                                               (fn [_ _] [10000000 1]))
+                        collector             (collector/collector
+                                               {:stages     [:garbage-collector :compilation]
+                                                :terminator :elapsed-time})
           ;; run collector for JIT
-          _                     (dotimes [_ 10000]
-                                  (collect/collect-arrays
-                                   collector
-                                   measured
-                                   1
-                                   10))
-          [allocations sampled] (agent/with-allocation-tracing
-                                  (collect/collect-arrays
-                                   collector
-                                   measured
-                                   1
-                                   10))
-          {:keys [freed-bytes]} (->> allocations
-                                     (filterv (agent/allocation-on-thread?))
-                                     (filterv agent/allocation-freed?)
-                                     agent/allocations-summary)]
-      (is (= 10 (alength ^objects (:collections sampled)))
-          (pr-str sampled))
-      (is (zero? freed-bytes)
-          (->> allocations
-               (filterv (agent/allocation-on-thread?))
-               (filterv agent/allocation-freed?)))
-      (is (some? sampled) "hold onto samples reference until this point"))))
+                        _                     (dotimes [_ 10000]
+                                                       (collect/collect-arrays
+                                                        collector
+                                                        measured
+                                                        1
+                                                        10))
+                        [allocations sampled] (agent/with-allocation-tracing
+                                               (collect/collect-arrays
+                                                collector
+                                                measured
+                                                1
+                                                10))
+                        {:keys [freed-bytes]} (->> allocations
+                                                   (filterv (agent/allocation-on-thread?))
+                                                   (filterv agent/allocation-freed?)
+                                                   agent/allocations-summary)]
+                       (is (= 10 (alength ^objects (:collections sampled)))
+                           (pr-str sampled))
+                       (is (zero? freed-bytes)
+                           (->> allocations
+                                (filterv (agent/allocation-on-thread?))
+                                (filterv agent/allocation-freed?)))
+                       (is (some? sampled) "hold onto samples reference until this point"))))

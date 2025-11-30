@@ -4,7 +4,6 @@
    [criterium.types :as types]
    [criterium.util.invariant :as invariant :refer [have have?]]))
 
-
 (defn assoc-tag [sym t]
   (vary-meta sym assoc :tag t))
 

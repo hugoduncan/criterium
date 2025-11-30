@@ -172,7 +172,7 @@
                                (fn [^double d ^double w]
                                  (* d w))
                                (:density histogram)
-                               (:widths histogram )))
+                               (:widths histogram)))
                            (update :widths #(mapv t-density %))))
         histogram    (-> histogram
                          (update :centers #(mapv t-center %))

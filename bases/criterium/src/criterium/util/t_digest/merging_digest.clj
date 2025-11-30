@@ -212,70 +212,70 @@
     (have finite? total-weight)
     (cond*
       ;; no centroids or single centroid
-      (= n 0) Double/NaN
+     (= n 0) Double/NaN
 
-      :let    [^Centroid first-centroid (vfirst centroids)]
-      (= n 1) (.mean first-centroid)
+     :let    [^Centroid first-centroid (vfirst centroids)]
+     (= n 1) (.mean first-centroid)
 
       ;; multiple centroids
-      :else
-      (let [index (* q total-weight)]
-        (cond*
+     :else
+     (let [index (* q total-weight)]
+       (cond*
           ;; Boundaries return min/max
-          (< index 1.0)
-          minimum
+        (< index 1.0)
+        minimum
 
-          (> index (- total-weight 1.0))
-          maximum
+        (> index (- total-weight 1.0))
+        maximum
 
           ;; left centroid interpolation
-          :let [first-weight (.weight first-centroid)]
-          (and (> first-weight 1.0)
-               (< index (/ first-weight 2.0)))
-          (interpolate
-           minimum
-           (.mean first-centroid)
-           0.0
-           (/ first-weight 2.0)
-           index)
+        :let [first-weight (.weight first-centroid)]
+        (and (> first-weight 1.0)
+             (< index (/ first-weight 2.0)))
+        (interpolate
+         minimum
+         (.mean first-centroid)
+         0.0
+         (/ first-weight 2.0)
+         index)
 
           ;; right centroid interpolation
-          :let [^Centroid last-centroid (.peek centroids)
-                last-weight (.weight last-centroid)]
-          (and (> last-weight 1)
-               (<= (- total-weight index)
-                   (/ last-weight 2.0)))
-          (interpolate
-           (.mean last-centroid)
-           maximum
-           (- total-weight last-weight)
-           total-weight
-           index)
+        :let [^Centroid last-centroid (.peek centroids)
+              last-weight (.weight last-centroid)]
+        (and (> last-weight 1)
+             (<= (- total-weight index)
+                 (/ last-weight 2.0)))
+        (interpolate
+         (.mean last-centroid)
+         maximum
+         (- total-weight last-weight)
+         total-weight
+         index)
 
           ;; interpolate between centroids
-          :else
-          (loop [weight-so-far (/ first-weight 2.0)
-                 centroids     centroids]
-            (let [^Centroid c1 (vfirst centroids)
-                  ^Centroid c2 (vsecond centroids)
-                  dw           (/ (+ (.weight c1) (.weight c2)) 2)
-                  nextw        (+ weight-so-far dw)]
-              (if (<= nextw index)
-                (recur nextw (subvec centroids 1))
+        :else
+        (loop [weight-so-far (/ first-weight 2.0)
+               centroids     centroids]
+          (let [^Centroid c1 (vfirst centroids)
+                ^Centroid c2 (vsecond centroids)
+                dw           (/ (+ (.weight c1) (.weight c2)) 2)
+                nextw        (+ weight-so-far dw)]
+            (if (<= nextw index)
+              (recur nextw (subvec centroids 1))
                 ;; centroids c1 and c2 bracket our point
-                (let [left-unit?  (= (.weight c1) 1.0)
-                      right-unit? (= (.weight c2) 1.0)]
-                  (cond
-                    (and left-unit? (< (- index weight-so-far) 0.5))
-                    (.mean c1)
-                    (and right-unit? (<= (- nextw index) 0.5))
-                    (.mean c2)
-                    :else
-                    (let [z1 (- index weight-so-far)
-                          z2 (- (+ weight-so-far dw) index)]
-                      (weighted-average
-                       (.mean c1) z2
-                       (.mean c2) z1))))))))))))
+              (let [left-unit?  (= (.weight c1) 1.0)
+                    right-unit? (= (.weight c2) 1.0)]
+                (cond
+                  (and left-unit? (< (- index weight-so-far) 0.5))
+                  (.mean c1)
+                  (and right-unit? (<= (- nextw index) 0.5))
+                  (.mean c2)
+                  :else
+                  (let [z1 (- index weight-so-far)
+                        z2 (- (+ weight-so-far dw) index)]
+                    (weighted-average
+                     (.mean c1) z2
+                     (.mean c2) z1))))))))))))
 
 (defn interpolate-centroids
   ^double [^Centroid left ^Centroid right ^double x]
@@ -304,86 +304,86 @@
 
   (let [n            (count centroids)
         minimum      (.minimum digest)
-        maximum      ( .maximum digest)
+        maximum      (.maximum digest)
         total-weight (.total-weight digest)]
     (cond*
-      (zero? n) Double/NaN
+     (zero? n) Double/NaN
 
-      (= 1 n)  ; single centroid case
-      (let [width (- maximum minimum)]
-        (cond
-          (< x minimum)  0.0
-          (> x maximum)  1.0
-          (<= width 0.0) 0.5  ; min ≈ max
-          :else          (/ (- x minimum) width)))
+     (= 1 n)  ; single centroid case
+     (let [width (- maximum minimum)]
+       (cond
+         (< x minimum)  0.0
+         (> x maximum)  1.0
+         (<= width 0.0) 0.5  ; min ≈ max
+         :else          (/ (- x minimum) width)))
 
-      (< x minimum) 0.0
-      (> x maximum) 1.0
+     (< x minimum) 0.0
+     (> x maximum) 1.0
 
-      :let [^Centroid first-centroid (vfirst centroids)
-            first-mean (.mean first-centroid)]
+     :let [^Centroid first-centroid (vfirst centroids)
+           first-mean (.mean first-centroid)]
 
       ;; Left tail
-      (< x first-mean)
-      (if (> first-mean minimum)
-        (if (= x minimum)
-          (/ 0.5 total-weight)
-          (/ (interpolate
-              0.0
-              (/ (.weight first-centroid) 2.0)
-              minimum
-              first-mean
-              x)
-             total-weight))
-        0.0)
+     (< x first-mean)
+     (if (> first-mean minimum)
+       (if (= x minimum)
+         (/ 0.5 total-weight)
+         (/ (interpolate
+             0.0
+             (/ (.weight first-centroid) 2.0)
+             minimum
+             first-mean
+             x)
+            total-weight))
+       0.0)
 
-      :let [^Centroid last-centroid (vpeek centroids)
-            last-mean (.mean last-centroid)]
+     :let [^Centroid last-centroid (vpeek centroids)
+           last-mean (.mean last-centroid)]
 
       ;; Right tail
-      (> x last-mean)
-      (if (> maximum last-mean)
-        (if (= x maximum)
-          (- 1.0 (/ 0.5 total-weight))
-          (- 1.0
-             (/ (interpolate
-                 (- total-weight (/ (.weight last-centroid) 2.0))
-                 total-weight
-                 last-mean
-                 maximum
-                 x)
-                total-weight)))
-        1.0)
+     (> x last-mean)
+     (if (> maximum last-mean)
+       (if (= x maximum)
+         (- 1.0 (/ 0.5 total-weight))
+         (- 1.0
+            (/ (interpolate
+                (- total-weight (/ (.weight last-centroid) 2.0))
+                total-weight
+                last-mean
+                maximum
+                x)
+               total-weight)))
+       1.0)
 
-      :else
+     :else
       ;; Main interpolation between centroids
-      (loop [weight-so-far (/ (.weight first-centroid) 2)
-             centroids     centroids]
-        (let [^Centroid c1 (vfirst centroids)]
-          (cond*
-            (= (.mean c1) x)
+     (loop [weight-so-far (/ (.weight first-centroid) 2)
+            centroids     centroids]
+       (let [^Centroid c1 (vfirst centroids)]
+         (cond*
+          (= (.mean c1) x)
             ;; Handle exact match
-            (let [more       (when (> (count centroids) 2)
-                               (subvec centroids 2))
-                  ^double dw (loop [w  (.weight c1)
-                                    cs more]
-                               (let [^Centroid c (and (pos? (count cs))
-                                                      (vfirst cs))]
-                                 (if (and c (= (.mean c) x))
-                                   (recur (+ w (.weight c)) (subvec cs 1))
-                                   w)))]
-              (/ (+ weight-so-far (/ dw 2)) total-weight))
+          (let [more       (when (> (count centroids) 2)
+                             (subvec centroids 2))
+                ^double dw (loop [w  (.weight c1)
+                                  cs more]
+                             (let [^Centroid c (and (pos? (count cs))
+                                                    (vfirst cs))]
+                               (if (and c (= (.mean c) x))
+                                 (recur (+ w (.weight c)) (subvec cs 1))
+                                 w)))]
+            (/ (+ weight-so-far (/ dw 2)) total-weight))
 
-            :let [^Centroid c2 (vsecond centroids)]
-            (and (<= (.mean c1) x) (< x (.mean c2)))
+          :let [^Centroid c2 (vsecond centroids)]
+          (and (<= (.mean c1) x) (< x (.mean c2)))
             ;; Interpolate between c1 and c2
-            (/ (+ weight-so-far
-                  (interpolate-centroids c1 c2 x))
-               total-weight)
+          (/ (+ weight-so-far
+                (interpolate-centroids c1 c2 x))
+             total-weight)
 
-            :else
-            (let [dw (/ (+ (.weight c1) (.weight c2)) 2.0)]
-              (recur (+ weight-so-far dw) (subvec centroids 1)))))))))
+          :else
+          (let [dw (/ (+ (.weight c1) (.weight c2)) 2.0)]
+            (recur (+ weight-so-far dw) (subvec centroids 1)))))))))
 
 (defn compressed?
   [{:keys [temp-centroids] :as _digest}]
@@ -497,7 +497,7 @@
                           (/ c n)
                           0.0))
                       counts
-                      widths) ]
+                      widths)]
     {:type     :criterium/histogram-variable-width
      :counts   counts
      :centers  centers
@@ -507,7 +507,6 @@
      :num-bins num-bins
      :min      (.minimum digest)
      :max      (.maximum digest)}))
-
 
 (defn filter-outliers
   [^TDigest digest outliers]

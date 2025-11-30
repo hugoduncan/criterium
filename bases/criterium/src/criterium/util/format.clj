@@ -23,7 +23,6 @@
   #_{:clj-kondo/ignore [:unused-binding]}
   (fn [dimension value] dimension))
 
-
 (defmethod scale :default
   [_ _value]
   [1 ""])

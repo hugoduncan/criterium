@@ -2,7 +2,7 @@
       :see-also
       [["http://github.com/hugoduncan/criterium" "Source code"]
        ["http://hugoduncan.github.com/criterium" "API Documentation"]]}
-  criterium.core
+ criterium.core
   "Criterium measures the computation time of an expression.  It is
   designed to address some of the pitfalls of benchmarking, and benchmarking on
   the JVM in particular.

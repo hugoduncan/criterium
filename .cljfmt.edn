@@ -3,6 +3,6 @@
  :remove-consecutive-blank-lines? true
  :insert-missing-whitespace?      true
  :align-associative?              true
- :indents                         {defrecord [[:inner 0 2]]
+ :extra-indents                   {defrecord [[:inner 0 2]]
                                    as->      [[:inner 0]]
                                    cond->    [[:inner 0]]}}

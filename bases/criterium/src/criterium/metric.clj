@@ -151,12 +151,7 @@
   ^long [sample]
   (:elapsed-time sample))
 
-
-
-
 ;;;;
-
-
 
 (defn filter-metric-values
   "Filter a sequence of metric value maps using predicate"

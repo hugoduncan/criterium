@@ -219,7 +219,7 @@
         [:centers :counts :density]
         {:centers #(format "%-7.3g" %)
          :density #(format "%-7.3g" %)}))
-      (println))) )
+      (println))))
 
 (defmethod view/sample-percentiles* :pprint
   [_ _view _banch-map]
