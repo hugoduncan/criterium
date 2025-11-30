@@ -83,12 +83,13 @@
              quantiles)))))
 
 (deftest stats-for-test-property-1
+  ;; Uses a fixed seed for deterministic random values.
   (let [batch-size   5000
         num-samples  200
         values       (take
                       (* batch-size num-samples)
                       (ziggurat/random-normal-zig
-                       (well/well-rng-1024a)))
+                       (well/well-rng-1024a 42)))
         sample-vals  (partition batch-size values)
         samples      (mapv #(stats/sum (mapv double %)) sample-vals)
         stats        (sampled-stats/stats-for

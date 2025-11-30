@@ -51,13 +51,25 @@
   `(bit-and (unchecked-add ~a ~b) 0x01f))
 
 (defn well-rng-1024a
-  "Well RNG 1024a
+  "Well RNG 1024a.
+  Returns a lazy sequence of random doubles in [0,1).
+
+  Arities:
+  - () - Uses non-deterministic seed from rand-int
+  - (seed) - Uses java.util.Random with given seed for deterministic output
+  - (state index) - Uses explicit state array and index
+
   See: Improved Long-Period Generators Based on Linear Recurrences Modulo 2
   F. Panneton, P. L'Ecuyer and M. Matsumoto
   http://www.iro.umontreal.ca/~panneton/WELLRNG.html"
   ([] (well-rng-1024a
        (long-array 32 (repeatedly 32 #(rand-int Integer/MAX_VALUE)))
        (rand-int 32)))
+  ([^long seed]
+   (let [rng (java.util.Random. seed)]
+     (well-rng-1024a
+      (long-array 32 (repeatedly 32 #(.nextInt rng Integer/MAX_VALUE)))
+      (.nextInt rng 32))))
   ([^longs state ^long index]
    {:pre [(<= 0 index 31)]}
    (let [m1        3
