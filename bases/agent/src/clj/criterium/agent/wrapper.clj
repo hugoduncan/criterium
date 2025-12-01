@@ -3,10 +3,11 @@
 
   This namespace imports criterium.agent.Agent and provides Clojure
   functions that compile to direct field access and static method calls,
-  avoiding reflection and MethodHandle allocation overhead.
+  avoiding reflection.
 
   This namespace will fail to load if the Agent class is not available."
-  (:import [criterium.agent Agent]))
+  (:import
+   [criterium.agent Agent]))
 
 (defn read-state
   "Read Agent.state field directly."

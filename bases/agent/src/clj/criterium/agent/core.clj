@@ -286,9 +286,9 @@
   - Thread-safe but uncoordinated
   - Returns state keywords from states map"
   []
-  (if-let [^clojure.lang.IFn$L f @wrapper-read-state]
-    (get states (.invokePrim f) :not-attached)
-    :not-attached))
+  (let [^clojure.lang.IFn$L f @wrapper-read-state]
+    (assert f "Agent not loaded")
+    (get states (.invokePrim f) :not-attached)))
 
 (defn attached?
   "Returns true if the Criterium native agent is currently loaded.
