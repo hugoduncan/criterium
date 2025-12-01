@@ -70,7 +70,7 @@
   [measured state eval-count]
   ;; NOTE eval-count is explicitly not tagged as 'long, since this function is
   ;; invoked non-literally, so the calling value will always be an object.
-  ;; Use direct field access to avoid method handle allocations from keyword lookup
+  ;; Use direct field access to avoid allocations from keyword lookup
   ((.-f ^Measured measured) state eval-count))
 
 (defn ^:no-doc symbolic
