@@ -33,14 +33,14 @@
   "Lazily resolved wrapper/read-state, or nil if wrapper can't load."
   (delay
     (try
-      (requiring-resolve 'criterium.agent.wrapper/read-state)
+      @(requiring-resolve 'criterium.agent.wrapper/read-state)
       (catch Exception _ nil))))
 
 (def ^:private wrapper-send-command
   "Lazily resolved wrapper/send-command, or nil if wrapper can't load."
   (delay
     (try
-      (requiring-resolve 'criterium.agent.wrapper/send-command)
+      @(requiring-resolve 'criterium.agent.wrapper/send-command)
       (catch Exception _ nil))))
 
 (def ^:private wrapper-start-marker
@@ -271,9 +271,9 @@
     (when-not cmd-num
       (throw
        (IllegalArgumentException. (str "Unknown command: " (pr-str cmd)))))
-    (let [f @wrapper-send-command]
+    (let [^clojure.lang.IFn$LO f @wrapper-send-command]
       (assert f "Agent not loaded")
-      (f cmd-num))))
+      (.invokePrim f cmd-num))))
 
 ;;; Agent State Management
 
@@ -286,8 +286,8 @@
   - Thread-safe but uncoordinated
   - Returns state keywords from states map"
   []
-  (if-let [f @wrapper-read-state]
-    (get states (long (f)) :not-attached)
+  (if-let [^clojure.lang.IFn$L f @wrapper-read-state]
+    (get states (.invokePrim f) :not-attached)
     :not-attached))
 
 (defn attached?
