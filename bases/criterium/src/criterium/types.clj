@@ -7,17 +7,16 @@
 ;;; Type predicates
 
 (defn collection-map?
-  "Check if x is a collection map with required keys."
+  "Check if x is a collection map with required keys.
+  Uses direct key checks to avoid allocation."
   [x]
   (and (map? x)
-       (set/subset?
-        #{:eval-count
-          :elapsed-time
-          :collections
-          :num-samples
-          :batch-size
-          :collector}
-        (set (keys x)))))
+       (contains? x :eval-count)
+       (contains? x :elapsed-time)
+       (contains? x :collections)
+       (contains? x :num-samples)
+       (contains? x :batch-size)
+       (contains? x :collector)))
 
 (defn data-entry-map?
   [x]

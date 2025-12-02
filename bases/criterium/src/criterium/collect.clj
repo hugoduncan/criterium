@@ -128,7 +128,8 @@
    measured
    batch-size-obj
    num-samples]
-  {:post [(have? types/collection-map? %)]}
+  ;; Postcondition disabled - would allocate garbage via closure creation
+  #_{:post [(have? types/collection-map? %)]}
   (let [num-samples (max 2 ^long num-samples)
         collections (make-array Object num-samples)
         ti          (unchecked-dec ^long (:length collector))
