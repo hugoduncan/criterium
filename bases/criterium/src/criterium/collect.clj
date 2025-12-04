@@ -130,10 +130,11 @@
    num-samples]
   ;; Postcondition disabled - would allocate garbage via closure creation
   #_{:post [(have? types/collection-map? %)]}
-  (let [num-samples (max 2 ^long num-samples)
-        collections (make-array Object num-samples)
-        ti          (unchecked-dec ^long (:length collector))
-        batch-size  (long batch-size-obj)]
+  (let [num-samples     (max 2 ^long num-samples)
+        num-samples-m-1 (unchecked-dec num-samples)
+        collections     (make-array Object num-samples)
+        ti              (unchecked-dec ^long (:length collector))
+        batch-size      (long batch-size-obj)]
     (loop [eval-count   0
            elapsed-time 0
            i            0]
@@ -151,7 +152,7 @@
             elapsed-time (unchecked-add elapsed-time t)
             eval-count   (unchecked-add eval-count batch-size)]
         (aset ^objects collections i sample)
-        (if (< i (dec num-samples))
+        (if (< i num-samples-m-1)
           (recur eval-count
                  elapsed-time
                  (unchecked-inc i))
