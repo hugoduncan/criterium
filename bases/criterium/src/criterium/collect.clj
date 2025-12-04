@@ -143,10 +143,11 @@
       (let [args         (measured/args measured)
             sample       (collector/collect-array
                           collector measured args batch-size-obj)
-            ^long t      (.nth
-                          ^clojure.lang.PersistentVector
-                          (aget ^objects sample ti)
-                          0)
+            t            (long
+                          (.nth
+                           ^clojure.lang.PersistentVector
+                           (aget ^objects sample ti)
+                           0))
             elapsed-time (unchecked-add elapsed-time t)
             eval-count   (unchecked-add eval-count batch-size)]
         (aset ^objects collections i sample)
