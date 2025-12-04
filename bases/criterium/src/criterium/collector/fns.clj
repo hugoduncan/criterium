@@ -44,7 +44,7 @@
      :result-index-sym result-index-sym}))
 
 (defrecord ^:private SampleStage
-           [m x id])
+  [m x id])
 
 ;;; Terminal function
 

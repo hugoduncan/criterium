@@ -13,7 +13,7 @@ fi
 # Format each staged file and restage if changed
 for file in $staged_files; do
     if [ -f "$file" ]; then
-        clojure -M:cljfmt fix "$file" 2>/dev/null || true
+        cljfmt fix "$file" 2>/dev/null || true
         git add "$file"
     fi
 done
