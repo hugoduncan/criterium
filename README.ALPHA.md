@@ -18,19 +18,19 @@ dependency, taking a sha from the master branch.
         :deps/root "projects/criterium"}}
 ```
 
-To time an expression use `criterium.core/bench`.
+To time an expression use `criterium.bench/bench`.
 
 ```clojure
-(require '[criterium.core :as crit])
-(crit/bench (criterium.jvm/wait 10000)) ; 10us busy wait
+(require '[criterium.bench :as bench])
+(bench/bench (criterium.jvm/wait 10000)) ; 10us busy wait
 ```
 
 If you are using portal, try:
 
 ```clojure
 (require 'criterium.viewer.portal)
-(require '[criterium.core :as crit])
-(crit/bench (criterium.jvm/wait 10000)
+(require '[criterium.bench :as bench])
+(bench/bench (criterium.jvm/wait 10000)
   :viewer :portal
   :benchmark criterium.benchmarks/log-histogram)
 ```
@@ -66,8 +66,8 @@ In your REPL:
 ;; => true
 
 ;; Benchmarks now include allocation tracking
-(require '[criterium.core :as crit])
-(crit/bench (reduce + (range 1000)))
+(require '[criterium.bench :as bench])
+(bench/bench (reduce + (range 1000)))
 ```
 
 See [projects/agent/README.md](projects/agent/README.md) for complete documentation.
