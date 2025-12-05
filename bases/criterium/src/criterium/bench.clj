@@ -17,6 +17,7 @@
   (bench (+ 1 1))                 ; Basic usage
   (bench (+ 1 1) :viewer :pprint) ; With pretty-printed output"
   (:require
+   [criterium.analyse]
    [criterium.bench.config :as bench-config]
    [criterium.bench.impl :as impl]
    [criterium.benchmark :as benchmark]
