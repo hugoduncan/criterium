@@ -66,4 +66,9 @@
                           "-XX:+UseEpsilonGC"]}
   :server {:jvm-opts ["-server"]}
   :nrepl {:extra-deps {nrepl/nrepl {:mvn/version "1.5.1"}}
-          :main-opts ["-m" "nrepl.cmdline"]}}}
+          :main-opts ["-m" "nrepl.cmdline"]}
+  :render-docs {:extra-deps {poly/criterium {:local/root "bases/criterium"}
+                             poly/notebooks {:local/root "bases/notebooks"}
+                             org.clojure/clojure {:mvn/version "1.12.0"}}
+                :jvm-opts ["-Djdk.attach.allowAttachSelf"]
+                :main-opts ["-m" "criterium.notebook.render"]}}}

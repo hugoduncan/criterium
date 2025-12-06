@@ -49,12 +49,23 @@
   (require 'malli.core)
   (catch Exception _))
 (try
+  (require 'nextjournal.beholder)
+  (require 'nextjournal.markdown.transform)
+  (require 'nextjournal.markdown.utils)
+  (catch Exception _))
+(try
   (require 'nrepl.core)
   (require 'nrepl.middleware)
   (require 'nrepl.middleware.session)
   (catch Exception _))
 (try
   (require 'orchard.inspect)
+  (catch Exception _))
+(try
+  (require 'scicloj.clay.v2.make)
+  (require 'scicloj.clay.v2.notebook)
+  (require 'scicloj.clay.v2.util.image)
+  (require 'scicloj.kindly-render.note.to-hiccup)
   (catch Exception _))
 
 (alter-var-root #'*unchecked-math* (constantly :warn-on-boxed))

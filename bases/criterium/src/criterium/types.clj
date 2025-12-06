@@ -76,8 +76,6 @@
     :transform
     :source-id
     :metric->digest
-    :num-samples
-    :batch-size
     :metrics-defs
     :expr-value})
 

@@ -42,8 +42,8 @@
   "Collect and analyze samples of the sleep function"
   []
   (with-redefs
-    [sleep
-     (sampled-fn/sample-fn sleep collector-configs/default-collector-config)]
+   [sleep
+    (sampled-fn/sample-fn sleep collector-configs/default-collector-config)]
 
     ;; Execute the function multiple times
     (dotimes [_ 1000] (sleep))
@@ -54,9 +54,17 @@
            (bench/analyze
             [:transform-log
              [:quantiles {:quantiles [0.5 0.9 0.99]}] ; median and percentiles
+             [:quantiles {:quantiles  [0.5 0.9 0.95 0.99]
+                          :samples-id :log-samples
+                          :id         :log-quantiles}]
              :outliers
+             [:outliers {:samples-id   :log-samples
+                         :quantiles-id :log-quantiles
+                         :id           :log-outliers}]
              [:stats {}]
-             [:stats {:samples-id :log-samples :id :log-stats}]
+             [:stats {:samples-id  :log-samples
+                      :outliers-id :log-outliers
+                      :id          :log-stats}]
              :histogram])
            (bench/view
             [[:stats {:metric-ids [:memory]}]
@@ -73,18 +81,18 @@
   "Simulate a network call with variable latency"
   []
   (let [base-latency 50
-        jitter (rand-int 20)]
-    (Thread/sleep (+ base-latency jitter))
+        jitter       (rand-int 20)]
+    (Thread/sleep (long (+ base-latency jitter)))
     {:status :success}))
 
 (defn collect-network-samples
   "Collect and analyze samples of simulated network calls"
   []
   (with-redefs
-    [simulate-network-latency
-     (sampled-fn/sample-fn
-      simulate-network-latency
-      collector-configs/default-collector-config)]
+   [simulate-network-latency
+    (sampled-fn/sample-fn
+     simulate-network-latency
+     collector-configs/default-collector-config)]
 
     ;; Simulate a series of network calls
     (dotimes [_ 100]
@@ -96,9 +104,17 @@
            (bench/analyze
             [:transform-log
              [:quantiles {:quantiles [0.5 0.9 0.95 0.99]}]
+             [:quantiles {:quantiles  [0.5 0.9 0.95 0.99]
+                          :samples-id :log-samples
+                          :id         :log-quantiles}]
              :outliers
+             [:outliers {:samples-id   :log-samples
+                         :quantiles-id :log-quantiles
+                         :id           :log-outliers}]
              [:stats {}]
-             [:stats {:samples-id :log-samples :id :log-stats}]
+             [:stats {:samples-id  :log-samples
+                      :outliers-id :log-outliers
+                      :id          :log-stats}]
              :histogram])
            (bench/view
             [[:stats {:metric-ids [:memory]}]

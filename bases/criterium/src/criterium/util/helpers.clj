@@ -97,7 +97,7 @@
            ^clojure.lang.APersistentVector v]
   (let [n (.count v)]
     (loop [acc init
-           i   0]
+           i 0]
       (if (< i n)
         (recur (.invokePrim f acc (.nth v i)) (unchecked-inc i))
         acc))))
@@ -162,20 +162,20 @@
 
 (defn data-entry-map
   [data type transform source-id]
-  {:data      data
-   :type      type
+  {:data data
+   :type type
    :transform transform
    :source-id source-id})
 
 (defn data
   [data-entry-map]
-  {:pre  [(have? :data data-entry-map)]
+  {:pre [(have? :data data-entry-map)]
    :post [(have? map? %)]}
   (:data data-entry-map))
 
 (defn metric->values
   [metrics-samples]
-  {:pre  [(have? types/generic-metrics-samples-map? metrics-samples)]
+  {:pre [(have? types/generic-metrics-samples-map? metrics-samples)]
    :post [(have? map? %)]}
   (:metric->values metrics-samples))
 
@@ -185,37 +185,37 @@
 
 (defn quantiles
   [quantiles-map]
-  {:pre  [(have? types/quantiles-map? quantiles-map)]
+  {:pre [(have? types/quantiles-map? quantiles-map)]
    :post [(have? map? %)]}
   (:quantiles quantiles-map))
 
 (defn outliers
   [outliers-map]
-  {:pre  [(have? types/outliers-map? outliers-map)]
+  {:pre [(have? types/outliers-map? outliers-map)]
    :post [(have? map? %)]}
   (:outliers outliers-map))
 
 (defn outlier-significance
   [outlier-significance-map]
-  {:pre  [(have? types/outlier-significance-map? outlier-significance-map)]
+  {:pre [(have? types/outlier-significance-map? outlier-significance-map)]
    :post [(have? map? %)]}
   (:outlier-significance outlier-significance-map))
 
 (defn stats
   [stats-map]
-  {:pre  [(have? types/stats-map? stats-map)]
+  {:pre [(have? types/stats-map? stats-map)]
    :post [(have? map? %)]}
   (:stats stats-map))
 
 (defn event-stats
   [event-stats-map]
-  {:pre  [(have? types/event-stats-map? event-stats-map)]
+  {:pre [(have? types/event-stats-map? event-stats-map)]
    :post [(have? map? %)]}
   (:event-stats event-stats-map))
 
 (defn bootstrap
   [bootstrap-stats-map]
-  {:pre  [(have? types/bootstrap-map? bootstrap-stats-map)]
+  {:pre [(have? types/bootstrap-map? bootstrap-stats-map)]
    :post [(have? map? %)]}
   (:bootstrap bootstrap-stats-map))
 
@@ -237,7 +237,7 @@
                      (:transform
                       (have some? (result-map path) {:path path}))
                      vector)
-         path       (:source-id (result-map path))]
+         path (:source-id (result-map path))]
     (if path
       (let [t (:transform (result-map path))]
         (recur
@@ -257,26 +257,43 @@
 (defn transform->sample [value transforms]
   (reduce (fn [v f] (f v)) value (reverse (:->sample transforms))))
 
+(defn stats-value
+  "Extract a transformed stats value from a benchmark data map.
+  
+  Takes a data map (from bench/last-bench :data), a stats-id
+  (e.g. :stats or :log-stats), a metric-id (e.g. :elapsed-time),
+  and a value-key (e.g. :mean, :std-dev).
+  
+  Returns the value with all transforms applied."
+  [data-map stats-id metric-id value-key]
+  {:pre [(have? types/result-map? data-map)
+         (have? keyword? stats-id)
+         (have? keyword? value-key)]}
+  (let [transforms (get-transforms data-map stats-id)
+        raw-value (get-in data-map [stats-id :stats metric-id value-key])]
+    (when raw-value
+      (transform-sample-> raw-value transforms))))
+
 ;;; Thread
 (defn valid-thread-priority
   [p]
   (when p
     (cond
-      (= :max-priority p)            Thread/MAX_PRIORITY
-      (= :min-priority p)            Thread/MIN_PRIORITY
+      (= :max-priority p) Thread/MAX_PRIORITY
+      (= :min-priority p) Thread/MIN_PRIORITY
       (and (integer? p)
            (<= Thread/MIN_PRIORITY
                p
                Thread/MAX_PRIORITY)) p
       :else
       (throw (ex-info "Invalid thread priority"
-                      {:priority     p
+                      {:priority p
                        :min-priority Thread/MIN_PRIORITY
                        :max-priority Thread/MAX_PRIORITY})))))
 
 (defmacro with-thread-priority
   [p & body]
-  `(let [priority#      (valid-thread-priority ~p)
+  `(let [priority# (valid-thread-priority ~p)
          orig-priority# (.getPriority (Thread/currentThread))]
      (when priority#
        (.setPriority (Thread/currentThread) priority#))
@@ -308,4 +325,4 @@
   (or (data-map id)
       (throw (ex-info "Failed to find data set"
                       {:available-ids (keys data-map)
-                       :id            id}))))
+                       :id id}))))

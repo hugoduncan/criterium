@@ -1,3 +1,8 @@
 {:paths ["src"]
  :deps  {poly/criterium   {:local/root "../criterium"}
-         org.scicloj/clay {:mvn/version "2-beta28"}}}
+         org.scicloj/clay {:mvn/version "2.0.3"}}
+ :aliases
+ {:with-agent-mac   {:jvm-opts
+                     ["-agentpath:../../agent-cpp/build/libcriterium.dylib"]}
+  :with-agent-linux {:jvm-opts
+                     ["-agentpath:../../agent-cpp/build/libcriterium.so"]}}}
