@@ -133,9 +133,7 @@
   "Construct a function expression to measure the given expr.
   Captures the expression arguments into a state function."
   [arg-syms expr {:keys [arg-metas time-fn]}]
-  (let [blackhole-sym  (with-meta (gensym "blachole")
-                         {:tag 'org.openjdk.jmh.infra.Blackhole})
-        eval-count-sym (gensym "eval-count")
+  (let [eval-count-sym (gensym "eval-count")
         time-fn        (when time-fn
                          (with-meta
                            time-fn
@@ -145,8 +143,7 @@
         ;; explicitly not tagged as 'long, since this function is invoked
         ;; non-literally, so the calling value will always be an object.
         ~eval-count-sym]
-       (let [~blackhole-sym blackhole/blackhole ; hoist cast lookup out of loop
-             ~@(mapcat binding-with-hint-or-cast arg-syms arg-metas)
+       (let [~@(mapcat binding-with-hint-or-cast arg-syms arg-metas)
              ;; primitive loop coounter.  Decrement since we evaluate
              ;; once outside the loop.
              ~(with-meta eval-count-sym {:tag 'long})
@@ -158,8 +155,7 @@
              val#           ~expr]      ; evaluate once to get a return value
          (loop [i# n#]
            (when (pos? i#)
-             ;; don't use a local inside the loop, to avoid locals clearing
-             (.consume ~blackhole-sym ~expr)
+             (blackhole/consume ~expr)
              (recur (long (unchecked-dec i#)))))
          (let [finish# ~(if time-fn
                           `(. ~time-fn invokePrim)

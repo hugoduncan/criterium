@@ -22,8 +22,7 @@
                               ;; "-XX:+UnlockExperimentalVMOptions"
                               ;; "-XX:+UseEpsilonGC"
                               "-Xms1g"
-                              "-Xmx1g"
-                              ]}
+                              "-Xmx1g"]}
   :platform-1.8 {:main-opts  ["-m" "criterium.platform"]
                  ;; err, why is this needed?
                  :extra-deps {org.clojure/test.check
@@ -31,5 +30,7 @@
                  :jvm-opts   ["-Dclojure.main.report=stderr"
                               "-Dclojure.spec.check-asserts=false"
                               "-Xms1g"
-                              "-Xmx1g"
-                              ]}}}
+                              "-Xmx1g"]}
+  :blackhole    {:jvm-opts
+                 ["-XX:+UnlockExperimentalVMOptions"
+                  "-XX:CompileCommand=blackhole,criterium.blackhole.Blackhole::consume"]}}}

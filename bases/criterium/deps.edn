@@ -1,5 +1,5 @@
 {:paths ["src"]
- :deps {org.openjdk.jmh/jmh-core {:mvn/version "1.37"}
+ :deps {poly/blackhole {:local/root "../blackhole"}
         poly/agent {:local/root "../agent"}}
  :aliases {:test
            {:extra-paths ["test"]
