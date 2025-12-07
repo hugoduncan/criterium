@@ -111,15 +111,15 @@
 
 (deftest resource-path-test
   (testing "Linux resource path"
-    (is (= "native/linux-x64/libcriterium.so"
+    (is (= "criterium/agent/linux-x64/libcriterium.so"
            (platform/resource-path "linux-x64"))))
 
   (testing "macOS resource path"
-    (is (= "native/macos-x64/libcriterium.dylib"
+    (is (= "criterium/agent/macos-x64/libcriterium.dylib"
            (platform/resource-path "macos-x64"))))
 
   (testing "macOS ARM64 resource path"
-    (is (= "native/macos-arm64/libcriterium.dylib"
+    (is (= "criterium/agent/macos-arm64/libcriterium.dylib"
            (platform/resource-path "macos-arm64"))))
 
   (testing "Nil platform"
@@ -146,5 +146,5 @@
       (when-let [platform (platform/detect)]
         (let [path (platform/resource-path platform)]
           (is (string? path))
-          (is (re-matches #"native/[^/]+/libcriterium\.(so|dylib)" path)
+          (is (re-matches #"criterium/agent/[^/]+/libcriterium\.(so|dylib)" path)
               "Resource path should match expected pattern"))))))

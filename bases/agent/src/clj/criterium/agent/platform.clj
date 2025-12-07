@@ -78,14 +78,14 @@
   Parameters:
   - platform: A platform identifier string (e.g., 'linux-x64', 'macos-x64')
 
-  Returns a path string like 'native/macos-x64/libcriterium.dylib' or nil
+  Returns a path string like 'criterium/agent/macos-x64/libcriterium.dylib' or nil
   if the platform is not supported.
 
   Example:
   ```clojure
   (resource-path \"macos-x64\")
-  ;=> \"native/macos-x64/libcriterium.dylib\"
+  ;=> \"criterium/agent/macos-x64/libcriterium.dylib\"
   ```"
   [platform]
   (when-let [ext (extension platform)]
-    (str "native/" platform "/libcriterium." ext)))
+    (str "criterium/agent/" platform "/libcriterium." ext)))

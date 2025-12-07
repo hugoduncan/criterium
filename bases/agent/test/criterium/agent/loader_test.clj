@@ -28,7 +28,7 @@
       ;; Currently no hash files bundled, so this should throw
       (let [ex (is (thrown? RuntimeException (#'loader/read-hash "linux-x64")))]
         (is (str/includes? (ex-message ex) "SHA256 hash file not found"))
-        (is (str/includes? (ex-message ex) "native/linux-x64/libcriterium.so.sha256"))
+        (is (str/includes? (ex-message ex) "criterium/agent/linux-x64/libcriterium.so.sha256"))
         (is (str/includes? (ex-message ex) "building-agent.md"))))))
 
 (deftest temp-path-test
@@ -74,7 +74,7 @@
   ;; Missing binary file handling
   (testing "extract-agent with missing binary"
     (testing "returns nil when agent binary not found"
-      (with-redefs [platform/detect  (constantly "linux-x64")
+      (with-redefs [platform/detect (constantly "linux-x64")
                     loader/read-hash (constantly "testhash123")]
         ;; No binaries bundled yet, so should return nil
         (is (nil? (loader/extract-agent)))))))
