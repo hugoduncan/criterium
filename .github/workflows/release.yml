@@ -29,6 +29,7 @@ jobs:
         uses: DeLaGuardo/setup-clojure@10.1
         with:
           cli: 1.11.1.1208
+          cache: false
 
       - name: Setup clj-kondo
         uses: DeLaGuardo/setup-clj-kondo@master
@@ -78,6 +79,7 @@ jobs:
         uses: DeLaGuardo/setup-clojure@10.1
         with:
           cli: 1.11.1.1208
+          cache: false
 
       - name: Install git-cliff
         uses: taiki-e/install-action@v2
