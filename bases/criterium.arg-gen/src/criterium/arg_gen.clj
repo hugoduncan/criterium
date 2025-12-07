@@ -16,21 +16,21 @@
     (let [non-nil-seed (jvm/timestamp)]
       [non-nil-seed (random/make-random non-nil-seed)])))
 
-(defn state-fn-state [max-size seed]
+(defn args-fn-state [max-size seed]
   (let [[created-seed rng] (make-rng seed)
         size-seq           (gen/make-size-range-seq max-size)]
     (volatile! {:created-seed created-seed
                 :rng          rng
                 :size-seq     size-seq})))
 
-(defn state-fn   ; TODO make state-fn-state a mutable field on measured?
-  [gen state-fn-state]
+(defn args-fn   ; TODO make args-fn-state a mutable field on measured?
+  [gen args-fn-state]
   (fn []
-    (let [{:keys [rng size-seq]} @state-fn-state
+    (let [{:keys [rng size-seq]} @args-fn-state
           [size & rest-size-seq] size-seq
           [r1 r2]                (random/split rng)
           result-map-rose        (gen/call-gen gen r1 size)]
-      (vswap! state-fn-state assoc :rng r2 :size-seq rest-size-seq)
+      (vswap! args-fn-state assoc :rng r2 :size-seq rest-size-seq)
       (rose/root result-map-rose))))
 
 (defn measured-impl
@@ -43,18 +43,18 @@
   (for-all* [gen/large-integer gen/large-integer]
             (fn [a b] (+ a b) a))"
   [gen f {:keys [size seed] :or {size 100 seed nil}}]
-  (let [state-fn-state (state-fn-state size seed)]
+  (let [args-fn-state (args-fn-state size seed)]
     (measured/measured
-     (state-fn gen state-fn-state)
+     (args-fn gen args-fn-state)
      f)))
 
 (defn arg-metas-from-example
   "Return a vector of type hints for the generated state elements."
   [binding-gens]
   (let [example-size  2
-        example-form  `((state-fn
+        example-form  `((args-fn
                          ~binding-gens
-                         (state-fn-state ~example-size nil)))
+                         (args-fn-state ~example-size nil)))
         example-state (eval example-form)
         types         (mapv type example-state)]
     (mapv measured-impl/tag-meta types)))
@@ -106,7 +106,7 @@
         :seed seed})))
 
 (defmacro measured
-  "Return a measured using test.check generators for state."
+  "Return a measured using test.check generators for arguments."
   [bindings & body]
   (if (vector? bindings)
     `(measured* nil ~bindings ~@body)
