@@ -93,11 +93,14 @@
   The function arguments are treated as constant expressions and are
   hoisted into a state function.  The result of the state function is a
   vector that is passed to the function wrapper as a vector and
-  destructured."
+  destructured.
+
+  Local bindings from the enclosing scope can be used as arguments in
+  the expression."
   ([expr]
-   (impl/measured-expr* expr nil))
+   (impl/measured-expr* expr nil &env))
   ([expr options]
-   (impl/measured-expr* expr options)))
+   (impl/measured-expr* expr options &env)))
 
 (defmacro callable
   "Return a Measured for the given no arg function."

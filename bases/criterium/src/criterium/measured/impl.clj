@@ -1,5 +1,6 @@
 (ns criterium.measured.impl
   (:require
+   [clojure.set]
    [criterium.jvm :as jvm]
    [criterium.util.blackhole :as blackhole]
    [criterium.util.helpers :as util]))
@@ -200,6 +201,43 @@
   (let [types (mapv (comp type eval) arg-exprs)]
     (mapv tag-meta types)))
 
+(defn ^:no-doc collect-symbols
+  "Collect all symbols used in an expression.
+  Returns a set of symbols."
+  [expr]
+  (cond
+    (symbol? expr) #{expr}
+    (coll? expr)   (into #{} (mapcat collect-symbols) expr)
+    :else          #{}))
+
+(defn ^:no-doc locals-in-expr
+  "Identify which symbols in expr are local bindings.
+  Returns a set of symbols that are present in env."
+  [expr env]
+  (if env
+    (let [local-names (set (keys env))
+          expr-syms   (collect-symbols expr)]
+      (clojure.set/intersection expr-syms local-names))
+    #{}))
+
+(defn ^:no-doc local-arg-val?
+  "Check if an arg-val is a local binding.
+  Returns true if the value is a symbol present in env."
+  [arg-val env]
+  (and (symbol? arg-val)
+       (contains? env arg-val)))
+
+(defn ^:no-doc identify-local-args
+  "Identify which arg-vals are local bindings.
+  Returns a set of arg-syms (gensymed keys) whose values are locals."
+  [arg-vals env]
+  (if env
+    (->> arg-vals
+         (filter (fn [[_arg-sym arg-val]] (local-arg-val? arg-val env)))
+         (map first)
+         set)
+    #{}))
+
 (defn measured-expr*
   "Return a measured function for the given expression.
 
@@ -207,13 +245,20 @@
   argument to the a function that wraps the expression.
 
   Any expr that is not a List is treated as a constant.  This is mainly
-  for internal benchmarking."
-  [expr options]
+  for internal benchmarking.
+
+  The env parameter is the macro's &env, used to identify local bindings."
+  [expr options env]
   (let [{:keys [expr arg-vals] :as _f} (factor-expr expr)
+        ;; local-arg-syms used by subsequent phases (Task #144)
+        #_:clj-kondo/ignore
+        local-arg-syms                 (identify-local-args arg-vals env)
         arg-metas                      (capture-arg-types (vals arg-vals))
         options                        (update
                                         options
                                         :arg-metas merge-metas arg-metas)]
+    ;; local-arg-syms computed for future use in Task #144
+    ;; For now, the code path is unchanged - locals are treated as constants
     `(measured
       (fn ~'measured-args [] ~(vec (vals arg-vals)))
       ~(measured-expr-fn

@@ -3,7 +3,8 @@
    [clojure.test :refer [deftest is testing]]
    [criterium.agent :as agent]
    [criterium.jvm :as jvm]
-   [criterium.measured :as measured]))
+   [criterium.measured :as measured]
+   [criterium.measured.impl :as impl]))
 
 (defn- inc-long [x] (inc (long x)))
 
@@ -95,3 +96,64 @@
         (tap> {:zero-garbage-test
                {:allocations (frequencies thread-allocations)}}))
       (is (= [1 2] ret) "hold reference to return value until end of test"))))
+
+;;; Local detection tests
+;; Tests for the local binding detection functionality used by measured-expr*.
+;; These verify that locals from &env are correctly identified in expressions.
+
+(deftest collect-symbols-test
+  (testing "collect-symbols"
+    (testing "returns empty set for non-symbol expressions"
+      (is (= #{} (impl/collect-symbols 42)))
+      (is (= #{} (impl/collect-symbols "string")))
+      (is (= #{} (impl/collect-symbols nil))))
+    (testing "returns singleton set for symbol"
+      (is (= #{'x} (impl/collect-symbols 'x))))
+    (testing "collects symbols from list"
+      (is (= #{'+ 'x 'y} (impl/collect-symbols '(+ x y)))))
+    (testing "collects symbols from nested expressions"
+      (is (= #{'+ '* 'a 'b 'c} (impl/collect-symbols '(+ (* a b) c)))))
+    (testing "collects symbols from vectors"
+      (is (= #{'a 'b} (impl/collect-symbols '[a b]))))
+    (testing "collects symbols from maps"
+      (is (= #{'val} (impl/collect-symbols '{:key val}))))))
+
+(deftest locals-in-expr-test
+  ;; Simulated env maps, structured like Clojure's &env
+  (let [env {'x 'local-binding-x 'y 'local-binding-y}]
+    (testing "locals-in-expr"
+      (testing "returns empty set when env is nil"
+        (is (= #{} (impl/locals-in-expr '(+ x y) nil))))
+      (testing "returns empty set when no locals match"
+        (is (= #{} (impl/locals-in-expr '(+ a b) env))))
+      (testing "identifies single local in expression"
+        (is (= #{'x} (impl/locals-in-expr '(+ x 1) env))))
+      (testing "identifies multiple locals"
+        (is (= #{'x 'y} (impl/locals-in-expr '(+ x y) env))))
+      (testing "handles nested expressions with locals"
+        (is (= #{'x 'y} (impl/locals-in-expr '(foo (bar x) (baz y z)) env)))))))
+
+(deftest local-arg-val-test
+  (let [env {'x 'local-binding-x}]
+    (testing "local-arg-val?"
+      (testing "returns true for symbol in env"
+        (is (true? (impl/local-arg-val? 'x env))))
+      (testing "returns false for symbol not in env"
+        (is (false? (impl/local-arg-val? 'z env))))
+      (testing "returns false for non-symbol"
+        (is (false? (impl/local-arg-val? 42 env)))
+        (is (false? (impl/local-arg-val? "string" env)))))))
+
+(deftest identify-local-args-test
+  (let [env      {'x 'local-binding-x 'y 'local-binding-y}
+        arg-vals {'arg1 'x    ; local
+                  'arg2 '(+ 1 2) ; constant expression
+                  'arg3 'y    ; local
+                  'arg4 'z}]  ; not a local
+    (testing "identify-local-args"
+      (testing "returns empty set when env is nil"
+        (is (= #{} (impl/identify-local-args arg-vals nil))))
+      (testing "identifies arg-syms whose values are locals"
+        (is (= #{'arg1 'arg3} (impl/identify-local-args arg-vals env))))
+      (testing "returns empty set when no arg-vals are locals"
+        (is (= #{} (impl/identify-local-args {'a '(+ 1 2)} env)))))))
