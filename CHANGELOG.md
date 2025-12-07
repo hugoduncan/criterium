@@ -1,6 +1,13 @@
 # Changelog
 
-## [0.5.150-ALPHA] - 2025-12-07
+## [0.5.153-ALPHA] - 2025-12-07
+
+### Bug Fixes
+
+- *(ci)* Generate changelog before version calculation
+- Use correct resource path for bundled agent binaries
+
+## [0.5.149-ALPHA] - 2025-12-07
 
 ### Bug Fixes
 
@@ -11,6 +18,7 @@
 ### Documentation
 
 - Update changelog for v0.5.147-ALPHA
+- Update changelog for v0.5.149-ALPHA
 
 ## [0.5.144-ALPHA] - 2025-12-07
 
