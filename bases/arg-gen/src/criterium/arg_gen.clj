@@ -10,20 +10,26 @@
 ;; from c.t.check (private)
 
 (defn- make-rng
+  "Return [seed rng] pair. Uses timestamp if seed is nil."
   [seed]
   (if seed
     [seed (random/make-random seed)]
     (let [non-nil-seed (jvm/timestamp)]
       [non-nil-seed (random/make-random non-nil-seed)])))
 
-(defn args-fn-state [max-size seed]
+(defn args-fn-state
+  "Create mutable state for argument generation.
+  Returns a volatile containing :created-seed, :rng, and :size-seq."
+  [max-size seed]
   (let [[created-seed rng] (make-rng seed)
         size-seq           (gen/make-size-range-seq max-size)]
     (volatile! {:created-seed created-seed
                 :rng          rng
                 :size-seq     size-seq})))
 
-(defn args-fn   ; TODO make args-fn-state a mutable field on measured?
+(defn args-fn
+  "Return a zero-arg function that generates arguments from gen.
+  Each call advances the RNG and size sequence in args-fn-state."
   [gen args-fn-state]
   (fn []
     (let [{:keys [rng size-seq]} @args-fn-state
@@ -34,14 +40,15 @@
       (rose/root result-map-rose))))
 
 (defn measured-impl
-  "A function version of `for-all`. Takes a sequence of N generators and a
-  function of N args, and returns a measured function, which can be
-  called with generated values, like with `for-all`.
+  "Create a measured from a generator and function.
+  Returns a measured that generates arguments from gen and applies f.
 
   Example:
 
-  (for-all* [gen/large-integer gen/large-integer]
-            (fn [a b] (+ a b) a))"
+  (measured-impl
+    (gen/tuple gen/large-integer gen/large-integer)
+    (fn [[a b]] (+ a b))
+    {})"
   [gen f {:keys [size seed] :or {size 100 seed nil}}]
   (let [args-fn-state (args-fn-state size seed)]
     (measured/measured
@@ -60,28 +67,21 @@
     (mapv measured-impl/tag-meta types)))
 
 (defmacro measured*
-  "Returns a measured, which is the combination of some generators and an
-  expression that should be measured for all generated values.
+  "Return a measured with generated arguments.
 
-  `for-all` takes a `let`-style bindings vector, where the right-hand
-  side of each binding is a generator.
+  Takes a `let`-style bindings vector where each right-hand side is a
+  test.check generator. The body expression is measured with generated
+  values bound to the symbols.
 
-  The body should be an expression of the generated values that will be
-  measured.
-
-  When there are multiple binding pairs, the earlier pairs are visible
-  to the later pairs.
-
-  If there are multiple body expressions, all but the last one are
-  executed for side effects, as with `do`.
+  Earlier binding pairs are visible to later pairs. Multiple body
+  expressions execute in sequence as with `do`.
 
   Example:
 
-  (time*
-    (for-all [a gen/large-integer
-              b gen/large-integer]
-       (+ a b))
-    {})"
+  (measured* {:size 50}
+    [a gen/large-integer
+     b gen/large-integer]
+    (+ a b))"
   [{:keys [size seed arg-metas]
     :or   {size 100 seed nil}
     :as   _options}
@@ -111,5 +111,5 @@
   (if (vector? bindings)
     `(measured* nil ~bindings ~@body)
     (do
-      (assert (map? bindings) "options must be passed as a literal map")
+      (assert (map? bindings) "First arg must be options map or bindings vector")
       `(measured* ~bindings ~@body))))
