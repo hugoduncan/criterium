@@ -94,7 +94,7 @@ clojure -M:dev
 - `bases/criterium/` - Core benchmarking functionality
 - `bases/agent/` - JVM agent for allocation tracking
 - `bases/blackhole/` - JMH-style Blackhole for preventing dead code elimination
-- `bases/criterium.arg-gen/` - Argument generation using test.check generators
+- `bases/arg-gen/` - Argument generation using test.check generators
 - `bases/notebooks/` - Computational notebooks and examples
 - `projects/` - Project-specific configurations
 - `development/` - Development environment setup
