@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.143-ALPHA] - 2025-12-07
+
+### Bug Fixes
+
+- *(build)* Use :name param directly for lib symbol in deploy
+
 ## [0.5.141-ALPHA] - 2025-12-07
 
 ### Bug Fixes
@@ -8,6 +14,10 @@
 - Update travis build (#46)
 - *(ci)* Fix release workflow jar building
 - *(ci)* Allow release workflow to run from develop branch (#61)
+
+### Documentation
+
+- Update changelog for v0.5.141-ALPHA
 
 ### Miscellaneous
 
