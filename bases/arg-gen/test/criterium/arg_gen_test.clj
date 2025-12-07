@@ -40,21 +40,17 @@
             (is (vector? (:v val)))
             (is (integer? (:i val))))))))
   (testing "arg-gen/measured can specify a test.check size"
-    (let [m
-          #_:clj-kondo/ignore
-          (arg-gen/measured
-           {:size 3} [i gen/small-integer]
-           i)]
+    (let [m (arg-gen/measured
+             {:size 3} [i gen/small-integer]
+             i)]
       (testing "which generates a state fn that generates values that respect size"
         (let [[iv] ((:args-fn m))]
           (is (integer? iv))
           (is (<= -3 iv 3))))))
   (testing "arg-gen/measured can specify a test.check seed"
-    (let [m
-          #_:clj-kondo/ignore
-          (arg-gen/measured
-           {:seed 12345} [i gen/small-integer]
-           i)]
+    (let [m (arg-gen/measured
+             {:seed 12345} [i gen/small-integer]
+             i)]
       (testing "which generates a state fn that generates stable values"
         (let [vs (repeatedly 10 (:args-fn m))]
           (is (every? (comp integer? first) vs))

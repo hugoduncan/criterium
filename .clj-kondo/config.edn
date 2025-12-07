@@ -4,11 +4,12 @@
  {:analyze-call
   {criterium.view/def-multi-view       hooks.impl/def-multi-view
    criterium.util.forms/cond*          hooks.impl/cond*}}
- :lint-as {clojure.test.check.clojure-test/defspec clojure.core/def
+ :lint-as {babashka.fs/with-temp-dir                 clojure.core/with-open
+           clojure.test.check.clojure-test/defspec clojure.core/def
            clojure.test.check.properties/for-all   clojure.core/let
            criterium.util/optional-require         clojure.core/require
            criterium.viewer.kindly-clay-test/with-temp-dir clj-kondo.lint-as/def-catch-all}
- :linters {:unused-bindings              {:exclude-defmulti-args true}
+ :linters {:unused-binding               {:exclude-defmulti-args true}
            :used-underscored-binding     {:level :warning}
            :unsorted-required-namespaces {:level :warning}}
  :output  {:exclude-files ["src/data_readers.clj"]}}
