@@ -43,6 +43,7 @@ jobs:
       - name: Prep deps
         run: |
           clojure -T:build javac :project :agent :class-dir '"bases/agent/target/classes"' :verbose true
+          clojure -T:build javac :project :blackhole :class-dir '"bases/blackhole/target/classes"' :verbose true
           clojure -P -A:test:dev
 
       - name: Run tests
@@ -131,28 +132,33 @@ jobs:
           echo "macOS x64:"
           ls -la bases/criterium/resources/criterium/agent/macos-x64/
 
+      - name: Prep deps
+        run: |
+          clojure -T:build javac :project :agent :class-dir '"bases/agent/target/classes"' :verbose true
+          clojure -T:build javac :project :blackhole :class-dir '"bases/blackhole/target/classes"' :verbose true
+
       - name: Build JAR
         run: clojure -T:build jar :project :criterium :verbose true
 
       - name: Smoke test - verify agents in JAR
         run: |
-          JAR_FILE="target/criterium-${{ steps.version.outputs.version }}.jar"
+          JAR_FILE="projects/criterium/target/criterium.jar"
           echo "Checking JAR: $JAR_FILE"
-          
+
           # Verify JAR exists
           test -f "$JAR_FILE" || { echo "::error::JAR file not found"; exit 1; }
-          
+
           # Check for agent libraries
           echo "Verifying agent libraries in JAR..."
           unzip -l "$JAR_FILE" | grep -q "criterium/agent/linux-x64/libcriterium.so" || { echo "::error::Linux agent not found in JAR"; exit 1; }
           unzip -l "$JAR_FILE" | grep -q "criterium/agent/macos-arm64/libcriterium.dylib" || { echo "::error::macOS ARM64 agent not found in JAR"; exit 1; }
           unzip -l "$JAR_FILE" | grep -q "criterium/agent/macos-x64/libcriterium.dylib" || { echo "::error::macOS x64 agent not found in JAR"; exit 1; }
-          
+
           echo "All agent libraries present in JAR"
 
       - name: Smoke test - run benchmark
         run: |
-          JAR_FILE="target/criterium-${{ steps.version.outputs.version }}.jar"
+          JAR_FILE="projects/criterium/target/criterium.jar"
           echo "Running smoke test benchmark..."
           clojure -Sdeps "{:deps {criterium/criterium {:local/root \"$JAR_FILE\"} org.clojure/clojure {:mvn/version \"1.11.2\"}}}" \
             -M -e "(require 'criterium.core) (criterium.core/quick-bench (+ 1 1)) (println \"Smoke test passed\")"
@@ -198,7 +204,7 @@ jobs:
           name: ${{ steps.version.outputs.tag }}
           body_path: RELEASE_NOTES.md
           files: |
-            target/criterium-${{ steps.version.outputs.version }}.jar
+            projects/criterium/target/criterium.jar
             bases/criterium/resources/criterium/agent/linux-x64/libcriterium.so
             bases/criterium/resources/criterium/agent/macos-arm64/libcriterium.dylib
             bases/criterium/resources/criterium/agent/macos-x64/libcriterium.dylib

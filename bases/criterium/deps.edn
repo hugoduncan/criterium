@@ -1,4 +1,4 @@
-{:paths ["src"]
+{:paths ["src" "resources"]
  :deps {poly/blackhole {:local/root "../blackhole"}
         poly/agent {:local/root "../agent"}}
  :aliases {:test
