@@ -132,6 +132,11 @@ jobs:
           echo "macOS x64:"
           ls -la bases/criterium/resources/criterium/agent/macos-x64/
 
+      - name: Prep deps
+        run: |
+          clojure -T:build javac :project :agent :class-dir '"bases/agent/target/classes"' :verbose true
+          clojure -T:build javac :project :blackhole :class-dir '"bases/blackhole/target/classes"' :verbose true
+
       - name: Build JAR
         run: clojure -T:build jar :project :criterium :verbose true
 
