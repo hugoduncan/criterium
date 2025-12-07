@@ -362,17 +362,13 @@
        (let [^Centroid c1 (vfirst centroids)]
          (cond*
           (= (.mean c1) x)
-            ;; Handle exact match
-          (let [more       (when (> (count centroids) 2)
-                             (subvec centroids 2))
-                ^double dw (loop [w  (.weight c1)
-                                  cs more]
-                             (let [^Centroid c (and (pos? (count cs))
-                                                    (vfirst cs))]
-                               (if (and c (= (.mean c) x))
-                                 (recur (+ w (.weight c)) (subvec cs 1))
-                                 w)))]
-            (/ (+ weight-so-far (/ dw 2)) total-weight))
+          ;; Exact match: for singletons add half weight (entire mass at point),
+          ;; for non-singletons weight-so-far already at center
+          (let [w (.weight c1)]
+            (/ (if (= w 1.0)
+                 (+ weight-so-far (/ w 2.0))
+                 weight-so-far)
+               total-weight))
 
           :let [^Centroid c2 (vsecond centroids)]
           (and (<= (.mean c1) x) (< x (.mean c2)))

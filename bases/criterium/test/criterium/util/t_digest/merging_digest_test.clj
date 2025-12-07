@@ -336,7 +336,7 @@
                        (= 1.0 (md/cdf d Double/MAX_VALUE))))))
 
 (defspec cdf-monotonic-property
-  100
+  {:num-tests 100}
   (prop/for-all [d (gen-digest)
                  ^double x gen-finite-double
                  ^double dx (gen/double*
@@ -348,12 +348,25 @@
                     (prn :x x :dx dx :cdf-x+dx cdf-x+dx :cdf-x cdf-x))
                   (>= cdf-x+dx cdf-x))))
 
+(deftest repro-cdf-montonic-failure-test
+  (testing "linear transformation"
+    (let [digest   (-> (md/new-digest)
+                       (md/add-point -1.5)
+                       (md/add-point -1.0 2.0)
+                       (md/add-point 0.5)
+                       md/compress)
+          x        -1.0
+          dx       0.5
+          cdf-x    (md/cdf digest x)
+          cdf-x+dx (md/cdf digest (+ x dx))]
+      (is (>= cdf-x+dx cdf-x)))))
+
 ;; The following two tests do not work because of step-wise values from
 ;; singleton centroids.
 
 #_(defspec cdf-right-continuous-property
     100
-    (prop/for-all [d gen-digest
+    (prop/for-all [d (gen-digest)
                    ^double x gen-finite-double]
                   (let [epsilon 1e-10
                         left    (md/cdf d x)
