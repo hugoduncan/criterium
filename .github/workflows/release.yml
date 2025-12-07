@@ -91,6 +91,32 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Generate and commit changelog
+        if: github.event.inputs.dry_run == 'false'
+        run: |
+          # Get current version and calculate post-commit version
+          # Version format is 0.5.N-ALPHA where N is git rev count
+          CURRENT_VERSION=$(clojure -T:build version :project :criterium)
+          # Extract the revision number and increment it
+          REV_NUM=$(echo "$CURRENT_VERSION" | sed 's/0\.5\.\([0-9]*\)-ALPHA/\1/')
+          NEXT_REV=$((REV_NUM + 1))
+          RELEASE_VERSION="0.5.${NEXT_REV}-ALPHA"
+          RELEASE_TAG="v$RELEASE_VERSION"
+          
+          echo "Current version: $CURRENT_VERSION"
+          echo "Release version (after this commit): $RELEASE_VERSION"
+          
+          # Generate changelog for the release version
+          git-cliff --config cliff.toml --unreleased --tag "$RELEASE_TAG" > RELEASE_NOTES.md
+          git-cliff --config cliff.toml --tag "$RELEASE_TAG" > CHANGELOG.md
+          
+          # Commit changelog (this increments git revision count to match RELEASE_VERSION)
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git commit -m "docs: update changelog for $RELEASE_TAG"
+          git push
+
       - name: Get version
         id: version
         run: |
@@ -98,6 +124,13 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag=v$VERSION" >> $GITHUB_OUTPUT
           echo "Version: $VERSION"
+
+      - name: Generate release notes
+        run: |
+          # Generate release notes for the final version (for dry run and release)
+          git-cliff --config cliff.toml --unreleased --tag ${{ steps.version.outputs.tag }} > RELEASE_NOTES.md
+          echo "Release notes:"
+          cat RELEASE_NOTES.md
 
       - name: Check tag does not exist
         if: github.event.inputs.dry_run == 'false'
@@ -164,26 +197,6 @@ jobs:
           echo "Running smoke test benchmark..."
           clojure -Sdeps "{:deps {criterium/criterium {:local/root \"$JAR_FILE\"} org.clojure/clojure {:mvn/version \"1.11.2\"}}}" \
             -M -e "(require 'criterium.core) (criterium.core/quick-bench (+ 1 1)) (println \"Smoke test passed\")"
-
-      - name: Generate changelog
-        id: changelog
-        run: |
-          # Generate changelog for this release
-          git-cliff --config cliff.toml --unreleased --tag ${{ steps.version.outputs.tag }} > RELEASE_NOTES.md
-          echo "Release notes:"
-          cat RELEASE_NOTES.md
-          
-          # Update CHANGELOG.md with full history
-          git-cliff --config cliff.toml --tag ${{ steps.version.outputs.tag }} > CHANGELOG.md
-
-      - name: Commit changelog
-        if: github.event.inputs.dry_run == 'false'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add CHANGELOG.md
-          git commit -m "docs: update changelog for ${{ steps.version.outputs.tag }}"
-          git push
 
       - name: Create and push tag
         if: github.event.inputs.dry_run == 'false'
