@@ -94,6 +94,7 @@ clojure -M:dev
 - `bases/criterium/` - Core benchmarking functionality
 - `bases/agent/` - JVM agent for allocation tracking
 - `bases/blackhole/` - JMH-style Blackhole for preventing dead code elimination
+- `bases/criterium.arg-gen/` - Argument generation using test.check generators
 - `bases/notebooks/` - Computational notebooks and examples
 - `projects/` - Project-specific configurations
 - `development/` - Development environment setup
@@ -110,6 +111,11 @@ clojure -M:dev
 - `collector` - Captures various metrics during execution
 - `collect-plan` - Defines sampling strategy (warmup, timing, etc.)
 - `benchmark` - Coordinates analysis and viewing of collected data
+
+**Argument Generation** (`criterium.arg-gen`):
+- Creates `measured` instances using test.check generators for benchmark inputs
+- `arg-gen/measured` macro - Define benchmarks with generated arguments
+- Supports size and seed options for reproducible benchmarks
 
 **Metrics System**: Supports multiple metric types:
 - `:elapsed-time` - Wall clock timing

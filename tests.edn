@@ -4,15 +4,18 @@
            :ns-patterns          ["-test$"]
            :source-paths         ["bases/criterium/src"
                                   "bases/agent/src"
+                                  "bases/criterium.arg-gen/src"
                                   "build/src"
                                   "projects/agent"]
            :kaocha/source-paths  ["bases/criterium/src"
                                   "bases/agent/src"
+                                  "bases/criterium.arg-gen/src"
                                   "build/src"
                                   "projects/agent"]
            :test-paths           ["bases/criterium/test"
                                   "bases/blackhole/test"
                                   "bases/agent/test"
+                                  "bases/criterium.arg-gen/test"
                                   "build/test"
                                   "projects/agent/test"]
            :skip-meta            [:very-slow :requires-build-artifacts]}]
