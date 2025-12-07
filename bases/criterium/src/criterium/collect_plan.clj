@@ -1,0 +1,170 @@
+(ns criterium.collect-plan
+  "Collection plan to control the collection of metrics from a measured."
+  (:require
+   [criterium.collect :as collect]
+   [criterium.collect-plan.impl :as impl]
+   [criterium.collector :as collector]
+   [criterium.measured :as measured]
+   [criterium.metric :as metric]
+   [criterium.types :as types]
+   [criterium.util.helpers :as util]
+   [criterium.util.invariant :refer [have have?]]))
+
+(defn required-stages
+  "Metrics collection stages required for the given collection-scheme"
+  [collect-plan-id]
+  {:pre [(have? keyword? collect-plan-id)]}
+  (impl/required-stages* collect-plan-id))
+
+(defmethod impl/required-stages* :one-shot
+  [_collect-plan]
+  [])
+
+(defmethod impl/required-stages* :with-jit-warmup
+  [_collect-plan]
+  [:measured-args
+   :compilation
+   :garbage-collector])
+
+(def identity-transforms
+  {:sample-> (fn sample-> ^double [v] v)
+   :->sample (fn ->sample ^double [v] v)})
+
+(defn- batch-transforms
+  [batch-size]
+  (let [batch-size (double batch-size)] ; boxed to Double in closure
+    {:sample-> (fn sample-> ^double [v]
+                 (/ (double v) (double batch-size)))
+     :->sample (fn ->sample ^double [v]
+                 (* (double v) (double batch-size)))}))
+
+(defmethod impl/collect* :one-shot
+  ;; Collects a Single sample measured with no warmup of the measured function.
+  ;; Forces GC.
+  ;; Return a sampled data map.
+  [collect-plan collector measured]
+  (let [args   (measured/args measured)
+        sample (collector/collect collector measured args 1)]
+    (collect/force-gc! (:max-gc-attempts collect-plan))
+    {:samples
+     {:type           :criterium/metrics-samples
+      :metrics-defs   (:metrics-defs collector)
+      :metric->values (collect/sample-maps->map-of-samples
+                       [sample]
+                       (:metrics-defs collector))
+      :transform      identity-transforms
+      :batch-size     1
+      :elapsed-time   (metric/elapsed-time sample)
+      :eval-count     1
+      :num-samples    1
+      :expr-value     (:expr-value sample)}}))
+
+(defn- collected-data-map
+  [collection-map]
+  (have
+   types/collected-metrics-map?
+   (let [metric->values (collect/transform collection-map)
+         batch-size     (:batch-size collection-map)]
+     (merge
+      collection-map
+      {:metric->values metric->values
+       :metrics-defs   (have (:metrics-defs (:collector collection-map)))
+       :expr-value     (last (metric->values [:expr-value]))
+       :type           :criterium/metrics-samples
+       :transform      (if (= 1 batch-size)
+                         identity-transforms
+                         (batch-transforms batch-size))}))))
+
+(defmethod impl/collect* :with-jit-warmup
+  ;; Sample measured with estimation, warmup and forced GC.
+  ;; Return a sampled data map.
+  g [collect-plan collector measured]
+  {:pre  [(fn? (:f collector))
+          (measured/measured? measured)]
+   :post [(have? types/result-map? %)]}
+  (let [{:keys [^long batch-time-ns
+                ^long limit-time-ns
+                ^long max-gc-attempts
+                ^long thread-priority
+                ^long num-estimation-samples
+                ^long num-warmup-samples
+                ^long num-measure-samples
+                keep-estimation?
+                keep-warmup?
+                keep-final-gc?]} collect-plan]
+
+    ;; Start by running GC.
+    (collect/force-gc-no-capture! max-gc-attempts)
+
+    ;; First sample is always much longer than subsequent ones
+    (collect/throw-away-collection measured)
+
+    (util/with-thread-priority thread-priority
+      (let [total-samples (+ num-estimation-samples
+                             num-warmup-samples
+                             num-measure-samples)
+
+            t0             (collect/elapsed-time-point-estimate measured)
+            est-batch-size (collect/batch-size t0 batch-time-ns)
+
+            frac-est        (double (/ num-estimation-samples total-samples))
+            num-est-samples (max  (min num-estimation-samples
+                                       (long (/ (* limit-time-ns frac-est)
+                                                (* t0 est-batch-size))))
+                                  1)
+            est-data        (collect/elapsed-time-min-estimate
+                             measured
+                             num-est-samples
+                             est-batch-size)
+            t1              (long (:t est-data))
+
+            warmup-batch-size (collect/batch-size t1 batch-time-ns)
+            remaining-samples (+ num-warmup-samples num-measure-samples)
+            remaining-time    (- limit-time-ns (long (:total-time est-data)) t0)
+            batch-time        (* t1 warmup-batch-size)
+
+            projected-time (* batch-time remaining-samples)
+
+            [num-warmup-samples
+             num-measure-samples] (impl/limit-samples
+                                   limit-time-ns
+                                   num-warmup-samples
+                                   num-measure-samples
+                                   (:total-time est-data)
+                                   remaining-time
+                                   projected-time)
+
+            _ (collect/force-gc! max-gc-attempts)
+
+            warmup-data (collect/warmup
+                         collector
+                         measured
+                         num-warmup-samples
+                         warmup-batch-size)
+
+            t2         (max
+                        1
+                        (double (/ (long (:min-time warmup-data))
+                                   warmup-batch-size)))
+            batch-size (collect/batch-size t2 batch-time-ns)
+
+            ;; Enter garbage Free zone
+            _             (collect/force-gc-no-capture! max-gc-attempts)
+            sample-data   (collect/collect-arrays
+                           collector measured batch-size num-measure-samples)
+            final-gc-data (collect/force-gc! max-gc-attempts)
+            ;; Leave garbage Free zone
+            ]
+
+        (cond->
+          {:samples (collected-data-map sample-data)}
+          keep-estimation? (assoc :estimation (collected-data-map est-data))
+          keep-warmup?     (assoc :warmup     (collected-data-map warmup-data))
+          keep-final-gc?   (assoc :final-gc
+                                  (collected-data-map final-gc-data)))))))
+
+(defn collect
+  "Collect metrics from the measured according to the collect-plan.
+  Return a results-map."
+  [collect-plan collector measured]
+  (impl/collect* collect-plan collector measured))

@@ -1,0 +1,125 @@
+# A workflow run is made up of one or more jobs that can run
+# sequentially or in parallel
+on:
+  push:
+    branches: [master, develop]
+  pull_request:
+name: Run tests
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-agent:
+    name: Build Agent
+    uses: ./.github/workflows/agent-cpp.yml
+
+  tests:
+    name: Tests (${{ matrix.os }}, agent=${{ matrix.with-agent }})
+    needs: build-agent
+
+    strategy:
+      matrix:
+        # TODO add windows-latest
+        os: [ubuntu-latest, macOS-latest]
+        with-agent: [false, true]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - name: Prepare java
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'zulu'
+        java-version: '11'
+
+    - name: Install clojure tools
+      uses: DeLaGuardo/setup-clojure@10.1
+      with:
+        cli: 1.11.1.1208
+
+    - name: Install node
+      uses: actions/setup-node@v3
+      with:
+       node-version: '16'
+
+    - name: Install vega-cli
+      run: |
+        npm install -g vega vega-lite vega-cli
+
+    - name: Install babashka
+      uses: turtlequeue/setup-babashka@v1.5.0
+      with:
+        babashka-version: 0.7.0
+
+    - name: Setup clj-kondo
+      uses: DeLaGuardo/setup-clj-kondo@master
+      with:
+        version: '2024.09.27'
+
+    - name: Checkout
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0          # all commits for git-rev-count
+
+    - name: Download agent artifact (Linux)
+      if: matrix.with-agent && matrix.os == 'ubuntu-latest'
+      uses: actions/download-artifact@v4
+      with:
+        name: agent-cpp-linux-x64
+        path: agent-cpp/build
+
+    - name: Download agent artifact (macOS)
+      if: matrix.with-agent && matrix.os == 'macOS-latest'
+      uses: actions/download-artifact@v4
+      with:
+        name: agent-cpp-macos-arm64
+        path: agent-cpp/build
+
+    - name: Verify agent binary
+      if: matrix.with-agent
+      run: |
+        ls -la agent-cpp/build/
+        if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+          test -f agent-cpp/build/libcriterium.so
+        else
+          test -f agent-cpp/build/libcriterium.dylib
+        fi
+
+    - name: build jar
+      run: |
+        set -x
+        clojure -T:build jar :project :criterium :verbose true
+
+    - name: prep deps
+      run: |
+        set -x
+        clojure -T:build javac :project :agent :class-dir '"bases/agent/target/classes"' :verbose true
+        ls -laR bases/agent/target/classes/ || echo "No target/classes directory"
+        clojure -T:build javac :project :blackhole :class-dir '"bases/blackhole/target/classes"' :verbose true
+        ls -laR bases/blackhole/target/classes/ || echo "No target/classes directory"
+        clojure -P -A:test:dev
+
+    - name: test
+      run: |
+        set -x
+        if [[ "${{ matrix.with-agent }}" == "true" ]]; then
+          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            clojure -M:kaocha:dev:test:with-agent-linux --reporter dots
+          else
+            clojure -M:kaocha:dev:test:with-agent-mac --reporter dots
+          fi
+        else
+          clojure -M:kaocha:dev:test --reporter dots
+        fi
+
+    - name: cache clj-kondo configs
+      run: |
+        set -x
+        clj-kondo --lint $(clojure -Spath -A:dev:test) --dependencies --copy-configs --skip-lint
+
+    - name: lint
+      run: |
+        set -x
+        clj-kondo --lint bases projects --fail-level warning

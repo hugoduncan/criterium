@@ -6,10 +6,24 @@ lib
 classes
 autodoc/**
 doc/**
+!docs/**
 java.hprof.*
+.cpcache
 .lein-deps-sum
 .lein-failures
 .ritz-exception-filters
 target
 checkouts
+pom.*
 .lsp
+version.edn
+*.dylib
+*.log
+*.dSYM
+.clj-kondo/*/
+.aider*
+agent-cpp/build/
+# Native agent binaries (downloaded from CI before JAR builds)
+bases/agent/resources/native/**/*.so
+bases/agent/resources/native/**/*.dylib
+bases/agent/resources/native/**/*.sha256

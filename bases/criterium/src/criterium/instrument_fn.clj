@@ -1,0 +1,159 @@
+(ns criterium.instrument-fn
+  "First-class function instrumentation for performance sampling.
+
+  Provides functionality for wrapping functions with instrumentation code
+  that collects performance data during execution. The instrumented functions
+  are first-class objects that maintain their own sample collection state."
+  (:require
+   [criterium.collect :as collect]
+   [criterium.collect-plan :as collect-plan]
+   [criterium.collector :as collector]
+   [criterium.jvm :as jvm]
+   [criterium.measured :as measured]
+   [criterium.sampler :as sampler]
+   [criterium.util.invariant :refer [have]])
+  (:import
+   [java.util.concurrent Callable]))
+
+(defn- measured [original-fn]
+  (measured/measured
+   (fn state-f [] (assert false))
+   (fn measured-f [args ^long eval-count]
+     (have (partial = 1) eval-count)
+     (let [start  (jvm/timestamp)
+           res    (apply original-fn args)
+           finish (jvm/timestamp)]
+       [(unchecked-subtract finish start) res]))))
+
+(defmacro ^:private invoke-f
+  [collector measured args]
+  `(let [sample# (collector/collect ~collector ~measured ~args 1)]
+     (set! ~'samples (conj ~'samples sample#))
+     (:expr-value sample#)))
+
+(defn- sample-map
+  "Convert raw samples into an analyzable sample map structure.
+
+  Takes collected samples and metrics configurations and produces a map
+  in the format expected by criterium's analysis functions."
+  [metrics-defs samples]
+  {:type           :criterium/metrics-samples
+   :metric->values (collect/sample-maps->map-of-samples
+                    samples
+                    metrics-defs)
+   :transform      collect-plan/identity-transforms
+   :batch-size     1
+   :eval-count     (count samples)
+   :num-samples    (count samples)
+   :metrics-defs   (have metrics-defs)
+   :expr-value     nil
+   :source-id      nil})
+
+(deftype InstrumentedFn
+         [original-fn
+          collector
+          measured
+          ^:volatile-mutable samples]
+  sampler/Sampler
+  (samples-map [_] (sample-map (:metrics-defs collector) samples))
+  (reset-samples! [_] (set! samples []) nil)
+
+  clojure.lang.IFn
+  (invoke [_]
+    (invoke-f collector measured []))
+  (invoke [_ a1]
+    (invoke-f collector measured [a1]))
+  (invoke [_ a1 a2]
+    (invoke-f collector measured [a1 a2]))
+  (invoke [_ a1 a2 a3]
+    (invoke-f collector measured [a1 a2 a3]))
+  (invoke [_ a1 a2 a3 a4]
+    (invoke-f collector measured [a1 a2 a3 a4]))
+  (invoke [_ a1 a2 a3 a4 a5]
+    (invoke-f collector measured [a1 a2 a3 a4 a5]))
+  (invoke [_ a1 a2 a3 a4 a5 a6]
+    (invoke-f collector measured [a1 a2 a3 a4 a5 a6]))
+  (invoke [_ a1 a2 a3 a4 a5 a6 a7]
+    (invoke-f collector measured [a1 a2 a3 a4 a5 a6 a7]))
+  (invoke [_ a1 a2 a3 a4 a5 a6 a7 a8]
+    (invoke-f collector measured [a1 a2 a3 a4 a5 a6 a7 a8]))
+  (invoke [_ a1 a2 a3 a4 a5 a6 a7 a8 a9]
+    (invoke-f collector measured [a1 a2 a3 a4 a5 a6 a7 a8 a9]))
+  (invoke [_ a1 a2 a3 a4 a5 a6 a7 a8 a9 a10]
+    (invoke-f collector measured [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10]))
+  (invoke [_ a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11]
+    (invoke-f collector measured [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11]))
+  (invoke [_ a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12]
+    (invoke-f collector measured [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12]))
+  (invoke [_ a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13]
+    (invoke-f collector measured [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13]))
+  (invoke [_ a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14]
+    (invoke-f
+     collector
+     measured
+     [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14]))
+  (invoke [_ a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15]
+    (invoke-f
+     collector
+     measured
+     [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15]))
+  (invoke [_ a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16]
+    (invoke-f
+     collector
+     measured
+     [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16]))
+  (invoke [_ a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17]
+    (invoke-f
+     collector
+     measured
+     [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17]))
+  (invoke [_ a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18]
+    (invoke-f
+     collector
+     measured
+     [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18]))
+  (invoke
+    [_ a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18 a19]
+    (invoke-f
+     collector
+     measured
+     [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18 a19]))
+  (invoke
+    [_ a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18 a19 a20]
+    (invoke-f
+     collector
+     measured
+     [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18 a19 a20]))
+  (applyTo [_ args]
+    (invoke-f collector measured args))
+
+  Runnable
+  (run [_]
+    (invoke-f collector measured []))
+
+  Callable
+  (call [_]
+    (invoke-f collector measured [])))
+
+(defn instrument-fn
+  "Create an instrumented wrapper of function f.
+
+  Takes a function and a collector configuration and returns a new
+  function that wraps the original while collecting timing samples
+  during execution.  The returned function implements IFn, Runnable, and
+  Callable interfaces.
+
+  Parameters:
+    f                - The function to instrument
+    collector-config - A collector configuration that defines how samples
+                       are processed
+
+  Returns:
+    An InstrumentedFn instance that wraps the original function and maintains
+    its own sample collection state."
+  [f collector-config]
+  (->InstrumentedFn
+   f
+   (collector/collector collector-config)
+   (measured f)
+   []))

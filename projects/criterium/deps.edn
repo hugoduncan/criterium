@@ -1,0 +1,36 @@
+{:deps  {poly/criterium {:local/root "../../bases/criterium"}}
+ :paths []
+ :aliases
+ {:test         {:extra-paths []
+                 :extra-deps
+                 {org.clojure/clojure {:mvn/version "1.11.2"}
+                  polylith-kaocha/kaocha-wrapper
+                  {:git/url   "https://github.com/imrekoszo/polylith-kaocha"
+                   :git/tag   "v0.8.4"
+                   :git/sha   "f096de8"
+                   :deps/root "projects/kaocha-wrapper"}}}
+  :build        {:deps       {local/build {:local/root "../../build"}}
+                 :ns-default build.tasks
+                 :exec-fn    help
+                 :jvm-opts   ["-Dclojure.main.report=stderr"]}
+  :platform     {:main-opts  ["-m" "criterium.platform"]
+                 ;; err, why is this needed?
+                 :extra-deps {org.clojure/test.check
+                              {:mvn/version "1.1.1"}}
+                 :jvm-opts   ["-Dclojure.main.report=stderr"
+                              "-Dclojure.spec.check-asserts=false"
+                              ;; "-XX:+UnlockExperimentalVMOptions"
+                              ;; "-XX:+UseEpsilonGC"
+                              "-Xms1g"
+                              "-Xmx1g"]}
+  :platform-1.8 {:main-opts  ["-m" "criterium.platform"]
+                 ;; err, why is this needed?
+                 :extra-deps {org.clojure/test.check
+                              {:mvn/version "1.1.1"}}
+                 :jvm-opts   ["-Dclojure.main.report=stderr"
+                              "-Dclojure.spec.check-asserts=false"
+                              "-Xms1g"
+                              "-Xmx1g"]}
+  :blackhole    {:jvm-opts
+                 ["-XX:+UnlockExperimentalVMOptions"
+                  "-XX:CompileCommand=blackhole,criterium.blackhole.Blackhole::consume"]}}}

@@ -1,0 +1,9 @@
+{:kindly/options {:kinds-that-hide-code #{:kind/md}}
+ :title          "Criterium Documentation"
+ :remote-repo    {:git-url "https://github.com/hugoduncan/criterium"
+                  :branch  "develop"}
+ :quarto         {:include-in-header
+                  {:text
+                   "<meta property=\"og:title\" content=\"Criterium documentation\"/>
+<meta property=\"og:description\" content=\"A Clojure benchmarking tool\"/>
+"}}}

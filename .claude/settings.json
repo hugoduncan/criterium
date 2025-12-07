@@ -1,0 +1,8 @@
+{
+  "enabledMcpjsonServers": [
+    "clojure-mcp",
+    "mcp-tasks",
+    "clj-kondo"
+  ],
+  "enableAllProjectMcpServers": true
+}

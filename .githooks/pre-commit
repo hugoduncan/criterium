@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Pre-commit hook to format Clojure and EDN files with cljfmt
+
+set -euo pipefail
+
+# Get list of staged .clj and .edn files
+staged_files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(clj|cljs|cljc|edn)$' || true)
+
+if [ -z "$staged_files" ]; then
+    exit 0
+fi
+
+# Format each staged file and restage if changed
+for file in $staged_files; do
+    if [ -f "$file" ]; then
+        cljfmt fix "$file" 2>/dev/null || true
+        git add "$file"
+    fi
+done

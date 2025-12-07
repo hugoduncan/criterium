@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Pre-push hook to run clj-kondo linting
+
+set -euo pipefail
+
+echo "Running clj-kondo lint..."
+clj-kondo --lint bases projects --fail-level warning
+
+echo "Lint passed."
