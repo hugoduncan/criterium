@@ -9,13 +9,14 @@ Early alpha.  Breaking changes will be made.
 
 ## Quick Start
 
-For the moment there will be no jar release.  Please use as a git
-dependency, taking a sha from the master branch.
+Add criterium as an alias in your `deps.edn`:
 
-```
-{:deps {io.github.hugoduncan/criterium
-        {:git/sha "xxxx"
-        :deps/root "projects/criterium"}}
+```clojure
+{:aliases
+ {:bench {:extra-deps {criterium/criterium {:mvn/version "0.5.153-ALPHA"}}
+          ;; JDK 17+ options for optimal dead-code elimination
+          :jvm-opts ["-XX:+UnlockExperimentalVMOptions"
+                     "-XX:CompileCommand=blackhole,criterium.blackhole.Blackhole::consume"]}}}
 ```
 
 To time an expression use `criterium.bench/bench`.
@@ -49,7 +50,7 @@ The native agent provides detailed allocation tracking. Due to JVMTI limitations
 
 ```bash
 # Get the agent path
-clojure -Sdeps '{:deps {io.github.hugoduncan/criterium {:git/sha "xxxx" :deps/root "projects/criterium"}}}' \
+clojure -Sdeps '{:deps {criterium/criterium {:mvn/version "0.5.153-ALPHA"}}}' \
   -e '(require '"'"'[criterium.agent :as agent]) (println (first (agent/jvm-opts)))'
 
 # Restart with the agent (use the path from above)
