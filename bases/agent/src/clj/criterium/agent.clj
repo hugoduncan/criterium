@@ -96,26 +96,18 @@
   thread. Filter the returned records with `allocation-on-thread?` if that
   is all you are concerned with."
   [& body]
-  `(do
-     ;; Auto-load agent if not already loaded
-     (when-not (runtime/loaded?)
-       (try
-         (runtime/load-agent!)
-         (catch Exception e#
-           (println "WARNING: Failed to auto-load agent:" (.getMessage e#)))))
-     ;; Execute with or without tracing based on runtime availability
-     (if (attached?)
-       (let [active?# (core/allocation-tracing-active?)
-             res# (if active?#
-                    (do ~@body)
-                    (try
-                      (core/allocation-tracing-start!)
-                      ~@body
-                      (finally
-                        (core/allocation-tracing-stop!))))]
-         (core/collect-allocation-records)
-         [@core/records res#])
-       [nil (do ~@body)])))
+  `(if (attached?)
+     (let [active?# (core/allocation-tracing-active?)
+           res# (if active?#
+                  (do ~@body)
+                  (try
+                    (core/allocation-tracing-start!)
+                    ~@body
+                    (finally
+                      (core/allocation-tracing-stop!))))]
+       (core/collect-allocation-records)
+       [@core/records res#])
+     [nil (do ~@body)]))
 
 (defn allocation-on-thread?
   "Returns a predicate function for filtering allocation records by thread.

@@ -16,7 +16,7 @@
    [ten-micros (sampled-fn/sample-fn
                 ten-micros
                 collector-configs/default-collector-config)]
-    (dotimes [_ 10000]
+    (dotimes [_ 50000]
       (ten-micros))
 
     (let [samples (sampler/samples-map ten-micros)

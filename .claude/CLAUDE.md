@@ -12,6 +12,9 @@ This is currently version 0.5.x (ALPHA) which represents a significant architect
 
 ### Testing
 ```bash
+# Prepare agent dependency (required once after checkout or deps.edn changes)
+cd bases/criterium && clojure -T:deps prep
+
 # Run tests with Kaocha
 clojure -M:kaocha:dev:test --reporter dots
 
