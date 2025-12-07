@@ -138,22 +138,73 @@
     (testing "local-arg-val?"
       (testing "returns true for symbol in env"
         (is (true? (impl/local-arg-val? 'x env))))
+      (testing "returns true for expression containing symbol in env"
+        (is (true? (impl/local-arg-val? '(+ x 1) env)))
+        (is (true? (impl/local-arg-val? '(foo (bar x)) env))))
       (testing "returns false for symbol not in env"
         (is (false? (impl/local-arg-val? 'z env))))
-      (testing "returns false for non-symbol"
+      (testing "returns false for expression not containing locals"
+        (is (false? (impl/local-arg-val? '(+ 1 2) env))))
+      (testing "returns false for non-symbol non-expression"
         (is (false? (impl/local-arg-val? 42 env)))
         (is (false? (impl/local-arg-val? "string" env)))))))
 
 (deftest identify-local-args-test
   (let [env      {'x 'local-binding-x 'y 'local-binding-y}
-        arg-vals {'arg1 'x    ; local
-                  'arg2 '(+ 1 2) ; constant expression
-                  'arg3 'y    ; local
-                  'arg4 'z}]  ; not a local
+        arg-vals {'arg1 'x         ; local symbol
+                  'arg2 '(+ 1 2)   ; constant expression
+                  'arg3 'y         ; local symbol
+                  'arg4 'z         ; not a local
+                  'arg5 '(+ x 1)}] ; expression containing local
     (testing "identify-local-args"
       (testing "returns empty set when env is nil"
         (is (= #{} (impl/identify-local-args arg-vals nil))))
-      (testing "identifies arg-syms whose values are locals"
-        (is (= #{'arg1 'arg3} (impl/identify-local-args arg-vals env))))
+      (testing "identifies arg-syms whose values are or contain locals"
+        (is (= #{'arg1 'arg3 'arg5} (impl/identify-local-args arg-vals env))))
       (testing "returns empty set when no arg-vals are locals"
         (is (= #{} (impl/identify-local-args {'a '(+ 1 2)} env)))))))
+
+;;; Local capture integration tests
+;; Tests verifying that locals are correctly captured and passed through
+;; the measurement pipeline.
+
+(deftest expr-local-capture-test
+  (testing "measured/expr with local bindings"
+    (testing "captures simple local binding"
+      (let [x   42
+            m   (measured/expr (+ x 1))
+            res (second (invoke m))]
+        (is (= 43 res))))
+    (testing "captures collection local"
+      (let [coll [1 2 3 4 5]
+            m    (measured/expr (reduce + coll))
+            res  (second (invoke m))]
+        (is (= 15 res))))
+    (testing "captures multiple locals"
+      (let [a 10
+            b 20
+            m (measured/expr (+ a b))
+            res (second (invoke m))]
+        (is (= 30 res))))
+    (testing "captures local in nested expression"
+      (let [x 5
+            m (measured/expr (* 2 (+ x 3)))
+            res (second (invoke m))]
+        (is (= 16 res))))
+    (testing "mixes locals with constants"
+      (let [x 10
+            m (measured/expr (+ x (+ 1 2)))
+            res (second (invoke m))]
+        (is (= 13 res))))
+    (testing "captures local used multiple times"
+      (let [x 3
+            m (measured/expr (+ x x x))
+            res (second (invoke m))]
+        (is (= 9 res))))
+    (testing "works in loop binding context"
+      (let [results (atom [])]
+        (doseq [i (range 3)]
+          (let [m   (measured/expr (+ i 10))
+                res (second (invoke m))]
+            (swap! results conj res)))
+        (is (= [10 11 12] @results))))))
