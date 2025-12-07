@@ -43,6 +43,7 @@ jobs:
       - name: Prep deps
         run: |
           clojure -T:build javac :project :agent :class-dir '"bases/agent/target/classes"' :verbose true
+          clojure -T:build javac :project :blackhole :class-dir '"bases/blackhole/target/classes"' :verbose true
           clojure -P -A:test:dev
 
       - name: Run tests
