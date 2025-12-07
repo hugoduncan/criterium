@@ -12,8 +12,9 @@ This is currently version 0.5.x (ALPHA) which represents a significant architect
 
 ### Testing
 ```bash
-# Prepare agent dependency (required once after checkout or deps.edn changes)
-cd bases/criterium && clojure -T:deps prep
+# Prepare dependencies with Java sources (required once after checkout or deps.edn changes)
+cd bases/agent && clojure -T:deps prep
+cd bases/blackhole && clojure -T:deps prep
 
 # Run tests with Kaocha
 clojure -M:kaocha:dev:test --reporter dots
@@ -93,6 +94,7 @@ clojure -M:dev
 ### Polylith Structure
 - `bases/criterium/` - Core benchmarking functionality
 - `bases/agent/` - JVM agent for allocation tracking
+- `bases/blackhole/` - JMH-style Blackhole for preventing dead code elimination
 - `bases/notebooks/` - Computational notebooks and examples
 - `projects/` - Project-specific configurations
 - `development/` - Development environment setup
