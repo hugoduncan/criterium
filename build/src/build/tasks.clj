@@ -19,6 +19,8 @@
                          :class-dir (str class-dir)}
                         params)
           params (common/resolve-project-data params)]
+      (when-let [validate-fn (:validate-fn params)]
+        ((requiring-resolve validate-fn)))
       ((requiring-resolve 'build.tasks.jar/jar) params))))
 
 (defn install

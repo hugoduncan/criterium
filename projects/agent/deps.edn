@@ -1,8 +1,7 @@
 {:deps {poly/agent {:local/root "../../bases/agent"}}
  :aliases
- {:build {:extra-paths ["."]
-          :deps {local/build {:local/root "../../build"}}
-          :ns-default build
+ {:build {:deps {local/build {:local/root "../../build"}}
+          :ns-default build.tasks
           :exec-fn help
           :jvm-opts ["-Dclojure.main.report=stderr"]}
   :test {:extra-paths ["test" "."]
