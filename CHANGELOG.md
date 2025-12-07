@@ -1,11 +1,16 @@
 # Changelog
 
-## [0.5.147-ALPHA] - 2025-12-07
+## [0.5.149-ALPHA] - 2025-12-07
 
 ### Bug Fixes
 
 - *(ci)* Disable cache in release workflow setup-clojure
 - *(test)* Use WELL RNG in sampled-stats variance test
+- *(ci)* Rename release assets to avoid filename collision
+
+### Documentation
+
+- Update changelog for v0.5.147-ALPHA
 
 ## [0.5.144-ALPHA] - 2025-12-07
 
