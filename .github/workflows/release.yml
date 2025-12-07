@@ -198,6 +198,16 @@ jobs:
           CLOJARS_PASSWORD: ${{ secrets.CLOJARS_PASSWORD }}
         run: clojure -T:build deploy :project :criterium
 
+      - name: Prepare release assets
+        if: github.event.inputs.dry_run == 'false'
+        run: |
+          mkdir -p release-assets
+          cp projects/criterium/target/criterium.jar release-assets/
+          cp bases/criterium/resources/criterium/agent/linux-x64/libcriterium.so release-assets/libcriterium-linux-x64.so
+          cp bases/criterium/resources/criterium/agent/macos-arm64/libcriterium.dylib release-assets/libcriterium-macos-arm64.dylib
+          cp bases/criterium/resources/criterium/agent/macos-x64/libcriterium.dylib release-assets/libcriterium-macos-x64.dylib
+          ls -la release-assets/
+
       - name: Create GitHub Release
         if: github.event.inputs.dry_run == 'false'
         uses: softprops/action-gh-release@v1
@@ -206,10 +216,10 @@ jobs:
           name: ${{ steps.version.outputs.tag }}
           body_path: RELEASE_NOTES.md
           files: |
-            projects/criterium/target/criterium.jar
-            bases/criterium/resources/criterium/agent/linux-x64/libcriterium.so
-            bases/criterium/resources/criterium/agent/macos-arm64/libcriterium.dylib
-            bases/criterium/resources/criterium/agent/macos-x64/libcriterium.dylib
+            release-assets/criterium.jar
+            release-assets/libcriterium-linux-x64.so
+            release-assets/libcriterium-macos-arm64.dylib
+            release-assets/libcriterium-macos-x64.dylib
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
