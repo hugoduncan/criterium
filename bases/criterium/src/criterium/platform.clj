@@ -7,7 +7,8 @@
    [criterium.collect-plan.config :as collect-plan-config]
    [criterium.collector :as collector]
    [criterium.jvm :as jvm]
-   [criterium.measured :as measured])
+   [criterium.measured :as measured]
+   [criterium.util.helpers :as util])
   (:gen-class))
 
 (def ^:private benchmark
@@ -23,7 +24,8 @@
    (collect-plan-config/collect-plan-config
     :with-jit-warmup
     {:batch-time-ns       100000
-     :num-measure-samples 500})
+     :num-measure-samples 500
+     :limit-time-ns       20000000000})
    :collector-config
    {:stages     [:measured-args :compilation :garbage-collector],
     :terminator :elapsed-time}
@@ -90,7 +92,8 @@
       (collect-plan-config/collect-plan-config
        :with-jit-warmup
        {:batch-time-ns       100000
-        :num-measure-samples 500})
+        :num-measure-samples 500
+        :limit-time-ns       20000000000})
       :collector-config
       {:stages     [:measured-args :compilation :garbage-collector],
        :terminator :elapsed-time}
@@ -188,10 +191,10 @@
 ;;; platform description
 
 (defn- mean-elapsed-time [result]
-  (-> result :elapsed-time :mean))
+  (util/stats-value result :stats :elapsed-time :mean))
 
 (defn- min-elapsed-time [result]
-  (-> result :elapsed-time :min-val))
+  (util/stats-value result :stats :elapsed-time :min-val))
 
 (defn platform-stats
   "Return a sequence of estimates for times that describe accuracy of timing.
@@ -201,7 +204,7 @@
   ([options]
    (let [options (merge
                   options
-                  {:return-value [:stats :stats]})]
+                  {:return-value []})]
      [(assoc (nanotime-latency options) :name "latency")
       (assoc (nanotime-granularity options) :name "granularity")
       (assoc (constant-long options) :name "constant-long")
@@ -216,19 +219,14 @@
   mean estimates."
   ([] (platform-point-estimates {}))
   ([options]
-   (let [stats          (platform-stats options)
-         point-estimate {:latency         min-elapsed-time
-                         :granularity     min-elapsed-time
-                         :constant-long   mean-elapsed-time
-                         :constant-double mean-elapsed-time
-                         :constant-object mean-elapsed-time
-                         :constant-nil    mean-elapsed-time}]
-     (reduce
-      (fn [res stat]
-        (let [kw (keyword (:name stat))]
-          (assoc res kw ((point-estimate kw) stat))))
-      {}
-      stats))))
+   (reduce
+    (fn [res stat]
+      (let [view {:name    (:name stat)
+                  :min-ns  (min-elapsed-time (dissoc stat :name))
+                  :mean-ns (mean-elapsed-time (dissoc stat :name))}]
+        (conj res view)))
+    []
+    (platform-stats options))))
 
 (defn exec-main
   "Output a table of the platform min and mean point estimates.
@@ -238,15 +236,7 @@
   (pp/pprint (select-keys (jvm/runtime-details)
                           [:vm-version :vm-name :vm-vendor
                            :clojure-version-string]))
-  (let [stats
-        (reduce
-         (fn [res stat]
-           (let [view {:name    (:name stat)
-                       :min-ns  (min-elapsed-time stat)
-                       :mean-ns (mean-elapsed-time stat)}]
-             (conj res view)))
-         []
-         (platform-stats))]
+  (let [stats (platform-point-estimates)]
     (pp/print-table stats)
     (println)
     (println "JIT compilation threasholds: " (jit-threasholds))
