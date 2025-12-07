@@ -6,6 +6,10 @@
 
 - *(build)* Use :name param directly for lib symbol in deploy
 
+### Documentation
+
+- Update changelog for v0.5.143-ALPHA
+
 ## [0.5.141-ALPHA] - 2025-12-07
 
 ### Bug Fixes
