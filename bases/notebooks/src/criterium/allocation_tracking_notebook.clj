@@ -4,7 +4,6 @@
    [clojure.string :as str]
    [criterium.agent :as agent]
    [criterium.jvm :as jvm]
-   [scicloj.clay.v2.api :as clay]
    [scicloj.kindly.v4.kind :as kind]))
 
 ;; # Allocation Tracking

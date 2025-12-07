@@ -1,9 +1,5 @@
 ^:kindly/hide-code
-(ns criterium.index
-  (:require
-   [scicloj.kindly.v4.kind :as kind]
-   [scicloj.kindly.v4.api :as kindly]
-   [scicloj.clay.v2.api :as clay]))
+(ns criterium.index)
 
 ;; ## About
 

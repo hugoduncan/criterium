@@ -4,9 +4,7 @@
    [criterium.bench :as bench]
    [criterium.collector-configs :as collector-configs]
    [criterium.instrument-fn :as inst-fn]
-   [criterium.sampler :as sampler]
-   [scicloj.clay.v2.api :as clay]
-   [scicloj.kindly.v4.kind :as kind]))
+   [criterium.sampler :as sampler]))
 
 ;; # Function Instrumentation with criterium
 ;;
@@ -158,17 +156,16 @@
 ;; Instrumented functions implement `Callable` and `Runnable` interfaces,
 ;; making them suitable for executor services and concurrent use:
 
-(do
-  (let [inst-f (inst-fn/instrument-fn
-                (fn [] (Thread/sleep 1) :done)
-                collector-configs/default-collector-config)]
-    (sampler/reset-samples! inst-f)
+(let [inst-f (inst-fn/instrument-fn
+              (fn [] (Thread/sleep 1) :done)
+              collector-configs/default-collector-config)]
+  (sampler/reset-samples! inst-f)
 
-    ;; Run concurrently
-    (let [futures (doall (repeatedly 10 #(future (inst-f))))]
-      (run! deref futures))
+  ;; Run concurrently
+  (let [futures (doall (repeatedly 10 #(future (inst-f))))]
+    (run! deref futures))
 
-    {:num-samples (:num-samples (sampler/samples-map inst-f))}))
+  {:num-samples (:num-samples (sampler/samples-map inst-f))})
 
 ;; ## Comparing to with-redefs Approach
 ;;

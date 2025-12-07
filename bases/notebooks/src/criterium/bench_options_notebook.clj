@@ -4,7 +4,6 @@
    [criterium.bench :as bench]
    [criterium.bench-plans :as bench-plans]
    [criterium.notebook.helpers :refer [bench-display]]
-   [scicloj.clay.v2.api :as clay]
    [scicloj.kindly.v4.kind :as kind]))
 
 ;; # Bench Options

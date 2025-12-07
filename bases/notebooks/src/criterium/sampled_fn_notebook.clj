@@ -70,19 +70,18 @@
   [items]
   (mapv process-item items))
 
-(do
-  (with-redefs [process-item (sampled-fn/sample-fn
-                              process-item
-                              collector-configs/default-collector-config)]
-    ;; All calls to process-item are now sampled
-    (batch-process (range 20))
+(with-redefs [process-item (sampled-fn/sample-fn
+                            process-item
+                            collector-configs/default-collector-config)]
+  ;; All calls to process-item are now sampled
+  (batch-process (range 20))
 
-    ;; Retrieve the digest data
-    (let [samples (sampler/samples-map process-item)
-          digest (get-in samples [:metric->digest [:elapsed-time]])]
-      {:sample-count (t-digest/sample-count digest)
-       :median-ns (t-digest/quantile digest 0.5)
-       :p99-ns (t-digest/quantile digest 0.99)})))
+  ;; Retrieve the digest data
+  (let [samples (sampler/samples-map process-item)
+        digest (get-in samples [:metric->digest [:elapsed-time]])]
+    {:sample-count (t-digest/sample-count digest)
+     :median-ns (t-digest/quantile digest 0.5)
+     :p99-ns (t-digest/quantile digest 0.99)}))
 
 ;; ## Understanding the Sample Map
 ;;
