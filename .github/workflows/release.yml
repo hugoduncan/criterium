@@ -63,9 +63,9 @@ jobs:
 
     steps:
       - name: Check branch for non-dry-run
-        if: github.event.inputs.dry_run == 'false' && github.ref != 'refs/heads/master'
+        if: github.event.inputs.dry_run == 'false' && github.ref != 'refs/heads/develop'
         run: |
-          echo "::error::Non-dry-run releases are only allowed from the master branch"
+          echo "::error::Non-dry-run releases are only allowed from the develop branch"
           exit 1
 
       - name: Prepare java
