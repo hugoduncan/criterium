@@ -78,3 +78,78 @@
             d    (apply domain/domain runs)]
         (is (= [100 200 300 400 500]
                (mapv #(-> % :coord :n) (:runs d))))))))
+
+;; Tests for domain accumulation functions (add-run, remove-run).
+;; Validates adding and removing runs while maintaining immutability
+;; and handling duplicate coordinates correctly.
+
+(deftest add-run-test
+  (testing "add-run"
+    (testing "adds run to empty domain"
+      (let [d  (domain/domain)
+            d2 (domain/add-run d :baseline sample-data)]
+        (is (domain/domain? d2))
+        (is (= 1 (count (:runs d2))))
+        (is (= {:coord :baseline :data sample-data} (first (:runs d2))))))
+    (testing "adds run with map coord"
+      (let [d  (domain/domain)
+            d2 (domain/add-run d {:n 100} sample-data)]
+        (is (= {:n 100} (-> d2 :runs first :coord)))))
+    (testing "appends to existing runs"
+      (let [d  (domain/domain {:coord :a :data sample-data})
+            d2 (domain/add-run d :b sample-data-2)]
+        (is (= 2 (count (:runs d2))))
+        (is (= [:a :b] (mapv :coord (:runs d2))))))
+    (testing "replaces run with same keyword coord"
+      (let [d  (domain/domain {:coord :baseline :data sample-data})
+            d2 (domain/add-run d :baseline sample-data-2)]
+        (is (= 1 (count (:runs d2))))
+        (is (= sample-data-2 (-> d2 :runs first :data)))))
+    (testing "replaces run with same map coord"
+      (let [d  (domain/domain {:coord {:n 100} :data sample-data})
+            d2 (domain/add-run d {:n 100} sample-data-2)]
+        (is (= 1 (count (:runs d2))))
+        (is (= sample-data-2 (-> d2 :runs first :data)))))
+    (testing "preserves position when replacing"
+      (let [d  (-> (domain/domain)
+                   (domain/add-run :a sample-data)
+                   (domain/add-run :b sample-data)
+                   (domain/add-run :c sample-data))
+            d2 (domain/add-run d :b sample-data-2)]
+        (is (= [:a :b :c] (mapv :coord (:runs d2))))
+        (is (= sample-data-2 (-> d2 :runs second :data)))))
+    (testing "returns new domain (immutable)"
+      (let [d  (domain/domain)
+            d2 (domain/add-run d :x sample-data)]
+        (is (= 0 (count (:runs d))))
+        (is (= 1 (count (:runs d2))))))))
+
+(deftest remove-run-test
+  (testing "remove-run"
+    (testing "removes run by keyword coord"
+      (let [d  (domain/domain {:coord :baseline :data sample-data})
+            d2 (domain/remove-run d :baseline)]
+        (is (domain/domain? d2))
+        (is (= 0 (count (:runs d2))))))
+    (testing "removes run by map coord"
+      (let [d  (domain/domain {:coord {:n 100} :data sample-data})
+            d2 (domain/remove-run d {:n 100})]
+        (is (= 0 (count (:runs d2))))))
+    (testing "preserves other runs"
+      (let [d  (-> (domain/domain)
+                   (domain/add-run :a sample-data)
+                   (domain/add-run :b sample-data)
+                   (domain/add-run :c sample-data))
+            d2 (domain/remove-run d :b)]
+        (is (= 2 (count (:runs d2))))
+        (is (= [:a :c] (mapv :coord (:runs d2))))))
+    (testing "returns unchanged domain when coord not found"
+      (let [d  (domain/domain {:coord :a :data sample-data})
+            d2 (domain/remove-run d :nonexistent)]
+        (is (= 1 (count (:runs d2))))
+        (is (= :a (-> d2 :runs first :coord)))))
+    (testing "returns new domain (immutable)"
+      (let [d  (domain/domain {:coord :x :data sample-data})
+            d2 (domain/remove-run d :x)]
+        (is (= 1 (count (:runs d))))
+        (is (= 0 (count (:runs d2))))))))
