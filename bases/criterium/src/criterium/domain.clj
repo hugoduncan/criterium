@@ -157,3 +157,20 @@
     (mapv (fn [{:keys [coord data]}]
             [coord (util/stats-value data stats-id metric-id value-key)])
           (:runs domain))))
+
+(defn select
+  "Filter domain to runs matching a partial coordinate.
+  Returns a new domain containing only runs that match.
+
+  For map coordinates, partial matching is supported:
+  (select domain {:n 100}) returns domain with runs matching {:n 100},
+  {:n 100 :impl :foo}, etc.
+
+  For keyword coordinates, exact match is required.
+
+  Example:
+  (select domain {:impl :foo})
+  ;; => domain with only :impl :foo runs"
+  [domain partial-coord]
+  (assoc domain :runs (filterv #(coord-matches? (:coord %) partial-coord)
+                               (:runs domain))))

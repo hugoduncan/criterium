@@ -311,3 +311,64 @@
                (domain/extract d [:stats :elapsed-time :mean])))
         (is (= [[{:n 100} 0.1]]
                (domain/extract d [:stats :elapsed-time :variance])))))))
+
+;; Tests for domain select function.
+;; Validates filtering domain to sub-domain by partial coordinate match,
+;; returning a new domain with matching runs.
+
+(deftest select-test
+  (testing "select"
+    (testing "filters by keyword coord"
+      (let [d  (domain/domain {:coord :a :data sample-data}
+                              {:coord :b :data sample-data-2})
+            d2 (domain/select d :a)]
+        (is (domain/domain? d2))
+        (is (= 1 (count (:runs d2))))
+        (is (= :a (-> d2 :runs first :coord)))))
+    (testing "filters by exact map coord"
+      (let [d  (domain/domain {:coord {:n 100} :data sample-data}
+                              {:coord {:n 200} :data sample-data-2})
+            d2 (domain/select d {:n 100})]
+        (is (domain/domain? d2))
+        (is (= [{:coord {:n 100} :data sample-data}] (:runs d2)))))
+    (testing "filters by partial map coord"
+      (let [d  (domain/domain {:coord {:n 100} :data sample-data}
+                              {:coord {:n 100 :impl :foo} :data sample-data-2}
+                              {:coord {:n 200} :data {:third "result"}})
+            d2 (domain/select d {:n 100})]
+        (is (= 2 (count (:runs d2))))
+        (is (= [{:coord {:n 100} :data sample-data}
+                {:coord {:n 100 :impl :foo} :data sample-data-2}]
+               (:runs d2)))))
+    (testing "filters by multiple partial coord keys"
+      (let [d  (domain/domain {:coord {:n 100 :impl :foo} :data sample-data}
+                              {:coord {:n 100 :impl :bar} :data sample-data-2}
+                              {:coord {:n 200 :impl :foo} :data {:third "result"}})
+            d2 (domain/select d {:impl :foo})]
+        (is (= 2 (count (:runs d2))))
+        (is (= [{:coord {:n 100 :impl :foo} :data sample-data}
+                {:coord {:n 200 :impl :foo} :data {:third "result"}}]
+               (:runs d2)))))
+    (testing "returns empty domain when no match"
+      (let [d  (domain/domain {:coord :a :data sample-data})
+            d2 (domain/select d :nonexistent)]
+        (is (domain/domain? d2))
+        (is (= [] (:runs d2)))))
+    (testing "preserves run order"
+      (let [runs [(hash-map :coord {:n 100 :impl :foo} :data sample-data)
+                  (hash-map :coord {:n 300 :impl :foo} :data sample-data)
+                  (hash-map :coord {:n 200 :impl :foo} :data sample-data)]
+            d    (apply domain/domain
+                        (concat runs [{:coord {:n 100 :impl :bar} :data sample-data}]))
+            d2   (domain/select d {:impl :foo})]
+        (is (= runs (:runs d2)))))
+    (testing "returns new domain (immutable)"
+      (let [d  (domain/domain {:coord :a :data sample-data}
+                              {:coord :b :data sample-data-2})
+            d2 (domain/select d :a)]
+        (is (= 2 (count (:runs d))))
+        (is (= 1 (count (:runs d2))))))
+    (testing "does not match keyword coord with map partial"
+      (let [d  (domain/domain {:coord :baseline :data sample-data})
+            d2 (domain/select d {:n 100})]
+        (is (= [] (:runs d2)))))))
