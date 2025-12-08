@@ -23,12 +23,12 @@
 
 (deftest measured-test
   (let [eval-count (volatile! 0)
-        m          (measured/measured
-                    (fn [] :arg)
-                    (fn [arg ^long n]
-                      (vswap! eval-count #(+ n ^long %))
-                      [1 [arg arg]])
-                    (fn [] ::symbolic))]
+        m (measured/measured
+           (fn [] :arg)
+           (fn [arg ^long n]
+             (vswap! eval-count #(+ n ^long %))
+             [1 [arg arg]])
+           (fn [] ::symbolic))]
     (is (measured/measured? m))
     (is (= ::symbolic (measured/symbolic m)))
     (testing "invoke calls the function with one eval"
@@ -51,8 +51,8 @@
     (let [fncall-m (measured/expr (identity ::value))]
       (is (= ::value (second (invoke fncall-m))))))
   (testing "recursive function call"
-    (let [call-count         (volatile! 0)
-          f                  (fn [v] (vswap! call-count inc-long) v)
+    (let [call-count (volatile! 0)
+          f (fn [v] (vswap! call-count inc-long) v)
           recursive-fncall-m (measured/expr (f (f ::value)))]
       (is (= ::value (second (invoke recursive-fncall-m))))
       (is (= 2 @call-count))))
@@ -67,10 +67,10 @@
       (is (= 1 (second (invoke vec-nth-m))))))
   (testing "accepts time-fn option"
     (let [invokes (volatile! 0)
-          f       (fn ^long []
-                    (vswap! invokes inc-long)
-                    (jvm/thread-cpu-time))
-          m       (measured/expr 1 {:time-fn f})]
+          f (fn ^long []
+              (vswap! invokes inc-long)
+              (jvm/thread-cpu-time))
+          m (measured/expr 1 {:time-fn f})]
       (is (= 1 (second (invoke m))))
       (is (= 2 @invokes))))
   (testing "with transduce"
@@ -80,15 +80,15 @@
 
 (deftest zero-garbage-test
   (testing "return value is zero garbage"
-    (let [measured              (measured/measured
-                                 (fn [] nil)
-                                 (fn [_ _] [1 2]))
-          _                     (dotimes [_ 1000]
-                                  (measured/invoke measured nil 1))
-          [allocations ret]     (agent/with-allocation-tracing
-                                  (measured/invoke measured nil 1))
-          thread-allocations    (->> allocations
-                                     (filterv (agent/allocation-on-thread?)))
+    (let [measured (measured/measured
+                    (fn [] nil)
+                    (fn [_ _] [1 2]))
+          _ (dotimes [_ 1000]
+              (measured/invoke measured nil 1))
+          [allocations ret] (agent/with-allocation-tracing
+                              (measured/invoke measured nil 1))
+          thread-allocations (->> allocations
+                                  (filterv (agent/allocation-on-thread?)))
           {:keys [freed-bytes]} (-> thread-allocations
                                     agent/allocations-summary)]
       (is (zero? freed-bytes) thread-allocations)
@@ -150,11 +150,11 @@
         (is (false? (impl/local-arg-val? "string" env)))))))
 
 (deftest identify-local-args-test
-  (let [env      {'x 'local-binding-x 'y 'local-binding-y}
-        arg-vals {'arg1 'x         ; local symbol
-                  'arg2 '(+ 1 2)   ; constant expression
-                  'arg3 'y         ; local symbol
-                  'arg4 'z         ; not a local
+  (let [env {'x 'local-binding-x 'y 'local-binding-y}
+        arg-vals {'arg1 'x ; local symbol
+                  'arg2 '(+ 1 2) ; constant expression
+                  'arg3 'y ; local symbol
+                  'arg4 'z ; not a local
                   'arg5 '(+ x 1)}] ; expression containing local
     (testing "identify-local-args"
       (testing "returns empty set when env is nil"
@@ -171,40 +171,40 @@
 (deftest expr-local-capture-test
   (testing "measured/expr with local bindings"
     (testing "captures simple local binding"
-      (let [x   42
-            m   (measured/expr (+ x 1))
+      (let [x (long 42)
+            m (measured/expr (+ x 1))
             res (second (invoke m))]
         (is (= 43 res))))
     (testing "captures collection local"
       (let [coll [1 2 3 4 5]
-            m    (measured/expr (reduce + coll))
-            res  (second (invoke m))]
+            m (measured/expr (reduce + coll))
+            res (second (invoke m))]
         (is (= 15 res))))
     (testing "captures multiple locals"
-      (let [a 10
-            b 20
+      (let [a (long 10)
+            b (long 20)
             m (measured/expr (+ a b))
             res (second (invoke m))]
         (is (= 30 res))))
     (testing "captures local in nested expression"
-      (let [x 5
+      (let [x (long 5)
             m (measured/expr (* 2 (+ x 3)))
             res (second (invoke m))]
         (is (= 16 res))))
     (testing "mixes locals with constants"
-      (let [x 10
+      (let [x (long 10)
             m (measured/expr (+ x (+ 1 2)))
             res (second (invoke m))]
         (is (= 13 res))))
     (testing "captures local used multiple times"
-      (let [x 3
+      (let [x (long 3)
             m (measured/expr (+ x x x))
             res (second (invoke m))]
         (is (= 9 res))))
     (testing "works in loop binding context"
       (let [results (atom [])]
         (doseq [i (range 3)]
-          (let [m   (measured/expr (+ i 10))
+          (let [m (measured/expr (+ ^long i 10))
                 res (second (invoke m))]
             (swap! results conj res)))
         (is (= [10 11 12] @results))))))
@@ -216,30 +216,57 @@
 (deftest capture-arg-types-test
   (testing "capture-arg-types"
     (testing "returns nil for unhinted local symbol"
-      (let [arg-vals      {'arg1 'x}
+      (let [arg-vals {'arg1 'x}
             local-arg-syms #{'arg1}]
         (is (= [nil] (impl/capture-arg-types ['arg1] arg-vals local-arg-syms)))))
     (testing "preserves user hint on local symbol"
-      (let [arg-vals       {'arg1 (with-meta 'x {:tag 'long})}
+      (let [arg-vals {'arg1 (with-meta 'x {:tag 'long})}
             local-arg-syms #{'arg1}]
         (is (= [{:tag 'long}]
                (impl/capture-arg-types ['arg1] arg-vals local-arg-syms)))))
     (testing "preserves user hint on local with class tag"
-      (let [arg-vals       {'arg1 (with-meta 'x {:tag 'String})}
+      (let [arg-vals {'arg1 (with-meta 'x {:tag 'String})}
             local-arg-syms #{'arg1}]
         (is (= [{:tag 'String}]
                (impl/capture-arg-types ['arg1] arg-vals local-arg-syms)))))
     (testing "uses eval for non-local constants"
-      (let [arg-vals       {'arg1 42}
+      (let [arg-vals {'arg1 42}
             local-arg-syms #{}]
         (is (= [{:tag 'long}]
                (impl/capture-arg-types ['arg1] arg-vals local-arg-syms)))))
     (testing "handles mixed locals and constants"
-      (let [arg-vals       {'arg1 (with-meta 'x {:tag 'double})
-                            'arg2 "string"
-                            'arg3 'y}
+      (let [arg-vals {'arg1 (with-meta 'x {:tag 'double})
+                      'arg2 "string"
+                      'arg3 'y}
             local-arg-syms #{'arg1 'arg3}]
         (is (= [{:tag 'double}
                 {:tag 'java.lang.String}
                 nil]
                (impl/capture-arg-types ['arg1 'arg2 'arg3] arg-vals local-arg-syms)))))))
+
+;;; Acceptance Criteria Tests
+;; Tests matching the exact examples from the story acceptance criteria.
+
+(deftest acceptance-criteria-test
+  ;; This test verifies the exact acceptance criteria from the story:
+  ;; - Simple local binding
+  ;; - Collection local
+  ;; - Loop binding
+  (testing "measured/expr acceptance criteria"
+    (testing "simple local binding: (let [x 42] (measured/expr (+ x 1)))"
+      (let [x (long 42)
+            m (measured/expr (+ x 1))
+            res (second (invoke m))]
+        (is (= 43 res))))
+    (testing "collection local: (let [coll (vec (range 1000))] (measured/expr (reduce + coll)))"
+      (let [coll (vec (range 1000))
+            m (measured/expr (reduce + coll))
+            res (second (invoke m))]
+        (is (= 499500 res))))
+    (testing "loop binding: (doseq [i (range 3)] (measured/expr (+ i 2)))"
+      (let [results (atom [])]
+        (doseq [i (range 3)]
+          (let [m (measured/expr (+ ^long i 2))
+                res (second (invoke m))]
+            (swap! results conj res)))
+        (is (= [2 3 4] @results))))))

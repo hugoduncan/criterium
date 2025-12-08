@@ -154,10 +154,8 @@
 
   Takes an expression to benchmark, and optional configuration options.
 
-  The expression must be free of local references.
-
   Parameters:
-    expr    - Expression to benchmark
+    expr    - Expression to benchmark (may reference local bindings)
     options - Keyword/value pairs for configuration:
       :viewer      - Output format [:pprint, :portal, or nil(default)]
       :analyse     - Vector of analysis steps [[:outliers] [:stats]]
@@ -181,6 +179,10 @@
   ;; With pretty-printed output
   (bench (+ 1 1) :viewer :pprint)
 
+  ;; With local bindings
+  (let [data (vec (range 1000))]
+    (bench (reduce + data)))
+
   ;; With specific metrics and time limit
   (bench (my-function)
          :metric-ids [:elapsed-time :memory]
@@ -200,7 +202,7 @@
   - Handles JVM warmup automatically
   - Accounts for GC interference
   - Ensures statistical significance
-  - Expression cannot refer to local bindings"
+  - Local bindings from enclosing scope can be used in the expression"
   [expr & options]
   (let [options-map  (apply hash-map options)
         expr-options (select-keys options-map [:time-fn])
