@@ -215,25 +215,25 @@
 
 (deftest capture-arg-types-test
   (testing "capture-arg-types"
-    (testing "returns nil for unhinted local symbol"
+    (testing "returns nil for unhinted local symbol without env"
       (let [arg-vals {'arg1 'x}
             local-arg-syms #{'arg1}]
-        (is (= [nil] (impl/capture-arg-types ['arg1] arg-vals local-arg-syms)))))
+        (is (= [nil] (impl/capture-arg-types ['arg1] arg-vals local-arg-syms nil)))))
     (testing "preserves user hint on local symbol"
       (let [arg-vals {'arg1 (with-meta 'x {:tag 'long})}
             local-arg-syms #{'arg1}]
         (is (= [{:tag 'long}]
-               (impl/capture-arg-types ['arg1] arg-vals local-arg-syms)))))
+               (impl/capture-arg-types ['arg1] arg-vals local-arg-syms nil)))))
     (testing "preserves user hint on local with class tag"
       (let [arg-vals {'arg1 (with-meta 'x {:tag 'String})}
             local-arg-syms #{'arg1}]
         (is (= [{:tag 'String}]
-               (impl/capture-arg-types ['arg1] arg-vals local-arg-syms)))))
+               (impl/capture-arg-types ['arg1] arg-vals local-arg-syms nil)))))
     (testing "uses eval for non-local constants"
       (let [arg-vals {'arg1 42}
             local-arg-syms #{}]
         (is (= [{:tag 'long}]
-               (impl/capture-arg-types ['arg1] arg-vals local-arg-syms)))))
+               (impl/capture-arg-types ['arg1] arg-vals local-arg-syms nil)))))
     (testing "handles mixed locals and constants"
       (let [arg-vals {'arg1 (with-meta 'x {:tag 'double})
                       'arg2 "string"
@@ -242,7 +242,7 @@
         (is (= [{:tag 'double}
                 {:tag 'java.lang.String}
                 nil]
-               (impl/capture-arg-types ['arg1 'arg2 'arg3] arg-vals local-arg-syms)))))))
+               (impl/capture-arg-types ['arg1 'arg2 'arg3] arg-vals local-arg-syms nil)))))))
 
 ;;; Acceptance Criteria Tests
 ;; Tests matching the exact examples from the story acceptance criteria.
