@@ -171,40 +171,40 @@
 (deftest expr-local-capture-test
   (testing "measured/expr with local bindings"
     (testing "captures simple local binding"
-      (let [x (long 42)
-            m (measured/expr (+ x 1))
+      (let [x   42
+            m   (measured/expr (+ x 1))
             res (second (invoke m))]
         (is (= 43 res))))
     (testing "captures collection local"
       (let [coll [1 2 3 4 5]
-            m (measured/expr (reduce + coll))
-            res (second (invoke m))]
+            m    (measured/expr (reduce + coll))
+            res  (second (invoke m))]
         (is (= 15 res))))
     (testing "captures multiple locals"
-      (let [a (long 10)
-            b (long 20)
-            m (measured/expr (+ a b))
+      (let [a   10
+            b   20
+            m   (measured/expr (+ a b))
             res (second (invoke m))]
         (is (= 30 res))))
     (testing "captures local in nested expression"
-      (let [x (long 5)
-            m (measured/expr (* 2 (+ x 3)))
+      (let [x   5
+            m   (measured/expr (* 2 (+ x 3)))
             res (second (invoke m))]
         (is (= 16 res))))
     (testing "mixes locals with constants"
-      (let [x (long 10)
-            m (measured/expr (+ x (+ 1 2)))
+      (let [x   10
+            m   (measured/expr (+ x 1 2))
             res (second (invoke m))]
         (is (= 13 res))))
     (testing "captures local used multiple times"
-      (let [x (long 3)
-            m (measured/expr (+ x x x))
+      (let [x   3
+            m   (measured/expr (+ x x x))
             res (second (invoke m))]
         (is (= 9 res))))
     (testing "works in loop binding context"
       (let [results (atom [])]
-        (doseq [i (range 3)]
-          (let [m (measured/expr (+ ^long i 10))
+        (doseq [^long i (range 3)]
+          (let [m   (measured/expr (+ i 10))
                 res (second (invoke m))]
             (swap! results conj res)))
         (is (= [10 11 12] @results))))))
@@ -254,19 +254,19 @@
   ;; - Loop binding
   (testing "measured/expr acceptance criteria"
     (testing "simple local binding: (let [x 42] (measured/expr (+ x 1)))"
-      (let [x (long 42)
-            m (measured/expr (+ x 1))
+      (let [x   42
+            m   (measured/expr (+ x 1))
             res (second (invoke m))]
         (is (= 43 res))))
     (testing "collection local: (let [coll (vec (range 1000))] (measured/expr (reduce + coll)))"
       (let [coll (vec (range 1000))
-            m (measured/expr (reduce + coll))
-            res (second (invoke m))]
+            m    (measured/expr (reduce + coll))
+            res  (second (invoke m))]
         (is (= 499500 res))))
     (testing "loop binding: (doseq [i (range 3)] (measured/expr (+ i 2)))"
       (let [results (atom [])]
-        (doseq [i (range 3)]
-          (let [m (measured/expr (+ ^long i 2))
+        (doseq [^long i (range 3)]
+          (let [m   (measured/expr (+ i 2))
                 res (second (invoke m))]
             (swap! results conj res)))
         (is (= [2 3 4] @results))))))

@@ -194,6 +194,8 @@
                         type-name-conversion)]
       {:tag type-name})))
 
+(declare collect-symbols)
+
 (defn ^:no-doc capture-arg-types
   "Return a sequence of metadata maps with :tag type hints for arg expressions.
   For local bindings, extracts type from LocalBinding in env or preserves
