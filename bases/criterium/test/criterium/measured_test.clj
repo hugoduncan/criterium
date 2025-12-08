@@ -208,3 +208,38 @@
                 res (second (invoke m))]
             (swap! results conj res)))
         (is (= [10 11 12] @results))))))
+
+;;; Type hint tests for locals
+;; Tests verifying that user-provided type hints on locals are preserved,
+;; while unhinted locals work without hints (accepting reflection warnings).
+
+(deftest capture-arg-types-test
+  (testing "capture-arg-types"
+    (testing "returns nil for unhinted local symbol"
+      (let [arg-vals      {'arg1 'x}
+            local-arg-syms #{'arg1}]
+        (is (= [nil] (impl/capture-arg-types ['arg1] arg-vals local-arg-syms)))))
+    (testing "preserves user hint on local symbol"
+      (let [arg-vals       {'arg1 (with-meta 'x {:tag 'long})}
+            local-arg-syms #{'arg1}]
+        (is (= [{:tag 'long}]
+               (impl/capture-arg-types ['arg1] arg-vals local-arg-syms)))))
+    (testing "preserves user hint on local with class tag"
+      (let [arg-vals       {'arg1 (with-meta 'x {:tag 'String})}
+            local-arg-syms #{'arg1}]
+        (is (= [{:tag 'String}]
+               (impl/capture-arg-types ['arg1] arg-vals local-arg-syms)))))
+    (testing "uses eval for non-local constants"
+      (let [arg-vals       {'arg1 42}
+            local-arg-syms #{}]
+        (is (= [{:tag 'long}]
+               (impl/capture-arg-types ['arg1] arg-vals local-arg-syms)))))
+    (testing "handles mixed locals and constants"
+      (let [arg-vals       {'arg1 (with-meta 'x {:tag 'double})
+                            'arg2 "string"
+                            'arg3 'y}
+            local-arg-syms #{'arg1 'arg3}]
+        (is (= [{:tag 'double}
+                {:tag 'java.lang.String}
+                nil]
+               (impl/capture-arg-types ['arg1 'arg2 'arg3] arg-vals local-arg-syms)))))))

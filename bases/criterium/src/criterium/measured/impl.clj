@@ -197,11 +197,16 @@
 (defn ^:no-doc capture-arg-types
   "Use eval to get types of the arg expressions.
   Return a sequence of metadata maps with :tag type hints.
-  Skips eval for local bindings (returns nil metadata for them)."
+  For local bindings, preserves user-provided type hints from the expression.
+  For non-locals, uses eval to detect types at compile time."
   [arg-syms arg-vals local-arg-syms]
   (mapv (fn [arg-sym]
           (if (contains? local-arg-syms arg-sym)
-            nil ; locals can't be eval'd at compile time
+            ;; For locals, preserve user-provided hints from the expression
+            (let [arg-val (get arg-vals arg-sym)]
+              (when-let [tag (:tag (meta arg-val))]
+                {:tag tag}))
+            ;; For non-locals, eval to get the type
             (tag-meta (type (eval (get arg-vals arg-sym))))))
         arg-syms))
 
