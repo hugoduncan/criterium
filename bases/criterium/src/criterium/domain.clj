@@ -230,3 +230,69 @@
                                                              metric-id value-key)})
                                  (:runs sub-domain))]))
                    grouped)}))
+
+;;; Input Sequence Generators
+;;
+;; These functions generate sequences of values useful for scaling analysis.
+;; They are designed to work with domain coordinates, producing input sizes
+;; that reveal algorithmic complexity patterns.
+
+(defn powers-of-2
+  "Generate a sequence of powers of 2.
+  Returns (2^from 2^(from+1) ... 2^to) inclusive.
+
+  Useful for testing algorithms where input size doubling reveals
+  O(n), O(n log n), O(n²) patterns clearly.
+
+  Examples:
+  (powers-of-2 0 4)  ;=> (1 2 4 8 16)
+  (powers-of-2 4 8)  ;=> (16 32 64 128 256)"
+  [from to]
+  (map #(bit-shift-left 1 %) (range from (inc to))))
+
+(defn powers-of
+  "Generate a sequence of powers of base.
+  Returns (base^from base^(from+1) ... base^to) inclusive.
+
+  Useful for testing with specific base increments.
+
+  Examples:
+  (powers-of 10 1 4)  ;=> (10 100 1000 10000)
+  (powers-of 3 0 4)   ;=> (1 3 9 27 81)"
+  [base from to]
+  (map #(long (Math/pow base %)) (range from (inc to))))
+
+(defn log-range
+  "Generate a logarithmically-spaced sequence of n values from start to end.
+  Values are rounded to integers.
+
+  Produces values where the ratio between successive elements is constant,
+  useful for covering a wide range of input sizes efficiently.
+
+  Examples:
+  (log-range 1 1000 4)  ;=> (1 10 100 1000)
+  (log-range 10 10000 5) ;=> (10 56 316 1778 10000)"
+  [start end n]
+  (if (= n 1)
+    (list (long start))
+    (let [log-start (Math/log start)
+          log-end   (Math/log end)
+          step      (/ (- log-end log-start) (dec n))]
+      (map #(long (Math/round (Math/exp (+ log-start (* % step)))))
+           (range n)))))
+
+(defn linear-range
+  "Generate a linearly-spaced sequence of n values from start to end.
+  Values are rounded to integers.
+
+  Produces evenly-spaced values, useful for detecting linear scaling
+  or when uniform sampling across a range is needed.
+
+  Examples:
+  (linear-range 100 500 5)  ;=> (100 200 300 400 500)
+  (linear-range 0 1000 5)   ;=> (0 250 500 750 1000)"
+  [start end n]
+  (if (= n 1)
+    (list (long start))
+    (let [step (/ (- end start) (dec n))]
+      (map #(long (Math/round (double (+ start (* % step))))) (range n)))))

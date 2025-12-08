@@ -496,3 +496,62 @@
             result (domain/compare-by d :impl [:stats :elapsed-time :mean])
             values (mapv :value (get-in result [:groups :foo]))]
         (is (= [3.0 1.0 2.0] values))))))
+
+;; Tests for input sequence generators.
+;; Validates generation of sequences useful for scaling analysis,
+;; including powers of 2, arbitrary powers, logarithmic ranges,
+;; and linear ranges.
+
+(deftest powers-of-2-test
+  (testing "powers-of-2"
+    (testing "generates powers from 0"
+      (is (= [1 2 4 8 16] (domain/powers-of-2 0 4))))
+    (testing "generates powers from non-zero exponent"
+      (is (= [16 32 64 128 256] (domain/powers-of-2 4 8))))
+    (testing "handles single value range"
+      (is (= [8] (domain/powers-of-2 3 3))))
+    (testing "generates large powers"
+      (is (= [1024 2048 4096] (domain/powers-of-2 10 12))))))
+
+(deftest powers-of-test
+  (testing "powers-of"
+    (testing "generates powers of 10"
+      (is (= [10 100 1000 10000] (domain/powers-of 10 1 4))))
+    (testing "generates powers of 3"
+      (is (= [1 3 9 27 81] (domain/powers-of 3 0 4))))
+    (testing "generates powers of 2 (same as powers-of-2)"
+      (is (= [1 2 4 8] (domain/powers-of 2 0 3))))
+    (testing "handles single value range"
+      (is (= [100] (domain/powers-of 10 2 2))))))
+
+(deftest log-range-test
+  (testing "log-range"
+    (testing "generates 4 points from 1 to 1000"
+      (let [result (domain/log-range 1 1000 4)]
+        (is (= 4 (count result)))
+        (is (= 1 (first result)))
+        (is (= 1000 (last result)))))
+    (testing "generates 5 points from 10 to 10000"
+      (let [result (domain/log-range 10 10000 5)]
+        (is (= 5 (count result)))
+        (is (= 10 (first result)))
+        (is (= 10000 (last result)))))
+    (testing "produces increasing values"
+      (let [result (domain/log-range 1 1000 5)]
+        (is (apply < result))))
+    (testing "handles 2-point range"
+      (is (= [10 1000] (domain/log-range 10 1000 2))))))
+
+(deftest linear-range-test
+  (testing "linear-range"
+    (testing "generates evenly spaced values"
+      (is (= [100 200 300 400 500] (domain/linear-range 100 500 5))))
+    (testing "handles range starting at 0"
+      (is (= [0 250 500 750 1000] (domain/linear-range 0 1000 5))))
+    (testing "handles 2-point range"
+      (is (= [100 1000] (domain/linear-range 100 1000 2))))
+    (testing "produces increasing values"
+      (let [result (domain/linear-range 10 1000 10)]
+        (is (apply < result))))
+    (testing "handles single point"
+      (is (= [500] (domain/linear-range 500 500 1))))))
