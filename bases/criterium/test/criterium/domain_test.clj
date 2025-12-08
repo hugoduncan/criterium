@@ -372,3 +372,127 @@
       (let [d  (domain/domain {:coord :baseline :data sample-data})
             d2 (domain/select d {:n 100})]
         (is (= [] (:runs d2)))))))
+
+;; Tests for domain group-by-axis function.
+;; Validates partitioning runs by axis key values, returning a map
+;; of axis-value to sub-domain.
+
+(deftest group-by-axis-test
+  (testing "group-by-axis"
+    (testing "groups runs by axis key value"
+      (let [d       (domain/domain
+                     {:coord {:n 100 :impl :foo} :data sample-data}
+                     {:coord {:n 200 :impl :foo} :data sample-data-2}
+                     {:coord {:n 100 :impl :bar} :data {:third "result"}})
+            grouped (domain/group-by-axis d :impl)]
+        (is (= #{:foo :bar} (set (keys grouped))))
+        (is (domain/domain? (get grouped :foo)))
+        (is (= 2 (count (:runs (get grouped :foo)))))
+        (is (= 1 (count (:runs (get grouped :bar)))))))
+    (testing "groups keyword coords under nil"
+      (let [d       (domain/domain
+                     {:coord :baseline :data sample-data}
+                     {:coord {:n 100 :impl :foo} :data sample-data-2})
+            grouped (domain/group-by-axis d :impl)]
+        (is (= #{:foo nil} (set (keys grouped))))
+        (is (= 1 (count (:runs (get grouped nil)))))
+        (is (= :baseline (-> grouped (get nil) :runs first :coord)))))
+    (testing "groups runs missing axis key under nil"
+      (let [d       (domain/domain
+                     {:coord {:n 100} :data sample-data}
+                     {:coord {:n 100 :impl :foo} :data sample-data-2})
+            grouped (domain/group-by-axis d :impl)]
+        (is (= #{:foo nil} (set (keys grouped))))
+        (is (= {:n 100} (-> grouped (get nil) :runs first :coord)))))
+    (testing "returns empty map for empty domain"
+      (is (= {} (domain/group-by-axis (domain/domain) :impl))))
+    (testing "preserves run order within groups"
+      (let [d       (domain/domain
+                     {:coord {:n 300 :impl :foo} :data sample-data}
+                     {:coord {:n 100 :impl :foo} :data sample-data}
+                     {:coord {:n 200 :impl :foo} :data sample-data})
+            grouped (domain/group-by-axis d :impl)
+            coords  (mapv :coord (:runs (get grouped :foo)))]
+        (is (= [{:n 300 :impl :foo}
+                {:n 100 :impl :foo}
+                {:n 200 :impl :foo}]
+               coords))))
+    (testing "each group is a valid domain"
+      (let [d       (domain/domain
+                     {:coord {:n 100 :impl :foo} :data sample-data}
+                     {:coord {:n 100 :impl :bar} :data sample-data-2})
+            grouped (domain/group-by-axis d :impl)]
+        (doseq [[_ sub-domain] grouped]
+          (is (domain/domain? sub-domain)))))))
+
+;; Tests for domain compare-by function.
+;; Validates comparing metric values across axis dimensions, producing
+;; structured output for analysis.
+
+(deftest compare-by-test
+  (testing "compare-by"
+    (testing "returns structured comparison data"
+      (let [d      (domain/domain
+                    {:coord {:n 100 :impl :foo}
+                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+                    {:coord {:n 100 :impl :bar}
+                     :data (mock-bench-result {:elapsed-time {:mean 2.0}})})
+            result (domain/compare-by d :impl [:stats :elapsed-time :mean])]
+        (is (= :impl (:axis result)))
+        (is (= [:stats :elapsed-time :mean] (:metric result)))
+        (is (map? (:groups result)))))
+    (testing "groups contain coord and value"
+      (let [d      (domain/domain
+                    {:coord {:n 100 :impl :foo}
+                     :data (mock-bench-result {:elapsed-time {:mean 1.5}})})
+            result (domain/compare-by d :impl [:stats :elapsed-time :mean])
+            entry  (first (get-in result [:groups :foo]))]
+        (is (= {:n 100 :impl :foo} (:coord entry)))
+        (is (= 1.5 (:value entry)))))
+    (testing "groups runs by axis value"
+      (let [d      (domain/domain
+                    {:coord {:n 100 :impl :foo}
+                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+                    {:coord {:n 200 :impl :foo}
+                     :data (mock-bench-result {:elapsed-time {:mean 2.0}})}
+                    {:coord {:n 100 :impl :bar}
+                     :data (mock-bench-result {:elapsed-time {:mean 3.0}})})
+            result (domain/compare-by d :impl [:stats :elapsed-time :mean])]
+        (is (= 2 (count (get-in result [:groups :foo]))))
+        (is (= 1 (count (get-in result [:groups :bar]))))
+        (is (= [1.0 2.0] (mapv :value (get-in result [:groups :foo]))))
+        (is (= [3.0] (mapv :value (get-in result [:groups :bar]))))))
+    (testing "handles missing metrics with nil values"
+      (let [d      (domain/domain
+                    {:coord {:impl :foo}
+                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+                    {:coord {:impl :bar}
+                     :data (mock-bench-result {:other-metric {:mean 2.0}})})
+            result (domain/compare-by d :impl [:stats :elapsed-time :mean])]
+        (is (= 1.0 (:value (first (get-in result [:groups :foo])))))
+        (is (nil? (:value (first (get-in result [:groups :bar])))))))
+    (testing "groups keyword coords under nil"
+      (let [d      (domain/domain
+                    {:coord :baseline
+                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+                    {:coord {:impl :foo}
+                     :data (mock-bench-result {:elapsed-time {:mean 2.0}})})
+            result (domain/compare-by d :impl [:stats :elapsed-time :mean])]
+        (is (contains? (:groups result) nil))
+        (is (= :baseline (:coord (first (get-in result [:groups nil])))))))
+    (testing "returns empty groups for empty domain"
+      (let [result (domain/compare-by (domain/domain) :impl
+                                      [:stats :elapsed-time :mean])]
+        (is (= :impl (:axis result)))
+        (is (= {} (:groups result)))))
+    (testing "preserves run order within groups"
+      (let [d      (domain/domain
+                    {:coord {:n 300 :impl :foo}
+                     :data (mock-bench-result {:elapsed-time {:mean 3.0}})}
+                    {:coord {:n 100 :impl :foo}
+                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+                    {:coord {:n 200 :impl :foo}
+                     :data (mock-bench-result {:elapsed-time {:mean 2.0}})})
+            result (domain/compare-by d :impl [:stats :elapsed-time :mean])
+            values (mapv :value (get-in result [:groups :foo]))]
+        (is (= [3.0 1.0 2.0] values))))))

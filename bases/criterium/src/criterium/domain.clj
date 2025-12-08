@@ -174,3 +174,59 @@
   [domain partial-coord]
   (assoc domain :runs (filterv #(coord-matches? (:coord %) partial-coord)
                                (:runs domain))))
+
+(defn group-by-axis
+  "Partition domain runs by values of an axis key.
+  Returns a map of {axis-value sub-domain}.
+
+  Runs with map coordinates are grouped by the value of axis-key.
+  Runs without the axis-key (including keyword coordinates) are grouped
+  under nil.
+
+  Example:
+  (group-by-axis domain :impl)
+  ;; => {:foo <domain with :impl :foo runs>
+  ;;     :bar <domain with :impl :bar runs>
+  ;;     nil  <domain with runs lacking :impl>}"
+  [domain axis-key]
+  (let [grouped (group-by (fn [{:keys [coord]}]
+                            (when (map? coord)
+                              (get coord axis-key)))
+                          (:runs domain))]
+    (into {}
+          (map (fn [[k runs]]
+                 [k (assoc domain :runs (vec runs))]))
+          grouped)))
+
+(defn compare-by
+  "Compare metric values across an axis dimension.
+  Returns a structured map showing how the metric varies across axis values.
+
+  axis-key is the dimension to compare across.
+  metric-path is [stats-id metric-id value-key] as used by extract.
+
+  Returns:
+  {:axis      axis-key
+   :metric    metric-path
+   :groups    {axis-value [{:coord full-coord :value metric-val} ...]}}
+
+  Example:
+  (compare-by domain :impl [:stats :elapsed-time :mean])
+  ;; => {:axis :impl
+  ;;     :metric [:stats :elapsed-time :mean]
+  ;;     :groups {:foo [{:coord {:n 100 :impl :foo} :value 1.2e-6} ...]
+  ;;              :bar [{:coord {:n 100 :impl :bar} :value 2.3e-6} ...]}}"
+  [domain axis-key metric-path]
+  (let [[stats-id metric-id value-key] metric-path
+        grouped (group-by-axis domain axis-key)]
+    {:axis   axis-key
+     :metric metric-path
+     :groups (into {}
+                   (map (fn [[axis-val sub-domain]]
+                          [axis-val
+                           (mapv (fn [{:keys [coord data]}]
+                                   {:coord coord
+                                    :value (util/stats-value data stats-id
+                                                             metric-id value-key)})
+                                 (:runs sub-domain))]))
+                   grouped)}))
