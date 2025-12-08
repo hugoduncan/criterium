@@ -1,6 +1,7 @@
 (ns criterium.domain-test
   (:require
    [clojure.test :refer [deftest is testing]]
+   [criterium.collect-plan :as collect-plan]
    [criterium.domain :as domain]))
 
 ;; Tests for domain type, predicates, and construction functions.
@@ -237,3 +238,76 @@
       (let [d (domain/domain {:coord {:n 100 :impl :foo :version 1}
                               :data sample-data})]
         (is (= #{:n :impl :version} (domain/axes d)))))))
+
+;; Tests for domain analysis function extract.
+;; Validates extracting metric values across runs with coordinate-value pairs,
+;; handling missing metrics, preserving order, and applying transforms.
+
+(defn mock-bench-result
+  "Create a mock bench result with proper structure for stats-value.
+  stats-data is a map of {metric-id {value-key value}}."
+  [stats-data]
+  {:stats {:type        :criterium/stats
+           :transform   collect-plan/identity-transforms
+           :stats       stats-data
+           :metrics-defs {}
+           :batch-size  1
+           :source-id   nil
+           :outliers-id nil}})
+
+(deftest extract-test
+  (testing "extract"
+    (testing "returns coordinate-value pairs for all runs"
+      (let [d (domain/domain
+               {:coord {:n 100}
+                :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+               {:coord {:n 200}
+                :data (mock-bench-result {:elapsed-time {:mean 2.0}})})]
+        (is (= [[{:n 100} 1.0] [{:n 200} 2.0]]
+               (domain/extract d [:stats :elapsed-time :mean])))))
+    (testing "preserves run order"
+      (let [d (domain/domain
+               {:coord {:n 300}
+                :data (mock-bench-result {:elapsed-time {:mean 3.0}})}
+               {:coord {:n 100}
+                :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+               {:coord {:n 200}
+                :data (mock-bench-result {:elapsed-time {:mean 2.0}})})]
+        (is (= [[{:n 300} 3.0] [{:n 100} 1.0] [{:n 200} 2.0]]
+               (domain/extract d [:stats :elapsed-time :mean])))))
+    (testing "returns nil for missing metrics"
+      (let [d (domain/domain
+               {:coord {:n 100}
+                :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+               {:coord {:n 200}
+                :data (mock-bench-result {:other-metric {:mean 2.0}})})]
+        (is (= [[{:n 100} 1.0] [{:n 200} nil]]
+               (domain/extract d [:stats :elapsed-time :mean])))))
+    (testing "returns nil for missing value-key"
+      (let [d (domain/domain
+               {:coord :a
+                :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+               {:coord :b
+                :data (mock-bench-result {:elapsed-time {:variance 0.5}})})]
+        (is (= [[:a 1.0] [:b nil]]
+               (domain/extract d [:stats :elapsed-time :mean])))))
+    (testing "handles keyword coordinates"
+      (let [d (domain/domain
+               {:coord :baseline
+                :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+               {:coord :optimized
+                :data (mock-bench-result {:elapsed-time {:mean 0.5}})})]
+        (is (= [[:baseline 1.0] [:optimized 0.5]]
+               (domain/extract d [:stats :elapsed-time :mean])))))
+    (testing "returns empty vector for empty domain"
+      (is (= [] (domain/extract (domain/domain)
+                                [:stats :elapsed-time :mean]))))
+    (testing "extracts different value-keys"
+      (let [d (domain/domain
+               {:coord {:n 100}
+                :data (mock-bench-result
+                       {:elapsed-time {:mean 1.0 :variance 0.1}})})]
+        (is (= [[{:n 100} 1.0]]
+               (domain/extract d [:stats :elapsed-time :mean])))
+        (is (= [[{:n 100} 0.1]]
+               (domain/extract d [:stats :elapsed-time :variance])))))))

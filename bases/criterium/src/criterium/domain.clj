@@ -15,7 +15,9 @@
   {:type :criterium/domain
    :runs [{:coord {:n 100} :data <bench-result>}
           {:coord {:n 1000} :data <bench-result>}
-          {:coord {:n 100 :impl :foo} :data <bench-result>}]}")
+          {:coord {:n 100 :impl :foo} :data <bench-result>}]}"
+  (:require
+   [criterium.util.helpers :as util]))
 
 ;;; Predicates
 
@@ -131,3 +133,27 @@
               (filter map?)
               (mapcat keys))
         (:runs domain)))
+
+;;; Analysis
+
+(defn extract
+  "Extract metric values at a path from all runs in a domain.
+  Returns a vector of [coord value] pairs, preserving run order.
+
+  metric-path is a vector of keys specifying the path to the metric value,
+  e.g., [:stats :elapsed-time :mean].
+
+  For stats paths (where the first element is a stats key like :stats or
+  :log-stats), transforms are applied to convert raw values to their
+  display form.
+
+  Returns nil for value if the metric is missing from a run.
+
+  Example:
+  (extract domain [:stats :elapsed-time :mean])
+  ;; => [[{:n 100} 1.23e-6] [{:n 1000} 1.45e-5] ...]"
+  [domain metric-path]
+  (let [[stats-id metric-id value-key] metric-path]
+    (mapv (fn [{:keys [coord data]}]
+            [coord (util/stats-value data stats-id metric-id value-key)])
+          (:runs domain))))
