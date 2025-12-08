@@ -153,3 +153,87 @@
             d2 (domain/remove-run d :x)]
         (is (= 1 (count (:runs d))))
         (is (= 0 (count (:runs d2))))))))
+
+;; Tests for domain query functions (runs, coords, axes).
+;; Validates retrieving and filtering runs, extracting coordinates,
+;; and inferring dimension keys from the domain structure.
+
+(deftest runs-test
+  (testing "runs"
+    (testing "with one argument"
+      (testing "returns all runs from domain"
+        (let [run1 {:coord :a :data sample-data}
+              run2 {:coord :b :data sample-data-2}
+              d    (domain/domain run1 run2)]
+          (is (= [run1 run2] (domain/runs d)))))
+      (testing "returns empty vector for empty domain"
+        (is (= [] (domain/runs (domain/domain)))))
+      (testing "preserves run order"
+        (let [runs (mapv #(hash-map :coord {:n %} :data sample-data)
+                         [100 200 300])
+              d    (apply domain/domain runs)]
+          (is (= runs (domain/runs d))))))
+    (testing "with partial coordinate"
+      (testing "filters by keyword coord"
+        (let [d (domain/domain {:coord :a :data sample-data}
+                               {:coord :b :data sample-data-2})]
+          (is (= [{:coord :a :data sample-data}]
+                 (domain/runs d :a)))))
+      (testing "filters by exact map coord"
+        (let [d (domain/domain {:coord {:n 100} :data sample-data}
+                               {:coord {:n 200} :data sample-data-2})]
+          (is (= [{:coord {:n 100} :data sample-data}]
+                 (domain/runs d {:n 100})))))
+      (testing "filters by partial map coord"
+        (let [d (domain/domain {:coord {:n 100} :data sample-data}
+                               {:coord {:n 100 :impl :foo} :data sample-data-2}
+                               {:coord {:n 200} :data {:third "result"}})]
+          (is (= [{:coord {:n 100} :data sample-data}
+                  {:coord {:n 100 :impl :foo} :data sample-data-2}]
+                 (domain/runs d {:n 100})))))
+      (testing "returns empty vector when no match"
+        (let [d (domain/domain {:coord :a :data sample-data})]
+          (is (= [] (domain/runs d :nonexistent)))))
+      (testing "does not match keyword coord with map partial"
+        (let [d (domain/domain {:coord :baseline :data sample-data})]
+          (is (= [] (domain/runs d {:n 100}))))))))
+
+(deftest coords-test
+  (testing "coords"
+    (testing "returns all coordinates as vector"
+      (let [d (domain/domain {:coord :a :data sample-data}
+                             {:coord {:n 100} :data sample-data-2})]
+        (is (= [:a {:n 100}] (domain/coords d)))))
+    (testing "returns empty vector for empty domain"
+      (is (= [] (domain/coords (domain/domain)))))
+    (testing "preserves order"
+      (let [d (domain/domain {:coord {:n 300} :data sample-data}
+                             {:coord {:n 100} :data sample-data}
+                             {:coord {:n 200} :data sample-data})]
+        (is (= [{:n 300} {:n 100} {:n 200}] (domain/coords d)))))
+    (testing "handles mixed keyword and map coords"
+      (let [d (domain/domain {:coord :baseline :data sample-data}
+                             {:coord {:n 100} :data sample-data}
+                             {:coord :optimized :data sample-data})]
+        (is (= [:baseline {:n 100} :optimized] (domain/coords d)))))))
+
+(deftest axes-test
+  (testing "axes"
+    (testing "returns set of dimension keys from map coords"
+      (let [d (domain/domain {:coord {:n 100} :data sample-data}
+                             {:coord {:n 200 :impl :foo} :data sample-data-2})]
+        (is (= #{:n :impl} (domain/axes d)))))
+    (testing "returns empty set for empty domain"
+      (is (= #{} (domain/axes (domain/domain)))))
+    (testing "returns empty set for domain with only keyword coords"
+      (let [d (domain/domain {:coord :a :data sample-data}
+                             {:coord :b :data sample-data-2})]
+        (is (= #{} (domain/axes d)))))
+    (testing "ignores keyword coords when extracting axes"
+      (let [d (domain/domain {:coord :baseline :data sample-data}
+                             {:coord {:n 100} :data sample-data})]
+        (is (= #{:n} (domain/axes d)))))
+    (testing "collects all keys from multi-key coords"
+      (let [d (domain/domain {:coord {:n 100 :impl :foo :version 1}
+                              :data sample-data})]
+        (is (= #{:n :impl :version} (domain/axes d)))))))

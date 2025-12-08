@@ -81,3 +81,53 @@
   returns the domain unchanged."
   [domain coord]
   (assoc domain :runs (into [] (remove #(= coord (:coord %))) (:runs domain))))
+
+;;; Query
+
+(defn- coord-matches?
+  "Returns true if coord matches the partial-coord.
+  For keyword coords, matches only if equal.
+  For map coords, matches if partial-coord is a subset."
+  [coord partial-coord]
+  (cond
+    (keyword? partial-coord)
+    (= coord partial-coord)
+
+    (map? partial-coord)
+    (if (map? coord)
+      (every? (fn [[k v]] (= (get coord k) v)) partial-coord)
+      false)
+
+    :else false))
+
+(defn runs
+  "Return runs from a domain.
+  With one argument, returns all runs.
+  With two arguments, returns runs matching the partial coordinate.
+
+  For map coordinates, partial matching is supported:
+  (runs domain {:n 100}) matches {:n 100}, {:n 100 :impl :foo}, etc."
+  ([domain]
+   (:runs domain))
+  ([domain partial-coord]
+   (filterv #(coord-matches? (:coord %) partial-coord) (:runs domain))))
+
+(defn coords
+  "Return all coordinates from a domain as a vector.
+  Preserves the order of runs."
+  [domain]
+  (mapv :coord (:runs domain)))
+
+(defn axes
+  "Infer dimension keys from all map coordinates in a domain.
+  Returns a set of keys. Keyword coordinates contribute no keys.
+
+  Example:
+  Given coords [{:n 100} {:n 1000 :impl :foo} :baseline]
+  Returns #{:n :impl}"
+  [domain]
+  (into #{}
+        (comp (map :coord)
+              (filter map?)
+              (mapcat keys))
+        (:runs domain)))
