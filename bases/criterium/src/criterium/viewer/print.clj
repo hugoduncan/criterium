@@ -21,7 +21,9 @@
        (format
         "%36s: %s"
         (:label m)
-        (format/format-value (:dimension m) (* v (:scale m))))))))
+        (if (number? v)
+          (format/format-value (:dimension m) (* v (:scale m)))
+          v))))))
 
 (defmethod view/metrics* :print
   [_ {:keys [samples-id]} data-map]
