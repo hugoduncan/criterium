@@ -17,7 +17,9 @@
           {:coord {:n 1000} :data <bench-result>}
           {:coord {:n 100 :impl :foo} :data <bench-result>}]}"
   (:require
-   [criterium.util.helpers :as util]))
+   [criterium.util.helpers :as util]
+   [criterium.util.invariant :refer [have have?]]
+   [criterium.view :as view]))
 
 ;;; Predicates
 
@@ -567,3 +569,113 @@
            extract    (data-map extract-id)
            result     (fit-complexity extract axis models)]
        (assoc data-map id result)))))
+
+;;; Domain Plan Execution
+;;
+;; Functions for executing domain analysis plans, following the same
+;; pattern as criterium.benchmark for sample analysis.
+
+(defn- resolve-domain-analyse-fn
+  "Resolves a single domain analysis function specification.
+  If x is a sequence, treats first element as function and rest as args.
+  Otherwise treats x as a function name to resolve.
+  Returns a function of one argument (the data-map)."
+  [x]
+  (let [options {:default-ns 'criterium.domain}]
+    (if (sequential? x)
+      (apply (util/maybe-var-get (first x) options) (rest x))
+      ((util/maybe-var-get x options)))))
+
+(defn- resolve-domain-view-fn
+  "Resolves a single domain view function specification.
+  If x is a sequence, treats first element as function and rest as args.
+  Otherwise treats x as a function name to resolve.
+  Returns a function of two arguments (viewer, data-map)."
+  [x]
+  (let [options {:default-ns 'criterium.view}]
+    (have
+     fn?
+     (if (sequential? x)
+       (apply (util/maybe-var-get (first x) options) (rest x))
+       ((util/maybe-var-get x options)))
+     {:x x})))
+
+(defn ->domain-analyse
+  "Creates a composite analysis function from a sequence of analysis specs.
+
+  Each spec is either a keyword/symbol to resolve a function, or a vector
+  with a keyword/symbol first element followed by an options map.
+
+  Analysis functions are resolved from the criterium.domain namespace.
+  They are composed in sequence, each taking and returning a data-map.
+
+  Example specs: [[:domain-extract-fn {:metric-path [...]}]
+                  [:domain-regression-fn {:axis :n}]]
+
+  Returns a function that takes a data-map and returns the analyzed data-map."
+  [analyse-plan]
+  (when-not (or (nil? analyse-plan) (sequential? analyse-plan))
+    (throw
+     (ex-info "analyse must be a sequence of specs" {:analyse analyse-plan})))
+  (let [fns (mapv resolve-domain-analyse-fn analyse-plan)]
+    (reduce comp (reverse fns))))
+
+(defn ->domain-view
+  "Creates a composite view function from a sequence of view specs.
+
+  Each spec is either a keyword/symbol to resolve a function, or a vector
+  with a keyword/symbol first element followed by an options map.
+
+  View functions are resolved from the criterium.view namespace.
+  They are called in order with the data-map, producing side effects.
+
+  Example specs: [[:domain-extract {}]
+                  [:domain-regression {}]]
+
+  Returns a function that takes a viewer keyword and data-map."
+  [view-plan]
+  (when-not (or (nil? view-plan) (sequential? view-plan))
+    (throw
+     (ex-info "view must be a sequence of specs" {:view view-plan})))
+  (let [fns (mapv resolve-domain-view-fn view-plan)]
+    (fn [viewer data-map]
+      {:pre [(have? keyword? viewer)]}
+      (run! #(% viewer data-map) fns)
+      (view/flush-viewer viewer)
+      data-map)))
+
+(defn options->domain-plan
+  "Merge options into a base domain plan.
+
+  Takes a base plan map and keyword/value pairs to override specific fields.
+
+  Example:
+    (options->domain-plan domain-plans/complexity-analysis
+                          :viewer :portal)"
+  [base-plan & {:as options}]
+  (merge base-plan options))
+
+(defn analyse-domain
+  "Analyze a domain using a domain plan.
+
+  The domain plan is a map with:
+    :analyse - Vector of analysis specs resolved from criterium.domain
+    :view    - Vector of view specs resolved from criterium.view
+    :viewer  - Keyword specifying output format (:print, :portal, :none)
+
+  Returns the data-map with all analysis results.
+
+  Example:
+    (analyse-domain domain-plans/complexity-analysis my-domain)
+
+    (analyse-domain (options->domain-plan
+                      domain-plans/complexity-analysis
+                      :viewer :portal)
+                    my-domain)"
+  [domain-plan domain]
+  (let [analyse-fn (->domain-analyse (:analyse domain-plan))
+        view-fn    (->domain-view (:view domain-plan))
+        viewer     (or (:viewer domain-plan) :print)
+        data-map   (analyse-fn {:domain domain})]
+    (view-fn viewer data-map)
+    data-map))

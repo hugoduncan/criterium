@@ -2,7 +2,8 @@
   (:require
    [clojure.test :refer [deftest is testing]]
    [criterium.collect-plan :as collect-plan]
-   [criterium.domain :as domain]))
+   [criterium.domain :as domain]
+   [criterium.domain-plans :as domain-plans]))
 
 ;; Tests for domain type, predicates, and construction functions.
 ;; Validates the core domain data structure that holds multiple
@@ -1037,3 +1038,228 @@
         (is (domain/domain-extract? (:extract result)))
         (is (domain/domain-regression? (:scaling result)))
         (is (= :linear (:best-fit (:scaling result))))))))
+
+;; Tests for domain plan execution functions.
+;; Validates the domain-plan pattern for bundled analysis and viewing,
+;; following the same pattern as criterium.benchmark for samples.
+
+(deftest ->domain-analyse-test
+  ;; Tests for creating composite analysis functions from specs.
+  ;; Validates spec resolution, composition, and error handling.
+  (testing "->domain-analyse"
+    (testing "creates analysis function from single spec"
+      (let [d        (domain/domain
+                      {:coord {:n 100}
+                       :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
+            analyse  (domain/->domain-analyse
+                      [[:domain-extract-fn
+                        {:id :extract :metric-path [:stats :elapsed-time :mean]}]])
+            result   (analyse {:domain d})]
+        (is (map? result))
+        (is (contains? result :domain))
+        (is (contains? result :extract))
+        (is (domain/domain-extract? (:extract result)))))
+    (testing "creates analysis function from multiple specs"
+      (let [d        (domain/domain
+                      {:coord {:n 100}
+                       :data (mock-bench-result {:elapsed-time {:mean 100.0}})}
+                      {:coord {:n 200}
+                       :data (mock-bench-result {:elapsed-time {:mean 200.0}})})
+            analyse  (domain/->domain-analyse
+                      [[:domain-extract-fn
+                        {:id :extract :metric-path [:stats :elapsed-time :mean]}]
+                       [:domain-regression-fn {:id :scaling :axis :n}]])
+            result   (analyse {:domain d})]
+        (is (contains? result :extract))
+        (is (contains? result :scaling))
+        (is (domain/domain-extract? (:extract result)))
+        (is (domain/domain-regression? (:scaling result)))))
+    (testing "handles empty spec vector"
+      (let [analyse (domain/->domain-analyse [])
+            result  (analyse {:domain (domain/domain) :other "data"})]
+        (is (= {:domain (domain/domain) :other "data"} result))))
+    (testing "handles nil spec"
+      (let [analyse (domain/->domain-analyse nil)
+            result  (analyse {:domain (domain/domain)})]
+        (is (map? result))))
+    (testing "throws on non-sequential spec"
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (domain/->domain-analyse :not-a-sequence))))))
+
+(deftest ->domain-view-test
+  ;; Tests for creating composite view functions from specs.
+  ;; Validates spec resolution, viewer dispatch, and side effects.
+  (testing "->domain-view"
+    (testing "creates view function from single spec"
+      (let [view-fn (domain/->domain-view [[:domain-extract {}]])]
+        (is (fn? view-fn))))
+    (testing "creates view function from multiple specs"
+      (let [view-fn (domain/->domain-view
+                     [[:domain-extract {}]
+                      [:domain-regression {}]])]
+        (is (fn? view-fn))))
+    (testing "view function returns data-map"
+      (let [view-fn  (domain/->domain-view [[:domain-extract {}]])
+            data-map {:domain  (domain/domain)
+                      :extract {:type   :criterium/domain-extract
+                                :metric [:stats :elapsed-time :mean]
+                                :data   []}}
+            result   (view-fn :none data-map)]
+        (is (= data-map result))))
+    (testing "handles empty spec vector"
+      (let [view-fn (domain/->domain-view [])
+            result  (view-fn :none {:data "map"})]
+        (is (= {:data "map"} result))))
+    (testing "handles nil spec"
+      (let [view-fn (domain/->domain-view nil)
+            result  (view-fn :none {:data "map"})]
+        (is (map? result))))
+    (testing "throws on non-sequential spec"
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (domain/->domain-view :not-a-sequence))))))
+
+(deftest options->domain-plan-test
+  ;; Tests for merging options into base domain plans.
+  ;; Validates option override behavior.
+  (testing "options->domain-plan"
+    (testing "returns base plan when no options"
+      (let [base {:analyse [[:domain-extract-fn {}]]
+                  :view    [[:domain-extract {}]]
+                  :viewer  :print}]
+        (is (= base (domain/options->domain-plan base)))))
+    (testing "overrides viewer option"
+      (let [base   {:analyse [] :view [] :viewer :print}
+            result (domain/options->domain-plan base :viewer :portal)]
+        (is (= :portal (:viewer result)))))
+    (testing "overrides analyse option"
+      (let [base       {:analyse [[:domain-extract-fn {}]] :view [] :viewer :print}
+            new-analyse [[:domain-compare-fn {}]]
+            result     (domain/options->domain-plan base :analyse new-analyse)]
+        (is (= new-analyse (:analyse result)))))
+    (testing "overrides view option"
+      (let [base     {:analyse [] :view [[:domain-extract {}]] :viewer :print}
+            new-view [[:domain-comparison {}]]
+            result   (domain/options->domain-plan base :view new-view)]
+        (is (= new-view (:view result)))))
+    (testing "combines multiple overrides"
+      (let [base   {:analyse [] :view [] :viewer :print}
+            result (domain/options->domain-plan base
+                                                :viewer :portal
+                                                :analyse [[:domain-extract-fn {}]])]
+        (is (= :portal (:viewer result)))
+        (is (= [[:domain-extract-fn {}]] (:analyse result)))
+        (is (= [] (:view result)))))))
+
+(deftest analyse-domain-test
+  ;; Tests for executing domain analysis with a plan.
+  ;; Validates full analysis pipeline execution with viewing.
+  (testing "analyse-domain"
+    (testing "executes analysis plan and returns data-map"
+      (let [d      (domain/domain
+                    {:coord {:n 100}
+                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
+            plan   {:analyse [[:domain-extract-fn
+                               {:id :extract
+                                :metric-path [:stats :elapsed-time :mean]}]]
+                    :view    [[:domain-extract {:extract-id :extract}]]
+                    :viewer  :none}
+            result (domain/analyse-domain plan d)]
+        (is (map? result))
+        (is (contains? result :domain))
+        (is (contains? result :extract))
+        (is (domain/domain-extract? (:extract result)))))
+    (testing "chains multiple analysis functions"
+      (let [d      (domain/domain
+                    {:coord {:n 100}
+                     :data (mock-bench-result {:elapsed-time {:mean 100.0}})}
+                    {:coord {:n 200}
+                     :data (mock-bench-result {:elapsed-time {:mean 200.0}})})
+            plan   {:analyse [[:domain-extract-fn
+                               {:id :extract
+                                :metric-path [:stats :elapsed-time :mean]}]
+                              [:domain-regression-fn {:id :scaling :axis :n}]]
+                    :view    []
+                    :viewer  :none}
+            result (domain/analyse-domain plan d)]
+        (is (domain/domain-extract? (:extract result)))
+        (is (domain/domain-regression? (:scaling result)))))
+    (testing "defaults viewer to :print"
+      (let [d      (domain/domain)
+            plan   {:analyse [] :view []}
+            result (domain/analyse-domain plan d)]
+        (is (map? result))))
+    (testing "preserves domain in result"
+      (let [d      (domain/domain
+                    {:coord {:n 100}
+                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
+            plan   {:analyse [] :view [] :viewer :none}
+            result (domain/analyse-domain plan d)]
+        (is (= d (:domain result)))))
+    (testing "works with empty analyse and view"
+      (let [d      (domain/domain)
+            plan   {:analyse [] :view [] :viewer :none}
+            result (domain/analyse-domain plan d)]
+        (is (= {:domain d} result))))))
+
+;; Tests for pre-defined domain plans.
+;; Validates that domain-plans namespace provides valid plan structures.
+
+(deftest domain-plans-structure-test
+  ;; Tests for domain plan structure validation.
+  ;; Validates that pre-defined plans have required keys.
+  (testing "domain-plans structure"
+    (testing "complexity-analysis has required keys"
+      (is (vector? (:analyse domain-plans/complexity-analysis)))
+      (is (vector? (:view domain-plans/complexity-analysis)))
+      (is (keyword? (:viewer domain-plans/complexity-analysis))))
+    (testing "implementation-comparison has required keys"
+      (is (vector? (:analyse domain-plans/implementation-comparison)))
+      (is (vector? (:view domain-plans/implementation-comparison)))
+      (is (keyword? (:viewer domain-plans/implementation-comparison))))
+    (testing "extract-elapsed-time has required keys"
+      (is (vector? (:analyse domain-plans/extract-elapsed-time)))
+      (is (vector? (:view domain-plans/extract-elapsed-time)))
+      (is (keyword? (:viewer domain-plans/extract-elapsed-time))))))
+
+(deftest domain-plans-integration-test
+  ;; Tests for executing pre-defined domain plans.
+  ;; Validates end-to-end plan execution with actual domains.
+  (testing "domain-plans integration"
+    (testing "complexity-analysis executes successfully"
+      (let [d      (domain/domain
+                    {:coord {:n 100}
+                     :data (mock-bench-result {:elapsed-time {:mean 100.0}})}
+                    {:coord {:n 200}
+                     :data (mock-bench-result {:elapsed-time {:mean 200.0}})}
+                    {:coord {:n 300}
+                     :data (mock-bench-result {:elapsed-time {:mean 300.0}})})
+            plan   (domain/options->domain-plan
+                    domain-plans/complexity-analysis
+                    :viewer :none)
+            result (domain/analyse-domain plan d)]
+        (is (contains? result :extract))
+        (is (contains? result :regression))
+        (is (domain/domain-extract? (:extract result)))
+        (is (domain/domain-regression? (:regression result)))))
+    (testing "implementation-comparison executes successfully"
+      (let [d      (domain/domain
+                    {:coord {:impl :foo}
+                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+                    {:coord {:impl :bar}
+                     :data (mock-bench-result {:elapsed-time {:mean 2.0}})})
+            plan   (domain/options->domain-plan
+                    domain-plans/implementation-comparison
+                    :viewer :none)
+            result (domain/analyse-domain plan d)]
+        (is (contains? result :comparison))
+        (is (domain/domain-comparison? (:comparison result)))))
+    (testing "extract-elapsed-time executes successfully"
+      (let [d      (domain/domain
+                    {:coord {:n 100}
+                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
+            plan   (domain/options->domain-plan
+                    domain-plans/extract-elapsed-time
+                    :viewer :none)
+            result (domain/analyse-domain plan d)]
+        (is (contains? result :extract))
+        (is (domain/domain-extract? (:extract result)))))))
