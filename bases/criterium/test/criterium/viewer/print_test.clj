@@ -336,9 +336,9 @@
                  {:extract
                   {:type   :criterium/domain-extract
                    :metric [:stats :elapsed-time :mean]
-                   :data   [[:baseline 1e-7]
-                            [{:n 100} 2e-7]
-                            [{:impl :foo :n 100} 3e-7]]}}))))))
+                   :data   [[:baseline 100]
+                            [{:n 100} 200]
+                            [{:impl :foo :n 100} 300]]}}))))))
     (testing "handles nil values"
       (is (= ["Domain Extract: [:stats :elapsed-time :mean]"
               "test: nil"]
@@ -362,7 +362,7 @@
                  {:my-extract
                   {:type   :criterium/domain-extract
                    :metric [:stats :elapsed-time :mean]
-                   :data   [[:a 1e-9]]}}))))))))
+                   :data   [[:a 1]]}}))))))))
 
 (deftest domain-grouped-print-test
   ;; Tests the print viewer output for domain-grouped results.
@@ -419,8 +419,8 @@
                   {:type   :criterium/domain-comparison
                    :axis   :impl
                    :metric [:stats :elapsed-time :mean]
-                   :data   {:foo [{:coord {:impl :foo :n 100} :value 1e-7}]
-                            :bar [{:coord {:impl :bar :n 100} :value 2e-7}]}}}))))))
+                   :data   {:foo [{:coord {:impl :foo :n 100} :value 100}]
+                            :bar [{:coord {:impl :bar :n 100} :value 200}]}}}))))))
     (testing "handles nil axis values"
       (is (= ["Domain Comparison by impl: [:stats :elapsed-time :mean]"
               "│   <nil>"
@@ -435,7 +435,7 @@
                   {:type   :criterium/domain-comparison
                    :axis   :impl
                    :metric [:stats :elapsed-time :mean]
-                   :data   {nil [{:coord :baseline :value 5e-8}]}}}))))))))
+                   :data   {nil [{:coord :baseline :value 50}]}}}))))))))
 
 (deftest domain-regression-print-test
   ;; Tests the print viewer output for domain-regression results.

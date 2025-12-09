@@ -409,17 +409,20 @@
     (name coord)))
 
 (defn- format-extract-value
-  "Format a value from domain-extract for display."
+  "Format a value from domain-extract for display.
+  Applies metric scale and formats with appropriate dimension."
   [value metric-path]
   (if (nil? value)
     "nil"
-    (let [dimension (case (first metric-path)
-                      (:stats :log-stats) (case (second metric-path)
-                                            :elapsed-time :time
-                                            :thread-allocation :bytes
-                                            :count)
-                      :count)]
-      (format/format-value dimension value))))
+    (let [[dimension scale]
+          (case (first metric-path)
+            (:stats :log-stats)
+            (case (second metric-path)
+              :elapsed-time [:time 1e-9]
+              :thread-allocation [:memory 1]
+              [:count 1])
+            [:count 1])]
+      (format/format-value dimension (* value scale)))))
 
 (defmethod view/domain-extract* :print
   [_ {:keys [extract-id]} data-map]
