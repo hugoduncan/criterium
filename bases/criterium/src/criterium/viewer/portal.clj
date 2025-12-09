@@ -2,6 +2,7 @@
   "A viewer that outputs to portal using tap>."
   (:refer-clojure :exclude [flush])
   (:require
+   [clojure.string :as str]
    [criterium.metric :as metric]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have]]
@@ -285,3 +286,100 @@
 (defmethod view/os* :portal [_ _ _])
 
 (defmethod view/runtime* :portal [_ _ _])
+
+;;; Domain Views
+
+(defn- format-coord-label
+  "Format a coordinate for chart labels."
+  [coord]
+  (if (map? coord)
+    (str/join " " (map (fn [[k v]] (str (name k) "=" v))
+                       (sort-by key coord)))
+    (name coord)))
+
+(defmethod view/domain-extract* :portal
+  [_ {:keys [extract-id]} data-map]
+  (let [extract-id (or extract-id :extract)
+        extract    (data-map extract-id)]
+    (when extract
+      (let [{:keys [metric data]} extract
+            chart-data (map-indexed
+                        (fn [idx [coord value]]
+                          {:index idx
+                           :coord (format-coord-label coord)
+                           :value (or value 0)})
+                        data)]
+        (heading (str "Domain Extract: " (pr-str metric)))
+        (portal-vega-lite
+         {:data     {:values (vec chart-data)}
+          :height   400
+          :encoding {:x       {:field "coord"
+                               :type  "nominal"
+                               :axis  {:labelAngle -45}
+                               :title "Coordinate"}
+                     :y       {:field "value"
+                               :type  "quantitative"
+                               :title (str metric)}
+                     :tooltip [{:field "coord" :type "nominal"}
+                               {:field "value" :type "quantitative"}]}
+          :mark     {:type "point" :size 100}})))))
+
+(defmethod view/domain-grouped* :portal
+  [_ {:keys [grouped-id]} data-map]
+  (let [grouped-id (or grouped-id :grouped)
+        grouped    (data-map grouped-id)]
+    (when grouped
+      (let [{:keys [axis data]} grouped
+            table-data (mapv (fn [[axis-val sub-domain]]
+                               {:axis-value (if (nil? axis-val)
+                                              "<nil>"
+                                              (str axis-val))
+                                :run-count  (count (:runs sub-domain))})
+                             (sort-by (comp str key) data))]
+        (heading (str "Domain Grouped by: " (name axis)))
+        (portal-table table-data)))))
+
+(defn- coord-without-axis
+  "Remove the axis key from a map coordinate."
+  [coord axis-key]
+  (if (map? coord)
+    (dissoc coord axis-key)
+    coord))
+
+(defmethod view/domain-comparison* :portal
+  [_ {:keys [comparison-id]} data-map]
+  (let [comparison-id (or comparison-id :comparison)
+        comparison    (data-map comparison-id)]
+    (when comparison
+      (let [{:keys [axis metric data]} comparison
+            chart-data (mapcat
+                        (fn [[axis-val entries]]
+                          (map (fn [{:keys [coord value]}]
+                                 {:axis-value (if (nil? axis-val)
+                                                "<nil>"
+                                                (str axis-val))
+                                  :row-key    (format-coord-label
+                                               (coord-without-axis coord axis))
+                                  :value      (or value 0)})
+                               entries))
+                        data)]
+        (heading (str "Domain Comparison by " (name axis) ": " (pr-str metric)))
+        (portal-vega-lite
+         {:data     {:values (vec chart-data)}
+          :height   400
+          :encoding {:x       {:field "row-key"
+                               :type  "nominal"
+                               :axis  {:labelAngle -45}
+                               :title "Coordinate"}
+                     :y       {:field "value"
+                               :type  "quantitative"
+                               :title (str metric)}
+                     :color   {:field "axis-value"
+                               :type  "nominal"
+                               :title (name axis)}
+                     :xOffset {:field "axis-value"}
+                     :tooltip [{:field "row-key" :type "nominal" :title "Coord"}
+                               {:field "axis-value" :type "nominal"
+                                :title (name axis)}
+                               {:field "value" :type "quantitative"}]}
+          :mark     {:type "bar"}})))))

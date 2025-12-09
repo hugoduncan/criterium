@@ -220,3 +220,119 @@
                 :portal
                 {}
                 (:data (test-data/samples-with-non-numeric-value-map)))))))))
+
+;;; Domain View Tests
+
+(deftest portal-domain-extract-test
+  ;; Tests the portal viewer output for domain-extract results.
+  ;; Verifies chart generation with coordinate-value data points.
+  (testing "domain-extract*"
+    (testing "produces chart with coordinate-value data"
+      (let [[title chart] (with-tap-out
+                            (view/domain-extract*
+                             :portal
+                             {}
+                             {:extract
+                              {:type   :criterium/domain-extract
+                               :metric [:stats :elapsed-time :mean]
+                               :data   [[:baseline 1e-7]
+                                        [{:n 100} 2e-7]
+                                        [{:impl :foo :n 100} 3e-7]]}}))]
+        (is (= [:b "Domain Extract: [:stats :elapsed-time :mean]"] title))
+        (is (= [{:index 0 :coord "baseline" :value 1e-7}
+                {:index 1 :coord "n=100" :value 2e-7}
+                {:index 2 :coord "impl=:foo n=100" :value 3e-7}]
+               (-> chart :data :values)))
+        (is (= "point" (-> chart :mark :type)))))
+    (testing "handles nil values by converting to 0"
+      (let [[_title chart] (with-tap-out
+                             (view/domain-extract*
+                              :portal
+                              {}
+                              {:extract
+                               {:type   :criterium/domain-extract
+                                :metric [:stats :elapsed-time :mean]
+                                :data   [[:test nil]]}}))]
+        (is (= [{:index 0 :coord "test" :value 0}]
+               (-> chart :data :values)))))
+    (testing "uses custom extract-id"
+      (let [[title _chart] (with-tap-out
+                             (view/domain-extract*
+                              :portal
+                              {:extract-id :my-extract}
+                              {:my-extract
+                               {:type   :criterium/domain-extract
+                                :metric [:stats :elapsed-time :mean]
+                                :data   [[:a 1e-9]]}}))]
+        (is (= [:b "Domain Extract: [:stats :elapsed-time :mean]"] title))))))
+
+(deftest portal-domain-grouped-test
+  ;; Tests the portal viewer output for domain-grouped results.
+  ;; Verifies table generation with axis values and run counts.
+  (testing "domain-grouped*"
+    (testing "produces table with axis values and run counts"
+      (let [[title table] (with-tap-out
+                            (view/domain-grouped*
+                             :portal
+                             {}
+                             {:grouped
+                              {:type :criterium/domain-grouped
+                               :axis :impl
+                               :data {:foo {:type :criterium/domain
+                                            :runs [{} {}]}
+                                      :bar {:type :criterium/domain
+                                            :runs [{}]}
+                                      nil  {:type :criterium/domain
+                                            :runs [{}]}}}}))]
+        (is (= [:b "Domain Grouped by: impl"] title))
+        (is (= [{:axis-value "<nil>" :run-count 1}
+                {:axis-value ":bar" :run-count 1}
+                {:axis-value ":foo" :run-count 2}]
+               table))))
+    (testing "uses custom grouped-id"
+      (let [[title _table] (with-tap-out
+                             (view/domain-grouped*
+                              :portal
+                              {:grouped-id :by-n}
+                              {:by-n
+                               {:type :criterium/domain-grouped
+                                :axis :n
+                                :data {100 {:type :criterium/domain
+                                            :runs [{}]}}}}))]
+        (is (= [:b "Domain Grouped by: n"] title))))))
+
+(deftest portal-domain-comparison-test
+  ;; Tests the portal viewer output for domain-comparison results.
+  ;; Verifies chart generation with grouped bar chart data.
+  (testing "domain-comparison*"
+    (testing "produces grouped bar chart with comparison data"
+      (let [[title chart] (with-tap-out
+                            (view/domain-comparison*
+                             :portal
+                             {}
+                             {:comparison
+                              {:type   :criterium/domain-comparison
+                               :axis   :impl
+                               :metric [:stats :elapsed-time :mean]
+                               :data   {:foo [{:coord {:impl :foo :n 100}
+                                               :value 1e-7}]
+                                        :bar [{:coord {:impl :bar :n 100}
+                                               :value 2e-7}]}}}))]
+        (is (= [:b "Domain Comparison by impl: [:stats :elapsed-time :mean]"]
+               title))
+        (is (= #{{:axis-value ":foo" :row-key "n=100" :value 1e-7}
+                 {:axis-value ":bar" :row-key "n=100" :value 2e-7}}
+               (set (-> chart :data :values))))
+        (is (= "bar" (-> chart :mark :type)))))
+    (testing "handles nil axis values"
+      (let [[_title chart] (with-tap-out
+                             (view/domain-comparison*
+                              :portal
+                              {}
+                              {:comparison
+                               {:type   :criterium/domain-comparison
+                                :axis   :impl
+                                :metric [:stats :elapsed-time :mean]
+                                :data   {nil [{:coord :baseline :value 5e-8}]}}}))]
+        (is (= [{:axis-value "<nil>" :row-key "baseline" :value 5e-8}]
+               (-> chart :data :values)))))))
