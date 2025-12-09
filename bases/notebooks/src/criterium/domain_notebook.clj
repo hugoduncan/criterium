@@ -4,6 +4,7 @@
   (:require
    [criterium.bench :as bench]
    [criterium.domain :as domain]
+   [criterium.domain-plans :as domain-plans]
    [criterium.view :as view]
    [criterium.viewer.print]
    [scicloj.kindly.v4.kind :as kind]))
@@ -287,6 +288,55 @@
 ;; Each pipeline function adds its result under a configurable key,
 ;; enabling multiple analyses on the same domain.
 
+;; ## Domain Plans
+;;
+;; For common analysis workflows, use pre-defined domain plans with
+;; `analyse-domain`. Plans bundle analysis and viewing into a single call.
+
+;; ### Pre-defined Plans
+;;
+;; `complexity-analysis` extracts elapsed time and fits regression models:
+
+^:kindly/hide-code
+(kind/code
+ (with-out-str
+   (domain/analyse-domain
+    (domain/options->domain-plan domain-plans/complexity-analysis
+                                 :viewer :print)
+    scaling-domain)))
+
+;; `implementation-comparison` compares metrics across implementations:
+
+^:kindly/hide-code
+(kind/code
+ (with-out-str
+   (domain/analyse-domain
+    (domain/options->domain-plan domain-plans/implementation-comparison
+                                 :viewer :print)
+    impl-domain)))
+
+;; ### Custom Plans
+;;
+;; Build custom plans by specifying `:analyse` and `:view` vectors:
+
+(domain/analyse-domain
+ {:analyse [[:domain-extract-fn {:id :times
+                                 :metric-path [:stats :elapsed-time :mean]}]
+            [:domain-compare-fn {:id :by-size
+                                 :axis-key :n
+                                 :metric-path [:stats :elapsed-time :mean]}]]
+  :view    []
+  :viewer  :none}
+ impl-domain)
+
+;; Or customize a pre-defined plan with `options->domain-plan`:
+
+(-> (domain/options->domain-plan domain-plans/complexity-analysis
+                                 :viewer :none)
+    (domain/analyse-domain scaling-domain)
+    :regression
+    :best-fit)
+
 ;; ## Summary
 ;;
 ;; Domains provide a structured way to:
@@ -295,6 +345,8 @@
 ;; - Extract and compare metrics
 ;; - Visualize results with print or portal viewers
 ;; - Analyze scaling behavior with regression fitting
+;; - Bundle analysis workflows with domain plans
 ;;
 ;; The immutable design supports exploratory analysis in the REPL,
-;; while pipeline functions enable composable data transformations.
+;; while pipeline functions and domain plans enable composable,
+;; reusable analysis workflows.
