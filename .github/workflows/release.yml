@@ -257,8 +257,8 @@ jobs:
           echo "**Tag:** ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Artifacts Built" >> $GITHUB_STEP_SUMMARY
-          echo "- criterium-${{ steps.version.outputs.version }}.jar" >> $GITHUB_STEP_SUMMARY
-          echo "- criterium.arg-gen-${{ steps.version.outputs.version }}.jar" >> $GITHUB_STEP_SUMMARY
+          echo "- projects/criterium/target/criterium.jar" >> $GITHUB_STEP_SUMMARY
+          echo "- projects/arg-gen/target/arg-gen.jar" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Smoke Tests" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Agent libraries verified in JAR" >> $GITHUB_STEP_SUMMARY
