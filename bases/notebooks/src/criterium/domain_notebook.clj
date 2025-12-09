@@ -281,31 +281,37 @@
 ;;
 ;; `complexity-analysis` extracts elapsed time and fits regression models:
 
-(domain/analyse-domain
- (domain/options->domain-plan domain-plans/complexity-analysis
-                              :viewer :print)
- scaling-domain)
+(do
+  (domain/analyse-domain
+   (domain/options->domain-plan domain-plans/complexity-analysis
+                                :viewer :print)
+   scaling-domain)
+  nil)
 
 ;; `implementation-comparison` compares metrics across implementations:
 
-(domain/analyse-domain
- (domain/options->domain-plan domain-plans/implementation-comparison
-                              :viewer :print)
- impl-domain)
+(do
+  (domain/analyse-domain
+   (domain/options->domain-plan domain-plans/implementation-comparison
+                                :viewer :print)
+   impl-domain)
+  nil)
 
 ;; ### Custom Plans
 ;;
 ;; Build custom plans by specifying `:analyse` and `:view` vectors:
 
-(domain/analyse-domain
- {:analyse [[:domain-extract-fn {:id          :times
-                                 :metric-path [:stats :elapsed-time :mean]}]
-            [:domain-compare-fn {:id          :by-size
-                                 :axis-key    :n
-                                 :metric-path [:stats :elapsed-time :mean]}]]
-  :view    []
-  :viewer  :none}
- impl-domain)
+(do
+  (domain/analyse-domain
+   {:analyse [[:domain-extract-fn {:id          :times
+                                   :metric-path [:stats :elapsed-time :mean]}]
+              [:domain-compare-fn {:id          :by-size
+                                   :axis-key    :n
+                                   :metric-path [:stats :elapsed-time :mean]}]]
+    :view    []
+    :viewer  :none}
+   impl-domain)
+  nil)
 
 ;; Or customize a pre-defined plan with `options->domain-plan`:
 

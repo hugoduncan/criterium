@@ -439,13 +439,13 @@
 
 (deftest domain-regression-print-test
   ;; Tests the print viewer output for domain-regression results.
-  ;; Verifies display of models sorted by R² with best-fit indicator.
+  ;; Verifies display of models sorted by R² with equations and best-fit indicator.
   (testing "domain-regression*"
-    (testing "prints models sorted by R² with best-fit indicator"
+    (testing "prints models sorted by R² with equations and best-fit indicator"
       (is (= ["Domain Regression (axis: n, metric: [:stats :elapsed-time :mean])"
-              "O(n)        R²=0.9900  <- best fit"
-              "O(n log n)  R²=0.8500"
-              "O(n²)       R²=0.7000"]
+              "O(n)        R²=0.9900  y = 1.200e-09*n + 5.000e-08  <- best fit"
+              "O(n log n)  R²=0.8500  y = 2.500e-10*n*log(n) + 1.000e-07"
+              "O(n²)       R²=0.7000  y = 1.000e-12*n² + 2.000e-07"]
              (trimmed-lines
               (with-out-str
                 (view/domain-regression*
@@ -455,9 +455,49 @@
                   {:type     :criterium/domain-regression
                    :axis     :n
                    :metric   [:stats :elapsed-time :mean]
-                   :models   [{:id :linear :label "O(n)" :r-squared 0.99}
-                              {:id :n-log-n :label "O(n log n)" :r-squared 0.85}
-                              {:id :quadratic :label "O(n²)" :r-squared 0.70}]
+                   :models   [{:id       :linear
+                               :label    "O(n)"
+                               :coefficients {:a 1.2e-9 :b 5e-8}
+                               :r-squared 0.99}
+                              {:id       :n-log-n
+                               :label    "O(n log n)"
+                               :coefficients {:a 2.5e-10 :b 1e-7}
+                               :r-squared 0.85}
+                              {:id       :quadratic
+                               :label    "O(n²)"
+                               :coefficients {:a 1e-12 :b 2e-7}
+                               :r-squared 0.70}]
+                   :best-fit :linear}}))))))
+    (testing "handles negative intercepts"
+      (is (= ["Domain Regression (axis: n, metric: [:stats :elapsed-time :mean])"
+              "O(n)  R²=0.9500  y = 1.200e-09*n - 5.000e-09  <- best fit"]
+             (trimmed-lines
+              (with-out-str
+                (view/domain-regression*
+                 :print
+                 {}
+                 {:regression
+                  {:type     :criterium/domain-regression
+                   :axis     :n
+                   :metric   [:stats :elapsed-time :mean]
+                   :models   [{:id       :linear
+                               :label    "O(n)"
+                               :coefficients {:a 1.2e-9 :b -5e-9}
+                               :r-squared 0.95}]
+                   :best-fit :linear}}))))))
+    (testing "handles models without coefficients"
+      (is (= ["Domain Regression (axis: n, metric: [:stats :elapsed-time :mean])"
+              "O(n)  R²=0.9500  <- best fit"]
+             (trimmed-lines
+              (with-out-str
+                (view/domain-regression*
+                 :print
+                 {}
+                 {:regression
+                  {:type     :criterium/domain-regression
+                   :axis     :n
+                   :metric   [:stats :elapsed-time :mean]
+                   :models   [{:id :linear :label "O(n)" :r-squared 0.95}]
                    :best-fit :linear}}))))))
     (testing "handles empty models"
       (is (= ["Domain Regression (axis: n, metric: [:stats :elapsed-time :mean])"
@@ -475,7 +515,7 @@
                    :best-fit nil}}))))))
     (testing "uses custom regression-id"
       (is (= ["Domain Regression (axis: size, metric: [:stats :elapsed-time :mean])"
-              "O(n)  R²=0.9500  <- best fit"]
+              "O(n)  R²=0.9500  y = 1.500e-09*n + 1.000e-08  <- best fit"]
              (trimmed-lines
               (with-out-str
                 (view/domain-regression*
@@ -485,5 +525,8 @@
                   {:type     :criterium/domain-regression
                    :axis     :size
                    :metric   [:stats :elapsed-time :mean]
-                   :models   [{:id :linear :label "O(n)" :r-squared 0.95}]
+                   :models   [{:id       :linear
+                               :label    "O(n)"
+                               :coefficients {:a 1.5e-9 :b 1e-8}
+                               :r-squared 0.95}]
                    :best-fit :linear}}))))))))

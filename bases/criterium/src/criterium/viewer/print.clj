@@ -534,6 +534,20 @@
           (println (format "Domain Comparison by %s: %s (no data)"
                            (name axis) (pr-str metric))))))))
 
+(defn- regression-equation-str
+  "Format the fitted regression equation for a model.
+  The model fits y = a*transform(x) + b where transform depends on model id."
+  [model-id {:keys [a b]}]
+  (when (and a b)
+    (let [transform-str (case model-id
+                          :logarithmic "log(n)"
+                          :linear      "n"
+                          :n-log-n     "n*log(n)"
+                          :quadratic   "n²"
+                          "x")
+          sign          (if (neg? b) "-" "+")]
+      (format "y = %.4g*%s %s %.4g" a transform-str sign (Math/abs ^double b)))))
+
 (defmethod view/domain-regression* :print
   [_ {:keys [regression-id]} data-map]
   (let [regression-id (or regression-id :regression)
@@ -545,9 +559,11 @@
         (if (seq models)
           (let [sorted-models (sort-by :r-squared > models)
                 label-width   (apply max (map #(count (:label %)) models))]
-            (doseq [{:keys [id label r-squared]} sorted-models]
-              (println (format "  %s  R²=%.4f%s"
-                               (format (str "%-" label-width "s") label)
-                               r-squared
-                               (if (= id best-fit) "  <- best fit" "")))))
+            (doseq [{:keys [id label coefficients r-squared]} sorted-models]
+              (let [eq-str (regression-equation-str id coefficients)]
+                (println (format "  %s  R²=%.4f%s%s"
+                                 (format (str "%-" label-width "s") label)
+                                 r-squared
+                                 (if eq-str (str "  " eq-str) "")
+                                 (if (= id best-fit) "  <- best fit" ""))))))
           (println "  (insufficient data for regression)"))))))
