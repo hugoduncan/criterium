@@ -854,3 +854,186 @@
         (is (domain/domain-grouped? (:by-impl result)))
         (is (domain/domain-comparison? (:impl-time result)))
         (is (domain/domain-comparison? (:n-time result)))))))
+
+;; Tests for domain-regression? predicate and fit-complexity function.
+;; Validates regression fitting for algorithmic complexity analysis.
+
+(deftest domain-regression?-test
+  (testing "domain-regression?"
+    (testing "returns true for valid domain-regression result"
+      (is (true? (domain/domain-regression?
+                  {:type     :criterium/domain-regression
+                   :axis     :n
+                   :models   [{:id :linear :label "O(n)" :r-squared 0.98}]
+                   :best-fit :linear}))))
+    (testing "returns true for empty models"
+      (is (true? (domain/domain-regression?
+                  {:type     :criterium/domain-regression
+                   :axis     :n
+                   :models   []
+                   :best-fit nil}))))
+    (testing "returns false for wrong type"
+      (is (false? (domain/domain-regression?
+                   {:type :other :axis :n :models [] :best-fit nil}))))
+    (testing "returns false for missing :axis"
+      (is (false? (domain/domain-regression?
+                   {:type :criterium/domain-regression :models [] :best-fit nil}))))
+    (testing "returns false for missing :models"
+      (is (false? (domain/domain-regression?
+                   {:type :criterium/domain-regression :axis :n :best-fit nil}))))
+    (testing "returns false for missing :best-fit"
+      (is (false? (domain/domain-regression?
+                   {:type :criterium/domain-regression :axis :n :models []}))))
+    (testing "returns false for non-map"
+      (is (false? (domain/domain-regression? nil)))
+      (is (false? (domain/domain-regression? "regression"))))))
+
+(deftest fit-complexity-test
+  (testing "fit-complexity"
+    (testing "returns a domain-regression result"
+      (let [extract {:type   :criterium/domain-extract
+                     :metric [:stats :elapsed-time :mean]
+                     :data   [[{:n 100} 100.0]
+                              [{:n 200} 200.0]
+                              [{:n 300} 300.0]]}
+            result  (domain/fit-complexity extract :n)]
+        (is (domain/domain-regression? result))
+        (is (= :criterium/domain-regression (:type result)))
+        (is (= :n (:axis result)))
+        (is (= [:stats :elapsed-time :mean] (:metric result)))))
+    (testing "identifies linear complexity with perfect fit"
+      (let [extract {:type   :criterium/domain-extract
+                     :metric [:stats :elapsed-time :mean]
+                     :data   [[{:n 100} 100.0]
+                              [{:n 200} 200.0]
+                              [{:n 300} 300.0]
+                              [{:n 400} 400.0]]}
+            result  (domain/fit-complexity extract :n)
+            linear  (first (filter #(= :linear (:id %)) (:models result)))]
+        (is (= :linear (:best-fit result)))
+        (is (> (:r-squared linear) 0.99))))
+    (testing "identifies quadratic complexity"
+      (let [extract {:type   :criterium/domain-extract
+                     :metric [:stats :elapsed-time :mean]
+                     :data   [[{:n 10} 100.0]
+                              [{:n 20} 400.0]
+                              [{:n 30} 900.0]
+                              [{:n 40} 1600.0]]}
+            result    (domain/fit-complexity extract :n)
+            quadratic (first (filter #(= :quadratic (:id %)) (:models result)))]
+        (is (= :quadratic (:best-fit result)))
+        (is (> (:r-squared quadratic) 0.99))))
+    (testing "filters out nil values"
+      (let [extract {:type   :criterium/domain-extract
+                     :metric [:stats :elapsed-time :mean]
+                     :data   [[{:n 100} 100.0]
+                              [{:n 200} nil]
+                              [{:n 300} 300.0]]}
+            result  (domain/fit-complexity extract :n)]
+        (is (domain/domain-regression? result))
+        (is (seq (:models result)))))
+    (testing "filters out coordinates missing axis key"
+      (let [extract {:type   :criterium/domain-extract
+                     :metric [:stats :elapsed-time :mean]
+                     :data   [[{:n 100} 100.0]
+                              [{:m 200} 200.0]
+                              [{:n 300} 300.0]]}
+            result  (domain/fit-complexity extract :n)]
+        (is (domain/domain-regression? result))
+        (is (seq (:models result)))))
+    (testing "filters out keyword coordinates"
+      (let [extract {:type   :criterium/domain-extract
+                     :metric [:stats :elapsed-time :mean]
+                     :data   [[{:n 100} 100.0]
+                              [:baseline 50.0]
+                              [{:n 300} 300.0]]}
+            result  (domain/fit-complexity extract :n)]
+        (is (domain/domain-regression? result))
+        (is (seq (:models result)))))
+    (testing "returns empty models with insufficient data"
+      (let [extract {:type   :criterium/domain-extract
+                     :metric [:stats :elapsed-time :mean]
+                     :data   [[{:n 100} 100.0]]}
+            result  (domain/fit-complexity extract :n)]
+        (is (domain/domain-regression? result))
+        (is (empty? (:models result)))
+        (is (nil? (:best-fit result)))))
+    (testing "returns empty models for empty extract"
+      (let [extract {:type   :criterium/domain-extract
+                     :metric [:stats :elapsed-time :mean]
+                     :data   []}
+            result  (domain/fit-complexity extract :n)]
+        (is (domain/domain-regression? result))
+        (is (empty? (:models result)))))
+    (testing "supports custom models"
+      (let [extract {:type   :criterium/domain-extract
+                     :metric [:stats :elapsed-time :mean]
+                     :data   [[{:n 100} 100.0]
+                              [{:n 200} 200.0]
+                              [{:n 300} 300.0]]}
+            models  {:cubic {:transform (fn [n] (* n n n))
+                             :label     "O(n³)"}}
+            result  (domain/fit-complexity extract :n models)]
+        (is (domain/domain-regression? result))
+        (is (= 1 (count (:models result))))
+        (is (= :cubic (:id (first (:models result)))))))))
+
+(deftest domain-regression-fn-test
+  (testing "domain-regression-fn"
+    (testing "returns a function"
+      (is (fn? (domain/domain-regression-fn)))
+      (is (fn? (domain/domain-regression-fn {}))))
+    (testing "fits regression to extract in data-map"
+      (let [extract {:type   :criterium/domain-extract
+                     :metric [:stats :elapsed-time :mean]
+                     :data   [[{:n 100} 100.0]
+                              [{:n 200} 200.0]
+                              [{:n 300} 300.0]]}
+            f       (domain/domain-regression-fn {:id :scaling :axis :n})
+            result  (f {:extract extract})]
+        (is (contains? result :extract))
+        (is (contains? result :scaling))
+        (is (domain/domain-regression? (:scaling result)))))
+    (testing "uses default :id when not specified"
+      (let [extract {:type   :criterium/domain-extract
+                     :metric [:stats :elapsed-time :mean]
+                     :data   [[{:n 100} 100.0]
+                              [{:n 200} 200.0]]}
+            f       (domain/domain-regression-fn {:axis :n})
+            result  (f {:extract extract})]
+        (is (contains? result :regression))))
+    (testing "uses custom :extract-id"
+      (let [extract {:type   :criterium/domain-extract
+                     :metric [:stats :elapsed-time :mean]
+                     :data   [[{:n 100} 100.0]
+                              [{:n 200} 200.0]]}
+            f       (domain/domain-regression-fn
+                     {:id :scaling :extract-id :my-extract :axis :n})
+            result  (f {:my-extract extract})]
+        (is (contains? result :scaling))
+        (is (domain/domain-regression? (:scaling result)))))
+    (testing "preserves other keys in data-map"
+      (let [extract {:type   :criterium/domain-extract
+                     :metric [:stats :elapsed-time :mean]
+                     :data   [[{:n 100} 100.0]
+                              [{:n 200} 200.0]]}
+            f       (domain/domain-regression-fn {:id :scaling :axis :n})
+            result  (f {:extract extract :other-key "value"})]
+        (is (= "value" (:other-key result)))))
+    (testing "composes with domain-extract-fn"
+      (let [d      (domain/domain
+                    {:coord {:n 100}
+                     :data (mock-bench-result {:elapsed-time {:mean 100.0}})}
+                    {:coord {:n 200}
+                     :data (mock-bench-result {:elapsed-time {:mean 200.0}})}
+                    {:coord {:n 300}
+                     :data (mock-bench-result {:elapsed-time {:mean 300.0}})})
+            result (-> {:domain d}
+                       ((domain/domain-extract-fn
+                         {:id          :extract
+                          :metric-path [:stats :elapsed-time :mean]}))
+                       ((domain/domain-regression-fn
+                         {:id :scaling :axis :n})))]
+        (is (domain/domain-extract? (:extract result)))
+        (is (domain/domain-regression? (:scaling result)))
+        (is (= :linear (:best-fit (:scaling result))))))))

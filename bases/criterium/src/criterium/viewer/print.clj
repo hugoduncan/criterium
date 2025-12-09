@@ -533,3 +533,21 @@
           (print-comparison-table axis metric data)
           (println (format "Domain Comparison by %s: %s (no data)"
                            (name axis) (pr-str metric))))))))
+
+(defmethod view/domain-regression* :print
+  [_ {:keys [regression-id]} data-map]
+  (let [regression-id (or regression-id :regression)
+        regression    (data-map regression-id)]
+    (when regression
+      (let [{:keys [axis metric models best-fit]} regression]
+        (println (format "Domain Regression (axis: %s, metric: %s)"
+                         (name axis) (pr-str metric)))
+        (if (seq models)
+          (let [sorted-models (sort-by :r-squared > models)
+                label-width   (apply max (map #(count (:label %)) models))]
+            (doseq [{:keys [id label r-squared]} sorted-models]
+              (println (format "  %s  R²=%.4f%s"
+                               (format (str "%-" label-width "s") label)
+                               r-squared
+                               (if (= id best-fit) "  <- best fit" "")))))
+          (println "  (insufficient data for regression)"))))))

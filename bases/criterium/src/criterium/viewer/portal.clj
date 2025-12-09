@@ -383,3 +383,20 @@
                                 :title (name axis)}
                                {:field "value" :type "quantitative"}]}
           :mark     {:type "bar"}})))))
+
+(defmethod view/domain-regression* :portal
+  [_ {:keys [regression-id]} data-map]
+  (let [regression-id (or regression-id :regression)
+        regression    (data-map regression-id)]
+    (when regression
+      (let [{:keys [axis metric models best-fit]} regression]
+        (heading (str "Domain Regression (axis: " (name axis) ")"))
+        (if (seq models)
+          (let [sorted-models (sort-by :r-squared > models)
+                table-data    (mapv (fn [{:keys [id label r-squared]}]
+                                      {:model    label
+                                       :r-squared (format "%.4f" r-squared)
+                                       :best-fit (if (= id best-fit) "✓" "")})
+                                    sorted-models)]
+            (portal-table table-data))
+          (tap> "Insufficient data for regression"))))))

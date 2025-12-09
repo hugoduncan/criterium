@@ -436,3 +436,54 @@
                    :axis   :impl
                    :metric [:stats :elapsed-time :mean]
                    :data   {nil [{:coord :baseline :value 5e-8}]}}}))))))))
+
+(deftest domain-regression-print-test
+  ;; Tests the print viewer output for domain-regression results.
+  ;; Verifies display of models sorted by R² with best-fit indicator.
+  (testing "domain-regression*"
+    (testing "prints models sorted by R² with best-fit indicator"
+      (is (= ["Domain Regression (axis: n, metric: [:stats :elapsed-time :mean])"
+              "O(n)        R²=0.9900  <- best fit"
+              "O(n log n)  R²=0.8500"
+              "O(n²)       R²=0.7000"]
+             (trimmed-lines
+              (with-out-str
+                (view/domain-regression*
+                 :print
+                 {}
+                 {:regression
+                  {:type     :criterium/domain-regression
+                   :axis     :n
+                   :metric   [:stats :elapsed-time :mean]
+                   :models   [{:id :linear :label "O(n)" :r-squared 0.99}
+                              {:id :n-log-n :label "O(n log n)" :r-squared 0.85}
+                              {:id :quadratic :label "O(n²)" :r-squared 0.70}]
+                   :best-fit :linear}}))))))
+    (testing "handles empty models"
+      (is (= ["Domain Regression (axis: n, metric: [:stats :elapsed-time :mean])"
+              "(insufficient data for regression)"]
+             (trimmed-lines
+              (with-out-str
+                (view/domain-regression*
+                 :print
+                 {}
+                 {:regression
+                  {:type     :criterium/domain-regression
+                   :axis     :n
+                   :metric   [:stats :elapsed-time :mean]
+                   :models   []
+                   :best-fit nil}}))))))
+    (testing "uses custom regression-id"
+      (is (= ["Domain Regression (axis: size, metric: [:stats :elapsed-time :mean])"
+              "O(n)  R²=0.9500  <- best fit"]
+             (trimmed-lines
+              (with-out-str
+                (view/domain-regression*
+                 :print
+                 {:regression-id :scaling}
+                 {:scaling
+                  {:type     :criterium/domain-regression
+                   :axis     :size
+                   :metric   [:stats :elapsed-time :mean]
+                   :models   [{:id :linear :label "O(n)" :r-squared 0.95}]
+                   :best-fit :linear}}))))))))

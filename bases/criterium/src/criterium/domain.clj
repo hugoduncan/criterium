@@ -418,3 +418,152 @@
            domain    (data-map domain-id)
            result    (compare-by domain axis-key metric-path)]
        (assoc data-map id result)))))
+
+;;; Regression Analysis
+;;
+;; Functions for fitting complexity models to domain extract data.
+;; Enables quantitative determination of algorithmic complexity from
+;; benchmark measurements across varying input sizes.
+
+(def default-complexity-models
+  "Default complexity models for regression fitting.
+  Each model maps input size n to a transformed value for linear regression."
+  {:logarithmic {:transform (fn [^double n] (Math/log n))
+                 :label     "O(log n)"}
+   :linear      {:transform identity
+                 :label     "O(n)"}
+   :n-log-n     {:transform (fn [^double n] (* n (Math/log n)))
+                 :label     "O(n log n)"}
+   :quadratic   {:transform (fn [^double n] (* n n))
+                 :label     "O(n²)"}})
+
+(defn- linear-regression
+  "Perform simple linear regression: y = a*x + b.
+  Returns {:a slope :b intercept :r-squared coefficient-of-determination}."
+  [xs ys]
+  (let [n      (count xs)
+        sum-x  (reduce + xs)
+        sum-y  (reduce + ys)
+        sum-xy (reduce + (map * xs ys))
+        sum-x2 (reduce + (map #(* % %) xs))
+        sum-y2 (reduce + (map #(* % %) ys))
+        ;; Calculate slope and intercept
+        denom  (- (* n sum-x2) (* sum-x sum-x))
+        a      (if (zero? denom)
+                 0.0
+                 (/ (- (* n sum-xy) (* sum-x sum-y)) denom))
+        b      (/ (- sum-y (* a sum-x)) n)
+        ;; Calculate R²
+        ss-tot (- sum-y2 (/ (* sum-y sum-y) n))
+        ss-res (reduce + (map (fn [x y]
+                                (let [pred (+ (* a x) b)
+                                      res  (- y pred)]
+                                  (* res res)))
+                              xs ys))
+        r-sq   (if (zero? ss-tot)
+                 (if (zero? ss-res) 1.0 0.0)
+                 (- 1.0 (/ ss-res ss-tot)))]
+    {:a         a
+     :b         b
+     :r-squared r-sq}))
+
+(defn- fit-complexity-model
+  "Fit a single complexity model to data points.
+  Returns map with :id, :label, :coefficients, :r-squared, :residuals."
+  [model-id {:keys [transform label]} xs ys]
+  (let [transformed-xs (mapv (comp double transform) xs)
+        {:keys [a b r-squared]} (linear-regression transformed-xs ys)
+        residuals (mapv (fn [tx y]
+                          (- y (+ (* a tx) b)))
+                        transformed-xs ys)]
+    {:id           model-id
+     :label        label
+     :coefficients {:a a :b b}
+     :r-squared    r-squared
+     :residuals    residuals}))
+
+(defn domain-regression?
+  "Returns true if x is a domain regression result."
+  [x]
+  (and (map? x)
+       (= :criterium/domain-regression (:type x))
+       (contains? x :axis)
+       (contains? x :models)
+       (contains? x :best-fit)))
+
+(defn fit-complexity
+  "Fit complexity models to domain extract data.
+  Returns a domain-regression result identifying how metrics scale with input size.
+
+  extract is a domain-extract result.
+  axis is the coordinate key to use for x-values (e.g., :n for input size).
+  models is a map of model-id to {:transform fn :label string}, or nil for defaults.
+
+  Filters out data points with nil values before fitting.
+  Selects best-fit model by highest R² value.
+
+  Example:
+  (fit-complexity extract :n)
+  ;; => {:type :criterium/domain-regression
+  ;;     :axis :n
+  ;;     :metric [:stats :elapsed-time :mean]
+  ;;     :models [{:id :linear :label \"O(n)\" :r-squared 0.98 ...} ...]
+  ;;     :best-fit :linear}"
+  ([extract axis] (fit-complexity extract axis nil))
+  ([extract axis models]
+   (let [models      (or models default-complexity-models)
+         metric-path (:metric extract)
+         ;; Extract x (axis value) and y (metric value) from data
+         ;; Filter out nil y values
+         valid-data  (filter (fn [[coord value]]
+                               (and (some? value)
+                                    (if (map? coord)
+                                      (contains? coord axis)
+                                      false)))
+                             (:data extract))
+         xs          (mapv (fn [[coord _]] (double (get coord axis))) valid-data)
+         ys          (mapv (fn [[_ value]] (double value)) valid-data)
+         ;; Fit each model
+         fitted      (when (>= (count xs) 2)
+                       (mapv (fn [[model-id model-def]]
+                               (fit-complexity-model model-id model-def xs ys))
+                             models))
+         ;; Find best fit by R²
+         best-fit    (when (seq fitted)
+                       (:id (apply max-key :r-squared fitted)))]
+     {:type     :criterium/domain-regression
+      :axis     axis
+      :metric   metric-path
+      :models   (or fitted [])
+      :best-fit best-fit})))
+
+(defn domain-regression-fn
+  "Returns a function that fits complexity models to a domain extract in a data-map.
+
+  Parameters:
+    opts - Map with keys:
+      :id         - Key for result in output (default: :regression)
+      :extract-id - Key for source domain-extract in input (default: :extract)
+      :axis       - Coordinate key to use for x-values (required, e.g., :n)
+      :models     - Map of model definitions, or nil for defaults
+
+  The returned function:
+  - Takes a data-map containing a domain-extract under :extract-id
+  - Returns the data-map with a domain-regression result added under :id
+
+  Example:
+  (-> {:domain my-domain}
+      ((domain-extract-fn {:id :extract
+                           :metric-path [:stats :elapsed-time :mean]}))
+      ((domain-regression-fn {:id :scaling :axis :n})))
+  ;; => {:domain my-domain
+  ;;     :extract {:type :criterium/domain-extract ...}
+  ;;     :scaling {:type :criterium/domain-regression ...}}"
+  ([] (domain-regression-fn {}))
+  ([{:keys [id extract-id axis models]}]
+   (fn [data-map]
+     (let [extract-id (or extract-id :extract)
+           id         (or id :regression)
+           extract    (data-map extract-id)
+           result     (fit-complexity extract axis models)]
+       (assoc data-map id result)))))
