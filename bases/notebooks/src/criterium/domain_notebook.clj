@@ -179,7 +179,7 @@
 ;;
 ;; Benchmark sort across powers of 2 to observe n log n behavior:
 
-(def scaling-sizes (take 4 (domain/powers-of-2 6 10)))
+(def scaling-sizes (domain/powers-of-2 4 9))
 
 (def scaling-inputs
   (into {} (map (fn [n] [n (vec (repeatedly n #(rand-int 10000)))]) scaling-sizes)))
