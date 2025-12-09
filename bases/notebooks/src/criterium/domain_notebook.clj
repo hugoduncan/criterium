@@ -141,23 +141,17 @@
 
 ;; ### Extract View
 
-^:kindly/hide-code
-(kind/code
- (with-out-str
-   ((view/domain-extract {:extract-id :extract})
-    :print
-    {:extract (domain/extract sort-domain [:stats :elapsed-time :mean])})))
+((view/domain-extract {:extract-id :extract})
+ :print
+ {:extract (domain/extract sort-domain [:stats :elapsed-time :mean])})
 
 ;; ### Comparison View
 ;;
 ;; The comparison view shows a table with axis values as columns:
 
-^:kindly/hide-code
-(kind/code
- (with-out-str
-   ((view/domain-comparison {:comparison-id :comparison})
-    :print
-    {:comparison (domain/compare-by impl-domain :impl [:stats :elapsed-time :mean])})))
+((view/domain-comparison {:comparison-id :comparison})
+ :print
+ {:comparison (domain/compare-by impl-domain :impl [:stats :elapsed-time :mean])})
 
 ;; ## Scaling Analysis
 ;;
@@ -185,14 +179,11 @@
 ;;
 ;; Benchmark sort across powers of 2 to observe n log n behavior:
 
-^:kindly/hide-code
 (def scaling-sizes (take 4 (domain/powers-of-2 6 10)))
 
-^:kindly/hide-code
 (def scaling-inputs
   (into {} (map (fn [n] [n (vec (repeatedly n #(rand-int 10000)))]) scaling-sizes)))
 
-^:kindly/hide-code
 (defn build-scaling-domain
   "Build domain for scaling analysis."
   []
@@ -204,15 +195,12 @@
    (domain/domain)
    scaling-sizes))
 
-^:kindly/hide-code
-(kind/md "Building scaling analysis domain...")
+;; "Building scaling analysis domain..."
 
-^:kindly/hide-code
 (def scaling-domain (build-scaling-domain))
 
 ;; Extract times and observe scaling:
 
-^:kindly/hide-code
 (let [extract (domain/extract scaling-domain [:stats :elapsed-time :mean])]
   (kind/table
    {:column-names [:n :time-ns :ratio-to-previous]
@@ -233,32 +221,28 @@
 ;; The `fit-complexity` function fits O(log n), O(n), O(n log n), and O(n²) models
 ;; and identifies the best fit by R² value:
 
-^:kindly/hide-code
-(let [extract (domain/extract scaling-domain [:stats :elapsed-time :mean])
+(let [extract    (domain/extract scaling-domain [:stats :elapsed-time :mean])
       regression (domain/fit-complexity extract :n)]
   {:best-fit (:best-fit regression)
-   :models (map (fn [{:keys [id label r-squared]}]
-                  {:model label :r-squared (format "%.4f" r-squared)})
-                (sort-by :r-squared > (:models regression)))})
+   :models   (map (fn [{:keys [id label r-squared]}]
+                    {:model label :r-squared (format "%.4f" r-squared)})
+                  (sort-by :r-squared > (:models regression)))})
 
 ;; View regression results with the print viewer:
 
-^:kindly/hide-code
-(kind/code
- (with-out-str
-   (let [extract (domain/extract scaling-domain [:stats :elapsed-time :mean])]
-     ((view/domain-regression {:regression-id :regression})
-      :print
-      {:regression (domain/fit-complexity extract :n)}))))
+(let [extract (domain/extract scaling-domain [:stats :elapsed-time :mean])]
+  ((view/domain-regression {:regression-id :regression})
+   :print
+   {:regression (domain/fit-complexity extract :n)}))
 
 ;; Use the pipeline function for composable analysis:
 
 (-> {:domain scaling-domain}
     ((domain/domain-extract-fn
-      {:id :extract
+      {:id          :extract
        :metric-path [:stats :elapsed-time :mean]}))
     ((domain/domain-regression-fn
-      {:id :scaling
+      {:id   :scaling
        :axis :n}))
     :scaling
     :best-fit)
@@ -277,11 +261,11 @@
 
 (-> {:domain impl-domain}
     ((domain/domain-extract-fn
-      {:id :mean-time
+      {:id          :mean-time
        :metric-path [:stats :elapsed-time :mean]}))
     ((domain/domain-compare-fn
-      {:id :impl-comparison
-       :axis-key :impl
+      {:id          :impl-comparison
+       :axis-key    :impl
        :metric-path [:stats :elapsed-time :mean]}))
     keys)
 
@@ -297,33 +281,27 @@
 ;;
 ;; `complexity-analysis` extracts elapsed time and fits regression models:
 
-^:kindly/hide-code
-(kind/code
- (with-out-str
-   (domain/analyse-domain
-    (domain/options->domain-plan domain-plans/complexity-analysis
-                                 :viewer :print)
-    scaling-domain)))
+(domain/analyse-domain
+ (domain/options->domain-plan domain-plans/complexity-analysis
+                              :viewer :print)
+ scaling-domain)
 
 ;; `implementation-comparison` compares metrics across implementations:
 
-^:kindly/hide-code
-(kind/code
- (with-out-str
-   (domain/analyse-domain
-    (domain/options->domain-plan domain-plans/implementation-comparison
-                                 :viewer :print)
-    impl-domain)))
+(domain/analyse-domain
+ (domain/options->domain-plan domain-plans/implementation-comparison
+                              :viewer :print)
+ impl-domain)
 
 ;; ### Custom Plans
 ;;
 ;; Build custom plans by specifying `:analyse` and `:view` vectors:
 
 (domain/analyse-domain
- {:analyse [[:domain-extract-fn {:id :times
+ {:analyse [[:domain-extract-fn {:id          :times
                                  :metric-path [:stats :elapsed-time :mean]}]
-            [:domain-compare-fn {:id :by-size
-                                 :axis-key :n
+            [:domain-compare-fn {:id          :by-size
+                                 :axis-key    :n
                                  :metric-path [:stats :elapsed-time :mean]}]]
   :view    []
   :viewer  :none}
