@@ -10,12 +10,14 @@
   [sample metrics]
   (reduce
    (fn [res metric]
-     (conj res
-           {:metric (:label metric)
-            :value  (format/format-value
-                     (:dimension metric)
-                     (* (double (first (sample (:path metric))))
-                        (double (:scale metric))))}))
+     (let [v (first (sample (:path metric)))]
+       (conj res
+             {:metric (:label metric)
+              :value  (if (number? v)
+                        (format/format-value
+                         (:dimension metric)
+                         (* (double v) (double (:scale metric))))
+                        v)})))
    []
    metrics))
 

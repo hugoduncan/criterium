@@ -90,3 +90,23 @@
                   (->> data-map
                        event-stats
                        (view :pprint))))))))))
+
+(def ^:private expected-non-numeric-metrics
+  [""
+   "|      :metric |      :value |"
+   "|--------------+-------------|"
+   "| Elapsed Time | unavailable |"
+   "|   Expr value |             |"])
+
+;; Tests that the pprint viewer handles non-numeric metric values gracefully
+;; instead of throwing an exception when coercing to double.
+(deftest pprint-metrics-non-numeric-test
+  (testing "pprint-metrics"
+    (testing "handles non-numeric metric values"
+      (is (= expected-non-numeric-metrics
+             (trimmed-lines
+              (with-out-str
+                (view/metrics*
+                 :pprint
+                 {}
+                 (:data (test-data/samples-with-non-numeric-value-map))))))))))

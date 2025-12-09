@@ -303,3 +303,16 @@
 (deftest print-runtime-test
   (let [s (with-out-str ((view/runtime) :print {}))]
     (is (not (str/blank? s)))))
+
+;; Tests that the print viewer handles non-numeric metric values gracefully
+;; instead of throwing an exception when trying to multiply or format.
+(deftest print-metrics-non-numeric-test
+  (testing "print-metrics"
+    (testing "handles non-numeric metric values"
+      (is (= ["Elapsed Time: unavailable"]
+             (trimmed-lines
+              (with-out-str
+                (view/metrics*
+                 :print
+                 {}
+                 (:data (test-data/samples-with-non-numeric-value-map))))))))))

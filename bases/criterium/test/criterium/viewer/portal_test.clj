@@ -193,3 +193,16 @@
                  (->> data-map
                       event-stats
                       (view :portal)))))))))
+
+;; Tests that the portal viewer handles non-numeric metric values gracefully
+;; instead of throwing an exception when coercing to double.
+(deftest portal-metrics-non-numeric-test
+  (testing "portal-metrics"
+    (testing "handles non-numeric metric values"
+      (is (= [[{:metric "Elapsed Time" :value "unavailable"}
+               {:metric "Expr value" :value nil}]]
+             (with-tap-out
+               (view/metrics*
+                :portal
+                {}
+                (:data (test-data/samples-with-non-numeric-value-map)))))))))

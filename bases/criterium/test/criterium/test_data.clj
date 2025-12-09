@@ -120,6 +120,23 @@
        :outliers-id          :outliers
        :transform            collect-plan/identity-transforms}}}))
 
+(defn samples-with-non-numeric-value-map
+  "Creates a samples map with a non-numeric metric value for testing viewer
+  error handling."
+  []
+  (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])]
+    {:metrics-defs metrics-defs
+     :data
+     {:samples
+      {:type           :criterium/metrics-samples
+       :metrics-defs   metrics-defs
+       :metric->values {[:elapsed-time] ["unavailable"]}
+       :transform      collect-plan/identity-transforms
+       :batch-size     1
+       :eval-count     1
+       :num-samples    1
+       :elapsed-time   1}}}))
+
 (defn samples-for-event-stats-map
   []
   (let [metrics-defs
