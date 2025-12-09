@@ -398,3 +398,65 @@
   [_ _view _sampled]
   ;; TODO
   )
+
+;;; Domain Views
+
+(defn- format-coord
+  "Format a coordinate for display."
+  [coord]
+  (if (map? coord)
+    (str/join " " (map (fn [[k v]] (str (name k) "=" v)) (sort-by key coord)))
+    (name coord)))
+
+(defn- format-extract-value
+  "Format a value from domain-extract for display."
+  [value metric-path]
+  (if (nil? value)
+    "nil"
+    (let [dimension (case (first metric-path)
+                      (:stats :log-stats) (case (second metric-path)
+                                            :elapsed-time :time
+                                            :thread-allocation :bytes
+                                            :count)
+                      :count)]
+      (format/format-value dimension value))))
+
+(defmethod view/domain-extract* :print
+  [_ {:keys [extract-id]} data-map]
+  (let [extract-id (or extract-id :extract)
+        extract    (data-map extract-id)]
+    (when extract
+      (let [{:keys [metric data]} extract]
+        (println (format "Domain Extract: %s" (pr-str metric)))
+        (doseq [[coord value] data]
+          (println (format "  %24s: %s"
+                           (format-coord coord)
+                           (format-extract-value value metric))))))))
+
+(defmethod view/domain-grouped* :print
+  [_ {:keys [grouped-id]} data-map]
+  (let [grouped-id (or grouped-id :grouped)
+        grouped    (data-map grouped-id)]
+    (when grouped
+      (let [{:keys [axis data]} grouped]
+        (println (format "Domain Grouped by: %s" (name axis)))
+        (doseq [[axis-val sub-domain] (sort-by (comp str key) data)]
+          (let [run-count (count (:runs sub-domain))]
+            (println (format "  %24s: %d run%s"
+                             (if (nil? axis-val) "<nil>" (str axis-val))
+                             run-count
+                             (if (= 1 run-count) "" "s")))))))))
+
+(defmethod view/domain-comparison* :print
+  [_ {:keys [comparison-id]} data-map]
+  (let [comparison-id (or comparison-id :comparison)
+        comparison    (data-map comparison-id)]
+    (when comparison
+      (let [{:keys [axis metric data]} comparison]
+        (println (format "Domain Comparison by %s: %s" (name axis) (pr-str metric)))
+        (doseq [[axis-val entries] (sort-by (comp str key) data)]
+          (println (format "  %s:" (if (nil? axis-val) "<nil>" (str axis-val))))
+          (doseq [{:keys [coord value]} entries]
+            (println (format "    %24s: %s"
+                             (format-coord coord)
+                             (format-extract-value value metric)))))))))

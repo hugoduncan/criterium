@@ -36,6 +36,12 @@
 (def-multi-view samples)
 (def-multi-view stats)
 
+;;; Domain Views
+
+(def-multi-view domain-extract)
+(def-multi-view domain-grouped)
+(def-multi-view domain-comparison)
+
 (defmulti flush-viewer (fn [viewer] viewer))
 (defmethod flush-viewer :default  [_])
 
@@ -56,3 +62,8 @@
 (defmethod collect-plan* :none [_ _ _])
 (defmethod samples* :none [_ _ _])
 (defmethod stats* :none [_ _ _])
+
+;; Domain Null Viewer
+(defmethod domain-extract* :none [_ _ _])
+(defmethod domain-grouped* :none [_ _ _])
+(defmethod domain-comparison* :none [_ _ _])
