@@ -27,7 +27,8 @@
 ;;sufficiently to trigger JIT.
 
 ^:kindly/hide-code
-(bench-display (bench/bench (reduce + (range 1000)) :collect-plan :one-shot))
+(bench-display
+ (bench/bench (reduce + (range 1000)) :collect-plan :one-shot))
 
 ;; The one-shot output shows:
 ;; - Single elapsed time measurement
@@ -42,7 +43,8 @@
 ;; 3. Measurement phase - collects ~200 samples for statistical analysis
 
 ^:kindly/hide-code
-(bench-display (bench/bench (reduce + (range 1000)) :collect-plan :with-jit-warmup))
+(bench-display
+ (bench/bench (reduce + (range 1000)) :collect-plan :with-jit-warmup))
 
 ;; The default output includes:
 ;; - Mean execution time with confidence interval
@@ -80,7 +82,8 @@ bench-plans/log-histogram
 ;; - Histogram visualization
 
 ^:kindly/hide-code
-(bench-display (bench/bench (reduce + (range 1000)) :bench-plan bench-plans/log-histogram))
+(bench-display
+ (bench/bench (reduce + (range 1000)) :bench-plan bench-plans/log-histogram))
 
 ;; ## Viewer Options
 ;;
@@ -118,9 +121,9 @@ bench-plans/log-histogram
 ;;
 ;; Setup Portal before using this viewer:
 
-(kind/code "(require '[portal.api :as p])
+(require '[portal.api :as p])
 (def p (p/open))
-(add-tap #'p/submit)")
+(add-tap #'p/submit)
 
 ^:kindly/hide-code
 (bench-display (bench/bench (reduce + (range 1000)) :viewer :portal))
@@ -207,14 +210,16 @@ bench-plans/log-histogram
 ;; - `:finalization` - Object finalization counts
 
 ^:kindly/hide-code
-(bench-display (bench/bench (vec (range 1000)) :metric-ids [:elapsed-time :memory]))
+(bench-display
+ (bench/bench (vec (range 1000)) :metric-ids [:elapsed-time :memory]))
 
 ;; ## Combining Options
 ;;
 ;; Options can be combined for tailored benchmarking:
 
 ^:kindly/hide-code
-(bench-display (bench/bench (reduce + (range 1000))
-                            :viewer :pprint
-                            :limit-time-s 5
-                            :metric-ids [:elapsed-time :memory]))
+(bench-display
+ (bench/bench (reduce + (range 1000))
+              :viewer :pprint
+              :limit-time-s 5
+              :metric-ids [:elapsed-time :memory]))

@@ -5,8 +5,7 @@
    [clojure.test.check.generators :as gen]
    [criterium.arg-gen :as arg-gen]
    [criterium.bench :as bench]
-   [criterium.notebook.helpers :refer [bench-display]]
-   [scicloj.kindly.v4.kind :as kind]))
+   [criterium.notebook.helpers :refer [bench-display]]))
 
 ;; # Benchmarking with Generated Arguments
 ;;
@@ -34,18 +33,18 @@
 ;;
 ;; Benchmark arithmetic with generated integers:
 
-(bench-display
- (bench/bench-measured
-  (bench/options->bench-plan)
-  (arg-gen/measured
-   [a gen/large-integer
-    b gen/large-integer]
-   (+ a b))))
+(bench/bench-measured
+ (bench/options->bench-plan)
+ (arg-gen/measured
+  [a gen/large-integer
+   b gen/large-integer]
+  (+ a b)))
 
 ;; ## Multiple Bindings
 ;;
 ;; Earlier bindings are visible to later ones, enabling dependent generation:
 
+^:kindly/hide-code
 (bench-display
  (bench/bench-measured
   (bench/options->bench-plan)
@@ -61,6 +60,7 @@
 ;; The `:size` option controls the maximum size passed to generators.
 ;; Larger sizes produce larger generated values for sized generators:
 
+^:kindly/hide-code
 (bench-display
  (bench/bench-measured
   (bench/options->bench-plan)
@@ -68,6 +68,7 @@
                     [coll (gen/vector gen/small-integer)]
                     (count coll))))
 
+^:kindly/hide-code
 (bench-display
  (bench/bench-measured
   (bench/options->bench-plan)
@@ -79,6 +80,7 @@
 ;;
 ;; The `:seed` option provides reproducible generation sequences:
 
+^:kindly/hide-code
 (bench-display
  (bench/bench-measured
   (bench/options->bench-plan)
@@ -92,6 +94,7 @@
 ;;
 ;; ### String Processing
 
+^:kindly/hide-code
 (bench-display
  (bench/bench-measured
   (bench/options->bench-plan)
@@ -101,6 +104,7 @@
 
 ;; ### Collection Operations
 
+^:kindly/hide-code
 (bench-display
  (bench/bench-measured
   (bench/options->bench-plan)
@@ -110,6 +114,7 @@
 
 ;; ### Map Operations
 
+^:kindly/hide-code
 (bench-display
  (bench/bench-measured
   (bench/options->bench-plan)
@@ -132,6 +137,7 @@
 ;; Generated arguments work with all standard bench options.
 ;; Use `:collect-plan :one-shot` for minimal collection:
 
+^:kindly/hide-code
 (bench-display
  (bench/bench-measured
   (bench/options->bench-plan :collect-plan :one-shot)
@@ -148,14 +154,15 @@
   (gen/hash-map :x gen/small-integer
                 :y gen/small-integer))
 
+^:kindly/hide-code
 (bench-display
  (bench/bench-measured
   (bench/options->bench-plan)
   (arg-gen/measured
    [p1 gen-point
     p2 gen-point]
-   (let [dx (- (:x p2) (:x p1))
-         dy (- (:y p2) (:y p1))]
+   (let [dx (- (long (:x p2)) (long (:x p1)))
+         dy (- (long (:y p2)) (long (:y p1)))]
      (Math/sqrt (+ (* dx dx) (* dy dy)))))))
 
 ;; ## Comparison with Static Data
@@ -167,15 +174,18 @@
   (vec (range 100)))
 
 ;; Static data - same input every iteration:
+^:kindly/hide-code
 (bench-display (bench/bench (reduce + static-vector)))
 
 ;; Generated data - varied inputs each iteration:
+^:kindly/hide-code
 (bench-display
  (bench/bench-measured
   (bench/options->bench-plan)
-  (arg-gen/measured {:size 100}
-                    [v (gen/vector gen/small-integer)]
-                    (reduce + v))))
+  (arg-gen/measured
+   {:size 100}
+   [v (gen/vector gen/small-integer)]
+   (reduce + v))))
 
 ;; Generated inputs reveal performance variance across different data shapes.
 
@@ -187,11 +197,14 @@
         (* n n)))
 
  ;; Benchmark it
-(bench/bench-measured (bench/options->bench-plan) m)
+(bench/bench-measured
+ (bench/options->bench-plan)
+ m)
 
- ;; With options
+;; With options
 (bench/bench-measured
  (bench/options->bench-plan :collect-plan :one-shot)
- (arg-gen/measured {:size 50 :seed 42}
-                   [coll (gen/vector gen/small-integer)]
-                   (sort coll)))
+ (arg-gen/measured
+  {:size 50 :seed 42}
+  [coll (gen/vector gen/small-integer)]
+  (sort coll)))
