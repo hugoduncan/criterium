@@ -657,3 +657,200 @@
         (is (apply < result))))
     (testing "handles single point"
       (is (= [500] (domain/linear-range 500 500 1))))))
+
+;; Tests for domain analysis pipeline functions.
+;; Validates composable analysis transformers that operate on data-maps,
+;; following the same pattern as criterium.analyse functions.
+
+(deftest domain-extract-fn-test
+  (testing "domain-extract-fn"
+    (testing "returns a function"
+      (is (fn? (domain/domain-extract-fn)))
+      (is (fn? (domain/domain-extract-fn {}))))
+    (testing "extracts metric from domain in data-map"
+      (let [d       (domain/domain
+                     {:coord {:n 100}
+                      :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
+            f       (domain/domain-extract-fn
+                     {:id :mean :metric-path [:stats :elapsed-time :mean]})
+            result  (f {:domain d})]
+        (is (contains? result :domain))
+        (is (contains? result :mean))
+        (is (domain/domain-extract? (:mean result)))))
+    (testing "uses default :id when not specified"
+      (let [d      (domain/domain
+                    {:coord :a
+                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
+            f      (domain/domain-extract-fn
+                    {:metric-path [:stats :elapsed-time :mean]})
+            result (f {:domain d})]
+        (is (contains? result :extract))))
+    (testing "uses custom :domain-id"
+      (let [d      (domain/domain
+                    {:coord :a
+                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
+            f      (domain/domain-extract-fn
+                    {:id :mean
+                     :domain-id :my-domain
+                     :metric-path [:stats :elapsed-time :mean]})
+            result (f {:my-domain d})]
+        (is (contains? result :mean))
+        (is (domain/domain-extract? (:mean result)))))
+    (testing "preserves other keys in data-map"
+      (let [d      (domain/domain
+                    {:coord :a
+                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
+            f      (domain/domain-extract-fn
+                    {:id :mean :metric-path [:stats :elapsed-time :mean]})
+            result (f {:domain d :other-key "value"})]
+        (is (= "value" (:other-key result)))))))
+
+(deftest domain-group-by-fn-test
+  (testing "domain-group-by-fn"
+    (testing "returns a function"
+      (is (fn? (domain/domain-group-by-fn)))
+      (is (fn? (domain/domain-group-by-fn {}))))
+    (testing "groups domain by axis in data-map"
+      (let [d      (domain/domain
+                    {:coord {:n 100 :impl :foo} :data sample-data}
+                    {:coord {:n 200 :impl :bar} :data sample-data-2})
+            f      (domain/domain-group-by-fn {:id :by-impl :axis-key :impl})
+            result (f {:domain d})]
+        (is (contains? result :domain))
+        (is (contains? result :by-impl))
+        (is (domain/domain-grouped? (:by-impl result)))))
+    (testing "uses default :id when not specified"
+      (let [d      (domain/domain
+                    {:coord {:impl :foo} :data sample-data})
+            f      (domain/domain-group-by-fn {:axis-key :impl})
+            result (f {:domain d})]
+        (is (contains? result :grouped))))
+    (testing "uses custom :domain-id"
+      (let [d      (domain/domain
+                    {:coord {:impl :foo} :data sample-data})
+            f      (domain/domain-group-by-fn
+                    {:id :by-impl :domain-id :src :axis-key :impl})
+            result (f {:src d})]
+        (is (contains? result :by-impl))
+        (is (domain/domain-grouped? (:by-impl result)))))
+    (testing "preserves other keys in data-map"
+      (let [d      (domain/domain
+                    {:coord {:impl :foo} :data sample-data})
+            f      (domain/domain-group-by-fn {:id :by-impl :axis-key :impl})
+            result (f {:domain d :config {:some "config"}})]
+        (is (= {:some "config"} (:config result)))))))
+
+(deftest domain-compare-fn-test
+  (testing "domain-compare-fn"
+    (testing "returns a function"
+      (is (fn? (domain/domain-compare-fn)))
+      (is (fn? (domain/domain-compare-fn {}))))
+    (testing "compares metric across axis in data-map"
+      (let [d      (domain/domain
+                    {:coord {:impl :foo}
+                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+                    {:coord {:impl :bar}
+                     :data (mock-bench-result {:elapsed-time {:mean 2.0}})})
+            f      (domain/domain-compare-fn
+                    {:id :impl-time
+                     :axis-key :impl
+                     :metric-path [:stats :elapsed-time :mean]})
+            result (f {:domain d})]
+        (is (contains? result :domain))
+        (is (contains? result :impl-time))
+        (is (domain/domain-comparison? (:impl-time result)))))
+    (testing "uses default :id when not specified"
+      (let [d      (domain/domain
+                    {:coord {:impl :foo}
+                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
+            f      (domain/domain-compare-fn
+                    {:axis-key :impl :metric-path [:stats :elapsed-time :mean]})
+            result (f {:domain d})]
+        (is (contains? result :comparison))))
+    (testing "uses custom :domain-id"
+      (let [d      (domain/domain
+                    {:coord {:impl :foo}
+                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
+            f      (domain/domain-compare-fn
+                    {:id :cmp
+                     :domain-id :source
+                     :axis-key :impl
+                     :metric-path [:stats :elapsed-time :mean]})
+            result (f {:source d})]
+        (is (contains? result :cmp))
+        (is (domain/domain-comparison? (:cmp result)))))
+    (testing "preserves other keys in data-map"
+      (let [d      (domain/domain
+                    {:coord {:impl :foo}
+                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
+            f      (domain/domain-compare-fn
+                    {:id :cmp :axis-key :impl
+                     :metric-path [:stats :elapsed-time :mean]})
+            result (f {:domain d :meta {:info "data"}})]
+        (is (= {:info "data"} (:meta result)))))))
+
+;; Tests for composing multiple pipeline functions.
+;; Validates that pipeline functions can be composed together
+;; to build complex analysis pipelines.
+
+(deftest pipeline-composition-test
+  (testing "pipeline composition"
+    (testing "chains multiple extracts"
+      (let [d      (domain/domain
+                    {:coord {:n 100}
+                     :data (mock-bench-result
+                            {:elapsed-time {:mean 1.0 :variance 0.1}})})
+            result (-> {:domain d}
+                       ((domain/domain-extract-fn
+                         {:id :mean
+                          :metric-path [:stats :elapsed-time :mean]}))
+                       ((domain/domain-extract-fn
+                         {:id :var
+                          :metric-path [:stats :elapsed-time :variance]})))]
+        (is (contains? result :domain))
+        (is (contains? result :mean))
+        (is (contains? result :var))
+        (is (domain/domain-extract? (:mean result)))
+        (is (domain/domain-extract? (:var result)))))
+    (testing "chains extract with group-by"
+      (let [d      (domain/domain
+                    {:coord {:n 100 :impl :foo}
+                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+                    {:coord {:n 100 :impl :bar}
+                     :data (mock-bench-result {:elapsed-time {:mean 2.0}})})
+            result (-> {:domain d}
+                       ((domain/domain-extract-fn
+                         {:id :mean
+                          :metric-path [:stats :elapsed-time :mean]}))
+                       ((domain/domain-group-by-fn
+                         {:id :by-impl :axis-key :impl})))]
+        (is (domain/domain-extract? (:mean result)))
+        (is (domain/domain-grouped? (:by-impl result)))))
+    (testing "chains multiple analysis types"
+      (let [d      (domain/domain
+                    {:coord {:n 100 :impl :foo}
+                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+                    {:coord {:n 200 :impl :foo}
+                     :data (mock-bench-result {:elapsed-time {:mean 2.0}})}
+                    {:coord {:n 100 :impl :bar}
+                     :data (mock-bench-result {:elapsed-time {:mean 1.5}})})
+            result (-> {:domain d}
+                       ((domain/domain-extract-fn
+                         {:id :mean
+                          :metric-path [:stats :elapsed-time :mean]}))
+                       ((domain/domain-group-by-fn
+                         {:id :by-impl :axis-key :impl}))
+                       ((domain/domain-compare-fn
+                         {:id :impl-time
+                          :axis-key :impl
+                          :metric-path [:stats :elapsed-time :mean]}))
+                       ((domain/domain-compare-fn
+                         {:id :n-time
+                          :axis-key :n
+                          :metric-path [:stats :elapsed-time :mean]})))]
+        (is (= #{:domain :mean :by-impl :impl-time :n-time}
+               (set (keys result))))
+        (is (domain/domain-extract? (:mean result)))
+        (is (domain/domain-grouped? (:by-impl result)))
+        (is (domain/domain-comparison? (:impl-time result)))
+        (is (domain/domain-comparison? (:n-time result)))))))

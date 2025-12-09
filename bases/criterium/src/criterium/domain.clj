@@ -327,3 +327,94 @@
     (list (long start))
     (let [step (/ (- end start) (dec n))]
       (map #(long (Math/round (double (+ start (* % step))))) (range n)))))
+
+;;; Analysis Pipeline
+;;
+;; These functions return transformers for use in composable analysis pipelines.
+;; Each takes an options map and returns a function that transforms a data-map,
+;; following the same pattern as criterium.analyse functions.
+
+(defn domain-extract-fn
+  "Returns a function that extracts metric values from a domain in a data-map.
+
+  Parameters:
+    opts - Map with keys:
+      :id         - Key for result in output (default: :extract)
+      :domain-id  - Key for source domain in input (default: :domain)
+      :metric-path - Vector path to metric, e.g. [:stats :elapsed-time :mean]
+
+  The returned function:
+  - Takes a data-map containing a domain under :domain-id
+  - Returns the data-map with a domain-extract result added under :id
+
+  Example:
+  (-> {:domain my-domain}
+      ((domain-extract-fn {:id :mean
+                           :metric-path [:stats :elapsed-time :mean]})))
+  ;; => {:domain my-domain
+  ;;     :mean {:type :criterium/domain-extract ...}}"
+  ([] (domain-extract-fn {}))
+  ([{:keys [id domain-id metric-path]}]
+   (fn [data-map]
+     (let [domain-id (or domain-id :domain)
+           id        (or id :extract)
+           domain    (data-map domain-id)
+           result    (extract domain metric-path)]
+       (assoc data-map id result)))))
+
+(defn domain-group-by-fn
+  "Returns a function that groups a domain by axis key in a data-map.
+
+  Parameters:
+    opts - Map with keys:
+      :id        - Key for result in output (default: :grouped)
+      :domain-id - Key for source domain in input (default: :domain)
+      :axis-key  - Dimension key to group by
+
+  The returned function:
+  - Takes a data-map containing a domain under :domain-id
+  - Returns the data-map with a domain-grouped result added under :id
+
+  Example:
+  (-> {:domain my-domain}
+      ((domain-group-by-fn {:id :by-impl :axis-key :impl})))
+  ;; => {:domain my-domain
+  ;;     :by-impl {:type :criterium/domain-grouped ...}}"
+  ([] (domain-group-by-fn {}))
+  ([{:keys [id domain-id axis-key]}]
+   (fn [data-map]
+     (let [domain-id (or domain-id :domain)
+           id        (or id :grouped)
+           domain    (data-map domain-id)
+           result    (group-by-axis domain axis-key)]
+       (assoc data-map id result)))))
+
+(defn domain-compare-fn
+  "Returns a function that compares metric values across an axis in a data-map.
+
+  Parameters:
+    opts - Map with keys:
+      :id          - Key for result in output (default: :comparison)
+      :domain-id   - Key for source domain in input (default: :domain)
+      :axis-key    - Dimension key to compare across
+      :metric-path - Vector path to metric, e.g. [:stats :elapsed-time :mean]
+
+  The returned function:
+  - Takes a data-map containing a domain under :domain-id
+  - Returns the data-map with a domain-comparison result added under :id
+
+  Example:
+  (-> {:domain my-domain}
+      ((domain-compare-fn {:id :impl-vs-time
+                           :axis-key :impl
+                           :metric-path [:stats :elapsed-time :mean]})))
+  ;; => {:domain my-domain
+  ;;     :impl-vs-time {:type :criterium/domain-comparison ...}}"
+  ([] (domain-compare-fn {}))
+  ([{:keys [id domain-id axis-key metric-path]}]
+   (fn [data-map]
+     (let [domain-id (or domain-id :domain)
+           id        (or id :comparison)
+           domain    (data-map domain-id)
+           result    (compare-by domain axis-key metric-path)]
+       (assoc data-map id result)))))
