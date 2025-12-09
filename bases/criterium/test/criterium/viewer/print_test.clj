@@ -316,3 +316,123 @@
                  :print
                  {}
                  (:data (test-data/samples-with-non-numeric-value-map))))))))))
+
+;;; Domain View Tests
+
+(deftest domain-extract-print-test
+  ;; Tests the print viewer output for domain-extract results.
+  ;; Verifies coordinate formatting and value display with unit scaling.
+  (testing "domain-extract*"
+    (testing "prints metric path and coordinate-value pairs"
+      (is (= ["Domain Extract: [:stats :elapsed-time :mean]"
+              "baseline: 100 ns"
+              "n=100: 200 ns"
+              "impl=:foo n=100: 300 ns"]
+             (trimmed-lines
+              (with-out-str
+                (view/domain-extract*
+                 :print
+                 {}
+                 {:extract
+                  {:type   :criterium/domain-extract
+                   :metric [:stats :elapsed-time :mean]
+                   :data   [[:baseline 1e-7]
+                            [{:n 100} 2e-7]
+                            [{:impl :foo :n 100} 3e-7]]}}))))))
+    (testing "handles nil values"
+      (is (= ["Domain Extract: [:stats :elapsed-time :mean]"
+              "test: nil"]
+             (trimmed-lines
+              (with-out-str
+                (view/domain-extract*
+                 :print
+                 {}
+                 {:extract
+                  {:type   :criterium/domain-extract
+                   :metric [:stats :elapsed-time :mean]
+                   :data   [[:test nil]]}}))))))
+    (testing "uses custom extract-id"
+      (is (= ["Domain Extract: [:stats :elapsed-time :mean]"
+              "a: 1.00 ns"]
+             (trimmed-lines
+              (with-out-str
+                (view/domain-extract*
+                 :print
+                 {:extract-id :my-extract}
+                 {:my-extract
+                  {:type   :criterium/domain-extract
+                   :metric [:stats :elapsed-time :mean]
+                   :data   [[:a 1e-9]]}}))))))))
+
+(deftest domain-grouped-print-test
+  ;; Tests the print viewer output for domain-grouped results.
+  ;; Verifies axis display and run counts per group.
+  (testing "domain-grouped*"
+    (testing "prints axis and run counts per group"
+      (is (= ["Domain Grouped by: impl"
+              "<nil>: 1 run"
+              ":bar: 1 run"
+              ":foo: 2 runs"]
+             (trimmed-lines
+              (with-out-str
+                (view/domain-grouped*
+                 :print
+                 {}
+                 {:grouped
+                  {:type :criterium/domain-grouped
+                   :axis :impl
+                   :data {:foo {:type :criterium/domain
+                                :runs [{} {}]}
+                          :bar {:type :criterium/domain
+                                :runs [{}]}
+                          nil  {:type :criterium/domain
+                                :runs [{}]}}}}))))))
+    (testing "uses custom grouped-id"
+      (is (= ["Domain Grouped by: n"
+              "100: 1 run"]
+             (trimmed-lines
+              (with-out-str
+                (view/domain-grouped*
+                 :print
+                 {:grouped-id :by-n}
+                 {:by-n
+                  {:type :criterium/domain-grouped
+                   :axis :n
+                   :data {100 {:type :criterium/domain
+                               :runs [{}]}}}}))))))))
+
+(deftest domain-comparison-print-test
+  ;; Tests the print viewer output for domain-comparison results.
+  ;; Verifies table format with axis values as columns for side-by-side comparison.
+  (testing "domain-comparison*"
+    (testing "prints comparison as table with axis values as columns"
+      (is (= ["Domain Comparison by impl: [:stats :elapsed-time :mean]"
+              "│   :bar │   :foo"
+              "─────────┼────────┼───────"
+              "n=100 │ 200 ns │ 100 ns"]
+             (trimmed-lines
+              (with-out-str
+                (view/domain-comparison*
+                 :print
+                 {}
+                 {:comparison
+                  {:type   :criterium/domain-comparison
+                   :axis   :impl
+                   :metric [:stats :elapsed-time :mean]
+                   :data   {:foo [{:coord {:impl :foo :n 100} :value 1e-7}]
+                            :bar [{:coord {:impl :bar :n 100} :value 2e-7}]}}}))))))
+    (testing "handles nil axis values"
+      (is (= ["Domain Comparison by impl: [:stats :elapsed-time :mean]"
+              "│   <nil>"
+              "─────────┼────────"
+              "baseline │ 50.0 ns"]
+             (trimmed-lines
+              (with-out-str
+                (view/domain-comparison*
+                 :print
+                 {}
+                 {:comparison
+                  {:type   :criterium/domain-comparison
+                   :axis   :impl
+                   :metric [:stats :elapsed-time :mean]
+                   :data   {nil [{:coord :baseline :value 5e-8}]}}}))))))))

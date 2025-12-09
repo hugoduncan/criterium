@@ -447,16 +447,89 @@
                              run-count
                              (if (= 1 run-count) "" "s")))))))))
 
+(defn- coord-without-axis
+  "Remove the axis key from a map coordinate, or return the coord unchanged
+  if it's a keyword."
+  [coord axis-key]
+  (if (map? coord)
+    (dissoc coord axis-key)
+    coord))
+
+(defn- format-row-key
+  "Format a row key (coordinate without axis) for display."
+  [row-key]
+  (cond
+    (keyword? row-key) (name row-key)
+    (and (map? row-key) (empty? row-key)) "<all>"
+    (map? row-key) (format-coord row-key)
+    :else (str row-key)))
+
+(defn- build-comparison-table
+  "Build a table structure from comparison data for tabular display.
+  Returns {:columns [col-headers] :rows [{:key row-key :values [vals]}]}."
+  [axis data]
+  (let [axis-vals   (sort-by (comp str identity) (keys data))
+        all-entries (mapcat (fn [[axis-val entries]]
+                              (map (fn [{:keys [coord value]}]
+                                     {:axis-val axis-val
+                                      :row-key  (coord-without-axis coord axis)
+                                      :value    value})
+                                   entries))
+                            data)
+        row-keys    (distinct (map :row-key all-entries))
+        val-lookup  (reduce (fn [m {:keys [axis-val row-key value]}]
+                              (assoc-in m [row-key axis-val] value))
+                            {}
+                            all-entries)]
+    {:columns axis-vals
+     :rows    (mapv (fn [row-key]
+                      {:key    row-key
+                       :values (mapv #(get-in val-lookup [row-key %]) axis-vals)})
+                    row-keys)}))
+
+(defn- format-axis-val
+  "Format an axis value for column header."
+  [axis-val]
+  (if (nil? axis-val) "<nil>" (str axis-val)))
+
+(defn- print-comparison-table
+  "Print comparison data as a formatted table."
+  [axis metric data]
+  (let [{:keys [columns rows]} (build-comparison-table axis data)
+        formatted-vals (mapv (fn [{:keys [values]}]
+                               (mapv #(format-extract-value % metric) values))
+                             rows)
+        col-headers    (mapv format-axis-val columns)
+        row-keys       (mapv #(format-row-key (:key %)) rows)
+        col-widths     (mapv (fn [col-idx]
+                               (apply max
+                                      (count (nth col-headers col-idx))
+                                      (map #(count (nth % col-idx)) formatted-vals)))
+                             (range (count columns)))
+        row-key-width  (apply max 8 (map count row-keys))]
+    (println (format "Domain Comparison by %s: %s" (name axis) (pr-str metric)))
+    (print (format "  %s" (format (str "%" row-key-width "s") "")))
+    (doseq [[i header] (map-indexed vector col-headers)]
+      (print (format " │ %s" (format (str "%" (nth col-widths i) "s") header))))
+    (println)
+    (print (format "  %s" (apply str (repeat row-key-width "─"))))
+    (doseq [w col-widths]
+      (print (format "─┼─%s" (apply str (repeat w "─")))))
+    (println)
+    (doseq [[row-key vals] (map vector row-keys formatted-vals)]
+      (print (format "  %s" (format (str "%" row-key-width "s") row-key)))
+      (doseq [[i v] (map-indexed vector vals)]
+        (print (format " │ %s" (format (str "%" (nth col-widths i) "s") v))))
+      (println))))
+
 (defmethod view/domain-comparison* :print
   [_ {:keys [comparison-id]} data-map]
   (let [comparison-id (or comparison-id :comparison)
         comparison    (data-map comparison-id)]
     (when comparison
       (let [{:keys [axis metric data]} comparison]
-        (println (format "Domain Comparison by %s: %s" (name axis) (pr-str metric)))
-        (doseq [[axis-val entries] (sort-by (comp str key) data)]
-          (println (format "  %s:" (if (nil? axis-val) "<nil>" (str axis-val))))
-          (doseq [{:keys [coord value]} entries]
-            (println (format "    %24s: %s"
-                             (format-coord coord)
-                             (format-extract-value value metric)))))))))
+        (if (and (seq data)
+                 (some #(seq (second %)) data))
+          (print-comparison-table axis metric data)
+          (println (format "Domain Comparison by %s: %s (no data)"
+                           (name axis) (pr-str metric))))))))
