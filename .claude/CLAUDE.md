@@ -27,20 +27,24 @@ clojure -M:kaocha:dev:test:with-agent-linux --reporter dots
 
 ### Building and Packaging
 ```bash
-# Build jar
-clojure -M:build jar
+# Build criterium jar
+clojure -T:build jar :project :criterium
+
+# Build arg-gen jar (argument generation with test.check)
+clojure -T:build jar :project :arg-gen
 
 # Install locally (requires all platform agent binaries)
-clojure -M:build install
+clojure -T:build install :project :criterium
 
 # Install locally with only current platform's agent (for development)
-clojure -T:build build/install-local
+clojure -T:build install-local
 
 # Deploy to repository
-clojure -M:build deploy
+clojure -T:build deploy :project :criterium
+clojure -T:build deploy :project :arg-gen
 
 # Clean build artifacts
-clojure -M:build clean
+clojure -T:build clean
 ```
 
 ### Code Quality
@@ -96,7 +100,8 @@ clojure -M:dev
 - `bases/blackhole/` - JMH-style Blackhole for preventing dead code elimination
 - `bases/arg-gen/` - Argument generation using test.check generators
 - `bases/notebooks/` - Computational notebooks and examples
-- `projects/` - Project-specific configurations
+- `projects/criterium/` - Main criterium JAR (criterium/criterium)
+- `projects/arg-gen/` - Argument generation JAR (criterium/arg-gen)
 - `development/` - Development environment setup
 
 ### Core Components

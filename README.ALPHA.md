@@ -9,12 +9,24 @@ Early alpha.  Breaking changes will be made.
 
 ## Quick Start
 
+### Installation
+
 Add criterium as an alias in your `deps.edn`:
 
 ```clojure
 {:aliases
  {:bench {:extra-deps {criterium/criterium {:mvn/version "0.5.153-ALPHA"}}
           ;; JDK 17+ options for optimal dead-code elimination
+          :jvm-opts ["-XX:+UnlockExperimentalVMOptions"
+                     "-XX:CompileCommand=blackhole,criterium.blackhole.Blackhole::consume"]}}}
+```
+
+For benchmarks with generated arguments, also add the arg-gen library:
+
+```clojure
+{:aliases
+ {:bench {:extra-deps {criterium/criterium {:mvn/version "0.5.153-ALPHA"}
+                       criterium/arg-gen {:mvn/version "0.5.153-ALPHA"}}
           :jvm-opts ["-XX:+UnlockExperimentalVMOptions"
                      "-XX:CompileCommand=blackhole,criterium.blackhole.Blackhole::consume"]}}}
 ```
@@ -72,6 +84,31 @@ In your REPL:
 ```
 
 See [projects/agent/README.md](projects/agent/README.md) for complete documentation.
+
+### Argument Generation
+
+The `criterium.arg-gen` namespace (in the separate `criterium/arg-gen` artifact) provides benchmarks with generated arguments using test.check generators. This is useful for benchmarking functions with realistic, varied inputs.
+
+```clojure
+(require '[criterium.arg-gen :as arg-gen])
+(require '[clojure.test.check.generators :as gen])
+(require '[criterium.bench :as bench])
+
+;; Benchmark with generated arguments
+(bench/bench-measured
+  (arg-gen/measured
+    [a gen/large-integer
+     b gen/large-integer]
+    (+ a b)))
+
+;; With options for size and reproducibility
+(bench/bench-measured
+  (arg-gen/measured {:size 50 :seed 12345}
+    [coll (gen/vector gen/small-integer)]
+    (reduce + coll)))
+```
+
+The `measured` macro uses `let`-style bindings where each right-hand side is a test.check generator. The body is measured with fresh generated values for each sample.
 
 ## Design
 
