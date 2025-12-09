@@ -49,6 +49,86 @@
       (is (false? (domain/domain? nil)))
       (is (false? (domain/domain? "domain"))))))
 
+(deftest domain-extract?-test
+  (testing "domain-extract?"
+    (testing "returns true for valid domain-extract result"
+      (is (true? (domain/domain-extract?
+                  {:type :criterium/domain-extract
+                   :metric [:stats :elapsed-time :mean]
+                   :data [[{:n 100} 1.0]]}))))
+    (testing "returns true for empty data"
+      (is (true? (domain/domain-extract?
+                  {:type :criterium/domain-extract
+                   :metric [:stats :elapsed-time :mean]
+                   :data []}))))
+    (testing "returns false for wrong type"
+      (is (false? (domain/domain-extract?
+                   {:type :other :metric [] :data []}))))
+    (testing "returns false for missing :metric"
+      (is (false? (domain/domain-extract?
+                   {:type :criterium/domain-extract :data []}))))
+    (testing "returns false for missing :data"
+      (is (false? (domain/domain-extract?
+                   {:type :criterium/domain-extract :metric []}))))
+    (testing "returns false for non-map"
+      (is (false? (domain/domain-extract? nil)))
+      (is (false? (domain/domain-extract? "extract"))))))
+
+(deftest domain-grouped?-test
+  (testing "domain-grouped?"
+    (testing "returns true for valid domain-grouped result"
+      (is (true? (domain/domain-grouped?
+                  {:type :criterium/domain-grouped
+                   :axis :impl
+                   :data {:foo {:type :criterium/domain :runs []}}}))))
+    (testing "returns true for empty data"
+      (is (true? (domain/domain-grouped?
+                  {:type :criterium/domain-grouped
+                   :axis :impl
+                   :data {}}))))
+    (testing "returns false for wrong type"
+      (is (false? (domain/domain-grouped?
+                   {:type :other :axis :impl :data {}}))))
+    (testing "returns false for missing :axis"
+      (is (false? (domain/domain-grouped?
+                   {:type :criterium/domain-grouped :data {}}))))
+    (testing "returns false for missing :data"
+      (is (false? (domain/domain-grouped?
+                   {:type :criterium/domain-grouped :axis :impl}))))
+    (testing "returns false for non-map"
+      (is (false? (domain/domain-grouped? nil)))
+      (is (false? (domain/domain-grouped? "grouped"))))))
+
+(deftest domain-comparison?-test
+  (testing "domain-comparison?"
+    (testing "returns true for valid domain-comparison result"
+      (is (true? (domain/domain-comparison?
+                  {:type :criterium/domain-comparison
+                   :axis :impl
+                   :metric [:stats :elapsed-time :mean]
+                   :data {:foo [{:coord {:impl :foo} :value 1.0}]}}))))
+    (testing "returns true for empty data"
+      (is (true? (domain/domain-comparison?
+                  {:type :criterium/domain-comparison
+                   :axis :impl
+                   :metric [:stats :elapsed-time :mean]
+                   :data {}}))))
+    (testing "returns false for wrong type"
+      (is (false? (domain/domain-comparison?
+                   {:type :other :axis :impl :metric [] :data {}}))))
+    (testing "returns false for missing :axis"
+      (is (false? (domain/domain-comparison?
+                   {:type :criterium/domain-comparison :metric [] :data {}}))))
+    (testing "returns false for missing :metric"
+      (is (false? (domain/domain-comparison?
+                   {:type :criterium/domain-comparison :axis :impl :data {}}))))
+    (testing "returns false for missing :data"
+      (is (false? (domain/domain-comparison?
+                   {:type :criterium/domain-comparison :axis :impl :metric []}))))
+    (testing "returns false for non-map"
+      (is (false? (domain/domain-comparison? nil)))
+      (is (false? (domain/domain-comparison? "comparison"))))))
+
 (deftest domain-test
   (testing "domain"
     (testing "with no arguments creates empty domain"
@@ -257,14 +337,22 @@
 
 (deftest extract-test
   (testing "extract"
-    (testing "returns coordinate-value pairs for all runs"
+    (testing "returns a domain-extract result"
+      (let [d      (domain/domain
+                    {:coord {:n 100}
+                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
+            result (domain/extract d [:stats :elapsed-time :mean])]
+        (is (domain/domain-extract? result))
+        (is (= :criterium/domain-extract (:type result)))
+        (is (= [:stats :elapsed-time :mean] (:metric result)))))
+    (testing "contains coordinate-value pairs in :data"
       (let [d (domain/domain
                {:coord {:n 100}
                 :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
                {:coord {:n 200}
                 :data (mock-bench-result {:elapsed-time {:mean 2.0}})})]
         (is (= [[{:n 100} 1.0] [{:n 200} 2.0]]
-               (domain/extract d [:stats :elapsed-time :mean])))))
+               (:data (domain/extract d [:stats :elapsed-time :mean]))))))
     (testing "preserves run order"
       (let [d (domain/domain
                {:coord {:n 300}
@@ -274,7 +362,7 @@
                {:coord {:n 200}
                 :data (mock-bench-result {:elapsed-time {:mean 2.0}})})]
         (is (= [[{:n 300} 3.0] [{:n 100} 1.0] [{:n 200} 2.0]]
-               (domain/extract d [:stats :elapsed-time :mean])))))
+               (:data (domain/extract d [:stats :elapsed-time :mean]))))))
     (testing "returns nil for missing metrics"
       (let [d (domain/domain
                {:coord {:n 100}
@@ -282,7 +370,7 @@
                {:coord {:n 200}
                 :data (mock-bench-result {:other-metric {:mean 2.0}})})]
         (is (= [[{:n 100} 1.0] [{:n 200} nil]]
-               (domain/extract d [:stats :elapsed-time :mean])))))
+               (:data (domain/extract d [:stats :elapsed-time :mean]))))))
     (testing "returns nil for missing value-key"
       (let [d (domain/domain
                {:coord :a
@@ -290,7 +378,7 @@
                {:coord :b
                 :data (mock-bench-result {:elapsed-time {:variance 0.5}})})]
         (is (= [[:a 1.0] [:b nil]]
-               (domain/extract d [:stats :elapsed-time :mean])))))
+               (:data (domain/extract d [:stats :elapsed-time :mean]))))))
     (testing "handles keyword coordinates"
       (let [d (domain/domain
                {:coord :baseline
@@ -298,19 +386,21 @@
                {:coord :optimized
                 :data (mock-bench-result {:elapsed-time {:mean 0.5}})})]
         (is (= [[:baseline 1.0] [:optimized 0.5]]
-               (domain/extract d [:stats :elapsed-time :mean])))))
-    (testing "returns empty vector for empty domain"
-      (is (= [] (domain/extract (domain/domain)
-                                [:stats :elapsed-time :mean]))))
+               (:data (domain/extract d [:stats :elapsed-time :mean]))))))
+    (testing "returns empty vector in :data for empty domain"
+      (let [result (domain/extract (domain/domain)
+                                   [:stats :elapsed-time :mean])]
+        (is (domain/domain-extract? result))
+        (is (= [] (:data result)))))
     (testing "extracts different value-keys"
       (let [d (domain/domain
                {:coord {:n 100}
                 :data (mock-bench-result
                        {:elapsed-time {:mean 1.0 :variance 0.1}})})]
         (is (= [[{:n 100} 1.0]]
-               (domain/extract d [:stats :elapsed-time :mean])))
+               (:data (domain/extract d [:stats :elapsed-time :mean]))))
         (is (= [[{:n 100} 0.1]]
-               (domain/extract d [:stats :elapsed-time :variance])))))))
+               (:data (domain/extract d [:stats :elapsed-time :variance]))))))))
 
 ;; Tests for domain select function.
 ;; Validates filtering domain to sub-domain by partial coordinate match,
@@ -379,12 +469,19 @@
 
 (deftest group-by-axis-test
   (testing "group-by-axis"
+    (testing "returns a domain-grouped result"
+      (let [d      (domain/domain
+                    {:coord {:n 100 :impl :foo} :data sample-data})
+            result (domain/group-by-axis d :impl)]
+        (is (domain/domain-grouped? result))
+        (is (= :criterium/domain-grouped (:type result)))
+        (is (= :impl (:axis result)))))
     (testing "groups runs by axis key value"
       (let [d       (domain/domain
                      {:coord {:n 100 :impl :foo} :data sample-data}
                      {:coord {:n 200 :impl :foo} :data sample-data-2}
                      {:coord {:n 100 :impl :bar} :data {:third "result"}})
-            grouped (domain/group-by-axis d :impl)]
+            grouped (:data (domain/group-by-axis d :impl))]
         (is (= #{:foo :bar} (set (keys grouped))))
         (is (domain/domain? (get grouped :foo)))
         (is (= 2 (count (:runs (get grouped :foo)))))
@@ -393,7 +490,7 @@
       (let [d       (domain/domain
                      {:coord :baseline :data sample-data}
                      {:coord {:n 100 :impl :foo} :data sample-data-2})
-            grouped (domain/group-by-axis d :impl)]
+            grouped (:data (domain/group-by-axis d :impl))]
         (is (= #{:foo nil} (set (keys grouped))))
         (is (= 1 (count (:runs (get grouped nil)))))
         (is (= :baseline (-> grouped (get nil) :runs first :coord)))))
@@ -401,17 +498,19 @@
       (let [d       (domain/domain
                      {:coord {:n 100} :data sample-data}
                      {:coord {:n 100 :impl :foo} :data sample-data-2})
-            grouped (domain/group-by-axis d :impl)]
+            grouped (:data (domain/group-by-axis d :impl))]
         (is (= #{:foo nil} (set (keys grouped))))
         (is (= {:n 100} (-> grouped (get nil) :runs first :coord)))))
-    (testing "returns empty map for empty domain"
-      (is (= {} (domain/group-by-axis (domain/domain) :impl))))
+    (testing "returns empty map in :data for empty domain"
+      (let [result (domain/group-by-axis (domain/domain) :impl)]
+        (is (domain/domain-grouped? result))
+        (is (= {} (:data result)))))
     (testing "preserves run order within groups"
       (let [d       (domain/domain
                      {:coord {:n 300 :impl :foo} :data sample-data}
                      {:coord {:n 100 :impl :foo} :data sample-data}
                      {:coord {:n 200 :impl :foo} :data sample-data})
-            grouped (domain/group-by-axis d :impl)
+            grouped (:data (domain/group-by-axis d :impl))
             coords  (mapv :coord (:runs (get grouped :foo)))]
         (is (= [{:n 300 :impl :foo}
                 {:n 100 :impl :foo}
@@ -421,7 +520,7 @@
       (let [d       (domain/domain
                      {:coord {:n 100 :impl :foo} :data sample-data}
                      {:coord {:n 100 :impl :bar} :data sample-data-2})
-            grouped (domain/group-by-axis d :impl)]
+            grouped (:data (domain/group-by-axis d :impl))]
         (doseq [[_ sub-domain] grouped]
           (is (domain/domain? sub-domain)))))))
 
@@ -431,22 +530,24 @@
 
 (deftest compare-by-test
   (testing "compare-by"
-    (testing "returns structured comparison data"
+    (testing "returns a domain-comparison result"
       (let [d      (domain/domain
                     {:coord {:n 100 :impl :foo}
                      :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
                     {:coord {:n 100 :impl :bar}
                      :data (mock-bench-result {:elapsed-time {:mean 2.0}})})
             result (domain/compare-by d :impl [:stats :elapsed-time :mean])]
+        (is (domain/domain-comparison? result))
+        (is (= :criterium/domain-comparison (:type result)))
         (is (= :impl (:axis result)))
         (is (= [:stats :elapsed-time :mean] (:metric result)))
-        (is (map? (:groups result)))))
-    (testing "groups contain coord and value"
+        (is (map? (:data result)))))
+    (testing "data entries contain coord and value"
       (let [d      (domain/domain
                     {:coord {:n 100 :impl :foo}
                      :data (mock-bench-result {:elapsed-time {:mean 1.5}})})
             result (domain/compare-by d :impl [:stats :elapsed-time :mean])
-            entry  (first (get-in result [:groups :foo]))]
+            entry  (first (get-in result [:data :foo]))]
         (is (= {:n 100 :impl :foo} (:coord entry)))
         (is (= 1.5 (:value entry)))))
     (testing "groups runs by axis value"
@@ -458,10 +559,10 @@
                     {:coord {:n 100 :impl :bar}
                      :data (mock-bench-result {:elapsed-time {:mean 3.0}})})
             result (domain/compare-by d :impl [:stats :elapsed-time :mean])]
-        (is (= 2 (count (get-in result [:groups :foo]))))
-        (is (= 1 (count (get-in result [:groups :bar]))))
-        (is (= [1.0 2.0] (mapv :value (get-in result [:groups :foo]))))
-        (is (= [3.0] (mapv :value (get-in result [:groups :bar]))))))
+        (is (= 2 (count (get-in result [:data :foo]))))
+        (is (= 1 (count (get-in result [:data :bar]))))
+        (is (= [1.0 2.0] (mapv :value (get-in result [:data :foo]))))
+        (is (= [3.0] (mapv :value (get-in result [:data :bar]))))))
     (testing "handles missing metrics with nil values"
       (let [d      (domain/domain
                     {:coord {:impl :foo}
@@ -469,8 +570,8 @@
                     {:coord {:impl :bar}
                      :data (mock-bench-result {:other-metric {:mean 2.0}})})
             result (domain/compare-by d :impl [:stats :elapsed-time :mean])]
-        (is (= 1.0 (:value (first (get-in result [:groups :foo])))))
-        (is (nil? (:value (first (get-in result [:groups :bar])))))))
+        (is (= 1.0 (:value (first (get-in result [:data :foo])))))
+        (is (nil? (:value (first (get-in result [:data :bar])))))))
     (testing "groups keyword coords under nil"
       (let [d      (domain/domain
                     {:coord :baseline
@@ -478,13 +579,14 @@
                     {:coord {:impl :foo}
                      :data (mock-bench-result {:elapsed-time {:mean 2.0}})})
             result (domain/compare-by d :impl [:stats :elapsed-time :mean])]
-        (is (contains? (:groups result) nil))
-        (is (= :baseline (:coord (first (get-in result [:groups nil])))))))
-    (testing "returns empty groups for empty domain"
+        (is (contains? (:data result) nil))
+        (is (= :baseline (:coord (first (get-in result [:data nil])))))))
+    (testing "returns empty :data for empty domain"
       (let [result (domain/compare-by (domain/domain) :impl
                                       [:stats :elapsed-time :mean])]
+        (is (domain/domain-comparison? result))
         (is (= :impl (:axis result)))
-        (is (= {} (:groups result)))))
+        (is (= {} (:data result)))))
     (testing "preserves run order within groups"
       (let [d      (domain/domain
                     {:coord {:n 300 :impl :foo}
@@ -494,7 +596,7 @@
                     {:coord {:n 200 :impl :foo}
                      :data (mock-bench-result {:elapsed-time {:mean 2.0}})})
             result (domain/compare-by d :impl [:stats :elapsed-time :mean])
-            values (mapv :value (get-in result [:groups :foo]))]
+            values (mapv :value (get-in result [:data :foo]))]
         (is (= [3.0 1.0 2.0] values))))))
 
 ;; Tests for input sequence generators.

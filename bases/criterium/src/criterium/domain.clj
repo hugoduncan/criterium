@@ -35,6 +35,31 @@
        (= :criterium/domain (:type x))
        (vector? (:runs x))))
 
+(defn domain-extract?
+  "Returns true if x is a domain extract result."
+  [x]
+  (and (map? x)
+       (= :criterium/domain-extract (:type x))
+       (contains? x :metric)
+       (contains? x :data)))
+
+(defn domain-grouped?
+  "Returns true if x is a domain grouped result."
+  [x]
+  (and (map? x)
+       (= :criterium/domain-grouped (:type x))
+       (contains? x :axis)
+       (contains? x :data)))
+
+(defn domain-comparison?
+  "Returns true if x is a domain comparison result."
+  [x]
+  (and (map? x)
+       (= :criterium/domain-comparison (:type x))
+       (contains? x :axis)
+       (contains? x :metric)
+       (contains? x :data)))
+
 ;;; Construction
 
 (defn domain
@@ -138,7 +163,7 @@
 
 (defn extract
   "Extract metric values at a path from all runs in a domain.
-  Returns a vector of [coord value] pairs, preserving run order.
+  Returns a domain-extract result containing coordinate-value pairs.
 
   metric-path is a vector of keys specifying the path to the metric value,
   e.g., [:stats :elapsed-time :mean].
@@ -151,12 +176,16 @@
 
   Example:
   (extract domain [:stats :elapsed-time :mean])
-  ;; => [[{:n 100} 1.23e-6] [{:n 1000} 1.45e-5] ...]"
+  ;; => {:type :criterium/domain-extract
+  ;;     :metric [:stats :elapsed-time :mean]
+  ;;     :data [[{:n 100} 1.23e-6] [{:n 1000} 1.45e-5] ...]}"
   [domain metric-path]
   (let [[stats-id metric-id value-key] metric-path]
-    (mapv (fn [{:keys [coord data]}]
-            [coord (util/stats-value data stats-id metric-id value-key)])
-          (:runs domain))))
+    {:type   :criterium/domain-extract
+     :metric metric-path
+     :data   (mapv (fn [{:keys [coord data]}]
+                     [coord (util/stats-value data stats-id metric-id value-key)])
+                   (:runs domain))}))
 
 (defn select
   "Filter domain to runs matching a partial coordinate.
@@ -177,7 +206,7 @@
 
 (defn group-by-axis
   "Partition domain runs by values of an axis key.
-  Returns a map of {axis-value sub-domain}.
+  Returns a domain-grouped result containing sub-domains by axis value.
 
   Runs with map coordinates are grouped by the value of axis-key.
   Runs without the axis-key (including keyword coordinates) are grouped
@@ -185,43 +214,45 @@
 
   Example:
   (group-by-axis domain :impl)
-  ;; => {:foo <domain with :impl :foo runs>
-  ;;     :bar <domain with :impl :bar runs>
-  ;;     nil  <domain with runs lacking :impl>}"
+  ;; => {:type :criterium/domain-grouped
+  ;;     :axis :impl
+  ;;     :data {:foo <domain with :impl :foo runs>
+  ;;            :bar <domain with :impl :bar runs>
+  ;;            nil  <domain with runs lacking :impl>}}"
   [domain axis-key]
   (let [grouped (group-by (fn [{:keys [coord]}]
                             (when (map? coord)
                               (get coord axis-key)))
                           (:runs domain))]
-    (into {}
-          (map (fn [[k runs]]
-                 [k (assoc domain :runs (vec runs))]))
-          grouped)))
+    {:type :criterium/domain-grouped
+     :axis axis-key
+     :data (into {}
+                 (map (fn [[k runs]]
+                        [k (assoc domain :runs (vec runs))]))
+                 grouped)}))
 
 (defn compare-by
   "Compare metric values across an axis dimension.
-  Returns a structured map showing how the metric varies across axis values.
+  Returns a domain-comparison result showing how the metric varies across
+  axis values.
 
   axis-key is the dimension to compare across.
   metric-path is [stats-id metric-id value-key] as used by extract.
 
-  Returns:
-  {:axis      axis-key
-   :metric    metric-path
-   :groups    {axis-value [{:coord full-coord :value metric-val} ...]}}
-
   Example:
   (compare-by domain :impl [:stats :elapsed-time :mean])
-  ;; => {:axis :impl
+  ;; => {:type :criterium/domain-comparison
+  ;;     :axis :impl
   ;;     :metric [:stats :elapsed-time :mean]
-  ;;     :groups {:foo [{:coord {:n 100 :impl :foo} :value 1.2e-6} ...]
-  ;;              :bar [{:coord {:n 100 :impl :bar} :value 2.3e-6} ...]}}"
+  ;;     :data {:foo [{:coord {:n 100 :impl :foo} :value 1.2e-6} ...]
+  ;;            :bar [{:coord {:n 100 :impl :bar} :value 2.3e-6} ...]}}"
   [domain axis-key metric-path]
   (let [[stats-id metric-id value-key] metric-path
-        grouped (group-by-axis domain axis-key)]
-    {:axis   axis-key
+        grouped (:data (group-by-axis domain axis-key))]
+    {:type   :criterium/domain-comparison
+     :axis   axis-key
      :metric metric-path
-     :groups (into {}
+     :data   (into {}
                    (map (fn [[axis-val sub-domain]]
                           [axis-val
                            (mapv (fn [{:keys [coord data]}]
