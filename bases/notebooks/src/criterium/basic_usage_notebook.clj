@@ -125,8 +125,7 @@
 
 ;; ### Comparing Implementations
 ;;
-;; Use `last-bench` to compare different implementations.
-;; Define test data at namespace level since bench can't use locals:
+;; Use `last-bench` to compare different implementations:
 
 (def numbers-for-sum
   "Test data for comparing sum implementations."
@@ -155,17 +154,14 @@
 
 ;; ### Isolate What You Measure
 ;;
-;; Define setup data outside the bench expression. Since bench expressions
-;; cannot reference locals, use def or pass data as function arguments:
-
-(def large-data
-  "Pre-computed data for benchmarking."
-  (vec (range 10000)))
+;; Separate data setup from the code being measured. You can use local bindings
+;; directly in bench expressions:
 
 (defn bench-with-setup
-  "Demonstrate separating setup from measurement."
+  "Demonstrate using local bindings in bench."
   []
-  (bench/bench (reduce + large-data)))
+  (let [large-data (vec (range 10000))]
+    (bench/bench (reduce + large-data))))
 
 ;; ### Avoid Side Effects
 ;;
@@ -181,22 +177,22 @@
 ;; The JIT compiler optimizes hot code paths. Criterium handles warmup
 ;; automatically, but initial runs may be slower.
 
-;; ## Important Constraint
+;; ## Using Local Bindings
 ;;
-;; The bench macro cannot reference local bindings. Expressions must use:
-;; - Literals
-;; - Vars (def'd values)
-;; - Function calls with literal or var arguments
-;;
-;; This works:
+;; The bench macro supports local bindings from the enclosing scope.
+;; This makes it easy to benchmark with dynamically created data:
 
-(kind/code "(def data [1 2 3])
-(bench (reduce + data))")
+(let [data (vec (range 1000))]
+  (bench/bench (reduce + data)))
 
-;; This does NOT work:
+;; Local bindings work in loop contexts too:
 
-(kind/code "(let [data [1 2 3]]
-  (bench (reduce + data)))  ; Error: Can't eval locals")
+(doseq [size [100 1000 10000]]
+  (println
+   "Size:" size
+   "," (-> (bench/bench (reduce + (range size)) :return-value [] :viewer :none)
+           (util/stats-value :stats :elapsed-time :mean))
+   "ns"))
 
 ;; ## Running Examples
 ;;

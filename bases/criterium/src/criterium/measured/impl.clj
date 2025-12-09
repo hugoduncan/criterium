@@ -1,5 +1,6 @@
 (ns criterium.measured.impl
   (:require
+   [clojure.set]
    [criterium.jvm :as jvm]
    [criterium.util.blackhole :as blackhole]
    [criterium.util.helpers :as util]))
@@ -48,10 +49,10 @@
 
 (defrecord FnCallExpr
     ;; a representation of an s-expression
-  [op                          ; the operand
-   arg-syms                    ; arguments as symbols
-   arg-vals                    ; the symbolic value of of the arg-syms
-   metamap                     ; metadata on the FnCallExpr
+  [op ; the operand
+   arg-syms ; arguments as symbols
+   arg-vals ; the symbolic value of of the arg-syms
+   metamap ; metadata on the FnCallExpr
    ])
 
 (defn- fn-call-expr?
@@ -78,7 +79,7 @@
 (defn ^:no-doc factor-form
   "Factor form, extracting constant expressions."
   [form]
-  (let [subj  (first form)
+  (let [subj (first form)
         tform (fn [x]
                 (if (and (s-expression? x) (= subj (first x)))
                   (reduce
@@ -98,15 +99,15 @@
                     (meta x))
                    (rest x))
                   x))
-        res   (util/postwalk
-               tform
-               form)]
-    {:expr     (form-print res)
+        res (util/postwalk
+             tform
+             form)]
+    {:expr (form-print res)
      :arg-vals (:arg-vals res)}))
 
 (defn ^:no-doc factor-const [expr]
   (let [arg-sym (gen-arg-sym)]
-    {:expr     arg-sym
+    {:expr arg-sym
      :arg-vals {arg-sym expr}}))
 
 (defn ^:no-doc factor-expr [expr]
@@ -134,10 +135,10 @@
   Captures the expression arguments into a state function."
   [arg-syms expr {:keys [arg-metas time-fn]}]
   (let [eval-count-sym (gensym "eval-count")
-        time-fn        (when time-fn
-                         (with-meta
-                           time-fn
-                           {:tag 'clojure.lang.IFn$L}))]
+        time-fn (when time-fn
+                  (with-meta
+                    time-fn
+                    {:tag 'clojure.lang.IFn$L}))]
     `(fn ~'measured
        [~arg-syms
         ;; explicitly not tagged as 'long, since this function is invoked
@@ -148,11 +149,11 @@
              ;; once outside the loop.
              ~(with-meta eval-count-sym {:tag 'long})
              ~eval-count-sym ; convert to 'long
-             n#             (long (unchecked-dec ~eval-count-sym))
-             start#         ~(if time-fn
-                               `(. ~time-fn invokePrim)
-                               `(jvm/timestamp))
-             val#           ~expr]      ; evaluate once to get a return value
+             n# (long (unchecked-dec ~eval-count-sym))
+             start# ~(if time-fn
+                       `(. ~time-fn invokePrim)
+                       `(jvm/timestamp))
+             val# ~expr] ; evaluate once to get a return value
          (loop [i# n#]
            (when (pos? i#)
              (blackhole/consume ~expr)
@@ -178,10 +179,10 @@
 (def ^:private TYPE-NAME-CONVERSIONS
   ;; converting is good for measureds that use these values directly
   ;; but causes wrapping if the values are returned from the measured.
-  {'java.lang.Long    'long
+  {'java.lang.Long 'long
    'java.lang.Integer 'int
-   'java.lang.Double  'double
-   'java.lang.Float   'float})
+   'java.lang.Double 'double
+   'java.lang.Float 'float})
 
 (defn ^:no-doc type-name-conversion [t]
   (TYPE-NAME-CONVERSIONS t t))
@@ -193,12 +194,78 @@
                         type-name-conversion)]
       {:tag type-name})))
 
+(declare collect-symbols)
+
 (defn ^:no-doc capture-arg-types
-  "Use eval to get types of the arg expressions.
-  Return a sequence of metadata maps with :tag tupe hints."
-  [arg-exprs]
-  (let [types (mapv (comp type eval) arg-exprs)]
-    (mapv tag-meta types)))
+  "Return a sequence of metadata maps with :tag type hints for arg expressions.
+  For local bindings, extracts type from LocalBinding in env or preserves
+  user-provided type hints. For non-locals, uses eval to detect types."
+  [arg-syms arg-vals local-arg-syms env]
+  (mapv (fn [arg-sym]
+          (if (contains? local-arg-syms arg-sym)
+            (let [arg-val (get arg-vals arg-sym)]
+              (or
+               ;; First try user-provided hint on the expression
+               (when-let [tag (:tag (meta arg-val))]
+                 {:tag tag})
+               ;; Then try to get type from LocalBinding if arg-val is a symbol
+               (when (symbol? arg-val)
+                 (when-let [^clojure.lang.Compiler$LocalBinding lb (get env arg-val)]
+                   (when (.hasJavaClass lb)
+                     (tag-meta (.getJavaClass lb)))))
+               ;; For compound expressions, find locals and use their type if uniform
+               (let [local-syms (filter #(contains? env %) (collect-symbols arg-val))
+                     local-types (keep (fn [sym]
+                                         (let [^clojure.lang.Compiler$LocalBinding lb (get env sym)]
+                                           (when (and lb (.hasJavaClass lb))
+                                             (.getJavaClass lb))))
+                                       local-syms)]
+                 (when (and (seq local-types)
+                            (apply = local-types)
+                            (#{Long/TYPE Double/TYPE} (first local-types)))
+                   (tag-meta (first local-types))))))
+            ;; For non-locals, eval to get the type
+            (tag-meta (type (eval (get arg-vals arg-sym))))))
+        arg-syms))
+
+(defn ^:no-doc collect-symbols
+  "Collect all symbols used in an expression.
+  Returns a set of symbols."
+  [expr]
+  (cond
+    (symbol? expr) #{expr}
+    (coll? expr) (into #{} (mapcat collect-symbols) expr)
+    :else #{}))
+
+(defn ^:no-doc locals-in-expr
+  "Identify which symbols in expr are local bindings.
+  Returns a set of symbols that are present in env."
+  [expr env]
+  (if env
+    (let [local-names (set (keys env))
+          expr-syms (collect-symbols expr)]
+      (clojure.set/intersection expr-syms local-names))
+    #{}))
+
+(defn ^:no-doc local-arg-val?
+  "Check if an arg-val is or contains a local binding.
+  Returns true if the value is a symbol present in env, or if it's
+  an expression containing any symbols present in env."
+  [arg-val env]
+  (let [local-names (set (keys env))
+        expr-syms (collect-symbols arg-val)]
+    (boolean (seq (clojure.set/intersection expr-syms local-names)))))
+
+(defn ^:no-doc identify-local-args
+  "Identify which arg-vals are local bindings.
+  Returns a set of arg-syms (gensymed keys) whose values are locals."
+  [arg-vals env]
+  (if env
+    (->> arg-vals
+         (filter (fn [[_arg-sym arg-val]] (local-arg-val? arg-val env)))
+         (map first)
+         set)
+    #{}))
 
 (defn measured-expr*
   "Return a measured function for the given expression.
@@ -207,17 +274,24 @@
   argument to the a function that wraps the expression.
 
   Any expr that is not a List is treated as a constant.  This is mainly
-  for internal benchmarking."
-  [expr options]
+  for internal benchmarking.
+
+  The env parameter is the macro's &env, used to identify local bindings.
+  Local bindings are captured at the call-site and passed through the
+  measurement pipeline alongside hoisted constants."
+  [expr options env]
   (let [{:keys [expr arg-vals] :as _f} (factor-expr expr)
-        arg-metas                      (capture-arg-types (vals arg-vals))
-        options                        (update
-                                        options
-                                        :arg-metas merge-metas arg-metas)]
+        arg-syms (keys arg-vals)
+        local-arg-syms (identify-local-args arg-vals env)
+        arg-metas (capture-arg-types
+                   arg-syms arg-vals local-arg-syms env)
+        options (update
+                 options
+                 :arg-metas merge-metas arg-metas)]
     `(measured
       (fn ~'measured-args [] ~(vec (vals arg-vals)))
       ~(measured-expr-fn
-        (vec (keys arg-vals))
+        (vec arg-syms)
         expr
         options)
       (fn ~'measured-expr []
