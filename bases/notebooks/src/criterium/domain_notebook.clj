@@ -226,6 +226,50 @@
             (format "%.2fx" (/ value (second (nth data (dec i))))))])
        data))}))
 
+;; ### Regression Fitting
+;;
+;; Quantitatively determine algorithmic complexity by fitting models to the data.
+;; The `fit-complexity` function fits O(log n), O(n), O(n log n), and O(n²) models
+;; and identifies the best fit by R² value:
+
+^:kindly/hide-code
+(let [extract (domain/extract scaling-domain [:stats :elapsed-time :mean])
+      regression (domain/fit-complexity extract :n)]
+  {:best-fit (:best-fit regression)
+   :models (map (fn [{:keys [id label r-squared]}]
+                  {:model label :r-squared (format "%.4f" r-squared)})
+                (sort-by :r-squared > (:models regression)))})
+
+;; View regression results with the print viewer:
+
+^:kindly/hide-code
+(kind/code
+ (with-out-str
+   (let [extract (domain/extract scaling-domain [:stats :elapsed-time :mean])]
+     ((view/domain-regression {:regression-id :regression})
+      :print
+      {:regression (domain/fit-complexity extract :n)}))))
+
+;; Use the pipeline function for composable analysis:
+
+(-> {:domain scaling-domain}
+    ((domain/domain-extract-fn
+      {:id :extract
+       :metric-path [:stats :elapsed-time :mean]}))
+    ((domain/domain-regression-fn
+      {:id :scaling
+       :axis :n}))
+    :scaling
+    :best-fit)
+
+;; Custom models can be provided for specific complexity classes:
+
+(domain/fit-complexity
+ (domain/extract scaling-domain [:stats :elapsed-time :mean])
+ :n
+ {:cubic {:transform (fn [n] (* n n n)) :label "O(n³)"}
+  :linear {:transform identity :label "O(n)"}})
+
 ;; ## Pipeline Composition
 ;;
 ;; For complex analyses, use pipeline functions that operate on data maps:
@@ -250,7 +294,7 @@
 ;; - Query and filter runs
 ;; - Extract and compare metrics
 ;; - Visualize results with print or portal viewers
-;; - Analyze scaling behavior
+;; - Analyze scaling behavior with regression fitting
 ;;
 ;; The immutable design supports exploratory analysis in the REPL,
 ;; while pipeline functions enable composable data transformations.
