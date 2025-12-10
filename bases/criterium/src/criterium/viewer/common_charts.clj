@@ -230,7 +230,7 @@
               xs)]
     {:data {:values data
             :name "vals"}
-     :height 800
+
      :encoding
      {:x
       {:field "x" :type "quantitative"
@@ -277,7 +277,7 @@
               (range))]
     {:data {:values data
             :name "vals"}
-     :height 800
+
      :encoding
      {:x
       {:field "x" :type "quantitative"}

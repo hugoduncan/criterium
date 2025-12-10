@@ -53,7 +53,7 @@
 
 (defn portal-vega-lite [s]
   (tap> (with-meta
-          (assoc s :$schema  "https://vega.github.io/schema/vega-lite/v5.json")
+          (assoc s :$schema "https://vega.github.io/schema/vega-lite/v5.json")
           {:portal.viewer/default :portal.viewer/vega-lite})))
 
 (defn heading [s]
@@ -61,10 +61,10 @@
 
 (defmethod view/metrics* :portal
   [_ {:keys [samples-id]} data-map]
-  (let [samples-id      (or samples-id :samples)
+  (let [samples-id (or samples-id :samples)
         metrics-samples (data-map samples-id)
-        metrics-defs    (:metrics-defs metrics-samples)
-        metric-configs  (metric/all-metric-configs metrics-defs)]
+        metrics-defs (:metrics-defs metrics-samples)
+        metric-configs (metric/all-metric-configs metrics-defs)]
     (portal-table
      (viewer-common/metrics-map
       (util/metric->values metrics-samples)
@@ -72,12 +72,12 @@
 
 (defmethod view/stats* :portal
   [_ {:keys [stats-id metric-ids]} data-map]
-  (let [stats-id       (or stats-id :stats)
-        stats-map      (data-map stats-id)
-        metrics-defs   (-> (:metrics-defs stats-map)
-                           (metric/select-metrics metric-ids))
+  (let [stats-id (or stats-id :stats)
+        stats-map (data-map stats-id)
+        metrics-defs (-> (:metrics-defs stats-map)
+                         (metric/select-metrics metric-ids))
         metric-configs (metric/all-metric-configs metrics-defs)
-        transforms     (util/get-transforms data-map stats-id)]
+        transforms (util/get-transforms data-map stats-id)]
     (heading "Summary stats")
     (portal-table
      (viewer-common/stats-map
@@ -87,9 +87,9 @@
 
 (defmethod view/event-stats* :portal
   [_ {:keys [event-stats-id]} data-map]
-  (let [event-stats-id  (or event-stats-id :event-stats)
+  (let [event-stats-id (or event-stats-id :event-stats)
         event-stats-map (data-map event-stats-id)
-        metrics-defs    (have (:metrics-defs event-stats-map))]
+        metrics-defs (have (:metrics-defs event-stats-map))]
     (heading "Event stats")
     (portal-table
      (viewer-common/event-stats
@@ -98,11 +98,11 @@
 
 (defmethod view/quantiles* :portal
   [_ {:keys [quantiles-id]} data-map]
-  (let [quantiles-id   (or quantiles-id :quantiles)
-        quantiles-map  (data-map quantiles-id)
-        metrics-defs   (:metrics-defs quantiles-map)
+  (let [quantiles-id (or quantiles-id :quantiles)
+        quantiles-map (data-map quantiles-id)
+        metrics-defs (:metrics-defs quantiles-map)
         metric-configs (metric/all-metric-configs metrics-defs)
-        transforms     (util/get-transforms data-map quantiles-id)]
+        transforms (util/get-transforms data-map quantiles-id)]
     (heading "Quantiles")
     (portal-table
      (viewer-common/quantiles
@@ -112,9 +112,9 @@
 
 (defmethod view/outlier-counts* :portal
   [_ {:keys [outliers-id] :as _view} data-map]
-  (let [outliers-id    (or outliers-id :outliers)
-        outliers-map   (data-map outliers-id)
-        metrics-defs   (:metrics-defs outliers-map)
+  (let [outliers-id (or outliers-id :outliers)
+        outliers-map (data-map outliers-id)
+        metrics-defs (:metrics-defs outliers-map)
         metric-configs (metric/all-metric-configs metrics-defs)]
     (heading "Outliers")
     (portal-table
@@ -124,11 +124,11 @@
 
 (defmethod view/outlier-significance* :portal
   [_ {:keys [outlier-significance-id] :as _view} data-map]
-  (let [outlier-sig-id  (or outlier-significance-id :outlier-significance)
+  (let [outlier-sig-id (or outlier-significance-id :outlier-significance)
         outlier-sig-map (data-map outlier-sig-id)
-        outlier-sig     (util/outlier-significance outlier-sig-map)
-        metrics-defs    (:metrics-defs outlier-sig-map)
-        metric-configs  (metric/all-metric-configs metrics-defs)]
+        outlier-sig (util/outlier-significance outlier-sig-map)
+        metrics-defs (:metrics-defs outlier-sig-map)
+        metric-configs (metric/all-metric-configs metrics-defs)]
     (heading "Outlier Significance")
     (portal-table
      (vec
@@ -143,29 +143,29 @@
 
 (defmethod view/samples* :portal
   [_ {:keys [] :as view} data-map]
-  (let [quant-samples-id     (:samples-id view :samples)
-        event-samples-id     (:event-samples-id view quant-samples-id)
+  (let [quant-samples-id (:samples-id view :samples)
+        event-samples-id (:event-samples-id view quant-samples-id)
         outliers-analysis-id (:outliers-id view :outliers)
 
         quant-samples (data-map quant-samples-id)
         event-samples (data-map event-samples-id)
-        outliers      (data-map outliers-analysis-id)
+        outliers (data-map outliers-analysis-id)
 
-        q-metrics-defs   (-> (:metrics-defs  quant-samples)
-                             (metric/filter-metrics
-                              (metric/type-pred :quantitative)))
-        e-metrics-defs   (-> (:metrics-defs event-samples)
-                             (metric/filter-metrics
-                              (metric/type-pred :event)))
-        metric-configs   (metric/all-metric-configs q-metrics-defs)
+        q-metrics-defs (-> (:metrics-defs quant-samples)
+                           (metric/filter-metrics
+                            (metric/type-pred :quantitative)))
+        e-metrics-defs (-> (:metrics-defs event-samples)
+                           (metric/filter-metrics
+                            (metric/type-pred :event)))
+        metric-configs (metric/all-metric-configs q-metrics-defs)
         e-metric-configs (metric/all-metric-configs e-metrics-defs)
 
         transforms (util/get-transforms data-map quant-samples-id)]
     (heading "Samples")
     (portal-vega-lite
-     {:data     {:values [{}]}
+     {:data {:values [{}]}
       :encoding {:x {:field "index" :type "quantitative"}}
-      :resolve  {:scale {:y "independent"}}
+      :resolve {:scale {:y "independent"}}
       :vconcat
       (into
        [{:height 800
@@ -189,30 +189,30 @@
 
 (defmethod view/histogram* :portal
   [_ {:keys [histogram-id samples-id stats-id]} data-map]
-  (let [histogram-id     (or histogram-id :histograms)
-        stats-id         (or stats-id :stats)
+  (let [histogram-id (or histogram-id :histograms)
+        stats-id (or stats-id :stats)
         quant-samples-id (or samples-id :samples)
-        quant-samples    (data-map quant-samples-id)
-        stats            (data-map stats-id)
-        histograms-map   (util/lookup-data data-map histogram-id)
-        histograms       (:histograms histograms-map)
-        metrics-defs     (-> (:metrics-defs quant-samples)
-                             (metric/filter-metrics
-                              (metric/type-pred :quantitative)))
-        metric-configs   (metric/all-metric-configs metrics-defs)
-        hist-transforms  (util/get-transforms data-map histogram-id)
+        quant-samples (data-map quant-samples-id)
+        stats (data-map stats-id)
+        histograms-map (util/lookup-data data-map histogram-id)
+        histograms (:histograms histograms-map)
+        metrics-defs (-> (:metrics-defs quant-samples)
+                         (metric/filter-metrics
+                          (metric/type-pred :quantitative)))
+        metric-configs (metric/all-metric-configs metrics-defs)
+        hist-transforms (util/get-transforms data-map histogram-id)
         stats-transforms (util/get-transforms data-map (:source-id stats))
-        layer-num        (volatile! 0)]
+        layer-num (volatile! 0)]
     (heading "Histogram")
     (portal-vega-lite
-     {:data    {:values []}
-      :resolve {:scale {:x     "independent"
-                        :y     "independent"
+     {:data {:values []}
+      :resolve {:scale {:x "independent"
+                        :y "independent"
                         :color "shared"}}
       :vconcat (mapv
                 (fn [metric-config]
                   {:resolve {:scale {:x "shared" :y "independent"}}
-                   :height  800
+                   :height 800
                    :layer
                    (into
                     [(charts/metric-computed-histo-layer
@@ -232,15 +232,16 @@
 (defmethod view/sample-percentiles* :portal
   [_ view data-map]
   (let [quant-samples-id (:samples-id view :samples)
-        quant-samples    (data-map quant-samples-id)
-        metrics-defs     (-> (:metrics-defs quant-samples)
-                             (metric/filter-metrics
-                              (metric/type-pred :quantitative)))
-        metric-configs   (metric/all-metric-configs metrics-defs)
-        transforms       (util/get-transforms data-map quant-samples-id)]
+        quant-samples (data-map quant-samples-id)
+        metrics-defs (-> (:metrics-defs quant-samples)
+                         (metric/filter-metrics
+                          (metric/type-pred :quantitative)))
+        metric-configs (metric/all-metric-configs metrics-defs)
+        transforms (util/get-transforms data-map quant-samples-id)]
     (heading "Percentiles")
     (portal-vega-lite
-     {:data    {:values [{}]} ; for portal
+     {:data {:values [{}]} ; for portal
+      :height 800
       :resolve {:scale {:y "independent"}}
       :vconcat
       (into
@@ -255,11 +256,12 @@
 (defmethod view/sample-diffs* :portal
   [_ {:keys [] :as view} data-map]
   (let [quant-samples-id (:samples-id view :samples)
-        quant-samples    (data-map quant-samples-id)
-        metric-configs   (:metric-configs quant-samples)]
+        quant-samples (data-map quant-samples-id)
+        metric-configs (:metric-configs quant-samples)]
     (heading "Sample diffs")
     (portal-vega-lite
-     {:data    {:values [{}]} ; for portal
+     {:data {:values [{}]} ; for portal
+      :height 800
       :resolve {:scale {:y "independent"}}
       :vconcat
       (into
