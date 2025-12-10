@@ -215,3 +215,64 @@
              (util/metric->values quant-samples)
              transforms
              (first metric-configs))]))}])})))
+
+(defmethod view/metrics* :kindly
+  [_ {:keys [samples-id]} data-map]
+  (let [samples-id      (or samples-id :samples)
+        metrics-samples (data-map samples-id)
+        metrics-defs    (:metrics-defs metrics-samples)
+        metric-configs  (metric/all-metric-configs metrics-defs)]
+    (kindly-heading "Metrics")
+    (kindly-table
+     (viewer-common/metrics-map
+      (util/metric->values metrics-samples)
+      metric-configs))))
+
+(defmethod view/event-stats* :kindly
+  [_ {:keys [event-stats-id]} data-map]
+  (let [event-stats-id  (or event-stats-id :event-stats)
+        event-stats-map (data-map event-stats-id)
+        metrics-defs    (have (:metrics-defs event-stats-map))]
+    (kindly-heading "Event stats")
+    (kindly-table
+     (viewer-common/event-stats
+      metrics-defs
+      (util/event-stats event-stats-map)))))
+
+(defmethod view/outlier-significance* :kindly
+  [_ {:keys [outlier-significance-id] :as _view} data-map]
+  (let [outlier-sig-id  (or outlier-significance-id :outlier-significance)
+        outlier-sig-map (data-map outlier-sig-id)
+        outlier-sig     (util/outlier-significance outlier-sig-map)
+        metrics-defs    (:metrics-defs outlier-sig-map)
+        metric-configs  (metric/all-metric-configs metrics-defs)]
+    (kindly-heading "Outlier Significance")
+    (kindly-table
+     (vec
+      (for [m metric-configs]
+        (get-in outlier-sig (:path m)))))))
+
+(defmethod view/sample-diffs* :kindly
+  [_ {:keys [] :as view} data-map]
+  (let [quant-samples-id (:samples-id view :samples)
+        quant-samples    (data-map quant-samples-id)
+        metric-configs   (:metric-configs quant-samples)]
+    (kindly-heading "Sample diffs")
+    (kindly-vega-lite
+     {:data    {:values []}
+      :resolve {:scale {:y "independent"}}
+      :vconcat
+      (into
+       [{:layer
+         (vec
+          (into
+           [(charts/metric-diff-layer
+             (util/metric->values quant-samples)
+             (first metric-configs))]))}])})))
+
+;;; Noop implementations for views not applicable to Kindly output
+
+(defmethod view/bootstrap-stats* :kindly [_ _ _])
+(defmethod view/final-gc-warnings* :kindly [_ _ _])
+(defmethod view/os* :kindly [_ _ _])
+(defmethod view/runtime* :kindly [_ _ _])

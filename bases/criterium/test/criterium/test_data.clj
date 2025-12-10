@@ -41,7 +41,8 @@
      {:samples
       {:type           :criterium/metrics-samples
        :metrics-defs   metrics-defs
-       :metric->values {[:elapsed-time] [1 1]}
+       :metric->values {[:elapsed-time] [1 1]
+                        [:expr-value]   [42 42]}
        :transform      collect-plan/identity-transforms
        :batch-size     1
        :eval-count     2
@@ -194,3 +195,4 @@
                  :num-samples  50}
     :estimation {:batch-size   1
                  :num-samples  10}}})
+

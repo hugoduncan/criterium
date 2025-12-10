@@ -342,3 +342,120 @@
               "Expected numeric percentile value")
           (is (number? (:x (first percentile-data)))
               "Expected numeric x value"))))))
+
+(deftest metrics-view-test
+  ;; Tests the view/metrics* multimethod for :kindly viewer.
+  ;; Verifies that metrics data is rendered as a heading and table.
+  (testing "view/metrics* :kindly"
+    (testing "renders metrics as heading and table"
+      (reset! kindly/accumulated [])
+      (view/metrics* :kindly {} (:data (test-data/samples-with-2-values-map)))
+      (let [result (kindly/flush)]
+        (is (= :kind/fragment (:kindly/kind (meta result))))
+        (is (= 2 (count result))
+            "Expected heading and table")
+        (let [[heading table] result]
+          (is (= :kind/md (:kindly/kind (meta heading))))
+          (is (= ["**Metrics**"] heading))
+          (is (= :kind/table (:kindly/kind (meta table))))
+          (is (= 2 (count table))
+              "Expected two metric rows (elapsed-time and expr-value)")
+          (is (every? #(string? (:metric %)) table)
+              "Expected :metric column in all rows")
+          (is (every? #(string? (:value %)) table)
+              "Expected :value column in all rows"))))))
+
+(deftest event-stats-view-test
+  ;; Tests the view/event-stats* multimethod for :kindly viewer.
+  ;; Verifies that event stats data is rendered as a heading and table.
+  (testing "view/event-stats* :kindly"
+    (testing "renders event stats as heading and table via analyse pipeline"
+      (reset! kindly/accumulated [])
+      (let [data-map    (:data (test-data/samples-for-event-stats-map))
+            event-stats (analyse/event-stats)
+            view        (view/event-stats)]
+        (->> data-map
+             event-stats
+             (view :kindly))
+        (let [result (kindly/flush)]
+          (is (= :kind/fragment (:kindly/kind (meta result))))
+          (is (= 2 (count result))
+              "Expected heading and table")
+          (let [[heading table] result]
+            (is (= :kind/md (:kindly/kind (meta heading))))
+            (is (= ["**Event stats**"] heading))
+            (is (= :kind/table (:kindly/kind (meta table))))
+            (is (pos? (count table))
+                "Expected at least one event stats row")
+            (is (every? #(contains? % :metric) table)
+                "Expected :metric column in all rows")))))))
+
+(deftest outlier-significance-view-test
+  ;; Tests the view/outlier-significance* multimethod for :kindly viewer.
+  ;; Verifies that outlier significance data is rendered as heading and table.
+  (testing "view/outlier-significance* :kindly"
+    (testing "renders outlier significance as heading and table"
+      (reset! kindly/accumulated [])
+      (view/outlier-significance* :kindly {} (:data (test-data/outlier-significance-map)))
+      (let [result (kindly/flush)]
+        (is (= :kind/fragment (:kindly/kind (meta result))))
+        (is (= 2 (count result))
+            "Expected heading and table")
+        (let [[heading table] result]
+          (is (= :kind/md (:kindly/kind (meta heading))))
+          (is (= ["**Outlier Significance**"] heading))
+          (is (= :kind/table (:kindly/kind (meta table))))
+          (is (= 1 (count table))
+              "Expected one metric row")
+          (let [row (first table)]
+            (is (= :moderate (:effect row))
+                "Expected moderate effect")
+            (is (= 0.25 (:significance row))
+                "Expected 0.25 significance")))))))
+
+(deftest sample-diffs-view-test
+  ;; Tests the view/sample-diffs* multimethod for :kindly viewer.
+  ;; Verifies that sample diffs data is rendered as heading and Vega-Lite chart.
+  (testing "view/sample-diffs* :kindly"
+    (testing "renders sample diffs as heading and Vega-Lite chart"
+      (reset! kindly/accumulated [])
+      (let [data-map (:data (test-data/samples-with-2-values-map))
+            ;; Add metric-configs needed by sample-diffs
+            data-map (assoc-in data-map [:samples :metric-configs]
+                               [{:path  [:elapsed-time]
+                                 :label "Elapsed Time"
+                                 :scale 1}])]
+        (view/sample-diffs* :kindly {} data-map)
+        (let [result (kindly/flush)]
+          (is (= :kind/fragment (:kindly/kind (meta result))))
+          (is (= 2 (count result))
+              "Expected heading and chart")
+          (let [[heading chart] result]
+            (is (= :kind/md (:kindly/kind (meta heading))))
+            (is (= ["**Sample diffs**"] heading))
+            (is (= :kind/vega-lite (:kindly/kind (meta chart))))
+            (is (string? (:$schema chart))
+                "Expected Vega-Lite schema")))))))
+
+(deftest noop-views-test
+  ;; Tests that noop multimethods do not add anything to the accumulator.
+  (testing "noop views"
+    (testing "bootstrap-stats* produces no output"
+      (reset! kindly/accumulated [])
+      (view/bootstrap-stats* :kindly {} {})
+      (is (empty? @kindly/accumulated)))
+
+    (testing "final-gc-warnings* produces no output"
+      (reset! kindly/accumulated [])
+      (view/final-gc-warnings* :kindly {} {})
+      (is (empty? @kindly/accumulated)))
+
+    (testing "os* produces no output"
+      (reset! kindly/accumulated [])
+      (view/os* :kindly {} {})
+      (is (empty? @kindly/accumulated)))
+
+    (testing "runtime* produces no output"
+      (reset! kindly/accumulated [])
+      (view/runtime* :kindly {} {})
+      (is (empty? @kindly/accumulated)))))
