@@ -121,18 +121,18 @@
           (is (= :kind/md (:kindly/kind (meta heading))))
           (is (= ["**Summary stats**"] heading))
           (is (= :kind/table (:kindly/kind (meta table))))
-          (is (= [{:_metric           "Elapsed Time ns",
-                   :mean              100.0
-                   :min-val           89.0
+          (is (= [{:_metric "Elapsed Time ns",
+                   :mean 100.0
+                   :min-val 89.0
                    :mean-minus-3sigma 88.0
-                   :mean-plus-3sigma  112.0
-                   :max-val           114.0}]
+                   :mean-plus-3sigma 112.0
+                   :max-val 114.0}]
                  table)))))
 
     (testing "renders stats via analyse pipeline"
       (reset! kindly/accumulated [])
-      (let [data-map   (:data (test-data/samples-with-2-values-map))
-            stats      (analyse/stats)
+      (let [data-map (:data (test-data/samples-with-2-values-map))
+            stats (analyse/stats)
             view-stats (view/stats)]
         (->> data-map
              stats
@@ -142,12 +142,12 @@
           (let [[heading table] result]
             (is (= :kind/md (:kindly/kind (meta heading))))
             (is (= :kind/table (:kindly/kind (meta table))))
-            (is (= [{:_metric           "Elapsed Time ns",
-                     :mean              1.00,
-                     :min-val           1.00,
+            (is (= [{:_metric "Elapsed Time ns",
+                     :mean 1.00,
+                     :min-val 1.00,
                      :mean-minus-3sigma 1.00,
-                     :mean-plus-3sigma  1.00,
-                     :max-val           1.00}]
+                     :mean-plus-3sigma 1.00,
+                     :max-val 1.00}]
                    table))))))))
 
 (deftest quantiles-view-test
@@ -189,10 +189,10 @@
           (is (= :kind/md (:kindly/kind (meta heading))))
           (is (= ["**Outliers**"] heading))
           (is (= :kind/table (:kindly/kind (meta table))))
-          (is (= [{:_metric     "Elapsed Time"
-                   :low-severe  0
-                   :low-mild    2
-                   :high-mild   3
+          (is (= [{:_metric "Elapsed Time"
+                   :low-severe 0
+                   :low-mild 2
+                   :high-mild 3
                    :high-severe 0}]
                  table)))))))
 
@@ -221,7 +221,7 @@
 (deftest samples-view-test
   ;; Tests the view/samples* multimethod for :kindly viewer.
   ;; Verifies that samples data is rendered as a heading and Vega-Lite scatter
-  ;; plot with outlier coloring.
+  ;; plot with outlier coloring and notebook-friendly dimensions.
   (testing "view/samples* :kindly"
     (testing "renders samples as heading and Vega-Lite chart"
       (reset! kindly/accumulated [])
@@ -236,6 +236,10 @@
           (is (= :kind/vega-lite (:kindly/kind (meta chart))))
           (is (string? (:$schema chart))
               "Expected Vega-Lite schema")
+          (is (= 700 (:width chart))
+              "Expected notebook-friendly width")
+          (is (= 350 (-> chart :vconcat first :height))
+              "Expected notebook-friendly height")
           (is (= [{:elapsed-time 1.0 :index 0 :outlier ""}
                   {:elapsed-time 1.0 :index 1 :outlier ""}]
                  (-> chart :vconcat first :layer first :data :values))))))
@@ -252,11 +256,11 @@
 
     (testing "renders samples with outlier coloring via analyse pipeline"
       (reset! kindly/accumulated [])
-      (let [data-map  (:data (test-data/samples-with-outliers-values-map))
+      (let [data-map (:data (test-data/samples-with-outliers-values-map))
             quantiles (analyse/quantiles {:quantiles [0.9 0.99 0.99]})
-            outliers  (analyse/outliers)
-            stats     (analyse/stats)
-            view      (view/samples)]
+            outliers (analyse/outliers)
+            stats (analyse/stats)
+            view (view/samples)]
         (->> data-map
              quantiles
              outliers
@@ -276,15 +280,15 @@
 (deftest histogram-view-test
   ;; Tests the view/histogram* multimethod for :kindly viewer.
   ;; Verifies that histogram data is rendered as a heading and Vega-Lite bar
-  ;; chart with optional normal PDF overlay.
+  ;; chart with optional normal PDF overlay and notebook-friendly dimensions.
   (testing "view/histogram* :kindly"
     (testing "renders histogram as heading and Vega-Lite chart"
       (reset! kindly/accumulated [])
-      (let [data-map       (:data (test-data/samples-with-outliers-values-map))
-            quantiles      (analyse/quantiles {:quantiles [0.9 0.99 0.99]})
-            outliers       (analyse/outliers)
-            stats          (analyse/stats)
-            histogram      (analyse/histogram)
+      (let [data-map (:data (test-data/samples-with-outliers-values-map))
+            quantiles (analyse/quantiles {:quantiles [0.9 0.99 0.99]})
+            outliers (analyse/outliers)
+            stats (analyse/stats)
+            histogram (analyse/histogram)
             view-histogram (view/histogram)]
         (->> data-map
              quantiles
@@ -302,6 +306,10 @@
             (is (= :kind/vega-lite (:kindly/kind (meta chart))))
             (is (string? (:$schema chart))
                 "Expected Vega-Lite schema")
+            (is (= 700 (:width chart))
+                "Expected notebook-friendly width")
+            (is (= 350 (-> chart :vconcat first :height))
+                "Expected notebook-friendly height")
             (let [histogram-data (-> chart :vconcat first :layer first :data :values)]
               (is (vector? histogram-data))
               (is (pos? (count histogram-data)))
@@ -313,7 +321,7 @@
 (deftest sample-percentiles-view-test
   ;; Tests the view/sample-percentiles* multimethod for :kindly viewer.
   ;; Verifies that sample percentiles data is rendered as a heading and
-  ;; Vega-Lite percentile distribution chart.
+  ;; Vega-Lite percentile distribution chart with notebook-friendly dimensions.
   (testing "view/sample-percentiles* :kindly"
     (testing "renders percentiles as heading and Vega-Lite chart"
       (reset! kindly/accumulated [])
@@ -328,6 +336,10 @@
           (is (= :kind/vega-lite (:kindly/kind (meta chart))))
           (is (string? (:$schema chart))
               "Expected Vega-Lite schema")
+          (is (= 700 (:width chart))
+              "Expected notebook-friendly width")
+          (is (= 350 (-> chart :vconcat first :height))
+              "Expected notebook-friendly height")
           (let [percentile-data (-> chart :vconcat first :layer first :data :values)]
             (is (vector? percentile-data))
             (is (= 2 (count percentile-data))
@@ -339,7 +351,7 @@
 
     (testing "renders percentiles with transformed data via analyse pipeline"
       (reset! kindly/accumulated [])
-      (let [data-map            (:data (test-data/samples-with-outliers-values-map))
+      (let [data-map (:data (test-data/samples-with-outliers-values-map))
             view-sample-percent (view/sample-percentiles)]
         (view-sample-percent :kindly data-map)
         (let [result (kindly/flush)
@@ -380,9 +392,9 @@
   (testing "view/event-stats* :kindly"
     (testing "renders event stats as heading and table via analyse pipeline"
       (reset! kindly/accumulated [])
-      (let [data-map    (:data (test-data/samples-for-event-stats-map))
+      (let [data-map (:data (test-data/samples-for-event-stats-map))
             event-stats (analyse/event-stats)
-            view        (view/event-stats)]
+            view (view/event-stats)]
         (->> data-map
              event-stats
              (view :kindly))
@@ -424,14 +436,15 @@
 
 (deftest sample-diffs-view-test
   ;; Tests the view/sample-diffs* multimethod for :kindly viewer.
-  ;; Verifies that sample diffs data is rendered as heading and Vega-Lite chart.
+  ;; Verifies that sample diffs data is rendered as heading and Vega-Lite chart
+  ;; with notebook-friendly dimensions.
   (testing "view/sample-diffs* :kindly"
     (testing "renders sample diffs as heading and Vega-Lite chart"
       (reset! kindly/accumulated [])
       (let [data-map (:data (test-data/samples-with-2-values-map))
             ;; Add metric-configs needed by sample-diffs
             data-map (assoc-in data-map [:samples :metric-configs]
-                               [{:path  [:elapsed-time]
+                               [{:path [:elapsed-time]
                                  :label "Elapsed Time"
                                  :scale 1}])]
         (view/sample-diffs* :kindly {} data-map)
@@ -444,7 +457,11 @@
             (is (= ["**Sample diffs**"] heading))
             (is (= :kind/vega-lite (:kindly/kind (meta chart))))
             (is (string? (:$schema chart))
-                "Expected Vega-Lite schema")))))))
+                "Expected Vega-Lite schema")
+            (is (= 700 (:width chart))
+                "Expected notebook-friendly width")
+            (is (= 350 (-> chart :vconcat first :height))
+                "Expected notebook-friendly height")))))))
 
 (deftest noop-views-test
   ;; Tests that noop multimethods do not add anything to the accumulator.

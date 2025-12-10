@@ -67,12 +67,12 @@
 
 (defmethod view/stats* :kindly
   [_ {:keys [stats-id metric-ids]} data-map]
-  (let [stats-id       (or stats-id :stats)
-        stats-map      (data-map stats-id)
-        metrics-defs   (-> (:metrics-defs stats-map)
-                           (metric/select-metrics metric-ids))
+  (let [stats-id (or stats-id :stats)
+        stats-map (data-map stats-id)
+        metrics-defs (-> (:metrics-defs stats-map)
+                         (metric/select-metrics metric-ids))
         metric-configs (metric/all-metric-configs metrics-defs)
-        transforms     (util/get-transforms data-map stats-id)]
+        transforms (util/get-transforms data-map stats-id)]
     (kindly-heading "Summary stats")
     (kindly-table
      (viewer-common/stats-map
@@ -82,11 +82,11 @@
 
 (defmethod view/quantiles* :kindly
   [_ {:keys [quantiles-id]} data-map]
-  (let [quantiles-id   (or quantiles-id :quantiles)
-        quantiles-map  (data-map quantiles-id)
-        metrics-defs   (:metrics-defs quantiles-map)
+  (let [quantiles-id (or quantiles-id :quantiles)
+        quantiles-map (data-map quantiles-id)
+        metrics-defs (:metrics-defs quantiles-map)
         metric-configs (metric/all-metric-configs metrics-defs)
-        transforms     (util/get-transforms data-map quantiles-id)]
+        transforms (util/get-transforms data-map quantiles-id)]
     (kindly-heading "Quantiles")
     (kindly-table
      (viewer-common/quantiles
@@ -96,9 +96,9 @@
 
 (defmethod view/outlier-counts* :kindly
   [_ {:keys [outliers-id] :as _view} data-map]
-  (let [outliers-id    (or outliers-id :outliers)
-        outliers-map   (data-map outliers-id)
-        metrics-defs   (:metrics-defs outliers-map)
+  (let [outliers-id (or outliers-id :outliers)
+        outliers-map (data-map outliers-id)
+        metrics-defs (:metrics-defs outliers-map)
         metric-configs (metric/all-metric-configs metrics-defs)]
     (kindly-heading "Outliers")
     (kindly-table
@@ -114,32 +114,33 @@
 
 (defmethod view/samples* :kindly
   [_ {:keys [] :as view} data-map]
-  (let [quant-samples-id     (:samples-id view :samples)
-        event-samples-id     (:event-samples-id view quant-samples-id)
+  (let [quant-samples-id (:samples-id view :samples)
+        event-samples-id (:event-samples-id view quant-samples-id)
         outliers-analysis-id (:outliers-id view :outliers)
 
         quant-samples (data-map quant-samples-id)
         event-samples (data-map event-samples-id)
-        outliers      (data-map outliers-analysis-id)
+        outliers (data-map outliers-analysis-id)
 
-        q-metrics-defs   (-> (:metrics-defs quant-samples)
-                             (metric/filter-metrics
-                              (metric/type-pred :quantitative)))
-        e-metrics-defs   (-> (:metrics-defs event-samples)
-                             (metric/filter-metrics
-                              (metric/type-pred :event)))
-        metric-configs   (metric/all-metric-configs q-metrics-defs)
+        q-metrics-defs (-> (:metrics-defs quant-samples)
+                           (metric/filter-metrics
+                            (metric/type-pred :quantitative)))
+        e-metrics-defs (-> (:metrics-defs event-samples)
+                           (metric/filter-metrics
+                            (metric/type-pred :event)))
+        metric-configs (metric/all-metric-configs q-metrics-defs)
         e-metric-configs (metric/all-metric-configs e-metrics-defs)
 
         transforms (util/get-transforms data-map quant-samples-id)]
     (kindly-heading "Samples")
     (kindly-vega-lite
-     {:data     {:values [{}]}
+     {:data {:values [{}]}
+      :width 700
       :encoding {:x {:field "index" :type "quantitative"}}
-      :resolve  {:scale {:y "independent"}}
+      :resolve {:scale {:y "independent"}}
       :vconcat
       (into
-       [{:height 800
+       [{:height 350
          :layer
          (vec
           (into
@@ -152,38 +153,41 @@
             #(charts/event-layer (util/metric->values event-samples) %)
             e-metrics-defs)))}]
        (mapv
-        #(charts/metric-layer
-          (util/metric->values quant-samples)
-          transforms
-          outliers %)
+        (fn [mc]
+          {:height 350
+           :layer [(charts/metric-layer
+                    (util/metric->values quant-samples)
+                    transforms
+                    outliers mc)]})
         e-metric-configs))})))
 
 (defmethod view/histogram* :kindly
   [_ {:keys [histogram-id samples-id stats-id]} data-map]
-  (let [histogram-id     (or histogram-id :histograms)
-        stats-id         (or stats-id :stats)
+  (let [histogram-id (or histogram-id :histograms)
+        stats-id (or stats-id :stats)
         quant-samples-id (or samples-id :samples)
-        quant-samples    (data-map quant-samples-id)
-        stats            (data-map stats-id)
-        histograms-map   (util/lookup-data data-map histogram-id)
-        histograms       (:histograms histograms-map)
-        metrics-defs     (-> (:metrics-defs quant-samples)
-                             (metric/filter-metrics
-                              (metric/type-pred :quantitative)))
-        metric-configs   (metric/all-metric-configs metrics-defs)
-        hist-transforms  (util/get-transforms data-map histogram-id)
+        quant-samples (data-map quant-samples-id)
+        stats (data-map stats-id)
+        histograms-map (util/lookup-data data-map histogram-id)
+        histograms (:histograms histograms-map)
+        metrics-defs (-> (:metrics-defs quant-samples)
+                         (metric/filter-metrics
+                          (metric/type-pred :quantitative)))
+        metric-configs (metric/all-metric-configs metrics-defs)
+        hist-transforms (util/get-transforms data-map histogram-id)
         stats-transforms (util/get-transforms data-map (:source-id stats))
-        layer-num        (volatile! 0)]
+        layer-num (volatile! 0)]
     (kindly-heading "Histogram")
     (kindly-vega-lite
-     {:data    {:values []}
-      :resolve {:scale {:x     "independent"
-                        :y     "independent"
+     {:data {:values []}
+      :width 700
+      :resolve {:scale {:x "independent"
+                        :y "independent"
                         :color "shared"}}
       :vconcat (mapv
                 (fn [metric-config]
                   {:resolve {:scale {:x "shared" :y "independent"}}
-                   :height  800
+                   :height 350
                    :layer
                    (into
                     [(charts/metric-computed-histo-layer
@@ -203,19 +207,21 @@
 (defmethod view/sample-percentiles* :kindly
   [_ view data-map]
   (let [quant-samples-id (:samples-id view :samples)
-        quant-samples    (data-map quant-samples-id)
-        metrics-defs     (-> (:metrics-defs quant-samples)
-                             (metric/filter-metrics
-                              (metric/type-pred :quantitative)))
-        metric-configs   (metric/all-metric-configs metrics-defs)
-        transforms       (util/get-transforms data-map quant-samples-id)]
+        quant-samples (data-map quant-samples-id)
+        metrics-defs (-> (:metrics-defs quant-samples)
+                         (metric/filter-metrics
+                          (metric/type-pred :quantitative)))
+        metric-configs (metric/all-metric-configs metrics-defs)
+        transforms (util/get-transforms data-map quant-samples-id)]
     (kindly-heading "Percentiles")
     (kindly-vega-lite
-     {:data    {:values []}
+     {:data {:values []}
+      :width 700
       :resolve {:scale {:y "independent"}}
       :vconcat
       (into
-       [{:layer
+       [{:height 350
+         :layer
          (vec
           (into
            [(charts/metric-percentile-layer
@@ -225,10 +231,10 @@
 
 (defmethod view/metrics* :kindly
   [_ {:keys [samples-id]} data-map]
-  (let [samples-id      (or samples-id :samples)
+  (let [samples-id (or samples-id :samples)
         metrics-samples (data-map samples-id)
-        metrics-defs    (:metrics-defs metrics-samples)
-        metric-configs  (metric/all-metric-configs metrics-defs)]
+        metrics-defs (:metrics-defs metrics-samples)
+        metric-configs (metric/all-metric-configs metrics-defs)]
     (kindly-heading "Metrics")
     (kindly-table
      (viewer-common/metrics-map
@@ -237,9 +243,9 @@
 
 (defmethod view/event-stats* :kindly
   [_ {:keys [event-stats-id]} data-map]
-  (let [event-stats-id  (or event-stats-id :event-stats)
+  (let [event-stats-id (or event-stats-id :event-stats)
         event-stats-map (data-map event-stats-id)
-        metrics-defs    (have (:metrics-defs event-stats-map))]
+        metrics-defs (have (:metrics-defs event-stats-map))]
     (kindly-heading "Event stats")
     (kindly-table
      (viewer-common/event-stats
@@ -248,11 +254,11 @@
 
 (defmethod view/outlier-significance* :kindly
   [_ {:keys [outlier-significance-id] :as _view} data-map]
-  (let [outlier-sig-id  (or outlier-significance-id :outlier-significance)
+  (let [outlier-sig-id (or outlier-significance-id :outlier-significance)
         outlier-sig-map (data-map outlier-sig-id)
-        outlier-sig     (util/outlier-significance outlier-sig-map)
-        metrics-defs    (:metrics-defs outlier-sig-map)
-        metric-configs  (metric/all-metric-configs metrics-defs)]
+        outlier-sig (util/outlier-significance outlier-sig-map)
+        metrics-defs (:metrics-defs outlier-sig-map)
+        metric-configs (metric/all-metric-configs metrics-defs)]
     (kindly-heading "Outlier Significance")
     (kindly-table
      (vec
@@ -262,15 +268,17 @@
 (defmethod view/sample-diffs* :kindly
   [_ {:keys [] :as view} data-map]
   (let [quant-samples-id (:samples-id view :samples)
-        quant-samples    (data-map quant-samples-id)
-        metric-configs   (:metric-configs quant-samples)]
+        quant-samples (data-map quant-samples-id)
+        metric-configs (:metric-configs quant-samples)]
     (kindly-heading "Sample diffs")
     (kindly-vega-lite
-     {:data    {:values []}
+     {:data {:values []}
+      :width 700
       :resolve {:scale {:y "independent"}}
       :vconcat
       (into
-       [{:layer
+       [{:height 350
+         :layer
          (vec
           (into
            [(charts/metric-diff-layer
