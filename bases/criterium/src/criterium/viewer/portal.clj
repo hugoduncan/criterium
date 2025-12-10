@@ -89,12 +89,13 @@
   [_ {:keys [event-stats-id]} data-map]
   (let [event-stats-id (or event-stats-id :event-stats)
         event-stats-map (data-map event-stats-id)
-        metrics-defs (have (:metrics-defs event-stats-map))]
-    (heading "Event stats")
-    (portal-table
-     (viewer-common/event-stats
-      metrics-defs
-      (util/event-stats event-stats-map)))))
+        metrics-defs (have (:metrics-defs event-stats-map))
+        stats (viewer-common/event-stats
+               metrics-defs
+               (util/event-stats event-stats-map))]
+    (when (seq stats)
+      (heading "Event stats")
+      (portal-table stats))))
 
 (defmethod view/quantiles* :portal
   [_ {:keys [quantiles-id]} data-map]
@@ -158,7 +159,11 @@
                            (metric/filter-metrics
                             (metric/type-pred :event)))
         metric-configs (metric/all-metric-configs q-metrics-defs)
-        e-metric-configs (metric/all-metric-configs e-metrics-defs)
+        event-metric->values (util/metric->values event-samples)
+        e-metric-configs (->> (metric/all-metric-configs e-metrics-defs)
+                              (filterv #(not-every? zero?
+                                                    (get event-metric->values
+                                                         (:path %)))))
 
         transforms (util/get-transforms data-map quant-samples-id)]
     (heading "Samples")
@@ -178,13 +183,13 @@
              (when outliers (util/outliers outliers))
              (have (first metric-configs)))]
            (mapcat
-            #(charts/event-layer (util/metric->values event-samples) %)
+            #(charts/event-layer event-metric->values %)
             e-metrics-defs)))}]
        (mapv
         #(charts/metric-layer
-          (util/metric->values quant-samples)
+          event-metric->values
           transforms
-          outliers %)
+          nil %)
         e-metric-configs))})))
 
 (defmethod view/histogram* :portal

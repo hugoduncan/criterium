@@ -129,7 +129,11 @@
                            (metric/filter-metrics
                             (metric/type-pred :event)))
         metric-configs (metric/all-metric-configs q-metrics-defs)
-        e-metric-configs (metric/all-metric-configs e-metrics-defs)
+        event-metric->values (util/metric->values event-samples)
+        e-metric-configs (->> (metric/all-metric-configs e-metrics-defs)
+                              (filterv #(not-every? zero?
+                                                    (get event-metric->values
+                                                         (:path %)))))
 
         transforms (util/get-transforms data-map quant-samples-id)]
     (kindly-heading "Samples")
@@ -150,15 +154,15 @@
              (when outliers (util/outliers outliers))
              (have (first metric-configs)))]
            (mapcat
-            #(charts/event-layer (util/metric->values event-samples) %)
+            #(charts/event-layer event-metric->values %)
             e-metrics-defs)))}]
        (mapv
         (fn [mc]
           {:height 350
            :layer [(charts/metric-layer
-                    (util/metric->values quant-samples)
+                    event-metric->values
                     transforms
-                    outliers mc)]})
+                    nil mc)]})
         e-metric-configs))})))
 
 (defmethod view/histogram* :kindly
@@ -245,12 +249,13 @@
   [_ {:keys [event-stats-id]} data-map]
   (let [event-stats-id (or event-stats-id :event-stats)
         event-stats-map (data-map event-stats-id)
-        metrics-defs (have (:metrics-defs event-stats-map))]
-    (kindly-heading "Event stats")
-    (kindly-table
-     (viewer-common/event-stats
-      metrics-defs
-      (util/event-stats event-stats-map)))))
+        metrics-defs (have (:metrics-defs event-stats-map))
+        stats (viewer-common/event-stats
+               metrics-defs
+               (util/event-stats event-stats-map))]
+    (when (seq stats)
+      (kindly-heading "Event stats")
+      (kindly-table stats))))
 
 (defmethod view/outlier-significance* :kindly
   [_ {:keys [outlier-significance-id] :as _view} data-map]
