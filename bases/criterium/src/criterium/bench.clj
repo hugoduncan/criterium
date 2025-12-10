@@ -122,8 +122,9 @@
     (let [data-map (->> (collect-data-map
                          (:collector-config bench-plan)
                          (:collect-plan bench-plan) measured)
-                        (analyze (:analyse bench-plan)))]
-      (view (:view bench-plan) (:viewer bench-plan) data-map)
+                        (analyze (:analyse bench-plan)))
+          viewer-output (view (:view bench-plan) (:viewer bench-plan) data-map)
+          data-map (assoc-in data-map [:viewer :output] viewer-output)]
       (impl/last-bench! {:bench-plan bench-plan :data data-map})
       (return-value bench-plan data-map))))
 
@@ -226,9 +227,9 @@
   - Ensures statistical significance
   - Expression cannot refer to local bindings"
   [expr & options]
-  (let [options-map  (apply hash-map options)
+  (let [options-map (apply hash-map options)
         expr-options (select-keys options-map [:time-fn])
-        options      (dissoc options-map :time-fn)]
+        options (dissoc options-map :time-fn)]
     `(bench-measured
       (options->bench-plan ~options)
       (measured/expr ~expr ~expr-options))))

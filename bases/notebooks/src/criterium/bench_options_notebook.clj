@@ -3,7 +3,7 @@
   (:require
    [criterium.bench :as bench]
    [criterium.bench-plans :as bench-plans]
-   [criterium.notebook.helpers :refer [bench-display bench-kindly]]
+   [criterium.notebook.helpers :refer [bench-display]]
    [scicloj.kindly.v4.kind :as kind]))
 
 ;; # Bench Options
@@ -133,22 +133,18 @@ bench-plans/log-histogram
 ;; ### :kindly
 ;;
 ;; The Kindly viewer outputs Kindly-annotated data structures for rendering
-;; in Clay notebooks. Use the `bench-kindly` helper macro to run benchmarks
-;; that return Kindly fragments directly:
+;; in Clay notebooks. When using `:viewer :kindly`, `bench` returns the Kindly
+;; fragment directly, so it can be rendered by Clay:
 
-(bench-kindly (reduce + (range 1000))
-              :bench-plan bench-plans/log-histogram)
+(bench/bench (reduce + (range 1000))
+             :viewer :kindly
+             :bench-plan bench-plans/log-histogram)
 
 ;; Kindly viewer features:
 ;; - Tables with `:kind/table` metadata for stats, quantiles, outliers
 ;; - Vega-Lite charts with `:kind/vega-lite` metadata for samples, histograms
 ;; - Markdown headings with `:kind/md` metadata for sections
 ;; - All wrapped in a `:kind/fragment` for Clay rendering
-;;
-;; The `bench-kindly` macro returns the Kindly fragment so Clay can render it.
-;; The underlying `:viewer :kindly` option can also be used directly with
-;; `criterium.bench/bench`, with the output accessible via
-;; `criterium.viewer.kindly/flush`.
 
 ;; ### Setting a Default Viewer
 ;;
@@ -158,7 +154,7 @@ bench-plans/log-histogram
 ;; each time.
 
 (kind/code "(bench/set-default-viewer! :kindly)
-(bench/bench (+ 1 1))  ; Now uses :kindly viewer
+(bench/bench (+ 1 1))  ; Now uses :kindly viewer and returns Kindly fragment
 
 ;; Check current default
 (bench/default-viewer)  ; => :kindly
@@ -174,8 +170,18 @@ bench-plans/log-histogram
 ;; An explicit `:viewer` option always overrides the default:
 
 (kind/code "(bench/set-default-viewer! :kindly)
-(bench/bench (+ 1 1))              ; Uses :kindly (default)
-(bench/bench (+ 1 1) :viewer :print)  ; Uses :print (explicit)")
+(bench/bench (+ 1 1))              ; Uses :kindly, returns Kindly fragment
+(bench/bench (+ 1 1) :viewer :print)  ; Uses :print, returns expr value")
+
+;; When using `:kindly` viewer, the return value behavior changes:
+;; - Default: returns the Kindly fragment (for Clay rendering)
+;; - Explicit `:return-value [:samples :expr-value]`: returns expression value
+
+(kind/code "(bench/bench (+ 1 1) :viewer :kindly)
+;; => ^{:kindly/kind :kind/fragment} [...]  ; Returns Kindly fragment
+
+(bench/bench (+ 1 1) :viewer :kindly :return-value [:samples :expr-value])
+;; => 2  ; Returns expression value")
 
 ;; ## Customizing Collection Parameters
 ;;
