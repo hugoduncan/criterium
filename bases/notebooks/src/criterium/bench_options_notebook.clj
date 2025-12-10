@@ -150,6 +150,33 @@ bench-plans/log-histogram
 ;; `criterium.bench/bench`, with the output accessible via
 ;; `criterium.viewer.kindly/flush`.
 
+;; ### Setting a Default Viewer
+;;
+;; You can set a default viewer for all subsequent bench calls using
+;; `set-default-viewer!`. This is useful when you want all benchmarks
+;; in a session to use a specific viewer without specifying `:viewer`
+;; each time.
+
+(kind/code "(bench/set-default-viewer! :kindly)
+(bench/bench (+ 1 1))  ; Now uses :kindly viewer
+
+;; Check current default
+(bench/default-viewer)  ; => :kindly
+
+;; Reset to default
+(bench/set-default-viewer! :print)")
+
+;; The precedence for viewer selection is:
+;; 1. Explicit `:viewer` option on bench call
+;; 2. Global default viewer (set via `set-default-viewer!`)
+;; 3. Built-in default `:print`
+;;
+;; An explicit `:viewer` option always overrides the default:
+
+(kind/code "(bench/set-default-viewer! :kindly)
+(bench/bench (+ 1 1))              ; Uses :kindly (default)
+(bench/bench (+ 1 1) :viewer :print)  ; Uses :print (explicit)")
+
 ;; ## Customizing Collection Parameters
 ;;
 ;; The `:with-jit-warmup` collect plan accepts configuration options:

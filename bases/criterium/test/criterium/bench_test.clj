@@ -3,6 +3,7 @@
    [clojure.test :refer [deftest is testing]]
    [criterium.analyse]
    [criterium.bench :as bench]
+   [criterium.bench.config :as bench-config]
    [criterium.bench.impl :as bench-impl]
    [criterium.bench-plans :as bench-plans]
    [criterium.viewer.kindly :as kindly]))
@@ -115,3 +116,47 @@
                 "has at least one chart")
             (is (every? #(string? (:$schema %)) charts)
                 "charts have Vega-Lite schema")))))))
+
+(deftest default-viewer-test
+  ;; Test default viewer configuration and precedence.
+  ;; Verifies that:
+  ;; 1. Initial default is :print
+  ;; 2. set-default-viewer! changes the default
+  ;; 3. Explicit :viewer option overrides the default
+  (testing "default-viewer"
+    (testing "returns initial default of :print"
+      (bench/set-default-viewer! :print)
+      (is (= :print (bench/default-viewer))))
+
+    (testing "set-default-viewer! changes the default"
+      (let [original (bench/default-viewer)]
+        (try
+          (bench/set-default-viewer! :kindly)
+          (is (= :kindly (bench/default-viewer)))
+          (finally
+            (bench/set-default-viewer! original)))))
+
+    (testing "config-map uses default viewer when no explicit option"
+      (let [original (bench/default-viewer)]
+        (try
+          (bench/set-default-viewer! :pprint)
+          (let [config (bench-config/config-map {})]
+            (is (= :pprint (:viewer config))))
+          (finally
+            (bench/set-default-viewer! original)))))
+
+    (testing "explicit :viewer option overrides default"
+      (let [original (bench/default-viewer)]
+        (try
+          (bench/set-default-viewer! :kindly)
+          (let [config (bench-config/config-map {:viewer :portal})]
+            (is (= :portal (:viewer config))))
+          (finally
+            (bench/set-default-viewer! original)))))
+
+    (testing "dynamic var can be bound for local scope"
+      (is (= :print (bench/default-viewer)))
+      (binding [bench-config/*default-viewer* :kindly]
+        (let [config (bench-config/config-map {})]
+          (is (= :kindly (:viewer config)))))
+      (is (= :print (bench/default-viewer))))))

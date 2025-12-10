@@ -13,6 +13,31 @@
    [criterium.viewer.pprint]
    [criterium.viewer.print]))
 
+(def ^:dynamic *default-viewer*
+  "Dynamic var for the default viewer to use when no explicit :viewer option
+  is provided. Initial value is :print.
+
+  This can be bound dynamically or altered via set-default-viewer!.
+
+  Precedence (highest to lowest):
+  1. Explicit :viewer option on bench call
+  2. :viewer from bench-plan (if provided)
+  3. This dynamic default viewer
+  4. Hard-coded fallback :print (if this var is nil)"
+  :print)
+
+(defn set-default-viewer!
+  "Set the default viewer for all bench calls that don't specify an explicit
+  :viewer option.
+
+  viewer - Keyword identifying the viewer, e.g. :print, :pprint, :portal, :kindly
+
+  Example:
+    (set-default-viewer! :kindly)
+    (bench (+ 1 1))  ; Now uses :kindly viewer by default"
+  [viewer]
+  (alter-var-root #'*default-viewer* (constantly viewer)))
+
 (defn metric-ids->collector-config
   [metric-ids]
   (let [metrics    (zipmap
@@ -84,7 +109,7 @@
                     [:return-value :verbose])
                    :collect-plan collect-plan
                    :collector-config collector-config
-                   :viewer (:viewer options-map :print)
+                   :viewer (:viewer options-map (or *default-viewer* :print))
                    :return-value (:return-value
                                   options-map
                                   [:samples :expr-value]))

@@ -9,13 +9,16 @@
   - Statistical significance
 
   Primary API:
-  - bench         - Macro for benchmarking expressions
-  - bench-measured - Function for benchmarking pre-wrapped measurements
-  - last-bench    - Access results from most recent benchmark
+  - bench             - Macro for benchmarking expressions
+  - bench-measured    - Function for benchmarking pre-wrapped measurements
+  - last-bench        - Access results from most recent benchmark
+  - set-default-viewer! - Set default output viewer
+  - default-viewer    - Get current default viewer
 
   Example:
   (bench (+ 1 1))                 ; Basic usage
-  (bench (+ 1 1) :viewer :pprint) ; With pretty-printed output"
+  (bench (+ 1 1) :viewer :pprint) ; With pretty-printed output
+  (set-default-viewer! :kindly)   ; Set default for all bench calls"
   (:require
    [criterium.analyse]
    [criterium.bench.config :as bench-config]
@@ -25,6 +28,26 @@
    [criterium.collector :as collector]
    [criterium.measured :as measured]
    [criterium.util.output :as output]))
+
+(defn default-viewer
+  "Returns the current default viewer.
+
+  The default viewer is used when no explicit :viewer option is provided
+  to bench calls. Initial value is :print."
+  []
+  bench-config/*default-viewer*)
+
+(defn set-default-viewer!
+  "Set the default viewer for all bench calls that don't specify an explicit
+  :viewer option.
+
+  viewer - Keyword identifying the viewer, e.g. :print, :pprint, :portal, :kindly
+
+  Example:
+    (set-default-viewer! :kindly)
+    (bench (+ 1 1))  ; Now uses :kindly viewer by default"
+  [viewer]
+  (bench-config/set-default-viewer! viewer))
 
 (defn last-bench
   "Returns the complete measurement data from the most recent benchmark.
@@ -159,7 +182,8 @@
   Parameters:
     expr    - Expression to benchmark
     options - Keyword/value pairs for configuration:
-      :viewer      - Output format [:print (default), :pprint, :portal, :kindly]
+      :viewer      - Output format [:print, :pprint, :portal, :kindly]
+                     Default can be set via (set-default-viewer! :kindly)
       :analyse     - Vector of analysis steps [[:outliers] [:stats]]
       :view       - Vector of view components [:stats]
       :metric-ids  - Vector of metrics to collect, from:
