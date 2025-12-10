@@ -300,3 +300,45 @@
                                 (contains? % "end")
                                 (contains? % "density"))
                           histogram-data)))))))))
+
+(deftest sample-percentiles-view-test
+  ;; Tests the view/sample-percentiles* multimethod for :kindly viewer.
+  ;; Verifies that sample percentiles data is rendered as a heading and
+  ;; Vega-Lite percentile distribution chart.
+  (testing "view/sample-percentiles* :kindly"
+    (testing "renders percentiles as heading and Vega-Lite chart"
+      (reset! kindly/accumulated [])
+      (view/sample-percentiles* :kindly {} (:data (test-data/samples-with-2-values-map)))
+      (let [result (kindly/flush)]
+        (is (= :kind/fragment (:kindly/kind (meta result))))
+        (is (= 2 (count result))
+            "Expected heading and chart")
+        (let [[heading chart] result]
+          (is (= :kind/md (:kindly/kind (meta heading))))
+          (is (= ["**Percentiles**"] heading))
+          (is (= :kind/vega-lite (:kindly/kind (meta chart))))
+          (is (string? (:$schema chart))
+              "Expected Vega-Lite schema")
+          (let [percentile-data (-> chart :vconcat first :layer first :data :values)]
+            (is (vector? percentile-data))
+            (is (= 2 (count percentile-data))
+                "Expected 2 data points for 2 samples")
+            (is (every? #(and (contains? % :elapsed-time)
+                              (contains? % :p)
+                              (contains? % :x))
+                        percentile-data))))))
+
+    (testing "renders percentiles with transformed data via analyse pipeline"
+      (reset! kindly/accumulated [])
+      (let [data-map            (:data (test-data/samples-with-outliers-values-map))
+            view-sample-percent (view/sample-percentiles)]
+        (view-sample-percent :kindly data-map)
+        (let [result (kindly/flush)
+              [_heading chart] result
+              percentile-data (-> chart :vconcat first :layer first :data :values)]
+          (is (= 7 (count percentile-data))
+              "Expected 7 data points for 7 samples")
+          (is (number? (:p (first percentile-data)))
+              "Expected numeric percentile value")
+          (is (number? (:x (first percentile-data)))
+              "Expected numeric x value"))))))

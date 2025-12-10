@@ -192,3 +192,26 @@
                         metric-config
                         (vswap! layer-num unchecked-inc)))))})
                 metric-configs)})))
+
+(defmethod view/sample-percentiles* :kindly
+  [_ view data-map]
+  (let [quant-samples-id (:samples-id view :samples)
+        quant-samples    (data-map quant-samples-id)
+        metrics-defs     (-> (:metrics-defs quant-samples)
+                             (metric/filter-metrics
+                              (metric/type-pred :quantitative)))
+        metric-configs   (metric/all-metric-configs metrics-defs)
+        transforms       (util/get-transforms data-map quant-samples-id)]
+    (kindly-heading "Percentiles")
+    (kindly-vega-lite
+     {:data    {:values []}
+      :resolve {:scale {:y "independent"}}
+      :vconcat
+      (into
+       [{:layer
+         (vec
+          (into
+           [(charts/metric-percentile-layer
+             (util/metric->values quant-samples)
+             transforms
+             (first metric-configs))]))}])})))
