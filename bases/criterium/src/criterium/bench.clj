@@ -112,7 +112,7 @@
   Parameters:
     measured - A wrapped function/expression prepared for measurement
     options  - Map of configuration options:
-      :viewer      - Output format [:pprint, :portal, or nil(default)]
+      :viewer      - Output format [:print (default), :pprint, :portal, :kindly]
       :analyse     - Vector of analysis steps [[:outliers] [:stats]]
       :view       - Vector of view components [:stats]
       :metric-ids  - Vector of metrics to collect, from:
@@ -159,7 +159,7 @@
   Parameters:
     expr    - Expression to benchmark
     options - Keyword/value pairs for configuration:
-      :viewer      - Output format [:pprint, :portal, or nil(default)]
+      :viewer      - Output format [:print (default), :pprint, :portal, :kindly]
       :analyse     - Vector of analysis steps [[:outliers] [:stats]]
       :view       - Vector of view components [:stats]
       :metric-ids  - Vector of metrics to collect, from:

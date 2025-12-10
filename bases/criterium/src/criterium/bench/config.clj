@@ -8,6 +8,7 @@
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have]]
    [criterium.util.units :as units]
+   [criterium.viewer.kindly]
    [criterium.viewer.portal]
    [criterium.viewer.pprint]
    [criterium.viewer.print]))

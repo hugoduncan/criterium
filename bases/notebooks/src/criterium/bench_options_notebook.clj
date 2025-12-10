@@ -3,7 +3,7 @@
   (:require
    [criterium.bench :as bench]
    [criterium.bench-plans :as bench-plans]
-   [criterium.notebook.helpers :refer [bench-display]]
+   [criterium.notebook.helpers :refer [bench-display bench-kindly]]
    [scicloj.kindly.v4.kind :as kind]))
 
 ;; # Bench Options
@@ -85,11 +85,12 @@ bench-plans/log-histogram
 ;; ## Viewer Options
 ;;
 ;; The `:viewer` option controls how benchmark results are displayed.
-;; Criterium provides three viewer modes:
+;; Criterium provides four viewer modes:
 ;;
 ;; - `:print` - Human-readable text output (default)
 ;; - `:pprint` - Clojure data structure with pretty printing
 ;; - `:portal` - Interactive visualization (requires Portal)
+;; - `:kindly` - Kindly-annotated output for Clay notebooks
 
 ;; ### :print (Default)
 ;;
@@ -128,6 +129,26 @@ bench-plans/log-histogram
 ;; - Interactive histograms
 ;; - Clickable data exploration
 ;; - Tables for statistical summaries
+
+;; ### :kindly
+;;
+;; The Kindly viewer outputs Kindly-annotated data structures for rendering
+;; in Clay notebooks. Use the `bench-kindly` helper macro to run benchmarks
+;; that return Kindly fragments directly:
+
+(bench-kindly (reduce + (range 1000))
+              :bench-plan bench-plans/log-histogram)
+
+;; Kindly viewer features:
+;; - Tables with `:kind/table` metadata for stats, quantiles, outliers
+;; - Vega-Lite charts with `:kind/vega-lite` metadata for samples, histograms
+;; - Markdown headings with `:kind/md` metadata for sections
+;; - All wrapped in a `:kind/fragment` for Clay rendering
+;;
+;; The `bench-kindly` macro returns the Kindly fragment so Clay can render it.
+;; The underlying `:viewer :kindly` option can also be used directly with
+;; `criterium.bench/bench`, with the output accessible via
+;; `criterium.viewer.kindly/flush`.
 
 ;; ## Customizing Collection Parameters
 ;;

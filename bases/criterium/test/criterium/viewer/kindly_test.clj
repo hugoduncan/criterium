@@ -81,6 +81,15 @@
       (kindly/flush)
       (is (= [] @kindly/accumulated)))
 
+    (testing "stores fragment in last-fragment atom"
+      (reset! kindly/accumulated [])
+      (reset! kindly/last-fragment nil)
+      (kindly/kindly-add {:a 1})
+      (kindly/kindly-add {:b 2})
+      (kindly/flush)
+      (is (= [{:a 1} {:b 2}] @kindly/last-fragment))
+      (is (= :kind/fragment (:kindly/kind (meta @kindly/last-fragment)))))
+
     (testing "returns nil when accumulator is empty"
       (reset! kindly/accumulated [])
       (is (nil? (kindly/flush))))))

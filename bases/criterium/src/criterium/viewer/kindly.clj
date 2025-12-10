@@ -20,6 +20,10 @@
   accumulated
   (atom []))
 
+(defonce ^{:doc "Last flushed Kindly fragment for retrieval after bench completes."}
+  last-fragment
+  (atom nil))
+
 (defn kindly-add
   "Add a value to the accumulator."
   [value]
@@ -49,11 +53,14 @@
      {:kindly/kind :kind/vega-lite})))
 
 (defn flush
-  "Return accumulated values as a kind/fragment and clear the accumulator."
+  "Return accumulated values as a kind/fragment and clear the accumulator.
+  Also stores the fragment in `last-fragment` for retrieval after bench completes."
   []
   (let [[values _] (swap-vals! accumulated (constantly []))]
     (when (seq values)
-      (with-meta values {:kindly/kind :kind/fragment}))))
+      (let [fragment (with-meta values {:kindly/kind :kind/fragment})]
+        (reset! last-fragment fragment)
+        fragment))))
 
 (defmethod view/flush-viewer :kindly [_]
   (flush))
