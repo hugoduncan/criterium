@@ -26,7 +26,7 @@
 
 (def ^:private chart-width
   "Width for Kindly vega-lite charts, sized for notebook display."
-  600)
+  700)
 
 (def ^:private chart-height
   "Height for Kindly vega-lite charts, sized for notebook display."
