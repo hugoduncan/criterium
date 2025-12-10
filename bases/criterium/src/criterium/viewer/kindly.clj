@@ -24,6 +24,14 @@
   last-fragment
   (atom nil))
 
+(def ^:private chart-width
+  "Width for Kindly vega-lite charts, sized for notebook display."
+  600)
+
+(def ^:private chart-height
+  "Height for Kindly vega-lite charts, sized for notebook display."
+  350)
+
 (defn kindly-add
   "Add a value to the accumulator."
   [value]
@@ -139,12 +147,12 @@
     (kindly-heading "Samples")
     (kindly-vega-lite
      {:data {:values [{}]}
-      :width 700
       :encoding {:x {:field "index" :type "quantitative"}}
       :resolve {:scale {:y "independent"}}
       :vconcat
       (into
-       [{:height 350
+       [{:width chart-width
+         :height chart-height
          :layer
          (vec
           (into
@@ -158,7 +166,8 @@
             e-metrics-defs)))}]
        (mapv
         (fn [mc]
-          {:height 350
+          {:width chart-width
+           :height chart-height
            :layer [(charts/metric-layer
                     event-metric->values
                     transforms
@@ -184,14 +193,14 @@
     (kindly-heading "Histogram")
     (kindly-vega-lite
      {:data {:values []}
-      :width 700
       :resolve {:scale {:x "independent"
                         :y "independent"
                         :color "shared"}}
       :vconcat (mapv
                 (fn [metric-config]
                   {:resolve {:scale {:x "shared" :y "independent"}}
-                   :height 350
+                   :width chart-width
+                   :height chart-height
                    :layer
                    (into
                     [(charts/metric-computed-histo-layer
@@ -220,11 +229,11 @@
     (kindly-heading "Percentiles")
     (kindly-vega-lite
      {:data {:values []}
-      :width 700
       :resolve {:scale {:y "independent"}}
       :vconcat
       (into
-       [{:height 350
+       [{:width chart-width
+         :height chart-height
          :layer
          (vec
           (into
@@ -278,11 +287,11 @@
     (kindly-heading "Sample diffs")
     (kindly-vega-lite
      {:data {:values []}
-      :width 700
       :resolve {:scale {:y "independent"}}
       :vconcat
       (into
-       [{:height 350
+       [{:width chart-width
+         :height chart-height
          :layer
          (vec
           (into
