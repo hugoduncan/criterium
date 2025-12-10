@@ -140,3 +140,71 @@
                      :mean-plus-3sigma  1.00,
                      :max-val           1.00}]
                    table))))))))
+
+(deftest quantiles-view-test
+  ;; Tests the view/quantiles* multimethod for :kindly viewer.
+  ;; Verifies that quantiles data is rendered as a heading and table with correct
+  ;; Kindly metadata and structure.
+  (testing "view/quantiles* :kindly"
+    (testing "renders quantiles as heading and table"
+      (reset! kindly/accumulated [])
+      (view/quantiles* :kindly {} (:data (test-data/quantiles-map)))
+      (let [result (kindly/flush)]
+        (is (= :kind/fragment (:kindly/kind (meta result))))
+        (is (= 2 (count result))
+            "Expected heading and table")
+        (let [[heading table] result]
+          (is (= :kind/md (:kindly/kind (meta heading))))
+          (is (= ["**Quantiles**"] heading))
+          (is (= :kind/table (:kindly/kind (meta table))))
+          (is (= 1 (count table))
+              "Expected one metric row")
+          (is (string? (:metric (first table)))
+              "Expected :metric column")
+          (is (number? (get (first table) 0.5))
+              "Expected numeric 0.5 quantile"))))))
+
+(deftest outlier-counts-view-test
+  ;; Tests the view/outlier-counts* multimethod for :kindly viewer.
+  ;; Verifies that outlier counts data is rendered as heading and table with
+  ;; correct Kindly metadata and outlier type columns.
+  (testing "view/outlier-counts* :kindly"
+    (testing "renders outliers as heading and table"
+      (reset! kindly/accumulated [])
+      (view/outlier-counts* :kindly {} (:data (test-data/outlier-count-map)))
+      (let [result (kindly/flush)]
+        (is (= :kind/fragment (:kindly/kind (meta result))))
+        (is (= 2 (count result))
+            "Expected heading and table")
+        (let [[heading table] result]
+          (is (= :kind/md (:kindly/kind (meta heading))))
+          (is (= ["**Outliers**"] heading))
+          (is (= :kind/table (:kindly/kind (meta table))))
+          (is (= [{:_metric     "Elapsed Time"
+                   :low-severe  0
+                   :low-mild    2
+                   :high-mild   3
+                   :high-severe 0}]
+                 table)))))))
+
+(deftest collect-plan-view-test
+  ;; Tests the view/collect-plan* multimethod for :kindly viewer.
+  ;; Verifies that collect plan data is rendered as heading and table with
+  ;; correct Kindly metadata and phase information.
+  (testing "view/collect-plan* :kindly"
+    (testing "renders collect plan as heading and table"
+      (reset! kindly/accumulated [])
+      (view/collect-plan* :kindly {} (:data (test-data/collect-plan-map)))
+      (let [result (kindly/flush)]
+        (is (= :kind/fragment (:kindly/kind (meta result))))
+        (is (= 2 (count result))
+            "Expected heading and table")
+        (let [[heading table] result]
+          (is (= :kind/md (:kindly/kind (meta heading))))
+          (is (= ["**Collect plan**"] heading))
+          (is (= :kind/table (:kindly/kind (meta table))))
+          (is (= 3 (count table))
+              "Expected 3 phases: sample, warmup, estimation")
+          (is (= #{:sample :warmup :estimation}
+                 (set (map :phase table)))
+              "Expected all phases present"))))))

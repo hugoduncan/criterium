@@ -70,3 +70,35 @@
       (util/stats stats-map)
       metric-configs
       transforms))))
+
+(defmethod view/quantiles* :kindly
+  [_ {:keys [quantiles-id]} data-map]
+  (let [quantiles-id   (or quantiles-id :quantiles)
+        quantiles-map  (data-map quantiles-id)
+        metrics-defs   (:metrics-defs quantiles-map)
+        metric-configs (metric/all-metric-configs metrics-defs)
+        transforms     (util/get-transforms data-map quantiles-id)]
+    (kindly-heading "Quantiles")
+    (kindly-table
+     (viewer-common/quantiles
+      metric-configs
+      (util/quantiles quantiles-map)
+      transforms))))
+
+(defmethod view/outlier-counts* :kindly
+  [_ {:keys [outliers-id] :as _view} data-map]
+  (let [outliers-id    (or outliers-id :outliers)
+        outliers-map   (data-map outliers-id)
+        metrics-defs   (:metrics-defs outliers-map)
+        metric-configs (metric/all-metric-configs metrics-defs)]
+    (kindly-heading "Outliers")
+    (kindly-table
+     (viewer-common/outlier-counts
+      metric-configs
+      (util/outliers outliers-map)))))
+
+(defmethod view/collect-plan* :kindly
+  [_ _view data-map]
+  (kindly-heading "Collect plan")
+  (kindly-table
+   (viewer-common/collect-plan-data data-map)))
