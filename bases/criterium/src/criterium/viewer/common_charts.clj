@@ -17,34 +17,35 @@
   Returns a Vega-Lite layer spec."
   [metric->values transforms outliers metric]
   {:pre [(have? map? metric->values)]}
-  (let [path       (:path metric)
-        k          (first path)
+  (let [path (:path metric)
+        k (first path)
         field-name (name k)
-        data       (mapv
-                    #(let [outlier (get
-                                    (:outliers (get-in outliers path))
-                                    %2
-                                    "")]
-                       (assoc
-                        {k
-                         (util/transform-sample->
-                          %1
-                          transforms)}
-                        :index %2
-                        :outlier outlier))
-                    (have some?
-                          (metric->values path)
-                          {:path path :available (keys metric->values)})
-                    (range))]
-    {:data     {:values data}
-     :encoding {:x       {:field "index" :type "quantitative"}
-                :y       {:field field-name
-                          :type  "quantitative"
-                          :scale {:zero false}}
+        data (mapv
+              #(let [outlier (get
+                              (:outliers (get-in outliers path))
+                              %2
+                              "")]
+                 (assoc
+                  {k
+                   (util/transform-sample->
+                    %1
+                    transforms)}
+                  :index %2
+                  :outlier outlier))
+              (have some?
+                    (metric->values path)
+                    {:path path :available (keys metric->values)})
+              (range))]
+    {:data {:values data}
+     :encoding {:x {:field "index" :type "quantitative"}
+                :y {:field field-name
+                    :type "quantitative"
+                    :scale {:zero false}}
                 :tooltip [{:field "index" :type "quantitative"}
                           {:field field-name :type "quantitative"}]
-                :color   {:field "outlier"}}
-     :mark     "point"}))
+                :color {:field "outlier"
+                        :legend {:orient "top-left" :offset 10}}}
+     :mark "point"}))
 
 ;;; Histograms
 
@@ -53,45 +54,46 @@
 
   Returns a Vega-Lite layer spec for displaying histogram bins."
   [transforms histogram metric _layer-num]
-  (let [path       (:path metric)
-        k          (first path)
+  (let [path (:path metric)
+        k (first path)
         field-name (name k)
         {:keys [counts centers widths width density]}
         histogram
 
-        tform   #(util/transform-sample-> % transforms)
+        tform #(util/transform-sample-> % transforms)
         centers (mapv tform centers)
-        widths  (when widths (mapv tform widths))
-        width   (when width (tform width))
-        data    (if widths
+        widths (when widths (mapv tform widths))
+        width (when width (tform width))
+        data (if widths
                   ;; Variable width histogram
-                  (mapv (fn [_count ^double center ^double width density]
-                          (let [half-w (* 0.95 (/ width 2.0))]
-                            {field-name (- center half-w)
-                             "end"      (+ center half-w)
-                             "density"  density}))
-                        counts centers widths density)
+               (mapv (fn [_count ^double center ^double width density]
+                       (let [half-w (* 0.95 (/ width 2.0))]
+                         {field-name (- center half-w)
+                          "end" (+ center half-w)
+                          "density" density}))
+                     counts centers widths density)
                   ;; Fixed width histogram
-                  (mapv (fn [_count ^double center ^double density]
-                          (let [half-w (* 0.95 (/ (double width) 2.0))]
-                            {field-name (- center half-w)
-                             "end"      (+ center half-w)
-                             "density"  density}))
-                        counts centers density))]
-    {:data      {:values data}
+               (mapv (fn [_count ^double center ^double density]
+                       (let [half-w (* 0.95 (/ (double width) 2.0))]
+                         {field-name (- center half-w)
+                          "end" (+ center half-w)
+                          "density" density}))
+                     counts centers density))]
+    {:data {:values data}
      :transform [{:calculate (str "'" "Histogram " (:label metric) "'") :as "layer"}]
-     :encoding  {:y2    {:datum 0
-                         :type  "quantitative"}
-                 :y     {:field "density"
-                         :type  "quantitative"}
-                 :x     {:field field-name
-                         :type  "quantitative"
-                         :scale {:zero false}}
-                 :x2    {:field "end"
-                         :type  "quantitative"}
-                 :color {:field "layer" :type "nominal"}}
-     :mark      {:type       "bar"
-                 :binSpacing 0}}))
+     :encoding {:y2 {:datum 0
+                     :type "quantitative"}
+                :y {:field "density"
+                    :type "quantitative"}
+                :x {:field field-name
+                    :type "quantitative"
+                    :scale {:zero false}}
+                :x2 {:field "end"
+                     :type "quantitative"}
+                :color {:field "layer" :type "nominal"
+                        :legend {:orient "top-left" :offset 10}}}
+     :mark {:type "bar"
+            :binSpacing 0}}))
 
 ;;; Normal distribution overlay
 
@@ -102,7 +104,7 @@
   [min-val max-val mean variance transforms]
   (let [sigma (Math/sqrt variance)
         delta (/ (- (double max-val) (double min-val)) 120)
-        pdf   (probability/normal-pdf mean sigma)]
+        pdf (probability/normal-pdf mean sigma)]
     (mapv
      (fn [z]
        {:z (util/transform-sample-> z transforms)
@@ -118,7 +120,7 @@
   (let [{:keys [mean-minus-3sigma mean-plus-3sigma mean variance]}
         stats
         path (:path metric-config)
-        k    (first path)
+        k (first path)
         data (normal-pdf-points
               mean-minus-3sigma
               mean-plus-3sigma
@@ -127,28 +129,29 @@
               transforms)]
     [{:resolve {:scale {:y "shared"}}
       :layer
-      [{:data      {:values data}
+      [{:data {:values data}
         :transform [{:calculate
                      (str "'" "LogNormal fit " (:label metric-config) "'")
                      :as "layer"}]
-        :encoding  {:x       {:field "z"
-                              :type  "quantitative"
-                              :scale {:zero false}}
-                    :y       {:field "p"
-                              :type  "quantitative"}
-                    :tooltip [{:field (name k)
-                               :title "Normal"}]
-                    :color   {:field "layer" :type "nominal"}}
-        :mark      {:type "line"}}
-       {:data     {:values [{k
-                             (util/transform-sample-> mean transforms)
-                             :title "mean"}]}
-        :encoding {:x       {:field (name k)
-                             :type  "quantitative"
-                             :scale {:zero false}}
+        :encoding {:x {:field "z"
+                       :type "quantitative"
+                       :scale {:zero false}}
+                   :y {:field "p"
+                       :type "quantitative"}
+                   :tooltip [{:field (name k)
+                              :title "Normal"}]
+                   :color {:field "layer" :type "nominal"
+                           :legend {:orient "top-left" :offset 10}}}
+        :mark {:type "line"}}
+       {:data {:values [{k
+                         (util/transform-sample-> mean transforms)
+                         :title "mean"}]}
+        :encoding {:x {:field (name k)
+                       :type "quantitative"
+                       :scale {:zero false}}
                    :tooltip [{:field (name k)
                               :title (str "Mean " (name k))}]}
-        :mark     "rule"}]}]))
+        :mark "rule"}]}]))
 
 ;;; Event markers
 
@@ -160,7 +163,7 @@
   (reduce
    (fn [res metric-config]
      (let [path (:path metric-config)
-           v    (get (get events path) index)]
+           v (get (get events path) index)]
        (if (pos? (long v))
          (assoc res (viewer-common/composite-key path) v :index index)
          res)))
@@ -179,11 +182,11 @@
                               count)))
                   (filterv some?))]
     (when (seq data)
-      [{:data     {:values data}
-        :encoding {:x       {:field "index"
-                             :type  "quantitative"}
-                   :color   {:vvalue "white"}
-                   :size    {:value 2},
+      [{:data {:values data}
+        :encoding {:x {:field "index"
+                       :type "quantitative"}
+                   :color {:vvalue "white"}
+                   :size {:value 2},
                    :tooltip (conj
                              (mapv
                               #(hash-map
@@ -193,8 +196,8 @@
                                 :title (str (:label metrics) " " (:label %)))
                               (:values metrics))
                              {:field "index" :type "quantitative"})}
-        :mark     {:type       "rule"
-                   :strokeDash [2 2]}}])))
+        :mark {:type "rule"
+               :strokeDash [2 2]}}])))
 
 ;;; Percentile charts
 
@@ -204,29 +207,29 @@
   Uses a logarithmic scale on the x-axis to emphasize tail percentiles.
   Returns a Vega-Lite layer spec."
   [metric->values transforms metric]
-  (let [path        (:path metric)
-        k           (first path)
-        field-name  (name k)
-        vs          (->> (metric->values path)
-                         (map #(util/transform-sample-> % transforms))
-                         sort
-                         vec)
-        n           (count vs)
-        max-val     (Math/log10 (double n))
-        xs          (mapv
-                     #(/ (- max-val (Math/log10 (- n (double %)))) max-val)
-                     (range 0 n))
-        delta       (/ 100.0 (dec n))
+  (let [path (:path metric)
+        k (first path)
+        field-name (name k)
+        vs (->> (metric->values path)
+                (map #(util/transform-sample-> % transforms))
+                sort
+                vec)
+        n (count vs)
+        max-val (Math/log10 (double n))
+        xs (mapv
+            #(/ (- max-val (Math/log10 (- n (double %)))) max-val)
+            (range 0 n))
+        delta (/ 100.0 (dec n))
         percentiles (take n
                           (iterate
                            #(+ delta (double %)) 0))
-        data        (mapv
-                     #(hash-map k %1 :p %2 :x %3)
-                     vs
-                     percentiles
-                     xs)]
-    {:data   {:values data
-              :name   "vals"}
+        data (mapv
+              #(hash-map k %1 :p %2 :x %3)
+              vs
+              percentiles
+              xs)]
+    {:data {:values data
+            :name "vals"}
      :height 800
      :encoding
      {:x
@@ -239,13 +242,13 @@
          "format( (%d - pow(%d, 1 - min(datum.index, 1.0))) / %d,'.3%%')",
          n,n,(dec n))
         :tickCount 10}}
-      :y       {:field field-name
-                :type  "quantitative"
-                :scale {:zero false
-                        :type "log"}}
+      :y {:field field-name
+          :type "quantitative"
+          :scale {:zero false
+                  :type "log"}}
       :tooltip [{:field "p" :type "quantitative"}
                 {:field field-name :type "quantitative"}]}
-     :mark   "point"}))
+     :mark "point"}))
 
 ;;; Sample diffs
 
@@ -255,31 +258,31 @@
   Shows sorted unique differences from minimum value.
   Returns a Vega-Lite layer spec."
   [samples metric]
-  (let [path       (:path metric)
-        k          (first path)
+  (let [path (:path metric)
+        k (first path)
         field-name (name k)
-        vs         (->> (get samples path)
-                        sort
-                        vec)
-        min-v      (double (first vs))
-        diffs      (-> (mapv
-                        #(- (double %) min-v)
-                        vs)
-                       sort
-                       distinct
-                       vec)
-        data       (mapv
-                    #(hash-map k %1 :x %2)
-                    diffs
-                    (range))]
-    {:data   {:values data
-              :name   "vals"}
+        vs (->> (get samples path)
+                sort
+                vec)
+        min-v (double (first vs))
+        diffs (-> (mapv
+                   #(- (double %) min-v)
+                   vs)
+                  sort
+                  distinct
+                  vec)
+        data (mapv
+              #(hash-map k %1 :x %2)
+              diffs
+              (range))]
+    {:data {:values data
+            :name "vals"}
      :height 800
      :encoding
      {:x
       {:field "x" :type "quantitative"}
-      :y       {:field field-name
-                :type  "quantitative"
-                :scale {:zero false}}
+      :y {:field field-name
+          :type "quantitative"
+          :scale {:zero false}}
       :tooltip [{:field field-name :type "quantitative"}]}
-     :mark   "point"}))
+     :mark "point"}))
