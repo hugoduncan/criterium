@@ -4,10 +4,10 @@
   (:require
    [criterium.metric :as metric]
    [criterium.util.helpers :as util]
-   [criterium.util.invariant :refer [have have?]]
-   [criterium.util.probability :as probability]
+   [criterium.util.invariant :refer [have]]
    [criterium.view :as view]
-   [criterium.viewer.common :as viewer-common]))
+   [criterium.viewer.common :as viewer-common]
+   [criterium.viewer.common-charts :as charts]))
 
 (defonce tapped (atom {:values '()}))
 
@@ -141,167 +141,6 @@
   (portal-table
    (viewer-common/collect-plan-data data-map)))
 
-(defn metric-layer
-  [metric->values transforms outliers metric]
-  {:pre [(have? map? metric->values)]}
-  (let [path       (:path metric)
-        k          (first path)
-        field-name (name k)
-        data       (mapv
-                    #(let [outlier (get
-                                    (:outliers (get-in outliers path))
-                                    %2
-                                    "")]
-                       (assoc
-                        {k
-                         (util/transform-sample->
-                          %1
-                          transforms)}
-                        :index %2
-                        :outlier outlier))
-                    (have some?
-                          (metric->values path)
-                          {:path path :available (keys metric->values)})
-                    (range))]
-    {:data     {:values data}
-     :encoding {:x       {:field "index" :type "quantitative"}
-                :y       {:field field-name
-                          :type  "quantitative"
-                          :scale {:zero false}}
-                :tooltip [{:field "index" :type "quantitative"}
-                          {:field field-name :type "quantitative"}]
-                :color   {:field "outlier"}}
-     :mark     "point"}))
-
-(defn metric-computed-histo-layer
-  [transforms histogram metric _layer-num]
-  (let [path       (:path metric)
-        k          (first path)
-        field-name (name k)
-        {:keys [counts centers widths width density]}
-        histogram
-
-        tform   #(util/transform-sample-> % transforms)
-        centers (mapv tform centers)
-        widths  (when widths (mapv tform widths))
-        width   (when width (tform width))
-        data    (if widths
-                  ;; Variable width histogram
-                  (mapv (fn [_count ^double center ^double width density]
-                          (let [half-w (* 0.95 (/ width 2.0))]
-                            {field-name (- center half-w)
-                             "end"      (+ center half-w)
-                             "density"  density}))
-                        counts centers widths density)
-                  ;; Fixed width histogram
-                  (mapv (fn [_count ^double center ^double density]
-                          (let [half-w (* 0.95 (/ (double width) 2.0))]
-                            {field-name (- center half-w)
-                             "end"      (+ center half-w)
-                             "density"  density}))
-                        counts centers density))]
-    {:data      {:values data}
-     :transform [{:calculate (str "'" "Histogram " (:label metric) "'") :as "layer"}]
-     :encoding  {:y2    {:datum 0
-                         :type  "quantitative"}
-                 :y     {:field "density"
-                         :type  "quantitative"}
-                 :x     {:field field-name
-                         :type  "quantitative"
-                         :scale {:zero false}}
-                 :x2    {:field "end"
-                         :type  "quantitative"}
-                 :color {:field "layer" :type "nominal"}}
-     :mark      {:type       "bar"
-                 :binSpacing 0}}))
-
-(defn normal-pdf-points
-  [min-val max-val mean variance transforms]
-  (let [sigma (Math/sqrt variance)
-        delta (/ (- (double max-val) (double min-val)) 120)
-        pdf   (probability/normal-pdf mean sigma)]
-    (mapv
-     (fn [z]
-       {:z (util/transform-sample-> z transforms)
-        :p (pdf z)})
-     (range min-val max-val delta))))
-
-(defn metric-sample-stats-layer
-  [transforms stats metric-config _layer-num]
-  (let [{:keys [mean-minus-3sigma mean-plus-3sigma mean variance]}
-        stats
-        path (:path metric-config)
-        k    (first path)
-        data (normal-pdf-points
-              mean-minus-3sigma
-              mean-plus-3sigma
-              mean
-              variance
-              transforms)]
-    [{:resolve {:scale {:y "shared"}}
-      :layer
-      [{:data      {:values data}
-        :transform [{:calculate
-                     (str "'" "LogNormal fit " (:label metric-config) "'")
-                     :as "layer"}]
-        :encoding  {:x       {:field "z"
-                              :type  "quantitative"
-                              :scale {:zero false}}
-                    :y       {:field "p"
-                              :type  "quantitative"}
-                    :tooltip [{:field (name k)
-                               :title "Normal"}]
-                    :color   {:field "layer" :type "nominal"}}
-        :mark      {:type "line"}}
-       {:data     {:values [{k
-                             (util/transform-sample-> mean transforms)
-                             :title "mean"}]}
-        :encoding {:x       {:field (name k)
-                             :type  "quantitative"
-                             :scale {:zero false}}
-                   :tooltip [{:field (name k)
-                              :title (str "Mean " (name k))}]}
-        :mark     "rule"}]}]))
-
-(defn event-occurance [events metrics index]
-  (reduce
-   (fn [res metric-config]
-     (let [path (:path metric-config)
-           v    (get (get events path) index)]
-       (if (pos? (long v))
-         (assoc res (viewer-common/composite-key path) v :index index)
-         res)))
-   nil
-   metrics))
-
-(defn event-layer
-  [events [_k metrics]]
-  (let [data (->> (map
-                   (partial event-occurance events (:values metrics))
-                   (range (-> events
-                              (get (:path (first (:values metrics))))
-                              count)))
-                  (filterv some?))]
-    (when (seq data)
-      [{:data     {:values data}
-        :encoding {:x       {:field "index"
-                             :type  "quantitative"
-                             ;; :title title
-                             }
-                   :color   {:vvalue "white"}
-                   :size    {:value 2},
-                   :tooltip (conj
-                             (mapv
-                              #(hash-map
-                                :field (name
-                                        (viewer-common/composite-key (:path %)))
-                                :type "quantitative"
-                                :title (str (:label metrics) " " (:label %)))
-                              (:values metrics))
-                             {:field "index" :type "quantitative"})}
-        :mark     {:type       "rule"
-                   :strokeDash [2 2]}}])))
-
 (defmethod view/samples* :portal
   [_ {:keys [] :as view} data-map]
   (let [quant-samples-id     (:samples-id view :samples)
@@ -333,16 +172,16 @@
          :layer
          (vec
           (into
-           [(metric-layer
+           [(charts/metric-layer
              (util/metric->values quant-samples)
              transforms
              (when outliers (util/outliers outliers))
              (have (first metric-configs)))]
            (mapcat
-            #(event-layer (util/metric->values event-samples) %)
+            #(charts/event-layer (util/metric->values event-samples) %)
             e-metrics-defs)))}]
        (mapv
-        #(metric-layer
+        #(charts/metric-layer
           (util/metric->values quant-samples)
           transforms
           outliers %)
@@ -376,64 +215,19 @@
                    :height  800
                    :layer
                    (into
-                    [(metric-computed-histo-layer
+                    [(charts/metric-computed-histo-layer
                       hist-transforms
                       (histograms (:path metric-config))
                       metric-config
                       (vswap! layer-num unchecked-inc))]
                     (when stats
                       (->>
-                       (metric-sample-stats-layer
+                       (charts/metric-sample-stats-layer
                         stats-transforms
                         (get-in (util/stats stats) (:path metric-config))
                         metric-config
                         (vswap! layer-num unchecked-inc)))))})
                 metric-configs)})))
-
-(defn metric-percentile-layer
-  [matric->values transforms metric]
-  (let [path        (:path metric)
-        k           (first path)
-        field-name  (name k)
-        vs          (->> (matric->values path)
-                         (map #(util/transform-sample-> % transforms))
-                         sort
-                         vec)
-        n           (count vs)
-        max-val     (Math/log10 (double n))
-        xs          (mapv
-                     #(/ (- max-val (Math/log10 (- n (double %)))) max-val)
-                     (range 0 n))
-        delta       (/ 100.0 (dec n))
-        percentiles (take n
-                          (iterate
-                           #(+ delta (double %)) 0))
-        data        (mapv
-                     #(hash-map k %1 :p %2 :x %3)
-                     vs
-                     percentiles
-                     xs)]
-    {:data   {:values data
-              :name   "vals"}
-     :height 800
-     :encoding
-     {:x
-      {:field "x" :type "quantitative"
-       :scale {:domain [0 1.0]}
-       :axis
-       {:labelExpr
-        ;; inverse of xs
-        (format
-         "format( (%d - pow(%d, 1 - min(datum.index, 1.0))) / %d,'.3%%')",
-         n,n,(dec n))
-        :tickCount 10}}
-      :y       {:field field-name
-                :type  "quantitative"
-                :scale {:zero false
-                        :type "log"}}
-      :tooltip [{:field "p" :type "quantitative"}
-                {:field field-name :type "quantitative"}]}
-     :mark   "point"}))
 
 (defmethod view/sample-percentiles* :portal
   [_ view data-map]
@@ -453,41 +247,10 @@
        [{:layer
          (vec
           (into
-           [(metric-percentile-layer
+           [(charts/metric-percentile-layer
              (util/metric->values quant-samples)
              transforms
              (first metric-configs))]))}])})))
-
-(defn metric-diff-layer
-  [samples metric]
-  (let [path       (:path metric)
-        k          (first path)
-        field-name (name k)
-        vs         (->> (get samples path)
-                        sort
-                        vec)
-        min-v      (double (first vs))
-        diffs      (-> (mapv
-                        #(- (double %) min-v)
-                        vs)
-                       sort
-                       distinct
-                       vec)
-        data       (mapv
-                    #(hash-map k %1 :x %2)
-                    diffs
-                    (range))]
-    {:data   {:values data
-              :name   "vals"}
-     :height 800
-     :encoding
-     {:x
-      {:field "x" :type "quantitative"}
-      :y       {:field field-name
-                :type  "quantitative"
-                :scale {:zero false}}
-      :tooltip [{:field field-name :type "quantitative"}]}
-     :mark   "point"}))
 
 (defmethod view/sample-diffs* :portal
   [_ {:keys [] :as view} data-map]
@@ -503,6 +266,6 @@
        [{:layer
          (vec
           (into
-           [(metric-diff-layer
+           [(charts/metric-diff-layer
              (util/metric->values quant-samples)
              (first metric-configs))]))}])})))
