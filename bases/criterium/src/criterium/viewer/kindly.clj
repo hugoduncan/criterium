@@ -9,7 +9,10 @@
   appropriate `:kindly/kind` metadata."
   (:refer-clojure :exclude [flush])
   (:require
-   [criterium.view :as view]))
+   [criterium.metric :as metric]
+   [criterium.util.helpers :as util]
+   [criterium.view :as view]
+   [criterium.viewer.common :as viewer-common]))
 
 (defonce ^{:doc "Accumulator for Kindly-annotated values."}
   accumulated
@@ -52,3 +55,18 @@
 
 (defmethod view/flush-viewer :kindly [_]
   (flush))
+
+(defmethod view/stats* :kindly
+  [_ {:keys [stats-id metric-ids]} data-map]
+  (let [stats-id       (or stats-id :stats)
+        stats-map      (data-map stats-id)
+        metrics-defs   (-> (:metrics-defs stats-map)
+                           (metric/select-metrics metric-ids))
+        metric-configs (metric/all-metric-configs metrics-defs)
+        transforms     (util/get-transforms data-map stats-id)]
+    (kindly-heading "Summary stats")
+    (kindly-table
+     (viewer-common/stats-map
+      (util/stats stats-map)
+      metric-configs
+      transforms))))

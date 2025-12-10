@@ -4,6 +4,8 @@
   ;; and the accumulator clears after flush.
   (:require
    [clojure.test :refer [deftest is testing]]
+   [criterium.analyse :as analyse]
+   [criterium.test-data :as test-data]
    [criterium.view :as view]
    [criterium.viewer.kindly :as kindly]))
 
@@ -93,3 +95,48 @@
         (is (= 2 (count result)))
         (is (= :kind/fragment (:kindly/kind (meta result))))
         (is (= [] @kindly/accumulated))))))
+
+(deftest stats-view-test
+  ;; Tests the view/stats* multimethod for :kindly viewer.
+  ;; Verifies that stats data is rendered as a heading and table with correct
+  ;; Kindly metadata and column structure.
+  (testing "view/stats* :kindly"
+    (testing "renders stats as heading and table with bench-stats-map"
+      (reset! kindly/accumulated [])
+      (view/stats* :kindly {} (:data (test-data/bench-stats-map)))
+      (let [result (kindly/flush)]
+        (is (= :kind/fragment (:kindly/kind (meta result))))
+        (is (= 2 (count result))
+            "Expected heading and table")
+        (let [[heading table] result]
+          (is (= :kind/md (:kindly/kind (meta heading))))
+          (is (= ["**Summary stats**"] heading))
+          (is (= :kind/table (:kindly/kind (meta table))))
+          (is (= [{:_metric           "Elapsed Time ns",
+                   :mean              100.0
+                   :min-val           89.0
+                   :mean-minus-3sigma 88.0
+                   :mean-plus-3sigma  112.0
+                   :max-val           114.0}]
+                 table)))))
+
+    (testing "renders stats via analyse pipeline"
+      (reset! kindly/accumulated [])
+      (let [data-map   (:data (test-data/samples-with-2-values-map))
+            stats      (analyse/stats)
+            view-stats (view/stats)]
+        (->> data-map
+             stats
+             (view-stats :kindly))
+        (let [result (kindly/flush)]
+          (is (= :kind/fragment (:kindly/kind (meta result))))
+          (let [[heading table] result]
+            (is (= :kind/md (:kindly/kind (meta heading))))
+            (is (= :kind/table (:kindly/kind (meta table))))
+            (is (= [{:_metric           "Elapsed Time ns",
+                     :mean              1.00,
+                     :min-val           1.00,
+                     :mean-minus-3sigma 1.00,
+                     :mean-plus-3sigma  1.00,
+                     :max-val           1.00}]
+                   table))))))))
