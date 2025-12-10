@@ -208,3 +208,95 @@
           (is (= #{:sample :warmup :estimation}
                  (set (map :phase table)))
               "Expected all phases present"))))))
+
+(deftest samples-view-test
+  ;; Tests the view/samples* multimethod for :kindly viewer.
+  ;; Verifies that samples data is rendered as a heading and Vega-Lite scatter
+  ;; plot with outlier coloring.
+  (testing "view/samples* :kindly"
+    (testing "renders samples as heading and Vega-Lite chart"
+      (reset! kindly/accumulated [])
+      (view/samples* :kindly {} (:data (test-data/samples-with-2-values-map)))
+      (let [result (kindly/flush)]
+        (is (= :kind/fragment (:kindly/kind (meta result))))
+        (is (= 2 (count result))
+            "Expected heading and chart")
+        (let [[heading chart] result]
+          (is (= :kind/md (:kindly/kind (meta heading))))
+          (is (= ["**Samples**"] heading))
+          (is (= :kind/vega-lite (:kindly/kind (meta chart))))
+          (is (string? (:$schema chart))
+              "Expected Vega-Lite schema")
+          (is (= [{:elapsed-time 1.0 :index 0 :outlier ""}
+                  {:elapsed-time 1.0 :index 1 :outlier ""}]
+                 (-> chart :vconcat first :layer first :data :values))))))
+
+    (testing "renders samples with transformed data"
+      (reset! kindly/accumulated [])
+      (view/samples* :kindly {} (:data (test-data/samples-with-transformed-values-map)))
+      (let [result (kindly/flush)
+            [_heading chart] result]
+        (is (= [{:elapsed-time 1.0 :index 0 :outlier ""}
+                {:elapsed-time 2.0 :index 1 :outlier ""}
+                {:elapsed-time 4.0 :index 2 :outlier ""}]
+               (-> chart :vconcat first :layer first :data :values)))))
+
+    (testing "renders samples with outlier coloring via analyse pipeline"
+      (reset! kindly/accumulated [])
+      (let [data-map  (:data (test-data/samples-with-outliers-values-map))
+            quantiles (analyse/quantiles {:quantiles [0.9 0.99 0.99]})
+            outliers  (analyse/outliers)
+            stats     (analyse/stats)
+            view      (view/samples)]
+        (->> data-map
+             quantiles
+             outliers
+             stats
+             (view :kindly))
+        (let [result (kindly/flush)
+              [_heading chart] result]
+          (is (= [{:elapsed-time 9.0 :index 0 :outlier ""}
+                  {:elapsed-time 10.0 :index 1 :outlier ""}
+                  {:elapsed-time 9.0 :index 2 :outlier ""}
+                  {:elapsed-time 10.0 :index 3 :outlier ""}
+                  {:elapsed-time 9.0 :index 4 :outlier ""}
+                  {:elapsed-time 10.0 :index 5 :outlier ""}
+                  {:elapsed-time 10000.0 :index 6 :outlier :high-severe}]
+                 (-> chart :vconcat first :layer first :data :values))))))))
+
+(deftest histogram-view-test
+  ;; Tests the view/histogram* multimethod for :kindly viewer.
+  ;; Verifies that histogram data is rendered as a heading and Vega-Lite bar
+  ;; chart with optional normal PDF overlay.
+  (testing "view/histogram* :kindly"
+    (testing "renders histogram as heading and Vega-Lite chart"
+      (reset! kindly/accumulated [])
+      (let [data-map       (:data (test-data/samples-with-outliers-values-map))
+            quantiles      (analyse/quantiles {:quantiles [0.9 0.99 0.99]})
+            outliers       (analyse/outliers)
+            stats          (analyse/stats)
+            histogram      (analyse/histogram)
+            view-histogram (view/histogram)]
+        (->> data-map
+             quantiles
+             outliers
+             stats
+             histogram
+             (view-histogram :kindly))
+        (let [result (kindly/flush)]
+          (is (= :kind/fragment (:kindly/kind (meta result))))
+          (is (= 2 (count result))
+              "Expected heading and chart")
+          (let [[heading chart] result]
+            (is (= :kind/md (:kindly/kind (meta heading))))
+            (is (= ["**Histogram**"] heading))
+            (is (= :kind/vega-lite (:kindly/kind (meta chart))))
+            (is (string? (:$schema chart))
+                "Expected Vega-Lite schema")
+            (let [histogram-data (-> chart :vconcat first :layer first :data :values)]
+              (is (vector? histogram-data))
+              (is (pos? (count histogram-data)))
+              (is (every? #(and (contains? % "elapsed-time")
+                                (contains? % "end")
+                                (contains? % "density"))
+                          histogram-data)))))))))

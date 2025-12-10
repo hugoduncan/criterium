@@ -11,8 +11,10 @@
   (:require
    [criterium.metric :as metric]
    [criterium.util.helpers :as util]
+   [criterium.util.invariant :refer [have]]
    [criterium.view :as view]
-   [criterium.viewer.common :as viewer-common]))
+   [criterium.viewer.common :as viewer-common]
+   [criterium.viewer.common-charts :as charts]))
 
 (defonce ^{:doc "Accumulator for Kindly-annotated values."}
   accumulated
@@ -102,3 +104,91 @@
   (kindly-heading "Collect plan")
   (kindly-table
    (viewer-common/collect-plan-data data-map)))
+
+(defmethod view/samples* :kindly
+  [_ {:keys [] :as view} data-map]
+  (let [quant-samples-id     (:samples-id view :samples)
+        event-samples-id     (:event-samples-id view quant-samples-id)
+        outliers-analysis-id (:outliers-id view :outliers)
+
+        quant-samples (data-map quant-samples-id)
+        event-samples (data-map event-samples-id)
+        outliers      (data-map outliers-analysis-id)
+
+        q-metrics-defs   (-> (:metrics-defs quant-samples)
+                             (metric/filter-metrics
+                              (metric/type-pred :quantitative)))
+        e-metrics-defs   (-> (:metrics-defs event-samples)
+                             (metric/filter-metrics
+                              (metric/type-pred :event)))
+        metric-configs   (metric/all-metric-configs q-metrics-defs)
+        e-metric-configs (metric/all-metric-configs e-metrics-defs)
+
+        transforms (util/get-transforms data-map quant-samples-id)]
+    (kindly-heading "Samples")
+    (kindly-vega-lite
+     {:data     {:values [{}]}
+      :encoding {:x {:field "index" :type "quantitative"}}
+      :resolve  {:scale {:y "independent"}}
+      :vconcat
+      (into
+       [{:height 800
+         :layer
+         (vec
+          (into
+           [(charts/metric-layer
+             (util/metric->values quant-samples)
+             transforms
+             (when outliers (util/outliers outliers))
+             (have (first metric-configs)))]
+           (mapcat
+            #(charts/event-layer (util/metric->values event-samples) %)
+            e-metrics-defs)))}]
+       (mapv
+        #(charts/metric-layer
+          (util/metric->values quant-samples)
+          transforms
+          outliers %)
+        e-metric-configs))})))
+
+(defmethod view/histogram* :kindly
+  [_ {:keys [histogram-id samples-id stats-id]} data-map]
+  (let [histogram-id     (or histogram-id :histograms)
+        stats-id         (or stats-id :stats)
+        quant-samples-id (or samples-id :samples)
+        quant-samples    (data-map quant-samples-id)
+        stats            (data-map stats-id)
+        histograms-map   (util/lookup-data data-map histogram-id)
+        histograms       (:histograms histograms-map)
+        metrics-defs     (-> (:metrics-defs quant-samples)
+                             (metric/filter-metrics
+                              (metric/type-pred :quantitative)))
+        metric-configs   (metric/all-metric-configs metrics-defs)
+        hist-transforms  (util/get-transforms data-map histogram-id)
+        stats-transforms (util/get-transforms data-map (:source-id stats))
+        layer-num        (volatile! 0)]
+    (kindly-heading "Histogram")
+    (kindly-vega-lite
+     {:data    {:values []}
+      :resolve {:scale {:x     "independent"
+                        :y     "independent"
+                        :color "shared"}}
+      :vconcat (mapv
+                (fn [metric-config]
+                  {:resolve {:scale {:x "shared" :y "independent"}}
+                   :height  800
+                   :layer
+                   (into
+                    [(charts/metric-computed-histo-layer
+                      hist-transforms
+                      (histograms (:path metric-config))
+                      metric-config
+                      (vswap! layer-num unchecked-inc))]
+                    (when stats
+                      (->>
+                       (charts/metric-sample-stats-layer
+                        stats-transforms
+                        (get-in (util/stats stats) (:path metric-config))
+                        metric-config
+                        (vswap! layer-num unchecked-inc)))))})
+                metric-configs)})))
