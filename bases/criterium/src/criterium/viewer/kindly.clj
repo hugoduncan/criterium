@@ -81,12 +81,13 @@
                          (metric/select-metrics metric-ids))
         metric-configs (metric/all-metric-configs metrics-defs)
         transforms (util/get-transforms data-map stats-id)]
-    (kindly-heading "Summary stats")
-    (kindly-table
-     (viewer-common/stats-map
-      (util/stats stats-map)
-      metric-configs
-      transforms))))
+    (when (seq metric-configs)
+      (kindly-heading "Summary stats")
+      (kindly-table
+       (viewer-common/stats-map
+        (util/stats stats-map)
+        metric-configs
+        transforms)))))
 
 (defmethod view/quantiles* :kindly
   [_ {:keys [quantiles-id]} data-map]

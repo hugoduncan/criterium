@@ -148,7 +148,14 @@
                      :mean-minus-3sigma 1.00,
                      :mean-plus-3sigma 1.00,
                      :max-val 1.00}]
-                   table))))))))
+                   table))))))
+
+    (testing "outputs nothing when metric-ids filter yields no matching metrics"
+      (reset! kindly/accumulated [])
+      (view/stats* :kindly
+                   {:metric-ids [:nonexistent-metric]}
+                   (:data (test-data/bench-stats-map)))
+      (is (nil? (kindly/flush))))))
 
 (deftest quantiles-view-test
   ;; Tests the view/quantiles* multimethod for :kindly viewer.

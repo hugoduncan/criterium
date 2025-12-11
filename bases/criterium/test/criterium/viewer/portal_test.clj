@@ -115,8 +115,9 @@
         (is (= [:b "Histogram"] title))))))
 
 (deftest portal-stats-test
-  (testing "print-stats"
-    (testing "prints via output-view"
+  ;; Verifies stats display with conditional heading behavior.
+  (testing "view/stats*"
+    (testing "displays stats when metrics match"
       (is (= [[:b "Summary stats"]
               [{:_metric           "Elapsed Time ns",
                 :mean              100.0
@@ -144,7 +145,20 @@
                (with-tap-out
                  (->> data-map
                       stats
-                      (view-stats :portal)))))))))
+                      (view-stats :portal)))))))
+    (testing "outputs nothing when metric-ids filter yields no matching metrics"
+      (let [v (volatile! [])
+            f (fn [x] (when-not (= ::portal/_ x) (vswap! v conj x)))]
+        (try
+          (add-tap f)
+          (view/stats*
+           :portal
+           {:metric-ids [:nonexistent-metric]}
+           (:data (test-data/bench-stats-map)))
+          (portal/flush)
+          (is (empty? @v))
+          (finally
+            (remove-tap f)))))))
 
 (deftest portal-outlier-count-test
   (testing "print-outlier-count"
