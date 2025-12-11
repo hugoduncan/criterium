@@ -172,8 +172,11 @@ jobs:
           clojure -T:build javac :project :agent :class-dir '"bases/agent/target/classes"' :verbose true
           clojure -T:build javac :project :blackhole :class-dir '"bases/blackhole/target/classes"' :verbose true
 
-      - name: Build JAR
+      - name: Build criterium JAR
         run: clojure -T:build jar :project :criterium :verbose true
+
+      - name: Build arg-gen JAR
+        run: clojure -T:build jar :project :arg-gen :verbose true
 
       - name: Smoke test - verify agents in JAR
         run: |
@@ -204,18 +207,26 @@ jobs:
           git tag -a ${{ steps.version.outputs.tag }} -m "Release ${{ steps.version.outputs.tag }}"
           git push origin ${{ steps.version.outputs.tag }}
 
-      - name: Deploy to Clojars
+      - name: Deploy criterium to Clojars
         if: github.event.inputs.dry_run == 'false'
         env:
           CLOJARS_USERNAME: ${{ secrets.CLOJARS_USERNAME }}
           CLOJARS_PASSWORD: ${{ secrets.CLOJARS_PASSWORD }}
         run: clojure -T:build deploy :project :criterium
 
+      - name: Deploy arg-gen to Clojars
+        if: github.event.inputs.dry_run == 'false'
+        env:
+          CLOJARS_USERNAME: ${{ secrets.CLOJARS_USERNAME }}
+          CLOJARS_PASSWORD: ${{ secrets.CLOJARS_PASSWORD }}
+        run: clojure -T:build deploy :project :arg-gen
+
       - name: Prepare release assets
         if: github.event.inputs.dry_run == 'false'
         run: |
           mkdir -p release-assets
           cp projects/criterium/target/criterium.jar release-assets/
+          cp projects/arg-gen/target/arg-gen.jar release-assets/
           cp bases/criterium/resources/criterium/agent/linux-x64/libcriterium.so release-assets/libcriterium-linux-x64.so
           cp bases/criterium/resources/criterium/agent/macos-arm64/libcriterium.dylib release-assets/libcriterium-macos-arm64.dylib
           cp bases/criterium/resources/criterium/agent/macos-x64/libcriterium.dylib release-assets/libcriterium-macos-x64.dylib
@@ -230,6 +241,7 @@ jobs:
           body_path: RELEASE_NOTES.md
           files: |
             release-assets/criterium.jar
+            release-assets/arg-gen.jar
             release-assets/libcriterium-linux-x64.so
             release-assets/libcriterium-macos-arm64.dylib
             release-assets/libcriterium-macos-x64.dylib
@@ -243,6 +255,10 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "**Tag:** ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Artifacts Built" >> $GITHUB_STEP_SUMMARY
+          echo "- projects/criterium/target/criterium.jar" >> $GITHUB_STEP_SUMMARY
+          echo "- projects/arg-gen/target/arg-gen.jar" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Smoke Tests" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Agent libraries verified in JAR" >> $GITHUB_STEP_SUMMARY

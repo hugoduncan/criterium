@@ -27,20 +27,24 @@ clojure -M:kaocha:dev:test:with-agent-linux --reporter dots
 
 ### Building and Packaging
 ```bash
-# Build jar
-clojure -M:build jar
+# Build criterium jar
+clojure -T:build jar :project :criterium
+
+# Build arg-gen jar (argument generation with test.check)
+clojure -T:build jar :project :arg-gen
 
 # Install locally (requires all platform agent binaries)
-clojure -M:build install
+clojure -T:build install :project :criterium
 
 # Install locally with only current platform's agent (for development)
-clojure -T:build build/install-local
+clojure -T:build install-local
 
 # Deploy to repository
-clojure -M:build deploy
+clojure -T:build deploy :project :criterium
+clojure -T:build deploy :project :arg-gen
 
 # Clean build artifacts
-clojure -M:build clean
+clojure -T:build clean
 ```
 
 ### Code Quality
@@ -94,8 +98,10 @@ clojure -M:dev
 - `bases/criterium/` - Core benchmarking functionality
 - `bases/agent/` - JVM agent for allocation tracking
 - `bases/blackhole/` - JMH-style Blackhole for preventing dead code elimination
+- `bases/arg-gen/` - Argument generation using test.check generators
 - `bases/notebooks/` - Computational notebooks and examples
-- `projects/` - Project-specific configurations
+- `projects/criterium/` - Main criterium JAR (criterium/criterium)
+- `projects/arg-gen/` - Argument generation JAR (criterium/arg-gen)
 - `development/` - Development environment setup
 
 ### Core Components
@@ -110,6 +116,11 @@ clojure -M:dev
 - `collector` - Captures various metrics during execution
 - `collect-plan` - Defines sampling strategy (warmup, timing, etc.)
 - `benchmark` - Coordinates analysis and viewing of collected data
+
+**Argument Generation** (`criterium.arg-gen`):
+- Creates `measured` instances using test.check generators for benchmark inputs
+- `arg-gen/measured` macro - Define benchmarks with generated arguments
+- Supports size and seed options for reproducible benchmarks
 
 **Metrics System**: Supports multiple metric types:
 - `:elapsed-time` - Wall clock timing

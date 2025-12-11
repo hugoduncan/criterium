@@ -39,7 +39,11 @@
    [:name string?]
    [:version string?]
    [:manifest {:optional true}
-    [:map-of string? string?]]])
+    [:map-of string? string?]]
+   [:pom-deps {:optional true}
+    [:map-of symbol? [:map [:mvn/version string?]]]]
+   [:validate-fn {:optional true}
+    symbol?]])
 
 (def project-coordinates
   "Project coordinates for all artifacts"
@@ -49,10 +53,17 @@
    :agent {:lib 'criterium/criterium.agent
            :name "criterium/criterium.agent"
            :version "0.5.{{git-rev-count}}-ALPHA"
-           :manifest {"Agent-Class" "criterium.agent"}}
+           :manifest {"Agent-Class" "criterium.agent"}
+           :validate-fn 'build.agent/validate-agent-binaries!}
    :blackhole {:lib 'criterium/criterium.blackhole
                :name "criterium/criterium.blackhole"
-               :version "0.5.{{git-rev-count}}-ALPHA"}})
+               :version "0.5.{{git-rev-count}}-ALPHA"}
+   :arg-gen {:lib 'criterium/criterium.arg-gen
+             :name "criterium/criterium.arg-gen"
+             :version "0.5.{{git-rev-count}}-ALPHA"
+             ;; Dependencies to include in the POM (replacing local/root deps)
+             :pom-deps {'criterium/criterium {:mvn/version "0.5.{{git-rev-count}}-ALPHA"}
+                        'org.clojure/test.check {:mvn/version "1.1.1"}}}})
 
 (defn project-data
   "Return the params with default project coordinates.

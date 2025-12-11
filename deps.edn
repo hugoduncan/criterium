@@ -12,10 +12,12 @@
    :jvm-opts ["-Djdk.attach.allowAttachSelf"]}
   :test {:extra-paths ["bases/criterium/test"
                        "bases/blackhole/test"
+                       "bases/arg-gen/test"
                        "projects/agent"
                        "projects/agent/test"]
          :extra-deps
          {local/agent {:local/root "bases/agent"}
+          local/arg-gen {:local/root "bases/arg-gen"}
           org.clojure/test.check {:mvn/version "1.1.1"}}
          :jvm-opts ["-XX:-OmitStackTraceInFastThrow"
                     "-Dclojure.main.report=stderr"]}

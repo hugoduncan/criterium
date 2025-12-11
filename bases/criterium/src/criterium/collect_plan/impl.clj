@@ -7,8 +7,7 @@
   (fn [scheme-type] scheme-type))
 
 (defmulti collect*
-  #_{:clj-kondo/ignore [:unused-binding]}
-  (fn [collect-plan pipeline measured]
+  (fn [collect-plan _pipeline _measured]
     (:scheme-type collect-plan)))
 
 (defn limit-samples
@@ -19,8 +18,8 @@
    remaining-time
    projected-time]
   (if (> (long projected-time) (long remaining-time))
-    (let [t    (unchecked-add (long projected-time) (long taken-time))
-          t-s  (double (/ t (long units/SEC-NS)))
+    (let [t (unchecked-add (long projected-time) (long taken-time))
+          t-s (double (/ t (long units/SEC-NS)))
           frac (/ (double remaining-time) (double projected-time))]
       (println
        (format

@@ -1,11 +1,10 @@
-{:deps {poly/agent {:local/root "../../bases/agent"}}
+{:deps {poly/arg-gen {:local/root "../../bases/arg-gen"}}
  :aliases
  {:build {:deps {local/build {:local/root "../../build"}}
           :ns-default build.tasks
           :exec-fn help
           :jvm-opts ["-Dclojure.main.report=stderr"]}
   :test {:extra-paths ["test" "."]
-         :extra-deps {poly/criterium {:local/root "../../bases/criterium"}
-                      local/build {:local/root "../../build"}}
+         :extra-deps {local/build {:local/root "../../build"}}
          :jvm-opts ["-XX:-OmitStackTraceInFastThrow"
                     "-Dclojure.main.report=stderr"]}}}

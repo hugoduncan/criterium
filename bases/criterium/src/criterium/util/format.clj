@@ -12,7 +12,7 @@
      Number rounded to specified significant figures"
   [^double n ^long sig-figs]
   (let [magnitude (Math/floor (Math/log10 (Math/abs n)))
-        scale     (- sig-figs magnitude 1)]
+        scale (- sig-figs magnitude 1)]
     (/ (Math/round (* n (Math/pow 10 scale)))
        (Math/pow 10 scale))))
 
@@ -20,21 +20,20 @@
   "Scale value with given dimensions keyword.
   Return a [scale units] tuple.
   scale is a multiplicative factor. units is a string."
-  #_{:clj-kondo/ignore [:unused-binding]}
-  (fn [dimension value] dimension))
+  (fn [dimension _value] dimension))
 
 (defmethod scale :default
   [_ _value]
   [1 ""])
 
-(defmethod scale :time                  ; seconds
+(defmethod scale :time ; seconds
   [_ value]
   (cond
-    (> (double value) 60)   [(/ 60) "min"]
+    (> (double value) 60) [(/ 60) "min"]
     (< (double value) 1e-6) [1e9 "ns"]
     (< (double value) 1e-3) [1e6 "µs"]
-    (< (double value) 1)    [1e3 "ms"]
-    :else                   [1 "s"]))
+    (< (double value) 1) [1e3 "ms"]
+    :else [1 "s"]))
 
 (def ^:const ONE-KB 1024)
 (def ^:const ONE-MB (* 1024 1024))
@@ -46,7 +45,7 @@
     (< (long value) ONE-KB) [1 "bytes"]
     (< (long value) ONE-MB) [(/ ONE-KB) "Kb"]
     (< (long value) ONE-GB) [(/ ONE-MB) "Mb"]
-    :else                   [(/ ONE-GB) "Gb"]))
+    :else [(/ ONE-GB) "Gb"]))
 
 (defn format-scaled
   ([value scale]
@@ -56,8 +55,7 @@
 
 (defmulti format-value*
   "Format value to 3 significant figures in an appropriate unit for the scale."
-  #_{:clj-kondo/ignore [:unused-binding]}
-  (fn [dimension value opts] dimension))
+  (fn [dimension _value _opts] dimension))
 
 (defn format-value
   "Format in an appropriate unit and precision for the scale."
@@ -93,8 +91,7 @@
      unit)))
 
 (defmulti format-metric
-  #_{:clj-kondo/ignore [:unused-binding]}
-  (fn [metric val] metric))
+  (fn [metric _val] metric))
 
 (defmethod format-metric :elapsed-time
   [_ val]

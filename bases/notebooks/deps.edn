@@ -1,5 +1,6 @@
 {:paths ["src"]
  :deps  {poly/criterium   {:local/root "../criterium"}
+         poly/arg-gen     {:local/root "../arg-gen"}
          org.scicloj/clay {:mvn/version "2.0.3"}}
  :aliases
  {:with-agent-mac   {:jvm-opts
