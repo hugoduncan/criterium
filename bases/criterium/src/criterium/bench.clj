@@ -124,7 +124,11 @@
                          (:collect-plan bench-plan) measured)
                         (analyze (:analyse bench-plan)))
           viewer-output (view (:view bench-plan) (:viewer bench-plan) data-map)
-          data-map (assoc-in data-map [:viewer :output] viewer-output)]
+          ;; Store viewer output as a proper data-entry-map
+          data-map (assoc data-map :viewer
+                          {:type :criterium/viewer-output
+                           :transform {:sample-> identity :->sample identity}
+                           :output viewer-output})]
       (impl/last-bench! {:bench-plan bench-plan :data data-map})
       (return-value bench-plan data-map))))
 

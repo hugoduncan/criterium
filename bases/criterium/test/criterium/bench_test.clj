@@ -53,8 +53,10 @@
     (testing "with one-shot collect plan"
       (reset! kindly/accumulated [])
       (let [result (bench/bench (+ 1 1) :viewer :kindly :collect-plan :one-shot)]
-        (is (= 2 result)
-            "bench returns expression value"))
+        (is (= :kind/fragment (:kindly/kind (meta result)))
+            "bench returns kindly fragment")
+        (is (sequential? result)
+            "result is a sequence of views"))
       (is (empty? @kindly/accumulated)
           "accumulator is empty after flush"))
 
@@ -69,11 +71,14 @@
 
     (testing "view returns kindly fragment"
       ;; Use view directly to verify fragment is returned
-      (let [data-map (:data (do (with-out-str
-                                  (bench/bench (+ 1 1)
-                                               :viewer :print
-                                               :collect-plan :one-shot))
-                                (bench/last-bench)))]
+      ;; Strip :viewer key since it was added by the previous bench call
+      (let [data-map (dissoc
+                      (:data (do (with-out-str
+                                   (bench/bench (+ 1 1)
+                                                :viewer :print
+                                                :collect-plan :one-shot))
+                                 (bench/last-bench)))
+                      :viewer)]
         (reset! kindly/accumulated [])
         (let [fragment (bench/view [:metrics :collect-plan] :kindly data-map)]
           (is (= :kind/fragment (:kindly/kind (meta fragment)))
@@ -83,12 +88,15 @@
 
     (testing "with log-histogram plan produces full output"
       ;; Get benchmark data using :print viewer
-      (let [data-map (:data (do (with-out-str
-                                  (bench/bench (+ 1 1)
-                                               :viewer :print
-                                               :bench-plan bench-plans/log-histogram
-                                               :limit-time-s 0.5))
-                                (bench/last-bench)))]
+      ;; Strip :viewer key since it was added by the previous bench call
+      (let [data-map (dissoc
+                      (:data (do (with-out-str
+                                   (bench/bench (+ 1 1)
+                                                :viewer :print
+                                                :bench-plan bench-plans/log-histogram
+                                                :limit-time-s 0.5))
+                                 (bench/last-bench)))
+                      :viewer)]
         ;; View with :kindly - bench/view returns the fragment
         (reset! kindly/accumulated [])
         (let [fragment (bench/view (:view bench-plans/log-histogram) :kindly data-map)]
