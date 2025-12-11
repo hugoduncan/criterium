@@ -1,7 +1,6 @@
 (ns criterium.notebook.helpers
   "Helper utilities for criterium notebooks."
   (:require
-   [criterium.bench :as bench]
    [scicloj.kindly.v4.kind :as kind]))
 
 (defmacro bench-display
