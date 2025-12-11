@@ -236,8 +236,7 @@
           (is (= :kind/vega-lite (:kindly/kind (meta chart))))
           (is (string? (:$schema chart))
               "Expected Vega-Lite schema")
-          (is (= 700 (:width chart))
-              "Expected notebook-friendly width")
+          (is (= 700 (-> chart :vconcat first :width)) "Expected notebook-friendly width")
           (is (= 350 (-> chart :vconcat first :height))
               "Expected notebook-friendly height")
           (is (= [{:elapsed-time 1.0 :index 0 :outlier ""}
@@ -306,8 +305,7 @@
             (is (= :kind/vega-lite (:kindly/kind (meta chart))))
             (is (string? (:$schema chart))
                 "Expected Vega-Lite schema")
-            (is (= 700 (:width chart))
-                "Expected notebook-friendly width")
+            (is (= 700 (-> chart :vconcat first :width)) "Expected notebook-friendly width")
             (is (= 350 (-> chart :vconcat first :height))
                 "Expected notebook-friendly height")
             (let [histogram-data (-> chart :vconcat first :layer first :data :values)]
@@ -336,8 +334,7 @@
           (is (= :kind/vega-lite (:kindly/kind (meta chart))))
           (is (string? (:$schema chart))
               "Expected Vega-Lite schema")
-          (is (= 700 (:width chart))
-              "Expected notebook-friendly width")
+          (is (= 700 (-> chart :vconcat first :width)) "Expected notebook-friendly width")
           (is (= 350 (-> chart :vconcat first :height))
               "Expected notebook-friendly height")
           (let [percentile-data (-> chart :vconcat first :layer first :data :values)]
@@ -458,8 +455,7 @@
             (is (= :kind/vega-lite (:kindly/kind (meta chart))))
             (is (string? (:$schema chart))
                 "Expected Vega-Lite schema")
-            (is (= 700 (:width chart))
-                "Expected notebook-friendly width")
+            (is (= 700 (-> chart :vconcat first :width)) "Expected notebook-friendly width")
             (is (= 350 (-> chart :vconcat first :height))
                 "Expected notebook-friendly height")))))))
 
