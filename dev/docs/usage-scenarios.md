@@ -32,7 +32,7 @@ Monitor how performance changes across code versions.
 
 **Goal:** Maintain visibility into performance trends.
 
-[Track performance over time](use-cases/track-over-time.md)
+[Track performance over time](use-cases/track-performance.md)
 
 ### 5. Check for Performance Regressions
 Validate that changes don't degrade performance.
@@ -55,7 +55,7 @@ Locate code paths with excessive allocation.
 
 **Goal:** Find allocation-heavy code for optimization.
 
-[Identify memory allocation hotspots](use-cases/memory-hotspots.md)
+[Identify memory allocation hotspots](use-cases/allocation-hotspots.md)
 
 ### 8. Validate Performance Assumptions During Code Review
 Verify performance claims in pull requests.
