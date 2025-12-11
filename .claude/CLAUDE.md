@@ -184,3 +184,8 @@ When using the `:portal` viewer:
 - Function docstrings precede argument vectors
 - Comprehensive namespace documentation required
 - Test files mirror source structure with `_test` suffix
+
+- if you see Exception:
+    clojure.lang.Compiler$CompilerException: Syntax error macroexpanding at (criterium/agent.clj:144:1)
+  then you need to prepare the java libs with:
+    cd bases/criterium && clojure -T:deps prep
