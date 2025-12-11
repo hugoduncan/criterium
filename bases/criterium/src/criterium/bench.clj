@@ -9,13 +9,16 @@
   - Statistical significance
 
   Primary API:
-  - bench         - Macro for benchmarking expressions
-  - bench-measured - Function for benchmarking pre-wrapped measurements
-  - last-bench    - Access results from most recent benchmark
+  - bench             - Macro for benchmarking expressions
+  - bench-measured    - Function for benchmarking pre-wrapped measurements
+  - last-bench        - Access results from most recent benchmark
+  - set-default-viewer! - Set default output viewer
+  - default-viewer    - Get current default viewer
 
   Example:
   (bench (+ 1 1))                 ; Basic usage
-  (bench (+ 1 1) :viewer :pprint) ; With pretty-printed output"
+  (bench (+ 1 1) :viewer :pprint) ; With pretty-printed output
+  (set-default-viewer! :kindly)   ; Set default for all bench calls"
   (:require
    [criterium.analyse]
    [criterium.bench.config :as bench-config]
@@ -25,6 +28,26 @@
    [criterium.collector :as collector]
    [criterium.measured :as measured]
    [criterium.util.output :as output]))
+
+(defn default-viewer
+  "Returns the current default viewer.
+
+  The default viewer is used when no explicit :viewer option is provided
+  to bench calls. Initial value is :print."
+  []
+  bench-config/*default-viewer*)
+
+(defn set-default-viewer!
+  "Set the default viewer for all bench calls that don't specify an explicit
+  :viewer option.
+
+  viewer - Keyword identifying the viewer, e.g. :print, :pprint, :portal, :kindly
+
+  Example:
+    (set-default-viewer! :kindly)
+    (bench (+ 1 1))  ; Now uses :kindly viewer by default"
+  [viewer]
+  (bench-config/set-default-viewer! viewer))
 
 (defn last-bench
   "Returns the complete measurement data from the most recent benchmark.
@@ -99,8 +122,13 @@
     (let [data-map (->> (collect-data-map
                          (:collector-config bench-plan)
                          (:collect-plan bench-plan) measured)
-                        (analyze (:analyse bench-plan)))]
-      (view (:view bench-plan) (:viewer bench-plan) data-map)
+                        (analyze (:analyse bench-plan)))
+          viewer-output (view (:view bench-plan) (:viewer bench-plan) data-map)
+          ;; Store viewer output as a proper data-entry-map
+          data-map (assoc data-map :viewer
+                          {:type :criterium/viewer-output
+                           :transform {:sample-> identity :->sample identity}
+                           :output viewer-output})]
       (impl/last-bench! {:bench-plan bench-plan :data data-map})
       (return-value bench-plan data-map))))
 
@@ -112,7 +140,7 @@
   Parameters:
     measured - A wrapped function/expression prepared for measurement
     options  - Map of configuration options:
-      :viewer      - Output format [:pprint, :portal, or nil(default)]
+      :viewer      - Output format [:print (default), :pprint, :portal, :kindly]
       :analyse     - Vector of analysis steps [[:outliers] [:stats]]
       :view       - Vector of view components [:stats]
       :metric-ids  - Vector of metrics to collect, from:
@@ -157,7 +185,8 @@
   Parameters:
     expr    - Expression to benchmark (may reference local bindings)
     options - Keyword/value pairs for configuration:
-      :viewer      - Output format [:pprint, :portal, or nil(default)]
+      :viewer      - Output format [:print, :pprint, :portal, :kindly]
+                     Default can be set via (set-default-viewer! :kindly)
       :analyse     - Vector of analysis steps [[:outliers] [:stats]]
       :view       - Vector of view components [:stats]
       :metric-ids  - Vector of metrics to collect, from:
@@ -204,9 +233,9 @@
   - Ensures statistical significance
   - Local bindings from enclosing scope can be used in the expression"
   [expr & options]
-  (let [options-map  (apply hash-map options)
+  (let [options-map (apply hash-map options)
         expr-options (select-keys options-map [:time-fn])
-        options      (dissoc options-map :time-fn)]
+        options (dissoc options-map :time-fn)]
     `(bench-measured
       (options->bench-plan ~options)
       (measured/expr ~expr ~expr-options))))

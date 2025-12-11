@@ -85,11 +85,12 @@ bench-plans/log-histogram
 ;; ## Viewer Options
 ;;
 ;; The `:viewer` option controls how benchmark results are displayed.
-;; Criterium provides three viewer modes:
+;; Criterium provides four viewer modes:
 ;;
 ;; - `:print` - Human-readable text output (default)
 ;; - `:pprint` - Clojure data structure with pretty printing
 ;; - `:portal` - Interactive visualization (requires Portal)
+;; - `:kindly` - Kindly-annotated output for Clay notebooks
 
 ;; ### :print (Default)
 ;;
@@ -128,6 +129,59 @@ bench-plans/log-histogram
 ;; - Interactive histograms
 ;; - Clickable data exploration
 ;; - Tables for statistical summaries
+
+;; ### :kindly
+;;
+;; The Kindly viewer outputs Kindly-annotated data structures for rendering
+;; in Clay notebooks. When using `:viewer :kindly`, `bench` returns the Kindly
+;; fragment directly, so it can be rendered by Clay:
+
+(bench/bench (reduce + (range 1000))
+             :viewer :kindly
+             :bench-plan bench-plans/log-histogram)
+
+;; Kindly viewer features:
+;; - Tables with `:kind/table` metadata for stats, quantiles, outliers
+;; - Vega-Lite charts with `:kind/vega-lite` metadata for samples, histograms
+;; - Markdown headings with `:kind/md` metadata for sections
+;; - All wrapped in a `:kind/fragment` for Clay rendering
+
+;; ### Setting a Default Viewer
+;;
+;; You can set a default viewer for all subsequent bench calls using
+;; `set-default-viewer!`. This is useful when you want all benchmarks
+;; in a session to use a specific viewer without specifying `:viewer`
+;; each time.
+
+(kind/code "(bench/set-default-viewer! :kindly)
+(bench/bench (+ 1 1))  ; Now uses :kindly viewer and returns Kindly fragment
+
+;; Check current default
+(bench/default-viewer)  ; => :kindly
+
+;; Reset to default
+(bench/set-default-viewer! :print)")
+
+;; The precedence for viewer selection is:
+;; 1. Explicit `:viewer` option on bench call
+;; 2. Global default viewer (set via `set-default-viewer!`)
+;; 3. Built-in default `:print`
+;;
+;; An explicit `:viewer` option always overrides the default:
+
+(kind/code "(bench/set-default-viewer! :kindly)
+(bench/bench (+ 1 1))              ; Uses :kindly, returns Kindly fragment
+(bench/bench (+ 1 1) :viewer :print)  ; Uses :print, returns expr value")
+
+;; When using `:kindly` viewer, the return value behavior changes:
+;; - Default: returns the Kindly fragment (for Clay rendering)
+;; - Explicit `:return-value [:samples :expr-value]`: returns expression value
+
+(kind/code "(bench/bench (+ 1 1) :viewer :kindly)
+;; => ^{:kindly/kind :kind/fragment} [...]  ; Returns Kindly fragment
+
+(bench/bench (+ 1 1) :viewer :kindly :return-value [:samples :expr-value])
+;; => 2  ; Returns expression value")
 
 ;; ## Customizing Collection Parameters
 ;;

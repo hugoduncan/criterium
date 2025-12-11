@@ -13,8 +13,7 @@ This is currently version 0.5.x (ALPHA) which represents a significant architect
 ### Testing
 ```bash
 # Prepare dependencies with Java sources (required once after checkout or deps.edn changes)
-cd bases/agent && clojure -T:deps prep
-cd bases/blackhole && clojure -T:deps prep
+cd bases/criterium && clojure -T:deps prep
 
 # Run tests with Kaocha
 clojure -M:kaocha:dev:test --reporter dots
@@ -185,3 +184,8 @@ When using the `:portal` viewer:
 - Function docstrings precede argument vectors
 - Comprehensive namespace documentation required
 - Test files mirror source structure with `_test` suffix
+
+- if you see Exception:
+    clojure.lang.Compiler$CompilerException: Syntax error macroexpanding at (criterium/agent.clj:144:1)
+  then you need to prepare the java libs with:
+    cd bases/criterium && clojure -T:deps prep

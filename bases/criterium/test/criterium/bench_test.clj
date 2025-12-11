@@ -3,7 +3,10 @@
    [clojure.test :refer [deftest is testing]]
    [criterium.analyse]
    [criterium.bench :as bench]
-   [criterium.bench.impl :as bench-impl]))
+   [criterium.bench-plans :as bench-plans]
+   [criterium.bench.config :as bench-config]
+   [criterium.bench.impl :as bench-impl]
+   [criterium.viewer.kindly :as kindly]))
 
 (deftest bench-test
   (testing "bench"
@@ -41,3 +44,127 @@
                             :measured-args
                             :class-loader])]
         (is (= 1 v))))))
+
+(deftest kindly-viewer-integration-test
+  ;; Integration test for :kindly viewer with actual benchmark execution.
+  ;; Verifies that :viewer :kindly produces Kindly-annotated output
+  ;; suitable for Clay notebook rendering.
+  (testing ":kindly viewer"
+    (testing "with one-shot collect plan"
+      (reset! kindly/accumulated [])
+      (let [result (bench/bench (+ 1 1) :viewer :kindly :collect-plan :one-shot)]
+        (is (= :kind/fragment (:kindly/kind (meta result)))
+            "bench returns kindly fragment")
+        (is (sequential? result)
+            "result is a sequence of views"))
+      (is (empty? @kindly/accumulated)
+          "accumulator is empty after flush"))
+
+    (testing "with full benchmark and log-histogram plan"
+      (reset! kindly/accumulated [])
+      (bench/bench (+ 1 1)
+                   :viewer :kindly
+                   :bench-plan bench-plans/log-histogram
+                   :limit-time-s 0.5)
+      (is (empty? @kindly/accumulated)
+          "accumulator is empty after flush - fragment was returned by flush-viewer"))
+
+    (testing "view returns kindly fragment"
+      ;; Use view directly to verify fragment is returned
+      ;; Strip :viewer key since it was added by the previous bench call
+      (let [data-map (dissoc
+                      (:data (do (with-out-str
+                                   (bench/bench (+ 1 1)
+                                                :viewer :print
+                                                :collect-plan :one-shot))
+                                 (bench/last-bench)))
+                      :viewer)]
+        (reset! kindly/accumulated [])
+        (let [fragment (bench/view [:metrics :collect-plan] :kindly data-map)]
+          (is (= :kind/fragment (:kindly/kind (meta fragment)))
+              "view returns kind/fragment")
+          (is (pos? (count fragment))
+              "fragment contains accumulated views"))))
+
+    (testing "with log-histogram plan produces full output"
+      ;; Get benchmark data using :print viewer
+      ;; Strip :viewer key since it was added by the previous bench call
+      (let [data-map (dissoc
+                      (:data (do (with-out-str
+                                   (bench/bench (+ 1 1)
+                                                :viewer :print
+                                                :bench-plan bench-plans/log-histogram
+                                                :limit-time-s 0.5))
+                                 (bench/last-bench)))
+                      :viewer)]
+        ;; View with :kindly - bench/view returns the fragment
+        (reset! kindly/accumulated [])
+        (let [fragment (bench/view (:view bench-plans/log-histogram) :kindly data-map)]
+          (is (= :kind/fragment (:kindly/kind (meta fragment)))
+              "view returns kind/fragment for kindly viewer")
+          (is (>= (count fragment) 10)
+              "fragment contains multiple views (headings, tables, charts)")
+
+          (let [kinds (set (map #(:kindly/kind (meta %)) fragment))]
+            (is (contains? kinds :kind/md)
+                "contains markdown headings")
+            (is (contains? kinds :kind/table)
+                "contains tables")
+            (is (contains? kinds :kind/vega-lite)
+                "contains Vega-Lite charts"))
+
+          (let [tables (filter #(= :kind/table (:kindly/kind (meta %))) fragment)]
+            (is (pos? (count tables))
+                "has at least one table")
+            (is (every? sequential? tables)
+                "tables are sequences"))
+
+          (let [charts (filter #(= :kind/vega-lite (:kindly/kind (meta %))) fragment)]
+            (is (pos? (count charts))
+                "has at least one chart")
+            (is (every? #(string? (:$schema %)) charts)
+                "charts have Vega-Lite schema")))))))
+
+(deftest default-viewer-test
+  ;; Test default viewer configuration and precedence.
+  ;; Verifies that:
+  ;; 1. Initial default is :print
+  ;; 2. set-default-viewer! changes the default
+  ;; 3. Explicit :viewer option overrides the default
+  (testing "default-viewer"
+    (testing "returns initial default of :print"
+      (bench/set-default-viewer! :print)
+      (is (= :print (bench/default-viewer))))
+
+    (testing "set-default-viewer! changes the default"
+      (let [original (bench/default-viewer)]
+        (try
+          (bench/set-default-viewer! :kindly)
+          (is (= :kindly (bench/default-viewer)))
+          (finally
+            (bench/set-default-viewer! original)))))
+
+    (testing "config-map uses default viewer when no explicit option"
+      (let [original (bench/default-viewer)]
+        (try
+          (bench/set-default-viewer! :pprint)
+          (let [config (bench-config/config-map {})]
+            (is (= :pprint (:viewer config))))
+          (finally
+            (bench/set-default-viewer! original)))))
+
+    (testing "explicit :viewer option overrides default"
+      (let [original (bench/default-viewer)]
+        (try
+          (bench/set-default-viewer! :kindly)
+          (let [config (bench-config/config-map {:viewer :portal})]
+            (is (= :portal (:viewer config))))
+          (finally
+            (bench/set-default-viewer! original)))))
+
+    (testing "dynamic var can be bound for local scope"
+      (is (= :print (bench/default-viewer)))
+      (binding [bench-config/*default-viewer* :kindly]
+        (let [config (bench-config/config-map {})]
+          (is (= :kindly (:viewer config)))))
+      (is (= :print (bench/default-viewer))))))

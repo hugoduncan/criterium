@@ -1,5 +1,12 @@
-(ns criterium.viewer.portal
-  "A viewer that outputs to portal using tap>."
+(ns criterium.viewer.kindly
+  "A viewer that outputs Kindly-annotated data structures for Clay notebooks.
+
+  Uses an accumulator pattern where view functions append Kindly-annotated
+  values to an atom. The `flush-viewer` multimethod returns a `kind/fragment`
+  combining all accumulated values.
+
+  No runtime dependency on scicloj/kindly - produces plain maps with
+  appropriate `:kindly/kind` metadata."
   (:refer-clojure :exclude [flush])
   (:require
    [criterium.metric :as metric]
@@ -9,68 +16,64 @@
    [criterium.viewer.common :as viewer-common]
    [criterium.viewer.common-charts :as charts]))
 
-(defonce tapped (atom {:values '()}))
+(defonce ^{:doc "Accumulator for Kindly-annotated values."}
+  accumulated
+  (atom []))
 
-(defn submit
-  "Tap target function.
+(defonce ^{:doc "Last flushed Kindly fragment for retrieval after bench completes."}
+  last-fragment
+  (atom nil))
 
-  This allows criterium to control the order of tapped output.
+(def ^:private chart-width
+  "Width for Kindly vega-lite charts, sized for notebook display."
+  700)
 
-  ```clojure
-  (def submit (criterium.viewer.portal/submit #'portal.api/submit))
-  (add-tap #'submit)`
-  (remove-tap #'submit)
-  ``"
-  [portal-submit]
-  (swap! tapped assoc :portal-submit portal-submit)
-  (fn
-    [value]
-    (swap! tapped update :values conj value)))
+(def ^:private chart-height
+  "Height for Kindly vega-lite charts, sized for notebook display."
+  350)
+
+(defn kindly-add
+  "Add a value to the accumulator."
+  [value]
+  (swap! accumulated conj value)
+  nil)
+
+(defn kindly-heading
+  "Add a markdown heading to the accumulator."
+  [s]
+  (kindly-add
+   (with-meta
+     [(str "**" s "**")]
+     {:kindly/kind :kind/md})))
+
+(defn kindly-table
+  "Add a table to the accumulator."
+  [data]
+  (kindly-add
+   (with-meta data {:kindly/kind :kind/table})))
+
+(defn kindly-vega-lite
+  "Add a Vega-Lite chart to the accumulator."
+  [spec]
+  (kindly-add
+   (with-meta
+     (assoc spec :$schema "https://vega.github.io/schema/vega-lite/v5.json")
+     {:kindly/kind :kind/vega-lite})))
 
 (defn flush
-  "Flush tapped output"
+  "Return accumulated values as a kind/fragment and clear the accumulator.
+  Also stores the fragment in `last-fragment` for retrieval after bench completes."
   []
-  (tap> ::_)
-  (loop [i 0]
-    (when (not= ::_ (first (:values @tapped)))
-      (when (< i 1000)
-        (Thread/yield)
-        (recur (unchecked-inc i)))))
+  (let [[values _] (swap-vals! accumulated (constantly []))]
+    (when (seq values)
+      (let [fragment (with-meta values {:kindly/kind :kind/fragment})]
+        (reset! last-fragment fragment)
+        fragment))))
 
-  (let [[{:keys [portal-submit values]}] (swap-vals! tapped assoc :values '())]
-    (doseq [value values]
-      (when (not= ::_ value)
-        (portal-submit value)))))
-
-(defmethod view/flush-viewer :portal [_]
+(defmethod view/flush-viewer :kindly [_]
   (flush))
 
-(defn portal-heading [s]
-  (tap> (with-meta s {:portal.viewer/default :portal.viewer/hiccup})))
-
-(defn portal-table [s]
-  (tap> (with-meta s {:portal.viewer/default :portal.viewer/table})))
-
-(defn portal-vega-lite [s]
-  (tap> (with-meta
-          (assoc s :$schema "https://vega.github.io/schema/vega-lite/v5.json")
-          {:portal.viewer/default :portal.viewer/vega-lite})))
-
-(defn heading [s]
-  (portal-heading [:b s]))
-
-(defmethod view/metrics* :portal
-  [_ {:keys [samples-id]} data-map]
-  (let [samples-id (or samples-id :samples)
-        metrics-samples (data-map samples-id)
-        metrics-defs (:metrics-defs metrics-samples)
-        metric-configs (metric/all-metric-configs metrics-defs)]
-    (portal-table
-     (viewer-common/metrics-map
-      (util/metric->values metrics-samples)
-      metric-configs))))
-
-(defmethod view/stats* :portal
+(defmethod view/stats* :kindly
   [_ {:keys [stats-id metric-ids]} data-map]
   (let [stats-id (or stats-id :stats)
         stats-map (data-map stats-id)
@@ -78,71 +81,46 @@
                          (metric/select-metrics metric-ids))
         metric-configs (metric/all-metric-configs metrics-defs)
         transforms (util/get-transforms data-map stats-id)]
-    (heading "Summary stats")
-    (portal-table
+    (kindly-heading "Summary stats")
+    (kindly-table
      (viewer-common/stats-map
       (util/stats stats-map)
       metric-configs
       transforms))))
 
-(defmethod view/event-stats* :portal
-  [_ {:keys [event-stats-id]} data-map]
-  (let [event-stats-id (or event-stats-id :event-stats)
-        event-stats-map (data-map event-stats-id)
-        metrics-defs (have (:metrics-defs event-stats-map))
-        stats (viewer-common/event-stats
-               metrics-defs
-               (util/event-stats event-stats-map))]
-    (when (seq stats)
-      (heading "Event stats")
-      (portal-table stats))))
-
-(defmethod view/quantiles* :portal
+(defmethod view/quantiles* :kindly
   [_ {:keys [quantiles-id]} data-map]
   (let [quantiles-id (or quantiles-id :quantiles)
         quantiles-map (data-map quantiles-id)
         metrics-defs (:metrics-defs quantiles-map)
         metric-configs (metric/all-metric-configs metrics-defs)
         transforms (util/get-transforms data-map quantiles-id)]
-    (heading "Quantiles")
-    (portal-table
+    (kindly-heading "Quantiles")
+    (kindly-table
      (viewer-common/quantiles
       metric-configs
       (util/quantiles quantiles-map)
       transforms))))
 
-(defmethod view/outlier-counts* :portal
+(defmethod view/outlier-counts* :kindly
   [_ {:keys [outliers-id] :as _view} data-map]
   (let [outliers-id (or outliers-id :outliers)
         outliers-map (data-map outliers-id)
         metrics-defs (:metrics-defs outliers-map)
         metric-configs (metric/all-metric-configs metrics-defs)]
-    (heading "Outliers")
-    (portal-table
+    (kindly-heading "Outliers")
+    (kindly-table
      (viewer-common/outlier-counts
       metric-configs
       (util/outliers outliers-map)))))
 
-(defmethod view/outlier-significance* :portal
-  [_ {:keys [outlier-significance-id] :as _view} data-map]
-  (let [outlier-sig-id (or outlier-significance-id :outlier-significance)
-        outlier-sig-map (data-map outlier-sig-id)
-        outlier-sig (util/outlier-significance outlier-sig-map)
-        metrics-defs (:metrics-defs outlier-sig-map)
-        metric-configs (metric/all-metric-configs metrics-defs)]
-    (heading "Outlier Significance")
-    (portal-table
-     (vec
-      (for [m metric-configs]
-        (get-in outlier-sig (:path m)))))))
-
-(defmethod view/collect-plan* :portal
+(defmethod view/collect-plan* :kindly
   [_ _view data-map]
-  (heading "Collect plan")
-  (portal-table
+  (kindly-heading "Collect plan")
+  (kindly-table
    (viewer-common/collect-plan-data data-map)))
 
-(defmethod view/samples* :portal
+(defmethod view/samples* :kindly
   [_ {:keys [] :as view} data-map]
   (let [quant-samples-id (:samples-id view :samples)
         event-samples-id (:event-samples-id view quant-samples-id)
@@ -166,14 +144,15 @@
                                                          (:path %)))))
 
         transforms (util/get-transforms data-map quant-samples-id)]
-    (heading "Samples")
-    (portal-vega-lite
+    (kindly-heading "Samples")
+    (kindly-vega-lite
      {:data {:values [{}]}
       :encoding {:x {:field "index" :type "quantitative"}}
       :resolve {:scale {:y "independent"}}
       :vconcat
       (into
-       [{:height 800
+       [{:width chart-width
+         :height chart-height
          :layer
          (vec
           (into
@@ -186,13 +165,16 @@
             #(charts/event-layer event-metric->values %)
             e-metrics-defs)))}]
        (mapv
-        #(charts/metric-layer
-          event-metric->values
-          transforms
-          nil %)
+        (fn [mc]
+          {:width chart-width
+           :height chart-height
+           :layer [(charts/metric-layer
+                    event-metric->values
+                    transforms
+                    nil mc)]})
         e-metric-configs))})))
 
-(defmethod view/histogram* :portal
+(defmethod view/histogram* :kindly
   [_ {:keys [histogram-id samples-id stats-id]} data-map]
   (let [histogram-id (or histogram-id :histograms)
         stats-id (or stats-id :stats)
@@ -208,8 +190,8 @@
         hist-transforms (util/get-transforms data-map histogram-id)
         stats-transforms (util/get-transforms data-map (:source-id stats))
         layer-num (volatile! 0)]
-    (heading "Histogram")
-    (portal-vega-lite
+    (kindly-heading "Histogram")
+    (kindly-vega-lite
      {:data {:values []}
       :resolve {:scale {:x "independent"
                         :y "independent"
@@ -217,7 +199,8 @@
       :vconcat (mapv
                 (fn [metric-config]
                   {:resolve {:scale {:x "shared" :y "independent"}}
-                   :height 800
+                   :width chart-width
+                   :height chart-height
                    :layer
                    (into
                     [(charts/metric-computed-histo-layer
@@ -234,7 +217,7 @@
                         (vswap! layer-num unchecked-inc)))))})
                 metric-configs)})))
 
-(defmethod view/sample-percentiles* :portal
+(defmethod view/sample-percentiles* :kindly
   [_ view data-map]
   (let [quant-samples-id (:samples-id view :samples)
         quant-samples (data-map quant-samples-id)
@@ -243,14 +226,15 @@
                           (metric/type-pred :quantitative)))
         metric-configs (metric/all-metric-configs metrics-defs)
         transforms (util/get-transforms data-map quant-samples-id)]
-    (heading "Percentiles")
-    (portal-vega-lite
-     {:data {:values [{}]} ; for portal
-      :height 800
+    (kindly-heading "Percentiles")
+    (kindly-vega-lite
+     {:data {:values []}
       :resolve {:scale {:y "independent"}}
       :vconcat
       (into
-       [{:layer
+       [{:width chart-width
+         :height chart-height
+         :layer
          (vec
           (into
            [(charts/metric-percentile-layer
@@ -258,29 +242,66 @@
              transforms
              (first metric-configs))]))}])})))
 
-(defmethod view/sample-diffs* :portal
+(defmethod view/metrics* :kindly
+  [_ {:keys [samples-id]} data-map]
+  (let [samples-id (or samples-id :samples)
+        metrics-samples (data-map samples-id)
+        metrics-defs (:metrics-defs metrics-samples)
+        metric-configs (metric/all-metric-configs metrics-defs)]
+    (kindly-heading "Metrics")
+    (kindly-table
+     (viewer-common/metrics-map
+      (util/metric->values metrics-samples)
+      metric-configs))))
+
+(defmethod view/event-stats* :kindly
+  [_ {:keys [event-stats-id]} data-map]
+  (let [event-stats-id (or event-stats-id :event-stats)
+        event-stats-map (data-map event-stats-id)
+        metrics-defs (have (:metrics-defs event-stats-map))
+        stats (viewer-common/event-stats
+               metrics-defs
+               (util/event-stats event-stats-map))]
+    (when (seq stats)
+      (kindly-heading "Event stats")
+      (kindly-table stats))))
+
+(defmethod view/outlier-significance* :kindly
+  [_ {:keys [outlier-significance-id] :as _view} data-map]
+  (let [outlier-sig-id (or outlier-significance-id :outlier-significance)
+        outlier-sig-map (data-map outlier-sig-id)
+        outlier-sig (util/outlier-significance outlier-sig-map)
+        metrics-defs (:metrics-defs outlier-sig-map)
+        metric-configs (metric/all-metric-configs metrics-defs)]
+    (kindly-heading "Outlier Significance")
+    (kindly-table
+     (vec
+      (for [m metric-configs]
+        (get-in outlier-sig (:path m)))))))
+
+(defmethod view/sample-diffs* :kindly
   [_ {:keys [] :as view} data-map]
   (let [quant-samples-id (:samples-id view :samples)
         quant-samples (data-map quant-samples-id)
         metric-configs (:metric-configs quant-samples)]
-    (heading "Sample diffs")
-    (portal-vega-lite
-     {:data {:values [{}]} ; for portal
-      :height 800
+    (kindly-heading "Sample diffs")
+    (kindly-vega-lite
+     {:data {:values []}
       :resolve {:scale {:y "independent"}}
       :vconcat
       (into
-       [{:layer
+       [{:width chart-width
+         :height chart-height
+         :layer
          (vec
           (into
            [(charts/metric-diff-layer
              (util/metric->values quant-samples)
              (first metric-configs))]))}])})))
 
-(defmethod view/bootstrap-stats* :portal [_ _ _])
+;;; Noop implementations for views not applicable to Kindly output
 
-(defmethod view/final-gc-warnings* :portal [_ _ _])
-
-(defmethod view/os* :portal [_ _ _])
-
-(defmethod view/runtime* :portal [_ _ _])
+(defmethod view/bootstrap-stats* :kindly [_ _ _])
+(defmethod view/final-gc-warnings* :kindly [_ _ _])
+(defmethod view/os* :kindly [_ _ _])
+(defmethod view/runtime* :kindly [_ _ _])

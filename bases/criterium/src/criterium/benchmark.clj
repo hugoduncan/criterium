@@ -88,8 +88,7 @@
       {:pre [(have? keyword? viewer)
              (have? types/result-map? result)]}
       (run! #(% viewer result) fns)
-      (view/flush-viewer viewer)
-      result)))
+      (or (view/flush-viewer viewer) result))))
 
 (defn ->benchmark
   "Compose a benchmark based on a declarative map.

@@ -41,7 +41,8 @@
      {:samples
       {:type           :criterium/metrics-samples
        :metrics-defs   metrics-defs
-       :metric->values {[:elapsed-time] [1 1]}
+       :metric->values {[:elapsed-time] [1 1]
+                        [:expr-value]   [42 42]}
        :transform      collect-plan/identity-transforms
        :batch-size     1
        :eval-count     2
@@ -180,3 +181,35 @@
        :batch-size     1
        :eval-count     1
        :expr-value     1}}}))
+
+(defn quantiles-map []
+  (let [metrics-defs       (select-keys (metrics/metrics) [:elapsed-time])
+        ;; Filter to only quantitative metrics (matches analyse.clj quantiles behavior)
+        quant-metrics-defs (metric/filter-metrics
+                            metrics-defs
+                            (metric/type-pred :quantitative))]
+    {:data
+     {:samples
+      {:type           :criterium/metrics-samples
+       :metrics-defs   metrics-defs
+       :metric->values {[:elapsed-time] [25 50 75]}
+       :transform      collect-plan/identity-transforms
+       :batch-size     1
+       :eval-count     3
+       :num-samples    3}
+      :quantiles
+      {:type         :criterium/quantiles
+       :metrics-defs quant-metrics-defs
+       :quantiles    {:elapsed-time {0.25 25.0 0.5 50.0 0.75 75.0}}
+       :source-id    :samples
+       :transform    collect-plan/identity-transforms}}}))
+
+(defn collect-plan-map []
+  {:data
+   {:samples    {:batch-size   10
+                 :num-samples  100}
+    :warmup     {:batch-size   5
+                 :num-samples  50}
+    :estimation {:batch-size   1
+                 :num-samples  10}}})
+
