@@ -276,3 +276,11 @@
            [(charts/metric-diff-layer
              (util/metric->values quant-samples)
              (first metric-configs))]))}])})))
+
+(defmethod view/bootstrap-stats* :portal [_ _ _])
+
+(defmethod view/final-gc-warnings* :portal [_ _ _])
+
+(defmethod view/os* :portal [_ _ _])
+
+(defmethod view/runtime* :portal [_ _ _])
