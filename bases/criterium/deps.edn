@@ -7,7 +7,8 @@
             {local/agent {:local/root "../agent"}
              org.clojure/clojure {:mvn/version "1.11.2"}
              expound/expound {:mvn/version "0.9.0"}
-             org.clojure/test.check {:mvn/version "1.1.1"}}}
+             org.clojure/test.check {:mvn/version "1.1.1"}
+             org.scicloj/clay {:mvn/version "2.0.3"}}}
            :kaocha {:extra-deps
                     {lambdaisland/kaocha {:mvn/version "1.91.1392"}
                      lambdaisland/kaocha-cloverage {:mvn/version "1.1.89"}
