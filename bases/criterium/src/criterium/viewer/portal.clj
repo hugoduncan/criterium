@@ -77,13 +77,14 @@
         metrics-defs (-> (:metrics-defs stats-map)
                          (metric/select-metrics metric-ids))
         metric-configs (metric/all-metric-configs metrics-defs)
-        transforms (util/get-transforms data-map stats-id)]
-    (heading "Summary stats")
-    (portal-table
-     (viewer-common/stats-map
-      (util/stats stats-map)
-      metric-configs
-      transforms))))
+        transforms     (util/get-transforms data-map stats-id)]
+    (when (seq metric-configs)
+      (heading "Summary stats")
+      (portal-table
+       (viewer-common/stats-map
+        (util/stats stats-map)
+        metric-configs
+        transforms)))))
 
 (defmethod view/event-stats* :portal
   [_ {:keys [event-stats-id]} data-map]
