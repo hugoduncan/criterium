@@ -28,12 +28,13 @@
                            (metric/select-metrics metric-ids))
         metric-configs (metric/all-metric-configs metrics-defs)
         transforms     (util/get-transforms data-map stats-id)]
-    (pprint/print-table
-     [:_metric :mean-minus-3sigma :mean :mean-plus-3sigma :min-val :max-val]
-     (viewer-common/stats-map
-      (util/stats stats-map)
-      metric-configs
-      transforms))))
+    (when (seq metric-configs)
+      (pprint/print-table
+       [:_metric :mean-minus-3sigma :mean :mean-plus-3sigma :min-val :max-val]
+       (viewer-common/stats-map
+        (util/stats stats-map)
+        metric-configs
+        transforms)))))
 
 (defmethod view/quantiles* :pprint
   [_ {:keys [quantiles-id]} data-map]

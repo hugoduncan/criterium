@@ -20,8 +20,9 @@
    "| Elapsed Time ns |                1.0 |   1.0 |               1.0 |      1.0 |      1.0 |"])
 
 (deftest pprint-stats-test
-  (testing "print-stats"
-    (testing "prints via output-view"
+  ;; Verifies stats display with conditional output behavior.
+  (testing "view/stats*"
+    (testing "displays stats when metrics match"
       (is (= expected-stats-1
              (trimmed-lines
               (with-out-str
@@ -38,7 +39,14 @@
                 (with-out-str
                   (->> data-map
                        stats
-                       (view-stats :pprint))))))))))
+                       (view-stats :pprint))))))))
+    (testing "outputs nothing when metric-ids filter yields no matching metrics"
+      (is (= ""
+             (with-out-str
+               (view/stats*
+                :pprint
+                {:metric-ids [:nonexistent-metric]}
+                (:data (test-data/bench-stats-map)))))))))
 
 (def expected-counts
   [""
