@@ -357,11 +357,11 @@
    {:n (domain/n-log-n-range 8 1000 4)}
    ;; Implementations to compare
    {:sort
-    {:measured     (measured/expr (vec (range 100)))
+    {:measured (measured/expr (vec (range 100)))
      :args-builder (fn [{:keys [n]}]
                      (fn [] [(mapv rand-int (repeat n 10000))]))}
     :sort-by
-    {:measured     (measured/expr (sort-by identity (vec (range 100))))
+    {:measured (measured/expr (sort-by identity (vec (range 100))))
      ;; Must provide both args: identity function AND collection
      :args-builder (fn [{:keys [n]}]
                      (fn []
@@ -395,6 +395,41 @@
 ;; 2. Sorts by `:time-axis` (default: first axis) ascending
 ;; 3. Runs all coordinates for each implementation before moving to the next
 ;; 4. After 2+ runs, estimates time limits using regression on previous results
+
+;; ### Collecting Additional Metrics
+;;
+;; Pass `:bench-options` to collect metrics beyond elapsed time.
+;; Here we add thread allocation tracking:
+
+(def builder-domain-with-alloc
+  (domain/domain-builder
+   {:n (domain/n-log-n-range 8 1000 4)}
+   {:sort
+    {:measured (measured/expr (vec (range 100)))
+     :args-builder (fn [{:keys [n]}]
+                     (fn [] [(mapv rand-int (repeat n 10000))]))}
+    :sort-by
+    {:measured (measured/expr (sort-by identity (vec (range 100))))
+     :args-builder (fn [{:keys [n]}]
+                     (fn [] [identity (mapv rand-int (repeat n 10000))]))}}
+   :bench-options {:metric-ids [:elapsed-time :thread-allocation]}
+   :reporter nil))
+
+;; Extract allocation data across runs:
+
+(domain/extract builder-domain-with-alloc [:stats :thread-allocation :mean])
+
+;; Compare allocations between implementations:
+
+(domain/compare-by builder-domain-with-alloc :impl [:stats :thread-allocation :mean])
+
+;; View allocation comparison as a table:
+
+((view/domain-comparison {:comparison-id :alloc})
+ :kindly
+ {:alloc (domain/compare-by builder-domain-with-alloc
+                            :impl
+                            [:stats :thread-allocation :mean])})
 
 ;; ## Summary
 ;;
