@@ -524,20 +524,25 @@
                                      [1 ""])
                 ;; Combined scale factor
                 total-scale (* base-scale si-scale)
+                ;; Get best-fit model function
+                best-model (first (filter #(= (:id %) best-fit) models))
+                model-fn (regression-model-fn best-fit (:coefficients best-model))
                 ;; Create data points with SI scaling (including error bounds if available)
                 points (mapv (fn [[coord v]]
-                               (let [y-val (if has-error-bounds? (:value v) v)]
-                                 (cond-> {"x" (double (get coord axis))
+                               (let [y-val (if has-error-bounds? (:value v) v)
+                                     x-val (double (get coord axis))
+                                     predicted (model-fn x-val)]
+                                 (cond-> {"x" x-val
                                           "y" (* y-val total-scale)
+                                          "predicted" (* predicted total-scale)
+                                          "residual" (* (- y-val predicted) total-scale)
                                           "type" "actual"}
                                    has-error-bounds?
                                    (assoc "yLower" (* (:lower v) total-scale)
                                           "yUpper" (* (:upper v) total-scale)))))
                              valid-data)
                 ;; Generate predicted line from best-fit model
-                best-model (first (filter #(= (:id %) best-fit) models))
-                model-fn (regression-model-fn best-fit (:coefficients best-model))
-                x-vals (mapv #(double (get (first %) axis)) valid-data)
+                x-vals (mapv #(get % "x") points)
                 x-min (apply min x-vals)
                 x-max (apply max x-vals)
                 ;; Generate points for curve (apply same scaling)
@@ -551,6 +556,9 @@
                 y-title (if (seq si-unit)
                           (str (pr-str metric) " (" si-unit ")")
                           (pr-str metric))
+                residual-title (if (seq si-unit)
+                                 (str "Residual (" si-unit ")")
+                                 "Residual")
                 ;; Build chart layers
                 point-layer {:data {:values points}
                              :mark {:type "point" :size 60}
@@ -575,10 +583,30 @@
                                           :opacity {:value 0.5}}})
                 layers (cond-> [point-layer line-layer]
                          has-error-bounds? (conj error-layer))]
+            ;; Main regression chart
             (kindly-vega-lite
              {:width chart-width
               :height chart-height
-              :layer layers})))))))
+              :layer layers})
+            ;; Residual plot - helps diagnose heteroscedasticity
+            ;; Constant spread = homoscedastic (OLS optimal)
+            ;; Fan-shaped spread = heteroscedastic (WLS may help)
+            (kindly-heading "Residual Plot")
+            (kindly-vega-lite
+             {:width chart-width
+              :height (/ chart-height 2)
+              :layer [{:data {:values points}
+                       :mark {:type "point" :size 60}
+                       :encoding {:x {:field "predicted" :type "quantitative"
+                                      :title "Fitted Value"}
+                                  :y {:field "residual" :type "quantitative"
+                                      :title residual-title}
+                                  :color {:value "steelblue"}}}
+                      ;; Zero reference line
+                      {:data {:values [{"y" 0}]}
+                       :mark {:type "rule" :strokeDash [4 4]}
+                       :encoding {:y {:field "y" :type "quantitative"}
+                                  :color {:value "gray"}}}]})))))))
 
 ;;; Noop implementations for views not applicable to Kindly output
 

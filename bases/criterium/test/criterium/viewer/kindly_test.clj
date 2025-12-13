@@ -625,9 +625,9 @@
 (deftest domain-regression-view-test
   ;; Tests the view/domain-regression* multimethod for :kindly viewer.
   ;; Verifies that domain regression data is rendered as heading, model table,
-  ;; and Vega-Lite scatter/line chart.
+  ;; scatter/line chart, and residual plot.
   (testing "view/domain-regression* :kindly"
-    (testing "renders regression as heading, table, and chart"
+    (testing "renders regression as heading, table, chart, and residual plot"
       (reset! kindly/accumulated [])
       (let [data-map {:extract {:type :criterium/domain-extract
                                 :metric [:stats :elapsed-time :mean]
@@ -650,9 +650,9 @@
         (view/domain-regression* :kindly {} data-map)
         (let [result (kindly/flush)]
           (is (= :kind/fragment (:kindly/kind (meta result))))
-          (is (= 3 (count result))
-              "Expected heading, table, and chart")
-          (let [[heading table chart] result]
+          (is (= 5 (count result))
+              "Expected heading, table, chart, residual heading, residual chart")
+          (let [[heading table chart residual-heading residual-chart] result]
             (is (= :kind/md (:kindly/kind (meta heading))))
             (is (clojure.string/includes? (first heading) "Domain Regression"))
             (is (= :kind/table (:kindly/kind (meta table))))
@@ -664,7 +664,13 @@
                 "Expected :r-squared column")
             (is (= :kind/vega-lite (:kindly/kind (meta chart))))
             (is (= 2 (count (:layer chart)))
-                "Expected 2 layers: scatter and line")))))
+                "Expected 2 layers: scatter and line")
+            ;; Residual plot
+            (is (= :kind/md (:kindly/kind (meta residual-heading))))
+            (is (clojure.string/includes? (first residual-heading) "Residual"))
+            (is (= :kind/vega-lite (:kindly/kind (meta residual-chart))))
+            (is (= 2 (count (:layer residual-chart)))
+                "Expected 2 layers: scatter and zero line")))))
 
     (testing "renders table only when no extract data"
       (reset! kindly/accumulated [])
