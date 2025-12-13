@@ -50,7 +50,8 @@
 
 (def sort-inputs
   "Pre-generated random vectors for each size."
-  (into {} (map (fn [n] [n (vec (repeatedly n #(rand-int 10000)))]) sort-sizes)))
+  (into {}
+        (map (fn [n] [n (mapv rand-int (repeat n 10000))]) sort-sizes)))
 
 ;; Run benchmarks and accumulate results:
 
@@ -106,12 +107,10 @@
 ;;
 ;; Build a domain comparing `sort` vs `sort-by`:
 
-^:kindly/hide-code
 (def impl-inputs
   "Shared inputs for implementation comparison."
-  (into {} (map (fn [n] [n (vec (repeatedly n #(rand-int 10000)))]) [100 500])))
+  (into {} (map (fn [n] [n (mapv rand-int (repeat n 10000))]) [100 500])))
 
-^:kindly/hide-code
 (defn build-impl-domain
   "Build domain comparing sort implementations."
   []
@@ -124,10 +123,8 @@
    (domain/domain)
    impl-inputs))
 
-^:kindly/hide-code
-(kind/md "Building domain comparing implementations...")
+;;"Building domain comparing implementations..."
 
-^:kindly/hide-code
 (def impl-domain (build-impl-domain))
 
 ;; Group by implementation:
@@ -188,7 +185,7 @@
 (def scaling-sizes (domain/powers-of-2 4 9))
 
 (def scaling-inputs
-  (into {} (map (fn [n] [n (vec (repeatedly n #(rand-int 10000)))]) scaling-sizes)))
+  (into {} (map (fn [n] [n (mapv rand-int (repeat n 10000))]) scaling-sizes)))
 
 (defn build-scaling-domain
   "Build domain for scaling analysis."
@@ -353,16 +350,15 @@
    {:n [100 500 1000]}
    ;; Implementations to compare
    {:sort
-    {:measured (let [coll (vec (range 100))]
-                 (measured/expr (sort coll)))
+    {:measured     (measured/expr (vec (range 100)))
      :args-builder (fn [{:keys [n]}]
-                     (fn [] [(vec (repeatedly n #(rand-int 10000)))]))}
+                     (fn [] [(mapv rand-int (repeat n 10000))]))}
     :sort-by
-    {:measured (let [coll (vec (range 100))]
-                 (measured/expr (sort-by identity coll)))
+    {:measured     (measured/expr (sort-by identity (vec (range 100))))
      ;; Must provide both args: identity function AND collection
      :args-builder (fn [{:keys [n]}]
-                     (fn [] [identity (vec (repeatedly n #(rand-int 10000)))]))}}
+                     (fn []
+                       [identity (mapv rand-int (repeat n 10000))]))}}
    ;; Options
    :reporter nil)) ; nil for silent, or use (domain/dot-reporter)
 
