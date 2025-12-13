@@ -357,6 +357,52 @@
     (let [step (/ (- end start) (dec n))]
       (map #(long (Math/round (double (+ start (* % step))))) (range n)))))
 
+(defn- invert-n-log-n
+  "Solve x*ln(x) = y for x using Newton-Raphson iteration.
+  f(x) = x*ln(x) - y, f'(x) = ln(x) + 1
+  x_{n+1} = x_n - f(x_n)/f'(x_n)"
+  [y initial-guess]
+  (let [max-iterations 50
+        tolerance 1e-10]
+    (loop [x initial-guess
+           i 0]
+      (if (>= i max-iterations)
+        x
+        (let [ln-x (Math/log x)
+              fx (- (* x ln-x) y)
+              fpx (+ ln-x 1.0)]
+          (if (< (Math/abs fx) tolerance)
+            x
+            (recur (- x (/ fx fpx)) (inc i))))))))
+
+(defn n-log-n-range
+  "Generate n values from start to end spaced along an n*log(n) curve.
+  Values are rounded to integers.
+
+  Useful for testing algorithms with O(n log n) complexity where you want
+  denser sampling at smaller sizes and sparser sampling at larger sizes.
+
+  Start must be >= e^-1 (approximately 0.368) where x*ln(x) has its minimum.
+
+  Examples:
+  (n-log-n-range 10 10000 5)  ;=> sequence of 5 values from 10 to 10000"
+  [start end n]
+  (have #(>= % (/ 1.0 Math/E)) start {:msg "start must be >= e^-1"})
+  (if (= n 1)
+    (list (long start))
+    (let [f (fn [x] (* x (Math/log x)))
+          y-start (f start)
+          y-end (f end)
+          y-step (/ (- y-end y-start) (dec n))]
+      (map (fn [i]
+             (let [y (+ y-start (* i y-step))]
+               (if (zero? i)
+                 (long start)
+                 (if (= i (dec n))
+                   (long end)
+                   (long (Math/round (invert-n-log-n y start)))))))
+           (range n)))))
+
 ;;; Analysis Pipeline
 ;;
 ;; These functions return transformers for use in composable analysis pipelines.
@@ -846,17 +892,17 @@
                                                (get-in data [:samples :total-benchmark-time-ns]))]
                                  [coord time-ns]))
                              impl-runs)
-          extract      {:type   :criterium/domain-extract
-                        :metric [:samples :total-benchmark-time-ns]
-                        :data   extract-data}
-          regression   (fit-complexity extract time-axis)
-          best-model   (first (filter #(= (:id %) (:best-fit regression))
-                                      (:models regression)))
-          next-x       (get next-coord time-axis)]
+          extract {:type :criterium/domain-extract
+                   :metric [:samples :total-benchmark-time-ns]
+                   :data extract-data}
+          regression (fit-complexity extract time-axis)
+          best-model (first (filter #(= (:id %) (:best-fit regression))
+                                    (:models regression)))
+          next-x (get next-coord time-axis)]
       (if (and best-model next-x (> (:r-squared best-model) 0.5))
         (let [predicted-ns (predict-time-ns best-model next-x)
               ;; Convert ns to seconds with margin
-              predicted-s  (* 2.1 (/ predicted-ns 1e9))]
+              predicted-s (* 2.1 (/ predicted-ns 1e9))]
           (max predicted-s initial-limit-time-s))
         initial-limit-time-s))))
 

@@ -709,6 +709,37 @@
     (testing "handles single point"
       (is (= [500] (domain/linear-range 500 500 1))))))
 
+;; Tests n-log-n-range generates values spaced along an n*log(n) curve.
+;; Contracts: correct count, endpoints match, values strictly increasing,
+;; edge cases (single point, 2 points), start validation, and even spacing
+;; in the n*log(n) domain.
+(deftest n-log-n-range-test
+  (testing "n-log-n-range"
+    (testing "generates correct count of values"
+      (is (= 5 (count (domain/n-log-n-range 10 10000 5)))))
+    (testing "first value equals start"
+      (is (= 10 (first (domain/n-log-n-range 10 10000 5)))))
+    (testing "last value equals end"
+      (is (= 10000 (last (domain/n-log-n-range 10 10000 5)))))
+    (testing "produces strictly increasing values"
+      (let [result (domain/n-log-n-range 10 10000 5)]
+        (is (apply < result))))
+    (testing "produces evenly spaced values in n*log(n) domain"
+      (let [result (domain/n-log-n-range 10 10000 7)
+            f (fn [x] (* x (Math/log x)))
+            y-values (map f result)
+            diffs (map - (rest y-values) y-values)
+            mean-diff (/ (reduce + diffs) (count diffs))
+            ;; Allow 1% tolerance for rounding errors
+            tolerance (* 0.01 mean-diff)]
+        (is (every? #(< (Math/abs (- % mean-diff)) tolerance) diffs))))
+    (testing "handles 2-point range"
+      (is (= [10 1000] (domain/n-log-n-range 10 1000 2))))
+    (testing "handles single point"
+      (is (= [500] (domain/n-log-n-range 500 500 1))))
+    (testing "throws for start below e^-1"
+      (is (thrown? AssertionError (domain/n-log-n-range 0.1 100 5))))))
+
 ;; Tests for domain analysis pipeline functions.
 ;; Validates composable analysis transformers that operate on data-maps,
 ;; following the same pattern as criterium.analyse functions.

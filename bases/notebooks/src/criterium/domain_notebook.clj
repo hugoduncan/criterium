@@ -178,6 +178,13 @@
 
 (domain/linear-range 100 1000 5)
 
+;; ### N Log N Range
+;;
+;; Values spaced along an n*log(n) curve - useful for testing O(n log n)
+;; algorithms like merge sort where you want denser sampling at larger sizes:
+
+(domain/n-log-n-range 10 10000 5)
+
 ;; ### Example: O(n log n) Scaling
 ;;
 ;; Benchmark sort across powers of 2 to observe n log n behavior:
@@ -350,11 +357,11 @@
    {:n [100 500 1000]}
    ;; Implementations to compare
    {:sort
-    {:measured     (measured/expr (vec (range 100)))
+    {:measured (measured/expr (vec (range 100)))
      :args-builder (fn [{:keys [n]}]
                      (fn [] [(mapv rand-int (repeat n 10000))]))}
     :sort-by
-    {:measured     (measured/expr (sort-by identity (vec (range 100))))
+    {:measured (measured/expr (sort-by identity (vec (range 100))))
      ;; Must provide both args: identity function AND collection
      :args-builder (fn [{:keys [n]}]
                      (fn []
