@@ -340,17 +340,41 @@
   (when (some? value)
     (* value (metric-path->base-scale metric-path))))
 
+(defn- format-extract-value-with-unit
+  "Format a value from domain-extract as a string with SI units."
+  [value metric-path]
+  (when (some? value)
+    (let [base-value (* value (metric-path->base-scale metric-path))
+          dimension (metric-path->dimension metric-path)]
+      (if dimension
+        (format/format-value dimension base-value)
+        (format "%g" (double base-value))))))
+
 (defmethod view/domain-extract* :kindly
   [_ {:keys [extract-id]} data-map]
   (let [extract-id (or extract-id :extract)
         extract (data-map extract-id)]
     (when extract
-      (let [{:keys [metric data]} extract]
+      (let [{:keys [metric data]} extract
+            ;; Convert to base units and compute SI scale
+            base-scale (metric-path->base-scale metric)
+            valid-values (keep (fn [[_ v]] (when v (* v base-scale))) data)
+            dimension (metric-path->dimension metric)
+            representative-value (when (seq valid-values)
+                                   (/ (reduce + valid-values) (count valid-values)))
+            [si-scale si-unit] (if (and dimension representative-value)
+                                 (format/scale dimension representative-value)
+                                 [1 ""])
+            ;; Build header with unit
+            value-header (if (seq si-unit)
+                           (str "value (" si-unit ")")
+                           "value")]
         (kindly-heading (str "Domain Extract: " (pr-str metric)))
         (kindly-table
          (mapv (fn [[coord value]]
                  {:coordinate (format-coord coord)
-                  :value (format-extract-value value metric)})
+                  value-header (when value
+                                 (format "%.3g" (* (* value base-scale) si-scale)))})
                data))))))
 
 (defmethod view/domain-grouped* :kindly
@@ -374,7 +398,6 @@
       (let [{:keys [axis metric data]} comparison
             axis-vals (sort-by str (keys data))]
         (when (and (seq data) (some #(seq (second %)) data))
-          (kindly-heading (str "Domain Comparison by " (name axis) ": " (pr-str metric)))
           ;; Build table rows: one row per unique coord (minus axis)
           (let [all-entries (mapcat (fn [[axis-val entries]]
                                       (map #(assoc % :axis-val axis-val) entries))
@@ -393,14 +416,32 @@
                                                  coord)]
                                    (assoc-in acc [row-key axis-val] value)))
                                {}
-                               all-entries)]
+                               all-entries)
+                ;; Compute SI scale from all values
+                base-scale (metric-path->base-scale metric)
+                all-values (keep :value all-entries)
+                valid-base-values (map #(* % base-scale) all-values)
+                dimension (metric-path->dimension metric)
+                representative-value (when (seq valid-base-values)
+                                       (/ (reduce + valid-base-values)
+                                          (count valid-base-values)))
+                [si-scale si-unit] (if (and dimension representative-value)
+                                     (format/scale dimension representative-value)
+                                     [1 ""])
+                ;; Build heading with unit
+                heading (str "Domain Comparison by " (name axis) ": "
+                             (pr-str metric)
+                             (when (seq si-unit) (str " (" si-unit ")")))]
+            (kindly-heading heading)
             (kindly-table
              (mapv (fn [row-key]
                      (into {:coordinate (format-coord row-key)}
                            (map (fn [av]
-                                  [(str av) (format-extract-value
-                                             (get-in lookup [row-key av])
-                                             metric)])
+                                  (let [raw-value (get-in lookup [row-key av])]
+                                    [(str av)
+                                     (when raw-value
+                                       (format "%.3g" (* (* raw-value base-scale)
+                                                         si-scale)))]))
                                 axis-vals)))
                    row-keys))))))))
 

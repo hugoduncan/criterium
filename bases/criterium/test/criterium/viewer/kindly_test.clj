@@ -492,9 +492,9 @@
 (deftest domain-extract-view-test
   ;; Tests the view/domain-extract* multimethod for :kindly viewer.
   ;; Verifies that domain extract data is rendered as heading and table with
-  ;; coordinate and value columns.
+  ;; coordinate and value columns. Values use SI scaling with unit in header.
   (testing "view/domain-extract* :kindly"
-    (testing "renders extract as heading and table"
+    (testing "renders extract as heading and table with SI units"
       (reset! kindly/accumulated [])
       (let [data-map {:extract {:type :criterium/domain-extract
                                 :metric [:stats :elapsed-time :mean]
@@ -515,8 +515,13 @@
                 "Expected 3 rows for 3 data points")
             (is (every? #(contains? % :coordinate) table)
                 "Expected :coordinate column")
-            (is (every? #(contains? % :value) table)
-                "Expected :value column")))))
+            ;; Value column header includes SI unit (e.g., "value (ms)")
+            (let [value-key (first (filter #(clojure.string/starts-with?
+                                             (str %) "value")
+                                           (keys (first table))))]
+              (is value-key "Expected value column with SI unit in header")
+              (is (clojure.string/includes? (str value-key) "(")
+                  "Expected unit in parentheses"))))))
 
     (testing "handles nil extract gracefully"
       (reset! kindly/accumulated [])
@@ -531,9 +536,12 @@
                                        [{:n 1000} 1e7]]}}]
         (view/domain-extract* :kindly {} data-map)
         (let [result (kindly/flush)
-              [_ table] result]
+              [_ table] result
+              value-key (first (filter #(clojure.string/starts-with?
+                                         (str %) "value")
+                                       (keys (first table))))]
           (is (= 2 (count table)))
-          (is (nil? (:value (first table)))))))))
+          (is (nil? (get (first table) value-key))))))))
 
 (deftest domain-grouped-view-test
   ;; Tests the view/domain-grouped* multimethod for :kindly viewer.
