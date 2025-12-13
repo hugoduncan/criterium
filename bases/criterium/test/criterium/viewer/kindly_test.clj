@@ -625,9 +625,9 @@
 (deftest domain-regression-view-test
   ;; Tests the view/domain-regression* multimethod for :kindly viewer.
   ;; Verifies that domain regression data is rendered as heading, model table,
-  ;; scatter/line chart, and residual plot.
+  ;; scatter/line chart, and a combined residual plot for models within tolerance.
   (testing "view/domain-regression* :kindly"
-    (testing "renders regression as heading, table, chart, and residual plot"
+    (testing "renders regression with single model within default tolerance"
       (reset! kindly/accumulated [])
       (let [data-map {:extract {:type :criterium/domain-extract
                                 :metric [:stats :elapsed-time :mean]
@@ -647,6 +647,8 @@
                                              :coefficients {:a 0.1 :b 100000.0}
                                              :r-squared 0.85}]
                                    :best-fit :linear}}]
+        ;; With default 1% tolerance, only linear (0.9999) is plotted
+        ;; quadratic (0.85) is well below threshold (0.9999 * 0.99 = 0.9899)
         (view/domain-regression* :kindly {} data-map)
         (let [result (kindly/flush)]
           (is (= :kind/fragment (:kindly/kind (meta result))))
@@ -662,15 +664,78 @@
                 "Expected :model column")
             (is (every? #(contains? % :r-squared) table)
                 "Expected :r-squared column")
+
             (is (= :kind/vega-lite (:kindly/kind (meta chart))))
             (is (= 2 (count (:layer chart)))
                 "Expected 2 layers: scatter and line")
-            ;; Residual plot
+            ;; Combined residual plot
             (is (= :kind/md (:kindly/kind (meta residual-heading))))
             (is (clojure.string/includes? (first residual-heading) "Residual"))
             (is (= :kind/vega-lite (:kindly/kind (meta residual-chart))))
             (is (= 2 (count (:layer residual-chart)))
                 "Expected 2 layers: scatter and zero line")))))
+
+    (testing "renders combined residual plot when multiple models within tolerance"
+      (reset! kindly/accumulated [])
+      (let [data-map {:extract {:type :criterium/domain-extract
+                                :metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100} 1e6]
+                                       [{:n 200} 2e6]
+                                       [{:n 400} 4e6]
+                                       [{:n 800} 8e6]]}
+                      :regression {:type :criterium/domain-regression
+                                   :axis :n
+                                   :metric [:stats :elapsed-time :mean]
+                                   :models [{:id :linear
+                                             :label "O(n)"
+                                             :coefficients {:a 10000.0 :b 0.0}
+                                             :r-squared 0.9999}
+                                            {:id :n-log-n
+                                             :label "O(n log n)"
+                                             :coefficients {:a 1000.0 :b 0.0}
+                                             :r-squared 0.9995}]
+                                   :best-fit :linear}}]
+        ;; Both models within 1% tolerance (0.9999 * 0.99 = 0.9899)
+        (view/domain-regression* :kindly {} data-map)
+        (let [result (kindly/flush)]
+          (is (= 5 (count result))
+              "Expected heading, table, chart, residual heading, residual chart")
+          (let [[_ table chart _ residual-chart] result]
+            ;; Chart should use color legend for multiple models
+            (is (contains? (get-in chart [:layer 1 :encoding :color]) :field))
+            ;; Residual chart should also use color legend
+            (is (contains? (get-in residual-chart [:layer 0 :encoding :color]) :field)
+                "Residual chart should have color encoding by model")))))
+
+    (testing "respects custom tolerance parameter"
+      (reset! kindly/accumulated [])
+      (let [data-map {:extract {:type :criterium/domain-extract
+                                :metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100} 1e6]
+                                       [{:n 200} 2e6]
+                                       [{:n 400} 4e6]
+                                       [{:n 800} 8e6]]}
+                      :regression {:type :criterium/domain-regression
+                                   :axis :n
+                                   :metric [:stats :elapsed-time :mean]
+                                   :models [{:id :linear
+                                             :label "O(n)"
+                                             :coefficients {:a 10000.0 :b 0.0}
+                                             :r-squared 0.9999}
+                                            {:id :quadratic
+                                             :label "O(n²)"
+                                             :coefficients {:a 0.1 :b 100000.0}
+                                             :r-squared 0.85}]
+                                   :best-fit :linear}}]
+        ;; With 20% tolerance, quadratic (0.85) is within threshold
+        ;; (0.9999 * 0.80 = 0.7999)
+        (view/domain-regression* :kindly {:tolerance 0.20} data-map)
+        (let [result (kindly/flush)]
+          (is (= 5 (count result))
+              "Expected heading, table, chart, residual heading, residual chart")
+          ;; Verify residual chart has color encoding for multiple models
+          (let [residual-chart (nth result 4)]
+            (is (contains? (get-in residual-chart [:layer 0 :encoding :color]) :field))))))
 
     (testing "renders table only when no extract data"
       (reset! kindly/accumulated [])

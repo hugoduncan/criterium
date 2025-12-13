@@ -18,14 +18,14 @@
            (str/trim
             (with-out-str
               (print/print-stat
-               {:label     "Elapsed Time"
-                :scale     1e-9
+               {:label "Elapsed Time"
+                :scale 1e-9
                 :dimension :time}
-               {:mean              100.0
-                :variance          16.0
-                :mean-plus-3sigma  112.0
+               {:mean 100.0
+                :variance 16.0
+                :mean-plus-3sigma 112.0
                 :mean-minus-3sigma 88.0
-                :min-val           89.0}
+                :min-val 89.0}
                [collect-plan/identity-transforms])))))))
 
 (defn identity-transform [samples]
@@ -43,8 +43,8 @@
                  (:data (test-data/bench-stats-map)))))))
 
       (is (= ["Elapsed Time: 1.00 ns  3σ [1.00 1.00]  min 1.00"]
-             (let [data-map   (:data (test-data/samples-with-2-values-map))
-                   stats      (analyse/stats)
+             (let [data-map (:data (test-data/samples-with-2-values-map))
+                   stats (analyse/stats)
                    view-stats (view/stats)]
                (trimmed-lines
                 (with-out-str
@@ -62,8 +62,8 @@
                  (:data (test-data/bench-stats-map)))))))
 
       (is (= ["Elapsed Time: 1.00 ns  3σ [1.00 1.00]  min 1.00"]
-             (let [data-map   (:data (test-data/samples-with-2-values-map))
-                   stats      (analyse/stats)
+             (let [data-map (:data (test-data/samples-with-2-values-map))
+                   stats (analyse/stats)
                    view-stats (view/stats)]
                (trimmed-lines
                 (with-out-str
@@ -80,8 +80,8 @@
                  (:data (test-data/bench-stats-map)))))))
 
       (is (= ["Elapsed Time: 5.00 ns  3σ [-5.39 15.4]  min 1.00"]
-             (let [data-map   (:data (test-data/samples-with-variance-12-map))
-                   stats      (analyse/stats)
+             (let [data-map (:data (test-data/samples-with-variance-12-map))
+                   stats (analyse/stats)
                    view-stats (view/stats)]
                (trimmed-lines
                 (with-out-str
@@ -95,8 +95,8 @@
                         [:samples]
                         merge
                         {:batch-size 2
-                         :transform  (#'collect-plan/batch-transforms 2)}))
-                   stats      (analyse/stats)
+                         :transform (#'collect-plan/batch-transforms 2)}))
+                   stats (analyse/stats)
                    view-stats (view/stats)]
                (trimmed-lines
                 (with-out-str
@@ -114,22 +114,22 @@
               (print/print-bootstrap-stat
                {:scale 1e-9 :dimension :time :path [:elapsed-time]
                 :label "Elapsed Time"}
-               {:mean              {:point-estimate 100.0
-                                    :estimate-quantiles
-                                    [{:value 95.0 :alpha 0.05}
-                                     {:value 105.0 :alpha 0.95}]}
-                :variance          {:point-estimate 16.0
-                                    :estimate-quantiles
-                                    [{:value 9.0 :alpha 0.05}
-                                     {:value 25.0 :alpha 0.95}]}
-                :min-val           {:point-estimate 16.0
-                                    :estimate-quantiles
-                                    [{:value 9.0 :alpha 0.05}
-                                     {:value 25.0 :alpha 0.95}]}
-                :mean-plus-3sigma  {:point-estimate 124.0
-                                    :estimate-quantiles
-                                    [{:value 9.0 :alpha 0.05}
-                                     {:value 25.0 :alpha 0.95}]}
+               {:mean {:point-estimate 100.0
+                       :estimate-quantiles
+                       [{:value 95.0 :alpha 0.05}
+                        {:value 105.0 :alpha 0.95}]}
+                :variance {:point-estimate 16.0
+                           :estimate-quantiles
+                           [{:value 9.0 :alpha 0.05}
+                            {:value 25.0 :alpha 0.95}]}
+                :min-val {:point-estimate 16.0
+                          :estimate-quantiles
+                          [{:value 9.0 :alpha 0.05}
+                           {:value 25.0 :alpha 0.95}]}
+                :mean-plus-3sigma {:point-estimate 124.0
+                                   :estimate-quantiles
+                                   [{:value 9.0 :alpha 0.05}
+                                    {:value 25.0 :alpha 0.95}]}
                 :mean-minus-3sigma {:point-estimate 76.0
                                     :estimate-quantiles
                                     [{:value 9.0 :alpha 0.05}
@@ -139,19 +139,19 @@
             "Elapsed Time 3σ: [1.00 1.00] ns"]
            (let [data-map
                  {:samples
-                  {:type           :criterium/collected-metrics-samples
+                  {:type :criterium/collected-metrics-samples
                    :metric->values {[:elapsed-time] [1 1 1]}
-                   :metrics-defs   (select-keys
-                                    (metrics/metrics)
-                                    [:elapsed-time])
-                   :transform      collect-plan/identity-transforms
-                   :batch-size     1
-                   :eval-count     1
-                   :elapsed-time   1}}
+                   :metrics-defs (select-keys
+                                  (metrics/metrics)
+                                  [:elapsed-time])
+                   :transform collect-plan/identity-transforms
+                   :batch-size 1
+                   :eval-count 1
+                   :elapsed-time 1}}
                  bootstrap (bootstrap/bootstrap-stats
-                            {:quantiles          [0.025 0.975]
+                            {:quantiles [0.025 0.975]
                              :estimate-quantiles [0.025 0.975]})
-                 view      (view/bootstrap-stats {})]
+                 view (view/bootstrap-stats {})]
              (trimmed-lines
               (with-out-str
                 (->> data-map
@@ -167,9 +167,9 @@
              (let [bench-map
                    (:data (test-data/samples-with-outliers-values-map))
                    quantiles (analyse/quantiles {:quantiles [0.9 0.99 0.99]})
-                   outliers  (analyse/outliers)
-                   stats     (analyse/stats)
-                   view      (view/samples)]
+                   outliers (analyse/outliers)
+                   stats (analyse/stats)
+                   view (view/samples)]
                (trimmed-lines
                 (with-out-str
                   (->> bench-map
@@ -234,9 +234,9 @@
             "JIT compilation: ran for 3.00 ms in 1 samples"
             (str "Garbage Collector: ran 2 times for a total of 1.00 ms "
                  "in 1 samples")]
-           (let [data-map    (:data (test-data/samples-for-event-stats-map))
+           (let [data-map (:data (test-data/samples-for-event-stats-map))
                  event-stats (analyse/event-stats)
-                 view        (view/event-stats)]
+                 view (view/event-stats)]
              (trimmed-lines
               (with-out-str
                 (->> data-map
@@ -255,41 +255,41 @@
                                   [:garbage-collector :values]
                                   [{:path
                                     [:garbage-collector :total :count]
-                                    :label     "GC total count"
-                                    :scale     1
-                                    :type      :event
+                                    :label "GC total count"
+                                    :scale 1
+                                    :type :event
                                     :dimension :count}
                                    {:path
                                     [:garbage-collector :total :time-ms]
-                                    :label     "GC total time"
-                                    :scale     1e-3
-                                    :type      :event
+                                    :label "GC total time"
+                                    :scale 1e-3
+                                    :type :event
                                     :dimension :time}]))
-                   view1        (view/final-gc-warnings
-                                 {:warn-threshold 0.01
-                                  :sampled-path   [:sampled]})
-                   view2        (view/final-gc-warnings
-                                 {:view-type      :final-gc-warnings
-                                  :warn-threshold 0.02
-                                  :sampled-path   [:sampled]})
+                   view1 (view/final-gc-warnings
+                          {:warn-threshold 0.01
+                           :sampled-path [:sampled]})
+                   view2 (view/final-gc-warnings
+                          {:view-type :final-gc-warnings
+                           :warn-threshold 0.02
+                           :sampled-path [:sampled]})
                    data-map
                    {:samples
-                    {:type         :criterium/collected-metrics-samples
+                    {:type :criterium/collected-metrics-samples
                      :metric->values
                      {[:elapsed-time] [99999999]}
                      :metrics-deps metrics-defs
-                     :batch-size   1
-                     :eval-count   1
+                     :batch-size 1
+                     :eval-count 1
                      :elapsed-time 1}
                     :final-gc
-                    {:type         :criterium/collected-metrics-samples
+                    {:type :criterium/collected-metrics-samples
                      :metric->values
-                     {[:compilation :time-ms]              [3]
+                     {[:compilation :time-ms] [3]
                       [:garbage-collector :total :time-ms] [1]
-                      [:elapsed-time]                      [1]}
+                      [:elapsed-time] [1]}
                      :metrics-deps metrics-defs
-                     :batch-size   1
-                     :eval-count   1
+                     :batch-size 1
+                     :eval-count 1
                      :elapsed-time 1}}]
                (trimmed-lines
                 (with-out-str
@@ -334,11 +334,11 @@
                  :print
                  {}
                  {:extract
-                  {:type   :criterium/domain-extract
+                  {:type :criterium/domain-extract
                    :metric [:stats :elapsed-time :mean]
-                   :data   [[:baseline 100]
-                            [{:n 100} 200]
-                            [{:impl :foo :n 100} 300]]}}))))))
+                   :data [[:baseline 100]
+                          [{:n 100} 200]
+                          [{:impl :foo :n 100} 300]]}}))))))
     (testing "handles nil values"
       (is (= ["Domain Extract: [:stats :elapsed-time :mean]"
               "test: nil"]
@@ -348,9 +348,9 @@
                  :print
                  {}
                  {:extract
-                  {:type   :criterium/domain-extract
+                  {:type :criterium/domain-extract
                    :metric [:stats :elapsed-time :mean]
-                   :data   [[:test nil]]}}))))))
+                   :data [[:test nil]]}}))))))
     (testing "uses custom extract-id"
       (is (= ["Domain Extract: [:stats :elapsed-time :mean]"
               "a: 1.00 ns"]
@@ -360,9 +360,9 @@
                  :print
                  {:extract-id :my-extract}
                  {:my-extract
-                  {:type   :criterium/domain-extract
+                  {:type :criterium/domain-extract
                    :metric [:stats :elapsed-time :mean]
-                   :data   [[:a 1]]}}))))))))
+                   :data [[:a 1]]}}))))))))
 
 (deftest domain-grouped-print-test
   ;; Tests the print viewer output for domain-grouped results.
@@ -385,8 +385,8 @@
                                 :runs [{} {}]}
                           :bar {:type :criterium/domain
                                 :runs [{}]}
-                          nil  {:type :criterium/domain
-                                :runs [{}]}}}}))))))
+                          nil {:type :criterium/domain
+                               :runs [{}]}}}}))))))
     (testing "uses custom grouped-id"
       (is (= ["Domain Grouped by: n"
               "100: 1 run"]
@@ -416,11 +416,11 @@
                  :print
                  {}
                  {:comparison
-                  {:type   :criterium/domain-comparison
-                   :axis   :impl
+                  {:type :criterium/domain-comparison
+                   :axis :impl
                    :metric [:stats :elapsed-time :mean]
-                   :data   {:foo [{:coord {:impl :foo :n 100} :value 100}]
-                            :bar [{:coord {:impl :bar :n 100} :value 200}]}}}))))))
+                   :data {:foo [{:coord {:impl :foo :n 100} :value 100}]
+                          :bar [{:coord {:impl :bar :n 100} :value 200}]}}}))))))
     (testing "handles nil axis values"
       (is (= ["Domain Comparison by impl: [:stats :elapsed-time :mean]"
               "│   <nil>"
@@ -432,14 +432,15 @@
                  :print
                  {}
                  {:comparison
-                  {:type   :criterium/domain-comparison
-                   :axis   :impl
+                  {:type :criterium/domain-comparison
+                   :axis :impl
                    :metric [:stats :elapsed-time :mean]
-                   :data   {nil [{:coord :baseline :value 50}]}}}))))))))
+                   :data {nil [{:coord :baseline :value 50}]}}}))))))))
 
 (deftest domain-regression-print-test
   ;; Tests the print viewer output for domain-regression results.
-  ;; Verifies display of models sorted by R² with equations and best-fit indicator.
+  ;; Verifies display of models sorted by R² with equations, best-fit indicator,
+  ;; and [plotted] marker for models within tolerance.
   (testing "domain-regression*"
     (testing "prints models sorted by R² with equations and best-fit indicator"
       (is (= ["Domain Regression (axis: n, metric: [:stats :elapsed-time :mean])"
@@ -452,21 +453,65 @@
                  :print
                  {}
                  {:regression
-                  {:type     :criterium/domain-regression
-                   :axis     :n
-                   :metric   [:stats :elapsed-time :mean]
-                   :models   [{:id       :linear
-                               :label    "O(n)"
-                               :coefficients {:a 1.2e-9 :b 5e-8}
-                               :r-squared 0.99}
-                              {:id       :n-log-n
-                               :label    "O(n log n)"
-                               :coefficients {:a 2.5e-10 :b 1e-7}
-                               :r-squared 0.85}
-                              {:id       :quadratic
-                               :label    "O(n²)"
-                               :coefficients {:a 1e-12 :b 2e-7}
-                               :r-squared 0.70}]
+                  {:type :criterium/domain-regression
+                   :axis :n
+                   :metric [:stats :elapsed-time :mean]
+                   :models [{:id :linear
+                             :label "O(n)"
+                             :coefficients {:a 1.2e-9 :b 5e-8}
+                             :r-squared 0.99}
+                            {:id :n-log-n
+                             :label "O(n log n)"
+                             :coefficients {:a 2.5e-10 :b 1e-7}
+                             :r-squared 0.85}
+                            {:id :quadratic
+                             :label "O(n²)"
+                             :coefficients {:a 1e-12 :b 2e-7}
+                             :r-squared 0.70}]
+                   :best-fit :linear}}))))))
+    (testing "shows [plotted] for models within tolerance"
+      (is (= ["Domain Regression (axis: n, metric: [:stats :elapsed-time :mean])"
+              "O(n)        R²=0.9900  y = 1.200e-09*n + 5.000e-08  <- best fit"
+              "O(n log n)  R²=0.9850  y = 2.500e-10*n*log(n) + 1.000e-07  [plotted]"]
+             (trimmed-lines
+              (with-out-str
+                (view/domain-regression*
+                 :print
+                 {}
+                 {:regression
+                  {:type :criterium/domain-regression
+                   :axis :n
+                   :metric [:stats :elapsed-time :mean]
+                   :models [{:id :linear
+                             :label "O(n)"
+                             :coefficients {:a 1.2e-9 :b 5e-8}
+                             :r-squared 0.99}
+                            {:id :n-log-n
+                             :label "O(n log n)"
+                             :coefficients {:a 2.5e-10 :b 1e-7}
+                             :r-squared 0.985}]
+                   :best-fit :linear}}))))))
+    (testing "respects custom tolerance parameter"
+      (is (= ["Domain Regression (axis: n, metric: [:stats :elapsed-time :mean])"
+              "O(n)        R²=0.9900  y = 1.200e-09*n + 5.000e-08  <- best fit"
+              "O(n log n)  R²=0.8500  y = 2.500e-10*n*log(n) + 1.000e-07  [plotted]"]
+             (trimmed-lines
+              (with-out-str
+                (view/domain-regression*
+                 :print
+                 {:tolerance 0.20}
+                 {:regression
+                  {:type :criterium/domain-regression
+                   :axis :n
+                   :metric [:stats :elapsed-time :mean]
+                   :models [{:id :linear
+                             :label "O(n)"
+                             :coefficients {:a 1.2e-9 :b 5e-8}
+                             :r-squared 0.99}
+                            {:id :n-log-n
+                             :label "O(n log n)"
+                             :coefficients {:a 2.5e-10 :b 1e-7}
+                             :r-squared 0.85}]
                    :best-fit :linear}}))))))
     (testing "handles negative intercepts"
       (is (= ["Domain Regression (axis: n, metric: [:stats :elapsed-time :mean])"
@@ -477,13 +522,13 @@
                  :print
                  {}
                  {:regression
-                  {:type     :criterium/domain-regression
-                   :axis     :n
-                   :metric   [:stats :elapsed-time :mean]
-                   :models   [{:id       :linear
-                               :label    "O(n)"
-                               :coefficients {:a 1.2e-9 :b -5e-9}
-                               :r-squared 0.95}]
+                  {:type :criterium/domain-regression
+                   :axis :n
+                   :metric [:stats :elapsed-time :mean]
+                   :models [{:id :linear
+                             :label "O(n)"
+                             :coefficients {:a 1.2e-9 :b -5e-9}
+                             :r-squared 0.95}]
                    :best-fit :linear}}))))))
     (testing "handles models without coefficients"
       (is (= ["Domain Regression (axis: n, metric: [:stats :elapsed-time :mean])"
@@ -494,10 +539,10 @@
                  :print
                  {}
                  {:regression
-                  {:type     :criterium/domain-regression
-                   :axis     :n
-                   :metric   [:stats :elapsed-time :mean]
-                   :models   [{:id :linear :label "O(n)" :r-squared 0.95}]
+                  {:type :criterium/domain-regression
+                   :axis :n
+                   :metric [:stats :elapsed-time :mean]
+                   :models [{:id :linear :label "O(n)" :r-squared 0.95}]
                    :best-fit :linear}}))))))
     (testing "handles empty models"
       (is (= ["Domain Regression (axis: n, metric: [:stats :elapsed-time :mean])"
@@ -508,10 +553,10 @@
                  :print
                  {}
                  {:regression
-                  {:type     :criterium/domain-regression
-                   :axis     :n
-                   :metric   [:stats :elapsed-time :mean]
-                   :models   []
+                  {:type :criterium/domain-regression
+                   :axis :n
+                   :metric [:stats :elapsed-time :mean]
+                   :models []
                    :best-fit nil}}))))))
     (testing "uses custom regression-id"
       (is (= ["Domain Regression (axis: size, metric: [:stats :elapsed-time :mean])"
@@ -522,11 +567,12 @@
                  :print
                  {:regression-id :scaling}
                  {:scaling
-                  {:type     :criterium/domain-regression
-                   :axis     :size
-                   :metric   [:stats :elapsed-time :mean]
-                   :models   [{:id       :linear
-                               :label    "O(n)"
-                               :coefficients {:a 1.5e-9 :b 1e-8}
-                               :r-squared 0.95}]
+                  {:type :criterium/domain-regression
+                   :axis :size
+                   :metric [:stats :elapsed-time :mean]
+                   :models [{:id :linear
+                             :label "O(n)"
+                             :coefficients {:a 1.5e-9 :b 1e-8}
+                             :r-squared 0.95}]
                    :best-fit :linear}}))))))))
+
