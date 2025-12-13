@@ -584,7 +584,9 @@
   "Default complexity models for regression fitting.
   Simple models use :transform to map input size n to a single predictor.
   Composite models use :transforms for multiple predictors (e.g., n*log(n) + n)."
-  {:logarithmic {:transform (fn [^double n] (Math/log n))
+  {:constant {:transform (constantly 1.0)
+              :label "O(1)"}
+   :logarithmic {:transform (fn [^double n] (Math/log n))
                  :label "O(log n)"}
    :linear {:transform identity
             :label "O(n)"}

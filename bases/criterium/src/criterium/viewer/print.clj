@@ -553,14 +553,16 @@
               a sign-b (Math/abs ^double b) sign-c (Math/abs ^double c)))
     ;; Simple model: y = a*f(x) + b
     (when (and a b)
-      (let [transform-str (case model-id
-                            :logarithmic "log(n)"
-                            :linear "n"
-                            :n-log-n "n*log(n)"
-                            :quadratic "n²"
-                            "x")
-            sign (if (neg? b) "-" "+")]
-        (format "y = %.4g*%s %s %.4g" a transform-str sign (Math/abs ^double b))))))
+      (case model-id
+        :constant (format "y = %.4g" b)
+        (let [transform-str (case model-id
+                              :logarithmic "log(n)"
+                              :linear "n"
+                              :n-log-n "n*log(n)"
+                              :quadratic "n²"
+                              "x")
+              sign (if (neg? b) "-" "+")]
+          (format "y = %.4g*%s %s %.4g" a transform-str sign (Math/abs ^double b)))))))
 
 (defmethod view/domain-regression* :print
   [_ {:keys [regression-id tolerance]} data-map]
@@ -577,14 +579,30 @@
             (if (seq by-impl)
               (doseq [impl-key (sort (keys by-impl))]
                 (let [{:keys [models best-fit]} (get by-impl impl-key)
-                      best-model (first (filter #(= (:id %) best-fit) models))]
+                      best-r-squared (when best-fit
+                                       (->> models
+                                            (filter #(= (:id %) best-fit))
+                                            first
+                                            :r-squared))
+                      plotted-ids (when best-r-squared
+                                    (->> models
+                                         (filter #(>= (:r-squared %)
+                                                      (* best-r-squared (- 1 tolerance))))
+                                         (map :id)
+                                         set))]
                   (println (format "  [%s]" (name impl-key)))
-                  (if best-model
-                    (let [eq-str (regression-equation-str best-fit (:coefficients best-model))]
-                      (println (format "    Best: %s  R²=%.4f%s"
-                                       (:label best-model)
-                                       (:r-squared best-model)
-                                       (if eq-str (str "  " eq-str) ""))))
+                  (if (seq models)
+                    (let [sorted-models (sort-by :r-squared > models)
+                          label-width (apply max (map #(count (:label %)) models))]
+                      (doseq [{:keys [id label coefficients r-squared]} sorted-models]
+                        (let [eq-str (regression-equation-str id coefficients)
+                              plotted? (and plotted-ids (plotted-ids id))]
+                          (println (format "    %s  R²=%.4f%s%s%s"
+                                           (format (str "%-" label-width "s") label)
+                                           r-squared
+                                           (if eq-str (str "  " eq-str) "")
+                                           (if (= id best-fit) "  <- best fit" "")
+                                           (if (and plotted? (not= id best-fit)) "  [plotted]" ""))))))
                     (println "    (insufficient data)"))))
               (println "  (no implementations)"))
             (println))

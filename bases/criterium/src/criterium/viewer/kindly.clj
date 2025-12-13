@@ -507,23 +507,22 @@
               (kindly-heading (str "Domain Regression (axis: " (name axis)
                                    ", metric: " (pr-str metric)
                                    ", by: " (name implementations) ")"))
-              ;; Table of best-fit models per implementation
+;; Table of all models per implementation
               (when (seq by-impl)
                 (kindly-table
-                 (mapv (fn [impl-key]
-                         (let [{:keys [models best-fit]} (get by-impl impl-key)
-                               best-model (first (filter #(= (:id %) best-fit) models))]
-                           {:implementation (name impl-key)
-                            :best-model (or (:label best-model) "-")
-                            :r-squared (if best-model
-                                         (format "%.4f" (:r-squared best-model))
-                                         "-")
-                            :equation (if best-model
-                                        (or (regression-equation-str (:id best-model)
-                                                                     (:coefficients best-model))
-                                            "")
-                                        "")}))
-                       impl-keys)))
+                 (vec
+                  (mapcat
+                   (fn [impl-key]
+                     (let [{:keys [models best-fit]} (get by-impl impl-key)
+                           sorted-models (sort-by :r-squared > models)]
+                       (mapv (fn [{:keys [id label coefficients r-squared]}]
+                               {:implementation (name impl-key)
+                                :model label
+                                :r-squared (format "%.4f" r-squared)
+                                :equation (or (regression-equation-str id coefficients) "")
+                                :best-fit (if (= id best-fit) "✓" "")})
+                             sorted-models)))
+                   impl-keys))))
               ;; Vega-lite scatter plot with impl-colored points and fit curves
               (when metric-extract-data
                 (let [{:keys [data]} metric-extract-data
