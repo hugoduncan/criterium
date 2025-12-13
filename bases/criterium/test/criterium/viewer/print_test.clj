@@ -323,12 +323,14 @@
   ;; Tests the print viewer output for domain-extract results.
   ;; Now using the multi-metric :metrics map structure.
   ;; Verifies coordinate formatting and value display with unit scaling.
+  ;; Single-key coords display just the value, multi-key show key=value pairs.
   (testing "domain-extract*"
     (testing "prints metric path and coordinate-value pairs for each metric"
+      ;; Mixed coords: keyword, single-key map, multi-key map
       (is (= ["Domain Extract: [:stats :elapsed-time :mean]"
               "baseline: 100 ns"
-              "n=100: 200 ns"
-              "impl=:foo n=100: 300 ns"]
+              "impl=:foo n=100: 300 ns"
+              "n=100: 200 ns"]
              (trimmed-lines
               (with-out-str
                 (view/domain-extract*
@@ -341,6 +343,23 @@
                               :data [[:baseline 100]
                                      [{:n 100} 200]
                                      [{:impl :foo :n 100} 300]]}}}}))))))
+    (testing "single-key coords display just the value and sort numerically"
+      (is (= ["Domain Extract: [:stats :elapsed-time :mean]"
+              "100: 100 ns"
+              "1000: 200 ns"
+              "10000: 300 ns"]
+             (trimmed-lines
+              (with-out-str
+                (view/domain-extract*
+                 :print
+                 {}
+                 {:extract
+                  {:type :criterium/domain-extract
+                   :metrics {:elapsed-time
+                             {:metric [:stats :elapsed-time :mean]
+                              :data [[{:n 1000} 200]
+                                     [{:n 100} 100]
+                                     [{:n 10000} 300]]}}}}))))))
     (testing "handles nil values"
       (is (= ["Domain Extract: [:stats :elapsed-time :mean]"
               "test: nil"]
@@ -367,12 +386,12 @@
                    :metrics {:elapsed-time
                              {:metric [:stats :elapsed-time :mean]
                               :data [[:a 1]]}}}}))))))
-    (testing "prints multiple metrics with separate headers"
+    (testing "prints multiple metrics with separate headers (single-key simplification)"
       (is (= ["Domain Extract: [:stats :elapsed-time :mean]"
-              "n=100: 100 ns"
+              "100: 100 ns"
               ""
               "Domain Extract: [:stats :thread-allocation :mean]"
-              "n=100: 1.00 Kb"]
+              "100: 1.00 Kb"]
              (trimmed-lines
               (with-out-str
                 (view/domain-extract*

@@ -350,6 +350,44 @@
         (format/format-value dimension base-value)
         (format "%g" (double base-value))))))
 
+(defn- single-key-coord-info
+  "Detect if all row-keys are single-key maps with the same key.
+  Returns {:key k :values [v1 v2 ...]} if so, nil otherwise."
+  [row-keys]
+  (when (and (seq row-keys)
+             (every? map? row-keys)
+             (every? #(= 1 (count %)) row-keys))
+    (let [keys-set (into #{} (mapcat keys) row-keys)]
+      (when (= 1 (count keys-set))
+        (let [k (first keys-set)]
+          {:key k
+           :values (mapv #(get % k) row-keys)})))))
+
+(defn- sort-row-keys
+  "Sort row-keys, using numeric sort when all values are numbers."
+  [row-keys single-key-info]
+  (if single-key-info
+    (let [{:keys [values]} single-key-info
+          all-numeric? (every? number? values)]
+      (if all-numeric?
+        (sort-by #(get % (:key single-key-info)) row-keys)
+        (sort-by #(str (get % (:key single-key-info))) row-keys)))
+    (sort-by str row-keys)))
+
+(defn- format-row-key-value
+  "Format a row-key for display, extracting the value for single-key maps."
+  [row-key single-key-info]
+  (if single-key-info
+    (get row-key (:key single-key-info))
+    (format-coord row-key)))
+
+(defn- coord-column-header
+  "Return the appropriate column header for coordinates."
+  [single-key-info]
+  (if single-key-info
+    (name (:key single-key-info))
+    "coordinate"))
+
 (defmethod view/domain-extract* :kindly
   [_ {:keys [extract-id]} data-map]
   (let [extract-id (or extract-id :extract)
@@ -378,11 +416,16 @@
                          (fn [coord] (dissoc coord impl-axis))
                          identity)
 
-            ;; Collect unique row keys and impl values
-            row-keys (->> all-data
-                          (map (comp row-key-fn :coord))
-                          distinct
-                          (sort-by str))
+            ;; Collect unique row keys
+            raw-row-keys (->> all-data
+                              (map (comp row-key-fn :coord))
+                              distinct)
+
+            ;; Detect single-key pattern and sort appropriately
+            single-key-info (single-key-coord-info raw-row-keys)
+            row-keys (sort-row-keys raw-row-keys single-key-info)
+            coord-header (coord-column-header single-key-info)
+
             impl-vals (when impl-axis
                         (->> all-data
                              (keep #(get (:coord %) impl-axis))
@@ -453,7 +496,8 @@
             ;; Build table rows
             table-rows
             (mapv (fn [row-key]
-                    (into {:coordinate (format-coord row-key)}
+                    (into {(keyword coord-header)
+                           (format-row-key-value row-key single-key-info)}
                           (map-indexed
                            (fn [idx col-spec]
                              (let [{:keys [metric-id impl]} col-spec

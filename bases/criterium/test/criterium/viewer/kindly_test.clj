@@ -493,8 +493,9 @@
   ;; Tests the view/domain-extract* multimethod for :kindly viewer.
   ;; Verifies that domain extract data is rendered as a single consolidated
   ;; table with metrics as columns. Values use SI scaling with unit in header.
+  ;; Single-key coords use the key name as column header and display raw values.
   (testing "view/domain-extract* :kindly"
-    (testing "renders single-impl extract as consolidated table"
+    (testing "renders single-impl extract as consolidated table with single-key coords"
       (reset! kindly/accumulated [])
       (let [data-map {:extract {:type :criterium/domain-extract
                                 :metrics {:elapsed-time
@@ -513,8 +514,12 @@
             (is (= :kind/table (:kindly/kind (meta table))))
             (is (= 3 (count table))
                 "Expected 3 rows for 3 data points")
-            (is (every? #(contains? % :coordinate) table)
-                "Expected :coordinate column")
+            ;; Single-key coords use key name as column header
+            (is (every? #(contains? % :n) table)
+                "Expected :n column for single-key coords")
+            ;; Rows should be sorted numerically
+            (is (= [100 1000 10000] (mapv :n table))
+                "Expected rows sorted numerically by coord value")
             ;; Column header is metric-name with SI unit
             (let [col-key (first (filter #(clojure.string/starts-with?
                                            (str %) "elapsed-time")
@@ -522,6 +527,19 @@
               (is col-key "Expected elapsed-time column")
               (is (clojure.string/includes? (str col-key) "(")
                   "Expected unit in parentheses"))))))
+
+    (testing "renders multi-key coords with :coordinate column"
+      (reset! kindly/accumulated [])
+      (let [data-map {:extract {:type :criterium/domain-extract
+                                :metrics {:elapsed-time
+                                          {:metric [:stats :elapsed-time :mean]
+                                           :data [[{:n 100 :m 1} 1e6]
+                                                  [{:n 1000 :m 2} 1e7]]}}}}]
+        (view/domain-extract* :kindly {} data-map)
+        (let [result (kindly/flush)
+              [_ table] result]
+          (is (every? #(contains? % :coordinate) table)
+              "Expected :coordinate column for multi-key coords"))))
 
     (testing "renders multi-metric extract as consolidated table"
       (reset! kindly/accumulated [])
@@ -589,8 +607,8 @@
               col-key (first (filter #(clojure.string/starts-with?
                                        (str %) "elapsed-time")
                                      (keys (first table))))
-              ;; Find the row with n=100 (has nil value)
-              row-with-nil (first (filter #(= {"n" 100} (:coordinate %)) table))]
+              ;; Find the row with n=100 (has nil value) - single-key so :n column
+              row-with-nil (first (filter #(= 100 (:n %)) table))]
           (is (= 2 (count table)))
           (is (nil? (get row-with-nil col-key))
               "Row with n=100 should have nil value"))))))

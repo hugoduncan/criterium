@@ -426,18 +426,50 @@
               [:count 1])]
         (format/format-value dimension (* raw-value scale))))))
 
+(defn- single-key-coord-info
+  "Detect if all coords are single-key maps with the same key.
+  Returns {:key k} if so, nil otherwise."
+  [coords]
+  (when (and (seq coords)
+             (every? map? coords)
+             (every? #(= 1 (count %)) coords))
+    (let [keys-set (into #{} (mapcat keys) coords)]
+      (when (= 1 (count keys-set))
+        {:key (first keys-set)}))))
+
+(defn- sort-coords
+  "Sort coordinate-value pairs, using numeric sort when coord values are numbers."
+  [data single-key-info]
+  (if single-key-info
+    (let [k (:key single-key-info)
+          all-numeric? (every? #(number? (get (first %) k)) data)]
+      (if all-numeric?
+        (sort-by #(get (first %) k) data)
+        (sort-by #(str (get (first %) k)) data)))
+    (sort-by #(str (first %)) data)))
+
+(defn- format-coord-value
+  "Format a coordinate for display, extracting the value for single-key maps."
+  [coord single-key-info]
+  (if single-key-info
+    (str (get coord (:key single-key-info)))
+    (format-coord coord)))
+
 (defmethod view/domain-extract* :print
   [_ {:keys [extract-id]} data-map]
   (let [extract-id (or extract-id :extract)
         extract (data-map extract-id)]
     (when extract
       (doseq [[metric-id {:keys [metric data]}] (:metrics extract)]
-        (println (format "Domain Extract: %s" (pr-str metric)))
-        (doseq [[coord value] data]
-          (println (format "  %24s: %s"
-                           (format-coord coord)
-                           (format-extract-value value metric))))
-        (println)))))
+        (let [coords (map first data)
+              single-key-info (single-key-coord-info coords)
+              sorted-data (sort-coords data single-key-info)]
+          (println (format "Domain Extract: %s" (pr-str metric)))
+          (doseq [[coord value] sorted-data]
+            (println (format "  %24s: %s"
+                             (format-coord-value coord single-key-info)
+                             (format-extract-value value metric))))
+          (println))))))
 
 (defmethod view/domain-grouped* :print
   [_ {:keys [grouped-id]} data-map]
