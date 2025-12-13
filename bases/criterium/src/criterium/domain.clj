@@ -78,14 +78,29 @@
   - :coord is either a keyword label or a map of dimension keys to values
   - :data is the full benchmark result from bench
 
+  Options (as final map argument):
+  - :implementations - Keyword specifying which coordinate axis represents
+                       different implementations (e.g., :impl). When set,
+                       analysis functions like fit-complexity will group
+                       results by implementation.
+
   Examples:
   (domain)                                    ; empty domain
   (domain {:coord :baseline :data result1})  ; single run with keyword coord
   (domain {:coord {:n 100} :data result1}    ; runs with map coords
-          {:coord {:n 1000} :data result2})"
-  [& runs]
-  {:type :criterium/domain
-   :runs (vec runs)})
+          {:coord {:n 1000} :data result2})
+  (domain {:coord {:n 100 :impl :vec} :data result1}
+          {:coord {:n 100 :impl :list} :data result2}
+          {:implementations :impl})           ; with implementations axis"
+  [& args]
+  (let [[runs opts] (if (and (seq args)
+                             (map? (last args))
+                             (contains? (last args) :implementations))
+                      [(butlast args) (last args)]
+                      [args nil])]
+    (cond-> {:type :criterium/domain
+             :runs (vec runs)}
+      (:implementations opts) (assoc :implementations (:implementations opts)))))
 
 ;;; Accumulation
 
@@ -165,6 +180,13 @@
               (mapcat keys))
         (:runs domain)))
 
+(defn implementations
+  "Returns the implementations axis key for a domain, or nil if not set.
+  The implementations key specifies which coordinate axis represents
+  different implementations for comparison analysis."
+  [domain]
+  (:implementations domain))
+
 ;;; Analysis
 
 (defn- discover-quantitative-metrics
@@ -200,6 +222,9 @@
 
   Returns nil for value if the metric is missing from a run.
 
+  If the source domain has an :implementations key, it is preserved in
+  the extract result for use by downstream analysis functions.
+
   Example - single metric:
   (extract domain [:stats :elapsed-time :mean])
   ;; => {:type :criterium/domain-extract
@@ -217,6 +242,7 @@
    (extract domain metric-path {}))
   ([domain metric-path {:keys [with-error-bounds metric-ids]}]
    (let [runs (:runs domain)
+         impl-axis (:implementations domain)
          ;; Determine which metrics to extract
          metric-ids-to-extract
          (if metric-path
@@ -255,11 +281,12 @@
                                             :upper upper})])
                                 [coord value])))
                           runs)}))]
-     {:type :criterium/domain-extract
-      :metrics (into {}
-                     (map (fn [[metric-id mpath]]
-                            [metric-id (extract-single mpath)]))
-                     metric-paths)})))
+     (cond-> {:type :criterium/domain-extract
+              :metrics (into {}
+                             (map (fn [[metric-id mpath]]
+                                    [metric-id (extract-single mpath)]))
+                             metric-paths)}
+       impl-axis (assoc :implementations impl-axis)))))
 
 (defn select
   "Filter domain to runs matching a partial coordinate.
@@ -695,40 +722,49 @@
   Selects best-fit model by highest R² value, preferring simpler models when
   R² values are essentially equal (within 0.0001).
 
-  Example:
+  When the extract has an :implementations key (from a multi-implementation domain),
+  data is grouped by implementation and models are fit separately for each.
+  The result includes :implementations key and regression data in :by-impl maps.
+
+  Example - single implementation:
   (fit-complexity extract :n)
   ;; => {:type :criterium/domain-regression
   ;;     :axis :n
   ;;     :regressions {:elapsed-time {:metric [:stats :elapsed-time :mean]
   ;;                                  :models [{:id :linear :r-squared 0.98 ...}]
-  ;;                                  :best-fit :linear}
-  ;;                   :thread-allocation {...}}}"
+  ;;                                  :best-fit :linear}}}
+
+  Example - multiple implementations:
+  (fit-complexity extract-with-impls :n)
+  ;; => {:type :criterium/domain-regression
+  ;;     :axis :n
+  ;;     :implementations :impl
+  ;;     :regressions {:elapsed-time {:metric [:stats :elapsed-time :mean]
+  ;;                                  :by-impl {:vec {:models [...] :best-fit :linear}
+  ;;                                            :list {:models [...] :best-fit :quadratic}}}}}"
   ([extract axis] (fit-complexity extract axis nil))
   ([extract axis models]
    (let [models (or models default-complexity-models)
-         ;; Fit a single metric's data
-         fit-single
-         (fn [[_metric-id metric-data]]
-           (let [{:keys [metric data with-error-bounds]} metric-data
-                 ;; Helper to extract numeric value (handles both plain and error-bound formats)
-                 get-value (if with-error-bounds
+         impl-axis (:implementations extract)
+
+         ;; Helper to fit models to a set of data points
+         fit-data-points
+         (fn [data with-error-bounds]
+           (let [get-value (if with-error-bounds
                              (fn [v] (when (map? v) (:value v)))
                              identity)
-                 ;; Extract x (axis value) and y (metric value) from data
-                 ;; Filter out nil y values
+                 ;; Filter out nil y values and coords missing axis
                  valid-data (filter (fn [[coord value]]
                                       (and (some? (get-value value))
-                                           (if (map? coord)
-                                             (contains? coord axis)
-                                             false)))
+                                           (map? coord)
+                                           (contains? coord axis)))
                                     data)
                  xs (mapv (fn [[coord _]] (double (get coord axis))) valid-data)
                  ys (mapv (fn [[_ value]] (double (get-value value))) valid-data)
-                 ;; Fit each model, tracking parameter count for parsimony
+                 ;; Fit each model
                  fitted (when (>= (count xs) 2)
                           (mapv (fn [[model-id model-def]]
                                   (let [result (fit-complexity-model model-id model-def xs ys)
-                                        ;; Simple models have 2 params, composite have 3
                                         param-count (if (:transforms model-def) 3 2)]
                                     (assoc result :param-count param-count)))
                                 models))
@@ -741,16 +777,49 @@
                                                                r-sq-threshold)
                                                            sorted)]
                               (:id (first (sort-by :param-count within-threshold)))))]
+             {:models (or fitted [])
+              :best-fit best-fit}))
+
+         ;; Fit a single metric's data (no implementation grouping)
+         fit-single
+         (fn [[_metric-id metric-data]]
+           (let [{:keys [metric data with-error-bounds]} metric-data
+                 result (fit-data-points data with-error-bounds)]
+             (assoc result
+                    :metric metric
+                    :with-error-bounds (boolean with-error-bounds))))
+
+         ;; Fit a single metric's data with implementation grouping
+         fit-single-by-impl
+         (fn [[_metric-id metric-data]]
+           (let [{:keys [metric data with-error-bounds]} metric-data
+                 ;; Group data by implementation
+                 by-impl (group-by (fn [[coord _]] (get coord impl-axis)) data)
+                 ;; Fit each implementation separately
+                 impl-results (into {}
+                                    (map (fn [[impl-val impl-data]]
+                                           [impl-val (fit-data-points impl-data with-error-bounds)]))
+                                    by-impl)]
              {:metric metric
               :with-error-bounds (boolean with-error-bounds)
-              :models (or fitted [])
-              :best-fit best-fit}))]
-     {:type :criterium/domain-regression
-      :axis axis
-      :regressions (into {}
-                         (map (fn [[metric-id metric-data]]
-                                [metric-id (fit-single [metric-id metric-data])]))
-                         (:metrics extract))})))
+              :by-impl impl-results}))]
+
+     (if impl-axis
+       ;; Multi-implementation: group and fit separately
+       {:type :criterium/domain-regression
+        :axis axis
+        :implementations impl-axis
+        :regressions (into {}
+                           (map (fn [[metric-id metric-data]]
+                                  [metric-id (fit-single-by-impl [metric-id metric-data])]))
+                           (:metrics extract))}
+       ;; Single implementation: original behavior
+       {:type :criterium/domain-regression
+        :axis axis
+        :regressions (into {}
+                           (map (fn [[metric-id metric-data]]
+                                  [metric-id (fit-single [metric-id metric-data])]))
+                           (:metrics extract))}))))
 
 (defn domain-regression-fn
   "Returns a function that fits complexity models to a domain extract in a data-map.
@@ -1020,7 +1089,9 @@
   When a benchmark hits its time limit and the projected time differs from
   the limit by more than 5%, the benchmark is re-run with the projected time.
 
-  Returns a domain with runs indexed by {:impl impl-key ...axis-coords...}"
+  Returns a domain with runs indexed by {:impl impl-key ...axis-coords...}.
+  When multiple implementations are provided, the domain's :implementations
+  key is set to :impl, enabling automatic grouping in analysis functions."
   [axes implementations & {:keys [initial-limit-time-s
                                   time-axis
                                   reporter
@@ -1034,6 +1105,10 @@
         ;; Sort by time-axis ascending
         sorted-coords (sort-by #(get % time-axis) coords)
         total-runs (count sorted-coords)
+        ;; Create initial domain with :implementations when multiple impls
+        initial-domain (if (> (count implementations) 1)
+                         (domain {:implementations :impl})
+                         (domain))
         ;; Helper to run a single benchmark
         run-bench (fn [coord-measured limit-time-s]
                     (let [bench-plan (bench/options->bench-plan
@@ -1097,5 +1172,5 @@
              (report-end reporter impl-key))
 
            (:domain result))))
-     (domain)
+     initial-domain
      implementations)))

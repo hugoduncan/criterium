@@ -328,6 +328,35 @@
                               :data sample-data})]
         (is (= #{:n :impl :version} (domain/axes d)))))))
 
+(deftest implementations-test
+  ;; Tests the implementations accessor and domain :implementations option.
+  ;; The :implementations key specifies which axis represents different
+  ;; implementations for comparison analysis.
+  (testing "implementations"
+    (testing "returns nil for domain without :implementations"
+      (let [d (domain/domain {:coord {:n 100} :data sample-data})]
+        (is (nil? (domain/implementations d)))))
+    (testing "returns the implementations axis key when set"
+      (let [d (domain/domain
+               {:coord {:n 100 :impl :vec} :data sample-data}
+               {:implementations :impl})]
+        (is (= :impl (domain/implementations d)))))
+    (testing "domain with :implementations is valid"
+      (let [d (domain/domain
+               {:coord {:n 100 :impl :vec} :data sample-data}
+               {:implementations :impl})]
+        (is (domain/domain? d))))
+    (testing "add-run preserves :implementations"
+      (let [d (domain/domain {:implementations :impl})
+            d2 (domain/add-run d {:n 100 :impl :vec} sample-data)]
+        (is (= :impl (domain/implementations d2)))))
+    (testing "remove-run preserves :implementations"
+      (let [d (domain/domain
+               {:coord {:n 100 :impl :vec} :data sample-data}
+               {:implementations :impl})
+            d2 (domain/remove-run d {:n 100 :impl :vec})]
+        (is (= :impl (domain/implementations d2)))))))
+
 ;; Tests for domain analysis function extract.
 ;; Validates extracting metric values across runs with coordinate-value pairs,
 ;; handling missing metrics, preserving order, and applying transforms.
@@ -473,6 +502,23 @@
           (is (false? (get-in result [:metrics :elapsed-time :with-error-bounds])))
           (is (= [[{:n 100} 0.1]]
                  (get-in result [:metrics :elapsed-time :data]))))))))
+
+(deftest extract-implementations-test
+  ;; Tests that extract preserves :implementations from source domain.
+  ;; This enables fit-complexity to detect multi-implementation data.
+  (testing "extract"
+    (testing "preserves :implementations from domain"
+      (let [d (domain/domain
+               {:coord {:n 100 :impl :vec} :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+               {:coord {:n 100 :impl :list} :data (mock-bench-result {:elapsed-time {:mean 2.0}})}
+               {:implementations :impl})
+            result (domain/extract d [:stats :elapsed-time :mean])]
+        (is (= :impl (:implementations result)))))
+    (testing "does not include :implementations when domain lacks it"
+      (let [d (domain/domain
+               {:coord {:n 100} :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
+            result (domain/extract d [:stats :elapsed-time :mean])]
+        (is (not (contains? result :implementations)))))))
 
 ;; Tests for domain select function.
 ;; Validates filtering domain to sub-domain by partial coordinate match,
@@ -1156,6 +1202,85 @@
               result (domain/fit-complexity extract :n)]
           (is (domain/domain-regression? result))
           (is (seq (get-in result [:regressions :elapsed-time :models]))))))))
+
+(deftest fit-complexity-multi-impl-test
+  ;; Tests fit-complexity with multi-implementation domains.
+  ;; When extract has :implementations, data is grouped by implementation
+  ;; and models are fit separately for each.
+  (testing "fit-complexity with :implementations"
+    (testing "returns regression with :implementations key"
+      (let [extract {:type :criterium/domain-extract
+                     :implementations :impl
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100 :impl :vec} 100.0]
+                                                     [{:n 200 :impl :vec} 200.0]
+                                                     [{:n 100 :impl :list} 150.0]
+                                                     [{:n 200 :impl :list} 300.0]]}}}
+            result (domain/fit-complexity extract :n)]
+        (is (domain/domain-regression? result))
+        (is (= :impl (:implementations result)))))
+    (testing "groups regression by implementation in :by-impl"
+      (let [extract {:type :criterium/domain-extract
+                     :implementations :impl
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100 :impl :vec} 100.0]
+                                                     [{:n 200 :impl :vec} 200.0]
+                                                     [{:n 100 :impl :list} 150.0]
+                                                     [{:n 200 :impl :list} 300.0]]}}}
+            result (domain/fit-complexity extract :n)
+            regression (get-in result [:regressions :elapsed-time])]
+        (is (contains? regression :by-impl))
+        (is (contains? (:by-impl regression) :vec))
+        (is (contains? (:by-impl regression) :list))))
+    (testing "fits models separately per implementation"
+      (let [;; vec is linear: 100, 200, 300
+            ;; list is quadratic-ish: 100, 400, 900
+            extract {:type :criterium/domain-extract
+                     :implementations :impl
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 10 :impl :vec} 100.0]
+                                                     [{:n 20 :impl :vec} 200.0]
+                                                     [{:n 30 :impl :vec} 300.0]
+                                                     [{:n 10 :impl :list} 100.0]
+                                                     [{:n 20 :impl :list} 400.0]
+                                                     [{:n 30 :impl :list} 900.0]]}}}
+            result (domain/fit-complexity extract :n)
+            by-impl (get-in result [:regressions :elapsed-time :by-impl])]
+        (is (= :linear (get-in by-impl [:vec :best-fit])))
+        (is (= :quadratic (get-in by-impl [:list :best-fit])))))
+    (testing "each implementation has independent :models and :best-fit"
+      (let [extract {:type :criterium/domain-extract
+                     :implementations :impl
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100 :impl :vec} 100.0]
+                                                     [{:n 200 :impl :vec} 200.0]
+                                                     [{:n 100 :impl :list} 150.0]
+                                                     [{:n 200 :impl :list} 300.0]]}}}
+            result (domain/fit-complexity extract :n)
+            by-impl (get-in result [:regressions :elapsed-time :by-impl])]
+        (is (seq (get-in by-impl [:vec :models])))
+        (is (some? (get-in by-impl [:vec :best-fit])))
+        (is (seq (get-in by-impl [:list :models])))
+        (is (some? (get-in by-impl [:list :best-fit])))))
+    (testing "handles empty implementation group"
+      (let [extract {:type :criterium/domain-extract
+                     :implementations :impl
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100 :impl :vec} 100.0]]}}}
+            result (domain/fit-complexity extract :n)
+            by-impl (get-in result [:regressions :elapsed-time :by-impl])]
+        ;; Single point can't fit a model
+        (is (empty? (get-in by-impl [:vec :models])))))
+    (testing "does not include :by-impl for single-impl domains"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100} 100.0]
+                                                     [{:n 200} 200.0]]}}}
+            result (domain/fit-complexity extract :n)
+            regression (get-in result [:regressions :elapsed-time])]
+        (is (not (contains? result :implementations)))
+        (is (not (contains? regression :by-impl)))
+        (is (contains? regression :models))))))
 
 (deftest domain-regression-fn-test
   ;; Tests the factory function that creates regression pipelines.

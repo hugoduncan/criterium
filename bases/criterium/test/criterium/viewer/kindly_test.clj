@@ -497,10 +497,11 @@
     (testing "renders extract as heading and table with SI units"
       (reset! kindly/accumulated [])
       (let [data-map {:extract {:type :criterium/domain-extract
-                                :metric [:stats :elapsed-time :mean]
-                                :data [[{:n 100} 1e6]
-                                       [{:n 1000} 1e7]
-                                       [{:n 10000} 1e8]]}}]
+                                :metrics {:elapsed-time
+                                          {:metric [:stats :elapsed-time :mean]
+                                           :data [[{:n 100} 1e6]
+                                                  [{:n 1000} 1e7]
+                                                  [{:n 10000} 1e8]]}}}}]
         (view/domain-extract* :kindly {} data-map)
         (let [result (kindly/flush)]
           (is (= :kind/fragment (:kindly/kind (meta result))))
@@ -531,9 +532,10 @@
     (testing "handles nil values in data"
       (reset! kindly/accumulated [])
       (let [data-map {:extract {:type :criterium/domain-extract
-                                :metric [:stats :elapsed-time :mean]
-                                :data [[{:n 100} nil]
-                                       [{:n 1000} 1e7]]}}]
+                                :metrics {:elapsed-time
+                                          {:metric [:stats :elapsed-time :mean]
+                                           :data [[{:n 100} nil]
+                                                  [{:n 1000} 1e7]]}}}}]
         (view/domain-extract* :kindly {} data-map)
         (let [result (kindly/flush)
               [_ table] result
@@ -630,23 +632,25 @@
     (testing "renders regression with single model within default tolerance"
       (reset! kindly/accumulated [])
       (let [data-map {:extract {:type :criterium/domain-extract
-                                :metric [:stats :elapsed-time :mean]
-                                :data [[{:n 100} 1e6]
-                                       [{:n 200} 2e6]
-                                       [{:n 400} 4e6]
-                                       [{:n 800} 8e6]]}
+                                :metrics {:elapsed-time
+                                          {:metric [:stats :elapsed-time :mean]
+                                           :data [[{:n 100} 1e6]
+                                                  [{:n 200} 2e6]
+                                                  [{:n 400} 4e6]
+                                                  [{:n 800} 8e6]]}}}
                       :regression {:type :criterium/domain-regression
                                    :axis :n
-                                   :metric [:stats :elapsed-time :mean]
-                                   :models [{:id :linear
-                                             :label "O(n)"
-                                             :coefficients {:a 10000.0 :b 0.0}
-                                             :r-squared 0.9999}
-                                            {:id :quadratic
-                                             :label "O(n²)"
-                                             :coefficients {:a 0.1 :b 100000.0}
-                                             :r-squared 0.85}]
-                                   :best-fit :linear}}]
+                                   :regressions {:elapsed-time
+                                                 {:metric [:stats :elapsed-time :mean]
+                                                  :models [{:id :linear
+                                                            :label "O(n)"
+                                                            :coefficients {:a 10000.0 :b 0.0}
+                                                            :r-squared 0.9999}
+                                                           {:id :quadratic
+                                                            :label "O(n²)"
+                                                            :coefficients {:a 0.1 :b 100000.0}
+                                                            :r-squared 0.85}]
+                                                  :best-fit :linear}}}}]
         ;; With default 1% tolerance, only linear (0.9999) is plotted
         ;; quadratic (0.85) is well below threshold (0.9999 * 0.99 = 0.9899)
         (view/domain-regression* :kindly {} data-map)
@@ -678,23 +682,25 @@
     (testing "renders combined residual plot when multiple models within tolerance"
       (reset! kindly/accumulated [])
       (let [data-map {:extract {:type :criterium/domain-extract
-                                :metric [:stats :elapsed-time :mean]
-                                :data [[{:n 100} 1e6]
-                                       [{:n 200} 2e6]
-                                       [{:n 400} 4e6]
-                                       [{:n 800} 8e6]]}
+                                :metrics {:elapsed-time
+                                          {:metric [:stats :elapsed-time :mean]
+                                           :data [[{:n 100} 1e6]
+                                                  [{:n 200} 2e6]
+                                                  [{:n 400} 4e6]
+                                                  [{:n 800} 8e6]]}}}
                       :regression {:type :criterium/domain-regression
                                    :axis :n
-                                   :metric [:stats :elapsed-time :mean]
-                                   :models [{:id :linear
-                                             :label "O(n)"
-                                             :coefficients {:a 10000.0 :b 0.0}
-                                             :r-squared 0.9999}
-                                            {:id :n-log-n
-                                             :label "O(n log n)"
-                                             :coefficients {:a 1000.0 :b 0.0}
-                                             :r-squared 0.9995}]
-                                   :best-fit :linear}}]
+                                   :regressions {:elapsed-time
+                                                 {:metric [:stats :elapsed-time :mean]
+                                                  :models [{:id :linear
+                                                            :label "O(n)"
+                                                            :coefficients {:a 10000.0 :b 0.0}
+                                                            :r-squared 0.9999}
+                                                           {:id :n-log-n
+                                                            :label "O(n log n)"
+                                                            :coefficients {:a 1000.0 :b 0.0}
+                                                            :r-squared 0.9995}]
+                                                  :best-fit :linear}}}}]
         ;; Both models within 1% tolerance (0.9999 * 0.99 = 0.9899)
         (view/domain-regression* :kindly {} data-map)
         (let [result (kindly/flush)]
@@ -710,23 +716,25 @@
     (testing "respects custom tolerance parameter"
       (reset! kindly/accumulated [])
       (let [data-map {:extract {:type :criterium/domain-extract
-                                :metric [:stats :elapsed-time :mean]
-                                :data [[{:n 100} 1e6]
-                                       [{:n 200} 2e6]
-                                       [{:n 400} 4e6]
-                                       [{:n 800} 8e6]]}
+                                :metrics {:elapsed-time
+                                          {:metric [:stats :elapsed-time :mean]
+                                           :data [[{:n 100} 1e6]
+                                                  [{:n 200} 2e6]
+                                                  [{:n 400} 4e6]
+                                                  [{:n 800} 8e6]]}}}
                       :regression {:type :criterium/domain-regression
                                    :axis :n
-                                   :metric [:stats :elapsed-time :mean]
-                                   :models [{:id :linear
-                                             :label "O(n)"
-                                             :coefficients {:a 10000.0 :b 0.0}
-                                             :r-squared 0.9999}
-                                            {:id :quadratic
-                                             :label "O(n²)"
-                                             :coefficients {:a 0.1 :b 100000.0}
-                                             :r-squared 0.85}]
-                                   :best-fit :linear}}]
+                                   :regressions {:elapsed-time
+                                                 {:metric [:stats :elapsed-time :mean]
+                                                  :models [{:id :linear
+                                                            :label "O(n)"
+                                                            :coefficients {:a 10000.0 :b 0.0}
+                                                            :r-squared 0.9999}
+                                                           {:id :quadratic
+                                                            :label "O(n²)"
+                                                            :coefficients {:a 0.1 :b 100000.0}
+                                                            :r-squared 0.85}]
+                                                  :best-fit :linear}}}}]
         ;; With 20% tolerance, quadratic (0.85) is within threshold
         ;; (0.9999 * 0.80 = 0.7999)
         (view/domain-regression* :kindly {:tolerance 0.20} data-map)
@@ -741,12 +749,13 @@
       (reset! kindly/accumulated [])
       (let [data-map {:regression {:type :criterium/domain-regression
                                    :axis :n
-                                   :metric [:stats :elapsed-time :mean]
-                                   :models [{:id :linear
-                                             :label "O(n)"
-                                             :coefficients {:a 10000.0 :b 0.0}
-                                             :r-squared 0.9999}]
-                                   :best-fit :linear}}]
+                                   :regressions {:elapsed-time
+                                                 {:metric [:stats :elapsed-time :mean]
+                                                  :models [{:id :linear
+                                                            :label "O(n)"
+                                                            :coefficients {:a 10000.0 :b 0.0}
+                                                            :r-squared 0.9999}]
+                                                  :best-fit :linear}}}}]
         (view/domain-regression* :kindly {} data-map)
         (let [result (kindly/flush)]
           (is (= 2 (count result))
@@ -759,9 +768,10 @@
       (reset! kindly/accumulated [])
       (let [data-map {:regression {:type :criterium/domain-regression
                                    :axis :n
-                                   :metric [:stats :elapsed-time :mean]
-                                   :models []
-                                   :best-fit nil}}]
+                                   :regressions {:elapsed-time
+                                                 {:metric [:stats :elapsed-time :mean]
+                                                  :models []
+                                                  :best-fit nil}}}}]
         (view/domain-regression* :kindly {} data-map)
         (let [result (kindly/flush)]
           (is (= 1 (count result))
