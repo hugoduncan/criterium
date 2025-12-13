@@ -491,10 +491,10 @@
 
 (deftest domain-extract-view-test
   ;; Tests the view/domain-extract* multimethod for :kindly viewer.
-  ;; Verifies that domain extract data is rendered as heading and table with
-  ;; coordinate and value columns. Values use SI scaling with unit in header.
+  ;; Verifies that domain extract data is rendered as a single consolidated
+  ;; table with metrics as columns. Values use SI scaling with unit in header.
   (testing "view/domain-extract* :kindly"
-    (testing "renders extract as heading and table with SI units"
+    (testing "renders single-impl extract as consolidated table"
       (reset! kindly/accumulated [])
       (let [data-map {:extract {:type :criterium/domain-extract
                                 :metrics {:elapsed-time
@@ -509,20 +509,67 @@
               "Expected heading and table")
           (let [[heading table] result]
             (is (= :kind/md (:kindly/kind (meta heading))))
-            (is (string? (first heading)))
-            (is (clojure.string/includes? (first heading) "Domain Extract"))
+            (is (= ["**Domain Extract**"] heading))
             (is (= :kind/table (:kindly/kind (meta table))))
             (is (= 3 (count table))
                 "Expected 3 rows for 3 data points")
             (is (every? #(contains? % :coordinate) table)
                 "Expected :coordinate column")
-            ;; Value column header includes SI unit (e.g., "value (ms)")
-            (let [value-key (first (filter #(clojure.string/starts-with?
-                                             (str %) "value")
-                                           (keys (first table))))]
-              (is value-key "Expected value column with SI unit in header")
-              (is (clojure.string/includes? (str value-key) "(")
+            ;; Column header is metric-name with SI unit
+            (let [col-key (first (filter #(clojure.string/starts-with?
+                                           (str %) "elapsed-time")
+                                         (keys (first table))))]
+              (is col-key "Expected elapsed-time column")
+              (is (clojure.string/includes? (str col-key) "(")
                   "Expected unit in parentheses"))))))
+
+    (testing "renders multi-metric extract as consolidated table"
+      (reset! kindly/accumulated [])
+      (let [data-map {:extract {:type :criterium/domain-extract
+                                :metrics {:elapsed-time
+                                          {:metric [:stats :elapsed-time :mean]
+                                           :data [[{:n 100} 1e6]
+                                                  [{:n 1000} 1e7]]}
+                                          :thread-allocation
+                                          {:metric [:stats :thread-allocation :mean]
+                                           :data [[{:n 100} 1024]
+                                                  [{:n 1000} 2048]]}}}}]
+        (view/domain-extract* :kindly {} data-map)
+        (let [result (kindly/flush)
+              [_ table] result
+              col-keys (keys (first table))]
+          (is (= 2 (count table))
+              "Expected 2 rows")
+          (is (some #(clojure.string/starts-with? (str %) "elapsed-time") col-keys)
+              "Expected elapsed-time column")
+          (is (some #(clojure.string/starts-with? (str %) "thread-allocation") col-keys)
+              "Expected thread-allocation column"))))
+
+    (testing "renders multi-impl extract with impl in column headers"
+      (reset! kindly/accumulated [])
+      (let [data-map {:extract {:type :criterium/domain-extract
+                                :implementations :impl
+                                :metrics {:elapsed-time
+                                          {:metric [:stats :elapsed-time :mean]
+                                           :data [[{:n 100 :impl :foo} 1e6]
+                                                  [{:n 100 :impl :bar} 2e6]
+                                                  [{:n 1000 :impl :foo} 1e7]
+                                                  [{:n 1000 :impl :bar} 2e7]]}}}}]
+        (view/domain-extract* :kindly {} data-map)
+        (let [result (kindly/flush)
+              [_ table] result
+              col-keys (set (map str (keys (first table))))]
+          (is (= 2 (count table))
+              "Expected 2 rows (one per n value)")
+          ;; Column headers include impl name with newline
+          (is (some #(and (clojure.string/includes? % "foo")
+                          (clojure.string/includes? % "elapsed-time"))
+                    col-keys)
+              "Expected foo elapsed-time column")
+          (is (some #(and (clojure.string/includes? % "bar")
+                          (clojure.string/includes? % "elapsed-time"))
+                    col-keys)
+              "Expected bar elapsed-time column"))))
 
     (testing "handles nil extract gracefully"
       (reset! kindly/accumulated [])
@@ -539,11 +586,14 @@
         (view/domain-extract* :kindly {} data-map)
         (let [result (kindly/flush)
               [_ table] result
-              value-key (first (filter #(clojure.string/starts-with?
-                                         (str %) "value")
-                                       (keys (first table))))]
+              col-key (first (filter #(clojure.string/starts-with?
+                                       (str %) "elapsed-time")
+                                     (keys (first table))))
+              ;; Find the row with n=100 (has nil value)
+              row-with-nil (first (filter #(= {"n" 100} (:coordinate %)) table))]
           (is (= 2 (count table)))
-          (is (nil? (get (first table) value-key))))))))
+          (is (nil? (get row-with-nil col-key))
+              "Row with n=100 should have nil value"))))))
 
 (deftest domain-grouped-view-test
   ;; Tests the view/domain-grouped* multimethod for :kindly viewer.
