@@ -355,36 +355,36 @@
   (let [extract-id (or extract-id :extract)
         extract (data-map extract-id)]
     (when extract
-      (let [{:keys [metric data]} extract
-            has-error-bounds? (:with-error-bounds extract)
-            ;; Helper to extract numeric value (handles both plain and error-bound formats)
-            get-value (if has-error-bounds?
-                        (fn [v] (when (map? v) (:value v)))
-                        identity)
-            ;; Convert to base units and compute SI scale
-            base-scale (metric-path->base-scale metric)
-            valid-values (keep (fn [[_ v]] (when-let [val (get-value v)]
-                                             (* val base-scale)))
-                               data)
-            dimension (metric-path->dimension metric)
-            representative-value (when (seq valid-values)
-                                   (/ (reduce + valid-values) (count valid-values)))
-            [si-scale si-unit] (if (and dimension representative-value)
-                                 (format/scale dimension representative-value)
-                                 [1 ""])
-            total-scale (* base-scale si-scale)
-            ;; Build header with unit
-            value-header (if (seq si-unit)
-                           (str "value (" si-unit ")")
-                           "value")]
-        (kindly-heading (str "Domain Extract: " (pr-str metric)))
-        (kindly-table
-         (mapv (fn [[coord v]]
-                 (let [value (get-value v)]
-                   {:coordinate (format-coord coord)
-                    value-header (when value
-                                   (format "%.3g" (* value total-scale)))}))
-               data))))))
+      (doseq [[metric-id {:keys [metric data with-error-bounds]}] (:metrics extract)]
+        (let [has-error-bounds? with-error-bounds
+              ;; Helper to extract numeric value (handles both plain and error-bound formats)
+              get-value (if has-error-bounds?
+                          (fn [v] (when (map? v) (:value v)))
+                          identity)
+              ;; Convert to base units and compute SI scale
+              base-scale (metric-path->base-scale metric)
+              valid-values (keep (fn [[_ v]] (when-let [val (get-value v)]
+                                               (* val base-scale)))
+                                 data)
+              dimension (metric-path->dimension metric)
+              representative-value (when (seq valid-values)
+                                     (/ (reduce + valid-values) (count valid-values)))
+              [si-scale si-unit] (if (and dimension representative-value)
+                                   (format/scale dimension representative-value)
+                                   [1 ""])
+              total-scale (* base-scale si-scale)
+              ;; Build header with unit
+              value-header (if (seq si-unit)
+                             (str "value (" si-unit ")")
+                             "value")]
+          (kindly-heading (str "Domain Extract: " (pr-str metric)))
+          (kindly-table
+           (mapv (fn [[coord v]]
+                   (let [value (get-value v)]
+                     {:coordinate (format-coord coord)
+                      value-header (when value
+                                     (format "%.3g" (* value total-scale)))}))
+                 data)))))))
 
 (defmethod view/domain-grouped* :kindly
   [_ {:keys [grouped-id]} data-map]
@@ -491,183 +491,187 @@
         regression (data-map regression-id)
         tolerance (or tolerance 0.01)]
     (when regression
-      (let [{:keys [axis metric models best-fit]} regression
+      (let [{:keys [axis regressions]} regression
             extract-id (or extract-id :extract)
             extract (data-map extract-id)
-            has-error-bounds? (:with-error-bounds extract)
-            ;; Find models within tolerance of best fit
-            best-r-squared (when best-fit
-                             (->> models
-                                  (filter #(= (:id %) best-fit))
-                                  first
-                                  :r-squared))
-            models-to-plot (when best-r-squared
-                             (->> models
-                                  (filter #(>= (:r-squared %)
-                                               (* best-r-squared (- 1 tolerance))))
-                                  (sort-by :r-squared >)))
             ;; Color palette for models
             model-colors ["orange" "green" "purple" "red" "brown"]]
-        (kindly-heading (str "Domain Regression (axis: " (name axis)
-                             ", metric: " (pr-str metric) ")"))
-        ;; Table of models sorted by R²
-        (when (seq models)
-          (let [sorted-models (sort-by :r-squared > models)]
-            (kindly-table
-             (mapv (fn [{:keys [id label coefficients r-squared]}]
-                     {:model label
-                      :r-squared (format "%.4f" r-squared)
-                      :equation (or (regression-equation-str id coefficients) "")
-                      :best-fit (if (= id best-fit) "✓" "")})
-                   sorted-models))))
-        ;; Vega-lite scatter plot with fit curves for models within tolerance
-        (when (and extract (seq models-to-plot))
-          (let [{:keys [data]} extract
-                ;; Helper to extract value (handles both plain and error-bound formats)
-                get-value (if has-error-bounds?
-                            (fn [[_ v]] (when v (:value v)))
-                            (fn [[_ v]] v))
-                ;; Get data points (filtered for valid values)
-                valid-data (filter (fn [datum]
-                                     (let [[coord _] datum
-                                           value (get-value datum)]
-                                       (and (some? value)
-                                            (map? coord)
-                                            (contains? coord axis))))
-                                   data)
-                ;; Convert raw values to base units (e.g., ns -> s)
-                base-scale (metric-path->base-scale metric)
-                base-values (mapv (fn [datum] (* (get-value datum) base-scale)) valid-data)
-                ;; Compute SI scale based on mean value
-                dimension (metric-path->dimension metric)
-                representative-value (/ (reduce + base-values) (count base-values))
-                [si-scale si-unit] (if dimension
-                                     (format/scale dimension representative-value)
-                                     [1 ""])
-                ;; Combined scale factor
-                total-scale (* base-scale si-scale)
-                ;; Create model functions for all models to plot
-                model-fns (into {}
-                                (map (fn [m]
-                                       [(:id m) (regression-model-fn (:id m) (:coefficients m))])
-                                     models-to-plot))
-                ;; Create data points with SI scaling (including error bounds if available)
-                ;; Use best-fit model for primary residual
-                best-model-fn (get model-fns best-fit)
-                points (mapv (fn [[coord v]]
-                               (let [y-val (if has-error-bounds? (:value v) v)
-                                     x-val (double (get coord axis))
-                                     predicted (best-model-fn x-val)]
-                                 (cond-> {"x" x-val
-                                          "y" (* y-val total-scale)
-                                          "predicted" (* predicted total-scale)
-                                          "residual" (* (- y-val predicted) total-scale)
-                                          "type" "actual"}
-                                   has-error-bounds?
-                                   (assoc "yLower" (* (:lower v) total-scale)
-                                          "yUpper" (* (:upper v) total-scale)))))
-                             valid-data)
-                ;; Generate x values for curve plotting
-                x-vals (mapv #(get % "x") points)
-                x-min (apply min x-vals)
-                x-max (apply max x-vals)
-                x-range (range x-min (+ x-max 1) (/ (- x-max x-min) 50))
-                ;; Generate line points for each model to plot
-                all-line-pts (mapcat
-                              (fn [model color]
-                                (let [mfn (get model-fns (:id model))]
-                                  (mapv (fn [x]
-                                          {"x" x
-                                           "y" (* (mfn x) total-scale)
-                                           "model" (:label model)})
-                                        x-range)))
-                              models-to-plot
-                              (cycle model-colors))
-                ;; Build y-axis title with unit
-                y-title (if (seq si-unit)
-                          (str (pr-str metric) " (" si-unit ")")
-                          (pr-str metric))
-                residual-title (if (seq si-unit)
-                                 (str "Residual (" si-unit ")")
-                                 "Residual")
-                ;; Build chart layers
-                point-layer {:data {:values points}
+        ;; Iterate over each metric's regression
+        (doseq [[metric-id {:keys [metric models best-fit with-error-bounds]}] regressions]
+          (let [;; Get corresponding extract data for this metric
+                metric-extract-data (get-in extract [:metrics metric-id])
+                has-error-bounds? with-error-bounds
+                ;; Find models within tolerance of best fit
+                best-r-squared (when best-fit
+                                 (->> models
+                                      (filter #(= (:id %) best-fit))
+                                      first
+                                      :r-squared))
+                models-to-plot (when best-r-squared
+                                 (->> models
+                                      (filter #(>= (:r-squared %)
+                                                   (* best-r-squared (- 1 tolerance))))
+                                      (sort-by :r-squared >)))]
+            (kindly-heading (str "Domain Regression (axis: " (name axis)
+                                 ", metric: " (pr-str metric) ")"))
+            ;; Table of models sorted by R²
+            (when (seq models)
+              (let [sorted-models (sort-by :r-squared > models)]
+                (kindly-table
+                 (mapv (fn [{:keys [id label coefficients r-squared]}]
+                         {:model label
+                          :r-squared (format "%.4f" r-squared)
+                          :equation (or (regression-equation-str id coefficients) "")
+                          :best-fit (if (= id best-fit) "✓" "")})
+                       sorted-models))))
+            ;; Vega-lite scatter plot with fit curves for models within tolerance
+            (when (and metric-extract-data (seq models-to-plot))
+              (let [{:keys [data]} metric-extract-data
+                    ;; Helper to extract value (handles both plain and error-bound formats)
+                    get-value (if has-error-bounds?
+                                (fn [[_ v]] (when v (:value v)))
+                                (fn [[_ v]] v))
+                    ;; Get data points (filtered for valid values)
+                    valid-data (filter (fn [datum]
+                                         (let [[coord _] datum
+                                               value (get-value datum)]
+                                           (and (some? value)
+                                                (map? coord)
+                                                (contains? coord axis))))
+                                       data)
+                    ;; Convert raw values to base units (e.g., ns -> s)
+                    base-scale (metric-path->base-scale metric)
+                    base-values (mapv (fn [datum] (* (get-value datum) base-scale)) valid-data)
+                    ;; Compute SI scale based on mean value
+                    dimension (metric-path->dimension metric)
+                    representative-value (/ (reduce + base-values) (count base-values))
+                    [si-scale si-unit] (if dimension
+                                         (format/scale dimension representative-value)
+                                         [1 ""])
+                    ;; Combined scale factor
+                    total-scale (* base-scale si-scale)
+                    ;; Create model functions for all models to plot
+                    model-fns (into {}
+                                    (map (fn [m]
+                                           [(:id m) (regression-model-fn (:id m) (:coefficients m))])
+                                         models-to-plot))
+                    ;; Create data points with SI scaling (including error bounds if available)
+                    ;; Use best-fit model for primary residual
+                    best-model-fn (get model-fns best-fit)
+                    points (mapv (fn [[coord v]]
+                                   (let [y-val (if has-error-bounds? (:value v) v)
+                                         x-val (double (get coord axis))
+                                         predicted (best-model-fn x-val)]
+                                     (cond-> {"x" x-val
+                                              "y" (* y-val total-scale)
+                                              "predicted" (* predicted total-scale)
+                                              "residual" (* (- y-val predicted) total-scale)
+                                              "type" "actual"}
+                                       has-error-bounds?
+                                       (assoc "yLower" (* (:lower v) total-scale)
+                                              "yUpper" (* (:upper v) total-scale)))))
+                                 valid-data)
+                    ;; Generate x values for curve plotting
+                    x-vals (mapv #(get % "x") points)
+                    x-min (apply min x-vals)
+                    x-max (apply max x-vals)
+                    x-range (range x-min (+ x-max 1) (/ (- x-max x-min) 50))
+                    ;; Generate line points for each model to plot
+                    all-line-pts (mapcat
+                                  (fn [model color]
+                                    (let [mfn (get model-fns (:id model))]
+                                      (mapv (fn [x]
+                                              {"x" x
+                                               "y" (* (mfn x) total-scale)
+                                               "model" (:label model)})
+                                            x-range)))
+                                  models-to-plot
+                                  (cycle model-colors))
+                    ;; Build y-axis title with unit
+                    y-title (if (seq si-unit)
+                              (str (pr-str metric) " (" si-unit ")")
+                              (pr-str metric))
+                    residual-title (if (seq si-unit)
+                                     (str "Residual (" si-unit ")")
+                                     "Residual")
+                    ;; Build chart layers
+                    point-layer {:data {:values points}
+                                 :mark {:type "point" :size 60}
+                                 :encoding {:x {:field "x" :type "quantitative"
+                                                :title (name axis)}
+                                            :y {:field "y" :type "quantitative"
+                                                :title y-title}
+                                            :color {:value "steelblue"}}}
+                    line-layer {:data {:values (vec all-line-pts)}
+                                :mark {:type "line" :strokeWidth 2}
+                                :encoding {:x {:field "x" :type "quantitative"}
+                                           :y {:field "y" :type "quantitative"}
+                                           :color {:field "model" :type "nominal"
+                                                   :legend {:title "Model"
+                                                            :orient "none"
+                                                            :legendX 10
+                                                            :legendY 10}}}}
+                    ;; Error bar layer (only if we have error bounds)
+                    error-layer (when has-error-bounds?
+                                  {:data {:values points}
+                                   :mark {:type "rule" :strokeWidth 1.5}
+                                   :encoding {:x {:field "x" :type "quantitative"}
+                                              :y {:field "yLower" :type "quantitative"}
+                                              :y2 {:field "yUpper"}
+                                              :color {:value "steelblue"}
+                                              :opacity {:value 0.5}}})
+                    layers (cond-> [point-layer line-layer]
+                             has-error-bounds? (conj error-layer))]
+                ;; Main regression chart
+                (kindly-vega-lite
+                 {:width chart-width
+                  :height chart-height
+                  :layer layers})
+                ;; Combined residual plot for all models within tolerance
+                (let [all-residual-pts (mapcat
+                                        (fn [model]
+                                          (let [mfn (get model-fns (:id model))]
+                                            (mapv (fn [[coord v]]
+                                                    (let [y-val (if has-error-bounds? (:value v) v)
+                                                          x-val (double (get coord axis))
+                                                          predicted (mfn x-val)]
+                                                      {"x" x-val
+                                                       "residual" (* (- y-val predicted) total-scale)
+                                                       "model" (:label model)}))
+                                                  valid-data)))
+                                        models-to-plot)]
+                  (kindly-heading "Residual Plot")
+                  (kindly-vega-lite
+                   {:width chart-width
+                    :height (/ chart-height 2)
+                    :layer [{:data {:values (vec all-residual-pts)}
                              :mark {:type "point" :size 60}
                              :encoding {:x {:field "x" :type "quantitative"
                                             :title (name axis)}
-                                        :y {:field "y" :type "quantitative"
-                                            :title y-title}
-                                        :color {:value "steelblue"}}}
-                line-layer {:data {:values (vec all-line-pts)}
-                            :mark {:type "line" :strokeWidth 2}
-                            :encoding {:x {:field "x" :type "quantitative"}
-                                       :y {:field "y" :type "quantitative"}
-                                       :color {:field "model" :type "nominal"
-                                               :legend {:title "Model"
-                                                        :orient "none"
-                                                        :legendX 10
-                                                        :legendY 10}}}}
-                ;; Error bar layer (only if we have error bounds)
-                error-layer (when has-error-bounds?
-                              {:data {:values points}
-                               :mark {:type "rule" :strokeWidth 1.5}
-                               :encoding {:x {:field "x" :type "quantitative"}
-                                          :y {:field "yLower" :type "quantitative"}
-                                          :y2 {:field "yUpper"}
-                                          :color {:value "steelblue"}
-                                          :opacity {:value 0.5}}})
-                layers (cond-> [point-layer line-layer]
-                         has-error-bounds? (conj error-layer))]
-            ;; Main regression chart
-            (kindly-vega-lite
-             {:width chart-width
-              :height chart-height
-              :layer layers})
-            ;; Combined residual plot for all models within tolerance
-            (let [all-residual-pts (mapcat
-                                    (fn [model]
-                                      (let [mfn (get model-fns (:id model))]
-                                        (mapv (fn [[coord v]]
-                                                (let [y-val (if has-error-bounds? (:value v) v)
-                                                      x-val (double (get coord axis))
-                                                      predicted (mfn x-val)]
-                                                  {"x" x-val
-                                                   "residual" (* (- y-val predicted) total-scale)
-                                                   "model" (:label model)}))
-                                              valid-data)))
-                                    models-to-plot)]
-              (kindly-heading "Residual Plot")
-              (kindly-vega-lite
-               {:width chart-width
-                :height (/ chart-height 2)
-                :layer [{:data {:values (vec all-residual-pts)}
-                         :mark {:type "point" :size 60}
-                         :encoding {:x {:field "x" :type "quantitative"
-                                        :title (name axis)}
-                                    :y {:field "residual" :type "quantitative"
-                                        :title residual-title}
-                                    :color {:field "model" :type "nominal"
-                                            :legend {:title "Model"
-                                                     :orient "none"
-                                                     :legendX 10
-                                                     :legendY 10}}}}
-                        ;; Smooth loess line through residuals (faint)
-                        {:data {:values (vec all-residual-pts)}
-                         :transform [{:loess "residual"
-                                      :on "x"
-                                      :groupby ["model"]
-                                      :bandwidth 0.3}]
-                         :mark {:type "line" :strokeWidth 1}
-                         :encoding {:x {:field "x" :type "quantitative"}
-                                    :y {:field "residual" :type "quantitative"}
-                                    :color {:field "model" :type "nominal"
-                                            :legend nil}
-                                    :opacity {:value 0.4}}}
-                        ;; Zero reference line
-                        {:data {:values [{"y" 0}]}
-                         :mark {:type "rule" :strokeDash [4 4]}
-                         :encoding {:y {:field "y" :type "quantitative"}
-                                    :color {:value "gray"}}}]}))))))))
+                                        :y {:field "residual" :type "quantitative"
+                                            :title residual-title}
+                                        :color {:field "model" :type "nominal"
+                                                :legend {:title "Model"
+                                                         :orient "none"
+                                                         :legendX 10
+                                                         :legendY 10}}}}
+                            ;; Smooth loess line through residuals (faint)
+                            {:data {:values (vec all-residual-pts)}
+                             :transform [{:loess "residual"
+                                          :on "x"
+                                          :groupby ["model"]
+                                          :bandwidth 0.3}]
+                             :mark {:type "line" :strokeWidth 1}
+                             :encoding {:x {:field "x" :type "quantitative"}
+                                        :y {:field "residual" :type "quantitative"}
+                                        :color {:field "model" :type "nominal"
+                                                :legend nil}
+                                        :opacity {:value 0.4}}}
+                            ;; Zero reference line
+                            {:data {:values [{"y" 0}]}
+                             :mark {:type "rule" :strokeDash [4 4]}
+                             :encoding {:y {:field "y" :type "quantitative"}
+                                        :color {:value "gray"}}}]}))))))))))
 
 ;;; Noop implementations for views not applicable to Kindly output
 

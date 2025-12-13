@@ -51,26 +51,34 @@
       (is (false? (domain/domain? "domain"))))))
 
 (deftest domain-extract?-test
+  ;; Tests the domain-extract? predicate for the multi-metric structure.
+  ;; Domain extracts now contain a :metrics map with metric-id keys.
   (testing "domain-extract?"
-    (testing "returns true for valid domain-extract result"
+    (testing "returns true for valid domain-extract result with :metrics map"
       (is (true? (domain/domain-extract?
                   {:type :criterium/domain-extract
-                   :metric [:stats :elapsed-time :mean]
-                   :data [[{:n 100} 1.0]]}))))
-    (testing "returns true for empty data"
+                   :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                            :data [[{:n 100} 1.0]]}}}))))
+    (testing "returns true for multiple metrics"
       (is (true? (domain/domain-extract?
                   {:type :criterium/domain-extract
-                   :metric [:stats :elapsed-time :mean]
-                   :data []}))))
+                   :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                            :data [[{:n 100} 1.0]]}
+                             :thread-allocation {:metric [:stats :thread-allocation :mean]
+                                                 :data [[{:n 100} 512.0]]}}}))))
+    (testing "returns true for empty metrics map"
+      (is (true? (domain/domain-extract?
+                  {:type :criterium/domain-extract
+                   :metrics {}}))))
     (testing "returns false for wrong type"
       (is (false? (domain/domain-extract?
-                   {:type :other :metric [] :data []}))))
-    (testing "returns false for missing :metric"
+                   {:type :other :metrics {}}))))
+    (testing "returns false for missing :metrics"
       (is (false? (domain/domain-extract?
                    {:type :criterium/domain-extract :data []}))))
-    (testing "returns false for missing :data"
+    (testing "returns false for :metrics not being a map"
       (is (false? (domain/domain-extract?
-                   {:type :criterium/domain-extract :metric []}))))
+                   {:type :criterium/domain-extract :metrics []}))))
     (testing "returns false for non-map"
       (is (false? (domain/domain-extract? nil)))
       (is (false? (domain/domain-extract? "extract"))))))
@@ -338,74 +346,85 @@
 
 (deftest extract-test
   ;; Tests the extract function which extracts metric values from domain runs.
+  ;; Extract now returns a :metrics map with metric-id keys.
   ;; Contracts: returns domain-extract?, preserves order, handles missing data.
   (testing "extract"
-    (testing "returns a domain-extract result"
-      (let [d (domain/domain
-               {:coord {:n 100}
-                :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
-            result (domain/extract d [:stats :elapsed-time :mean])]
-        (is (domain/domain-extract? result))
-        (is (= :criterium/domain-extract (:type result)))
-        (is (= [:stats :elapsed-time :mean] (:metric result)))))
-    (testing "contains coordinate-value pairs in :data"
-      (let [d (domain/domain
-               {:coord {:n 100}
-                :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
-               {:coord {:n 200}
-                :data (mock-bench-result {:elapsed-time {:mean 2.0}})})]
-        (is (= [[{:n 100} 1.0] [{:n 200} 2.0]]
-               (:data (domain/extract d [:stats :elapsed-time :mean]))))))
-    (testing "preserves run order"
-      (let [d (domain/domain
-               {:coord {:n 300}
-                :data (mock-bench-result {:elapsed-time {:mean 3.0}})}
-               {:coord {:n 100}
-                :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
-               {:coord {:n 200}
-                :data (mock-bench-result {:elapsed-time {:mean 2.0}})})]
-        (is (= [[{:n 300} 3.0] [{:n 100} 1.0] [{:n 200} 2.0]]
-               (:data (domain/extract d [:stats :elapsed-time :mean]))))))
-    (testing "returns nil for missing metrics"
-      (let [d (domain/domain
-               {:coord {:n 100}
-                :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
-               {:coord {:n 200}
-                :data (mock-bench-result {:other-metric {:mean 2.0}})})]
-        (is (= [[{:n 100} 1.0] [{:n 200} nil]]
-               (:data (domain/extract d [:stats :elapsed-time :mean]))))))
-    (testing "returns nil for missing value-key"
-      (let [d (domain/domain
-               {:coord :a
-                :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
-               {:coord :b
-                :data (mock-bench-result {:elapsed-time {:variance 0.5}})})]
-        (is (= [[:a 1.0] [:b nil]]
-               (:data (domain/extract d [:stats :elapsed-time :mean]))))))
-    (testing "handles keyword coordinates"
-      (let [d (domain/domain
-               {:coord :baseline
-                :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
-               {:coord :optimized
-                :data (mock-bench-result {:elapsed-time {:mean 0.5}})})]
-        (is (= [[:baseline 1.0] [:optimized 0.5]]
-               (:data (domain/extract d [:stats :elapsed-time :mean]))))))
-    (testing "returns empty vector in :data for empty domain"
-      (let [result (domain/extract (domain/domain)
-                                   [:stats :elapsed-time :mean])]
-        (is (domain/domain-extract? result))
-        (is (= [] (:data result)))))
-    (testing "extracts different value-keys"
-      (let [d (domain/domain
-               {:coord {:n 100}
-                :data (mock-bench-result
-                       {:elapsed-time {:mean 1.0 :variance 0.1}})})]
-        (is (= [[{:n 100} 1.0]]
-               (:data (domain/extract d [:stats :elapsed-time :mean]))))
-        (is (= [[{:n 100} 0.1]]
-               (:data (domain/extract d [:stats :elapsed-time :variance]))))))
+    (testing "with explicit metric-path"
+      (testing "returns a domain-extract result with :metrics map"
+        (let [d (domain/domain
+                 {:coord {:n 100}
+                  :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
+              result (domain/extract d [:stats :elapsed-time :mean])]
+          (is (domain/domain-extract? result))
+          (is (= :criterium/domain-extract (:type result)))
+          (is (contains? (:metrics result) :elapsed-time))
+          (is (= [:stats :elapsed-time :mean]
+                 (get-in result [:metrics :elapsed-time :metric])))))
+      (testing "contains coordinate-value pairs in metric :data"
+        (let [d (domain/domain
+                 {:coord {:n 100}
+                  :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+                 {:coord {:n 200}
+                  :data (mock-bench-result {:elapsed-time {:mean 2.0}})})
+              result (domain/extract d [:stats :elapsed-time :mean])]
+          (is (= [[{:n 100} 1.0] [{:n 200} 2.0]]
+                 (get-in result [:metrics :elapsed-time :data])))))
+      (testing "preserves run order"
+        (let [d (domain/domain
+                 {:coord {:n 300}
+                  :data (mock-bench-result {:elapsed-time {:mean 3.0}})}
+                 {:coord {:n 100}
+                  :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+                 {:coord {:n 200}
+                  :data (mock-bench-result {:elapsed-time {:mean 2.0}})})
+              result (domain/extract d [:stats :elapsed-time :mean])]
+          (is (= [[{:n 300} 3.0] [{:n 100} 1.0] [{:n 200} 2.0]]
+                 (get-in result [:metrics :elapsed-time :data])))))
+      (testing "returns nil for missing metrics"
+        (let [d (domain/domain
+                 {:coord {:n 100}
+                  :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+                 {:coord {:n 200}
+                  :data (mock-bench-result {:other-metric {:mean 2.0}})})
+              result (domain/extract d [:stats :elapsed-time :mean])]
+          (is (= [[{:n 100} 1.0] [{:n 200} nil]]
+                 (get-in result [:metrics :elapsed-time :data])))))
+      (testing "returns nil for missing value-key"
+        (let [d (domain/domain
+                 {:coord :a
+                  :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+                 {:coord :b
+                  :data (mock-bench-result {:elapsed-time {:variance 0.5}})})
+              result (domain/extract d [:stats :elapsed-time :mean])]
+          (is (= [[:a 1.0] [:b nil]]
+                 (get-in result [:metrics :elapsed-time :data])))))
+      (testing "handles keyword coordinates"
+        (let [d (domain/domain
+                 {:coord :baseline
+                  :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+                 {:coord :optimized
+                  :data (mock-bench-result {:elapsed-time {:mean 0.5}})})
+              result (domain/extract d [:stats :elapsed-time :mean])]
+          (is (= [[:baseline 1.0] [:optimized 0.5]]
+                 (get-in result [:metrics :elapsed-time :data])))))
+      (testing "returns empty vector in :data for empty domain"
+        (let [result (domain/extract (domain/domain)
+                                     [:stats :elapsed-time :mean])]
+          (is (domain/domain-extract? result))
+          (is (= [] (get-in result [:metrics :elapsed-time :data])))))
+      (testing "extracts different value-keys"
+        (let [d (domain/domain
+                 {:coord {:n 100}
+                  :data (mock-bench-result
+                         {:elapsed-time {:mean 1.0 :variance 0.1}})})]
+          (is (= [[{:n 100} 1.0]]
+                 (get-in (domain/extract d [:stats :elapsed-time :mean])
+                         [:metrics :elapsed-time :data])))
+          (is (= [[{:n 100} 0.1]]
+                 (get-in (domain/extract d [:stats :elapsed-time :variance])
+                         [:metrics :elapsed-time :data]))))))
     (testing "with :with-error-bounds option"
-      (testing "sets :with-error-bounds flag in result"
+      (testing "sets :with-error-bounds flag in metric result"
         (let [d (domain/domain
                  {:coord {:n 100}
                   :data (mock-bench-result
@@ -414,7 +433,7 @@
                                          :mean-minus-3sigma 0.8}})})
               result (domain/extract d [:stats :elapsed-time :mean]
                                      {:with-error-bounds true})]
-          (is (true? (:with-error-bounds result)))))
+          (is (true? (get-in result [:metrics :elapsed-time :with-error-bounds])))))
       (testing "returns value maps with :value, :lower, :upper"
         (let [d (domain/domain
                  {:coord {:n 100}
@@ -431,7 +450,7 @@
                                      {:with-error-bounds true})]
           (is (= [[{:n 100} {:value 1.0 :lower 0.8 :upper 1.2}]
                   [{:n 200} {:value 2.0 :lower 1.5 :upper 2.5}]]
-                 (:data result)))))
+                 (get-in result [:metrics :elapsed-time :data])))))
       (testing "returns nil for missing mean value"
         (let [d (domain/domain
                  {:coord {:n 100}
@@ -439,7 +458,8 @@
                          {:elapsed-time {:variance 0.1}})})
               result (domain/extract d [:stats :elapsed-time :mean]
                                      {:with-error-bounds true})]
-          (is (= [[{:n 100} nil]] (:data result)))))
+          (is (= [[{:n 100} nil]]
+                 (get-in result [:metrics :elapsed-time :data])))))
       (testing "only applies to :mean value-key"
         (let [d (domain/domain
                  {:coord {:n 100}
@@ -450,8 +470,9 @@
                                          :mean-minus-3sigma 0.8}})})
               result (domain/extract d [:stats :elapsed-time :variance]
                                      {:with-error-bounds true})]
-          (is (false? (:with-error-bounds result)))
-          (is (= [[{:n 100} 0.1]] (:data result))))))))
+          (is (false? (get-in result [:metrics :elapsed-time :with-error-bounds])))
+          (is (= [[{:n 100} 0.1]]
+                 (get-in result [:metrics :elapsed-time :data]))))))))
 
 ;; Tests for domain select function.
 ;; Validates filtering domain to sub-domain by partial coordinate match,
@@ -800,9 +821,9 @@
                 :with-error-bounds true})
             result (f {:domain d})
             extract (:mean result)]
-        (is (true? (:with-error-bounds extract)))
+        (is (true? (get-in extract [:metrics :elapsed-time :with-error-bounds])))
         (is (= {:value 1.0 :lower 0.8 :upper 1.2}
-               (second (first (:data extract)))))))))
+               (second (first (get-in extract [:metrics :elapsed-time :data])))))))))
 
 (deftest domain-group-by-fn-test
   (testing "domain-group-by-fn"
@@ -958,161 +979,197 @@
 ;; Validates regression fitting for algorithmic complexity analysis.
 
 (deftest domain-regression?-test
+  ;; Tests the domain-regression? predicate for the multi-metric structure.
+  ;; Domain regressions now contain a :regressions map with metric-id keys.
   (testing "domain-regression?"
-    (testing "returns true for valid domain-regression result"
+    (testing "returns true for valid domain-regression result with :regressions map"
       (is (true? (domain/domain-regression?
                   {:type :criterium/domain-regression
                    :axis :n
-                   :models [{:id :linear :label "O(n)" :r-squared 0.98}]
-                   :best-fit :linear}))))
-    (testing "returns true for empty models"
+                   :regressions {:elapsed-time {:models [{:id :linear :label "O(n)" :r-squared 0.98}]
+                                                :best-fit :linear}}}))))
+    (testing "returns true for multiple metrics in regressions"
       (is (true? (domain/domain-regression?
                   {:type :criterium/domain-regression
                    :axis :n
-                   :models []
-                   :best-fit nil}))))
+                   :regressions {:elapsed-time {:models [{:id :linear :r-squared 0.98}]
+                                                :best-fit :linear}
+                                 :thread-allocation {:models [{:id :linear :r-squared 0.95}]
+                                                     :best-fit :linear}}}))))
+    (testing "returns true for empty regressions map"
+      (is (true? (domain/domain-regression?
+                  {:type :criterium/domain-regression
+                   :axis :n
+                   :regressions {}}))))
     (testing "returns false for wrong type"
       (is (false? (domain/domain-regression?
-                   {:type :other :axis :n :models [] :best-fit nil}))))
+                   {:type :other :axis :n :regressions {}}))))
     (testing "returns false for missing :axis"
       (is (false? (domain/domain-regression?
-                   {:type :criterium/domain-regression :models [] :best-fit nil}))))
-    (testing "returns false for missing :models"
+                   {:type :criterium/domain-regression :regressions {}}))))
+    (testing "returns false for missing :regressions"
       (is (false? (domain/domain-regression?
-                   {:type :criterium/domain-regression :axis :n :best-fit nil}))))
-    (testing "returns false for missing :best-fit"
+                   {:type :criterium/domain-regression :axis :n}))))
+    (testing "returns false for :regressions not being a map"
       (is (false? (domain/domain-regression?
-                   {:type :criterium/domain-regression :axis :n :models []}))))
+                   {:type :criterium/domain-regression :axis :n :regressions []}))))
     (testing "returns false for non-map"
       (is (false? (domain/domain-regression? nil)))
       (is (false? (domain/domain-regression? "regression"))))))
 
 (deftest fit-complexity-test
   ;; Tests regression model fitting on domain-extract data.
+  ;; fit-complexity now takes multi-metric extract and returns :regressions map.
   ;; Contracts: identifies complexity, filters invalid data, handles error bounds.
   (testing "fit-complexity"
-    (testing "returns a domain-regression result"
+    (testing "returns a domain-regression result with :regressions map"
       (let [extract {:type :criterium/domain-extract
-                     :metric [:stats :elapsed-time :mean]
-                     :data [[{:n 100} 100.0]
-                            [{:n 200} 200.0]
-                            [{:n 300} 300.0]]}
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100} 100.0]
+                                                     [{:n 200} 200.0]
+                                                     [{:n 300} 300.0]]}}}
             result (domain/fit-complexity extract :n)]
         (is (domain/domain-regression? result))
         (is (= :criterium/domain-regression (:type result)))
         (is (= :n (:axis result)))
-        (is (= [:stats :elapsed-time :mean] (:metric result)))))
+        (is (contains? (:regressions result) :elapsed-time))
+        (is (= [:stats :elapsed-time :mean]
+               (get-in result [:regressions :elapsed-time :metric])))))
     (testing "identifies linear complexity with perfect fit"
       (let [extract {:type :criterium/domain-extract
-                     :metric [:stats :elapsed-time :mean]
-                     :data [[{:n 100} 100.0]
-                            [{:n 200} 200.0]
-                            [{:n 300} 300.0]
-                            [{:n 400} 400.0]]}
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100} 100.0]
+                                                     [{:n 200} 200.0]
+                                                     [{:n 300} 300.0]
+                                                     [{:n 400} 400.0]]}}}
             result (domain/fit-complexity extract :n)
-            linear (first (filter #(= :linear (:id %)) (:models result)))]
-        (is (= :linear (:best-fit result)))
+            regression (get-in result [:regressions :elapsed-time])
+            linear (first (filter #(= :linear (:id %)) (:models regression)))]
+        (is (= :linear (:best-fit regression)))
         (is (> (:r-squared linear) 0.99))))
     (testing "identifies quadratic complexity"
       (let [extract {:type :criterium/domain-extract
-                     :metric [:stats :elapsed-time :mean]
-                     :data [[{:n 10} 100.0]
-                            [{:n 20} 400.0]
-                            [{:n 30} 900.0]
-                            [{:n 40} 1600.0]]}
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 10} 100.0]
+                                                     [{:n 20} 400.0]
+                                                     [{:n 30} 900.0]
+                                                     [{:n 40} 1600.0]]}}}
             result (domain/fit-complexity extract :n)
-            quadratic (first (filter #(= :quadratic (:id %)) (:models result)))]
-        (is (= :quadratic (:best-fit result)))
+            regression (get-in result [:regressions :elapsed-time])
+            quadratic (first (filter #(= :quadratic (:id %)) (:models regression)))]
+        (is (= :quadratic (:best-fit regression)))
         (is (> (:r-squared quadratic) 0.99))))
     (testing "filters out nil values"
       (let [extract {:type :criterium/domain-extract
-                     :metric [:stats :elapsed-time :mean]
-                     :data [[{:n 100} 100.0]
-                            [{:n 200} nil]
-                            [{:n 300} 300.0]]}
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100} 100.0]
+                                                     [{:n 200} nil]
+                                                     [{:n 300} 300.0]]}}}
             result (domain/fit-complexity extract :n)]
         (is (domain/domain-regression? result))
-        (is (seq (:models result)))))
+        (is (seq (get-in result [:regressions :elapsed-time :models])))))
     (testing "filters out coordinates missing axis key"
       (let [extract {:type :criterium/domain-extract
-                     :metric [:stats :elapsed-time :mean]
-                     :data [[{:n 100} 100.0]
-                            [{:m 200} 200.0]
-                            [{:n 300} 300.0]]}
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100} 100.0]
+                                                     [{:m 200} 200.0]
+                                                     [{:n 300} 300.0]]}}}
             result (domain/fit-complexity extract :n)]
         (is (domain/domain-regression? result))
-        (is (seq (:models result)))))
+        (is (seq (get-in result [:regressions :elapsed-time :models])))))
     (testing "filters out keyword coordinates"
       (let [extract {:type :criterium/domain-extract
-                     :metric [:stats :elapsed-time :mean]
-                     :data [[{:n 100} 100.0]
-                            [:baseline 50.0]
-                            [{:n 300} 300.0]]}
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100} 100.0]
+                                                     [:baseline 50.0]
+                                                     [{:n 300} 300.0]]}}}
             result (domain/fit-complexity extract :n)]
         (is (domain/domain-regression? result))
-        (is (seq (:models result)))))
+        (is (seq (get-in result [:regressions :elapsed-time :models])))))
     (testing "returns empty models with insufficient data"
       (let [extract {:type :criterium/domain-extract
-                     :metric [:stats :elapsed-time :mean]
-                     :data [[{:n 100} 100.0]]}
-            result (domain/fit-complexity extract :n)]
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100} 100.0]]}}}
+            result (domain/fit-complexity extract :n)
+            regression (get-in result [:regressions :elapsed-time])]
         (is (domain/domain-regression? result))
-        (is (empty? (:models result)))
-        (is (nil? (:best-fit result)))))
+        (is (empty? (:models regression)))
+        (is (nil? (:best-fit regression)))))
     (testing "returns empty models for empty extract"
       (let [extract {:type :criterium/domain-extract
-                     :metric [:stats :elapsed-time :mean]
-                     :data []}
-            result (domain/fit-complexity extract :n)]
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data []}}}
+            result (domain/fit-complexity extract :n)
+            regression (get-in result [:regressions :elapsed-time])]
         (is (domain/domain-regression? result))
-        (is (empty? (:models result)))))
+        (is (empty? (:models regression)))))
     (testing "supports custom models"
       (let [extract {:type :criterium/domain-extract
-                     :metric [:stats :elapsed-time :mean]
-                     :data [[{:n 100} 100.0]
-                            [{:n 200} 200.0]
-                            [{:n 300} 300.0]]}
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100} 100.0]
+                                                     [{:n 200} 200.0]
+                                                     [{:n 300} 300.0]]}}}
             models {:cubic {:transform (fn [n] (* n n n))
                             :label "O(n³)"}}
-            result (domain/fit-complexity extract :n models)]
+            result (domain/fit-complexity extract :n models)
+            regression (get-in result [:regressions :elapsed-time])]
         (is (domain/domain-regression? result))
-        (is (= 1 (count (:models result))))
-        (is (= :cubic (:id (first (:models result)))))))
+        (is (= 1 (count (:models regression))))
+        (is (= :cubic (:id (first (:models regression)))))))
+    (testing "handles multiple metrics"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100} 100.0]
+                                                     [{:n 200} 200.0]
+                                                     [{:n 300} 300.0]]}
+                               :thread-allocation {:metric [:stats :thread-allocation :mean]
+                                                   :data [[{:n 100} 1000.0]
+                                                          [{:n 200} 2000.0]
+                                                          [{:n 300} 3000.0]]}}}
+            result (domain/fit-complexity extract :n)]
+        (is (domain/domain-regression? result))
+        (is (contains? (:regressions result) :elapsed-time))
+        (is (contains? (:regressions result) :thread-allocation))
+        (is (= :linear (get-in result [:regressions :elapsed-time :best-fit])))
+        (is (= :linear (get-in result [:regressions :thread-allocation :best-fit])))))
     (testing "handles error-bound data"
       (testing "extracts :value from error-bound maps"
         (let [extract {:type :criterium/domain-extract
-                       :metric [:stats :elapsed-time :mean]
-                       :with-error-bounds true
-                       :data [[{:n 100} {:value 100.0 :lower 90.0 :upper 110.0}]
-                              [{:n 200} {:value 200.0 :lower 180.0 :upper 220.0}]
-                              [{:n 300} {:value 300.0 :lower 270.0 :upper 330.0}]]}
+                       :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                                :with-error-bounds true
+                                                :data [[{:n 100} {:value 100.0 :lower 90.0 :upper 110.0}]
+                                                       [{:n 200} {:value 200.0 :lower 180.0 :upper 220.0}]
+                                                       [{:n 300} {:value 300.0 :lower 270.0 :upper 330.0}]]}}}
               result (domain/fit-complexity extract :n)
-              linear (first (filter #(= :linear (:id %)) (:models result)))]
+              regression (get-in result [:regressions :elapsed-time])
+              linear (first (filter #(= :linear (:id %)) (:models regression)))]
           (is (domain/domain-regression? result))
-          (is (= :linear (:best-fit result)))
+          (is (= :linear (:best-fit regression)))
           (is (> (:r-squared linear) 0.99))))
       (testing "filters out nil error-bound values"
         (let [extract {:type :criterium/domain-extract
-                       :metric [:stats :elapsed-time :mean]
-                       :with-error-bounds true
-                       :data [[{:n 100} {:value 100.0 :lower 90.0 :upper 110.0}]
-                              [{:n 200} nil]
-                              [{:n 300} {:value 300.0 :lower 270.0 :upper 330.0}]]}
+                       :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                                :with-error-bounds true
+                                                :data [[{:n 100} {:value 100.0 :lower 90.0 :upper 110.0}]
+                                                       [{:n 200} nil]
+                                                       [{:n 300} {:value 300.0 :lower 270.0 :upper 330.0}]]}}}
               result (domain/fit-complexity extract :n)]
           (is (domain/domain-regression? result))
-          (is (seq (:models result))))))))
+          (is (seq (get-in result [:regressions :elapsed-time :models]))))))))
 
 (deftest domain-regression-fn-test
+  ;; Tests the factory function that creates regression pipelines.
+  ;; Contracts: returns function, fits regression from data-map, supports options.
   (testing "domain-regression-fn"
     (testing "returns a function"
       (is (fn? (domain/domain-regression-fn)))
       (is (fn? (domain/domain-regression-fn {}))))
     (testing "fits regression to extract in data-map"
       (let [extract {:type :criterium/domain-extract
-                     :metric [:stats :elapsed-time :mean]
-                     :data [[{:n 100} 100.0]
-                            [{:n 200} 200.0]
-                            [{:n 300} 300.0]]}
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100} 100.0]
+                                                     [{:n 200} 200.0]
+                                                     [{:n 300} 300.0]]}}}
             f (domain/domain-regression-fn {:id :scaling :axis :n})
             result (f {:extract extract})]
         (is (contains? result :extract))
@@ -1120,17 +1177,17 @@
         (is (domain/domain-regression? (:scaling result)))))
     (testing "uses default :id when not specified"
       (let [extract {:type :criterium/domain-extract
-                     :metric [:stats :elapsed-time :mean]
-                     :data [[{:n 100} 100.0]
-                            [{:n 200} 200.0]]}
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100} 100.0]
+                                                     [{:n 200} 200.0]]}}}
             f (domain/domain-regression-fn {:axis :n})
             result (f {:extract extract})]
         (is (contains? result :regression))))
     (testing "uses custom :extract-id"
       (let [extract {:type :criterium/domain-extract
-                     :metric [:stats :elapsed-time :mean]
-                     :data [[{:n 100} 100.0]
-                            [{:n 200} 200.0]]}
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100} 100.0]
+                                                     [{:n 200} 200.0]]}}}
             f (domain/domain-regression-fn
                {:id :scaling :extract-id :my-extract :axis :n})
             result (f {:my-extract extract})]
@@ -1138,9 +1195,9 @@
         (is (domain/domain-regression? (:scaling result)))))
     (testing "preserves other keys in data-map"
       (let [extract {:type :criterium/domain-extract
-                     :metric [:stats :elapsed-time :mean]
-                     :data [[{:n 100} 100.0]
-                            [{:n 200} 200.0]]}
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100} 100.0]
+                                                     [{:n 200} 200.0]]}}}
             f (domain/domain-regression-fn {:id :scaling :axis :n})
             result (f {:extract extract :other-key "value"})]
         (is (= "value" (:other-key result)))))
@@ -1160,7 +1217,7 @@
                          {:id :scaling :axis :n})))]
         (is (domain/domain-extract? (:extract result)))
         (is (domain/domain-regression? (:scaling result)))
-        (is (= :linear (:best-fit (:scaling result))))))))
+        (is (= :linear (get-in (:scaling result) [:regressions :elapsed-time :best-fit])))))))
 
 ;; Tests for domain plan execution functions.
 ;; Validates the domain-plan pattern for bundled analysis and viewing,

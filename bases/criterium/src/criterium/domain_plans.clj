@@ -12,7 +12,7 @@
   View specs follow the same pattern.")
 
 (def complexity-analysis
-  "Analyze scaling complexity by extracting elapsed time and fitting models.
+  "Analyze scaling complexity by extracting all quantitative metrics and fitting models.
 
   Fits O(log n), O(n), O(n log n), O(n²) models to determine algorithmic
   complexity. Requires map coordinates with an :n key for input size.
@@ -21,8 +21,7 @@
 
   Example:
     (analyse-domain complexity-analysis my-domain)"
-  {:analyse [[:domain-extract-fn {:metric-path [:stats :elapsed-time :mean]
-                                  :with-error-bounds true}]
+  {:analyse [[:domain-extract-fn {:with-error-bounds true}]
              [:domain-regression-fn {:axis :n}]]
    :view [[:domain-extract {}]
           [:domain-regression {}]]})
@@ -42,8 +41,8 @@
 (def extract-elapsed-time
   "Extract elapsed time mean values from all runs.
 
-  Simple plan for viewing metric values across a domain without
-  additional analysis.
+  Simple plan for viewing elapsed time across a domain. For all available
+  metrics, use complexity-analysis or omit :metric-path from domain-extract-fn.
 
   Example:
     (analyse-domain extract-elapsed-time my-domain)"

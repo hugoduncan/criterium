@@ -103,6 +103,10 @@
 
 (domain/extract sort-domain [:stats :elapsed-time :mean])
 
+;; Or extract all collected metrics at once (no metric-path):
+
+(keys (:metrics (domain/extract sort-domain)))
+
 ;; ### Compare Implementations
 ;;
 ;; Build a domain comparing `sort` vs `sort-by`:
@@ -232,11 +236,12 @@
 ;; and identifies the best fit by R² value:
 
 (let [extract (domain/extract scaling-domain [:stats :elapsed-time :mean])
-      regression (domain/fit-complexity extract :n)]
-  {:best-fit (:best-fit regression)
+      regression (domain/fit-complexity extract :n)
+      elapsed-time-reg (get-in regression [:regressions :elapsed-time])]
+  {:best-fit (:best-fit elapsed-time-reg)
    :models (map (fn [{:keys [id label r-squared]}]
                   {:model label :r-squared (format "%.4f" r-squared)})
-                (sort-by :r-squared > (:models regression)))})
+                (sort-by :r-squared > (:models elapsed-time-reg)))})
 
 ;; View regression results with the print viewer:
 
@@ -254,16 +259,16 @@
     ((domain/domain-regression-fn
       {:id :scaling
        :axis :n}))
-    :scaling
-    :best-fit)
+    (get-in [:scaling :regressions :elapsed-time :best-fit]))
 
 ;; Custom models can be provided for specific complexity classes:
 
-(domain/fit-complexity
- (domain/extract scaling-domain [:stats :elapsed-time :mean])
- :n
- {:cubic {:transform (fn [n] (* n n n)) :label "O(n³)"}
-  :linear {:transform identity :label "O(n)"}})
+(let [result (domain/fit-complexity
+              (domain/extract scaling-domain [:stats :elapsed-time :mean])
+              :n
+              {:cubic {:transform (fn [n] (* n n n)) :label "O(n³)"}
+               :linear {:transform identity :label "O(n)"}})]
+  (get-in result [:regressions :elapsed-time :best-fit]))
 
 ;; ## Pipeline Composition
 ;;
@@ -296,7 +301,7 @@
 
 (domain/analyse-domain domain-plans/extract-elapsed-time sort-domain)
 
-;; `complexity-analysis` extracts elapsed time and fits regression models:
+;; `complexity-analysis` extracts all collected metrics and fits regression models:
 
 (domain/analyse-domain domain-plans/complexity-analysis scaling-domain)
 
@@ -336,8 +341,7 @@
 (-> (domain/options->domain-plan domain-plans/complexity-analysis
                                  :viewer :none)
     (domain/analyse-domain scaling-domain)
-    :regression
-    :best-fit)
+    (get-in [:regression :regressions :elapsed-time :best-fit]))
 
 ;; ## Domain Builder
 ;;
@@ -415,7 +419,11 @@
    :bench-options {:metric-ids [:elapsed-time :thread-allocation]}
    :reporter nil))
 
-;; Extract allocation data across runs:
+;; Extract all metrics (elapsed-time and thread-allocation) at once:
+
+(keys (:metrics (domain/extract builder-domain-with-alloc)))
+
+;; Or extract a specific metric:
 
 (domain/extract builder-domain-with-alloc [:stats :thread-allocation :mean])
 

@@ -321,9 +321,10 @@
 
 (deftest domain-extract-print-test
   ;; Tests the print viewer output for domain-extract results.
+  ;; Now using the multi-metric :metrics map structure.
   ;; Verifies coordinate formatting and value display with unit scaling.
   (testing "domain-extract*"
-    (testing "prints metric path and coordinate-value pairs"
+    (testing "prints metric path and coordinate-value pairs for each metric"
       (is (= ["Domain Extract: [:stats :elapsed-time :mean]"
               "baseline: 100 ns"
               "n=100: 200 ns"
@@ -335,10 +336,11 @@
                  {}
                  {:extract
                   {:type :criterium/domain-extract
-                   :metric [:stats :elapsed-time :mean]
-                   :data [[:baseline 100]
-                          [{:n 100} 200]
-                          [{:impl :foo :n 100} 300]]}}))))))
+                   :metrics {:elapsed-time
+                             {:metric [:stats :elapsed-time :mean]
+                              :data [[:baseline 100]
+                                     [{:n 100} 200]
+                                     [{:impl :foo :n 100} 300]]}}}}))))))
     (testing "handles nil values"
       (is (= ["Domain Extract: [:stats :elapsed-time :mean]"
               "test: nil"]
@@ -349,8 +351,9 @@
                  {}
                  {:extract
                   {:type :criterium/domain-extract
-                   :metric [:stats :elapsed-time :mean]
-                   :data [[:test nil]]}}))))))
+                   :metrics {:elapsed-time
+                             {:metric [:stats :elapsed-time :mean]
+                              :data [[:test nil]]}}}}))))))
     (testing "uses custom extract-id"
       (is (= ["Domain Extract: [:stats :elapsed-time :mean]"
               "a: 1.00 ns"]
@@ -361,8 +364,28 @@
                  {:extract-id :my-extract}
                  {:my-extract
                   {:type :criterium/domain-extract
-                   :metric [:stats :elapsed-time :mean]
-                   :data [[:a 1]]}}))))))))
+                   :metrics {:elapsed-time
+                             {:metric [:stats :elapsed-time :mean]
+                              :data [[:a 1]]}}}}))))))
+    (testing "prints multiple metrics with separate headers"
+      (is (= ["Domain Extract: [:stats :elapsed-time :mean]"
+              "n=100: 100 ns"
+              ""
+              "Domain Extract: [:stats :thread-allocation :mean]"
+              "n=100: 1.00 Kb"]
+             (trimmed-lines
+              (with-out-str
+                (view/domain-extract*
+                 :print
+                 {}
+                 {:extract
+                  {:type :criterium/domain-extract
+                   :metrics {:elapsed-time
+                             {:metric [:stats :elapsed-time :mean]
+                              :data [[{:n 100} 100]]}
+                             :thread-allocation
+                             {:metric [:stats :thread-allocation :mean]
+                              :data [[{:n 100} 1024]]}}}}))))))))
 
 (deftest domain-grouped-print-test
   ;; Tests the print viewer output for domain-grouped results.
@@ -439,6 +462,7 @@
 
 (deftest domain-regression-print-test
   ;; Tests the print viewer output for domain-regression results.
+  ;; Now using the multi-metric :regressions map structure.
   ;; Verifies display of models sorted by R² with equations, best-fit indicator,
   ;; and [plotted] marker for models within tolerance.
   (testing "domain-regression*"
@@ -455,20 +479,21 @@
                  {:regression
                   {:type :criterium/domain-regression
                    :axis :n
-                   :metric [:stats :elapsed-time :mean]
-                   :models [{:id :linear
-                             :label "O(n)"
-                             :coefficients {:a 1.2e-9 :b 5e-8}
-                             :r-squared 0.99}
-                            {:id :n-log-n
-                             :label "O(n log n)"
-                             :coefficients {:a 2.5e-10 :b 1e-7}
-                             :r-squared 0.85}
-                            {:id :quadratic
-                             :label "O(n²)"
-                             :coefficients {:a 1e-12 :b 2e-7}
-                             :r-squared 0.70}]
-                   :best-fit :linear}}))))))
+                   :regressions {:elapsed-time
+                                 {:metric [:stats :elapsed-time :mean]
+                                  :models [{:id :linear
+                                            :label "O(n)"
+                                            :coefficients {:a 1.2e-9 :b 5e-8}
+                                            :r-squared 0.99}
+                                           {:id :n-log-n
+                                            :label "O(n log n)"
+                                            :coefficients {:a 2.5e-10 :b 1e-7}
+                                            :r-squared 0.85}
+                                           {:id :quadratic
+                                            :label "O(n²)"
+                                            :coefficients {:a 1e-12 :b 2e-7}
+                                            :r-squared 0.70}]
+                                  :best-fit :linear}}}}))))))
     (testing "shows [plotted] for models within tolerance"
       (is (= ["Domain Regression (axis: n, metric: [:stats :elapsed-time :mean])"
               "O(n)        R²=0.9900  y = 1.200e-09*n + 5.000e-08  <- best fit"
@@ -481,16 +506,17 @@
                  {:regression
                   {:type :criterium/domain-regression
                    :axis :n
-                   :metric [:stats :elapsed-time :mean]
-                   :models [{:id :linear
-                             :label "O(n)"
-                             :coefficients {:a 1.2e-9 :b 5e-8}
-                             :r-squared 0.99}
-                            {:id :n-log-n
-                             :label "O(n log n)"
-                             :coefficients {:a 2.5e-10 :b 1e-7}
-                             :r-squared 0.985}]
-                   :best-fit :linear}}))))))
+                   :regressions {:elapsed-time
+                                 {:metric [:stats :elapsed-time :mean]
+                                  :models [{:id :linear
+                                            :label "O(n)"
+                                            :coefficients {:a 1.2e-9 :b 5e-8}
+                                            :r-squared 0.99}
+                                           {:id :n-log-n
+                                            :label "O(n log n)"
+                                            :coefficients {:a 2.5e-10 :b 1e-7}
+                                            :r-squared 0.985}]
+                                  :best-fit :linear}}}}))))))
     (testing "respects custom tolerance parameter"
       (is (= ["Domain Regression (axis: n, metric: [:stats :elapsed-time :mean])"
               "O(n)        R²=0.9900  y = 1.200e-09*n + 5.000e-08  <- best fit"
@@ -503,16 +529,17 @@
                  {:regression
                   {:type :criterium/domain-regression
                    :axis :n
-                   :metric [:stats :elapsed-time :mean]
-                   :models [{:id :linear
-                             :label "O(n)"
-                             :coefficients {:a 1.2e-9 :b 5e-8}
-                             :r-squared 0.99}
-                            {:id :n-log-n
-                             :label "O(n log n)"
-                             :coefficients {:a 2.5e-10 :b 1e-7}
-                             :r-squared 0.85}]
-                   :best-fit :linear}}))))))
+                   :regressions {:elapsed-time
+                                 {:metric [:stats :elapsed-time :mean]
+                                  :models [{:id :linear
+                                            :label "O(n)"
+                                            :coefficients {:a 1.2e-9 :b 5e-8}
+                                            :r-squared 0.99}
+                                           {:id :n-log-n
+                                            :label "O(n log n)"
+                                            :coefficients {:a 2.5e-10 :b 1e-7}
+                                            :r-squared 0.85}]
+                                  :best-fit :linear}}}}))))))
     (testing "handles negative intercepts"
       (is (= ["Domain Regression (axis: n, metric: [:stats :elapsed-time :mean])"
               "O(n)  R²=0.9500  y = 1.200e-09*n - 5.000e-09  <- best fit"]
@@ -524,12 +551,13 @@
                  {:regression
                   {:type :criterium/domain-regression
                    :axis :n
-                   :metric [:stats :elapsed-time :mean]
-                   :models [{:id :linear
-                             :label "O(n)"
-                             :coefficients {:a 1.2e-9 :b -5e-9}
-                             :r-squared 0.95}]
-                   :best-fit :linear}}))))))
+                   :regressions {:elapsed-time
+                                 {:metric [:stats :elapsed-time :mean]
+                                  :models [{:id :linear
+                                            :label "O(n)"
+                                            :coefficients {:a 1.2e-9 :b -5e-9}
+                                            :r-squared 0.95}]
+                                  :best-fit :linear}}}}))))))
     (testing "handles models without coefficients"
       (is (= ["Domain Regression (axis: n, metric: [:stats :elapsed-time :mean])"
               "O(n)  R²=0.9500  <- best fit"]
@@ -541,9 +569,10 @@
                  {:regression
                   {:type :criterium/domain-regression
                    :axis :n
-                   :metric [:stats :elapsed-time :mean]
-                   :models [{:id :linear :label "O(n)" :r-squared 0.95}]
-                   :best-fit :linear}}))))))
+                   :regressions {:elapsed-time
+                                 {:metric [:stats :elapsed-time :mean]
+                                  :models [{:id :linear :label "O(n)" :r-squared 0.95}]
+                                  :best-fit :linear}}}}))))))
     (testing "handles empty models"
       (is (= ["Domain Regression (axis: n, metric: [:stats :elapsed-time :mean])"
               "(insufficient data for regression)"]
@@ -555,9 +584,10 @@
                  {:regression
                   {:type :criterium/domain-regression
                    :axis :n
-                   :metric [:stats :elapsed-time :mean]
-                   :models []
-                   :best-fit nil}}))))))
+                   :regressions {:elapsed-time
+                                 {:metric [:stats :elapsed-time :mean]
+                                  :models []
+                                  :best-fit nil}}}}))))))
     (testing "uses custom regression-id"
       (is (= ["Domain Regression (axis: size, metric: [:stats :elapsed-time :mean])"
               "O(n)  R²=0.9500  y = 1.500e-09*n + 1.000e-08  <- best fit"]
@@ -569,10 +599,13 @@
                  {:scaling
                   {:type :criterium/domain-regression
                    :axis :size
-                   :metric [:stats :elapsed-time :mean]
-                   :models [{:id :linear
-                             :label "O(n)"
-                             :coefficients {:a 1.5e-9 :b 1e-8}
-                             :r-squared 0.95}]
-                   :best-fit :linear}}))))))))
+                   :regressions {:elapsed-time
+                                 {:metric [:stats :elapsed-time :mean]
+                                  :models [{:id :linear
+                                            :label "O(n)"
+                                            :coefficients {:a 1.5e-9 :b 1e-8}
+                                            :r-squared 0.95}]
+                                  :best-fit :linear}}}}))))))))
+
+
 

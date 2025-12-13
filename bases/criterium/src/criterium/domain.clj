@@ -20,6 +20,7 @@
    [criterium.bench :as bench]
    [criterium.bench.config :as bench-config]
    [criterium.measured :as measured]
+   [criterium.metric :as metric]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have have?]]
    [criterium.view :as view]))
@@ -41,12 +42,12 @@
        (vector? (:runs x))))
 
 (defn domain-extract?
-  "Returns true if x is a domain extract result."
+  "Returns true if x is a domain extract result.
+  Domain extracts contain a :metrics map with metric-id keys."
   [x]
   (and (map? x)
        (= :criterium/domain-extract (:type x))
-       (contains? x :metric)
-       (contains? x :data)))
+       (map? (:metrics x))))
 
 (defn domain-grouped?
   "Returns true if x is a domain grouped result."
@@ -166,55 +167,99 @@
 
 ;;; Analysis
 
-(defn extract
-  "Extract metric values at a path from all runs in a domain.
-  Returns a domain-extract result containing coordinate-value pairs.
+(defn- discover-quantitative-metrics
+  "Discover quantitative metric-ids from a benchmark result's stats.
+  Returns a sequence of metric-ids (keywords like :elapsed-time, :thread-allocation)."
+  [bench-result]
+  (let [metrics-defs (get-in bench-result [:stats :metrics-defs])]
+    (->> metrics-defs
+         (filter (fn [[_k v]] (= :quantitative (:type v))))
+         (map first))))
 
-  metric-path is a vector of keys specifying the path to the metric value,
-  e.g., [:stats :elapsed-time :mean].
+(defn extract
+  "Extract metric values from all runs in a domain.
+  Returns a domain-extract result with a :metrics map.
+
+  When metric-path is provided, extracts that single metric.
+  When metric-path is nil or omitted, extracts all quantitative metrics
+  discovered from the first run's :stats :metrics-defs.
+
+  metric-path is a vector like [:stats :elapsed-time :mean].
 
   Options:
-    :with-error-bounds - When true and metric-path points to :mean, also
+    :with-error-bounds - When true and extracting :mean values, also
                          extracts :mean-plus-3sigma and :mean-minus-3sigma
                          as error bounds. Values become maps with :value,
                          :lower, and :upper keys.
+    :metric-ids        - When metric-path is nil, filter to only these
+                         metric-ids (e.g., [:elapsed-time :thread-allocation]).
+                         If nil, extracts all quantitative metrics.
 
-  For stats paths (where the first element is a stats key like :stats or
-  :log-stats), transforms are applied to convert raw values to their
+  For stats paths, transforms are applied to convert raw values to their
   display form.
 
   Returns nil for value if the metric is missing from a run.
 
-  Example:
+  Example - single metric:
   (extract domain [:stats :elapsed-time :mean])
   ;; => {:type :criterium/domain-extract
-  ;;     :metric [:stats :elapsed-time :mean]
-  ;;     :data [[{:n 100} 1.23e-6] [{:n 1000} 1.45e-5] ...]}
+  ;;     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+  ;;                              :data [[{:n 100} 1.23e-6] ...]}}}
 
-  (extract domain [:stats :elapsed-time :mean] {:with-error-bounds true})
+  Example - all metrics:
+  (extract domain)
   ;; => {:type :criterium/domain-extract
-  ;;     :metric [:stats :elapsed-time :mean]
-  ;;     :with-error-bounds true
-  ;;     :data [[{:n 100} {:value 1.23e-6 :lower 1.0e-6 :upper 1.5e-6}] ...]}"
+  ;;     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean] :data [...]}
+  ;;               :thread-allocation {:metric [:stats :thread-allocation :mean] :data [...]}}}"
+  ([domain]
+   (extract domain nil {}))
   ([domain metric-path]
    (extract domain metric-path {}))
-  ([domain metric-path {:keys [with-error-bounds]}]
-   (let [[stats-id metric-id value-key] metric-path
-         extract-bounds? (and with-error-bounds (= value-key :mean))]
+  ([domain metric-path {:keys [with-error-bounds metric-ids]}]
+   (let [runs (:runs domain)
+         ;; Determine which metrics to extract
+         metric-ids-to-extract
+         (if metric-path
+           ;; Single metric-path provided - extract the metric-id from path
+           [(second metric-path)]
+           ;; Discover from first run
+           (let [first-run-data (:data (first runs))
+                 discovered (discover-quantitative-metrics first-run-data)]
+             (if metric-ids
+               (filter (set metric-ids) discovered)
+               discovered)))
+
+         ;; Build metric-path for each metric-id (default to :mean)
+         metric-paths
+         (if metric-path
+           {(second metric-path) metric-path}
+           (into {}
+                 (map (fn [mid] [mid [:stats mid :mean]]))
+                 metric-ids-to-extract))
+
+         ;; Extract data for each metric
+         extract-single
+         (fn [metric-path]
+           (let [[stats-id metric-id value-key] metric-path
+                 extract-bounds? (and with-error-bounds (= value-key :mean))]
+             {:metric metric-path
+              :with-error-bounds (boolean extract-bounds?)
+              :data (mapv (fn [{:keys [coord data]}]
+                            (let [value (util/stats-value data stats-id metric-id value-key)]
+                              (if extract-bounds?
+                                (let [lower (util/stats-value data stats-id metric-id :mean-minus-3sigma)
+                                      upper (util/stats-value data stats-id metric-id :mean-plus-3sigma)]
+                                  [coord (when value
+                                           {:value value
+                                            :lower lower
+                                            :upper upper})])
+                                [coord value])))
+                          runs)}))]
      {:type :criterium/domain-extract
-      :metric metric-path
-      :with-error-bounds (boolean extract-bounds?)
-      :data (mapv (fn [{:keys [coord data]}]
-                    (let [value (util/stats-value data stats-id metric-id value-key)]
-                      (if extract-bounds?
-                        (let [lower (util/stats-value data stats-id metric-id :mean-minus-3sigma)
-                              upper (util/stats-value data stats-id metric-id :mean-plus-3sigma)]
-                          [coord (when value
-                                   {:value value
-                                    :lower lower
-                                    :upper upper})])
-                        [coord value])))
-                  (:runs domain))})))
+      :metrics (into {}
+                     (map (fn [[metric-id mpath]]
+                            [metric-id (extract-single mpath)]))
+                     metric-paths)})))
 
 (defn select
   "Filter domain to runs matching a partial coordinate.
@@ -416,27 +461,33 @@
     opts - Map with keys:
       :id               - Key for result in output (default: :extract)
       :domain-id        - Key for source domain in input (default: :domain)
-      :metric-path      - Vector path to metric, e.g. [:stats :elapsed-time :mean]
-      :with-error-bounds - When true and metric-path ends in :mean, also
+      :metric-path      - Vector path to metric, e.g. [:stats :elapsed-time :mean].
+                          When nil, extracts all quantitative metrics.
+      :metric-ids       - When metric-path is nil, filter to these metric-ids.
+                          E.g., [:elapsed-time :thread-allocation].
+      :with-error-bounds - When true and extracting :mean values, also
                            extracts error bounds (±3σ) for each value.
 
   The returned function:
   - Takes a data-map containing a domain under :domain-id
   - Returns the data-map with a domain-extract result added under :id
 
-  Example:
+  Example - single metric:
   (-> {:domain my-domain}
       ((domain-extract-fn {:id :mean
                            :metric-path [:stats :elapsed-time :mean]})))
-  ;; => {:domain my-domain
-  ;;     :mean {:type :criterium/domain-extract ...}}"
+
+  Example - all metrics:
+  (-> {:domain my-domain}
+      ((domain-extract-fn {:id :metrics})))"
   ([] (domain-extract-fn {}))
-  ([{:keys [id domain-id metric-path with-error-bounds]}]
+  ([{:keys [id domain-id metric-path metric-ids with-error-bounds]}]
    (fn [data-map]
      (let [domain-id (or domain-id :domain)
            id (or id :extract)
            domain (data-map domain-id)
-           result (extract domain metric-path {:with-error-bounds with-error-bounds})]
+           result (extract domain metric-path {:with-error-bounds with-error-bounds
+                                               :metric-ids metric-ids})]
        (assoc data-map id result)))))
 
 (defn domain-group-by-fn
@@ -624,19 +675,19 @@
        :residuals residuals})))
 
 (defn domain-regression?
-  "Returns true if x is a domain regression result."
+  "Returns true if x is a domain regression result.
+  Domain regressions contain a :regressions map with metric-id keys."
   [x]
   (and (map? x)
        (= :criterium/domain-regression (:type x))
        (contains? x :axis)
-       (contains? x :models)
-       (contains? x :best-fit)))
+       (map? (:regressions x))))
 
 (defn fit-complexity
   "Fit complexity models to domain extract data.
   Returns a domain-regression result identifying how metrics scale with input size.
 
-  extract is a domain-extract result.
+  extract is a domain-extract result (with :metrics map).
   axis is the coordinate key to use for x-values (e.g., :n for input size).
   models is a map of model-id to {:transform fn :label string}, or nil for defaults.
 
@@ -648,52 +699,58 @@
   (fit-complexity extract :n)
   ;; => {:type :criterium/domain-regression
   ;;     :axis :n
-  ;;     :metric [:stats :elapsed-time :mean]
-  ;;     :models [{:id :linear :label \"O(n)\" :r-squared 0.98 ...} ...]
-  ;;     :best-fit :linear}"
+  ;;     :regressions {:elapsed-time {:metric [:stats :elapsed-time :mean]
+  ;;                                  :models [{:id :linear :r-squared 0.98 ...}]
+  ;;                                  :best-fit :linear}
+  ;;                   :thread-allocation {...}}}"
   ([extract axis] (fit-complexity extract axis nil))
   ([extract axis models]
    (let [models (or models default-complexity-models)
-         metric-path (:metric extract)
-         has-error-bounds? (:with-error-bounds extract)
-         ;; Helper to extract numeric value (handles both plain and error-bound formats)
-         get-value (if has-error-bounds?
-                     (fn [v] (when (map? v) (:value v)))
-                     identity)
-         ;; Extract x (axis value) and y (metric value) from data
-         ;; Filter out nil y values
-         valid-data (filter (fn [[coord value]]
-                              (and (some? (get-value value))
-                                   (if (map? coord)
-                                     (contains? coord axis)
-                                     false)))
-                            (:data extract))
-         xs (mapv (fn [[coord _]] (double (get coord axis))) valid-data)
-         ys (mapv (fn [[_ value]] (double (get-value value))) valid-data)
-         ;; Fit each model, tracking parameter count for parsimony
-         fitted (when (>= (count xs) 2)
-                  (mapv (fn [[model-id model-def]]
-                          (let [result (fit-complexity-model model-id model-def xs ys)
-                                ;; Simple models have 2 params, composite have 3
-                                param-count (if (:transforms model-def) 3 2)]
-                            (assoc result :param-count param-count)))
-                        models))
-         ;; Find best fit by R², preferring simpler models when R² is close
-         ;; Sort by R² desc, then by param-count asc for tie-breaking
-         best-fit (when (seq fitted)
-                    (let [r-sq-threshold 1e-6
-                          sorted (sort-by (juxt #(- (:r-squared %)) :param-count) fitted)
-                          best (first sorted)
-                          ;; Find simplest model within threshold of best R²
-                          within-threshold (filter #(< (- (:r-squared best) (:r-squared %))
-                                                       r-sq-threshold)
-                                                   sorted)]
-                      (:id (first (sort-by :param-count within-threshold)))))]
+         ;; Fit a single metric's data
+         fit-single
+         (fn [[_metric-id metric-data]]
+           (let [{:keys [metric data with-error-bounds]} metric-data
+                 ;; Helper to extract numeric value (handles both plain and error-bound formats)
+                 get-value (if with-error-bounds
+                             (fn [v] (when (map? v) (:value v)))
+                             identity)
+                 ;; Extract x (axis value) and y (metric value) from data
+                 ;; Filter out nil y values
+                 valid-data (filter (fn [[coord value]]
+                                      (and (some? (get-value value))
+                                           (if (map? coord)
+                                             (contains? coord axis)
+                                             false)))
+                                    data)
+                 xs (mapv (fn [[coord _]] (double (get coord axis))) valid-data)
+                 ys (mapv (fn [[_ value]] (double (get-value value))) valid-data)
+                 ;; Fit each model, tracking parameter count for parsimony
+                 fitted (when (>= (count xs) 2)
+                          (mapv (fn [[model-id model-def]]
+                                  (let [result (fit-complexity-model model-id model-def xs ys)
+                                        ;; Simple models have 2 params, composite have 3
+                                        param-count (if (:transforms model-def) 3 2)]
+                                    (assoc result :param-count param-count)))
+                                models))
+                 ;; Find best fit by R², preferring simpler models when R² is close
+                 best-fit (when (seq fitted)
+                            (let [r-sq-threshold 1e-6
+                                  sorted (sort-by (juxt #(- (:r-squared %)) :param-count) fitted)
+                                  best (first sorted)
+                                  within-threshold (filter #(< (- (:r-squared best) (:r-squared %))
+                                                               r-sq-threshold)
+                                                           sorted)]
+                              (:id (first (sort-by :param-count within-threshold)))))]
+             {:metric metric
+              :with-error-bounds (boolean with-error-bounds)
+              :models (or fitted [])
+              :best-fit best-fit}))]
      {:type :criterium/domain-regression
       :axis axis
-      :metric metric-path
-      :models (or fitted [])
-      :best-fit best-fit})))
+      :regressions (into {}
+                         (map (fn [[metric-id metric-data]]
+                                [metric-id (fit-single [metric-id metric-data])]))
+                         (:metrics extract))})))
 
 (defn domain-regression-fn
   "Returns a function that fits complexity models to a domain extract in a data-map.
@@ -892,17 +949,17 @@
                                                (get-in data [:samples :total-benchmark-time-ns]))]
                                  [coord time-ns]))
                              impl-runs)
-          extract      {:type   :criterium/domain-extract
-                        :metric [:samples :total-benchmark-time-ns]
-                        :data   extract-data}
-          regression   (fit-complexity extract time-axis)
-          best-model   (first (filter #(= (:id %) (:best-fit regression))
-                                      (:models regression)))
-          next-x       (get next-coord time-axis)]
+          extract {:type :criterium/domain-extract
+                   :metric [:samples :total-benchmark-time-ns]
+                   :data extract-data}
+          regression (fit-complexity extract time-axis)
+          best-model (first (filter #(= (:id %) (:best-fit regression))
+                                    (:models regression)))
+          next-x (get next-coord time-axis)]
       (if (and best-model next-x (> (:r-squared best-model) 0.5))
         (let [predicted-ns (predict-time-ns best-model next-x)
               ;; Convert ns to seconds with margin
-              predicted-s  (* 2.5 (/ predicted-ns 1e9))]
+              predicted-s (* 2.5 (/ predicted-ns 1e9))]
           (max predicted-s initial-limit-time-s))
         initial-limit-time-s))))
 

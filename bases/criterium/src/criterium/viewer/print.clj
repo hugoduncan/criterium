@@ -431,12 +431,13 @@
   (let [extract-id (or extract-id :extract)
         extract (data-map extract-id)]
     (when extract
-      (let [{:keys [metric data]} extract]
+      (doseq [[metric-id {:keys [metric data]}] (:metrics extract)]
         (println (format "Domain Extract: %s" (pr-str metric)))
         (doseq [[coord value] data]
           (println (format "  %24s: %s"
                            (format-coord coord)
-                           (format-extract-value value metric))))))))
+                           (format-extract-value value metric))))
+        (println)))))
 
 (defmethod view/domain-grouped* :print
   [_ {:keys [grouped-id]} data-map]
@@ -567,31 +568,33 @@
         regression (data-map regression-id)
         tolerance (or tolerance 0.01)]
     (when regression
-      (let [{:keys [axis metric models best-fit]} regression
-            ;; Find models within tolerance of best fit
-            best-r-squared (when best-fit
-                             (->> models
-                                  (filter #(= (:id %) best-fit))
-                                  first
-                                  :r-squared))
-            plotted-ids (when best-r-squared
-                          (->> models
-                               (filter #(>= (:r-squared %)
-                                            (* best-r-squared (- 1 tolerance))))
-                               (map :id)
-                               set))]
-        (println (format "Domain Regression (axis: %s, metric: %s)"
-                         (name axis) (pr-str metric)))
-        (if (seq models)
-          (let [sorted-models (sort-by :r-squared > models)
-                label-width (apply max (map #(count (:label %)) models))]
-            (doseq [{:keys [id label coefficients r-squared]} sorted-models]
-              (let [eq-str (regression-equation-str id coefficients)
-                    plotted? (and plotted-ids (plotted-ids id))]
-                (println (format "  %s  R²=%.4f%s%s%s"
-                                 (format (str "%-" label-width "s") label)
-                                 r-squared
-                                 (if eq-str (str "  " eq-str) "")
-                                 (if (= id best-fit) "  <- best fit" "")
-                                 (if (and plotted? (not= id best-fit)) "  [plotted]" ""))))))
-          (println "  (insufficient data for regression)"))))))
+      (let [{:keys [axis regressions]} regression]
+        (doseq [[metric-id {:keys [metric models best-fit]}] regressions]
+          ;; Find models within tolerance of best fit
+          (let [best-r-squared (when best-fit
+                                 (->> models
+                                      (filter #(= (:id %) best-fit))
+                                      first
+                                      :r-squared))
+                plotted-ids (when best-r-squared
+                              (->> models
+                                   (filter #(>= (:r-squared %)
+                                                (* best-r-squared (- 1 tolerance))))
+                                   (map :id)
+                                   set))]
+            (println (format "Domain Regression (axis: %s, metric: %s)"
+                             (name axis) (pr-str metric)))
+            (if (seq models)
+              (let [sorted-models (sort-by :r-squared > models)
+                    label-width (apply max (map #(count (:label %)) models))]
+                (doseq [{:keys [id label coefficients r-squared]} sorted-models]
+                  (let [eq-str (regression-equation-str id coefficients)
+                        plotted? (and plotted-ids (plotted-ids id))]
+                    (println (format "  %s  R²=%.4f%s%s%s"
+                                     (format (str "%-" label-width "s") label)
+                                     r-squared
+                                     (if eq-str (str "  " eq-str) "")
+                                     (if (= id best-fit) "  <- best fit" "")
+                                     (if (and plotted? (not= id best-fit)) "  [plotted]" ""))))))
+              (println "  (insufficient data for regression)"))
+            (println)))))))
