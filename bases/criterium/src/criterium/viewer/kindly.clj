@@ -451,11 +451,11 @@
                 x-vals (mapv #(double (get (first %) axis)) valid-data)
                 x-min (apply min x-vals)
                 x-max (apply max x-vals)
-                ;; Generate points for curve
+                ;; Generate points for curve (apply same scaling as data points)
                 x-range (range x-min (+ x-max 1) (/ (- x-max x-min) 50))
                 line-pts (mapv (fn [x]
                                  {"x" x
-                                  "y" (model-fn x)
+                                  "y" (format-extract-value (model-fn x) metric)
                                   "type" (:label best-model)})
                                x-range)]
             (kindly-vega-lite
