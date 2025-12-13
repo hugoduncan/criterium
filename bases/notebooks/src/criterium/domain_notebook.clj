@@ -361,7 +361,7 @@
    {:n (domain/n-log-n-range 8 1000 4)}
    ;; Implementations to compare
    {:sort
-    {:measured (measured/expr (vec (range 100)))
+    {:measured (measured/expr (sort (vec (range 100))))
      :args-builder (fn [{:keys [n]}]
                      (fn [] [(mapv rand-int (repeat n 10000))]))}
     :sort-by
@@ -409,7 +409,7 @@
   (domain/domain-builder
    {:n (domain/n-log-n-range 8 1000 4)}
    {:sort
-    {:measured (measured/expr (vec (range 100)))
+    {:measured (measured/expr (sort (vec (range 100))))
      :args-builder (fn [{:keys [n]}]
                      (fn [] [(mapv rand-int (repeat n 10000))]))}
     :sort-by
