@@ -17,9 +17,12 @@
   Fits O(log n), O(n), O(n log n), O(n²) models to determine algorithmic
   complexity. Requires map coordinates with an :n key for input size.
 
+  Includes error bounds (±3σ) for each data point when viewed with kindly.
+
   Example:
     (analyse-domain complexity-analysis my-domain)"
-  {:analyse [[:domain-extract-fn {:metric-path [:stats :elapsed-time :mean]}]
+  {:analyse [[:domain-extract-fn {:metric-path [:stats :elapsed-time :mean]
+                                  :with-error-bounds true}]
              [:domain-regression-fn {:axis :n}]]
    :view [[:domain-extract {}]
           [:domain-regression {}]]})

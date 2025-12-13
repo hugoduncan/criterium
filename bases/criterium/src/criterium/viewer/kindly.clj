@@ -356,25 +356,34 @@
         extract (data-map extract-id)]
     (when extract
       (let [{:keys [metric data]} extract
+            has-error-bounds? (:with-error-bounds extract)
+            ;; Helper to extract numeric value (handles both plain and error-bound formats)
+            get-value (if has-error-bounds?
+                        (fn [v] (when (map? v) (:value v)))
+                        identity)
             ;; Convert to base units and compute SI scale
             base-scale (metric-path->base-scale metric)
-            valid-values (keep (fn [[_ v]] (when v (* v base-scale))) data)
+            valid-values (keep (fn [[_ v]] (when-let [val (get-value v)]
+                                             (* val base-scale)))
+                               data)
             dimension (metric-path->dimension metric)
             representative-value (when (seq valid-values)
                                    (/ (reduce + valid-values) (count valid-values)))
             [si-scale si-unit] (if (and dimension representative-value)
                                  (format/scale dimension representative-value)
                                  [1 ""])
+            total-scale (* base-scale si-scale)
             ;; Build header with unit
             value-header (if (seq si-unit)
                            (str "value (" si-unit ")")
                            "value")]
         (kindly-heading (str "Domain Extract: " (pr-str metric)))
         (kindly-table
-         (mapv (fn [[coord value]]
-                 {:coordinate (format-coord coord)
-                  value-header (when value
-                                 (format "%.3g" (* (* value base-scale) si-scale)))})
+         (mapv (fn [[coord v]]
+                 (let [value (get-value v)]
+                   {:coordinate (format-coord coord)
+                    value-header (when value
+                                   (format "%.3g" (* value total-scale)))}))
                data))))))
 
 (defmethod view/domain-grouped* :kindly
@@ -475,7 +484,8 @@
     (when regression
       (let [{:keys [axis metric models best-fit]} regression
             extract-id (or extract-id :extract)
-            extract (data-map extract-id)]
+            extract (data-map extract-id)
+            has-error-bounds? (:with-error-bounds extract)]
         (kindly-heading (str "Domain Regression (axis: " (name axis)
                              ", metric: " (pr-str metric) ")"))
         ;; Table of models sorted by R²
@@ -488,29 +498,41 @@
                       :equation (or (regression-equation-str id coefficients) "")
                       :best-fit (if (= id best-fit) "✓" "")})
                    sorted-models))))
-        ;; Vega-lite scatter plot with best-fit curve
+        ;; Vega-lite scatter plot with best-fit curve and optional error bars
         (when (and extract (seq models) best-fit)
           (let [{:keys [data]} extract
+                ;; Helper to extract value (handles both plain and error-bound formats)
+                get-value (if has-error-bounds?
+                            (fn [[_ v]] (when v (:value v)))
+                            (fn [[_ v]] v))
                 ;; Get data points (filtered for valid values)
-                valid-data (filter (fn [[coord value]]
-                                     (and (some? value)
-                                          (map? coord)
-                                          (contains? coord axis)))
+                valid-data (filter (fn [datum]
+                                     (let [[coord _] datum
+                                           value (get-value datum)]
+                                       (and (some? value)
+                                            (map? coord)
+                                            (contains? coord axis))))
                                    data)
                 ;; Convert raw values to base units (e.g., ns -> s)
                 base-scale (metric-path->base-scale metric)
-                base-values (mapv (fn [[_ value]] (* value base-scale)) valid-data)
+                base-values (mapv (fn [datum] (* (get-value datum) base-scale)) valid-data)
                 ;; Compute SI scale based on mean value
                 dimension (metric-path->dimension metric)
                 representative-value (/ (reduce + base-values) (count base-values))
                 [si-scale si-unit] (if dimension
                                      (format/scale dimension representative-value)
                                      [1 ""])
-                ;; Create data points with SI scaling
-                points (mapv (fn [[coord value]]
-                               {"x" (double (get coord axis))
-                                "y" (* (* value base-scale) si-scale)
-                                "type" "actual"})
+                ;; Combined scale factor
+                total-scale (* base-scale si-scale)
+                ;; Create data points with SI scaling (including error bounds if available)
+                points (mapv (fn [[coord v]]
+                               (let [y-val (if has-error-bounds? (:value v) v)]
+                                 (cond-> {"x" (double (get coord axis))
+                                          "y" (* y-val total-scale)
+                                          "type" "actual"}
+                                   has-error-bounds?
+                                   (assoc "yLower" (* (:lower v) total-scale)
+                                          "yUpper" (* (:upper v) total-scale)))))
                              valid-data)
                 ;; Generate predicted line from best-fit model
                 best-model (first (filter #(= (:id %) best-fit) models))
@@ -522,28 +544,41 @@
                 x-range (range x-min (+ x-max 1) (/ (- x-max x-min) 50))
                 line-pts (mapv (fn [x]
                                  {"x" x
-                                  "y" (* (* (model-fn x) base-scale) si-scale)
+                                  "y" (* (model-fn x) total-scale)
                                   "type" (:label best-model)})
                                x-range)
                 ;; Build y-axis title with unit
                 y-title (if (seq si-unit)
                           (str (pr-str metric) " (" si-unit ")")
-                          (pr-str metric))]
+                          (pr-str metric))
+                ;; Build chart layers
+                point-layer {:data {:values points}
+                             :mark {:type "point" :size 60}
+                             :encoding {:x {:field "x" :type "quantitative"
+                                            :title (name axis)}
+                                        :y {:field "y" :type "quantitative"
+                                            :title y-title}
+                                        :color {:value "steelblue"}}}
+                line-layer {:data {:values line-pts}
+                            :mark {:type "line" :strokeWidth 2}
+                            :encoding {:x {:field "x" :type "quantitative"}
+                                       :y {:field "y" :type "quantitative"}
+                                       :color {:value "orange"}}}
+                ;; Error bar layer (only if we have error bounds)
+                error-layer (when has-error-bounds?
+                              {:data {:values points}
+                               :mark {:type "rule" :strokeWidth 1.5}
+                               :encoding {:x {:field "x" :type "quantitative"}
+                                          :y {:field "yLower" :type "quantitative"}
+                                          :y2 {:field "yUpper"}
+                                          :color {:value "steelblue"}
+                                          :opacity {:value 0.5}}})
+                layers (cond-> [point-layer line-layer]
+                         has-error-bounds? (conj error-layer))]
             (kindly-vega-lite
              {:width chart-width
               :height chart-height
-              :layer [{:data {:values points}
-                       :mark {:type "point" :size 60}
-                       :encoding {:x {:field "x" :type "quantitative"
-                                      :title (name axis)}
-                                  :y {:field "y" :type "quantitative"
-                                      :title y-title}
-                                  :color {:value "steelblue"}}}
-                      {:data {:values line-pts}
-                       :mark {:type "line" :strokeWidth 2}
-                       :encoding {:x {:field "x" :type "quantitative"}
-                                  :y {:field "y" :type "quantitative"}
-                                  :color {:value "orange"}}}]})))))))
+              :layer layers})))))))
 
 ;;; Noop implementations for views not applicable to Kindly output
 

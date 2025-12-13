@@ -11,7 +11,7 @@
    [criterium.view :as view]
    [criterium.viewer.common :as viewer-common]))
 
-(set! *unchecked-math*  false)
+(set! *unchecked-math* false)
 
 (defn print-metrics
   [metrics metrics->values]
@@ -27,20 +27,20 @@
 
 (defmethod view/metrics* :print
   [_ {:keys [samples-id]} data-map]
-  (let [samples-id      (or samples-id :samples)
+  (let [samples-id (or samples-id :samples)
         metrics-samples (data-map samples-id)
-        metrics-defs    (:metrics-defs metrics-samples)
-        metric-configs  (metric/all-metric-configs metrics-defs)]
+        metrics-defs (:metrics-defs metrics-samples)
+        metric-configs (metric/all-metric-configs metrics-defs)]
     (print-metrics metric-configs (util/metric->values metrics-samples))))
 
 (defn print-stat
   [metric stat transforms]
   (when (:mean stat)
-    (let [stat         (util/transform-vals-> stat transforms)
+    (let [stat (util/transform-vals-> stat transforms)
           [scale unit] (format/scale
                         (:dimension metric)
                         (* (:scale metric) (:mean stat)))
-          scale        (* scale (:scale metric))]
+          scale (* scale (:scale metric))]
       (println
        (format
         "%32s: %s %s  3σ [%s %s]  min %s"
@@ -58,10 +58,10 @@
 
 (defmethod view/stats* :print
   [_ {:keys [stats-id metric-ids]} data-map]
-  (let [stats-id       (or stats-id :stats)
-        stats-map      (data-map stats-id)
-        metrics-defs   (-> (:metrics-defs stats-map)
-                           (metric/select-metrics metric-ids))
+  (let [stats-id (or stats-id :stats)
+        stats-map (data-map stats-id)
+        metrics-defs (-> (:metrics-defs stats-map)
+                         (metric/select-metrics metric-ids))
         metric-configs (metric/all-metric-configs metrics-defs)]
     (print-stats
      metric-configs
@@ -80,9 +80,9 @@
                      (:dimension m)
                      (* (get event-stats (:path m))
                         (:scale m))))
-                  (conj ms {:path      sample-count-path
+                  (conj ms {:path sample-count-path
                             :dimension :count
-                            :scale     1}))]
+                            :scale 1}))]
         (println (apply format (:summary metric) (:label metric) vals))))))
 
 (defn print-event-stats
@@ -95,29 +95,29 @@
 
 (defmethod view/event-stats* :print
   [_ {:keys [event-stats-id]} data-map]
-  (let [event-stats-id  (or event-stats-id :event-stats)
+  (let [event-stats-id (or event-stats-id :event-stats)
         event-stats-map (data-map event-stats-id)
-        metrics-defs    (-> (:metrics-defs event-stats-map)
-                            (metric/filter-metrics
-                             (metric/type-pred :event)))
-        event-stats     (util/event-stats event-stats-map)]
+        metrics-defs (-> (:metrics-defs event-stats-map)
+                         (metric/filter-metrics
+                          (metric/type-pred :event)))
+        event-stats (util/event-stats event-stats-map)]
     (print-event-stats metrics-defs event-stats)))
 
 (defn print-bootstrap-stat
   [metric
-   {:keys  [mean
-            mean-minus-3sigma
-            mean-plus-3sigma]
+   {:keys [mean
+           mean-minus-3sigma
+           mean-plus-3sigma]
     minval :min-val
-    :as    stat}]
+    :as stat}]
   (assert minval stat)
   (let [{:keys [dimension label]} metric
-        [scale units]             (format/scale
-                                   dimension
-                                   (* (:scale metric) (:point-estimate mean)))
-        min-quantiles             (:estimate-quantiles minval)
-        quantiles                 (:estimate-quantiles mean)
-        scale                     (* (:scale metric) scale)]
+        [scale units] (format/scale
+                       dimension
+                       (* (:scale metric) (:point-estimate mean)))
+        min-quantiles (:estimate-quantiles minval)
+        quantiles (:estimate-quantiles mean)
+        scale (* (:scale metric) scale)]
     (println
      (format "%36s: %.3g %s CI [%.3g %.3g] (%.3f %.3f)"
              (str label " min")
@@ -146,10 +146,10 @@
 (defn print-bootstrap-stats
   [{:keys [bootstrap-stats-id]} data-map]
   (let [bootstrap-stats-id (or bootstrap-stats-id :bootstrap-stats)
-        bootstrap-map      (data-map bootstrap-stats-id)
-        metrics-defs       (:metrics-defs bootstrap-map)
-        metric-configs     (metric/all-metric-configs metrics-defs)
-        bootstrap          (util/bootstrap bootstrap-map)]
+        bootstrap-map (data-map bootstrap-stats-id)
+        metrics-defs (:metrics-defs bootstrap-map)
+        metric-configs (metric/all-metric-configs metrics-defs)
+        bootstrap (util/bootstrap bootstrap-map)]
     (doseq [metric metric-configs]
       (when-let [stat (get-in bootstrap (:path metric))]
         (print-bootstrap-stat metric stat)))))
@@ -161,29 +161,29 @@
 (defn print-final-gc-warnings
   [{:keys [final-gc-id samples-id warn-threshold]} data-map]
   {:pre [(number? warn-threshold)]}
-  (let [final-gc-id       (or final-gc-id :final-gc)
-        samples-id        (or samples-id :samples)
-        metrics-samples   (data-map samples-id)
-        metrics-deps      (:metrics-deps metrics-samples)
+  (let [final-gc-id (or final-gc-id :final-gc)
+        samples-id (or samples-id :samples)
+        metrics-samples (data-map samples-id)
+        metrics-deps (:metrics-deps metrics-samples)
         gc-metric-configs (metric/all-metric-configs
                            (select-keys
                             metrics-deps
                             [:elapsed-time :garbage-collector]))
-        metric            (first gc-metric-configs)
-        gc-time-metrics   (->> (next gc-metric-configs)
-                               (filterv #(= :time (:dimension %))))
-        metric->values    (util/metric->values metrics-samples)
-        total             (* (:scale metric)
-                             (reduce + (metric->values [:elapsed-time])))
-        gc-samples        (-> data-map final-gc-id util/metric->values)
-        total-gc          (reduce
-                           +
-                           (mapv
-                            (fn [m]
-                              (* (:scale m) (reduce + (gc-samples (:path m)))))
-                            gc-time-metrics))
-        frac              (/ total-gc total)]
-    (when (and total-gc (> frac  warn-threshold))
+        metric (first gc-metric-configs)
+        gc-time-metrics (->> (next gc-metric-configs)
+                             (filterv #(= :time (:dimension %))))
+        metric->values (util/metric->values metrics-samples)
+        total (* (:scale metric)
+                 (reduce + (metric->values [:elapsed-time])))
+        gc-samples (-> data-map final-gc-id util/metric->values)
+        total-gc (reduce
+                  +
+                  (mapv
+                   (fn [m]
+                     (* (:scale m) (reduce + (gc-samples (:path m)))))
+                   gc-time-metrics))
+        frac (/ total-gc total)]
+    (when (and total-gc (> frac warn-threshold))
       (println (format "Final GC ran for %s, %.1f%% of total sampling time (%s)"
                        (format/format-value :time total-gc)
                        (* frac 100)
@@ -196,7 +196,7 @@
 (defn print-outlier-count
   [metric-config num-samples outliers]
   (let [outlier-counts (:outlier-counts outliers)
-        sum            (reduce + (vals outlier-counts))]
+        sum (reduce + (vals outlier-counts))]
     (when (pos? sum)
       (util/report "%32s: Found %d outliers in %d samples (%.3g %%)\n"
                    (:label metric-config)
@@ -211,12 +211,12 @@
 
 (defn print-outlier-counts
   [{:keys [outliers-id] :as _view} data-map]
-  (let [outliers-id    (or outliers-id :outliers)
-        outliers-map   (data-map outliers-id)
-        metrics-defs   (:metrics-defs  outliers-map)
+  (let [outliers-id (or outliers-id :outliers)
+        outliers-map (data-map outliers-id)
+        metrics-defs (:metrics-defs outliers-map)
         metric-configs (metric/all-metric-configs metrics-defs)
-        num-samples    (have (:num-samples outliers-map))
-        outliers       (util/outliers outliers-map)]
+        num-samples (have (:num-samples outliers-map))
+        outliers (util/outliers outliers-map)]
     (doseq [m metric-configs]
       (print-outlier-count m num-samples (get-in outliers (:path m))))))
 
@@ -228,9 +228,9 @@
   [metric-config outlier-significance]
   {:pre [(have? outlier-significance)]}
   (let [labels {:unaffected "unaffected"
-                :slight     "slightly inflated"
-                :moderate   "moderately inflated"
-                :severe     "severely inflated"}]
+                :slight "slightly inflated"
+                :moderate "moderately inflated"
+                :severe "severely inflated"}]
     (util/report "%s Variance contribution from outliers : %.3g %%"
                  (:label metric-config)
                  (* (:significance outlier-significance) 100.0))
@@ -240,13 +240,13 @@
 
 (defn print-outlier-significances
   [{:keys [outlier-significance-id] :as _view} data-map]
-  (let [outlier-sig-id  (or outlier-significance-id :outlier-significance)
+  (let [outlier-sig-id (or outlier-significance-id :outlier-significance)
         outlier-sig-map (data-map outlier-sig-id)
-        metrics-defs    (-> (:metrics-defs outlier-sig-map)
-                            (metric/filter-metrics
-                             (metric/type-pred :quantitative)))
-        metric-configs  (metric/all-metric-configs metrics-defs)
-        outlier-sig     (util/outlier-significance outlier-sig-map)]
+        metrics-defs (-> (:metrics-defs outlier-sig-map)
+                         (metric/filter-metrics
+                          (metric/type-pred :quantitative)))
+        metric-configs (metric/all-metric-configs metrics-defs)
+        outlier-sig (util/outlier-significance outlier-sig-map)]
     (doseq [m metric-configs]
       (print-outlier-significance
        m
@@ -259,10 +259,10 @@
 
 (defn- print-samples-with-outliers
   [metric->values transforms outliers metric]
-  (let [path         (:path metric)
-        values       (metric->values path)
+  (let [path (:path metric)
+        values (metric->values path)
         outlier-data (get-in outliers path)]
-    (doseq [[i v] (sort-by  first (:outliers  outlier-data))]
+    (doseq [[i v] (sort-by first (:outliers outlier-data))]
       (println
        (format "%36s[%5d] %s %s"
                ""
@@ -275,15 +275,15 @@
 
 (defmethod view/samples* :print
   [_ {:keys [samples-id outliers-id] :as _view} data-map]
-  (let [samples-id      (or samples-id :samples)
-        outliers-id     (or outliers-id :outliers)
+  (let [samples-id (or samples-id :samples)
+        outliers-id (or outliers-id :outliers)
         metrics-samples (data-map samples-id)
-        outliers        (data-map outliers-id)
-        metrics-defs    (-> (:metrics-defs outliers)
-                            (metric/filter-metrics
-                             (metric/type-pred :quantitative)))
-        metric-configs  (metric/all-metric-configs metrics-defs)
-        transforms      (util/get-transforms data-map samples-id)]
+        outliers (data-map outliers-id)
+        metrics-defs (-> (:metrics-defs outliers)
+                         (metric/filter-metrics
+                          (metric/type-pred :quantitative)))
+        metric-configs (metric/all-metric-configs metrics-defs)
+        transforms (util/get-transforms data-map samples-id)]
 
     (println
      (format "%32s: %d samples with batch-size %d"
@@ -301,10 +301,10 @@
 
 (defmethod view/collect-plan* :print
   [_ _view data-map]
-  (let [warmup  (some-> data-map :warmup)
-        est     (some-> data-map :estimation)
+  (let [warmup (some-> data-map :warmup)
+        est (some-> data-map :estimation)
         samples (-> data-map :samples)
-        fmt     "%32s: %d samples with batch-size %d (%d evaluations)"]
+        fmt "%32s: %d samples with batch-size %d (%d evaluations)"]
     (println
      (format fmt
              "Sample Scheme"
@@ -326,23 +326,23 @@
 
 (defmethod view/histogram* :print
   [_ {:keys [histogram-id] :as _view} data-map]
-  (let [histogram-id   (or histogram-id :histograms)
-        histograms     (util/lookup-data data-map histogram-id)
-        metrics-defs   (-> (:metrics-defs histograms)
-                           (metric/filter-metrics
-                            (metric/type-pred :quantitative)))
+  (let [histogram-id (or histogram-id :histograms)
+        histograms (util/lookup-data data-map histogram-id)
+        metrics-defs (-> (:metrics-defs histograms)
+                         (metric/filter-metrics
+                          (metric/type-pred :quantitative)))
         metric-configs (metric/all-metric-configs metrics-defs)
-        transforms     (util/get-transforms data-map histogram-id)
-        histograms     (->> metric-configs
-                            (mapv
-                             #(viewer-common/histogram
-                               (have
-                                some?
-                                ((:histograms histograms) (:path %))
-                                {:keys (keys (:histograms histograms))
-                                 :path %})
-                               transforms
-                               %)))]
+        transforms (util/get-transforms data-map histogram-id)
+        histograms (->> metric-configs
+                        (mapv
+                         #(viewer-common/histogram
+                           (have
+                            some?
+                            ((:histograms histograms) (:path %))
+                            {:keys (keys (:histograms histograms))
+                             :path %})
+                           transforms
+                           %)))]
     (doseq [h histograms]
       (println
        (format "%32s: %s Histogram"
@@ -357,18 +357,18 @@
 
 (defmethod view/quantiles* :print
   [_ {:keys [quantiles-id]} data-map]
-  (let [quantiles-id   (or quantiles-id :quantiles)
-        quantiles-map  (have types/quantiles-map?
-                             (data-map quantiles-id))
-        metrics-defs   (:metrics-defs quantiles-map)
+  (let [quantiles-id (or quantiles-id :quantiles)
+        quantiles-map (have types/quantiles-map?
+                            (data-map quantiles-id))
+        metrics-defs (:metrics-defs quantiles-map)
         metric-configs (metric/all-metric-configs metrics-defs)
-        transforms     (util/get-transforms data-map quantiles-id)
-        table          (viewer-common/quantiles
-                        metric-configs
-                        (util/quantiles quantiles-map)
-                        transforms)]
+        transforms (util/get-transforms data-map quantiles-id)
+        table (viewer-common/quantiles
+               metric-configs
+               (util/quantiles quantiles-map)
+               transforms)]
     (doseq [vs table]
-      (let [ks  (sort (keys (dissoc vs :metric)))
+      (let [ks (sort (keys (dissoc vs :metric)))
             pks (filterv #{0.25 0.5 0.75} ks)
             oks (into [] (remove #{0.25 0.5 0.75}) ks)]
         (println
@@ -382,10 +382,10 @@
   [_ _ _sampled]
   (let [ks [:arch :name :version :available-processors]]
     (apply println
-           (->  (map
-                 #(%1 (jvm/os-details))
-                 ks)
-                vec (conj "cpu(s)")))))
+           (-> (map
+                #(%1 (jvm/os-details))
+                ks)
+               vec (conj "cpu(s)")))))
 
 (defmethod view/runtime* :print
   [_ _ _sampled]
@@ -410,24 +410,26 @@
 
 (defn- format-extract-value
   "Format a value from domain-extract for display.
-  Applies metric scale and formats with appropriate dimension."
+  Applies metric scale and formats with appropriate dimension.
+  Handles both plain values and error-bound maps {:value :lower :upper}."
   [value metric-path]
-  (if (nil? value)
-    "nil"
-    (let [[dimension scale]
-          (case (first metric-path)
-            (:stats :log-stats)
-            (case (second metric-path)
-              :elapsed-time [:time 1e-9]
-              :thread-allocation [:memory 1]
-              [:count 1])
-            [:count 1])]
-      (format/format-value dimension (* value scale)))))
+  (let [raw-value (if (map? value) (:value value) value)]
+    (if (nil? raw-value)
+      "nil"
+      (let [[dimension scale]
+            (case (first metric-path)
+              (:stats :log-stats)
+              (case (second metric-path)
+                :elapsed-time [:time 1e-9]
+                :thread-allocation [:memory 1]
+                [:count 1])
+              [:count 1])]
+        (format/format-value dimension (* raw-value scale))))))
 
 (defmethod view/domain-extract* :print
   [_ {:keys [extract-id]} data-map]
   (let [extract-id (or extract-id :extract)
-        extract    (data-map extract-id)]
+        extract (data-map extract-id)]
     (when extract
       (let [{:keys [metric data]} extract]
         (println (format "Domain Extract: %s" (pr-str metric)))
@@ -439,7 +441,7 @@
 (defmethod view/domain-grouped* :print
   [_ {:keys [grouped-id]} data-map]
   (let [grouped-id (or grouped-id :grouped)
-        grouped    (data-map grouped-id)]
+        grouped (data-map grouped-id)]
     (when grouped
       (let [{:keys [axis data]} grouped]
         (println (format "Domain Grouped by: %s" (name axis)))
@@ -471,24 +473,24 @@
   "Build a table structure from comparison data for tabular display.
   Returns {:columns [col-headers] :rows [{:key row-key :values [vals]}]}."
   [axis data]
-  (let [axis-vals   (sort-by (comp str identity) (keys data))
+  (let [axis-vals (sort-by (comp str identity) (keys data))
         all-entries (mapcat (fn [[axis-val entries]]
                               (map (fn [{:keys [coord value]}]
                                      {:axis-val axis-val
-                                      :row-key  (coord-without-axis coord axis)
-                                      :value    value})
+                                      :row-key (coord-without-axis coord axis)
+                                      :value value})
                                    entries))
                             data)
-        row-keys    (distinct (map :row-key all-entries))
-        val-lookup  (reduce (fn [m {:keys [axis-val row-key value]}]
-                              (assoc-in m [row-key axis-val] value))
-                            {}
-                            all-entries)]
+        row-keys (distinct (map :row-key all-entries))
+        val-lookup (reduce (fn [m {:keys [axis-val row-key value]}]
+                             (assoc-in m [row-key axis-val] value))
+                           {}
+                           all-entries)]
     {:columns axis-vals
-     :rows    (mapv (fn [row-key]
-                      {:key    row-key
-                       :values (mapv #(get-in val-lookup [row-key %]) axis-vals)})
-                    row-keys)}))
+     :rows (mapv (fn [row-key]
+                   {:key row-key
+                    :values (mapv #(get-in val-lookup [row-key %]) axis-vals)})
+                 row-keys)}))
 
 (defn- format-axis-val
   "Format an axis value for column header."
@@ -502,14 +504,14 @@
         formatted-vals (mapv (fn [{:keys [values]}]
                                (mapv #(format-extract-value % metric) values))
                              rows)
-        col-headers    (mapv format-axis-val columns)
-        row-keys       (mapv #(format-row-key (:key %)) rows)
-        col-widths     (mapv (fn [col-idx]
-                               (apply max
-                                      (count (nth col-headers col-idx))
-                                      (map #(count (nth % col-idx)) formatted-vals)))
-                             (range (count columns)))
-        row-key-width  (apply max 8 (map count row-keys))]
+        col-headers (mapv format-axis-val columns)
+        row-keys (mapv #(format-row-key (:key %)) rows)
+        col-widths (mapv (fn [col-idx]
+                           (apply max
+                                  (count (nth col-headers col-idx))
+                                  (map #(count (nth % col-idx)) formatted-vals)))
+                         (range (count columns)))
+        row-key-width (apply max 8 (map count row-keys))]
     (println (format "Domain Comparison by %s: %s" (name axis) (pr-str metric)))
     (print (format "  %s" (format (str "%" row-key-width "s") "")))
     (doseq [[i header] (map-indexed vector col-headers)]
@@ -528,7 +530,7 @@
 (defmethod view/domain-comparison* :print
   [_ {:keys [comparison-id]} data-map]
   (let [comparison-id (or comparison-id :comparison)
-        comparison    (data-map comparison-id)]
+        comparison (data-map comparison-id)]
     (when comparison
       (let [{:keys [axis metric data]} comparison]
         (if (and (seq data)
@@ -544,24 +546,24 @@
   (when (and a b)
     (let [transform-str (case model-id
                           :logarithmic "log(n)"
-                          :linear      "n"
-                          :n-log-n     "n*log(n)"
-                          :quadratic   "n²"
+                          :linear "n"
+                          :n-log-n "n*log(n)"
+                          :quadratic "n²"
                           "x")
-          sign          (if (neg? b) "-" "+")]
+          sign (if (neg? b) "-" "+")]
       (format "y = %.4g*%s %s %.4g" a transform-str sign (Math/abs ^double b)))))
 
 (defmethod view/domain-regression* :print
   [_ {:keys [regression-id]} data-map]
   (let [regression-id (or regression-id :regression)
-        regression    (data-map regression-id)]
+        regression (data-map regression-id)]
     (when regression
       (let [{:keys [axis metric models best-fit]} regression]
         (println (format "Domain Regression (axis: %s, metric: %s)"
                          (name axis) (pr-str metric)))
         (if (seq models)
           (let [sorted-models (sort-by :r-squared > models)
-                label-width   (apply max (map #(count (:label %)) models))]
+                label-width (apply max (map #(count (:label %)) models))]
             (doseq [{:keys [id label coefficients r-squared]} sorted-models]
               (let [eq-str (regression-equation-str id coefficients)]
                 (println (format "  %s  R²=%.4f%s%s"

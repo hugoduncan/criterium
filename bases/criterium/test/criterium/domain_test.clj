@@ -337,6 +337,8 @@
            :outliers-id nil}})
 
 (deftest extract-test
+  ;; Tests the extract function which extracts metric values from domain runs.
+  ;; Contracts: returns domain-extract?, preserves order, handles missing data.
   (testing "extract"
     (testing "returns a domain-extract result"
       (let [d (domain/domain
@@ -401,7 +403,55 @@
         (is (= [[{:n 100} 1.0]]
                (:data (domain/extract d [:stats :elapsed-time :mean]))))
         (is (= [[{:n 100} 0.1]]
-               (:data (domain/extract d [:stats :elapsed-time :variance]))))))))
+               (:data (domain/extract d [:stats :elapsed-time :variance]))))))
+    (testing "with :with-error-bounds option"
+      (testing "sets :with-error-bounds flag in result"
+        (let [d (domain/domain
+                 {:coord {:n 100}
+                  :data (mock-bench-result
+                         {:elapsed-time {:mean 1.0
+                                         :mean-plus-3sigma 1.2
+                                         :mean-minus-3sigma 0.8}})})
+              result (domain/extract d [:stats :elapsed-time :mean]
+                                     {:with-error-bounds true})]
+          (is (true? (:with-error-bounds result)))))
+      (testing "returns value maps with :value, :lower, :upper"
+        (let [d (domain/domain
+                 {:coord {:n 100}
+                  :data (mock-bench-result
+                         {:elapsed-time {:mean 1.0
+                                         :mean-plus-3sigma 1.2
+                                         :mean-minus-3sigma 0.8}})}
+                 {:coord {:n 200}
+                  :data (mock-bench-result
+                         {:elapsed-time {:mean 2.0
+                                         :mean-plus-3sigma 2.5
+                                         :mean-minus-3sigma 1.5}})})
+              result (domain/extract d [:stats :elapsed-time :mean]
+                                     {:with-error-bounds true})]
+          (is (= [[{:n 100} {:value 1.0 :lower 0.8 :upper 1.2}]
+                  [{:n 200} {:value 2.0 :lower 1.5 :upper 2.5}]]
+                 (:data result)))))
+      (testing "returns nil for missing mean value"
+        (let [d (domain/domain
+                 {:coord {:n 100}
+                  :data (mock-bench-result
+                         {:elapsed-time {:variance 0.1}})})
+              result (domain/extract d [:stats :elapsed-time :mean]
+                                     {:with-error-bounds true})]
+          (is (= [[{:n 100} nil]] (:data result)))))
+      (testing "only applies to :mean value-key"
+        (let [d (domain/domain
+                 {:coord {:n 100}
+                  :data (mock-bench-result
+                         {:elapsed-time {:mean 1.0
+                                         :variance 0.1
+                                         :mean-plus-3sigma 1.2
+                                         :mean-minus-3sigma 0.8}})})
+              result (domain/extract d [:stats :elapsed-time :variance]
+                                     {:with-error-bounds true})]
+          (is (false? (:with-error-bounds result)))
+          (is (= [[{:n 100} 0.1]] (:data result))))))))
 
 ;; Tests for domain select function.
 ;; Validates filtering domain to sub-domain by partial coordinate match,
@@ -664,6 +714,8 @@
 ;; following the same pattern as criterium.analyse functions.
 
 (deftest domain-extract-fn-test
+  ;; Tests the factory function that creates extract pipelines.
+  ;; Contracts: returns function, extracts from data-map, supports options.
   (testing "domain-extract-fn"
     (testing "returns a function"
       (is (fn? (domain/domain-extract-fn)))
@@ -704,7 +756,22 @@
             f (domain/domain-extract-fn
                {:id :mean :metric-path [:stats :elapsed-time :mean]})
             result (f {:domain d :other-key "value"})]
-        (is (= "value" (:other-key result)))))))
+        (is (= "value" (:other-key result)))))
+    (testing "passes :with-error-bounds option to extract"
+      (let [d (domain/domain
+               {:coord {:n 100}
+                :data (mock-bench-result {:elapsed-time {:mean 1.0
+                                                         :mean-plus-3sigma 1.2
+                                                         :mean-minus-3sigma 0.8}})})
+            f (domain/domain-extract-fn
+               {:id :mean
+                :metric-path [:stats :elapsed-time :mean]
+                :with-error-bounds true})
+            result (f {:domain d})
+            extract (:mean result)]
+        (is (true? (:with-error-bounds extract)))
+        (is (= {:value 1.0 :lower 0.8 :upper 1.2}
+               (second (first (:data extract)))))))))
 
 (deftest domain-group-by-fn-test
   (testing "domain-group-by-fn"
@@ -890,6 +957,8 @@
       (is (false? (domain/domain-regression? "regression"))))))
 
 (deftest fit-complexity-test
+  ;; Tests regression model fitting on domain-extract data.
+  ;; Contracts: identifies complexity, filters invalid data, handles error bounds.
   (testing "fit-complexity"
     (testing "returns a domain-regression result"
       (let [extract {:type :criterium/domain-extract
@@ -977,7 +1046,30 @@
             result (domain/fit-complexity extract :n models)]
         (is (domain/domain-regression? result))
         (is (= 1 (count (:models result))))
-        (is (= :cubic (:id (first (:models result)))))))))
+        (is (= :cubic (:id (first (:models result)))))))
+    (testing "handles error-bound data"
+      (testing "extracts :value from error-bound maps"
+        (let [extract {:type :criterium/domain-extract
+                       :metric [:stats :elapsed-time :mean]
+                       :with-error-bounds true
+                       :data [[{:n 100} {:value 100.0 :lower 90.0 :upper 110.0}]
+                              [{:n 200} {:value 200.0 :lower 180.0 :upper 220.0}]
+                              [{:n 300} {:value 300.0 :lower 270.0 :upper 330.0}]]}
+              result (domain/fit-complexity extract :n)
+              linear (first (filter #(= :linear (:id %)) (:models result)))]
+          (is (domain/domain-regression? result))
+          (is (= :linear (:best-fit result)))
+          (is (> (:r-squared linear) 0.99))))
+      (testing "filters out nil error-bound values"
+        (let [extract {:type :criterium/domain-extract
+                       :metric [:stats :elapsed-time :mean]
+                       :with-error-bounds true
+                       :data [[{:n 100} {:value 100.0 :lower 90.0 :upper 110.0}]
+                              [{:n 200} nil]
+                              [{:n 300} {:value 300.0 :lower 270.0 :upper 330.0}]]}
+              result (domain/fit-complexity extract :n)]
+          (is (domain/domain-regression? result))
+          (is (seq (:models result))))))))
 
 (deftest domain-regression-fn-test
   (testing "domain-regression-fn"

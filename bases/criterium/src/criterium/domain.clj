@@ -171,6 +171,12 @@
   metric-path is a vector of keys specifying the path to the metric value,
   e.g., [:stats :elapsed-time :mean].
 
+  Options:
+    :with-error-bounds - When true and metric-path points to :mean, also
+                         extracts :mean-plus-3sigma and :mean-minus-3sigma
+                         as error bounds. Values become maps with :value,
+                         :lower, and :upper keys.
+
   For stats paths (where the first element is a stats key like :stats or
   :log-stats), transforms are applied to convert raw values to their
   display form.
@@ -181,14 +187,32 @@
   (extract domain [:stats :elapsed-time :mean])
   ;; => {:type :criterium/domain-extract
   ;;     :metric [:stats :elapsed-time :mean]
-  ;;     :data [[{:n 100} 1.23e-6] [{:n 1000} 1.45e-5] ...]}"
-  [domain metric-path]
-  (let [[stats-id metric-id value-key] metric-path]
-    {:type :criterium/domain-extract
-     :metric metric-path
-     :data (mapv (fn [{:keys [coord data]}]
-                   [coord (util/stats-value data stats-id metric-id value-key)])
-                 (:runs domain))}))
+  ;;     :data [[{:n 100} 1.23e-6] [{:n 1000} 1.45e-5] ...]}
+
+  (extract domain [:stats :elapsed-time :mean] {:with-error-bounds true})
+  ;; => {:type :criterium/domain-extract
+  ;;     :metric [:stats :elapsed-time :mean]
+  ;;     :with-error-bounds true
+  ;;     :data [[{:n 100} {:value 1.23e-6 :lower 1.0e-6 :upper 1.5e-6}] ...]}"
+  ([domain metric-path]
+   (extract domain metric-path {}))
+  ([domain metric-path {:keys [with-error-bounds]}]
+   (let [[stats-id metric-id value-key] metric-path
+         extract-bounds? (and with-error-bounds (= value-key :mean))]
+     {:type :criterium/domain-extract
+      :metric metric-path
+      :with-error-bounds (boolean extract-bounds?)
+      :data (mapv (fn [{:keys [coord data]}]
+                    (let [value (util/stats-value data stats-id metric-id value-key)]
+                      (if extract-bounds?
+                        (let [lower (util/stats-value data stats-id metric-id :mean-minus-3sigma)
+                              upper (util/stats-value data stats-id metric-id :mean-plus-3sigma)]
+                          [coord (when value
+                                   {:value value
+                                    :lower lower
+                                    :upper upper})])
+                        [coord value])))
+                  (:runs domain))})))
 
 (defn select
   "Filter domain to runs matching a partial coordinate.
@@ -342,9 +366,11 @@
 
   Parameters:
     opts - Map with keys:
-      :id         - Key for result in output (default: :extract)
-      :domain-id  - Key for source domain in input (default: :domain)
-      :metric-path - Vector path to metric, e.g. [:stats :elapsed-time :mean]
+      :id               - Key for result in output (default: :extract)
+      :domain-id        - Key for source domain in input (default: :domain)
+      :metric-path      - Vector path to metric, e.g. [:stats :elapsed-time :mean]
+      :with-error-bounds - When true and metric-path ends in :mean, also
+                           extracts error bounds (±3σ) for each value.
 
   The returned function:
   - Takes a data-map containing a domain under :domain-id
@@ -357,12 +383,12 @@
   ;; => {:domain my-domain
   ;;     :mean {:type :criterium/domain-extract ...}}"
   ([] (domain-extract-fn {}))
-  ([{:keys [id domain-id metric-path]}]
+  ([{:keys [id domain-id metric-path with-error-bounds]}]
    (fn [data-map]
      (let [domain-id (or domain-id :domain)
            id (or id :extract)
            domain (data-map domain-id)
-           result (extract domain metric-path)]
+           result (extract domain metric-path {:with-error-bounds with-error-bounds})]
        (assoc data-map id result)))))
 
 (defn domain-group-by-fn
@@ -516,16 +542,21 @@
   ([extract axis models]
    (let [models (or models default-complexity-models)
          metric-path (:metric extract)
+         has-error-bounds? (:with-error-bounds extract)
+         ;; Helper to extract numeric value (handles both plain and error-bound formats)
+         get-value (if has-error-bounds?
+                     (fn [v] (when (map? v) (:value v)))
+                     identity)
          ;; Extract x (axis value) and y (metric value) from data
          ;; Filter out nil y values
          valid-data (filter (fn [[coord value]]
-                              (and (some? value)
+                              (and (some? (get-value value))
                                    (if (map? coord)
                                      (contains? coord axis)
                                      false)))
                             (:data extract))
          xs (mapv (fn [[coord _]] (double (get coord axis))) valid-data)
-         ys (mapv (fn [[_ value]] (double value)) valid-data)
+         ys (mapv (fn [[_ value]] (double (get-value value))) valid-data)
          ;; Fit each model
          fitted (when (>= (count xs) 2)
                   (mapv (fn [[model-id model-def]]
