@@ -419,25 +419,20 @@
    :bench-options {:metric-ids [:elapsed-time :thread-allocation]}
    :reporter nil))
 
-;; Extract all metrics (elapsed-time and thread-allocation) at once:
+;; Use complexity-analysis to analyze all collected metrics at once.
+;; This extracts and fits regression models for both elapsed-time and
+;; thread-allocation:
 
-(keys (:metrics (domain/extract builder-domain-with-alloc)))
+(domain/analyse-domain domain-plans/complexity-analysis builder-domain-with-alloc)
 
-;; Or extract a specific metric:
+;; Compare allocations between implementations using a custom plan:
 
-(domain/extract builder-domain-with-alloc [:stats :thread-allocation :mean])
-
-;; Compare allocations between implementations:
-
-(domain/compare-by builder-domain-with-alloc :impl [:stats :thread-allocation :mean])
-
-;; View allocation comparison as a table:
-
-((view/domain-comparison {:comparison-id :alloc})
- :kindly
- {:alloc (domain/compare-by builder-domain-with-alloc
-                            :impl
-                            [:stats :thread-allocation :mean])})
+(domain/analyse-domain
+ {:analyse [[:domain-compare-fn {:id :alloc
+                                 :axis-key :impl
+                                 :metric-path [:stats :thread-allocation :mean]}]]
+  :view [[:domain-comparison {:comparison-id :alloc}]]}
+ builder-domain-with-alloc)
 
 ;; ## Summary
 ;;
