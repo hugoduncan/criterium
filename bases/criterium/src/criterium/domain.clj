@@ -456,13 +456,17 @@
 
 (def default-complexity-models
   "Default complexity models for regression fitting.
-  Each model maps input size n to a transformed value for linear regression."
+  Simple models use :transform to map input size n to a single predictor.
+  Composite models use :transforms for multiple predictors (e.g., n*log(n) + n)."
   {:logarithmic {:transform (fn [^double n] (Math/log n))
                  :label "O(log n)"}
    :linear {:transform identity
             :label "O(n)"}
    :n-log-n {:transform (fn [^double n] (* n (Math/log n)))
              :label "O(n log n)"}
+   :nlogn-linear {:transforms [(fn [^double n] (* n (Math/log n)))
+                               (fn [^double n] n)]
+                  :label "O(n log n + n)"}
    :quadratic {:transform (fn [^double n] (* n n))
                :label "O(n²)"}})
 
@@ -496,20 +500,80 @@
      :b b
      :r-squared r-sq}))
 
+(defn- linear-regression-2
+  "Perform multiple linear regression with 2 predictors: y = a*x1 + b*x2 + c.
+  Uses centered variables for numerical stability, then adjusts intercept.
+  Returns {:a coef-x1 :b coef-x2 :c intercept :r-squared r²}."
+  [x1s x2s ys]
+  (let [n (count ys)
+        ;; Compute means for centering
+        mean-x1 (/ (reduce + x1s) n)
+        mean-x2 (/ (reduce + x2s) n)
+        mean-y (/ (reduce + ys) n)
+        ;; Center variables (improves numerical stability)
+        cx1s (mapv #(- % mean-x1) x1s)
+        cx2s (mapv #(- % mean-x2) x2s)
+        cys (mapv #(- % mean-y) ys)
+        ;; Compute X'X matrix elements (for centered data, no intercept column needed)
+        sum-cx1cx1 (reduce + (map * cx1s cx1s))
+        sum-cx2cx2 (reduce + (map * cx2s cx2s))
+        sum-cx1cx2 (reduce + (map * cx1s cx2s))
+        sum-cx1cy (reduce + (map * cx1s cys))
+        sum-cx2cy (reduce + (map * cx2s cys))
+        ;; Solve 2x2 system: [sum-cx1cx1  sum-cx1cx2] [a]   [sum-cx1cy]
+        ;;                   [sum-cx1cx2  sum-cx2cx2] [b] = [sum-cx2cy]
+        det (- (* sum-cx1cx1 sum-cx2cx2) (* sum-cx1cx2 sum-cx1cx2))
+        [a b] (if (< (Math/abs (double det)) 1e-10)
+                ;; Near-singular: fall back to simple regression on first predictor
+                (let [a1 (if (zero? sum-cx1cx1) 0.0 (/ sum-cx1cy sum-cx1cx1))]
+                  [a1 0.0])
+                [(/ (- (* sum-cx1cy sum-cx2cx2) (* sum-cx2cy sum-cx1cx2)) det)
+                 (/ (- (* sum-cx2cy sum-cx1cx1) (* sum-cx1cy sum-cx1cx2)) det)])
+        ;; Compute intercept: c = mean-y - a*mean-x1 - b*mean-x2
+        c (- mean-y (* a mean-x1) (* b mean-x2))
+        ;; Calculate R²
+        sum-y2 (reduce + (map * ys ys))
+        ss-tot (- sum-y2 (/ (* (reduce + ys) (reduce + ys)) n))
+        ss-res (reduce + (map (fn [x1 x2 y]
+                                (let [pred (+ (* a x1) (* b x2) c)
+                                      res (- y pred)]
+                                  (* res res)))
+                              x1s x2s ys))
+        r-sq (if (zero? ss-tot)
+               (if (zero? ss-res) 1.0 0.0)
+               (- 1.0 (/ ss-res ss-tot)))]
+    {:a a :b b :c c :r-squared r-sq}))
+
 (defn- fit-complexity-model
   "Fit a single complexity model to data points.
+  Supports simple models (single :transform) and composite models (two :transforms).
   Returns map with :id, :label, :coefficients, :r-squared, :residuals."
-  [model-id {:keys [transform label]} xs ys]
-  (let [transformed-xs (mapv (comp double transform) xs)
-        {:keys [a b r-squared]} (linear-regression transformed-xs ys)
-        residuals (mapv (fn [tx y]
-                          (- y (+ (* a tx) b)))
-                        transformed-xs ys)]
-    {:id model-id
-     :label label
-     :coefficients {:a a :b b}
-     :r-squared r-squared
-     :residuals residuals}))
+  [model-id {:keys [transform transforms label]} xs ys]
+  (if transforms
+    ;; Composite model: y = a*f1(x) + b*f2(x) + c
+    (let [[t1 t2] transforms
+          x1s (mapv (comp double t1) xs)
+          x2s (mapv (comp double t2) xs)
+          {:keys [a b c r-squared]} (linear-regression-2 x1s x2s ys)
+          residuals (mapv (fn [x1 x2 y]
+                            (- y (+ (* a x1) (* b x2) c)))
+                          x1s x2s ys)]
+      {:id model-id
+       :label label
+       :coefficients {:a a :b b :c c}
+       :r-squared r-squared
+       :residuals residuals})
+    ;; Simple model: y = a*f(x) + b
+    (let [transformed-xs (mapv (comp double transform) xs)
+          {:keys [a b r-squared]} (linear-regression transformed-xs ys)
+          residuals (mapv (fn [tx y]
+                            (- y (+ (* a tx) b)))
+                          transformed-xs ys)]
+      {:id model-id
+       :label label
+       :coefficients {:a a :b b}
+       :r-squared r-squared
+       :residuals residuals})))
 
 (defn domain-regression?
   "Returns true if x is a domain regression result."
@@ -529,7 +593,8 @@
   models is a map of model-id to {:transform fn :label string}, or nil for defaults.
 
   Filters out data points with nil values before fitting.
-  Selects best-fit model by highest R² value.
+  Selects best-fit model by highest R² value, preferring simpler models when
+  R² values are essentially equal (within 0.0001).
 
   Example:
   (fit-complexity extract :n)
@@ -557,14 +622,25 @@
                             (:data extract))
          xs (mapv (fn [[coord _]] (double (get coord axis))) valid-data)
          ys (mapv (fn [[_ value]] (double (get-value value))) valid-data)
-         ;; Fit each model
+         ;; Fit each model, tracking parameter count for parsimony
          fitted (when (>= (count xs) 2)
                   (mapv (fn [[model-id model-def]]
-                          (fit-complexity-model model-id model-def xs ys))
+                          (let [result (fit-complexity-model model-id model-def xs ys)
+                                ;; Simple models have 2 params, composite have 3
+                                param-count (if (:transforms model-def) 3 2)]
+                            (assoc result :param-count param-count)))
                         models))
-         ;; Find best fit by R²
+         ;; Find best fit by R², preferring simpler models when R² is close
+         ;; Sort by R² desc, then by param-count asc for tie-breaking
          best-fit (when (seq fitted)
-                    (:id (apply max-key :r-squared fitted)))]
+                    (let [r-sq-threshold 1e-6
+                          sorted (sort-by (juxt #(- (:r-squared %)) :param-count) fitted)
+                          best (first sorted)
+                          ;; Find simplest model within threshold of best R²
+                          within-threshold (filter #(< (- (:r-squared best) (:r-squared %))
+                                                       r-sq-threshold)
+                                                   sorted)]
+                      (:id (first (sort-by :param-count within-threshold)))))]
      {:type :criterium/domain-regression
       :axis axis
       :metric metric-path
