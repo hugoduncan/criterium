@@ -266,11 +266,11 @@
 
 (-> {:domain impl-domain}
     ((domain/domain-extract-fn
-      {:id :mean-time
+      {:id          :mean-time
        :metric-path [:stats :elapsed-time :mean]}))
     ((domain/domain-compare-fn
-      {:id :impl-comparison
-       :axis-key :impl
+      {:id          :impl-comparison
+       :axis-key    :impl
        :metric-path [:stats :elapsed-time :mean]}))
     keys)
 
@@ -289,21 +289,15 @@
 ;;
 ;; `extract-elapsed-time` displays metric values across all runs:
 
-(do
-  (domain/analyse-domain domain-plans/extract-elapsed-time sort-domain)
-  nil)
+(domain/analyse-domain domain-plans/extract-elapsed-time sort-domain)
 
 ;; `complexity-analysis` extracts elapsed time and fits regression models:
 
-(do
-  (domain/analyse-domain domain-plans/complexity-analysis scaling-domain)
-  nil)
+(domain/analyse-domain domain-plans/complexity-analysis scaling-domain)
 
 ;; `implementation-comparison` compares metrics across implementations:
 
-(do
-  (domain/analyse-domain domain-plans/implementation-comparison impl-domain)
-  nil)
+(domain/analyse-domain domain-plans/implementation-comparison impl-domain)
 
 ;; ### Explicit Viewer Selection
 ;;
@@ -322,13 +316,13 @@
 
 (do
   (domain/analyse-domain
-   {:analyse [[:domain-extract-fn {:id :times
+   {:analyse [[:domain-extract-fn {:id          :times
                                    :metric-path [:stats :elapsed-time :mean]}]
-              [:domain-compare-fn {:id :by-size
-                                   :axis-key :n
+              [:domain-compare-fn {:id          :by-size
+                                   :axis-key    :n
                                    :metric-path [:stats :elapsed-time :mean]}]]
-    :view []
-    :viewer :none}
+    :view    []
+    :viewer  :none}
    impl-domain)
   nil)
 

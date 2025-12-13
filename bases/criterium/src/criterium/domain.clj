@@ -633,7 +633,8 @@
   Example specs: [[:domain-extract {}]
                   [:domain-regression {}]]
 
-  Returns a function that takes a viewer keyword and data-map."
+  Returns a function that takes a viewer keyword and data-map, returns
+  the viewer output (e.g., kindly fragment for :kindly viewer)."
   [view-plan]
   (when-not (or (nil? view-plan) (sequential? view-plan))
     (throw
@@ -642,8 +643,7 @@
     (fn [viewer data-map]
       {:pre [(have? keyword? viewer)]}
       (run! #(% viewer data-map) fns)
-      (view/flush-viewer viewer)
-      data-map)))
+      (view/flush-viewer viewer))))
 
 (defn options->domain-plan
   "Merge options into a base domain plan.
@@ -660,13 +660,16 @@
   "Analyze a domain using a domain plan.
 
   The domain plan is a map with:
-    :analyse - Vector of analysis specs resolved from criterium.domain
-    :view    - Vector of view specs resolved from criterium.view
-    :viewer  - Keyword specifying output format (:print, :portal, :none)
-               If not specified, uses the default viewer from
-               criterium.bench/set-default-viewer!
+    :analyse      - Vector of analysis specs resolved from criterium.domain
+    :view         - Vector of view specs resolved from criterium.view
+    :viewer       - Keyword specifying output format (:print, :portal, :kindly, :none)
+                    If not specified, uses the default viewer from
+                    criterium.bench/set-default-viewer!
+    :return-value - Path to extract from result data-map (default varies by viewer:
+                    [:viewer :output] for :kindly, nil for others which returns
+                    the full data-map)
 
-  Returns the data-map with all analysis results.
+  Returns the value at :return-value path, or the full data-map if not specified.
 
   Example:
     (analyse-domain domain-plans/complexity-analysis my-domain)
@@ -679,6 +682,12 @@
   (let [analyse-fn (->domain-analyse (:analyse domain-plan))
         view-fn (->domain-view (:view domain-plan))
         viewer (or (:viewer domain-plan) bench-config/*default-viewer* :print)
-        data-map (analyse-fn {:domain domain})]
-    (view-fn viewer data-map)
-    data-map))
+        default-return (when (= viewer :kindly) [:viewer :output])
+        return-path (or (:return-value domain-plan) default-return)
+        data-map (analyse-fn {:domain domain})
+        viewer-output (view-fn viewer data-map)
+        data-map (assoc data-map :viewer {:type :criterium/viewer-output
+                                          :output viewer-output})]
+    (if return-path
+      (get-in data-map return-path)
+      data-map)))

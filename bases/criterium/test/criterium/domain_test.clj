@@ -139,13 +139,13 @@
         (is (= [] (:runs d)))))
     (testing "with single run creates domain containing that run"
       (let [run {:coord :baseline :data sample-data}
-            d   (domain/domain run)]
+            d (domain/domain run)]
         (is (domain/domain? d))
         (is (= [run] (:runs d)))))
     (testing "with multiple runs creates domain containing all runs"
       (let [run1 {:coord {:n 100} :data sample-data}
             run2 {:coord {:n 1000} :data sample-data-2}
-            d    (domain/domain run1 run2)]
+            d (domain/domain run1 run2)]
         (is (domain/domain? d))
         (is (= [run1 run2] (:runs d)))))
     (testing "preserves keyword coordinates"
@@ -157,7 +157,7 @@
     (testing "preserves run order"
       (let [runs (mapv #(hash-map :coord {:n %} :data sample-data)
                        [100 200 300 400 500])
-            d    (apply domain/domain runs)]
+            d (apply domain/domain runs)]
         (is (= [100 200 300 400 500]
                (mapv #(-> % :coord :n) (:runs d))))))))
 
@@ -168,40 +168,40 @@
 (deftest add-run-test
   (testing "add-run"
     (testing "adds run to empty domain"
-      (let [d  (domain/domain)
+      (let [d (domain/domain)
             d2 (domain/add-run d :baseline sample-data)]
         (is (domain/domain? d2))
         (is (= 1 (count (:runs d2))))
         (is (= {:coord :baseline :data sample-data} (first (:runs d2))))))
     (testing "adds run with map coord"
-      (let [d  (domain/domain)
+      (let [d (domain/domain)
             d2 (domain/add-run d {:n 100} sample-data)]
         (is (= {:n 100} (-> d2 :runs first :coord)))))
     (testing "appends to existing runs"
-      (let [d  (domain/domain {:coord :a :data sample-data})
+      (let [d (domain/domain {:coord :a :data sample-data})
             d2 (domain/add-run d :b sample-data-2)]
         (is (= 2 (count (:runs d2))))
         (is (= [:a :b] (mapv :coord (:runs d2))))))
     (testing "replaces run with same keyword coord"
-      (let [d  (domain/domain {:coord :baseline :data sample-data})
+      (let [d (domain/domain {:coord :baseline :data sample-data})
             d2 (domain/add-run d :baseline sample-data-2)]
         (is (= 1 (count (:runs d2))))
         (is (= sample-data-2 (-> d2 :runs first :data)))))
     (testing "replaces run with same map coord"
-      (let [d  (domain/domain {:coord {:n 100} :data sample-data})
+      (let [d (domain/domain {:coord {:n 100} :data sample-data})
             d2 (domain/add-run d {:n 100} sample-data-2)]
         (is (= 1 (count (:runs d2))))
         (is (= sample-data-2 (-> d2 :runs first :data)))))
     (testing "preserves position when replacing"
-      (let [d  (-> (domain/domain)
-                   (domain/add-run :a sample-data)
-                   (domain/add-run :b sample-data)
-                   (domain/add-run :c sample-data))
+      (let [d (-> (domain/domain)
+                  (domain/add-run :a sample-data)
+                  (domain/add-run :b sample-data)
+                  (domain/add-run :c sample-data))
             d2 (domain/add-run d :b sample-data-2)]
         (is (= [:a :b :c] (mapv :coord (:runs d2))))
         (is (= sample-data-2 (-> d2 :runs second :data)))))
     (testing "returns new domain (immutable)"
-      (let [d  (domain/domain)
+      (let [d (domain/domain)
             d2 (domain/add-run d :x sample-data)]
         (is (= 0 (count (:runs d))))
         (is (= 1 (count (:runs d2))))))))
@@ -209,29 +209,29 @@
 (deftest remove-run-test
   (testing "remove-run"
     (testing "removes run by keyword coord"
-      (let [d  (domain/domain {:coord :baseline :data sample-data})
+      (let [d (domain/domain {:coord :baseline :data sample-data})
             d2 (domain/remove-run d :baseline)]
         (is (domain/domain? d2))
         (is (= 0 (count (:runs d2))))))
     (testing "removes run by map coord"
-      (let [d  (domain/domain {:coord {:n 100} :data sample-data})
+      (let [d (domain/domain {:coord {:n 100} :data sample-data})
             d2 (domain/remove-run d {:n 100})]
         (is (= 0 (count (:runs d2))))))
     (testing "preserves other runs"
-      (let [d  (-> (domain/domain)
-                   (domain/add-run :a sample-data)
-                   (domain/add-run :b sample-data)
-                   (domain/add-run :c sample-data))
+      (let [d (-> (domain/domain)
+                  (domain/add-run :a sample-data)
+                  (domain/add-run :b sample-data)
+                  (domain/add-run :c sample-data))
             d2 (domain/remove-run d :b)]
         (is (= 2 (count (:runs d2))))
         (is (= [:a :c] (mapv :coord (:runs d2))))))
     (testing "returns unchanged domain when coord not found"
-      (let [d  (domain/domain {:coord :a :data sample-data})
+      (let [d (domain/domain {:coord :a :data sample-data})
             d2 (domain/remove-run d :nonexistent)]
         (is (= 1 (count (:runs d2))))
         (is (= :a (-> d2 :runs first :coord)))))
     (testing "returns new domain (immutable)"
-      (let [d  (domain/domain {:coord :x :data sample-data})
+      (let [d (domain/domain {:coord :x :data sample-data})
             d2 (domain/remove-run d :x)]
         (is (= 1 (count (:runs d))))
         (is (= 0 (count (:runs d2))))))))
@@ -246,14 +246,14 @@
       (testing "returns all runs from domain"
         (let [run1 {:coord :a :data sample-data}
               run2 {:coord :b :data sample-data-2}
-              d    (domain/domain run1 run2)]
+              d (domain/domain run1 run2)]
           (is (= [run1 run2] (domain/runs d)))))
       (testing "returns empty vector for empty domain"
         (is (= [] (domain/runs (domain/domain)))))
       (testing "preserves run order"
         (let [runs (mapv #(hash-map :coord {:n %} :data sample-data)
                          [100 200 300])
-              d    (apply domain/domain runs)]
+              d (apply domain/domain runs)]
           (is (= runs (domain/runs d))))))
     (testing "with partial coordinate"
       (testing "filters by keyword coord"
@@ -328,20 +328,20 @@
   "Create a mock bench result with proper structure for stats-value.
   stats-data is a map of {metric-id {value-key value}}."
   [stats-data]
-  {:stats {:type        :criterium/stats
-           :transform   collect-plan/identity-transforms
-           :stats       stats-data
+  {:stats {:type :criterium/stats
+           :transform collect-plan/identity-transforms
+           :stats stats-data
            :metrics-defs {}
-           :batch-size  1
-           :source-id   nil
+           :batch-size 1
+           :source-id nil
            :outliers-id nil}})
 
 (deftest extract-test
   (testing "extract"
     (testing "returns a domain-extract result"
-      (let [d      (domain/domain
-                    {:coord {:n 100}
-                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
+      (let [d (domain/domain
+               {:coord {:n 100}
+                :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
             result (domain/extract d [:stats :elapsed-time :mean])]
         (is (domain/domain-extract? result))
         (is (= :criterium/domain-extract (:type result)))
@@ -410,38 +410,38 @@
 (deftest select-test
   (testing "select"
     (testing "filters by keyword coord"
-      (let [d  (domain/domain {:coord :a :data sample-data}
-                              {:coord :b :data sample-data-2})
+      (let [d (domain/domain {:coord :a :data sample-data}
+                             {:coord :b :data sample-data-2})
             d2 (domain/select d :a)]
         (is (domain/domain? d2))
         (is (= 1 (count (:runs d2))))
         (is (= :a (-> d2 :runs first :coord)))))
     (testing "filters by exact map coord"
-      (let [d  (domain/domain {:coord {:n 100} :data sample-data}
-                              {:coord {:n 200} :data sample-data-2})
+      (let [d (domain/domain {:coord {:n 100} :data sample-data}
+                             {:coord {:n 200} :data sample-data-2})
             d2 (domain/select d {:n 100})]
         (is (domain/domain? d2))
         (is (= [{:coord {:n 100} :data sample-data}] (:runs d2)))))
     (testing "filters by partial map coord"
-      (let [d  (domain/domain {:coord {:n 100} :data sample-data}
-                              {:coord {:n 100 :impl :foo} :data sample-data-2}
-                              {:coord {:n 200} :data {:third "result"}})
+      (let [d (domain/domain {:coord {:n 100} :data sample-data}
+                             {:coord {:n 100 :impl :foo} :data sample-data-2}
+                             {:coord {:n 200} :data {:third "result"}})
             d2 (domain/select d {:n 100})]
         (is (= 2 (count (:runs d2))))
         (is (= [{:coord {:n 100} :data sample-data}
                 {:coord {:n 100 :impl :foo} :data sample-data-2}]
                (:runs d2)))))
     (testing "filters by multiple partial coord keys"
-      (let [d  (domain/domain {:coord {:n 100 :impl :foo} :data sample-data}
-                              {:coord {:n 100 :impl :bar} :data sample-data-2}
-                              {:coord {:n 200 :impl :foo} :data {:third "result"}})
+      (let [d (domain/domain {:coord {:n 100 :impl :foo} :data sample-data}
+                             {:coord {:n 100 :impl :bar} :data sample-data-2}
+                             {:coord {:n 200 :impl :foo} :data {:third "result"}})
             d2 (domain/select d {:impl :foo})]
         (is (= 2 (count (:runs d2))))
         (is (= [{:coord {:n 100 :impl :foo} :data sample-data}
                 {:coord {:n 200 :impl :foo} :data {:third "result"}}]
                (:runs d2)))))
     (testing "returns empty domain when no match"
-      (let [d  (domain/domain {:coord :a :data sample-data})
+      (let [d (domain/domain {:coord :a :data sample-data})
             d2 (domain/select d :nonexistent)]
         (is (domain/domain? d2))
         (is (= [] (:runs d2)))))
@@ -449,18 +449,18 @@
       (let [runs [(hash-map :coord {:n 100 :impl :foo} :data sample-data)
                   (hash-map :coord {:n 300 :impl :foo} :data sample-data)
                   (hash-map :coord {:n 200 :impl :foo} :data sample-data)]
-            d    (apply domain/domain
-                        (concat runs [{:coord {:n 100 :impl :bar} :data sample-data}]))
-            d2   (domain/select d {:impl :foo})]
+            d (apply domain/domain
+                     (concat runs [{:coord {:n 100 :impl :bar} :data sample-data}]))
+            d2 (domain/select d {:impl :foo})]
         (is (= runs (:runs d2)))))
     (testing "returns new domain (immutable)"
-      (let [d  (domain/domain {:coord :a :data sample-data}
-                              {:coord :b :data sample-data-2})
+      (let [d (domain/domain {:coord :a :data sample-data}
+                             {:coord :b :data sample-data-2})
             d2 (domain/select d :a)]
         (is (= 2 (count (:runs d))))
         (is (= 1 (count (:runs d2))))))
     (testing "does not match keyword coord with map partial"
-      (let [d  (domain/domain {:coord :baseline :data sample-data})
+      (let [d (domain/domain {:coord :baseline :data sample-data})
             d2 (domain/select d {:n 100})]
         (is (= [] (:runs d2)))))))
 
@@ -471,34 +471,34 @@
 (deftest group-by-axis-test
   (testing "group-by-axis"
     (testing "returns a domain-grouped result"
-      (let [d      (domain/domain
-                    {:coord {:n 100 :impl :foo} :data sample-data})
+      (let [d (domain/domain
+               {:coord {:n 100 :impl :foo} :data sample-data})
             result (domain/group-by-axis d :impl)]
         (is (domain/domain-grouped? result))
         (is (= :criterium/domain-grouped (:type result)))
         (is (= :impl (:axis result)))))
     (testing "groups runs by axis key value"
-      (let [d       (domain/domain
-                     {:coord {:n 100 :impl :foo} :data sample-data}
-                     {:coord {:n 200 :impl :foo} :data sample-data-2}
-                     {:coord {:n 100 :impl :bar} :data {:third "result"}})
+      (let [d (domain/domain
+               {:coord {:n 100 :impl :foo} :data sample-data}
+               {:coord {:n 200 :impl :foo} :data sample-data-2}
+               {:coord {:n 100 :impl :bar} :data {:third "result"}})
             grouped (:data (domain/group-by-axis d :impl))]
         (is (= #{:foo :bar} (set (keys grouped))))
         (is (domain/domain? (get grouped :foo)))
         (is (= 2 (count (:runs (get grouped :foo)))))
         (is (= 1 (count (:runs (get grouped :bar)))))))
     (testing "groups keyword coords under nil"
-      (let [d       (domain/domain
-                     {:coord :baseline :data sample-data}
-                     {:coord {:n 100 :impl :foo} :data sample-data-2})
+      (let [d (domain/domain
+               {:coord :baseline :data sample-data}
+               {:coord {:n 100 :impl :foo} :data sample-data-2})
             grouped (:data (domain/group-by-axis d :impl))]
         (is (= #{:foo nil} (set (keys grouped))))
         (is (= 1 (count (:runs (get grouped nil)))))
         (is (= :baseline (-> grouped (get nil) :runs first :coord)))))
     (testing "groups runs missing axis key under nil"
-      (let [d       (domain/domain
-                     {:coord {:n 100} :data sample-data}
-                     {:coord {:n 100 :impl :foo} :data sample-data-2})
+      (let [d (domain/domain
+               {:coord {:n 100} :data sample-data}
+               {:coord {:n 100 :impl :foo} :data sample-data-2})
             grouped (:data (domain/group-by-axis d :impl))]
         (is (= #{:foo nil} (set (keys grouped))))
         (is (= {:n 100} (-> grouped (get nil) :runs first :coord)))))
@@ -507,20 +507,20 @@
         (is (domain/domain-grouped? result))
         (is (= {} (:data result)))))
     (testing "preserves run order within groups"
-      (let [d       (domain/domain
-                     {:coord {:n 300 :impl :foo} :data sample-data}
-                     {:coord {:n 100 :impl :foo} :data sample-data}
-                     {:coord {:n 200 :impl :foo} :data sample-data})
+      (let [d (domain/domain
+               {:coord {:n 300 :impl :foo} :data sample-data}
+               {:coord {:n 100 :impl :foo} :data sample-data}
+               {:coord {:n 200 :impl :foo} :data sample-data})
             grouped (:data (domain/group-by-axis d :impl))
-            coords  (mapv :coord (:runs (get grouped :foo)))]
+            coords (mapv :coord (:runs (get grouped :foo)))]
         (is (= [{:n 300 :impl :foo}
                 {:n 100 :impl :foo}
                 {:n 200 :impl :foo}]
                coords))))
     (testing "each group is a valid domain"
-      (let [d       (domain/domain
-                     {:coord {:n 100 :impl :foo} :data sample-data}
-                     {:coord {:n 100 :impl :bar} :data sample-data-2})
+      (let [d (domain/domain
+               {:coord {:n 100 :impl :foo} :data sample-data}
+               {:coord {:n 100 :impl :bar} :data sample-data-2})
             grouped (:data (domain/group-by-axis d :impl))]
         (doseq [[_ sub-domain] grouped]
           (is (domain/domain? sub-domain)))))))
@@ -532,11 +532,11 @@
 (deftest compare-by-test
   (testing "compare-by"
     (testing "returns a domain-comparison result"
-      (let [d      (domain/domain
-                    {:coord {:n 100 :impl :foo}
-                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
-                    {:coord {:n 100 :impl :bar}
-                     :data (mock-bench-result {:elapsed-time {:mean 2.0}})})
+      (let [d (domain/domain
+               {:coord {:n 100 :impl :foo}
+                :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+               {:coord {:n 100 :impl :bar}
+                :data (mock-bench-result {:elapsed-time {:mean 2.0}})})
             result (domain/compare-by d :impl [:stats :elapsed-time :mean])]
         (is (domain/domain-comparison? result))
         (is (= :criterium/domain-comparison (:type result)))
@@ -544,41 +544,41 @@
         (is (= [:stats :elapsed-time :mean] (:metric result)))
         (is (map? (:data result)))))
     (testing "data entries contain coord and value"
-      (let [d      (domain/domain
-                    {:coord {:n 100 :impl :foo}
-                     :data (mock-bench-result {:elapsed-time {:mean 1.5}})})
+      (let [d (domain/domain
+               {:coord {:n 100 :impl :foo}
+                :data (mock-bench-result {:elapsed-time {:mean 1.5}})})
             result (domain/compare-by d :impl [:stats :elapsed-time :mean])
-            entry  (first (get-in result [:data :foo]))]
+            entry (first (get-in result [:data :foo]))]
         (is (= {:n 100 :impl :foo} (:coord entry)))
         (is (= 1.5 (:value entry)))))
     (testing "groups runs by axis value"
-      (let [d      (domain/domain
-                    {:coord {:n 100 :impl :foo}
-                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
-                    {:coord {:n 200 :impl :foo}
-                     :data (mock-bench-result {:elapsed-time {:mean 2.0}})}
-                    {:coord {:n 100 :impl :bar}
-                     :data (mock-bench-result {:elapsed-time {:mean 3.0}})})
+      (let [d (domain/domain
+               {:coord {:n 100 :impl :foo}
+                :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+               {:coord {:n 200 :impl :foo}
+                :data (mock-bench-result {:elapsed-time {:mean 2.0}})}
+               {:coord {:n 100 :impl :bar}
+                :data (mock-bench-result {:elapsed-time {:mean 3.0}})})
             result (domain/compare-by d :impl [:stats :elapsed-time :mean])]
         (is (= 2 (count (get-in result [:data :foo]))))
         (is (= 1 (count (get-in result [:data :bar]))))
         (is (= [1.0 2.0] (mapv :value (get-in result [:data :foo]))))
         (is (= [3.0] (mapv :value (get-in result [:data :bar]))))))
     (testing "handles missing metrics with nil values"
-      (let [d      (domain/domain
-                    {:coord {:impl :foo}
-                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
-                    {:coord {:impl :bar}
-                     :data (mock-bench-result {:other-metric {:mean 2.0}})})
+      (let [d (domain/domain
+               {:coord {:impl :foo}
+                :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+               {:coord {:impl :bar}
+                :data (mock-bench-result {:other-metric {:mean 2.0}})})
             result (domain/compare-by d :impl [:stats :elapsed-time :mean])]
         (is (= 1.0 (:value (first (get-in result [:data :foo])))))
         (is (nil? (:value (first (get-in result [:data :bar])))))))
     (testing "groups keyword coords under nil"
-      (let [d      (domain/domain
-                    {:coord :baseline
-                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
-                    {:coord {:impl :foo}
-                     :data (mock-bench-result {:elapsed-time {:mean 2.0}})})
+      (let [d (domain/domain
+               {:coord :baseline
+                :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+               {:coord {:impl :foo}
+                :data (mock-bench-result {:elapsed-time {:mean 2.0}})})
             result (domain/compare-by d :impl [:stats :elapsed-time :mean])]
         (is (contains? (:data result) nil))
         (is (= :baseline (:coord (first (get-in result [:data nil])))))))
@@ -589,13 +589,13 @@
         (is (= :impl (:axis result)))
         (is (= {} (:data result)))))
     (testing "preserves run order within groups"
-      (let [d      (domain/domain
-                    {:coord {:n 300 :impl :foo}
-                     :data (mock-bench-result {:elapsed-time {:mean 3.0}})}
-                    {:coord {:n 100 :impl :foo}
-                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
-                    {:coord {:n 200 :impl :foo}
-                     :data (mock-bench-result {:elapsed-time {:mean 2.0}})})
+      (let [d (domain/domain
+               {:coord {:n 300 :impl :foo}
+                :data (mock-bench-result {:elapsed-time {:mean 3.0}})}
+               {:coord {:n 100 :impl :foo}
+                :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+               {:coord {:n 200 :impl :foo}
+                :data (mock-bench-result {:elapsed-time {:mean 2.0}})})
             result (domain/compare-by d :impl [:stats :elapsed-time :mean])
             values (mapv :value (get-in result [:data :foo]))]
         (is (= [3.0 1.0 2.0] values))))))
@@ -669,40 +669,40 @@
       (is (fn? (domain/domain-extract-fn)))
       (is (fn? (domain/domain-extract-fn {}))))
     (testing "extracts metric from domain in data-map"
-      (let [d       (domain/domain
-                     {:coord {:n 100}
-                      :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
-            f       (domain/domain-extract-fn
-                     {:id :mean :metric-path [:stats :elapsed-time :mean]})
-            result  (f {:domain d})]
+      (let [d (domain/domain
+               {:coord {:n 100}
+                :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
+            f (domain/domain-extract-fn
+               {:id :mean :metric-path [:stats :elapsed-time :mean]})
+            result (f {:domain d})]
         (is (contains? result :domain))
         (is (contains? result :mean))
         (is (domain/domain-extract? (:mean result)))))
     (testing "uses default :id when not specified"
-      (let [d      (domain/domain
-                    {:coord :a
-                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
-            f      (domain/domain-extract-fn
-                    {:metric-path [:stats :elapsed-time :mean]})
+      (let [d (domain/domain
+               {:coord :a
+                :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
+            f (domain/domain-extract-fn
+               {:metric-path [:stats :elapsed-time :mean]})
             result (f {:domain d})]
         (is (contains? result :extract))))
     (testing "uses custom :domain-id"
-      (let [d      (domain/domain
-                    {:coord :a
-                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
-            f      (domain/domain-extract-fn
-                    {:id :mean
-                     :domain-id :my-domain
-                     :metric-path [:stats :elapsed-time :mean]})
+      (let [d (domain/domain
+               {:coord :a
+                :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
+            f (domain/domain-extract-fn
+               {:id :mean
+                :domain-id :my-domain
+                :metric-path [:stats :elapsed-time :mean]})
             result (f {:my-domain d})]
         (is (contains? result :mean))
         (is (domain/domain-extract? (:mean result)))))
     (testing "preserves other keys in data-map"
-      (let [d      (domain/domain
-                    {:coord :a
-                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
-            f      (domain/domain-extract-fn
-                    {:id :mean :metric-path [:stats :elapsed-time :mean]})
+      (let [d (domain/domain
+               {:coord :a
+                :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
+            f (domain/domain-extract-fn
+               {:id :mean :metric-path [:stats :elapsed-time :mean]})
             result (f {:domain d :other-key "value"})]
         (is (= "value" (:other-key result)))))))
 
@@ -712,32 +712,32 @@
       (is (fn? (domain/domain-group-by-fn)))
       (is (fn? (domain/domain-group-by-fn {}))))
     (testing "groups domain by axis in data-map"
-      (let [d      (domain/domain
-                    {:coord {:n 100 :impl :foo} :data sample-data}
-                    {:coord {:n 200 :impl :bar} :data sample-data-2})
-            f      (domain/domain-group-by-fn {:id :by-impl :axis-key :impl})
+      (let [d (domain/domain
+               {:coord {:n 100 :impl :foo} :data sample-data}
+               {:coord {:n 200 :impl :bar} :data sample-data-2})
+            f (domain/domain-group-by-fn {:id :by-impl :axis-key :impl})
             result (f {:domain d})]
         (is (contains? result :domain))
         (is (contains? result :by-impl))
         (is (domain/domain-grouped? (:by-impl result)))))
     (testing "uses default :id when not specified"
-      (let [d      (domain/domain
-                    {:coord {:impl :foo} :data sample-data})
-            f      (domain/domain-group-by-fn {:axis-key :impl})
+      (let [d (domain/domain
+               {:coord {:impl :foo} :data sample-data})
+            f (domain/domain-group-by-fn {:axis-key :impl})
             result (f {:domain d})]
         (is (contains? result :grouped))))
     (testing "uses custom :domain-id"
-      (let [d      (domain/domain
-                    {:coord {:impl :foo} :data sample-data})
-            f      (domain/domain-group-by-fn
-                    {:id :by-impl :domain-id :src :axis-key :impl})
+      (let [d (domain/domain
+               {:coord {:impl :foo} :data sample-data})
+            f (domain/domain-group-by-fn
+               {:id :by-impl :domain-id :src :axis-key :impl})
             result (f {:src d})]
         (is (contains? result :by-impl))
         (is (domain/domain-grouped? (:by-impl result)))))
     (testing "preserves other keys in data-map"
-      (let [d      (domain/domain
-                    {:coord {:impl :foo} :data sample-data})
-            f      (domain/domain-group-by-fn {:id :by-impl :axis-key :impl})
+      (let [d (domain/domain
+               {:coord {:impl :foo} :data sample-data})
+            f (domain/domain-group-by-fn {:id :by-impl :axis-key :impl})
             result (f {:domain d :config {:some "config"}})]
         (is (= {:some "config"} (:config result)))))))
 
@@ -747,46 +747,46 @@
       (is (fn? (domain/domain-compare-fn)))
       (is (fn? (domain/domain-compare-fn {}))))
     (testing "compares metric across axis in data-map"
-      (let [d      (domain/domain
-                    {:coord {:impl :foo}
-                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
-                    {:coord {:impl :bar}
-                     :data (mock-bench-result {:elapsed-time {:mean 2.0}})})
-            f      (domain/domain-compare-fn
-                    {:id :impl-time
-                     :axis-key :impl
-                     :metric-path [:stats :elapsed-time :mean]})
+      (let [d (domain/domain
+               {:coord {:impl :foo}
+                :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+               {:coord {:impl :bar}
+                :data (mock-bench-result {:elapsed-time {:mean 2.0}})})
+            f (domain/domain-compare-fn
+               {:id :impl-time
+                :axis-key :impl
+                :metric-path [:stats :elapsed-time :mean]})
             result (f {:domain d})]
         (is (contains? result :domain))
         (is (contains? result :impl-time))
         (is (domain/domain-comparison? (:impl-time result)))))
     (testing "uses default :id when not specified"
-      (let [d      (domain/domain
-                    {:coord {:impl :foo}
-                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
-            f      (domain/domain-compare-fn
-                    {:axis-key :impl :metric-path [:stats :elapsed-time :mean]})
+      (let [d (domain/domain
+               {:coord {:impl :foo}
+                :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
+            f (domain/domain-compare-fn
+               {:axis-key :impl :metric-path [:stats :elapsed-time :mean]})
             result (f {:domain d})]
         (is (contains? result :comparison))))
     (testing "uses custom :domain-id"
-      (let [d      (domain/domain
-                    {:coord {:impl :foo}
-                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
-            f      (domain/domain-compare-fn
-                    {:id :cmp
-                     :domain-id :source
-                     :axis-key :impl
-                     :metric-path [:stats :elapsed-time :mean]})
+      (let [d (domain/domain
+               {:coord {:impl :foo}
+                :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
+            f (domain/domain-compare-fn
+               {:id :cmp
+                :domain-id :source
+                :axis-key :impl
+                :metric-path [:stats :elapsed-time :mean]})
             result (f {:source d})]
         (is (contains? result :cmp))
         (is (domain/domain-comparison? (:cmp result)))))
     (testing "preserves other keys in data-map"
-      (let [d      (domain/domain
-                    {:coord {:impl :foo}
-                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
-            f      (domain/domain-compare-fn
-                    {:id :cmp :axis-key :impl
-                     :metric-path [:stats :elapsed-time :mean]})
+      (let [d (domain/domain
+               {:coord {:impl :foo}
+                :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
+            f (domain/domain-compare-fn
+               {:id :cmp :axis-key :impl
+                :metric-path [:stats :elapsed-time :mean]})
             result (f {:domain d :meta {:info "data"}})]
         (is (= {:info "data"} (:meta result)))))))
 
@@ -797,10 +797,10 @@
 (deftest pipeline-composition-test
   (testing "pipeline composition"
     (testing "chains multiple extracts"
-      (let [d      (domain/domain
-                    {:coord {:n 100}
-                     :data (mock-bench-result
-                            {:elapsed-time {:mean 1.0 :variance 0.1}})})
+      (let [d (domain/domain
+               {:coord {:n 100}
+                :data (mock-bench-result
+                       {:elapsed-time {:mean 1.0 :variance 0.1}})})
             result (-> {:domain d}
                        ((domain/domain-extract-fn
                          {:id :mean
@@ -814,11 +814,11 @@
         (is (domain/domain-extract? (:mean result)))
         (is (domain/domain-extract? (:var result)))))
     (testing "chains extract with group-by"
-      (let [d      (domain/domain
-                    {:coord {:n 100 :impl :foo}
-                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
-                    {:coord {:n 100 :impl :bar}
-                     :data (mock-bench-result {:elapsed-time {:mean 2.0}})})
+      (let [d (domain/domain
+               {:coord {:n 100 :impl :foo}
+                :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+               {:coord {:n 100 :impl :bar}
+                :data (mock-bench-result {:elapsed-time {:mean 2.0}})})
             result (-> {:domain d}
                        ((domain/domain-extract-fn
                          {:id :mean
@@ -828,13 +828,13 @@
         (is (domain/domain-extract? (:mean result)))
         (is (domain/domain-grouped? (:by-impl result)))))
     (testing "chains multiple analysis types"
-      (let [d      (domain/domain
-                    {:coord {:n 100 :impl :foo}
-                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
-                    {:coord {:n 200 :impl :foo}
-                     :data (mock-bench-result {:elapsed-time {:mean 2.0}})}
-                    {:coord {:n 100 :impl :bar}
-                     :data (mock-bench-result {:elapsed-time {:mean 1.5}})})
+      (let [d (domain/domain
+               {:coord {:n 100 :impl :foo}
+                :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+               {:coord {:n 200 :impl :foo}
+                :data (mock-bench-result {:elapsed-time {:mean 2.0}})}
+               {:coord {:n 100 :impl :bar}
+                :data (mock-bench-result {:elapsed-time {:mean 1.5}})})
             result (-> {:domain d}
                        ((domain/domain-extract-fn
                          {:id :mean
@@ -863,15 +863,15 @@
   (testing "domain-regression?"
     (testing "returns true for valid domain-regression result"
       (is (true? (domain/domain-regression?
-                  {:type     :criterium/domain-regression
-                   :axis     :n
-                   :models   [{:id :linear :label "O(n)" :r-squared 0.98}]
+                  {:type :criterium/domain-regression
+                   :axis :n
+                   :models [{:id :linear :label "O(n)" :r-squared 0.98}]
                    :best-fit :linear}))))
     (testing "returns true for empty models"
       (is (true? (domain/domain-regression?
-                  {:type     :criterium/domain-regression
-                   :axis     :n
-                   :models   []
+                  {:type :criterium/domain-regression
+                   :axis :n
+                   :models []
                    :best-fit nil}))))
     (testing "returns false for wrong type"
       (is (false? (domain/domain-regression?
@@ -892,89 +892,89 @@
 (deftest fit-complexity-test
   (testing "fit-complexity"
     (testing "returns a domain-regression result"
-      (let [extract {:type   :criterium/domain-extract
+      (let [extract {:type :criterium/domain-extract
                      :metric [:stats :elapsed-time :mean]
-                     :data   [[{:n 100} 100.0]
-                              [{:n 200} 200.0]
-                              [{:n 300} 300.0]]}
-            result  (domain/fit-complexity extract :n)]
+                     :data [[{:n 100} 100.0]
+                            [{:n 200} 200.0]
+                            [{:n 300} 300.0]]}
+            result (domain/fit-complexity extract :n)]
         (is (domain/domain-regression? result))
         (is (= :criterium/domain-regression (:type result)))
         (is (= :n (:axis result)))
         (is (= [:stats :elapsed-time :mean] (:metric result)))))
     (testing "identifies linear complexity with perfect fit"
-      (let [extract {:type   :criterium/domain-extract
+      (let [extract {:type :criterium/domain-extract
                      :metric [:stats :elapsed-time :mean]
-                     :data   [[{:n 100} 100.0]
-                              [{:n 200} 200.0]
-                              [{:n 300} 300.0]
-                              [{:n 400} 400.0]]}
-            result  (domain/fit-complexity extract :n)
-            linear  (first (filter #(= :linear (:id %)) (:models result)))]
+                     :data [[{:n 100} 100.0]
+                            [{:n 200} 200.0]
+                            [{:n 300} 300.0]
+                            [{:n 400} 400.0]]}
+            result (domain/fit-complexity extract :n)
+            linear (first (filter #(= :linear (:id %)) (:models result)))]
         (is (= :linear (:best-fit result)))
         (is (> (:r-squared linear) 0.99))))
     (testing "identifies quadratic complexity"
-      (let [extract {:type   :criterium/domain-extract
+      (let [extract {:type :criterium/domain-extract
                      :metric [:stats :elapsed-time :mean]
-                     :data   [[{:n 10} 100.0]
-                              [{:n 20} 400.0]
-                              [{:n 30} 900.0]
-                              [{:n 40} 1600.0]]}
-            result    (domain/fit-complexity extract :n)
+                     :data [[{:n 10} 100.0]
+                            [{:n 20} 400.0]
+                            [{:n 30} 900.0]
+                            [{:n 40} 1600.0]]}
+            result (domain/fit-complexity extract :n)
             quadratic (first (filter #(= :quadratic (:id %)) (:models result)))]
         (is (= :quadratic (:best-fit result)))
         (is (> (:r-squared quadratic) 0.99))))
     (testing "filters out nil values"
-      (let [extract {:type   :criterium/domain-extract
+      (let [extract {:type :criterium/domain-extract
                      :metric [:stats :elapsed-time :mean]
-                     :data   [[{:n 100} 100.0]
-                              [{:n 200} nil]
-                              [{:n 300} 300.0]]}
-            result  (domain/fit-complexity extract :n)]
+                     :data [[{:n 100} 100.0]
+                            [{:n 200} nil]
+                            [{:n 300} 300.0]]}
+            result (domain/fit-complexity extract :n)]
         (is (domain/domain-regression? result))
         (is (seq (:models result)))))
     (testing "filters out coordinates missing axis key"
-      (let [extract {:type   :criterium/domain-extract
+      (let [extract {:type :criterium/domain-extract
                      :metric [:stats :elapsed-time :mean]
-                     :data   [[{:n 100} 100.0]
-                              [{:m 200} 200.0]
-                              [{:n 300} 300.0]]}
-            result  (domain/fit-complexity extract :n)]
+                     :data [[{:n 100} 100.0]
+                            [{:m 200} 200.0]
+                            [{:n 300} 300.0]]}
+            result (domain/fit-complexity extract :n)]
         (is (domain/domain-regression? result))
         (is (seq (:models result)))))
     (testing "filters out keyword coordinates"
-      (let [extract {:type   :criterium/domain-extract
+      (let [extract {:type :criterium/domain-extract
                      :metric [:stats :elapsed-time :mean]
-                     :data   [[{:n 100} 100.0]
-                              [:baseline 50.0]
-                              [{:n 300} 300.0]]}
-            result  (domain/fit-complexity extract :n)]
+                     :data [[{:n 100} 100.0]
+                            [:baseline 50.0]
+                            [{:n 300} 300.0]]}
+            result (domain/fit-complexity extract :n)]
         (is (domain/domain-regression? result))
         (is (seq (:models result)))))
     (testing "returns empty models with insufficient data"
-      (let [extract {:type   :criterium/domain-extract
+      (let [extract {:type :criterium/domain-extract
                      :metric [:stats :elapsed-time :mean]
-                     :data   [[{:n 100} 100.0]]}
-            result  (domain/fit-complexity extract :n)]
+                     :data [[{:n 100} 100.0]]}
+            result (domain/fit-complexity extract :n)]
         (is (domain/domain-regression? result))
         (is (empty? (:models result)))
         (is (nil? (:best-fit result)))))
     (testing "returns empty models for empty extract"
-      (let [extract {:type   :criterium/domain-extract
+      (let [extract {:type :criterium/domain-extract
                      :metric [:stats :elapsed-time :mean]
-                     :data   []}
-            result  (domain/fit-complexity extract :n)]
+                     :data []}
+            result (domain/fit-complexity extract :n)]
         (is (domain/domain-regression? result))
         (is (empty? (:models result)))))
     (testing "supports custom models"
-      (let [extract {:type   :criterium/domain-extract
+      (let [extract {:type :criterium/domain-extract
                      :metric [:stats :elapsed-time :mean]
-                     :data   [[{:n 100} 100.0]
-                              [{:n 200} 200.0]
-                              [{:n 300} 300.0]]}
-            models  {:cubic {:transform (fn [n] (* n n n))
-                             :label     "O(n³)"}}
-            result  (domain/fit-complexity extract :n models)]
+                     :data [[{:n 100} 100.0]
+                            [{:n 200} 200.0]
+                            [{:n 300} 300.0]]}
+            models {:cubic {:transform (fn [n] (* n n n))
+                            :label "O(n³)"}}
+            result (domain/fit-complexity extract :n models)]
         (is (domain/domain-regression? result))
         (is (= 1 (count (:models result))))
         (is (= :cubic (:id (first (:models result)))))))))
@@ -985,53 +985,53 @@
       (is (fn? (domain/domain-regression-fn)))
       (is (fn? (domain/domain-regression-fn {}))))
     (testing "fits regression to extract in data-map"
-      (let [extract {:type   :criterium/domain-extract
+      (let [extract {:type :criterium/domain-extract
                      :metric [:stats :elapsed-time :mean]
-                     :data   [[{:n 100} 100.0]
-                              [{:n 200} 200.0]
-                              [{:n 300} 300.0]]}
-            f       (domain/domain-regression-fn {:id :scaling :axis :n})
-            result  (f {:extract extract})]
+                     :data [[{:n 100} 100.0]
+                            [{:n 200} 200.0]
+                            [{:n 300} 300.0]]}
+            f (domain/domain-regression-fn {:id :scaling :axis :n})
+            result (f {:extract extract})]
         (is (contains? result :extract))
         (is (contains? result :scaling))
         (is (domain/domain-regression? (:scaling result)))))
     (testing "uses default :id when not specified"
-      (let [extract {:type   :criterium/domain-extract
+      (let [extract {:type :criterium/domain-extract
                      :metric [:stats :elapsed-time :mean]
-                     :data   [[{:n 100} 100.0]
-                              [{:n 200} 200.0]]}
-            f       (domain/domain-regression-fn {:axis :n})
-            result  (f {:extract extract})]
+                     :data [[{:n 100} 100.0]
+                            [{:n 200} 200.0]]}
+            f (domain/domain-regression-fn {:axis :n})
+            result (f {:extract extract})]
         (is (contains? result :regression))))
     (testing "uses custom :extract-id"
-      (let [extract {:type   :criterium/domain-extract
+      (let [extract {:type :criterium/domain-extract
                      :metric [:stats :elapsed-time :mean]
-                     :data   [[{:n 100} 100.0]
-                              [{:n 200} 200.0]]}
-            f       (domain/domain-regression-fn
-                     {:id :scaling :extract-id :my-extract :axis :n})
-            result  (f {:my-extract extract})]
+                     :data [[{:n 100} 100.0]
+                            [{:n 200} 200.0]]}
+            f (domain/domain-regression-fn
+               {:id :scaling :extract-id :my-extract :axis :n})
+            result (f {:my-extract extract})]
         (is (contains? result :scaling))
         (is (domain/domain-regression? (:scaling result)))))
     (testing "preserves other keys in data-map"
-      (let [extract {:type   :criterium/domain-extract
+      (let [extract {:type :criterium/domain-extract
                      :metric [:stats :elapsed-time :mean]
-                     :data   [[{:n 100} 100.0]
-                              [{:n 200} 200.0]]}
-            f       (domain/domain-regression-fn {:id :scaling :axis :n})
-            result  (f {:extract extract :other-key "value"})]
+                     :data [[{:n 100} 100.0]
+                            [{:n 200} 200.0]]}
+            f (domain/domain-regression-fn {:id :scaling :axis :n})
+            result (f {:extract extract :other-key "value"})]
         (is (= "value" (:other-key result)))))
     (testing "composes with domain-extract-fn"
-      (let [d      (domain/domain
-                    {:coord {:n 100}
-                     :data (mock-bench-result {:elapsed-time {:mean 100.0}})}
-                    {:coord {:n 200}
-                     :data (mock-bench-result {:elapsed-time {:mean 200.0}})}
-                    {:coord {:n 300}
-                     :data (mock-bench-result {:elapsed-time {:mean 300.0}})})
+      (let [d (domain/domain
+               {:coord {:n 100}
+                :data (mock-bench-result {:elapsed-time {:mean 100.0}})}
+               {:coord {:n 200}
+                :data (mock-bench-result {:elapsed-time {:mean 200.0}})}
+               {:coord {:n 300}
+                :data (mock-bench-result {:elapsed-time {:mean 300.0}})})
             result (-> {:domain d}
                        ((domain/domain-extract-fn
-                         {:id          :extract
+                         {:id :extract
                           :metric-path [:stats :elapsed-time :mean]}))
                        ((domain/domain-regression-fn
                          {:id :scaling :axis :n})))]
@@ -1048,39 +1048,39 @@
   ;; Validates spec resolution, composition, and error handling.
   (testing "->domain-analyse"
     (testing "creates analysis function from single spec"
-      (let [d        (domain/domain
-                      {:coord {:n 100}
-                       :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
-            analyse  (domain/->domain-analyse
-                      [[:domain-extract-fn
-                        {:id :extract :metric-path [:stats :elapsed-time :mean]}]])
-            result   (analyse {:domain d})]
+      (let [d (domain/domain
+               {:coord {:n 100}
+                :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
+            analyse (domain/->domain-analyse
+                     [[:domain-extract-fn
+                       {:id :extract :metric-path [:stats :elapsed-time :mean]}]])
+            result (analyse {:domain d})]
         (is (map? result))
         (is (contains? result :domain))
         (is (contains? result :extract))
         (is (domain/domain-extract? (:extract result)))))
     (testing "creates analysis function from multiple specs"
-      (let [d        (domain/domain
-                      {:coord {:n 100}
-                       :data (mock-bench-result {:elapsed-time {:mean 100.0}})}
-                      {:coord {:n 200}
-                       :data (mock-bench-result {:elapsed-time {:mean 200.0}})})
-            analyse  (domain/->domain-analyse
-                      [[:domain-extract-fn
-                        {:id :extract :metric-path [:stats :elapsed-time :mean]}]
-                       [:domain-regression-fn {:id :scaling :axis :n}]])
-            result   (analyse {:domain d})]
+      (let [d (domain/domain
+               {:coord {:n 100}
+                :data (mock-bench-result {:elapsed-time {:mean 100.0}})}
+               {:coord {:n 200}
+                :data (mock-bench-result {:elapsed-time {:mean 200.0}})})
+            analyse (domain/->domain-analyse
+                     [[:domain-extract-fn
+                       {:id :extract :metric-path [:stats :elapsed-time :mean]}]
+                      [:domain-regression-fn {:id :scaling :axis :n}]])
+            result (analyse {:domain d})]
         (is (contains? result :extract))
         (is (contains? result :scaling))
         (is (domain/domain-extract? (:extract result)))
         (is (domain/domain-regression? (:scaling result)))))
     (testing "handles empty spec vector"
       (let [analyse (domain/->domain-analyse [])
-            result  (analyse {:domain (domain/domain) :other "data"})]
+            result (analyse {:domain (domain/domain) :other "data"})]
         (is (= {:domain (domain/domain) :other "data"} result))))
     (testing "handles nil spec"
       (let [analyse (domain/->domain-analyse nil)
-            result  (analyse {:domain (domain/domain)})]
+            result (analyse {:domain (domain/domain)})]
         (is (map? result))))
     (testing "throws on non-sequential spec"
       (is (thrown? clojure.lang.ExceptionInfo
@@ -1098,22 +1098,22 @@
                      [[:domain-extract {}]
                       [:domain-regression {}]])]
         (is (fn? view-fn))))
-    (testing "view function returns data-map"
-      (let [view-fn  (domain/->domain-view [[:domain-extract {}]])
-            data-map {:domain  (domain/domain)
-                      :extract {:type   :criterium/domain-extract
+    (testing "view function returns viewer output (nil for :none viewer)"
+      (let [view-fn (domain/->domain-view [[:domain-extract {}]])
+            data-map {:domain (domain/domain)
+                      :extract {:type :criterium/domain-extract
                                 :metric [:stats :elapsed-time :mean]
-                                :data   []}}
-            result   (view-fn :none data-map)]
-        (is (= data-map result))))
+                                :data []}}
+            result (view-fn :none data-map)]
+        (is (nil? result))))
     (testing "handles empty spec vector"
       (let [view-fn (domain/->domain-view [])
-            result  (view-fn :none {:data "map"})]
-        (is (= {:data "map"} result))))
+            result (view-fn :none {:data "map"})]
+        (is (nil? result))))
     (testing "handles nil spec"
       (let [view-fn (domain/->domain-view nil)
-            result  (view-fn :none {:data "map"})]
-        (is (map? result))))
+            result (view-fn :none {:data "map"})]
+        (is (nil? result))))
     (testing "throws on non-sequential spec"
       (is (thrown? clojure.lang.ExceptionInfo
                    (domain/->domain-view :not-a-sequence))))))
@@ -1124,25 +1124,25 @@
   (testing "options->domain-plan"
     (testing "returns base plan when no options"
       (let [base {:analyse [[:domain-extract-fn {}]]
-                  :view    [[:domain-extract {}]]
-                  :viewer  :print}]
+                  :view [[:domain-extract {}]]
+                  :viewer :print}]
         (is (= base (domain/options->domain-plan base)))))
     (testing "overrides viewer option"
-      (let [base   {:analyse [] :view [] :viewer :print}
+      (let [base {:analyse [] :view [] :viewer :print}
             result (domain/options->domain-plan base :viewer :portal)]
         (is (= :portal (:viewer result)))))
     (testing "overrides analyse option"
-      (let [base       {:analyse [[:domain-extract-fn {}]] :view [] :viewer :print}
+      (let [base {:analyse [[:domain-extract-fn {}]] :view [] :viewer :print}
             new-analyse [[:domain-compare-fn {}]]
-            result     (domain/options->domain-plan base :analyse new-analyse)]
+            result (domain/options->domain-plan base :analyse new-analyse)]
         (is (= new-analyse (:analyse result)))))
     (testing "overrides view option"
-      (let [base     {:analyse [] :view [[:domain-extract {}]] :viewer :print}
+      (let [base {:analyse [] :view [[:domain-extract {}]] :viewer :print}
             new-view [[:domain-comparison {}]]
-            result   (domain/options->domain-plan base :view new-view)]
+            result (domain/options->domain-plan base :view new-view)]
         (is (= new-view (:view result)))))
     (testing "combines multiple overrides"
-      (let [base   {:analyse [] :view [] :viewer :print}
+      (let [base {:analyse [] :view [] :viewer :print}
             result (domain/options->domain-plan base
                                                 :viewer :portal
                                                 :analyse [[:domain-extract-fn {}]])]
@@ -1155,51 +1155,58 @@
   ;; Validates full analysis pipeline execution with viewing.
   (testing "analyse-domain"
     (testing "executes analysis plan and returns data-map"
-      (let [d      (domain/domain
-                    {:coord {:n 100}
-                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
-            plan   {:analyse [[:domain-extract-fn
-                               {:id :extract
-                                :metric-path [:stats :elapsed-time :mean]}]]
-                    :view    [[:domain-extract {:extract-id :extract}]]
-                    :viewer  :none}
+      (let [d (domain/domain
+               {:coord {:n 100}
+                :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
+            plan {:analyse [[:domain-extract-fn
+                             {:id :extract
+                              :metric-path [:stats :elapsed-time :mean]}]]
+                  :view [[:domain-extract {:extract-id :extract}]]
+                  :viewer :none}
             result (domain/analyse-domain plan d)]
         (is (map? result))
         (is (contains? result :domain))
         (is (contains? result :extract))
         (is (domain/domain-extract? (:extract result)))))
     (testing "chains multiple analysis functions"
-      (let [d      (domain/domain
-                    {:coord {:n 100}
-                     :data (mock-bench-result {:elapsed-time {:mean 100.0}})}
-                    {:coord {:n 200}
-                     :data (mock-bench-result {:elapsed-time {:mean 200.0}})})
-            plan   {:analyse [[:domain-extract-fn
-                               {:id :extract
-                                :metric-path [:stats :elapsed-time :mean]}]
-                              [:domain-regression-fn {:id :scaling :axis :n}]]
-                    :view    []
-                    :viewer  :none}
+      (let [d (domain/domain
+               {:coord {:n 100}
+                :data (mock-bench-result {:elapsed-time {:mean 100.0}})}
+               {:coord {:n 200}
+                :data (mock-bench-result {:elapsed-time {:mean 200.0}})})
+            plan {:analyse [[:domain-extract-fn
+                             {:id :extract
+                              :metric-path [:stats :elapsed-time :mean]}]
+                            [:domain-regression-fn {:id :scaling :axis :n}]]
+                  :view []
+                  :viewer :none}
             result (domain/analyse-domain plan d)]
         (is (domain/domain-extract? (:extract result)))
         (is (domain/domain-regression? (:scaling result)))))
     (testing "defaults viewer to :print"
-      (let [d      (domain/domain)
-            plan   {:analyse [] :view []}
+      (let [d (domain/domain)
+            plan {:analyse [] :view []}
             result (domain/analyse-domain plan d)]
         (is (map? result))))
     (testing "preserves domain in result"
-      (let [d      (domain/domain
-                    {:coord {:n 100}
-                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
-            plan   {:analyse [] :view [] :viewer :none}
+      (let [d (domain/domain
+               {:coord {:n 100}
+                :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
+            plan {:analyse [] :view [] :viewer :none}
             result (domain/analyse-domain plan d)]
         (is (= d (:domain result)))))
-    (testing "works with empty analyse and view"
-      (let [d      (domain/domain)
-            plan   {:analyse [] :view [] :viewer :none}
+    (testing "includes viewer output in result"
+      (let [d (domain/domain)
+            plan {:analyse [] :view [] :viewer :none}
             result (domain/analyse-domain plan d)]
-        (is (= {:domain d} result))))))
+        (is (contains? result :viewer))
+        (is (= :criterium/viewer-output (get-in result [:viewer :type])))))
+    (testing "works with empty analyse and view"
+      (let [d (domain/domain)
+            plan {:analyse [] :view [] :viewer :none}
+            result (domain/analyse-domain plan d)]
+        (is (= d (:domain result)))
+        (is (contains? result :viewer))))))
 
 ;; Tests for pre-defined domain plans.
 ;; Validates that domain-plans namespace provides valid plan structures.
@@ -1226,40 +1233,40 @@
   ;; Validates end-to-end plan execution with actual domains.
   (testing "domain-plans integration"
     (testing "complexity-analysis executes successfully"
-      (let [d      (domain/domain
-                    {:coord {:n 100}
-                     :data (mock-bench-result {:elapsed-time {:mean 100.0}})}
-                    {:coord {:n 200}
-                     :data (mock-bench-result {:elapsed-time {:mean 200.0}})}
-                    {:coord {:n 300}
-                     :data (mock-bench-result {:elapsed-time {:mean 300.0}})})
-            plan   (domain/options->domain-plan
-                    domain-plans/complexity-analysis
-                    :viewer :none)
+      (let [d (domain/domain
+               {:coord {:n 100}
+                :data (mock-bench-result {:elapsed-time {:mean 100.0}})}
+               {:coord {:n 200}
+                :data (mock-bench-result {:elapsed-time {:mean 200.0}})}
+               {:coord {:n 300}
+                :data (mock-bench-result {:elapsed-time {:mean 300.0}})})
+            plan (domain/options->domain-plan
+                  domain-plans/complexity-analysis
+                  :viewer :none)
             result (domain/analyse-domain plan d)]
         (is (contains? result :extract))
         (is (contains? result :regression))
         (is (domain/domain-extract? (:extract result)))
         (is (domain/domain-regression? (:regression result)))))
     (testing "implementation-comparison executes successfully"
-      (let [d      (domain/domain
-                    {:coord {:impl :foo}
-                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
-                    {:coord {:impl :bar}
-                     :data (mock-bench-result {:elapsed-time {:mean 2.0}})})
-            plan   (domain/options->domain-plan
-                    domain-plans/implementation-comparison
-                    :viewer :none)
+      (let [d (domain/domain
+               {:coord {:impl :foo}
+                :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+               {:coord {:impl :bar}
+                :data (mock-bench-result {:elapsed-time {:mean 2.0}})})
+            plan (domain/options->domain-plan
+                  domain-plans/implementation-comparison
+                  :viewer :none)
             result (domain/analyse-domain plan d)]
         (is (contains? result :comparison))
         (is (domain/domain-comparison? (:comparison result)))))
     (testing "extract-elapsed-time executes successfully"
-      (let [d      (domain/domain
-                    {:coord {:n 100}
-                     :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
-            plan   (domain/options->domain-plan
-                    domain-plans/extract-elapsed-time
-                    :viewer :none)
+      (let [d (domain/domain
+               {:coord {:n 100}
+                :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
+            plan (domain/options->domain-plan
+                  domain-plans/extract-elapsed-time
+                  :viewer :none)
             result (domain/analyse-domain plan d)]
         (is (contains? result :extract))
         (is (domain/domain-extract? (:extract result)))))))
