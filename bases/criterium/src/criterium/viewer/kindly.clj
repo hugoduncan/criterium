@@ -651,6 +651,18 @@
                                                      :orient "none"
                                                      :legendX 10
                                                      :legendY 10}}}}
+                        ;; Smooth loess line through residuals (faint)
+                        {:data {:values (vec all-residual-pts)}
+                         :transform [{:loess "residual"
+                                      :on "x"
+                                      :groupby ["model"]
+                                      :bandwidth 0.3}]
+                         :mark {:type "line" :strokeWidth 1}
+                         :encoding {:x {:field "x" :type "quantitative"}
+                                    :y {:field "residual" :type "quantitative"}
+                                    :color {:field "model" :type "nominal"
+                                            :legend nil}
+                                    :opacity {:value 0.4}}}
                         ;; Zero reference line
                         {:data {:values [{"y" 0}]}
                          :mark {:type "rule" :strokeDash [4 4]}

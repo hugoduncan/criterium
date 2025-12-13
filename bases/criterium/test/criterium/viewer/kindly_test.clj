@@ -672,8 +672,8 @@
             (is (= :kind/md (:kindly/kind (meta residual-heading))))
             (is (clojure.string/includes? (first residual-heading) "Residual"))
             (is (= :kind/vega-lite (:kindly/kind (meta residual-chart))))
-            (is (= 2 (count (:layer residual-chart)))
-                "Expected 2 layers: scatter and zero line")))))
+            (is (= 3 (count (:layer residual-chart)))
+                "Expected 3 layers: scatter, loess line, zero line")))))
 
     (testing "renders combined residual plot when multiple models within tolerance"
       (reset! kindly/accumulated [])
