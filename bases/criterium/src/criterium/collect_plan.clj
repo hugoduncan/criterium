@@ -157,7 +157,12 @@
             ;; Leave garbage Free zone
             ]
 
-        (let [samples (cond-> (collected-data-map sample-data)
+        (let [total-benchmark-time-ns (+ (long (:total-time est-data))
+                                         (long (:elapsed-time warmup-data))
+                                         (long (:elapsed-time sample-data)))
+              samples (cond-> (collected-data-map sample-data)
+                        true
+                        (assoc :total-benchmark-time-ns total-benchmark-time-ns)
                         (:time-limited? limit-result)
                         (assoc :time-limit {:limited? true
                                             :projected-time-ns (:projected-time-ns limit-result)

@@ -804,7 +804,6 @@
 ;;; Domain Builder
 
 (def ^:private default-initial-limit-time-s 10)
-(def ^:private time-estimate-safety-factor 3.0)
 
 (defn- cartesian-product
   "Return cartesian product of axis values as sequence of maps.
@@ -834,30 +833,30 @@
 
 (defn- estimate-limit-time-s
   "Estimate limit-time-s for next run based on collected data.
-  Uses projected time for time-limited runs to avoid underestimation.
+  Uses projected time for time-limited runs, total benchmark time otherwise.
   Returns initial-limit-time-s if insufficient data for estimation."
   [impl-runs time-axis next-coord initial-limit-time-s]
   (if (< (count impl-runs) 2)
     initial-limit-time-s
     (let [;; Build extract-like data for fit-complexity
-          ;; Use projected time for limited runs, actual time otherwise
+          ;; Use projected time for limited runs, total benchmark time otherwise
           extract-data (mapv (fn [{:keys [coord data]}]
                                (let [time-ns (if-let [projected (get-in data [:samples :time-limit :projected-time-ns])]
                                                projected
-                                               (get-in data [:stats :elapsed-time :mean]))]
+                                               (get-in data [:samples :total-benchmark-time-ns]))]
                                  [coord time-ns]))
                              impl-runs)
-          extract {:type :criterium/domain-extract
-                   :metric [:stats :elapsed-time :mean]
-                   :data extract-data}
-          regression (fit-complexity extract time-axis)
-          best-model (first (filter #(= (:id %) (:best-fit regression))
-                                    (:models regression)))
-          next-x (get next-coord time-axis)]
+          extract      {:type   :criterium/domain-extract
+                        :metric [:samples :total-benchmark-time-ns]
+                        :data   extract-data}
+          regression   (fit-complexity extract time-axis)
+          best-model   (first (filter #(= (:id %) (:best-fit regression))
+                                      (:models regression)))
+          next-x       (get next-coord time-axis)]
       (if (and best-model next-x (> (:r-squared best-model) 0.5))
         (let [predicted-ns (predict-time-ns best-model next-x)
-              ;; Convert ns to seconds with safety factor
-              predicted-s (* 1.1 (/ (* predicted-ns time-estimate-safety-factor) 1e9))]
+              ;; Convert ns to seconds with margin
+              predicted-s  (* 2.1 (/ predicted-ns 1e9))]
           (max predicted-s initial-limit-time-s))
         initial-limit-time-s))))
 
