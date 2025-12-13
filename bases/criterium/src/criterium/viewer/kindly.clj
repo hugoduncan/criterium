@@ -10,6 +10,7 @@
   (:refer-clojure :exclude [flush])
   (:require
    [criterium.metric :as metric]
+   [criterium.util.format :as format]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have]]
    [criterium.view :as view]
@@ -309,20 +310,35 @@
     (into {} (map (fn [[k v]] [(name k) v])) coord)
     (name coord)))
 
+(defn- metric-path->dimension
+  "Return the dimension keyword for a metric-path.
+  Used to determine appropriate scaling via format/scale."
+  [metric-path]
+  (case (first metric-path)
+    (:stats :log-stats)
+    (case (second metric-path)
+      :elapsed-time :time
+      :thread-allocation :memory
+      nil)
+    nil))
+
+(defn- metric-path->base-scale
+  "Return base scale factor to convert raw metric values to base units.
+  Elapsed-time is stored in nanoseconds, so convert to seconds for scaling."
+  [metric-path]
+  (case (first metric-path)
+    (:stats :log-stats)
+    (case (second metric-path)
+      :elapsed-time 1e-9 ; ns -> s
+      1)
+    1))
+
 (defn- format-extract-value
-  "Format a value from domain-extract for display."
+  "Format a value from domain-extract for display.
+  Applies base unit conversion (e.g., ns -> s for time)."
   [value metric-path]
-  (if (nil? value)
-    nil
-    (let [[_ scale]
-          (case (first metric-path)
-            (:stats :log-stats)
-            (case (second metric-path)
-              :elapsed-time [:time 1e-9]
-              :thread-allocation [:memory 1]
-              [:count 1])
-            [:count 1])]
-      (* value scale))))
+  (when (some? value)
+    (* value (metric-path->base-scale metric-path))))
 
 (defmethod view/domain-extract* :kindly
   [_ {:keys [extract-id]} data-map]
@@ -440,9 +456,19 @@
                                           (map? coord)
                                           (contains? coord axis)))
                                    data)
+                ;; Convert raw values to base units (e.g., ns -> s)
+                base-scale (metric-path->base-scale metric)
+                base-values (mapv (fn [[_ value]] (* value base-scale)) valid-data)
+                ;; Compute SI scale based on mean value
+                dimension (metric-path->dimension metric)
+                representative-value (/ (reduce + base-values) (count base-values))
+                [si-scale si-unit] (if dimension
+                                     (format/scale dimension representative-value)
+                                     [1 ""])
+                ;; Create data points with SI scaling
                 points (mapv (fn [[coord value]]
                                {"x" (double (get coord axis))
-                                "y" (format-extract-value value metric)
+                                "y" (* (* value base-scale) si-scale)
                                 "type" "actual"})
                              valid-data)
                 ;; Generate predicted line from best-fit model
@@ -451,13 +477,17 @@
                 x-vals (mapv #(double (get (first %) axis)) valid-data)
                 x-min (apply min x-vals)
                 x-max (apply max x-vals)
-                ;; Generate points for curve (apply same scaling as data points)
+                ;; Generate points for curve (apply same scaling)
                 x-range (range x-min (+ x-max 1) (/ (- x-max x-min) 50))
                 line-pts (mapv (fn [x]
                                  {"x" x
-                                  "y" (format-extract-value (model-fn x) metric)
+                                  "y" (* (* (model-fn x) base-scale) si-scale)
                                   "type" (:label best-model)})
-                               x-range)]
+                               x-range)
+                ;; Build y-axis title with unit
+                y-title (if (seq si-unit)
+                          (str (pr-str metric) " (" si-unit ")")
+                          (pr-str metric))]
             (kindly-vega-lite
              {:width chart-width
               :height chart-height
@@ -466,7 +496,7 @@
                        :encoding {:x {:field "x" :type "quantitative"
                                       :title (name axis)}
                                   :y {:field "y" :type "quantitative"
-                                      :title (pr-str metric)}
+                                      :title y-title}
                                   :color {:value "steelblue"}}}
                       {:data {:values line-pts}
                        :mark {:type "line" :strokeWidth 2}
