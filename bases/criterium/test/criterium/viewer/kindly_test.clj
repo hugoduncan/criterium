@@ -488,3 +488,208 @@
       (reset! kindly/accumulated [])
       (view/runtime* :kindly {} {})
       (is (empty? @kindly/accumulated)))))
+
+(deftest domain-extract-view-test
+  ;; Tests the view/domain-extract* multimethod for :kindly viewer.
+  ;; Verifies that domain extract data is rendered as heading and table with
+  ;; coordinate and value columns.
+  (testing "view/domain-extract* :kindly"
+    (testing "renders extract as heading and table"
+      (reset! kindly/accumulated [])
+      (let [data-map {:extract {:type :criterium/domain-extract
+                                :metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100} 1e6]
+                                       [{:n 1000} 1e7]
+                                       [{:n 10000} 1e8]]}}]
+        (view/domain-extract* :kindly {} data-map)
+        (let [result (kindly/flush)]
+          (is (= :kind/fragment (:kindly/kind (meta result))))
+          (is (= 2 (count result))
+              "Expected heading and table")
+          (let [[heading table] result]
+            (is (= :kind/md (:kindly/kind (meta heading))))
+            (is (string? (first heading)))
+            (is (clojure.string/includes? (first heading) "Domain Extract"))
+            (is (= :kind/table (:kindly/kind (meta table))))
+            (is (= 3 (count table))
+                "Expected 3 rows for 3 data points")
+            (is (every? #(contains? % :coordinate) table)
+                "Expected :coordinate column")
+            (is (every? #(contains? % :value) table)
+                "Expected :value column")))))
+
+    (testing "handles nil extract gracefully"
+      (reset! kindly/accumulated [])
+      (view/domain-extract* :kindly {} {:extract nil})
+      (is (nil? (kindly/flush))))
+
+    (testing "handles nil values in data"
+      (reset! kindly/accumulated [])
+      (let [data-map {:extract {:type :criterium/domain-extract
+                                :metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100} nil]
+                                       [{:n 1000} 1e7]]}}]
+        (view/domain-extract* :kindly {} data-map)
+        (let [result (kindly/flush)
+              [_ table] result]
+          (is (= 2 (count table)))
+          (is (nil? (:value (first table)))))))))
+
+(deftest domain-grouped-view-test
+  ;; Tests the view/domain-grouped* multimethod for :kindly viewer.
+  ;; Verifies that domain grouped data is rendered as heading and table with
+  ;; axis-value and run-count columns.
+  (testing "view/domain-grouped* :kindly"
+    (testing "renders grouped as heading and table"
+      (reset! kindly/accumulated [])
+      (let [data-map {:grouped {:type :criterium/domain-grouped
+                                :axis :impl
+                                :data {:foo {:type :criterium/domain
+                                             :runs [{:coord {:impl :foo} :data {}}]}
+                                       :bar {:type :criterium/domain
+                                             :runs [{:coord {:impl :bar} :data {}}
+                                                    {:coord {:impl :bar :n 10} :data {}}]}}}}]
+        (view/domain-grouped* :kindly {} data-map)
+        (let [result (kindly/flush)]
+          (is (= :kind/fragment (:kindly/kind (meta result))))
+          (is (= 2 (count result))
+              "Expected heading and table")
+          (let [[heading table] result]
+            (is (= :kind/md (:kindly/kind (meta heading))))
+            (is (clojure.string/includes? (first heading) "Domain Grouped"))
+            (is (= :kind/table (:kindly/kind (meta table))))
+            (is (= 2 (count table))
+                "Expected 2 rows for 2 axis values")
+            (is (every? #(contains? % :axis-value) table)
+                "Expected :axis-value column")
+            (is (every? #(contains? % :run-count) table)
+                "Expected :run-count column")))))
+
+    (testing "handles nil grouped gracefully"
+      (reset! kindly/accumulated [])
+      (view/domain-grouped* :kindly {} {:grouped nil})
+      (is (nil? (kindly/flush))))))
+
+(deftest domain-comparison-view-test
+  ;; Tests the view/domain-comparison* multimethod for :kindly viewer.
+  ;; Verifies that domain comparison data is rendered as heading and comparison
+  ;; table with axis values as columns.
+  (testing "view/domain-comparison* :kindly"
+    (testing "renders comparison as heading and table"
+      (reset! kindly/accumulated [])
+      (let [data-map {:comparison {:type :criterium/domain-comparison
+                                   :axis :impl
+                                   :metric [:stats :elapsed-time :mean]
+                                   :data {:foo [{:coord {:n 100 :impl :foo} :value 1e6}
+                                                {:coord {:n 1000 :impl :foo} :value 1e7}]
+                                          :bar [{:coord {:n 100 :impl :bar} :value 2e6}
+                                                {:coord {:n 1000 :impl :bar} :value 2e7}]}}}]
+        (view/domain-comparison* :kindly {} data-map)
+        (let [result (kindly/flush)]
+          (is (= :kind/fragment (:kindly/kind (meta result))))
+          (is (= 2 (count result))
+              "Expected heading and table")
+          (let [[heading table] result]
+            (is (= :kind/md (:kindly/kind (meta heading))))
+            (is (clojure.string/includes? (first heading) "Domain Comparison"))
+            (is (= :kind/table (:kindly/kind (meta table))))
+            (is (= 2 (count table))
+                "Expected 2 rows for 2 n values")
+            (is (every? #(contains? % :coordinate) table)
+                "Expected :coordinate column")
+            (is (every? #(or (contains? % ":foo") (contains? % "foo")) table)
+                "Expected axis value columns")))))
+
+    (testing "handles empty data gracefully"
+      (reset! kindly/accumulated [])
+      (let [data-map {:comparison {:type :criterium/domain-comparison
+                                   :axis :impl
+                                   :metric [:stats :elapsed-time :mean]
+                                   :data {}}}]
+        (view/domain-comparison* :kindly {} data-map)
+        (is (nil? (kindly/flush)))))
+
+    (testing "handles nil comparison gracefully"
+      (reset! kindly/accumulated [])
+      (view/domain-comparison* :kindly {} {:comparison nil})
+      (is (nil? (kindly/flush))))))
+
+(deftest domain-regression-view-test
+  ;; Tests the view/domain-regression* multimethod for :kindly viewer.
+  ;; Verifies that domain regression data is rendered as heading, model table,
+  ;; and Vega-Lite scatter/line chart.
+  (testing "view/domain-regression* :kindly"
+    (testing "renders regression as heading, table, and chart"
+      (reset! kindly/accumulated [])
+      (let [data-map {:extract {:type :criterium/domain-extract
+                                :metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100} 1e6]
+                                       [{:n 200} 2e6]
+                                       [{:n 400} 4e6]
+                                       [{:n 800} 8e6]]}
+                      :regression {:type :criterium/domain-regression
+                                   :axis :n
+                                   :metric [:stats :elapsed-time :mean]
+                                   :models [{:id :linear
+                                             :label "O(n)"
+                                             :coefficients {:a 10000.0 :b 0.0}
+                                             :r-squared 0.9999}
+                                            {:id :quadratic
+                                             :label "O(n²)"
+                                             :coefficients {:a 0.1 :b 100000.0}
+                                             :r-squared 0.85}]
+                                   :best-fit :linear}}]
+        (view/domain-regression* :kindly {} data-map)
+        (let [result (kindly/flush)]
+          (is (= :kind/fragment (:kindly/kind (meta result))))
+          (is (= 3 (count result))
+              "Expected heading, table, and chart")
+          (let [[heading table chart] result]
+            (is (= :kind/md (:kindly/kind (meta heading))))
+            (is (clojure.string/includes? (first heading) "Domain Regression"))
+            (is (= :kind/table (:kindly/kind (meta table))))
+            (is (= 2 (count table))
+                "Expected 2 rows for 2 models")
+            (is (every? #(contains? % :model) table)
+                "Expected :model column")
+            (is (every? #(contains? % :r-squared) table)
+                "Expected :r-squared column")
+            (is (= :kind/vega-lite (:kindly/kind (meta chart))))
+            (is (= 2 (count (:layer chart)))
+                "Expected 2 layers: scatter and line")))))
+
+    (testing "renders table only when no extract data"
+      (reset! kindly/accumulated [])
+      (let [data-map {:regression {:type :criterium/domain-regression
+                                   :axis :n
+                                   :metric [:stats :elapsed-time :mean]
+                                   :models [{:id :linear
+                                             :label "O(n)"
+                                             :coefficients {:a 10000.0 :b 0.0}
+                                             :r-squared 0.9999}]
+                                   :best-fit :linear}}]
+        (view/domain-regression* :kindly {} data-map)
+        (let [result (kindly/flush)]
+          (is (= 2 (count result))
+              "Expected heading and table only when no extract")
+          (let [[heading table] result]
+            (is (= :kind/md (:kindly/kind (meta heading))))
+            (is (= :kind/table (:kindly/kind (meta table))))))))
+
+    (testing "handles empty models gracefully"
+      (reset! kindly/accumulated [])
+      (let [data-map {:regression {:type :criterium/domain-regression
+                                   :axis :n
+                                   :metric [:stats :elapsed-time :mean]
+                                   :models []
+                                   :best-fit nil}}]
+        (view/domain-regression* :kindly {} data-map)
+        (let [result (kindly/flush)]
+          (is (= 1 (count result))
+              "Expected heading only when no models"))))
+
+    (testing "handles nil regression gracefully"
+      (reset! kindly/accumulated [])
+      (view/domain-regression* :kindly {} {:regression nil})
+      (is (nil? (kindly/flush))))))
+

@@ -1,4 +1,6 @@
-(ns criterium.domain-notebook
+(ns
+ ^{:kindly/options {:kinds-that-hide-code #{:kind/hidden}}}
+ criterium.domain-notebook
   "Working with multiple related benchmark runs using domains."
 
   (:require
@@ -8,6 +10,9 @@
    [criterium.view :as view]
    [criterium.viewer.print]
    [scicloj.kindly.v4.kind :as kind]))
+
+(kind/hidden
+ (bench/set-default-viewer! :kindly))
 
 ;; # Domain Analysis with Criterium
 ;;
@@ -334,3 +339,6 @@
 ;; The immutable design supports exploratory analysis in the REPL,
 ;; while pipeline functions and domain plans enable composable,
 ;; reusable analysis workflows.
+
+(kind/hidden
+ (bench/set-default-viewer! :print))

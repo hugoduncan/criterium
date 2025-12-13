@@ -300,6 +300,180 @@
              (util/metric->values quant-samples)
              (first metric-configs))]))}])})))
 
+;;; Domain view implementations
+
+(defn- format-coord
+  "Format a coordinate for display."
+  [coord]
+  (if (map? coord)
+    (into {} (map (fn [[k v]] [(name k) v])) coord)
+    (name coord)))
+
+(defn- format-extract-value
+  "Format a value from domain-extract for display."
+  [value metric-path]
+  (if (nil? value)
+    nil
+    (let [[_ scale]
+          (case (first metric-path)
+            (:stats :log-stats)
+            (case (second metric-path)
+              :elapsed-time [:time 1e-9]
+              :thread-allocation [:memory 1]
+              [:count 1])
+            [:count 1])]
+      (* value scale))))
+
+(defmethod view/domain-extract* :kindly
+  [_ {:keys [extract-id]} data-map]
+  (let [extract-id (or extract-id :extract)
+        extract (data-map extract-id)]
+    (when extract
+      (let [{:keys [metric data]} extract]
+        (kindly-heading (str "Domain Extract: " (pr-str metric)))
+        (kindly-table
+         (mapv (fn [[coord value]]
+                 {:coordinate (format-coord coord)
+                  :value (format-extract-value value metric)})
+               data))))))
+
+(defmethod view/domain-grouped* :kindly
+  [_ {:keys [grouped-id]} data-map]
+  (let [grouped-id (or grouped-id :grouped)
+        grouped (data-map grouped-id)]
+    (when grouped
+      (let [{:keys [axis data]} grouped]
+        (kindly-heading (str "Domain Grouped by: " (name axis)))
+        (kindly-table
+         (mapv (fn [[axis-val sub-domain]]
+                 {:axis-value (if (nil? axis-val) "<nil>" (str axis-val))
+                  :run-count (count (:runs sub-domain))})
+               (sort-by (comp str key) data)))))))
+
+(defmethod view/domain-comparison* :kindly
+  [_ {:keys [comparison-id]} data-map]
+  (let [comparison-id (or comparison-id :comparison)
+        comparison (data-map comparison-id)]
+    (when comparison
+      (let [{:keys [axis metric data]} comparison
+            axis-vals (sort-by str (keys data))]
+        (when (and (seq data) (some #(seq (second %)) data))
+          (kindly-heading (str "Domain Comparison by " (name axis) ": " (pr-str metric)))
+          ;; Build table rows: one row per unique coord (minus axis)
+          (let [all-entries (mapcat (fn [[axis-val entries]]
+                                      (map #(assoc % :axis-val axis-val) entries))
+                                    data)
+                row-keys (->> all-entries
+                              (map (fn [{:keys [coord]}]
+                                     (if (map? coord)
+                                       (dissoc coord axis)
+                                       coord)))
+                              distinct
+                              (sort-by str))
+                ;; Build lookup: row-key -> axis-val -> value
+                lookup (reduce (fn [acc {:keys [coord value axis-val]}]
+                                 (let [row-key (if (map? coord)
+                                                 (dissoc coord axis)
+                                                 coord)]
+                                   (assoc-in acc [row-key axis-val] value)))
+                               {}
+                               all-entries)]
+            (kindly-table
+             (mapv (fn [row-key]
+                     (into {:coordinate (format-coord row-key)}
+                           (map (fn [av]
+                                  [(str av) (format-extract-value
+                                             (get-in lookup [row-key av])
+                                             metric)])
+                                axis-vals)))
+                   row-keys))))))))
+
+(defn- regression-model-fn
+  "Return a function that applies the model transform for plotting."
+  [model-id {:keys [a b]}]
+  (case model-id
+    :logarithmic (fn [x] (+ (* a (Math/log x)) b))
+    :linear (fn [x] (+ (* a x) b))
+    :n-log-n (fn [x] (+ (* a (* x (Math/log x))) b))
+    :quadratic (fn [x] (+ (* a (* x x)) b))
+    (fn [x] (+ (* a x) b))))
+
+(defn- regression-equation-str
+  "Format the fitted regression equation for a model."
+  [model-id {:keys [a b]}]
+  (when (and a b)
+    (let [transform-str (case model-id
+                          :logarithmic "log(n)"
+                          :linear "n"
+                          :n-log-n "n*log(n)"
+                          :quadratic "n²"
+                          "x")
+          sign (if (neg? b) "-" "+")]
+      (format "y = %.4g*%s %s %.4g" a transform-str sign (Math/abs ^double b)))))
+
+(defmethod view/domain-regression* :kindly
+  [_ {:keys [regression-id extract-id]} data-map]
+  (let [regression-id (or regression-id :regression)
+        regression (data-map regression-id)]
+    (when regression
+      (let [{:keys [axis metric models best-fit]} regression
+            extract-id (or extract-id :extract)
+            extract (data-map extract-id)]
+        (kindly-heading (str "Domain Regression (axis: " (name axis)
+                             ", metric: " (pr-str metric) ")"))
+        ;; Table of models sorted by R²
+        (when (seq models)
+          (let [sorted-models (sort-by :r-squared > models)]
+            (kindly-table
+             (mapv (fn [{:keys [id label coefficients r-squared]}]
+                     {:model label
+                      :r-squared (format "%.4f" r-squared)
+                      :equation (or (regression-equation-str id coefficients) "")
+                      :best-fit (if (= id best-fit) "✓" "")})
+                   sorted-models))))
+        ;; Vega-lite scatter plot with best-fit curve
+        (when (and extract (seq models) best-fit)
+          (let [{:keys [data]} extract
+                ;; Get data points (filtered for valid values)
+                valid-data (filter (fn [[coord value]]
+                                     (and (some? value)
+                                          (map? coord)
+                                          (contains? coord axis)))
+                                   data)
+                points (mapv (fn [[coord value]]
+                               {"x" (double (get coord axis))
+                                "y" (format-extract-value value metric)
+                                "type" "actual"})
+                             valid-data)
+                ;; Generate predicted line from best-fit model
+                best-model (first (filter #(= (:id %) best-fit) models))
+                model-fn (regression-model-fn best-fit (:coefficients best-model))
+                x-vals (mapv #(double (get (first %) axis)) valid-data)
+                x-min (apply min x-vals)
+                x-max (apply max x-vals)
+                ;; Generate points for curve
+                x-range (range x-min (+ x-max 1) (/ (- x-max x-min) 50))
+                line-pts (mapv (fn [x]
+                                 {"x" x
+                                  "y" (model-fn x)
+                                  "type" (:label best-model)})
+                               x-range)]
+            (kindly-vega-lite
+             {:width chart-width
+              :height chart-height
+              :layer [{:data {:values points}
+                       :mark {:type "point" :size 60}
+                       :encoding {:x {:field "x" :type "quantitative"
+                                      :title (name axis)}
+                                  :y {:field "y" :type "quantitative"
+                                      :title (pr-str metric)}
+                                  :color {:value "steelblue"}}}
+                      {:data {:values line-pts}
+                       :mark {:type "line" :strokeWidth 2}
+                       :encoding {:x {:field "x" :type "quantitative"}
+                                  :y {:field "y" :type "quantitative"}
+                                  :color {:value "orange"}}}]})))))))
+
 ;;; Noop implementations for views not applicable to Kindly output
 
 (defmethod view/bootstrap-stats* :kindly [_ _ _])
