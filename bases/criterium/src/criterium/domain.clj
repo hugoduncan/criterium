@@ -17,7 +17,9 @@
           {:coord {:n 1000} :data <bench-result>}
           {:coord {:n 100 :impl :foo} :data <bench-result>}]}"
   (:require
+   [criterium.bench :as bench]
    [criterium.bench.config :as bench-config]
+   [criterium.measured :as measured]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have have?]]
    [criterium.view :as view]))
@@ -798,3 +800,175 @@
     (if return-path
       (get-in data-map return-path)
       data-map)))
+
+;;; Domain Builder
+
+(def ^:private default-initial-limit-time-s 10)
+(def ^:private time-estimate-safety-factor 3.0)
+
+(defn- cartesian-product
+  "Return cartesian product of axis values as sequence of maps.
+  axes is a map of axis-key to sequence of values."
+  [axes]
+  (if (empty? axes)
+    [{}]
+    (let [[k vs] (first axes)
+          rest-product (cartesian-product (dissoc axes k))]
+      (for [v vs
+            m rest-product]
+        (assoc m k v)))))
+
+(defn- predict-time-ns
+  "Predict execution time for x using fitted model coefficients."
+  [model x]
+  (let [{:keys [coefficients]} model
+        {:keys [a b c]} coefficients
+        model-def (get default-complexity-models (:id model))]
+    (if-let [transforms (:transforms model-def)]
+      ;; Composite model: y = a*f1(x) + b*f2(x) + c
+      (let [[t1 t2] transforms]
+        (+ (* a (t1 x)) (* b (t2 x)) c))
+      ;; Simple model: y = a*f(x) + b
+      (let [transform (:transform model-def)]
+        (+ (* a (transform x)) b)))))
+
+(defn- estimate-limit-time-s
+  "Estimate limit-time-s for next run based on collected data.
+  Returns initial-limit-time-s if insufficient data for estimation."
+  [impl-runs time-axis next-coord initial-limit-time-s]
+  (if (< (count impl-runs) 2)
+    initial-limit-time-s
+    (let [;; Build extract-like data for fit-complexity
+          extract-data (mapv (fn [{:keys [coord data]}]
+                               [coord (get-in data [:stats :elapsed-time :mean])])
+                             impl-runs)
+          extract {:type :criterium/domain-extract
+                   :metric [:stats :elapsed-time :mean]
+                   :data extract-data}
+          regression (fit-complexity extract time-axis)
+          best-model (first (filter #(= (:id %) (:best-fit regression))
+                                    (:models regression)))
+          next-x (get next-coord time-axis)]
+      (if (and best-model next-x (> (:r-squared best-model) 0.5))
+        (let [predicted-ns (predict-time-ns best-model next-x)
+              ;; Convert ns to seconds with safety factor
+              predicted-s (/ (* predicted-ns time-estimate-safety-factor) 1e9)]
+          (max predicted-s initial-limit-time-s))
+        initial-limit-time-s))))
+
+;;; Reporter Protocol
+
+(defprotocol DomainBuilderReporter
+  "Protocol for reporting domain-builder progress."
+  (report-start [reporter impl-key total-runs]
+    "Called when starting to benchmark an implementation.")
+  (report-run [reporter impl-key coord run-index]
+    "Called after completing a benchmark run.")
+  (report-end [reporter impl-key]
+    "Called when finished benchmarking an implementation."))
+
+(defrecord DotReporter []
+  DomainBuilderReporter
+  (report-start [_ impl-key total-runs]
+                (print (str (name impl-key) " (" total-runs " runs): "))
+                (flush))
+  (report-run [_ _impl-key _coord _run-index]
+              (print ".")
+              (flush))
+  (report-end [_ _impl-key]
+              (println)))
+
+(defn dot-reporter
+  "Create a dot reporter that prints progress dots."
+  []
+  (->DotReporter))
+
+(defn domain-builder
+  "Build a domain by running benchmarks across a parameter space.
+
+  axes is a map of axis names to ordinate sequences:
+    {:n (log-range 10 10000 5)}
+
+  implementations is a map of impl-key to impl-spec:
+    {:sort {:measured (measured/expr (sort coll))
+            :args-builder (fn [{:keys [n]}] (fn [] [(vec (range n))]))}}
+
+  Each impl-spec contains:
+    :measured     - A Measured created with example args (establishes type hints)
+    :args-builder - (fn [axis-map] (fn [] [args...])) returns zero-arg fn
+                    producing argument vector for the given coordinates
+
+  Options:
+    :initial-limit-time-s - Time limit for runs before estimation kicks in
+                            (default: 10 seconds)
+    :time-axis           - Axis key for complexity modeling (default: first axis)
+    :reporter            - Progress reporter (default: dot-reporter, nil for silent)
+    :bench-options       - Additional options passed to bench-measured
+
+  Benchmarks run in order: all coordinates for first implementation,
+  then all for second, etc. Within each implementation, coordinates are
+  sorted by :time-axis ascending (smallest values first) to enable
+  adaptive time estimation.
+
+  Returns a domain with runs indexed by {:impl impl-key ...axis-coords...}"
+  [axes implementations & {:keys [initial-limit-time-s
+                                  time-axis
+                                  reporter
+                                  bench-options]
+                           :or {initial-limit-time-s default-initial-limit-time-s}}]
+  (let [time-axis (or time-axis (first (keys axes)))
+        reporter (if (contains? #{nil false} reporter)
+                   nil
+                   (or reporter (dot-reporter)))
+        coords (cartesian-product axes)
+        ;; Sort by time-axis ascending
+        sorted-coords (sort-by #(get % time-axis) coords)
+        total-runs (count sorted-coords)]
+
+    (reduce
+     (fn [domain [impl-key impl-spec]]
+       (let [{:keys [measured args-builder]} impl-spec]
+         (when reporter
+           (report-start reporter impl-key total-runs))
+
+         (let [result
+               (reduce
+                (fn [{:keys [domain impl-runs]} [idx coord]]
+                  (let [;; Estimate time limit based on previous runs
+                        limit-time-s (estimate-limit-time-s
+                                      impl-runs time-axis coord
+                                      initial-limit-time-s)
+                        ;; Create args-fn for this coordinate
+                        args-fn (args-builder coord)
+                        ;; Create measured with new args-fn
+                        coord-measured (measured/with-args-fn measured args-fn)
+                        ;; Build bench plan with time limit
+                        bench-plan (bench/options->bench-plan
+                                    (merge bench-options
+                                           {:limit-time-s limit-time-s
+                                            :viewer :none}))
+                        ;; Run benchmark
+                        _ (bench/bench-measured bench-plan coord-measured)
+                        bench-result (:data (bench/last-bench))
+                        ;; Build full coordinate with impl
+                        full-coord (assoc coord :impl impl-key)
+                        ;; Accumulate into domain
+                        new-domain (add-run domain full-coord bench-result)
+                        ;; Track impl-specific runs for time estimation
+                        new-impl-runs (conj impl-runs {:coord coord
+                                                       :data bench-result})]
+
+                    (when reporter
+                      (report-run reporter impl-key coord idx))
+
+                    {:domain new-domain
+                     :impl-runs new-impl-runs}))
+                {:domain domain :impl-runs []}
+                (map-indexed vector sorted-coords))]
+
+           (when reporter
+             (report-end reporter impl-key))
+
+           (:domain result))))
+     (domain)
+     implementations)))

@@ -1360,3 +1360,47 @@
             result (domain/analyse-domain plan d)]
         (is (contains? result :extract))
         (is (domain/domain-extract? (:extract result)))))))
+
+;; Tests for domain-builder and related utilities.
+;; Validates automated benchmark running across parameter spaces
+;; with adaptive time estimation and progress reporting.
+
+(deftest cartesian-product-test
+  ;; Tests for internal cartesian product helper.
+  ;; Validates generation of all axis value combinations.
+  (testing "cartesian-product"
+    (testing "returns single empty map for empty axes"
+      (is (= [{}] (#'domain/cartesian-product {}))))
+    (testing "generates all combinations for single axis"
+      (is (= [{:n 1} {:n 2} {:n 3}]
+             (#'domain/cartesian-product {:n [1 2 3]}))))
+    (testing "generates cartesian product for two axes"
+      (let [result (#'domain/cartesian-product {:n [1 2] :m [10 20]})]
+        (is (= 4 (count result)))
+        (is (= #{:n :m} (set (keys (first result)))))
+        (is (= #{[1 10] [1 20] [2 10] [2 20]}
+               (set (map (juxt :n :m) result))))))
+    (testing "generates cartesian product for three axes"
+      (let [result (#'domain/cartesian-product {:a [1] :b [2 3] :c [4 5]})]
+        (is (= 4 (count result)))
+        (is (every? #(= #{:a :b :c} (set (keys %))) result))))))
+
+(deftest dot-reporter-test
+  ;; Tests for dot reporter protocol implementation.
+  ;; Validates progress reporting interface.
+  (testing "dot-reporter"
+    (testing "creates DotReporter instance"
+      (let [reporter (domain/dot-reporter)]
+        (is (satisfies? domain/DomainBuilderReporter reporter))))
+    (testing "report-start prints impl name and run count"
+      (let [reporter (domain/dot-reporter)
+            output (with-out-str (domain/report-start reporter :test 5))]
+        (is (= "test (5 runs): " output))))
+    (testing "report-run prints a dot"
+      (let [reporter (domain/dot-reporter)
+            output (with-out-str (domain/report-run reporter :test {:n 100} 0))]
+        (is (= "." output))))
+    (testing "report-end prints newline"
+      (let [reporter (domain/dot-reporter)
+            output (with-out-str (domain/report-end reporter :test))]
+        (is (= "\n" output))))))

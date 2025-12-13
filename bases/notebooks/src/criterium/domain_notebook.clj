@@ -7,6 +7,7 @@
    [criterium.bench :as bench]
    [criterium.domain :as domain]
    [criterium.domain-plans :as domain-plans]
+   [criterium.measured :as measured]
    [criterium.view :as view]
    [criterium.viewer.print]
    [scicloj.kindly.v4.kind :as kind]))
@@ -266,11 +267,11 @@
 
 (-> {:domain impl-domain}
     ((domain/domain-extract-fn
-      {:id          :mean-time
+      {:id :mean-time
        :metric-path [:stats :elapsed-time :mean]}))
     ((domain/domain-compare-fn
-      {:id          :impl-comparison
-       :axis-key    :impl
+      {:id :impl-comparison
+       :axis-key :impl
        :metric-path [:stats :elapsed-time :mean]}))
     keys)
 
@@ -316,13 +317,13 @@
 
 (do
   (domain/analyse-domain
-   {:analyse [[:domain-extract-fn {:id          :times
+   {:analyse [[:domain-extract-fn {:id :times
                                    :metric-path [:stats :elapsed-time :mean]}]
-              [:domain-compare-fn {:id          :by-size
-                                   :axis-key    :n
+              [:domain-compare-fn {:id :by-size
+                                   :axis-key :n
                                    :metric-path [:stats :elapsed-time :mean]}]]
-    :view    []
-    :viewer  :none}
+    :view []
+    :viewer :none}
    impl-domain)
   nil)
 
@@ -334,6 +335,64 @@
     :regression
     :best-fit)
 
+;; ## Domain Builder
+;;
+;; For automated benchmarking across a parameter space, use `domain-builder`.
+;; It handles running benchmarks for multiple implementations across all
+;; combinations of axis values, with adaptive time estimation.
+
+;; ### Basic Usage
+;;
+;; Define the parameter space (axes) and implementations:
+
+;; Building domain with domain-builder (this may take a minute)...
+
+(def builder-domain
+  (domain/domain-builder
+   ;; Axes define the parameter space
+   {:n [100 500 1000]}
+   ;; Implementations to compare
+   {:sort
+    {:measured     (let [coll (vec (range 100))]
+                     (measured/expr (sort coll)))
+     :args-builder (fn [{:keys [n]}]
+                     (fn [] [(vec (repeatedly n #(rand-int 10000)))]))}
+    :sort-by
+    {:measured     (let [coll (vec (range 100))]
+                     (measured/expr (sort-by identity coll)))
+     :args-builder (fn [{:keys [n]}]
+                     (fn [] [(vec (repeatedly n #(rand-int 10000)))]))}}
+   ;; Options
+   :initial-limit-time-s 1
+   :reporter nil)) ; nil for silent, or use (domain/dot-reporter)
+
+;; Check what was built:
+
+(domain/coords builder-domain)
+
+;; The domain has runs for each implementation × axis combination:
+
+(count (domain/runs builder-domain))
+
+;; ### Analyzing Builder Results
+;;
+;; Use domain plans to analyze the results:
+
+(domain/analyse-domain domain-plans/implementation-comparison builder-domain)
+
+;; ### How It Works
+;;
+;; Each implementation spec contains:
+;; - `:measured` — A measured created with example args (for type hints)
+;; - `:args-builder` — `(fn [axis-map] (fn [] [args...]))` generates args
+;;   for each coordinate
+;;
+;; The builder:
+;; 1. Computes the cartesian product of axis values
+;; 2. Sorts by `:time-axis` (default: first axis) ascending
+;; 3. Runs all coordinates for each implementation before moving to the next
+;; 4. After 2+ runs, estimates time limits using regression on previous results
+
 ;; ## Summary
 ;;
 ;; Domains provide a structured way to:
@@ -343,6 +402,7 @@
 ;; - Visualize results with print or portal viewers
 ;; - Analyze scaling behavior with regression fitting
 ;; - Bundle analysis workflows with domain plans
+;; - Automate parameter-space benchmarking with domain-builder
 ;;
 ;; The immutable design supports exploratory analysis in the REPL,
 ;; while pipeline functions and domain plans enable composable,
