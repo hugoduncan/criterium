@@ -21,9 +21,8 @@
     (analyse-domain complexity-analysis my-domain)"
   {:analyse [[:domain-extract-fn {:metric-path [:stats :elapsed-time :mean]}]
              [:domain-regression-fn {:axis :n}]]
-   :view    [[:domain-extract {}]
-             [:domain-regression {}]]
-   :viewer  :print})
+   :view [[:domain-extract {}]
+          [:domain-regression {}]]})
 
 (def implementation-comparison
   "Compare metric values across different implementations.
@@ -35,8 +34,7 @@
     (analyse-domain implementation-comparison my-domain)"
   {:analyse [[:domain-compare-fn {:axis-key :impl
                                   :metric-path [:stats :elapsed-time :mean]}]]
-   :view    [[:domain-comparison {}]]
-   :viewer  :print})
+   :view [[:domain-comparison {}]]})
 
 (def extract-elapsed-time
   "Extract elapsed time mean values from all runs.
@@ -47,5 +45,4 @@
   Example:
     (analyse-domain extract-elapsed-time my-domain)"
   {:analyse [[:domain-extract-fn {:metric-path [:stats :elapsed-time :mean]}]]
-   :view    [[:domain-extract {}]]
-   :viewer  :print})
+   :view [[:domain-extract {}]]})

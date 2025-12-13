@@ -1214,19 +1214,17 @@
 (deftest domain-plans-structure-test
   ;; Tests for domain plan structure validation.
   ;; Validates that pre-defined plans have required keys.
+  ;; Note: :viewer is optional - uses default viewer when not specified.
   (testing "domain-plans structure"
     (testing "complexity-analysis has required keys"
       (is (vector? (:analyse domain-plans/complexity-analysis)))
-      (is (vector? (:view domain-plans/complexity-analysis)))
-      (is (keyword? (:viewer domain-plans/complexity-analysis))))
+      (is (vector? (:view domain-plans/complexity-analysis))))
     (testing "implementation-comparison has required keys"
       (is (vector? (:analyse domain-plans/implementation-comparison)))
-      (is (vector? (:view domain-plans/implementation-comparison)))
-      (is (keyword? (:viewer domain-plans/implementation-comparison))))
+      (is (vector? (:view domain-plans/implementation-comparison))))
     (testing "extract-elapsed-time has required keys"
       (is (vector? (:analyse domain-plans/extract-elapsed-time)))
-      (is (vector? (:view domain-plans/extract-elapsed-time)))
-      (is (keyword? (:viewer domain-plans/extract-elapsed-time))))))
+      (is (vector? (:view domain-plans/extract-elapsed-time))))))
 
 (deftest domain-plans-integration-test
   ;; Tests for executing pre-defined domain plans.
