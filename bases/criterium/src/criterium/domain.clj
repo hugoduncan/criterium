@@ -857,7 +857,7 @@
       (if (and best-model next-x (> (:r-squared best-model) 0.5))
         (let [predicted-ns (predict-time-ns best-model next-x)
               ;; Convert ns to seconds with safety factor
-              predicted-s (/ (* predicted-ns time-estimate-safety-factor) 1e9)]
+              predicted-s (* 1.1 (/ (* predicted-ns time-estimate-safety-factor) 1e9))]
           (max predicted-s initial-limit-time-s))
         initial-limit-time-s))))
 
@@ -969,9 +969,10 @@
                         bench-result (run-bench coord-measured limit-time-s)
                         ;; Re-run if time-limited and projected differs by >5%
                         bench-result (if (needs-rerun? bench-result limit-time-s)
-                                       (let [new-limit-s (/ (get-in bench-result
-                                                                    [:samples :time-limit :projected-time-ns])
-                                                            1e9)]
+                                       (let [new-limit-s (* 1.1
+                                                            (/ (get-in bench-result
+                                                                       [:samples :time-limit :projected-time-ns])
+                                                               1e9))]
                                          (run-bench coord-measured new-limit-s))
                                        bench-result)
                         ;; Build full coordinate with impl
