@@ -892,17 +892,17 @@
                                                (get-in data [:samples :total-benchmark-time-ns]))]
                                  [coord time-ns]))
                              impl-runs)
-          extract {:type :criterium/domain-extract
-                   :metric [:samples :total-benchmark-time-ns]
-                   :data extract-data}
-          regression (fit-complexity extract time-axis)
-          best-model (first (filter #(= (:id %) (:best-fit regression))
-                                    (:models regression)))
-          next-x (get next-coord time-axis)]
+          extract      {:type   :criterium/domain-extract
+                        :metric [:samples :total-benchmark-time-ns]
+                        :data   extract-data}
+          regression   (fit-complexity extract time-axis)
+          best-model   (first (filter #(= (:id %) (:best-fit regression))
+                                      (:models regression)))
+          next-x       (get next-coord time-axis)]
       (if (and best-model next-x (> (:r-squared best-model) 0.5))
         (let [predicted-ns (predict-time-ns best-model next-x)
               ;; Convert ns to seconds with margin
-              predicted-s (* 2.1 (/ predicted-ns 1e9))]
+              predicted-s  (* 2.5 (/ predicted-ns 1e9))]
           (max predicted-s initial-limit-time-s))
         initial-limit-time-s))))
 
