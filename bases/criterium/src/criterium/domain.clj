@@ -834,13 +834,18 @@
 
 (defn- estimate-limit-time-s
   "Estimate limit-time-s for next run based on collected data.
+  Uses projected time for time-limited runs to avoid underestimation.
   Returns initial-limit-time-s if insufficient data for estimation."
   [impl-runs time-axis next-coord initial-limit-time-s]
   (if (< (count impl-runs) 2)
     initial-limit-time-s
     (let [;; Build extract-like data for fit-complexity
+          ;; Use projected time for limited runs, actual time otherwise
           extract-data (mapv (fn [{:keys [coord data]}]
-                               [coord (get-in data [:stats :elapsed-time :mean])])
+                               (let [time-ns (if-let [projected (get-in data [:samples :time-limit :projected-time-ns])]
+                                               projected
+                                               (get-in data [:stats :elapsed-time :mean]))]
+                                 [coord time-ns]))
                              impl-runs)
           extract {:type :criterium/domain-extract
                    :metric [:stats :elapsed-time :mean]
@@ -910,6 +915,9 @@
   sorted by :time-axis ascending (smallest values first) to enable
   adaptive time estimation.
 
+  When a benchmark hits its time limit and the projected time differs from
+  the limit by more than 5%, the benchmark is re-run with the projected time.
+
   Returns a domain with runs indexed by {:impl impl-key ...axis-coords...}"
   [axes implementations & {:keys [initial-limit-time-s
                                   time-axis
@@ -923,7 +931,22 @@
         coords (cartesian-product axes)
         ;; Sort by time-axis ascending
         sorted-coords (sort-by #(get % time-axis) coords)
-        total-runs (count sorted-coords)]
+        total-runs (count sorted-coords)
+        ;; Helper to run a single benchmark
+        run-bench (fn [coord-measured limit-time-s]
+                    (let [bench-plan (bench/options->bench-plan
+                                      (merge bench-options
+                                             {:limit-time-s limit-time-s
+                                              :viewer :none}))]
+                      (bench/bench-measured bench-plan coord-measured)
+                      (:data (bench/last-bench))))
+        ;; Helper to check if re-run is needed (>5% difference)
+        needs-rerun? (fn [bench-result limit-time-s]
+                       (when-let [time-limit (get-in bench-result [:samples :time-limit])]
+                         (let [projected-s (/ (:projected-time-ns time-limit) 1e9)
+                               diff-pct (Math/abs (/ (- projected-s limit-time-s)
+                                                     limit-time-s))]
+                           (> diff-pct 0.05))))]
 
     (reduce
      (fn [domain [impl-key impl-spec]]
@@ -942,14 +965,15 @@
                         args-fn (args-builder coord)
                         ;; Create measured with new args-fn
                         coord-measured (measured/with-args-fn measured args-fn)
-                        ;; Build bench plan with time limit
-                        bench-plan (bench/options->bench-plan
-                                    (merge bench-options
-                                           {:limit-time-s limit-time-s
-                                            :viewer :none}))
                         ;; Run benchmark
-                        _ (bench/bench-measured bench-plan coord-measured)
-                        bench-result (:data (bench/last-bench))
+                        bench-result (run-bench coord-measured limit-time-s)
+                        ;; Re-run if time-limited and projected differs by >5%
+                        bench-result (if (needs-rerun? bench-result limit-time-s)
+                                       (let [new-limit-s (/ (get-in bench-result
+                                                                    [:samples :time-limit :projected-time-ns])
+                                                            1e9)]
+                                         (run-bench coord-measured new-limit-s))
+                                       bench-result)
                         ;; Build full coordinate with impl
                         full-coord (assoc coord :impl impl-key)
                         ;; Accumulate into domain

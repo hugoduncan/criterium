@@ -353,17 +353,17 @@
    {:n [100 500 1000]}
    ;; Implementations to compare
    {:sort
-    {:measured     (let [coll (vec (range 100))]
-                     (measured/expr (sort coll)))
+    {:measured (let [coll (vec (range 100))]
+                 (measured/expr (sort coll)))
      :args-builder (fn [{:keys [n]}]
                      (fn [] [(vec (repeatedly n #(rand-int 10000)))]))}
     :sort-by
-    {:measured     (let [coll (vec (range 100))]
-                     (measured/expr (sort-by identity coll)))
+    {:measured (let [coll (vec (range 100))]
+                 (measured/expr (sort-by identity coll)))
+     ;; Must provide both args: identity function AND collection
      :args-builder (fn [{:keys [n]}]
-                     (fn [] [(vec (repeatedly n #(rand-int 10000)))]))}}
+                     (fn [] [identity (vec (repeatedly n #(rand-int 10000)))]))}}
    ;; Options
-   :initial-limit-time-s 1
    :reporter nil)) ; nil for silent, or use (domain/dot-reporter)
 
 ;; Check what was built:
