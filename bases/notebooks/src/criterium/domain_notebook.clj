@@ -226,12 +226,12 @@
 ;; The `fit-complexity` function fits O(log n), O(n), O(n log n), and O(n²) models
 ;; and identifies the best fit by R² value:
 
-(let [extract    (domain/extract scaling-domain [:stats :elapsed-time :mean])
+(let [extract (domain/extract scaling-domain [:stats :elapsed-time :mean])
       regression (domain/fit-complexity extract :n)]
   {:best-fit (:best-fit regression)
-   :models   (map (fn [{:keys [id label r-squared]}]
-                    {:model label :r-squared (format "%.4f" r-squared)})
-                  (sort-by :r-squared > (:models regression)))})
+   :models (map (fn [{:keys [id label r-squared]}]
+                  {:model label :r-squared (format "%.4f" r-squared)})
+                (sort-by :r-squared > (:models regression)))})
 
 ;; View regression results with the print viewer:
 
@@ -244,10 +244,10 @@
 
 (-> {:domain scaling-domain}
     ((domain/domain-extract-fn
-      {:id          :extract
+      {:id :extract
        :metric-path [:stats :elapsed-time :mean]}))
     ((domain/domain-regression-fn
-      {:id   :scaling
+      {:id :scaling
        :axis :n}))
     :scaling
     :best-fit)
@@ -266,11 +266,11 @@
 
 (-> {:domain impl-domain}
     ((domain/domain-extract-fn
-      {:id          :mean-time
+      {:id :mean-time
        :metric-path [:stats :elapsed-time :mean]}))
     ((domain/domain-compare-fn
-      {:id          :impl-comparison
-       :axis-key    :impl
+      {:id :impl-comparison
+       :axis-key :impl
        :metric-path [:stats :elapsed-time :mean]}))
     keys)
 
@@ -281,10 +281,33 @@
 ;;
 ;; For common analysis workflows, use pre-defined domain plans with
 ;; `analyse-domain`. Plans bundle analysis and viewing into a single call.
+;;
+;; Plans respect the default viewer set via `bench/set-default-viewer!`,
+;; so in this notebook they use `:kindly` automatically.
 
 ;; ### Pre-defined Plans
 ;;
+;; `extract-elapsed-time` displays metric values across all runs:
+
+(do
+  (domain/analyse-domain domain-plans/extract-elapsed-time sort-domain)
+  nil)
+
 ;; `complexity-analysis` extracts elapsed time and fits regression models:
+
+(do
+  (domain/analyse-domain domain-plans/complexity-analysis scaling-domain)
+  nil)
+
+;; `implementation-comparison` compares metrics across implementations:
+
+(do
+  (domain/analyse-domain domain-plans/implementation-comparison impl-domain)
+  nil)
+
+;; ### Explicit Viewer Selection
+;;
+;; Override the default viewer with `options->domain-plan`:
 
 (do
   (domain/analyse-domain
@@ -293,28 +316,19 @@
    scaling-domain)
   nil)
 
-;; `implementation-comparison` compares metrics across implementations:
-
-(do
-  (domain/analyse-domain
-   (domain/options->domain-plan domain-plans/implementation-comparison
-                                :viewer :print)
-   impl-domain)
-  nil)
-
 ;; ### Custom Plans
 ;;
 ;; Build custom plans by specifying `:analyse` and `:view` vectors:
 
 (do
   (domain/analyse-domain
-   {:analyse [[:domain-extract-fn {:id          :times
+   {:analyse [[:domain-extract-fn {:id :times
                                    :metric-path [:stats :elapsed-time :mean]}]
-              [:domain-compare-fn {:id          :by-size
-                                   :axis-key    :n
+              [:domain-compare-fn {:id :by-size
+                                   :axis-key :n
                                    :metric-path [:stats :elapsed-time :mean]}]]
-    :view    []
-    :viewer  :none}
+    :view []
+    :viewer :none}
    impl-domain)
   nil)
 

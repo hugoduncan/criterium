@@ -17,6 +17,7 @@
           {:coord {:n 1000} :data <bench-result>}
           {:coord {:n 100 :impl :foo} :data <bench-result>}]}"
   (:require
+   [criterium.bench.config :as bench-config]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have have?]]
    [criterium.view :as view]))
@@ -94,12 +95,12 @@
   data is the full benchmark result from bench."
   [domain coord data]
   (let [new-run {:coord coord :data data}
-        runs    (:runs domain)
-        idx     (reduce-kv (fn [_ i run]
-                             (when (= coord (:coord run))
-                               (reduced i)))
-                           nil
-                           runs)]
+        runs (:runs domain)
+        idx (reduce-kv (fn [_ i run]
+                         (when (= coord (:coord run))
+                           (reduced i)))
+                       nil
+                       runs)]
     (if idx
       (assoc domain :runs (assoc runs idx new-run))
       (assoc domain :runs (conj runs new-run)))))
@@ -183,11 +184,11 @@
   ;;     :data [[{:n 100} 1.23e-6] [{:n 1000} 1.45e-5] ...]}"
   [domain metric-path]
   (let [[stats-id metric-id value-key] metric-path]
-    {:type   :criterium/domain-extract
+    {:type :criterium/domain-extract
      :metric metric-path
-     :data   (mapv (fn [{:keys [coord data]}]
-                     [coord (util/stats-value data stats-id metric-id value-key)])
-                   (:runs domain))}))
+     :data (mapv (fn [{:keys [coord data]}]
+                   [coord (util/stats-value data stats-id metric-id value-key)])
+                 (:runs domain))}))
 
 (defn select
   "Filter domain to runs matching a partial coordinate.
@@ -251,18 +252,18 @@
   [domain axis-key metric-path]
   (let [[stats-id metric-id value-key] metric-path
         grouped (:data (group-by-axis domain axis-key))]
-    {:type   :criterium/domain-comparison
-     :axis   axis-key
+    {:type :criterium/domain-comparison
+     :axis axis-key
      :metric metric-path
-     :data   (into {}
-                   (map (fn [[axis-val sub-domain]]
-                          [axis-val
-                           (mapv (fn [{:keys [coord data]}]
-                                   {:coord coord
-                                    :value (util/stats-value data stats-id
-                                                             metric-id value-key)})
-                                 (:runs sub-domain))]))
-                   grouped)}))
+     :data (into {}
+                 (map (fn [[axis-val sub-domain]]
+                        [axis-val
+                         (mapv (fn [{:keys [coord data]}]
+                                 {:coord coord
+                                  :value (util/stats-value data stats-id
+                                                           metric-id value-key)})
+                               (:runs sub-domain))]))
+                 grouped)}))
 
 ;;; Input Sequence Generators
 ;;
@@ -309,8 +310,8 @@
   (if (= n 1)
     (list (long start))
     (let [log-start (Math/log start)
-          log-end   (Math/log end)
-          step      (/ (- log-end log-start) (dec n))]
+          log-end (Math/log end)
+          step (/ (- log-end log-start) (dec n))]
       (map #(long (Math/round (Math/exp (+ log-start (* % step)))))
            (range n)))))
 
@@ -359,9 +360,9 @@
   ([{:keys [id domain-id metric-path]}]
    (fn [data-map]
      (let [domain-id (or domain-id :domain)
-           id        (or id :extract)
-           domain    (data-map domain-id)
-           result    (extract domain metric-path)]
+           id (or id :extract)
+           domain (data-map domain-id)
+           result (extract domain metric-path)]
        (assoc data-map id result)))))
 
 (defn domain-group-by-fn
@@ -386,9 +387,9 @@
   ([{:keys [id domain-id axis-key]}]
    (fn [data-map]
      (let [domain-id (or domain-id :domain)
-           id        (or id :grouped)
-           domain    (data-map domain-id)
-           result    (group-by-axis domain axis-key)]
+           id (or id :grouped)
+           domain (data-map domain-id)
+           result (group-by-axis domain axis-key)]
        (assoc data-map id result)))))
 
 (defn domain-compare-fn
@@ -416,9 +417,9 @@
   ([{:keys [id domain-id axis-key metric-path]}]
    (fn [data-map]
      (let [domain-id (or domain-id :domain)
-           id        (or id :comparison)
-           domain    (data-map domain-id)
-           result    (compare-by domain axis-key metric-path)]
+           id (or id :comparison)
+           domain (data-map domain-id)
+           result (compare-by domain axis-key metric-path)]
        (assoc data-map id result)))))
 
 ;;; Regression Analysis
@@ -431,42 +432,42 @@
   "Default complexity models for regression fitting.
   Each model maps input size n to a transformed value for linear regression."
   {:logarithmic {:transform (fn [^double n] (Math/log n))
-                 :label     "O(log n)"}
-   :linear      {:transform identity
-                 :label     "O(n)"}
-   :n-log-n     {:transform (fn [^double n] (* n (Math/log n)))
-                 :label     "O(n log n)"}
-   :quadratic   {:transform (fn [^double n] (* n n))
-                 :label     "O(n²)"}})
+                 :label "O(log n)"}
+   :linear {:transform identity
+            :label "O(n)"}
+   :n-log-n {:transform (fn [^double n] (* n (Math/log n)))
+             :label "O(n log n)"}
+   :quadratic {:transform (fn [^double n] (* n n))
+               :label "O(n²)"}})
 
 (defn- linear-regression
   "Perform simple linear regression: y = a*x + b.
   Returns {:a slope :b intercept :r-squared coefficient-of-determination}."
   [xs ys]
-  (let [n      (count xs)
-        sum-x  (reduce + xs)
-        sum-y  (reduce + ys)
+  (let [n (count xs)
+        sum-x (reduce + xs)
+        sum-y (reduce + ys)
         sum-xy (reduce + (map * xs ys))
         sum-x2 (reduce + (map #(* % %) xs))
         sum-y2 (reduce + (map #(* % %) ys))
         ;; Calculate slope and intercept
-        denom  (- (* n sum-x2) (* sum-x sum-x))
-        a      (if (zero? denom)
-                 0.0
-                 (/ (- (* n sum-xy) (* sum-x sum-y)) denom))
-        b      (/ (- sum-y (* a sum-x)) n)
+        denom (- (* n sum-x2) (* sum-x sum-x))
+        a (if (zero? denom)
+            0.0
+            (/ (- (* n sum-xy) (* sum-x sum-y)) denom))
+        b (/ (- sum-y (* a sum-x)) n)
         ;; Calculate R²
         ss-tot (- sum-y2 (/ (* sum-y sum-y) n))
         ss-res (reduce + (map (fn [x y]
                                 (let [pred (+ (* a x) b)
-                                      res  (- y pred)]
+                                      res (- y pred)]
                                   (* res res)))
                               xs ys))
-        r-sq   (if (zero? ss-tot)
-                 (if (zero? ss-res) 1.0 0.0)
-                 (- 1.0 (/ ss-res ss-tot)))]
-    {:a         a
-     :b         b
+        r-sq (if (zero? ss-tot)
+               (if (zero? ss-res) 1.0 0.0)
+               (- 1.0 (/ ss-res ss-tot)))]
+    {:a a
+     :b b
      :r-squared r-sq}))
 
 (defn- fit-complexity-model
@@ -478,11 +479,11 @@
         residuals (mapv (fn [tx y]
                           (- y (+ (* a tx) b)))
                         transformed-xs ys)]
-    {:id           model-id
-     :label        label
+    {:id model-id
+     :label label
      :coefficients {:a a :b b}
-     :r-squared    r-squared
-     :residuals    residuals}))
+     :r-squared r-squared
+     :residuals residuals}))
 
 (defn domain-regression?
   "Returns true if x is a domain regression result."
@@ -513,30 +514,30 @@
   ;;     :best-fit :linear}"
   ([extract axis] (fit-complexity extract axis nil))
   ([extract axis models]
-   (let [models      (or models default-complexity-models)
+   (let [models (or models default-complexity-models)
          metric-path (:metric extract)
          ;; Extract x (axis value) and y (metric value) from data
          ;; Filter out nil y values
-         valid-data  (filter (fn [[coord value]]
-                               (and (some? value)
-                                    (if (map? coord)
-                                      (contains? coord axis)
-                                      false)))
-                             (:data extract))
-         xs          (mapv (fn [[coord _]] (double (get coord axis))) valid-data)
-         ys          (mapv (fn [[_ value]] (double value)) valid-data)
+         valid-data (filter (fn [[coord value]]
+                              (and (some? value)
+                                   (if (map? coord)
+                                     (contains? coord axis)
+                                     false)))
+                            (:data extract))
+         xs (mapv (fn [[coord _]] (double (get coord axis))) valid-data)
+         ys (mapv (fn [[_ value]] (double value)) valid-data)
          ;; Fit each model
-         fitted      (when (>= (count xs) 2)
-                       (mapv (fn [[model-id model-def]]
-                               (fit-complexity-model model-id model-def xs ys))
-                             models))
+         fitted (when (>= (count xs) 2)
+                  (mapv (fn [[model-id model-def]]
+                          (fit-complexity-model model-id model-def xs ys))
+                        models))
          ;; Find best fit by R²
-         best-fit    (when (seq fitted)
-                       (:id (apply max-key :r-squared fitted)))]
-     {:type     :criterium/domain-regression
-      :axis     axis
-      :metric   metric-path
-      :models   (or fitted [])
+         best-fit (when (seq fitted)
+                    (:id (apply max-key :r-squared fitted)))]
+     {:type :criterium/domain-regression
+      :axis axis
+      :metric metric-path
+      :models (or fitted [])
       :best-fit best-fit})))
 
 (defn domain-regression-fn
@@ -565,9 +566,9 @@
   ([{:keys [id extract-id axis models]}]
    (fn [data-map]
      (let [extract-id (or extract-id :extract)
-           id         (or id :regression)
-           extract    (data-map extract-id)
-           result     (fit-complexity extract axis models)]
+           id (or id :regression)
+           extract (data-map extract-id)
+           result (fit-complexity extract axis models)]
        (assoc data-map id result)))))
 
 ;;; Domain Plan Execution
@@ -662,6 +663,8 @@
     :analyse - Vector of analysis specs resolved from criterium.domain
     :view    - Vector of view specs resolved from criterium.view
     :viewer  - Keyword specifying output format (:print, :portal, :none)
+               If not specified, uses the default viewer from
+               criterium.bench/set-default-viewer!
 
   Returns the data-map with all analysis results.
 
@@ -674,8 +677,8 @@
                     my-domain)"
   [domain-plan domain]
   (let [analyse-fn (->domain-analyse (:analyse domain-plan))
-        view-fn    (->domain-view (:view domain-plan))
-        viewer     (or (:viewer domain-plan) :print)
-        data-map   (analyse-fn {:domain domain})]
+        view-fn (->domain-view (:view domain-plan))
+        viewer (or (:viewer domain-plan) bench-config/*default-viewer* :print)
+        data-map (analyse-fn {:domain domain})]
     (view-fn viewer data-map)
     data-map))
