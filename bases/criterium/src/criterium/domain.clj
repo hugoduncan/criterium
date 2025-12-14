@@ -79,10 +79,11 @@
   - :data is the full benchmark result from bench
 
   Options (as final map argument):
-  - :implementations - Keyword specifying which coordinate axis represents
-                       different implementations (e.g., :impl). When set,
-                       analysis functions like fit-complexity will group
-                       results by implementation.
+  - :impl-axis - Keyword specifying which coordinate axis represents
+                 different implementations (e.g., :impl). When set,
+                 analysis functions like fit-complexity will group
+                 results by implementation.
+  - :implementations - Vector of implementation keys. Defaults to [:default].
 
   Examples:
   (domain)                                    ; empty domain
@@ -91,16 +92,19 @@
           {:coord {:n 1000} :data result2})
   (domain {:coord {:n 100 :impl :vec} :data result1}
           {:coord {:n 100 :impl :list} :data result2}
-          {:implementations :impl})           ; with implementations axis"
+          {:impl-axis :impl
+           :implementations [:vec :list]})   ; with implementations"
   [& args]
   (let [[runs opts] (if (and (seq args)
                              (map? (last args))
-                             (contains? (last args) :implementations))
+                             (or (contains? (last args) :impl-axis)
+                                 (contains? (last args) :implementations)))
                       [(butlast args) (last args)]
                       [args nil])]
     (cond-> {:type :criterium/domain
-             :runs (vec runs)}
-      (:implementations opts) (assoc :implementations (:implementations opts)))))
+             :runs (vec runs)
+             :implementations (or (:implementations opts) [:default])}
+      (:impl-axis opts) (assoc :impl-axis (:impl-axis opts)))))
 
 ;;; Accumulation
 
@@ -181,11 +185,17 @@
         (:runs domain)))
 
 (defn implementations
-  "Returns the implementations axis key for a domain, or nil if not set.
-  The implementations key specifies which coordinate axis represents
-  different implementations for comparison analysis."
+  "Returns the implementation keys for a domain.
+  Defaults to [:default] for domains without explicit implementations."
   [domain]
   (:implementations domain))
+
+(defn impl-axis
+  "Returns the impl-axis key for a domain, or nil if not set.
+  The impl-axis specifies which coordinate axis represents different
+  implementations for comparison analysis."
+  [domain]
+  (:impl-axis domain))
 
 ;;; Analysis
 
@@ -222,8 +232,9 @@
 
   Returns nil for value if the metric is missing from a run.
 
-  If the source domain has an :implementations key, it is preserved in
-  the extract result for use by downstream analysis functions.
+  If the source domain has multiple implementations, :impl-axis and
+  :implementations are preserved in the extract result for use by
+  downstream analysis functions.
 
   Example - single metric:
   (extract domain [:stats :elapsed-time :mean])
@@ -242,7 +253,9 @@
    (extract domain metric-path {}))
   ([domain metric-path {:keys [with-error-bounds metric-ids]}]
    (let [runs (:runs domain)
-         impl-axis (:implementations domain)
+         impl-axis-key (:impl-axis domain)
+         impls (:implementations domain)
+         multi-impl? (> (count impls) 1)
          ;; Determine which metrics to extract
          metric-ids-to-extract
          (if metric-path
@@ -286,7 +299,8 @@
                              (map (fn [[metric-id mpath]]
                                     [metric-id (extract-single mpath)]))
                              metric-paths)}
-       impl-axis (assoc :implementations impl-axis)))))
+       multi-impl? (assoc :impl-axis impl-axis-key
+                          :implementations impls)))))
 
 (defn select
   "Filter domain to runs matching a partial coordinate.
@@ -724,9 +738,9 @@
   Selects best-fit model by highest R² value, preferring simpler models when
   R² values are essentially equal (within 0.0001).
 
-  When the extract has an :implementations key (from a multi-implementation domain),
+  When the extract has multiple implementations (count of :implementations > 1),
   data is grouped by implementation and models are fit separately for each.
-  The result includes :implementations key and regression data in :by-impl maps.
+  The result includes :impl-axis key and regression data in :by-impl maps.
 
   Example - single implementation:
   (fit-complexity extract :n)
@@ -740,14 +754,17 @@
   (fit-complexity extract-with-impls :n)
   ;; => {:type :criterium/domain-regression
   ;;     :axis :n
-  ;;     :implementations :impl
+  ;;     :impl-axis :impl
+  ;;     :implementations [:vec :list]
   ;;     :regressions {:elapsed-time {:metric [:stats :elapsed-time :mean]
   ;;                                  :by-impl {:vec {:models [...] :best-fit :linear}
   ;;                                            :list {:models [...] :best-fit :quadratic}}}}}"
   ([extract axis] (fit-complexity extract axis nil))
   ([extract axis models]
    (let [models (or models default-complexity-models)
-         impl-axis (:implementations extract)
+         impl-axis-key (:impl-axis extract)
+         impls (:implementations extract)
+         multi-impl? (> (count impls) 1)
 
          ;; Helper to fit models to a set of data points
          fit-data-points
@@ -796,7 +813,7 @@
          (fn [[_metric-id metric-data]]
            (let [{:keys [metric data with-error-bounds]} metric-data
                  ;; Group data by implementation
-                 by-impl (group-by (fn [[coord _]] (get coord impl-axis)) data)
+                 by-impl (group-by (fn [[coord _]] (get coord impl-axis-key)) data)
                  ;; Fit each implementation separately
                  impl-results (into {}
                                     (map (fn [[impl-val impl-data]]
@@ -806,11 +823,12 @@
               :with-error-bounds (boolean with-error-bounds)
               :by-impl impl-results}))]
 
-     (if impl-axis
+     (if multi-impl?
        ;; Multi-implementation: group and fit separately
        {:type :criterium/domain-regression
         :axis axis
-        :implementations impl-axis
+        :impl-axis impl-axis-key
+        :implementations impls
         :regressions (into {}
                            (map (fn [[metric-id metric-data]]
                                   [metric-id (fit-single-by-impl [metric-id metric-data])]))
@@ -1092,7 +1110,7 @@
   the limit by more than 5%, the benchmark is re-run with the projected time.
 
   Returns a domain with runs indexed by {:impl impl-key ...axis-coords...}.
-  When multiple implementations are provided, the domain's :implementations
+  When multiple implementations are provided, the domain's :impl-axis
   key is set to :impl, enabling automatic grouping in analysis functions."
   [axes implementations & {:keys [initial-limit-time-s
                                   time-axis
@@ -1107,10 +1125,12 @@
         ;; Sort by time-axis ascending
         sorted-coords (sort-by #(get % time-axis) coords)
         total-runs (count sorted-coords)
-        ;; Create initial domain with :implementations when multiple impls
+        impl-keys (vec (keys implementations))
+        ;; Create initial domain with :impl-axis when multiple impls
         initial-domain (if (> (count implementations) 1)
-                         (domain {:implementations :impl})
-                         (domain))
+                         (domain {:impl-axis :impl
+                                  :implementations impl-keys})
+                         (domain {:implementations impl-keys}))
         ;; Helper to run a single benchmark
         run-bench (fn [coord-measured limit-time-s]
                     (let [bench-plan (bench/options->bench-plan

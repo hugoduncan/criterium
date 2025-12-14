@@ -566,7 +566,8 @@
     (testing "renders multi-impl extract with impl in column headers"
       (reset! kindly/accumulated [])
       (let [data-map {:extract {:type :criterium/domain-extract
-                                :implementations :impl
+                                :impl-axis :impl
+                                :implementations [:foo :bar]
                                 :metrics {:elapsed-time
                                           {:metric [:stats :elapsed-time :mean]
                                            :data [[{:n 100 :impl :foo} 1e6]

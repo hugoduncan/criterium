@@ -602,12 +602,13 @@
         regression (data-map regression-id)
         tolerance (or tolerance 0.01)]
     (when regression
-      (let [{:keys [axis regressions implementations]} regression]
-        (if implementations
+      (let [{:keys [axis regressions impl-axis implementations]} regression
+            multi-impl? (> (count implementations) 1)]
+        (if multi-impl?
           ;; Multi-implementation mode
           (doseq [[metric-id {:keys [metric by-impl]}] regressions]
             (println (format "Domain Regression (axis: %s, metric: %s, by: %s)"
-                             (name axis) (pr-str metric) (name implementations)))
+                             (name axis) (pr-str metric) (name impl-axis)))
             (if (seq by-impl)
               (doseq [impl-key (sort (keys by-impl))]
                 (let [{:keys [models best-fit]} (get by-impl impl-key)

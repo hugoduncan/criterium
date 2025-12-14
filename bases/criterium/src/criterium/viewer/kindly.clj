@@ -393,7 +393,8 @@
   (let [extract-id (or extract-id :extract)
         extract (data-map extract-id)]
     (when extract
-      (let [impl-axis (:implementations extract)
+      (let [impl-axis-key (:impl-axis extract)
+            multi-impl? (> (count (:implementations extract)) 1)
             metrics (:metrics extract)
             metric-ids (sort (keys metrics))
 
@@ -412,8 +413,8 @@
                         :value (get-value value)})
 
             ;; Determine row key (coord minus impl axis for multi-impl)
-            row-key-fn (if impl-axis
-                         (fn [coord] (dissoc coord impl-axis))
+            row-key-fn (if multi-impl?
+                         (fn [coord] (dissoc coord impl-axis-key))
                          identity)
 
             ;; Collect unique row keys
@@ -426,14 +427,14 @@
             row-keys (sort-row-keys raw-row-keys single-key-info)
             coord-header (coord-column-header single-key-info)
 
-            impl-vals (when impl-axis
+            impl-vals (when multi-impl?
                         (->> all-data
-                             (keep #(get (:coord %) impl-axis))
+                             (keep #(get (:coord %) impl-axis-key))
                              distinct
                              (sort-by str)))
 
             ;; Build column specs: [{:metric-id :impl (optional)}...]
-            col-specs (if impl-axis
+            col-specs (if multi-impl?
                         (for [metric-id metric-ids
                               impl impl-vals]
                           {:metric-id metric-id :impl impl})
@@ -443,8 +444,8 @@
             ;; Build lookup: {[row-key metric-id impl?] -> value}
             lookup (reduce (fn [acc {:keys [metric-id coord value]}]
                              (let [row-key (row-key-fn coord)
-                                   impl-val (when impl-axis (get coord impl-axis))
-                                   lookup-key (if impl-axis
+                                   impl-val (when multi-impl? (get coord impl-axis-key))
+                                   lookup-key (if multi-impl?
                                                 [row-key metric-id impl-val]
                                                 [row-key metric-id])]
                                (assoc acc lookup-key value)))
@@ -461,7 +462,7 @@
                                dimension (metric-path->dimension metric-path)
                                ;; Get all values for this column
                                col-values (for [row-key row-keys
-                                                :let [lk (if impl-axis
+                                                :let [lk (if multi-impl?
                                                            [row-key metric-id impl]
                                                            [row-key metric-id])
                                                       v (get lookup lk)]
@@ -488,7 +489,7 @@
                           header-base (if (seq unit)
                                         (str metric-name " (" unit ")")
                                         metric-name)]
-                      (if impl-axis
+                      (if multi-impl?
                         (str (name impl) "\n" header-base)
                         header-base)))
                   col-specs)
@@ -501,7 +502,7 @@
                           (map-indexed
                            (fn [idx col-spec]
                              (let [{:keys [metric-id impl]} col-spec
-                                   lk (if impl-axis
+                                   lk (if multi-impl?
                                         [row-key metric-id impl]
                                         [row-key metric-id])
                                    raw-value (get lookup lk)
@@ -620,14 +621,15 @@
         regression (data-map regression-id)
         tolerance (or tolerance 0.01)]
     (when regression
-      (let [{:keys [axis regressions implementations]} regression
+      (let [{:keys [axis regressions impl-axis implementations]} regression
             extract-id (or extract-id :extract)
             extract (data-map extract-id)
+            multi-impl? (> (count implementations) 1)
             ;; Color palette for models (single-impl) or implementations (multi-impl)
             model-colors ["orange" "green" "purple" "red" "brown"]
             impl-colors ["steelblue" "coral" "seagreen" "mediumpurple" "goldenrod"]]
 
-        (if implementations
+        (if multi-impl?
           ;; Multi-implementation mode
           (doseq [[metric-id {:keys [metric by-impl with-error-bounds]}] regressions]
             (let [metric-extract-data (get-in extract [:metrics metric-id])
@@ -635,7 +637,7 @@
                   impl-keys (sort (keys by-impl))]
               (kindly-heading (str "Domain Regression (axis: " (name axis)
                                    ", metric: " (pr-str metric)
-                                   ", by: " (name implementations) ")"))
+                                   ", by: " (name impl-axis) ")"))
 ;; Table of all models per implementation
               (when (seq by-impl)
                 (kindly-table
@@ -665,14 +667,15 @@
                                              (and (some? value)
                                                   (map? coord)
                                                   (contains? coord axis)
-                                                  (contains? coord implementations))))
+                                                  (contains? coord impl-axis))))
                                          data)
                       ;; Compute scaling
                       base-scale (metric-path->base-scale metric)
                       base-values (mapv (fn [datum] (* (get-value datum) base-scale)) valid-data)
                       dimension (metric-path->dimension metric)
-                      representative-value (/ (reduce + base-values) (count base-values))
-                      [si-scale si-unit] (if dimension
+                      representative-value (when (seq base-values)
+                                             (/ (reduce + base-values) (count base-values)))
+                      [si-scale si-unit] (if (and dimension representative-value)
                                            (format/scale dimension representative-value)
                                            [1 ""])
                       total-scale (* base-scale si-scale)
@@ -680,7 +683,7 @@
                       points (mapv (fn [[coord v]]
                                      (let [y-val (if has-error-bounds? (:value v) v)
                                            x-val (double (get coord axis))
-                                           impl-val (name (get coord implementations))]
+                                           impl-val (name (get coord impl-axis))]
                                        (cond-> {"x" x-val
                                                 "y" (* y-val total-scale)
                                                 "impl" impl-val}
@@ -690,22 +693,24 @@
                                    valid-data)
                       ;; Generate fit lines per implementation
                       x-vals (mapv #(get % "x") points)
-                      x-min (apply min x-vals)
-                      x-max (apply max x-vals)
-                      x-range (range x-min (+ x-max 1) (/ (- x-max x-min) 50))
+                      x-min (when (seq x-vals) (apply min x-vals))
+                      x-max (when (seq x-vals) (apply max x-vals))
+                      x-range (when (and x-min x-max)
+                                (range x-min (+ x-max 1) (/ (- x-max x-min) 50)))
                       impl-line-pts
-                      (mapcat
-                       (fn [impl-key]
-                         (let [{:keys [models best-fit]} (get by-impl impl-key)
-                               best-model (first (filter #(= (:id %) best-fit) models))]
-                           (when best-model
-                             (let [mfn (regression-model-fn best-fit (:coefficients best-model))]
-                               (mapv (fn [x]
-                                       {"x" x
-                                        "y" (* (mfn x) total-scale)
-                                        "impl" (name impl-key)})
-                                     x-range)))))
-                       impl-keys)
+                      (when x-range
+                        (mapcat
+                         (fn [impl-key]
+                           (let [{:keys [models best-fit]} (get by-impl impl-key)
+                                 best-model (first (filter #(= (:id %) best-fit) models))]
+                             (when best-model
+                               (let [mfn (regression-model-fn best-fit (:coefficients best-model))]
+                                 (mapv (fn [x]
+                                         {"x" x
+                                          "y" (* (mfn x) total-scale)
+                                          "impl" (name impl-key)})
+                                       x-range)))))
+                         impl-keys))
                       y-title (if (seq si-unit)
                                 (str (pr-str metric) " (" si-unit ")")
                                 (pr-str metric))
@@ -720,7 +725,7 @@
                                               :y {:field "y" :type "quantitative"
                                                   :title y-title}
                                               :color {:field "impl" :type "nominal"
-                                                      :legend {:title (name implementations)
+                                                      :legend {:title "Implementation"
                                                                :orient "none"
                                                                :legendX 10
                                                                :legendY 10}}}}
@@ -741,58 +746,59 @@
                                                 :opacity {:value 0.5}}})
                       layers (cond-> [point-layer line-layer]
                                has-error-bounds? (conj error-layer))]
-                  (kindly-vega-lite
-                   {:width chart-width
-                    :height chart-height
-                    :layer layers})
-                  ;; Residual plot per implementation
-                  (let [residual-pts
-                        (mapcat
-                         (fn [impl-key]
-                           (let [{:keys [models best-fit]} (get by-impl impl-key)
-                                 best-model (first (filter #(= (:id %) best-fit) models))]
-                             (when best-model
-                               (let [mfn (regression-model-fn best-fit (:coefficients best-model))]
-                                 (keep (fn [[coord v]]
-                                         (when (= (get coord implementations) impl-key)
-                                           (let [y-val (if has-error-bounds? (:value v) v)
-                                                 x-val (double (get coord axis))
-                                                 predicted (mfn x-val)]
-                                             {"x" x-val
-                                              "residual" (* (- y-val predicted) total-scale)
-                                              "impl" (name impl-key)})))
-                                       valid-data)))))
-                         impl-keys)]
-                    (kindly-heading "Residual Plot")
+                  (when (seq points)
                     (kindly-vega-lite
                      {:width chart-width
-                      :height (/ chart-height 2)
-                      :layer [{:data {:values (vec residual-pts)}
-                               :mark {:type "point" :size 60}
-                               :encoding {:x {:field "x" :type "quantitative"
-                                              :title (name axis)}
-                                          :y {:field "residual" :type "quantitative"
-                                              :title residual-title}
-                                          :color {:field "impl" :type "nominal"
-                                                  :legend {:title (name implementations)
-                                                           :orient "none"
-                                                           :legendX 10
-                                                           :legendY 10}}}}
-                              {:data {:values (vec residual-pts)}
-                               :transform [{:loess "residual"
-                                            :on "x"
-                                            :groupby ["impl"]
-                                            :bandwidth 0.3}]
-                               :mark {:type "line" :strokeWidth 1}
-                               :encoding {:x {:field "x" :type "quantitative"}
-                                          :y {:field "residual" :type "quantitative"}
-                                          :color {:field "impl" :type "nominal"
-                                                  :legend nil}
-                                          :opacity {:value 0.4}}}
-                              {:data {:values [{"y" 0}]}
-                               :mark {:type "rule" :strokeDash [4 4]}
-                               :encoding {:y {:field "y" :type "quantitative"}
-                                          :color {:value "gray"}}}]}))))))
+                      :height chart-height
+                      :layer layers})
+                    ;; Residual plot per implementation
+                    (let [residual-pts
+                          (mapcat
+                           (fn [impl-key]
+                             (let [{:keys [models best-fit]} (get by-impl impl-key)
+                                   best-model (first (filter #(= (:id %) best-fit) models))]
+                               (when best-model
+                                 (let [mfn (regression-model-fn best-fit (:coefficients best-model))]
+                                   (keep (fn [[coord v]]
+                                           (when (= (get coord impl-axis) impl-key)
+                                             (let [y-val (if has-error-bounds? (:value v) v)
+                                                   x-val (double (get coord axis))
+                                                   predicted (mfn x-val)]
+                                               {"x" x-val
+                                                "residual" (* (- y-val predicted) total-scale)
+                                                "impl" (name impl-key)})))
+                                         valid-data)))))
+                           impl-keys)]
+                      (kindly-heading "Residual Plot")
+                      (kindly-vega-lite
+                       {:width chart-width
+                        :height (/ chart-height 2)
+                        :layer [{:data {:values (vec residual-pts)}
+                                 :mark {:type "point" :size 60}
+                                 :encoding {:x {:field "x" :type "quantitative"
+                                                :title (name axis)}
+                                            :y {:field "residual" :type "quantitative"
+                                                :title residual-title}
+                                            :color {:field "impl" :type "nominal"
+                                                    :legend {:title "Implementation"
+                                                             :orient "none"
+                                                             :legendX 10
+                                                             :legendY 10}}}}
+                                {:data {:values (vec residual-pts)}
+                                 :transform [{:loess "residual"
+                                              :on "x"
+                                              :groupby ["impl"]
+                                              :bandwidth 0.3}]
+                                 :mark {:type "line" :strokeWidth 1}
+                                 :encoding {:x {:field "x" :type "quantitative"}
+                                            :y {:field "residual" :type "quantitative"}
+                                            :color {:field "impl" :type "nominal"
+                                                    :legend nil}
+                                            :opacity {:value 0.4}}}
+                                {:data {:values [{"y" 0}]}
+                                 :mark {:type "rule" :strokeDash [4 4]}
+                                 :encoding {:y {:field "y" :type "quantitative"}
+                                            :color {:value "gray"}}}]})))))))
 
           ;; Single-implementation mode (original behavior)
           (doseq [[metric-id {:keys [metric models best-fit with-error-bounds]}] regressions]
@@ -834,8 +840,9 @@
                       base-scale (metric-path->base-scale metric)
                       base-values (mapv (fn [datum] (* (get-value datum) base-scale)) valid-data)
                       dimension (metric-path->dimension metric)
-                      representative-value (/ (reduce + base-values) (count base-values))
-                      [si-scale si-unit] (if dimension
+                      representative-value (when (seq base-values)
+                                             (/ (reduce + base-values) (count base-values)))
+                      [si-scale si-unit] (if (and dimension representative-value)
                                            (format/scale dimension representative-value)
                                            [1 ""])
                       total-scale (* base-scale si-scale)
@@ -858,19 +865,21 @@
                                                 "yUpper" (* (:upper v) total-scale)))))
                                    valid-data)
                       x-vals (mapv #(get % "x") points)
-                      x-min (apply min x-vals)
-                      x-max (apply max x-vals)
-                      x-range (range x-min (+ x-max 1) (/ (- x-max x-min) 50))
-                      all-line-pts (mapcat
-                                    (fn [model color]
-                                      (let [mfn (get model-fns (:id model))]
-                                        (mapv (fn [x]
-                                                {"x" x
-                                                 "y" (* (mfn x) total-scale)
-                                                 "model" (:label model)})
-                                              x-range)))
-                                    models-to-plot
-                                    (cycle model-colors))
+                      x-min (when (seq x-vals) (apply min x-vals))
+                      x-max (when (seq x-vals) (apply max x-vals))
+                      x-range (when (and x-min x-max)
+                                (range x-min (+ x-max 1) (/ (- x-max x-min) 50)))
+                      all-line-pts (when x-range
+                                     (mapcat
+                                      (fn [model color]
+                                        (let [mfn (get model-fns (:id model))]
+                                          (mapv (fn [x]
+                                                  {"x" x
+                                                   "y" (* (mfn x) total-scale)
+                                                   "model" (:label model)})
+                                                x-range)))
+                                      models-to-plot
+                                      (cycle model-colors)))
                       y-title (if (seq si-unit)
                                 (str (pr-str metric) " (" si-unit ")")
                                 (pr-str metric))
@@ -903,52 +912,53 @@
                                                 :opacity {:value 0.5}}})
                       layers (cond-> [point-layer line-layer]
                                has-error-bounds? (conj error-layer))]
-                  (kindly-vega-lite
-                   {:width chart-width
-                    :height chart-height
-                    :layer layers})
-                  (let [all-residual-pts (mapcat
-                                          (fn [model]
-                                            (let [mfn (get model-fns (:id model))]
-                                              (mapv (fn [[coord v]]
-                                                      (let [y-val (if has-error-bounds? (:value v) v)
-                                                            x-val (double (get coord axis))
-                                                            predicted (mfn x-val)]
-                                                        {"x" x-val
-                                                         "residual" (* (- y-val predicted) total-scale)
-                                                         "model" (:label model)}))
-                                                    valid-data)))
-                                          models-to-plot)]
-                    (kindly-heading "Residual Plot")
+                  (when (seq points)
                     (kindly-vega-lite
                      {:width chart-width
-                      :height (/ chart-height 2)
-                      :layer [{:data {:values (vec all-residual-pts)}
-                               :mark {:type "point" :size 60}
-                               :encoding {:x {:field "x" :type "quantitative"
-                                              :title (name axis)}
-                                          :y {:field "residual" :type "quantitative"
-                                              :title residual-title}
-                                          :color {:field "model" :type "nominal"
-                                                  :legend {:title "Model"
-                                                           :orient "none"
-                                                           :legendX 10
-                                                           :legendY 10}}}}
-                              {:data {:values (vec all-residual-pts)}
-                               :transform [{:loess "residual"
-                                            :on "x"
-                                            :groupby ["model"]
-                                            :bandwidth 0.3}]
-                               :mark {:type "line" :strokeWidth 1}
-                               :encoding {:x {:field "x" :type "quantitative"}
-                                          :y {:field "residual" :type "quantitative"}
-                                          :color {:field "model" :type "nominal"
-                                                  :legend nil}
-                                          :opacity {:value 0.4}}}
-                              {:data {:values [{"y" 0}]}
-                               :mark {:type "rule" :strokeDash [4 4]}
-                               :encoding {:y {:field "y" :type "quantitative"}
-                                          :color {:value "gray"}}}]})))))))))))
+                      :height chart-height
+                      :layer layers})
+                    (let [all-residual-pts (mapcat
+                                            (fn [model]
+                                              (let [mfn (get model-fns (:id model))]
+                                                (mapv (fn [[coord v]]
+                                                        (let [y-val (if has-error-bounds? (:value v) v)
+                                                              x-val (double (get coord axis))
+                                                              predicted (mfn x-val)]
+                                                          {"x" x-val
+                                                           "residual" (* (- y-val predicted) total-scale)
+                                                           "model" (:label model)}))
+                                                      valid-data)))
+                                            models-to-plot)]
+                      (kindly-heading "Residual Plot")
+                      (kindly-vega-lite
+                       {:width chart-width
+                        :height (/ chart-height 2)
+                        :layer [{:data {:values (vec all-residual-pts)}
+                                 :mark {:type "point" :size 60}
+                                 :encoding {:x {:field "x" :type "quantitative"
+                                                :title (name axis)}
+                                            :y {:field "residual" :type "quantitative"
+                                                :title residual-title}
+                                            :color {:field "model" :type "nominal"
+                                                    :legend {:title "Model"
+                                                             :orient "none"
+                                                             :legendX 10
+                                                             :legendY 10}}}}
+                                {:data {:values (vec all-residual-pts)}
+                                 :transform [{:loess "residual"
+                                              :on "x"
+                                              :groupby ["model"]
+                                              :bandwidth 0.3}]
+                                 :mark {:type "line" :strokeWidth 1}
+                                 :encoding {:x {:field "x" :type "quantitative"}
+                                            :y {:field "residual" :type "quantitative"}
+                                            :color {:field "model" :type "nominal"
+                                                    :legend nil}
+                                            :opacity {:value 0.4}}}
+                                {:data {:values [{"y" 0}]}
+                                 :mark {:type "rule" :strokeDash [4 4]}
+                                 :encoding {:y {:field "y" :type "quantitative"}
+                                            :color {:value "gray"}}}]}))))))))))))
 
 ;;; Noop implementations for views not applicable to Kindly output
 
