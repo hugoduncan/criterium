@@ -388,6 +388,20 @@
            :source-id nil
            :outliers-id nil}})
 
+(defn mock-bench-result-with-defs
+  "Create a mock bench result with metrics-defs for multi-metric discovery.
+  stats-data is a map of {metric-id {value-key value}}."
+  [stats-data]
+  {:stats {:type :criterium/stats
+           :transform collect-plan/identity-transforms
+           :stats stats-data
+           :metrics-defs (into {}
+                               (map (fn [k] [k {:type :quantitative}]))
+                               (keys stats-data))
+           :batch-size 1
+           :source-id nil
+           :outliers-id nil}})
+
 (deftest extract-test
   ;; Tests the extract function which extracts metric values from domain runs.
   ;; Extract now returns a :metrics map with metric-id keys.
@@ -664,75 +678,146 @@
 ;; structured output for analysis.
 
 (deftest compare-by-test
+  ;; Tests compare-by which compares metric values across an axis.
+  ;; Supports both single-metric (with metric-path) and multi-metric (nil metric-path) modes.
+  ;; Multi-metric mode discovers metrics from first run's metrics-defs.
   (testing "compare-by"
-    (testing "returns a domain-comparison result"
-      (let [d (domain/domain
-               {:coord {:n 100 :impl :foo}
-                :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
-               {:coord {:n 100 :impl :bar}
-                :data (mock-bench-result {:elapsed-time {:mean 2.0}})})
-            result (domain/compare-by d :impl [:stats :elapsed-time :mean])]
-        (is (domain/domain-comparison? result))
-        (is (= :criterium/domain-comparison (:type result)))
-        (is (= :impl (:axis result)))
-        (is (= [:stats :elapsed-time :mean] (:metric result)))
-        (is (map? (:data result)))))
-    (testing "data entries contain coord and value"
-      (let [d (domain/domain
-               {:coord {:n 100 :impl :foo}
-                :data (mock-bench-result {:elapsed-time {:mean 1.5}})})
-            result (domain/compare-by d :impl [:stats :elapsed-time :mean])
-            entry (first (get-in result [:data :foo]))]
-        (is (= {:n 100 :impl :foo} (:coord entry)))
-        (is (= 1.5 (:value entry)))))
-    (testing "groups runs by axis value"
-      (let [d (domain/domain
-               {:coord {:n 100 :impl :foo}
-                :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
-               {:coord {:n 200 :impl :foo}
-                :data (mock-bench-result {:elapsed-time {:mean 2.0}})}
-               {:coord {:n 100 :impl :bar}
-                :data (mock-bench-result {:elapsed-time {:mean 3.0}})})
-            result (domain/compare-by d :impl [:stats :elapsed-time :mean])]
-        (is (= 2 (count (get-in result [:data :foo]))))
-        (is (= 1 (count (get-in result [:data :bar]))))
-        (is (= [1.0 2.0] (mapv :value (get-in result [:data :foo]))))
-        (is (= [3.0] (mapv :value (get-in result [:data :bar]))))))
-    (testing "handles missing metrics with nil values"
-      (let [d (domain/domain
-               {:coord {:impl :foo}
-                :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
-               {:coord {:impl :bar}
-                :data (mock-bench-result {:other-metric {:mean 2.0}})})
-            result (domain/compare-by d :impl [:stats :elapsed-time :mean])]
-        (is (= 1.0 (:value (first (get-in result [:data :foo])))))
-        (is (nil? (:value (first (get-in result [:data :bar])))))))
-    (testing "groups keyword coords under nil"
-      (let [d (domain/domain
-               {:coord :baseline
-                :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
-               {:coord {:impl :foo}
-                :data (mock-bench-result {:elapsed-time {:mean 2.0}})})
-            result (domain/compare-by d :impl [:stats :elapsed-time :mean])]
-        (is (contains? (:data result) nil))
-        (is (= :baseline (:coord (first (get-in result [:data nil])))))))
-    (testing "returns empty :data for empty domain"
-      (let [result (domain/compare-by (domain/domain) :impl
-                                      [:stats :elapsed-time :mean])]
-        (is (domain/domain-comparison? result))
-        (is (= :impl (:axis result)))
-        (is (= {} (:data result)))))
-    (testing "preserves run order within groups"
-      (let [d (domain/domain
-               {:coord {:n 300 :impl :foo}
-                :data (mock-bench-result {:elapsed-time {:mean 3.0}})}
-               {:coord {:n 100 :impl :foo}
-                :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
-               {:coord {:n 200 :impl :foo}
-                :data (mock-bench-result {:elapsed-time {:mean 2.0}})})
-            result (domain/compare-by d :impl [:stats :elapsed-time :mean])
-            values (mapv :value (get-in result [:data :foo]))]
-        (is (= [3.0 1.0 2.0] values))))))
+    (testing "with explicit metric-path (single-metric mode)"
+      (testing "returns a domain-comparison result"
+        (let [d (domain/domain
+                 {:coord {:n 100 :impl :foo}
+                  :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+                 {:coord {:n 100 :impl :bar}
+                  :data (mock-bench-result {:elapsed-time {:mean 2.0}})})
+              result (domain/compare-by d :impl [:stats :elapsed-time :mean])]
+          (is (domain/domain-comparison? result))
+          (is (= :criterium/domain-comparison (:type result)))
+          (is (= :impl (:axis result)))
+          (is (= [:stats :elapsed-time :mean] (:metric result)))
+          (is (map? (:data result)))))
+      (testing "data entries contain coord and value"
+        (let [d (domain/domain
+                 {:coord {:n 100 :impl :foo}
+                  :data (mock-bench-result {:elapsed-time {:mean 1.5}})})
+              result (domain/compare-by d :impl [:stats :elapsed-time :mean])
+              entry (first (get-in result [:data :foo]))]
+          (is (= {:n 100 :impl :foo} (:coord entry)))
+          (is (= 1.5 (:value entry)))))
+      (testing "groups runs by axis value"
+        (let [d (domain/domain
+                 {:coord {:n 100 :impl :foo}
+                  :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+                 {:coord {:n 200 :impl :foo}
+                  :data (mock-bench-result {:elapsed-time {:mean 2.0}})}
+                 {:coord {:n 100 :impl :bar}
+                  :data (mock-bench-result {:elapsed-time {:mean 3.0}})})
+              result (domain/compare-by d :impl [:stats :elapsed-time :mean])]
+          (is (= 2 (count (get-in result [:data :foo]))))
+          (is (= 1 (count (get-in result [:data :bar]))))
+          (is (= [1.0 2.0] (mapv :value (get-in result [:data :foo]))))
+          (is (= [3.0] (mapv :value (get-in result [:data :bar]))))))
+      (testing "handles missing metrics with nil values"
+        (let [d (domain/domain
+                 {:coord {:impl :foo}
+                  :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+                 {:coord {:impl :bar}
+                  :data (mock-bench-result {:other-metric {:mean 2.0}})})
+              result (domain/compare-by d :impl [:stats :elapsed-time :mean])]
+          (is (= 1.0 (:value (first (get-in result [:data :foo])))))
+          (is (nil? (:value (first (get-in result [:data :bar])))))))
+      (testing "groups keyword coords under nil"
+        (let [d (domain/domain
+                 {:coord :baseline
+                  :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+                 {:coord {:impl :foo}
+                  :data (mock-bench-result {:elapsed-time {:mean 2.0}})})
+              result (domain/compare-by d :impl [:stats :elapsed-time :mean])]
+          (is (contains? (:data result) nil))
+          (is (= :baseline (:coord (first (get-in result [:data nil])))))))
+      (testing "returns empty :data for empty domain"
+        (let [result (domain/compare-by (domain/domain) :impl
+                                        [:stats :elapsed-time :mean])]
+          (is (domain/domain-comparison? result))
+          (is (= :impl (:axis result)))
+          (is (= {} (:data result)))))
+      (testing "preserves run order within groups"
+        (let [d (domain/domain
+                 {:coord {:n 300 :impl :foo}
+                  :data (mock-bench-result {:elapsed-time {:mean 3.0}})}
+                 {:coord {:n 100 :impl :foo}
+                  :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+                 {:coord {:n 200 :impl :foo}
+                  :data (mock-bench-result {:elapsed-time {:mean 2.0}})})
+              result (domain/compare-by d :impl [:stats :elapsed-time :mean])
+              values (mapv :value (get-in result [:data :foo]))]
+          (is (= [3.0 1.0 2.0] values)))))
+    (testing "with nil metric-path (multi-metric mode)"
+      (testing "returns :metrics map instead of :data/:metric"
+        (let [d (domain/domain
+                 {:coord {:n 100 :impl :foo}
+                  :data (mock-bench-result-with-defs
+                         {:elapsed-time {:mean 1.0}
+                          :thread-allocation {:mean 100}})}
+                 {:coord {:n 100 :impl :bar}
+                  :data (mock-bench-result-with-defs
+                         {:elapsed-time {:mean 2.0}
+                          :thread-allocation {:mean 200}})})
+              result (domain/compare-by d :impl nil)]
+          (is (domain/domain-comparison? result))
+          (is (contains? result :metrics))
+          (is (not (contains? result :metric)))
+          (is (not (contains? result :data)))))
+      (testing "discovers all quantitative metrics from first run"
+        (let [d (domain/domain
+                 {:coord {:n 100 :impl :foo}
+                  :data (mock-bench-result-with-defs
+                         {:elapsed-time {:mean 1.0}
+                          :thread-allocation {:mean 100}})}
+                 {:coord {:n 100 :impl :bar}
+                  :data (mock-bench-result-with-defs
+                         {:elapsed-time {:mean 2.0}
+                          :thread-allocation {:mean 200}})})
+              result (domain/compare-by d :impl nil)]
+          (is (contains? (:metrics result) :elapsed-time))
+          (is (contains? (:metrics result) :thread-allocation))))
+      (testing "each metric has :metric path and :data grouped by impl"
+        (let [d (domain/domain
+                 {:coord {:n 100 :impl :foo}
+                  :data (mock-bench-result-with-defs {:elapsed-time {:mean 1.0}})}
+                 {:coord {:n 100 :impl :bar}
+                  :data (mock-bench-result-with-defs {:elapsed-time {:mean 2.0}})})
+              result (domain/compare-by d :impl nil)
+              elapsed-metric (get-in result [:metrics :elapsed-time])]
+          (is (= [:stats :elapsed-time :mean] (:metric elapsed-metric)))
+          (is (map? (:data elapsed-metric)))
+          (is (contains? (:data elapsed-metric) :foo))
+          (is (contains? (:data elapsed-metric) :bar))))
+      (testing "includes :implementations when domain has them"
+        (let [d (domain/domain
+                 {:coord {:n 100 :impl :foo}
+                  :data (mock-bench-result-with-defs {:elapsed-time {:mean 1.0}})}
+                 {:coord {:n 100 :impl :bar}
+                  :data (mock-bench-result-with-defs {:elapsed-time {:mean 2.0}})}
+                 {:implementations [:foo :bar]})
+              result (domain/compare-by d :impl nil)]
+          (is (= [:foo :bar] (:implementations result)))))
+      (testing "supports :metric-ids option to filter metrics"
+        (let [d (domain/domain
+                 {:coord {:n 100 :impl :foo}
+                  :data (mock-bench-result-with-defs
+                         {:elapsed-time {:mean 1.0}
+                          :thread-allocation {:mean 100}
+                          :memory {:mean 1000}})}
+                 {:coord {:n 100 :impl :bar}
+                  :data (mock-bench-result-with-defs
+                         {:elapsed-time {:mean 2.0}
+                          :thread-allocation {:mean 200}
+                          :memory {:mean 2000}})})
+              result (domain/compare-by d :impl nil
+                                        {:metric-ids [:elapsed-time :memory]})]
+          (is (contains? (:metrics result) :elapsed-time))
+          (is (contains? (:metrics result) :memory))
+          (is (not (contains? (:metrics result) :thread-allocation))))))))
 
 ;; Tests for input sequence generators.
 ;; Validates generation of sequences useful for scaling analysis,
@@ -924,53 +1009,93 @@
         (is (= {:some "config"} (:config result)))))))
 
 (deftest domain-compare-fn-test
+  ;; Tests the domain-compare-fn pipeline function which wraps compare-by.
+  ;; Supports both single-metric and multi-metric modes via :metric-path option.
   (testing "domain-compare-fn"
     (testing "returns a function"
       (is (fn? (domain/domain-compare-fn)))
       (is (fn? (domain/domain-compare-fn {}))))
-    (testing "compares metric across axis in data-map"
-      (let [d (domain/domain
-               {:coord {:impl :foo}
-                :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
-               {:coord {:impl :bar}
-                :data (mock-bench-result {:elapsed-time {:mean 2.0}})})
-            f (domain/domain-compare-fn
-               {:id :impl-time
-                :axis-key :impl
-                :metric-path [:stats :elapsed-time :mean]})
-            result (f {:domain d})]
-        (is (contains? result :domain))
-        (is (contains? result :impl-time))
-        (is (domain/domain-comparison? (:impl-time result)))))
-    (testing "uses default :id when not specified"
-      (let [d (domain/domain
-               {:coord {:impl :foo}
-                :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
-            f (domain/domain-compare-fn
-               {:axis-key :impl :metric-path [:stats :elapsed-time :mean]})
-            result (f {:domain d})]
-        (is (contains? result :comparison))))
-    (testing "uses custom :domain-id"
-      (let [d (domain/domain
-               {:coord {:impl :foo}
-                :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
-            f (domain/domain-compare-fn
-               {:id :cmp
-                :domain-id :source
-                :axis-key :impl
-                :metric-path [:stats :elapsed-time :mean]})
-            result (f {:source d})]
-        (is (contains? result :cmp))
-        (is (domain/domain-comparison? (:cmp result)))))
-    (testing "preserves other keys in data-map"
-      (let [d (domain/domain
-               {:coord {:impl :foo}
-                :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
-            f (domain/domain-compare-fn
-               {:id :cmp :axis-key :impl
-                :metric-path [:stats :elapsed-time :mean]})
-            result (f {:domain d :meta {:info "data"}})]
-        (is (= {:info "data"} (:meta result)))))))
+    (testing "with :metric-path (single-metric mode)"
+      (testing "compares metric across axis in data-map"
+        (let [d (domain/domain
+                 {:coord {:impl :foo}
+                  :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+                 {:coord {:impl :bar}
+                  :data (mock-bench-result {:elapsed-time {:mean 2.0}})})
+              f (domain/domain-compare-fn
+                 {:id :impl-time
+                  :axis-key :impl
+                  :metric-path [:stats :elapsed-time :mean]})
+              result (f {:domain d})]
+          (is (contains? result :domain))
+          (is (contains? result :impl-time))
+          (is (domain/domain-comparison? (:impl-time result)))))
+      (testing "uses default :id when not specified"
+        (let [d (domain/domain
+                 {:coord {:impl :foo}
+                  :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
+              f (domain/domain-compare-fn
+                 {:axis-key :impl :metric-path [:stats :elapsed-time :mean]})
+              result (f {:domain d})]
+          (is (contains? result :comparison))))
+      (testing "uses custom :domain-id"
+        (let [d (domain/domain
+                 {:coord {:impl :foo}
+                  :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
+              f (domain/domain-compare-fn
+                 {:id :cmp
+                  :domain-id :source
+                  :axis-key :impl
+                  :metric-path [:stats :elapsed-time :mean]})
+              result (f {:source d})]
+          (is (contains? result :cmp))
+          (is (domain/domain-comparison? (:cmp result)))))
+      (testing "preserves other keys in data-map"
+        (let [d (domain/domain
+                 {:coord {:impl :foo}
+                  :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
+              f (domain/domain-compare-fn
+                 {:id :cmp :axis-key :impl
+                  :metric-path [:stats :elapsed-time :mean]})
+              result (f {:domain d :meta {:info "data"}})]
+          (is (= {:info "data"} (:meta result))))))
+    (testing "without :metric-path (multi-metric mode)"
+      (testing "discovers all metrics and returns :metrics map"
+        (let [d (domain/domain
+                 {:coord {:impl :foo}
+                  :data (mock-bench-result-with-defs
+                         {:elapsed-time {:mean 1.0}
+                          :thread-allocation {:mean 100}})}
+                 {:coord {:impl :bar}
+                  :data (mock-bench-result-with-defs
+                         {:elapsed-time {:mean 2.0}
+                          :thread-allocation {:mean 200}})})
+              f (domain/domain-compare-fn {:id :cmp :axis-key :impl})
+              result (f {:domain d})]
+          (is (contains? result :cmp))
+          (is (contains? (:cmp result) :metrics))
+          (is (contains? (get-in result [:cmp :metrics]) :elapsed-time))
+          (is (contains? (get-in result [:cmp :metrics]) :thread-allocation))))
+      (testing "supports :metric-ids to filter metrics"
+        (let [d (domain/domain
+                 {:coord {:impl :foo}
+                  :data (mock-bench-result-with-defs
+                         {:elapsed-time {:mean 1.0}
+                          :thread-allocation {:mean 100}
+                          :memory {:mean 1000}})}
+                 {:coord {:impl :bar}
+                  :data (mock-bench-result-with-defs
+                         {:elapsed-time {:mean 2.0}
+                          :thread-allocation {:mean 200}
+                          :memory {:mean 2000}})})
+              f (domain/domain-compare-fn
+                 {:id :cmp
+                  :axis-key :impl
+                  :metric-ids [:elapsed-time]})
+              result (f {:domain d})]
+          (is (contains? (get-in result [:cmp :metrics]) :elapsed-time))
+          (is (not (contains? (get-in result [:cmp :metrics]) :thread-allocation)))
+          (is (not (contains? (get-in result [:cmp :metrics]) :memory))))))))
 
 ;; Tests for composing multiple pipeline functions.
 ;; Validates that pipeline functions can be composed together
@@ -1578,15 +1703,18 @@
     (testing "implementation-comparison executes successfully"
       (let [d (domain/domain
                {:coord {:impl :foo}
-                :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+                :data (mock-bench-result-with-defs {:elapsed-time {:mean 1.0}})}
                {:coord {:impl :bar}
-                :data (mock-bench-result {:elapsed-time {:mean 2.0}})})
+                :data (mock-bench-result-with-defs {:elapsed-time {:mean 2.0}})}
+               {:implementations [:foo :bar]})
             plan (domain/options->domain-plan
                   domain-plans/implementation-comparison
                   :viewer :none)
             result (domain/analyse-domain plan d)]
         (is (contains? result :comparison))
-        (is (domain/domain-comparison? (:comparison result)))))
+        (is (domain/domain-comparison? (:comparison result)))
+        (is (contains? (:comparison result) :metrics))
+        (is (= [:foo :bar] (:implementations (:comparison result))))))
     (testing "extract-elapsed-time executes successfully"
       (let [d (domain/domain
                {:coord {:n 100}

@@ -58,13 +58,15 @@
        (contains? x :data)))
 
 (defn domain-comparison?
-  "Returns true if x is a domain comparison result."
+  "Returns true if x is a domain comparison result.
+  Supports both single-metric format (with :metric and :data keys)
+  and multi-metric format (with :metrics key)."
   [x]
   (and (map? x)
        (= :criterium/domain-comparison (:type x))
        (contains? x :axis)
-       (contains? x :metric)
-       (contains? x :data)))
+       (or (and (contains? x :metric) (contains? x :data)) ; single-metric
+           (contains? x :metrics))))
 
 ;;; Construction
 
@@ -354,28 +356,79 @@
   axis-key is the dimension to compare across.
   metric-path is [stats-id metric-id value-key] as used by extract.
 
-  Example:
+  When metric-path is nil, discovers all quantitative metrics from the first
+  run's :stats :metrics-defs, similar to extract. In multi-metric mode, the
+  domain must have an :implementations key.
+
+  Options:
+    :metric-ids - When metric-path is nil, filter to only these metric-ids.
+
+  Single metric example:
   (compare-by domain :impl [:stats :elapsed-time :mean])
   ;; => {:type :criterium/domain-comparison
   ;;     :axis :impl
   ;;     :metric [:stats :elapsed-time :mean]
   ;;     :data {:foo [{:coord {:n 100 :impl :foo} :value 1.2e-6} ...]
-  ;;            :bar [{:coord {:n 100 :impl :bar} :value 2.3e-6} ...]}}"
-  [domain axis-key metric-path]
-  (let [[stats-id metric-id value-key] metric-path
-        grouped (:data (group-by-axis domain axis-key))]
-    {:type :criterium/domain-comparison
-     :axis axis-key
-     :metric metric-path
-     :data (into {}
-                 (map (fn [[axis-val sub-domain]]
-                        [axis-val
-                         (mapv (fn [{:keys [coord data]}]
-                                 {:coord coord
-                                  :value (util/stats-value data stats-id
-                                                           metric-id value-key)})
-                               (:runs sub-domain))]))
-                 grouped)}))
+  ;;            :bar [{:coord {:n 100 :impl :bar} :value 2.3e-6} ...]}}
+
+  Multi-metric example:
+  (compare-by domain :impl nil)
+  ;; => {:type :criterium/domain-comparison
+  ;;     :axis :impl
+  ;;     :implementations [:foo :bar]
+  ;;     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+  ;;                              :data {:foo [...] :bar [...]}}
+  ;;               :thread-allocation {:metric [...] :data {...}}}}"
+  ([domain axis-key metric-path]
+   (compare-by domain axis-key metric-path {}))
+  ([domain axis-key metric-path {:keys [metric-ids]}]
+   (let [runs (:runs domain)
+         impls (:implementations domain)
+         grouped (:data (group-by-axis domain axis-key))
+         compare-single
+         (fn [metric-path]
+           (let [[stats-id metric-id value-key] metric-path]
+             {:metric metric-path
+              :data (into {}
+                          (map (fn [[axis-val sub-domain]]
+                                 [axis-val
+                                  (mapv (fn [{:keys [coord data]}]
+                                          {:coord coord
+                                           :value (util/stats-value data stats-id
+                                                                    metric-id value-key)})
+                                        (:runs sub-domain))]))
+                          grouped)}))]
+     (if metric-path
+       ;; Single metric mode - backward compatible
+       (let [[stats-id metric-id value-key] metric-path]
+         {:type :criterium/domain-comparison
+          :axis axis-key
+          :metric metric-path
+          :data (into {}
+                      (map (fn [[axis-val sub-domain]]
+                             [axis-val
+                              (mapv (fn [{:keys [coord data]}]
+                                      {:coord coord
+                                       :value (util/stats-value data stats-id
+                                                                metric-id value-key)})
+                                    (:runs sub-domain))]))
+                      grouped)})
+       ;; Multi-metric mode
+       (let [first-run-data (:data (first runs))
+             discovered (discover-quantitative-metrics first-run-data)
+             metric-ids-to-extract (if metric-ids
+                                     (filter (set metric-ids) discovered)
+                                     discovered)
+             metric-paths (into {}
+                                (map (fn [mid] [mid [:stats mid :mean]]))
+                                metric-ids-to-extract)]
+         (cond-> {:type :criterium/domain-comparison
+                  :axis axis-key
+                  :metrics (into {}
+                                 (map (fn [[metric-id mpath]]
+                                        [metric-id (compare-single mpath)]))
+                                 metric-paths)}
+           impls (assoc :implementations impls)))))))
 
 ;;; Input Sequence Generators
 ;;
@@ -566,26 +619,32 @@
       :id          - Key for result in output (default: :comparison)
       :domain-id   - Key for source domain in input (default: :domain)
       :axis-key    - Dimension key to compare across
-      :metric-path - Vector path to metric, e.g. [:stats :elapsed-time :mean]
+      :metric-path - Vector path to metric, e.g. [:stats :elapsed-time :mean].
+                     When nil, extracts all quantitative metrics.
+      :metric-ids  - When metric-path is nil, filter to these metric-ids.
+                     E.g., [:elapsed-time :thread-allocation].
 
   The returned function:
   - Takes a data-map containing a domain under :domain-id
   - Returns the data-map with a domain-comparison result added under :id
 
-  Example:
+  Example - single metric:
   (-> {:domain my-domain}
       ((domain-compare-fn {:id :impl-vs-time
                            :axis-key :impl
                            :metric-path [:stats :elapsed-time :mean]})))
-  ;; => {:domain my-domain
-  ;;     :impl-vs-time {:type :criterium/domain-comparison ...}}"
+
+  Example - all metrics:
+  (-> {:domain my-domain}
+      ((domain-compare-fn {:id :impl-comparison
+                           :axis-key :impl})))"
   ([] (domain-compare-fn {}))
-  ([{:keys [id domain-id axis-key metric-path]}]
+  ([{:keys [id domain-id axis-key metric-path metric-ids]}]
    (fn [data-map]
      (let [domain-id (or domain-id :domain)
            id (or id :comparison)
            domain (data-map domain-id)
-           result (compare-by domain axis-key metric-path)]
+           result (compare-by domain axis-key metric-path {:metric-ids metric-ids})]
        (assoc data-map id result)))))
 
 ;;; Regression Analysis

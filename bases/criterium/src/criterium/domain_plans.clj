@@ -29,13 +29,16 @@
 (def implementation-comparison
   "Compare metric values across different implementations.
 
-  Groups runs by :impl axis and compares elapsed time. Requires map
-  coordinates with an :impl key distinguishing implementations.
+  Groups runs by :impl axis and compares all quantitative metrics.
+  Requires map coordinates with an :impl key distinguishing implementations.
+
+  In the output, the baseline implementation (first in :implementations) shows
+  absolute values with SI units, while other implementations show factors
+  relative to the baseline.
 
   Example:
     (analyse-domain implementation-comparison my-domain)"
-  {:analyse [[:domain-compare-fn {:axis-key :impl
-                                  :metric-path [:stats :elapsed-time :mean]}]]
+  {:analyse [[:domain-compare-fn {:axis-key :impl}]]
    :view [[:domain-comparison {}]]})
 
 (def extract-elapsed-time

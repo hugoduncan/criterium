@@ -426,6 +426,37 @@
               [:count 1])]
         (format/format-value dimension (* raw-value scale))))))
 
+(defn- metric-path->dimension
+  "Return the dimension keyword for a metric-path."
+  [metric-path]
+  (case (first metric-path)
+    (:stats :log-stats)
+    (case (second metric-path)
+      :elapsed-time :time
+      :thread-allocation :memory
+      nil)
+    nil))
+
+(defn- metric-path->base-scale
+  "Return base scale factor to convert raw metric values to base units."
+  [metric-path]
+  (case (first metric-path)
+    (:stats :log-stats)
+    (case (second metric-path)
+      :elapsed-time 1e-9 ; ns -> s
+      1)
+    1))
+
+(defn- format-extract-value-with-unit
+  "Format a value with SI units for display."
+  [value metric-path]
+  (when (some? value)
+    (let [base-value (* value (metric-path->base-scale metric-path))
+          dimension (metric-path->dimension metric-path)]
+      (if dimension
+        (format/format-value dimension base-value)
+        (format "%g" (double base-value))))))
+
 (defn- single-key-coord-info
   "Detect if all coords are single-key maps with the same key.
   Returns {:key k} if so, nil otherwise."
@@ -560,17 +591,111 @@
         (print (format " │ %s" (format (str "%" (nth col-widths i) "s") v))))
       (println))))
 
+(defn- print-multi-metric-comparison-table
+  "Print multi-metric comparison with factor display.
+  Baseline impl shows absolute values with SI units, others show factors."
+  [axis implementations metrics]
+  (let [baseline-impl (first implementations)
+        other-impls (rest implementations)
+        metric-ids (keys metrics)
+        ;; Collect all row keys from all metrics and implementations
+        all-row-keys (->> (vals metrics)
+                          (mapcat (fn [{:keys [data]}]
+                                    (mapcat (fn [[_impl-val entries]]
+                                              (map (fn [{:keys [coord]}]
+                                                     (coord-without-axis coord axis))
+                                                   entries))
+                                            data)))
+                          distinct
+                          (sort-by str))
+        ;; Build lookup: metric-id -> impl -> row-key -> value
+        lookup (reduce (fn [acc [metric-id {:keys [data]}]]
+                         (reduce (fn [acc2 [impl-val entries]]
+                                   (reduce (fn [acc3 {:keys [coord value]}]
+                                             (let [row-key (coord-without-axis coord axis)]
+                                               (assoc-in acc3 [metric-id impl-val row-key] value)))
+                                           acc2
+                                           entries))
+                                 acc
+                                 data))
+                       {}
+                       metrics)
+        ;; Build columns: baseline metric (unit), other impl × for each metric
+        col-specs (mapcat (fn [metric-id]
+                            (let [metric-path (get-in metrics [metric-id :metric])]
+                              (cons {:type :baseline
+                                     :metric-id metric-id
+                                     :metric-path metric-path
+                                     :impl baseline-impl}
+                                    (map (fn [impl]
+                                           {:type :factor
+                                            :metric-id metric-id
+                                            :metric-path metric-path
+                                            :impl impl})
+                                         other-impls))))
+                          metric-ids)
+        ;; Format column headers
+        col-headers (mapv (fn [{:keys [type metric-id impl]}]
+                            (if (= type :baseline)
+                              (str (name impl) " " (name metric-id))
+                              (str (name impl) " ×")))
+                          col-specs)
+        ;; Format cell values
+        format-cell (fn [{:keys [type metric-id metric-path impl]} row-key]
+                      (let [value (get-in lookup [metric-id impl row-key])
+                            baseline-value (get-in lookup [metric-id baseline-impl row-key])]
+                        (if (= type :baseline)
+                          (or (format-extract-value-with-unit value metric-path) "-")
+                          ;; Factor relative to baseline
+                          (cond
+                            (nil? value) "-"
+                            (nil? baseline-value) "-"
+                            (zero? baseline-value) "-"
+                            :else (format "%.2f" (/ value baseline-value))))))
+        formatted-rows (mapv (fn [row-key]
+                               (mapv #(format-cell % row-key) col-specs))
+                             all-row-keys)
+        row-keys-formatted (mapv format-row-key all-row-keys)
+        col-widths (mapv (fn [col-idx]
+                           (apply max
+                                  (count (nth col-headers col-idx))
+                                  (map #(count (nth % col-idx)) formatted-rows)))
+                         (range (count col-specs)))
+        row-key-width (apply max 8 (map count row-keys-formatted))]
+    (println (format "Domain Comparison by %s" (name axis)))
+    (print (format "  %s" (format (str "%" row-key-width "s") "")))
+    (doseq [[i header] (map-indexed vector col-headers)]
+      (print (format " │ %s" (format (str "%" (nth col-widths i) "s") header))))
+    (println)
+    (print (format "  %s" (apply str (repeat row-key-width "─"))))
+    (doseq [w col-widths]
+      (print (format "─┼─%s" (apply str (repeat w "─")))))
+    (println)
+    (doseq [[row-key vals] (map vector row-keys-formatted formatted-rows)]
+      (print (format "  %s" (format (str "%" row-key-width "s") row-key)))
+      (doseq [[i v] (map-indexed vector vals)]
+        (print (format " │ %s" (format (str "%" (nth col-widths i) "s") v))))
+      (println))))
+
 (defmethod view/domain-comparison* :print
   [_ {:keys [comparison-id]} data-map]
   (let [comparison-id (or comparison-id :comparison)
         comparison (data-map comparison-id)]
     (when comparison
-      (let [{:keys [axis metric data]} comparison]
-        (if (and (seq data)
-                 (some #(seq (second %)) data))
-          (print-comparison-table axis metric data)
-          (println (format "Domain Comparison by %s: %s (no data)"
-                           (name axis) (pr-str metric))))))))
+      (let [{:keys [axis metric metrics implementations data]} comparison]
+        (if metrics
+          ;; Multi-metric mode with factor display
+          (if implementations
+            (print-multi-metric-comparison-table axis implementations metrics)
+            ;; Multi-metric mode without implementations - show all values
+            (doseq [[metric-id {:keys [metric data]}] metrics]
+              (when (and (seq data) (some #(seq (second %)) data))
+                (print-comparison-table axis metric data))))
+          ;; Single-metric mode - backward compatible
+          (if (and (seq data) (some #(seq (second %)) data))
+            (print-comparison-table axis metric data)
+            (println (format "Domain Comparison by %s: %s (no data)"
+                             (name axis) (pr-str metric)))))))))
 
 (defn- regression-equation-str
   "Format the fitted regression equation for a model.
