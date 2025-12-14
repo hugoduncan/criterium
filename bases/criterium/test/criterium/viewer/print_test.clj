@@ -477,7 +477,40 @@
                   {:type :criterium/domain-comparison
                    :axis :impl
                    :metric [:stats :elapsed-time :mean]
-                   :data {nil [{:coord :baseline :value 50}]}}}))))))))
+                   :data {nil [{:coord :baseline :value 50}]}}}))))))
+    (testing "with :implementations shows factors for non-baseline"
+      (is (= ["Domain Comparison by impl: [:stats :elapsed-time :mean]"
+              "│    foo │ bar ×"
+              "─────────┼────────┼──────"
+              "n=100 │ 100 ns │  2.00"]
+             (trimmed-lines
+              (with-out-str
+                (view/domain-comparison*
+                 :print
+                 {}
+                 {:comparison
+                  {:type :criterium/domain-comparison
+                   :axis :impl
+                   :metric [:stats :elapsed-time :mean]
+                   :implementations [:foo :bar]
+                   :data {:foo [{:coord {:impl :foo :n 100} :value 100}]
+                          :bar [{:coord {:impl :bar :n 100} :value 200}]}}}))))))
+    (testing "with mismatched :implementations throws error"
+      ;; When :implementations doesn't match data keys, throw an error
+      ;; to help catch domain construction bugs
+      (is (thrown-with-msg?
+           clojure.lang.ExceptionInfo
+           #"implementations do not match"
+           (view/domain-comparison*
+            :print
+            {}
+            {:comparison
+             {:type :criterium/domain-comparison
+              :axis :impl
+              :metric [:stats :elapsed-time :mean]
+              :implementations [:default]  ; Mismatched - doesn't exist in data
+              :data {:foo [{:coord {:impl :foo :n 100} :value 100}]
+                     :bar [{:coord {:impl :bar :n 100} :value 200}]}}}))))))
 
 (deftest domain-regression-print-test
   ;; Tests the print viewer output for domain-regression results.

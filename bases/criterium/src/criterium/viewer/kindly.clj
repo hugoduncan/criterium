@@ -650,53 +650,115 @@
                                                (format "%.3g" (* (* raw-value base-scale) si-scale)))]))
                                         axis-vals)))
                            row-keys)))))))
-          ;; Single-metric mode - backward compatible
-          (let [axis-vals (sort-by str (keys data))]
-            (when (and (seq data) (some #(seq (second %)) data))
-              (let [all-entries (mapcat (fn [[axis-val entries]]
-                                          (map #(assoc % :axis-val axis-val) entries))
-                                        data)
-                    raw-row-keys (->> all-entries
-                                      (map (fn [{:keys [coord]}]
-                                             (if (map? coord)
-                                               (dissoc coord axis)
-                                               coord)))
-                                      distinct)
-                    single-key-info (single-key-coord-info raw-row-keys)
-                    row-keys (sort-row-keys raw-row-keys single-key-info)
-                    coord-header (coord-column-header single-key-info)
-                    lookup (reduce (fn [acc {:keys [coord value axis-val]}]
-                                     (let [row-key (if (map? coord)
-                                                     (dissoc coord axis)
-                                                     coord)]
-                                       (assoc-in acc [row-key axis-val] value)))
-                                   {}
-                                   all-entries)
-                    base-scale (metric-path->base-scale metric)
-                    all-values (keep :value all-entries)
-                    valid-base-values (map #(* % base-scale) all-values)
-                    dimension (metric-path->dimension metric)
-                    representative-value (when (seq valid-base-values)
-                                           (/ (reduce + valid-base-values)
-                                              (count valid-base-values)))
-                    [si-scale si-unit] (if (and dimension representative-value)
-                                         (format/scale dimension representative-value)
-                                         [1 ""])
-                    heading (str "Domain Comparison by " (name axis) ": "
-                                 (pr-str metric)
-                                 (when (seq si-unit) (str " (" si-unit ")")))]
-                (kindly-heading heading)
-                (kindly-table
-                 (mapv (fn [row-key]
-                         (into {coord-header (format-row-key-value row-key single-key-info)}
-                               (map (fn [av]
-                                      (let [raw-value (get-in lookup [row-key av])]
-                                        [(str av)
-                                         (when raw-value
-                                           (format "%.3g" (* (* raw-value base-scale)
-                                                             si-scale)))]))
-                                    axis-vals)))
-                       row-keys))))))))))
+          ;; Single-metric mode
+          (if implementations
+            ;; Single-metric with implementations - show factors
+            (let [data-keys (set (keys data))
+                  missing (remove data-keys implementations)
+                  _ (when (seq missing)
+                      (throw (ex-info "Domain :implementations do not match comparison data keys"
+                                      {:implementations implementations
+                                       :data-keys (keys data)
+                                       :missing missing})))
+                  baseline-impl (first implementations)
+                  other-impls (rest implementations)
+                  ;; Collect all row keys
+                  all-row-keys (->> (vals data)
+                                    (mapcat (fn [entries]
+                                              (map (fn [{:keys [coord]}]
+                                                     (if (map? coord)
+                                                       (dissoc coord axis)
+                                                       coord))
+                                                   entries)))
+                                    distinct)
+                  single-key-info (single-key-coord-info all-row-keys)
+                  row-keys (sort-row-keys all-row-keys single-key-info)
+                  coord-header (coord-column-header single-key-info)
+                  ;; Build lookup: impl -> row-key -> value
+                  lookup (reduce (fn [acc [impl-val entries]]
+                                   (reduce (fn [acc2 {:keys [coord value]}]
+                                             (let [row-key (if (map? coord)
+                                                             (dissoc coord axis)
+                                                             coord)]
+                                               (assoc-in acc2 [impl-val row-key] value)))
+                                           acc
+                                           entries))
+                                 {}
+                                 data)
+                  ;; Build columns
+                  col-specs (vec (cons {:type :baseline :impl baseline-impl}
+                                       (map (fn [impl] {:type :factor :impl impl})
+                                            other-impls)))
+                  col-headers (mapv (fn [{:keys [type impl]}]
+                                      (if (= type :baseline)
+                                        (str (name impl))
+                                        (str (name impl) " ×")))
+                                    col-specs)
+                  ;; Build table rows
+                  table-rows (mapv (fn [row-key]
+                                     (into {coord-header (format-row-key-value row-key single-key-info)}
+                                           (map (fn [{:keys [type impl]} header]
+                                                  (let [value (get-in lookup [impl row-key])
+                                                        baseline-value (get-in lookup [baseline-impl row-key])]
+                                                    [header
+                                                     (if (= type :baseline)
+                                                       (format-extract-value-with-unit value metric)
+                                                       (cond
+                                                         (nil? value) "-"
+                                                         (nil? baseline-value) "-"
+                                                         (zero? baseline-value) "-"
+                                                         :else (format "%.2f" (double (/ value baseline-value)))))]))
+                                                col-specs col-headers)))
+                                   row-keys)]
+              (kindly-heading (str "Domain Comparison by " (name axis) ": " (pr-str metric)))
+              (kindly-table table-rows))
+            ;; Single-metric without implementations - absolute values
+            (let [axis-vals (sort-by str (keys data))]
+              (when (and (seq data) (some #(seq (second %)) data))
+                (let [all-entries (mapcat (fn [[axis-val entries]]
+                                            (map #(assoc % :axis-val axis-val) entries))
+                                          data)
+                      raw-row-keys (->> all-entries
+                                        (map (fn [{:keys [coord]}]
+                                               (if (map? coord)
+                                                 (dissoc coord axis)
+                                                 coord)))
+                                        distinct)
+                      single-key-info (single-key-coord-info raw-row-keys)
+                      row-keys (sort-row-keys raw-row-keys single-key-info)
+                      coord-header (coord-column-header single-key-info)
+                      lookup (reduce (fn [acc {:keys [coord value axis-val]}]
+                                       (let [row-key (if (map? coord)
+                                                       (dissoc coord axis)
+                                                       coord)]
+                                         (assoc-in acc [row-key axis-val] value)))
+                                     {}
+                                     all-entries)
+                      base-scale (metric-path->base-scale metric)
+                      all-values (keep :value all-entries)
+                      valid-base-values (map #(* % base-scale) all-values)
+                      dimension (metric-path->dimension metric)
+                      representative-value (when (seq valid-base-values)
+                                             (/ (reduce + valid-base-values)
+                                                (count valid-base-values)))
+                      [si-scale si-unit] (if (and dimension representative-value)
+                                           (format/scale dimension representative-value)
+                                           [1 ""])
+                      heading (str "Domain Comparison by " (name axis) ": "
+                                   (pr-str metric)
+                                   (when (seq si-unit) (str " (" si-unit ")")))]
+                  (kindly-heading heading)
+                  (kindly-table
+                   (mapv (fn [row-key]
+                           (into {coord-header (format-row-key-value row-key single-key-info)}
+                                 (map (fn [av]
+                                        (let [raw-value (get-in lookup [row-key av])]
+                                          [(str av)
+                                           (when raw-value
+                                             (format "%.3g" (* (* raw-value base-scale)
+                                                               si-scale)))]))
+                                      axis-vals)))
+                         row-keys)))))))))))
 
 (defn- regression-model-fn
   "Return a function that applies the model transform for plotting."

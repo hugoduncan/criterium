@@ -750,7 +750,22 @@
                   :data (mock-bench-result {:elapsed-time {:mean 2.0}})})
               result (domain/compare-by d :impl [:stats :elapsed-time :mean])
               values (mapv :value (get-in result [:data :foo]))]
-          (is (= [3.0 1.0 2.0] values)))))
+          (is (= [3.0 1.0 2.0] values))))
+      (testing "includes :implementations when domain has them"
+        (let [d (domain/domain
+                 {:coord {:n 100 :impl :foo}
+                  :data (mock-bench-result {:elapsed-time {:mean 1.0}})}
+                 {:coord {:n 100 :impl :bar}
+                  :data (mock-bench-result {:elapsed-time {:mean 2.0}})}
+                 {:implementations [:foo :bar]})
+              result (domain/compare-by d :impl [:stats :elapsed-time :mean])]
+          (is (= [:foo :bar] (:implementations result)))))
+      (testing "omits :implementations when domain lacks them"
+        (let [d (domain/domain
+                 {:coord {:n 100 :impl :foo}
+                  :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
+              result (domain/compare-by d :impl [:stats :elapsed-time :mean])]
+          (is (not (contains? result :implementations))))))
     (testing "with nil metric-path (multi-metric mode)"
       (testing "returns :metrics map instead of :data/:metric"
         (let [d (domain/domain

@@ -399,20 +399,21 @@
                                         (:runs sub-domain))]))
                           grouped)}))]
      (if metric-path
-       ;; Single metric mode - backward compatible
+       ;; Single metric mode
        (let [[stats-id metric-id value-key] metric-path]
-         {:type :criterium/domain-comparison
-          :axis axis-key
-          :metric metric-path
-          :data (into {}
-                      (map (fn [[axis-val sub-domain]]
-                             [axis-val
-                              (mapv (fn [{:keys [coord data]}]
-                                      {:coord coord
-                                       :value (util/stats-value data stats-id
-                                                                metric-id value-key)})
-                                    (:runs sub-domain))]))
-                      grouped)})
+         (cond-> {:type :criterium/domain-comparison
+                  :axis axis-key
+                  :metric metric-path
+                  :data (into {}
+                              (map (fn [[axis-val sub-domain]]
+                                     [axis-val
+                                      (mapv (fn [{:keys [coord data]}]
+                                              {:coord coord
+                                               :value (util/stats-value data stats-id
+                                                                        metric-id value-key)})
+                                            (:runs sub-domain))]))
+                              grouped)}
+           impls (assoc :implementations impls)))
        ;; Multi-metric mode
        (let [first-run-data (:data (first runs))
              discovered (discover-quantitative-metrics first-run-data)

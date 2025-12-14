@@ -591,6 +591,74 @@
         (print (format " │ %s" (format (str "%" (nth col-widths i) "s") v))))
       (println))))
 
+(defn- print-single-metric-factor-table
+  "Print single-metric comparison with factor display.
+  Baseline impl shows absolute value with SI unit, others show factors."
+  [axis metric implementations data]
+  (let [baseline-impl (first implementations)
+        other-impls (rest implementations)
+        ;; Collect all row keys (coords without axis)
+        all-row-keys (->> (vals data)
+                          (mapcat (fn [entries]
+                                    (map (fn [{:keys [coord]}]
+                                           (coord-without-axis coord axis))
+                                         entries)))
+                          distinct
+                          (sort-by str))
+        ;; Build lookup: impl -> row-key -> value
+        lookup (reduce (fn [acc [impl-val entries]]
+                         (reduce (fn [acc2 {:keys [coord value]}]
+                                   (let [row-key (coord-without-axis coord axis)]
+                                     (assoc-in acc2 [impl-val row-key] value)))
+                                 acc
+                                 entries))
+                       {}
+                       data)
+        ;; Build columns: baseline (with unit), other impls (factors)
+        col-specs (vec (cons {:type :baseline :impl baseline-impl}
+                             (map (fn [impl] {:type :factor :impl impl})
+                                  other-impls)))
+        col-headers (mapv (fn [{:keys [type impl]}]
+                            (if (= type :baseline)
+                              (str (name impl))
+                              (str (name impl) " ×")))
+                          col-specs)
+        ;; Format cell values
+        format-cell (fn [{:keys [type impl]} row-key]
+                      (let [value (get-in lookup [impl row-key])
+                            baseline-value (get-in lookup [baseline-impl row-key])]
+                        (if (= type :baseline)
+                          (or (format-extract-value-with-unit value metric) "-")
+                          (cond
+                            (nil? value) "-"
+                            (nil? baseline-value) "-"
+                            (zero? baseline-value) "-"
+                            :else (format "%.2f" (double (/ value baseline-value)))))))
+        formatted-rows (mapv (fn [row-key]
+                               (mapv #(format-cell % row-key) col-specs))
+                             all-row-keys)
+        row-keys-formatted (mapv format-row-key all-row-keys)
+        col-widths (mapv (fn [col-idx]
+                           (apply max
+                                  (count (nth col-headers col-idx))
+                                  (map #(count (nth % col-idx)) formatted-rows)))
+                         (range (count col-specs)))
+        row-key-width (apply max 8 (map count row-keys-formatted))]
+    (println (format "Domain Comparison by %s: %s" (name axis) (pr-str metric)))
+    (print (format "  %s" (format (str "%" row-key-width "s") "")))
+    (doseq [[i header] (map-indexed vector col-headers)]
+      (print (format " │ %s" (format (str "%" (nth col-widths i) "s") header))))
+    (println)
+    (print (format "  %s" (apply str (repeat row-key-width "─"))))
+    (doseq [w col-widths]
+      (print (format "─┼─%s" (apply str (repeat w "─")))))
+    (println)
+    (doseq [[row-key vals] (map vector row-keys-formatted formatted-rows)]
+      (print (format "  %s" (format (str "%" row-key-width "s") row-key)))
+      (doseq [[i v] (map-indexed vector vals)]
+        (print (format " │ %s" (format (str "%" (nth col-widths i) "s") v))))
+      (println))))
+
 (defn- print-multi-metric-comparison-table
   "Print multi-metric comparison with factor display.
   Baseline impl shows absolute values with SI units, others show factors."
@@ -691,9 +759,18 @@
             (doseq [[metric-id {:keys [metric data]}] metrics]
               (when (and (seq data) (some #(seq (second %)) data))
                 (print-comparison-table axis metric data))))
-          ;; Single-metric mode - backward compatible
+          ;; Single-metric mode
           (if (and (seq data) (some #(seq (second %)) data))
-            (print-comparison-table axis metric data)
+            (if implementations
+              (let [data-keys (set (keys data))
+                    missing (remove data-keys implementations)]
+                (when (seq missing)
+                  (throw (ex-info "Domain :implementations do not match comparison data keys"
+                                  {:implementations implementations
+                                   :data-keys (keys data)
+                                   :missing missing})))
+                (print-single-metric-factor-table axis metric implementations data))
+              (print-comparison-table axis metric data))
             (println (format "Domain Comparison by %s: %s (no data)"
                              (name axis) (pr-str metric)))))))))
 

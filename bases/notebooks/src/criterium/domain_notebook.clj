@@ -124,7 +124,7 @@
      (let [d (domain/add-run d {:n n :impl :sort} (:data (bench/last-bench)))]
        (bench/bench (sort-by identity input))
        (domain/add-run d {:n n :impl :sort-by} (:data (bench/last-bench)))))
-   (domain/domain)
+   (domain/domain {:impl-axis :impl :implementations [:sort :sort-by]})
    impl-inputs))
 
 ;;"Building domain comparing implementations..."

@@ -3,6 +3,7 @@
   ;; Verifies that values accumulate correctly, flush returns a kind/fragment,
   ;; and the accumulator clears after flush.
   (:require
+   [clojure.string :as str]
    [clojure.test :refer [deftest is testing]]
    [criterium.analyse :as analyse]
    [criterium.test-data :as test-data]
@@ -679,6 +680,30 @@
                 "Expected coordinate column ('n' for single-key coords)")
             (is (every? #(or (contains? % ":foo") (contains? % "foo")) table)
                 "Expected axis value columns")))))
+
+    (testing "with :implementations shows factors for non-baseline"
+      (reset! kindly/accumulated [])
+      (let [data-map {:comparison {:type :criterium/domain-comparison
+                                   :axis :impl
+                                   :metric [:stats :elapsed-time :mean]
+                                   :implementations [:foo :bar]
+                                   :data {:foo [{:coord {:n 100 :impl :foo} :value 1e6}
+                                                {:coord {:n 1000 :impl :foo} :value 1e7}]
+                                          :bar [{:coord {:n 100 :impl :bar} :value 2e6}
+                                                {:coord {:n 1000 :impl :bar} :value 2e7}]}}}]
+        (view/domain-comparison* :kindly {} data-map)
+        (let [result (kindly/flush)]
+          (is (= :kind/fragment (:kindly/kind (meta result))))
+          (is (= 2 (count result)) "Expected heading and table")
+          (let [[heading table] result]
+            (is (= :kind/md (:kindly/kind (meta heading))))
+            (is (str/includes? (first heading) "Domain Comparison"))
+            (is (= :kind/table (:kindly/kind (meta table))))
+            (is (= 2 (count table)) "Expected 2 rows")
+            ;; Check that baseline impl is a column and factor impl has ×
+            (let [first-row (first table)]
+              (is (contains? first-row "foo") "Expected baseline impl column")
+              (is (contains? first-row "bar ×") "Expected factor impl column with ×"))))))
 
     (testing "handles empty data gracefully"
       (reset! kindly/accumulated [])
