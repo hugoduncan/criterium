@@ -614,11 +614,13 @@
                   (let [all-entries (mapcat (fn [[axis-val entries]]
                                               (map #(assoc % :axis-val axis-val) entries))
                                             data)
-                        row-keys (->> all-entries
-                                      (map (fn [{:keys [coord]}]
-                                             (if (map? coord) (dissoc coord axis) coord)))
-                                      distinct
-                                      (sort-by str))
+                        raw-row-keys (->> all-entries
+                                          (map (fn [{:keys [coord]}]
+                                                 (if (map? coord) (dissoc coord axis) coord)))
+                                          distinct)
+                        single-key-info (single-key-coord-info raw-row-keys)
+                        row-keys (sort-row-keys raw-row-keys single-key-info)
+                        coord-header (coord-column-header single-key-info)
                         lookup (reduce (fn [acc {:keys [coord value axis-val]}]
                                          (let [row-key (if (map? coord) (dissoc coord axis) coord)]
                                            (assoc-in acc [row-key axis-val] value)))
@@ -640,7 +642,7 @@
                     (kindly-heading heading)
                     (kindly-table
                      (mapv (fn [row-key]
-                             (into {:coordinate (format-coord row-key)}
+                             (into {coord-header (format-row-key-value row-key single-key-info)}
                                    (map (fn [av]
                                           (let [raw-value (get-in lookup [row-key av])]
                                             [(str av)
@@ -654,13 +656,15 @@
               (let [all-entries (mapcat (fn [[axis-val entries]]
                                           (map #(assoc % :axis-val axis-val) entries))
                                         data)
-                    row-keys (->> all-entries
-                                  (map (fn [{:keys [coord]}]
-                                         (if (map? coord)
-                                           (dissoc coord axis)
-                                           coord)))
-                                  distinct
-                                  (sort-by str))
+                    raw-row-keys (->> all-entries
+                                      (map (fn [{:keys [coord]}]
+                                             (if (map? coord)
+                                               (dissoc coord axis)
+                                               coord)))
+                                      distinct)
+                    single-key-info (single-key-coord-info raw-row-keys)
+                    row-keys (sort-row-keys raw-row-keys single-key-info)
+                    coord-header (coord-column-header single-key-info)
                     lookup (reduce (fn [acc {:keys [coord value axis-val]}]
                                      (let [row-key (if (map? coord)
                                                      (dissoc coord axis)
@@ -684,7 +688,7 @@
                 (kindly-heading heading)
                 (kindly-table
                  (mapv (fn [row-key]
-                         (into {:coordinate (format-coord row-key)}
+                         (into {coord-header (format-row-key-value row-key single-key-info)}
                                (map (fn [av]
                                       (let [raw-value (get-in lookup [row-key av])]
                                         [(str av)

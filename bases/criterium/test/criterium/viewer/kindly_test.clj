@@ -674,8 +674,9 @@
             (is (= :kind/table (:kindly/kind (meta table))))
             (is (= 2 (count table))
                 "Expected 2 rows for 2 n values")
-            (is (every? #(contains? % :coordinate) table)
-                "Expected :coordinate column")
+            ;; With single-key coord simplification, column header is "n" not :coordinate
+            (is (every? #(or (contains? % "n") (contains? % :coordinate)) table)
+                "Expected coordinate column ('n' for single-key coords)")
             (is (every? #(or (contains? % ":foo") (contains? % "foo")) table)
                 "Expected axis value columns")))))
 
