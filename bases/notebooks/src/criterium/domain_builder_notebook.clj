@@ -39,7 +39,6 @@
   (into {}
         (map (fn [n] [n (mapv rand-int (repeat n 10000))]) sort-sizes)))
 
-^:kindly/hide-code
 (defn build-sort-domain
   "Build a domain with sort benchmarks at each size."
   []
@@ -51,10 +50,8 @@
    (domain/domain)
    sort-sizes))
 
-^:kindly/hide-code
-(kind/md "Building domain for plan demonstrations...")
+;; Building domain for plan demonstrations...
 
-^:kindly/hide-code
 (def sort-domain (build-sort-domain))
 
 ;; ### Pre-defined Plans
@@ -70,7 +67,6 @@
 (def scaling-inputs
   (into {} (map (fn [n] [n (mapv rand-int (repeat n 10000))]) scaling-sizes)))
 
-^:kindly/hide-code
 (defn build-scaling-domain
   "Build domain for scaling analysis."
   []
@@ -82,10 +78,8 @@
    (domain/domain)
    scaling-sizes))
 
-^:kindly/hide-code
-(kind/md "Building scaling domain...")
+;; Building scaling domain...
 
-^:kindly/hide-code
 (def scaling-domain (build-scaling-domain))
 
 ;; `complexity-analysis` extracts all collected metrics and fits regression models:
@@ -97,7 +91,6 @@
 (def impl-inputs
   (into {} (map (fn [n] [n (mapv rand-int (repeat n 10000))]) [100 500])))
 
-^:kindly/hide-code
 (defn build-impl-domain
   "Build domain comparing sort implementations."
   []
@@ -110,10 +103,8 @@
    (domain/domain {:impl-axis :impl :implementations [:sort :sort-by]})
    impl-inputs))
 
-^:kindly/hide-code
-(kind/md "Building implementation comparison domain...")
+;; Building implementation comparison domain...
 
-^:kindly/hide-code
 (def impl-domain (build-impl-domain))
 
 ;; `implementation-comparison` compares metrics across implementations:
@@ -160,12 +151,33 @@
 ;; It handles running benchmarks for multiple implementations across all
 ;; combinations of axis values, with adaptive time estimation.
 
-;; ### Basic Usage
+;; ### Simplified Form (No Axes)
+;;
+;; For quick comparisons without parameter variation, pass a map of
+;; implementation names to measured expressions:
+
+;;"Building domain with simplified domain-builder..."
+
+(def simple-comparison-domain
+  (let [input (vec (range 1000))]
+    (domain/domain-builder
+     {:sort    (measured/expr (sort input))
+      :sort-by (measured/expr (sort-by identity input))}
+     :reporter nil)))
+
+;; This produces a domain with one run per implementation:
+
+(domain/coords simple-comparison-domain)
+
+;; Analyze with any domain plan:
+
+(domain/analyse-domain domain-plans/implementation-comparison simple-comparison-domain)
+
+;; ### Full Form (With Axes)
 ;;
 ;; Define the parameter space (axes) and implementations:
 
-^:kindly/hide-code
-(kind/md "Building domain with domain-builder (this may take a minute)...")
+;; Building domain with domain-builder (this may take a minute)...
 
 (def builder-domain
   (domain/domain-builder
@@ -173,11 +185,11 @@
    {:n (domain/n-log-n-range 8 1000 4)}
    ;; Implementations to compare
    {:sort
-    {:measured (measured/expr (sort (vec (range 100))))
+    {:measured     (measured/expr (sort (vec (range 100))))
      :args-builder (fn [{:keys [n]}]
                      (fn [] [(mapv rand-int (repeat n 10000))]))}
     :sort-by
-    {:measured (measured/expr (sort-by identity (vec (range 100))))
+    {:measured     (measured/expr (sort-by identity (vec (range 100))))
      ;; Must provide both args: identity function AND collection
      :args-builder (fn [{:keys [n]}]
                      (fn []
@@ -217,18 +229,17 @@
 ;; Pass `:bench-options` to collect metrics beyond elapsed time.
 ;; Here we add thread allocation tracking:
 
-^:kindly/hide-code
-(kind/md "Building domain with allocation tracking...")
+;; Building domain with allocation tracking...
 
 (def builder-domain-with-alloc
   (domain/domain-builder
    {:n (domain/n-log-n-range 8 1000 4)}
    {:sort
-    {:measured (measured/expr (sort (vec (range 100))))
+    {:measured     (measured/expr (sort (vec (range 100))))
      :args-builder (fn [{:keys [n]}]
                      (fn [] [(mapv rand-int (repeat n 10000))]))}
     :sort-by
-    {:measured (measured/expr (sort-by identity (vec (range 100))))
+    {:measured     (measured/expr (sort-by identity (vec (range 100))))
      :args-builder (fn [{:keys [n]}]
                      (fn [] [identity (mapv rand-int (repeat n 10000))]))}}
    :bench-options {:metric-ids [:elapsed-time :thread-allocation]}
@@ -257,6 +268,8 @@
 ;; - **Custom Plans** — Build analysis pipelines with `:analyse` and `:view` vectors
 ;; - **Viewer Selection** — Override defaults with `options->domain-plan`
 ;; - **Domain Builder** — `domain-builder` for automated parameter-space benchmarking
+;;   - **Simplified Form** — `{:impl-a measured-a :impl-b measured-b}` for quick comparisons
+;;   - **Full Form** — Axes + implementation specs for parameter-space exploration
 ;; - **Implementation Specs** — `:measured` and `:args-builder` for defining benchmarks
 ;; - **Additional Metrics** — `:bench-options` for collecting memory allocations, etc.
 ;;

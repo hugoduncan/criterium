@@ -1057,6 +1057,26 @@
 
 (def ^:private default-initial-limit-time-s 10)
 
+(defn- simplified-impl-map?
+  "Check if implementations map uses simplified form (values are Measured instances).
+  In simplified form, each value is a Measured directly rather than a map with
+  :measured and :args-builder keys."
+  [implementations]
+  (and (map? implementations)
+       (seq implementations)
+       (measured/measured? (val (first implementations)))))
+
+(defn- normalize-implementations
+  "Normalize simplified implementation map to full form.
+  Converts {:impl-key measured} to {:impl-key {:measured measured :args-builder ...}}
+  where args-builder returns the measured's own args-fn for any coordinate."
+  [implementations]
+  (into {}
+        (map (fn [[impl-key m]]
+               [impl-key {:measured m
+                          :args-builder (constantly (:args-fn m))}]))
+        implementations))
+
 (defn- cartesian-product
   "Return cartesian product of axis values as sequence of maps.
   axes is a map of axis-key to sequence of values."
@@ -1142,14 +1162,17 @@
 (defn domain-builder
   "Build a domain by running benchmarks across a parameter space.
 
-  axes is a map of axis names to ordinate sequences:
-    {:n (log-range 10 10000 5)}
+  Simplified form (no axes, just implementations):
+    (domain-builder {:sort (measured/expr (sort coll))
+                     :sort-by (measured/expr (sort-by identity coll))})
 
-  implementations is a map of impl-key to impl-spec:
-    {:sort {:measured (measured/expr (sort coll))
-            :args-builder (fn [{:keys [n]}] (fn [] [(vec (range n))]))}}
+  Full form with axes:
+    (domain-builder {:n (log-range 10 10000 5)}
+                    {:sort {:measured (measured/expr (sort coll))
+                            :args-builder (fn [{:keys [n]}] (fn [] [(vec (range n))]))}})
 
-  Each impl-spec contains:
+  In the full form, implementations is a map of impl-key to impl-spec where
+  each impl-spec contains:
     :measured     - A Measured created with example args (establishes type hints)
     :args-builder - (fn [axis-map] (fn [] [args...])) returns zero-arg fn
                     producing argument vector for the given coordinates
@@ -1172,12 +1195,17 @@
   Returns a domain with runs indexed by {:impl impl-key ...axis-coords...}.
   When multiple implementations are provided, the domain's :impl-axis
   key is set to :impl, enabling automatic grouping in analysis functions."
-  [axes implementations & {:keys [initial-limit-time-s
-                                  time-axis
-                                  reporter
-                                  bench-options]
-                           :or {initial-limit-time-s default-initial-limit-time-s}}]
-  (let [time-axis (or time-axis (first (keys axes)))
+  [first-arg & args]
+  ;; Detect simplified form: single map of impl-key -> Measured
+  ;; In simplified form, first-arg is the implementations map, args are options
+  ;; In full form, first-arg is axes, (first args) is implementations, rest are options
+  (let [[axes implementations options]
+        (if (simplified-impl-map? first-arg)
+          [{} (normalize-implementations first-arg) (apply hash-map args)]
+          [first-arg (first args) (apply hash-map (rest args))])
+        {:keys [initial-limit-time-s time-axis reporter bench-options]
+         :or {initial-limit-time-s default-initial-limit-time-s}} options
+        time-axis (or time-axis (first (keys axes)))
         reporter (if (contains? #{nil false} reporter)
                    nil
                    (or reporter (dot-reporter)))

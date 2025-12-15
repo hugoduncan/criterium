@@ -3,7 +3,8 @@
    [clojure.test :refer [deftest is testing]]
    [criterium.collect-plan :as collect-plan]
    [criterium.domain :as domain]
-   [criterium.domain-plans :as domain-plans]))
+   [criterium.domain-plans :as domain-plans]
+   [criterium.measured :as measured]))
 
 ;; Tests for domain type, predicates, and construction functions.
 ;; Validates the core domain data structure that holds multiple
@@ -1784,3 +1785,49 @@
       (let [reporter (domain/dot-reporter)
             output (with-out-str (domain/report-end reporter :test))]
         (is (= "\n" output))))))
+
+(deftest simplified-impl-map?-test
+  ;; Tests for simplified implementation map detection.
+  ;; Validates recognition of {impl-key Measured} form vs full impl-spec form.
+  (testing "simplified-impl-map?"
+    (testing "returns true for map with Measured values"
+      (let [m (measured/expr (+ 1 2))]
+        (is (true? (#'domain/simplified-impl-map? {:impl-a m})))))
+    (testing "returns true for map with multiple Measured values"
+      (let [m1 (measured/expr (+ 1 2))
+            m2 (measured/expr (* 3 4))]
+        (is (true? (#'domain/simplified-impl-map? {:impl-a m1 :impl-b m2})))))
+    (testing "returns false for full impl-spec form"
+      (let [m (measured/expr (+ 1 2))]
+        (is (not (#'domain/simplified-impl-map?
+                  {:impl-a {:measured m :args-builder (constantly (fn [] [1 2]))}})))))
+    (testing "returns falsy for empty map"
+      (is (not (#'domain/simplified-impl-map? {}))))
+    (testing "returns falsy for non-map"
+      (is (not (#'domain/simplified-impl-map? [(measured/expr (+ 1 2))]))))
+    (testing "returns falsy for nil"
+      (is (not (#'domain/simplified-impl-map? nil))))))
+
+(deftest normalize-implementations-test
+  ;; Tests for implementation map normalization.
+  ;; Validates conversion from simplified to full impl-spec form.
+  (testing "normalize-implementations"
+    (testing "converts single Measured to impl-spec"
+      (let [m (measured/expr (+ 1 2))
+            result (#'domain/normalize-implementations {:impl-a m})]
+        (is (= #{:impl-a} (set (keys result))))
+        (is (= m (:measured (:impl-a result))))
+        (is (fn? (:args-builder (:impl-a result))))))
+    (testing "args-builder returns measured's args-fn"
+      (let [m (measured/expr (+ 1 2))
+            result (#'domain/normalize-implementations {:impl-a m})
+            args-builder (:args-builder (:impl-a result))]
+        ;; args-builder should return the same args-fn regardless of coord
+        (is (= (args-builder {}) (args-builder {:n 100})))))
+    (testing "preserves multiple implementations"
+      (let [m1 (measured/expr (+ 1 2))
+            m2 (measured/expr (* 3 4))
+            result (#'domain/normalize-implementations {:impl-a m1 :impl-b m2})]
+        (is (= #{:impl-a :impl-b} (set (keys result))))
+        (is (= m1 (:measured (:impl-a result))))
+        (is (= m2 (:measured (:impl-b result))))))))
