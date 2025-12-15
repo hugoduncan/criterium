@@ -1,13 +1,11 @@
 (ns
  ^{:kindly/options {:kinds-that-hide-code #{:kind/hidden}}}
- criterium.domain-notebook
-  "Working with multiple related benchmark runs using domains."
+ criterium.analyse-domain-notebook
+  "Manual domain construction, analysis, and viewing."
 
   (:require
    [criterium.bench :as bench]
    [criterium.domain :as domain]
-   [criterium.domain-plans :as domain-plans]
-   [criterium.measured :as measured]
    [criterium.view :as view]
    [criterium.viewer.print]
    [scicloj.kindly.v4.kind :as kind]))
@@ -24,6 +22,10 @@
 ;; - **Scaling analysis** — How does time grow with input size?
 ;; - **Implementation comparison** — Which algorithm is faster?
 ;; - **Parameter exploration** — Where do performance characteristics change?
+;;
+;; This notebook covers the foundational API for manual domain construction
+;; and analysis. For automated benchmarking workflows, see the
+;; [Domain Builder](./criterium.domain_builder_notebook.html) notebook.
 
 ;; ## Creating Domains
 ;;
@@ -127,8 +129,10 @@
    (domain/domain {:impl-axis :impl :implementations [:sort :sort-by]})
    impl-inputs))
 
-;;"Building domain comparing implementations..."
+^:kindly/hide-code
+(kind/md "Building domain comparing implementations...")
 
+^:kindly/hide-code
 (def impl-domain (build-impl-domain))
 
 ;; Group by implementation:
@@ -141,26 +145,7 @@
 
 (domain/compare-by impl-domain :impl [:stats :elapsed-time :mean])
 
-;; ## Viewing Results
-;;
-;; Domain analysis results integrate with criterium's view system.
-;; The print viewer formats results for terminal output.
-
-;; ### Extract View
-
-((view/domain-extract {:extract-id :extract})
- :print
- {:extract (domain/extract sort-domain [:stats :elapsed-time :mean])})
-
-;; ### Comparison View
-;;
-;; The comparison view shows a table with axis values as columns:
-
-((view/domain-comparison {:comparison-id :comparison})
- :print
- {:comparison (domain/compare-by impl-domain :impl [:stats :elapsed-time :mean])})
-
-;; ## Scaling Analysis
+;; ## Input Sequence Generators
 ;;
 ;; Use input sequence generators to explore algorithmic complexity.
 
@@ -189,6 +174,27 @@
 
 (domain/n-log-n-range 10 10000 5)
 
+;; ## Viewing Results
+;;
+;; Domain analysis results integrate with criterium's view system.
+;; The print viewer formats results for terminal output.
+
+;; ### Extract View
+
+((view/domain-extract {:extract-id :extract})
+ :print
+ {:extract (domain/extract sort-domain [:stats :elapsed-time :mean])})
+
+;; ### Comparison View
+;;
+;; The comparison view shows a table with axis values as columns:
+
+((view/domain-comparison {:comparison-id :comparison})
+ :print
+ {:comparison (domain/compare-by impl-domain :impl [:stats :elapsed-time :mean])})
+
+;; ## Scaling Analysis
+;;
 ;; ### Example: O(n log n) Scaling
 ;;
 ;; Benchmark sort across powers of 2 to observe n log n behavior:
@@ -209,8 +215,10 @@
    (domain/domain)
    scaling-sizes))
 
-;; "Building scaling analysis domain..."
+^:kindly/hide-code
+(kind/md "Building scaling analysis domain...")
 
+^:kindly/hide-code
 (def scaling-domain (build-scaling-domain))
 
 ;; Extract times and observe scaling:
@@ -239,7 +247,7 @@
       regression (domain/fit-complexity extract :n)
       elapsed-time-reg (get-in regression [:regressions :elapsed-time])]
   {:best-fit (:best-fit elapsed-time-reg)
-   :models (map (fn [{:keys [id label r-squared]}]
+   :models (map (fn [{:keys [label r-squared]}]
                   {:model label :r-squared (format "%.4f" r-squared)})
                 (sort-by :r-squared > (:models elapsed-time-reg)))})
 
@@ -249,17 +257,6 @@
   ((view/domain-regression {:regression-id :regression})
    :print
    {:regression (domain/fit-complexity extract :n)}))
-
-;; Use the pipeline function for composable analysis:
-
-(-> {:domain scaling-domain}
-    ((domain/domain-extract-fn
-      {:id :extract
-       :metric-path [:stats :elapsed-time :mean]}))
-    ((domain/domain-regression-fn
-      {:id :scaling
-       :axis :n}))
-    (get-in [:scaling :regressions :elapsed-time :best-fit]))
 
 ;; Custom models can be provided for specific complexity classes:
 
@@ -287,167 +284,30 @@
 ;; Each pipeline function adds its result under a configurable key,
 ;; enabling multiple analyses on the same domain.
 
-;; ## Domain Plans
-;;
-;; For common analysis workflows, use pre-defined domain plans with
-;; `analyse-domain`. Plans bundle analysis and viewing into a single call.
-;;
-;; Plans respect the default viewer set via `bench/set-default-viewer!`,
-;; so in this notebook they use `:kindly` automatically.
+;; Use the pipeline function for composable analysis:
 
-;; ### Pre-defined Plans
-;;
-;; `extract-elapsed-time` displays metric values across all runs:
-
-(domain/analyse-domain domain-plans/extract-elapsed-time sort-domain)
-
-;; `complexity-analysis` extracts all collected metrics and fits regression models:
-
-(domain/analyse-domain domain-plans/complexity-analysis scaling-domain)
-
-;; `implementation-comparison` compares metrics across implementations:
-
-(domain/analyse-domain domain-plans/implementation-comparison impl-domain)
-
-;; ### Explicit Viewer Selection
-;;
-;; Override the default viewer with `options->domain-plan`:
-
-(do
-  (domain/analyse-domain
-   (domain/options->domain-plan domain-plans/complexity-analysis
-                                :viewer :print)
-   scaling-domain)
-  nil)
-
-;; ### Custom Plans
-;;
-;; Build custom plans by specifying `:analyse` and `:view` vectors:
-
-(do
-  (domain/analyse-domain
-   {:analyse [[:domain-extract-fn {:id :times
-                                   :metric-path [:stats :elapsed-time :mean]}]
-              [:domain-compare-fn {:id :by-size
-                                   :axis-key :n
-                                   :metric-path [:stats :elapsed-time :mean]}]]
-    :view []
-    :viewer :none}
-   impl-domain)
-  nil)
-
-;; Or customize a pre-defined plan with `options->domain-plan`:
-
-(-> (domain/options->domain-plan domain-plans/complexity-analysis
-                                 :viewer :none)
-    (domain/analyse-domain scaling-domain)
-    (get-in [:regression :regressions :elapsed-time :best-fit]))
-
-;; ## Domain Builder
-;;
-;; For automated benchmarking across a parameter space, use `domain-builder`.
-;; It handles running benchmarks for multiple implementations across all
-;; combinations of axis values, with adaptive time estimation.
-
-;; ### Basic Usage
-;;
-;; Define the parameter space (axes) and implementations:
-
-;; Building domain with domain-builder (this may take a minute)...
-
-(def builder-domain
-  (domain/domain-builder
-   ;; Axes define the parameter space
-   {:n (domain/n-log-n-range 8 1000 4)}
-   ;; Implementations to compare
-   {:sort
-    {:measured (measured/expr (sort (vec (range 100))))
-     :args-builder (fn [{:keys [n]}]
-                     (fn [] [(mapv rand-int (repeat n 10000))]))}
-    :sort-by
-    {:measured (measured/expr (sort-by identity (vec (range 100))))
-     ;; Must provide both args: identity function AND collection
-     :args-builder (fn [{:keys [n]}]
-                     (fn []
-                       [identity (mapv rand-int (repeat n 10000))]))}}
-   ;; Options
-   :reporter nil)) ; nil for silent, or use (domain/dot-reporter)
-
-;; Check what was built:
-
-(domain/coords builder-domain)
-
-;; The domain has runs for each implementation × axis combination:
-
-(count (domain/runs builder-domain))
-
-;; ### Analyzing Builder Results
-;;
-;; Use domain plans to analyze the results:
-
-(domain/analyse-domain domain-plans/implementation-comparison builder-domain)
-
-;; ### How It Works
-;;
-;; Each implementation spec contains:
-;; - `:measured` — A measured created with example args (for type hints)
-;; - `:args-builder` — `(fn [axis-map] (fn [] [args...]))` generates args
-;;   for each coordinate
-;;
-;; The builder:
-;; 1. Computes the cartesian product of axis values
-;; 2. Sorts by `:time-axis` (default: first axis) ascending
-;; 3. Runs all coordinates for each implementation before moving to the next
-;; 4. After 2+ runs, estimates time limits using regression on previous results
-
-;; ### Collecting Additional Metrics
-;;
-;; Pass `:bench-options` to collect metrics beyond elapsed time.
-;; Here we add thread allocation tracking:
-
-(def builder-domain-with-alloc
-  (domain/domain-builder
-   {:n (domain/n-log-n-range 8 1000 4)}
-   {:sort
-    {:measured (measured/expr (sort (vec (range 100))))
-     :args-builder (fn [{:keys [n]}]
-                     (fn [] [(mapv rand-int (repeat n 10000))]))}
-    :sort-by
-    {:measured (measured/expr (sort-by identity (vec (range 100))))
-     :args-builder (fn [{:keys [n]}]
-                     (fn [] [identity (mapv rand-int (repeat n 10000))]))}}
-   :bench-options {:metric-ids [:elapsed-time :thread-allocation]}
-   :reporter nil))
-
-;; Use complexity-analysis to analyze all collected metrics at once.
-;; This extracts and fits regression models for both elapsed-time and
-;; thread-allocation:
-
-(domain/analyse-domain domain-plans/complexity-analysis builder-domain-with-alloc)
-
-;; Compare allocations between implementations using a custom plan:
-
-(domain/analyse-domain
- {:analyse [[:domain-compare-fn {:id :alloc
-                                 :axis-key :impl
-                                 :metric-path [:stats :thread-allocation :mean]}]]
-  :view [[:domain-comparison {:comparison-id :alloc}]]}
- builder-domain-with-alloc)
+(-> {:domain scaling-domain}
+    ((domain/domain-extract-fn
+      {:id :extract
+       :metric-path [:stats :elapsed-time :mean]}))
+    ((domain/domain-regression-fn
+      {:id :scaling
+       :axis :n}))
+    (get-in [:scaling :regressions :elapsed-time :best-fit]))
 
 ;; ## Summary
 ;;
-;; Domains provide a structured way to:
-;; - Accumulate benchmark results with coordinates
-;; - Query and filter runs
-;; - Extract and compare metrics
-;; - Visualize results with print or portal viewers
-;; - Analyze scaling behavior with regression fitting
-;; - Bundle analysis workflows with domain plans
-;; - Automate parameter-space benchmarking with domain-builder
+;; This notebook covered the foundational domain API:
+;; - **Construction** — `domain`, `add-run`, `remove-run`
+;; - **Queries** — `runs`, `coords`, `axes`, `select`
+;; - **Analysis** — `extract`, `compare-by`, `group-by-axis`
+;; - **Generators** — `powers-of-2`, `log-range`, `linear-range`, `n-log-n-range`
+;; - **Viewing** — `domain-extract`, `domain-comparison`, `domain-regression`
+;; - **Regression** — `fit-complexity` for algorithmic complexity analysis
+;; - **Pipelines** — `domain-extract-fn`, `domain-compare-fn`, `domain-regression-fn`
 ;;
-;; The immutable design supports exploratory analysis in the REPL,
-;; while pipeline functions and domain plans enable composable,
-;; reusable analysis workflows.
+;; For automated benchmarking across parameter spaces, see the
+;; [Domain Builder](./criterium.domain_builder_notebook.html) notebook.
 
 (kind/hidden
  (bench/set-default-viewer! :print))

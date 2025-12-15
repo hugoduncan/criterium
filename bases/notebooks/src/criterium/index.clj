@@ -21,4 +21,5 @@
 ;; - [Sampled Functions](./criterium.sampled_fn_notebook.html) - Memory-efficient function sampling with t-digest aggregation
 ;; - [Instrumented Functions](./criterium.instrument_fn_notebook.html) - Instrument functions for continuous performance sampling
 ;; - [Allocation Tracking](./criterium.allocation_tracking_notebook.html) - Memory allocation analysis with the native agent
-;; - [Domain Analysis](./criterium.domain_notebook.html) - Working with multiple related benchmark runs
+;; - [Domain Analysis](./criterium.analyse_domain_notebook.html) - Manual domain construction and analysis
+;; - [Domain Builder](./criterium.domain_builder_notebook.html) - Automated domain construction and workflows
