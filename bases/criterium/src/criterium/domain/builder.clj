@@ -80,16 +80,16 @@
   "Solve x*ln(x) = y for x using Newton-Raphson iteration.
   f(x) = x*ln(x) - y, f'(x) = ln(x) + 1
   x_{n+1} = x_n - f(x_n)/f'(x_n)"
-  [y initial-guess]
+  ^double [y initial-guess]
   (let [max-iterations 50
-        tolerance 1e-10]
+        tolerance      1e-10]
     (loop [x initial-guess
            i 0]
       (if (>= i max-iterations)
         x
         (let [ln-x (Math/log x)
-              fx (- (* x ln-x) y)
-              fpx (+ ln-x 1.0)]
+              fx   (- (* x ln-x) y)
+              fpx  (+ ln-x 1.0)]
           (if (< (Math/abs fx) tolerance)
             x
             (recur (- x (/ fx fpx)) (inc i))))))))
