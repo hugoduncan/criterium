@@ -152,17 +152,18 @@
 
 (builder/powers-of-2 0 10)
 
-;; ### Logarithmic Range
-;;
-;; Cover wide ranges efficiently:
-
-(builder/log-range 10 10000 5)
-
 ;; ### Linear Range
 ;;
 ;; Uniform sampling for linear scaling detection:
 
 (builder/linear-range 100 1000 5)
+
+;; ### Logarithmic Range
+;;
+;; Values evenly spaced over log(n).- useful for testing O(log n)
+;; algorithms
+
+(builder/log-range 10 10000 5)
 
 ;; ### N Log N Range
 ;;
