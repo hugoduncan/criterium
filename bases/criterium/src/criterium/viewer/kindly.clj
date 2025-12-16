@@ -388,6 +388,27 @@
     (name (:key single-key-info))
     "coordinate"))
 
+(defn- compute-si-scaling
+  "Compute SI scaling factors for a metric-path given sample values.
+  Returns {:base-scale, :si-scale, :total-scale, :unit}.
+  - base-scale: converts raw values to base units (e.g., ns -> s)
+  - si-scale: SI prefix scaling factor
+  - total-scale: base-scale * si-scale
+  - unit: SI unit string (e.g., \"ms\", \"μs\")"
+  [metric-path values]
+  (let [base-scale (metric-path->base-scale metric-path)
+        dimension (metric-path->dimension metric-path)
+        base-values (when (seq values) (map #(* % base-scale) values))
+        representative-value (when (seq base-values)
+                               (/ (reduce + base-values) (count base-values)))
+        [si-scale si-unit] (if (and dimension representative-value)
+                             (format/scale dimension representative-value)
+                             [1 ""])]
+    {:base-scale base-scale
+     :si-scale si-scale
+     :total-scale (* base-scale si-scale)
+     :unit si-unit}))
+
 (defmethod view/domain-extract* :kindly
   [_ {:keys [extract-id]} data-map]
   (let [extract-id (or extract-id :extract)
@@ -452,32 +473,20 @@
                            {}
                            all-data)
 
-            ;; Compute SI scale and unit per column
+;; Compute SI scale and unit per column
             col-scales
             (into {}
                   (map (fn [col-spec]
                          (let [{:keys [metric-id impl]} col-spec
                                metric-path (get-in metrics [metric-id :metric])
-                               base-scale (metric-path->base-scale metric-path)
-                               dimension (metric-path->dimension metric-path)
-                               ;; Get all values for this column
                                col-values (for [row-key row-keys
                                                 :let [lk (if multi-impl?
                                                            [row-key metric-id impl]
                                                            [row-key metric-id])
                                                       v (get lookup lk)]
                                                 :when (some? v)]
-                                            (* v base-scale))
-                               representative-value (when (seq col-values)
-                                                      (/ (reduce + col-values)
-                                                         (count col-values)))
-                               [si-scale si-unit] (if (and dimension representative-value)
-                                                    (format/scale dimension representative-value)
-                                                    [1 ""])]
-                           [col-spec {:base-scale base-scale
-                                      :si-scale si-scale
-                                      :total-scale (* base-scale si-scale)
-                                      :unit si-unit}])))
+                                            v)]
+                           [col-spec (compute-si-scaling metric-path col-values)])))
                   col-specs)
 
             ;; Build column headers
@@ -626,19 +635,11 @@
                                            (assoc-in acc [row-key axis-val] value)))
                                        {}
                                        all-entries)
-                        base-scale (metric-path->base-scale metric)
                         all-values (keep :value all-entries)
-                        valid-base-values (map #(* % base-scale) all-values)
-                        dimension (metric-path->dimension metric)
-                        representative-value (when (seq valid-base-values)
-                                               (/ (reduce + valid-base-values)
-                                                  (count valid-base-values)))
-                        [si-scale si-unit] (if (and dimension representative-value)
-                                             (format/scale dimension representative-value)
-                                             [1 ""])
+                        {:keys [total-scale unit]} (compute-si-scaling metric all-values)
                         heading (str "Domain Comparison by " (name axis) ": "
                                      (pr-str metric)
-                                     (when (seq si-unit) (str " (" si-unit ")")))]
+                                     (when (seq unit) (str " (" unit ")")))]
                     (kindly-heading heading)
                     (kindly-table
                      (mapv (fn [row-key]
@@ -647,7 +648,7 @@
                                           (let [raw-value (get-in lookup [row-key av])]
                                             [(str av)
                                              (when raw-value
-                                               (format "%.3g" (* (* raw-value base-scale) si-scale)))]))
+                                               (format "%.3g" (* raw-value total-scale)))]))
                                         axis-vals)))
                            row-keys)))))))
           ;; Single-metric mode
@@ -734,19 +735,11 @@
                                          (assoc-in acc [row-key axis-val] value)))
                                      {}
                                      all-entries)
-                      base-scale (metric-path->base-scale metric)
                       all-values (keep :value all-entries)
-                      valid-base-values (map #(* % base-scale) all-values)
-                      dimension (metric-path->dimension metric)
-                      representative-value (when (seq valid-base-values)
-                                             (/ (reduce + valid-base-values)
-                                                (count valid-base-values)))
-                      [si-scale si-unit] (if (and dimension representative-value)
-                                           (format/scale dimension representative-value)
-                                           [1 ""])
+                      {:keys [total-scale unit]} (compute-si-scaling metric all-values)
                       heading (str "Domain Comparison by " (name axis) ": "
                                    (pr-str metric)
-                                   (when (seq si-unit) (str " (" si-unit ")")))]
+                                   (when (seq unit) (str " (" unit ")")))]
                   (kindly-heading heading)
                   (kindly-table
                    (mapv (fn [row-key]
@@ -755,8 +748,7 @@
                                         (let [raw-value (get-in lookup [row-key av])]
                                           [(str av)
                                            (when raw-value
-                                             (format "%.3g" (* (* raw-value base-scale)
-                                                               si-scale)))]))
+                                             (format "%.3g" (* raw-value total-scale)))]))
                                       axis-vals)))
                          row-keys)))))))))))
 
@@ -845,16 +837,9 @@
                                                   (contains? coord axis)
                                                   (contains? coord impl-axis))))
                                          data)
-                      ;; Compute scaling
-                      base-scale (metric-path->base-scale metric)
-                      base-values (mapv (fn [datum] (* (get-value datum) base-scale)) valid-data)
-                      dimension (metric-path->dimension metric)
-                      representative-value (when (seq base-values)
-                                             (/ (reduce + base-values) (count base-values)))
-                      [si-scale si-unit] (if (and dimension representative-value)
-                                           (format/scale dimension representative-value)
-                                           [1 ""])
-                      total-scale (* base-scale si-scale)
+;; Compute scaling
+                      raw-values (mapv get-value valid-data)
+                      {:keys [total-scale unit]} (compute-si-scaling metric raw-values)
                       ;; Create points with implementation info
                       points (mapv (fn [[coord v]]
                                      (let [y-val (if has-error-bounds? (:value v) v)
@@ -887,11 +872,11 @@
                                           "impl" (name impl-key)})
                                        x-range)))))
                          impl-keys))
-                      y-title (if (seq si-unit)
-                                (str (pr-str metric) " (" si-unit ")")
+                      y-title (if (seq unit)
+                                (str (pr-str metric) " (" unit ")")
                                 (pr-str metric))
-                      residual-title (if (seq si-unit)
-                                       (str "Residual (" si-unit ")")
+                      residual-title (if (seq unit)
+                                       (str "Residual (" unit ")")
                                        "Residual")
                       ;; Build chart layers
                       point-layer {:data {:values points}
@@ -1013,15 +998,8 @@
                                                   (map? coord)
                                                   (contains? coord axis))))
                                          data)
-                      base-scale (metric-path->base-scale metric)
-                      base-values (mapv (fn [datum] (* (get-value datum) base-scale)) valid-data)
-                      dimension (metric-path->dimension metric)
-                      representative-value (when (seq base-values)
-                                             (/ (reduce + base-values) (count base-values)))
-                      [si-scale si-unit] (if (and dimension representative-value)
-                                           (format/scale dimension representative-value)
-                                           [1 ""])
-                      total-scale (* base-scale si-scale)
+                      raw-values (mapv get-value valid-data)
+                      {:keys [total-scale unit]} (compute-si-scaling metric raw-values)
                       model-fns (into {}
                                       (map (fn [m]
                                              [(:id m) (regression-model-fn (:id m) (:coefficients m))])
@@ -1056,11 +1034,11 @@
                                                 x-range)))
                                       models-to-plot
                                       (cycle model-colors)))
-                      y-title (if (seq si-unit)
-                                (str (pr-str metric) " (" si-unit ")")
+                      y-title (if (seq unit)
+                                (str (pr-str metric) " (" unit ")")
                                 (pr-str metric))
-                      residual-title (if (seq si-unit)
-                                       (str "Residual (" si-unit ")")
+                      residual-title (if (seq unit)
+                                       (str "Residual (" unit ")")
                                        "Residual")
                       point-layer {:data {:values points}
                                    :mark {:type "point" :size 60}
