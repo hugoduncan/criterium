@@ -57,7 +57,6 @@
 
 ;; Run benchmarks and accumulate results:
 
-^:kindly/hide-code
 (defn build-sort-domain
   "Build a domain with sort benchmarks at each size."
   []
@@ -69,10 +68,8 @@
    (domain/domain)
    sort-sizes))
 
-^:kindly/hide-code
-(kind/md "Building domain with sort benchmarks...")
+;; Building domain with sort benchmarks...
 
-^:kindly/hide-code
 (def sort-domain (build-sort-domain))
 
 ;; Check what we collected:
@@ -129,10 +126,8 @@
    (domain/domain {:impl-axis :impl :implementations [:sort :sort-by]})
    impl-inputs))
 
-^:kindly/hide-code
-(kind/md "Building domain comparing implementations...")
+;; Building domain comparing implementations...
 
-^:kindly/hide-code
 (def impl-domain (build-impl-domain))
 
 ;; Group by implementation:
@@ -215,10 +210,8 @@
    (domain/domain)
    scaling-sizes))
 
-^:kindly/hide-code
-(kind/md "Building scaling analysis domain...")
+;; Building scaling analysis domain...
 
-^:kindly/hide-code
 (def scaling-domain (build-scaling-domain))
 
 ;; Extract times and observe scaling:
