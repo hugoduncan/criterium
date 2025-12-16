@@ -90,7 +90,8 @@
                  different implementations (e.g., :impl). When set,
                  analysis functions like fit-complexity will group
                  results by implementation.
-  - :implementations - Vector of implementation keys. Defaults to [:default].
+  - :implementations - Vector of implementation keys. When provided,
+                       specifies which implementation values to include.
 
   Examples:
   (domain)                                    ; empty domain
@@ -109,8 +110,8 @@
                       [(butlast args) (last args)]
                       [args nil])]
     (cond-> {:type :criterium/domain
-             :runs (vec runs)
-             :implementations (or (:implementations opts) [:default])}
+             :runs (vec runs)}
+      (:implementations opts) (assoc :implementations (:implementations opts))
       (:impl-axis opts) (assoc :impl-axis (:impl-axis opts)))))
 
 ;;; Accumulation
@@ -192,9 +193,10 @@
         (:runs domain)))
 
 (defn implementations
-  "Returns the implementation keys for a domain."
+  "Returns the implementation keys for a domain.
+  Defaults to [:default] for domains without explicit implementations."
   [domain]
-  (:implementations domain))
+  (or (:implementations domain) [:default]))
 
 (defn impl-axis
   "Returns the impl-axis key for a domain, or nil if not set.
