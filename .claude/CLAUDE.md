@@ -188,6 +188,10 @@ When using the `:portal` viewer:
 2. Results include interactive charts and detailed breakdowns
 3. Supports histogram visualizations and statistical overlays
 
+## Usage Scenarios
+
+See [dev/docs/usage-scenarios.md](../dev/docs/usage-scenarios.md) for documented benchmarking use cases and their requirements.
+
 ## Development Notes
 
 - The codebase follows the project's Clojure style guide (referenced in global CLAUDE.md)
