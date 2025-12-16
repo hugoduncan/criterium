@@ -76,32 +76,13 @@
 ;;; Construction
 
 (defn domain
-  "Create a domain from runs.
+  "Create a domain from runs. Returns empty domain when called with no args.
 
-  With no arguments, creates an empty domain.
-  With arguments, creates a domain containing those runs.
-
-  Each run must be a map with :coord and :data keys where:
-  - :coord is either a keyword label or a map of dimension keys to values
-  - :data is the full benchmark result from bench
+  Each run is a map with :coord (keyword or map) and :data (bench result).
 
   Options (as final map argument):
-  - :impl-axis - Keyword specifying which coordinate axis represents
-                 different implementations (e.g., :impl). When set,
-                 analysis functions like fit-complexity will group
-                 results by implementation.
-  - :implementations - Vector of implementation keys. When provided,
-                       specifies which implementation values to include.
-
-  Examples:
-  (domain)                                    ; empty domain
-  (domain {:coord :baseline :data result1})  ; single run with keyword coord
-  (domain {:coord {:n 100} :data result1}    ; runs with map coords
-          {:coord {:n 1000} :data result2})
-  (domain {:coord {:n 100 :impl :vec} :data result1}
-          {:coord {:n 100 :impl :list} :data result2}
-          {:impl-axis :impl
-           :implementations [:vec :list]})   ; with implementations"
+  - :impl-axis - Coordinate axis for implementations
+  - :implementations - Vector of impl keys to include"
   [& args]
   (let [[runs opts] (if (and (seq args)
                              (map? (last args))
@@ -161,12 +142,8 @@
     :else false))
 
 (defn runs
-  "Return runs from a domain.
-  With one argument, returns all runs.
-  With two arguments, returns runs matching the partial coordinate.
-
-  For map coordinates, partial matching is supported:
-  (runs domain {:n 100}) matches {:n 100}, {:n 100 :impl :foo}, etc."
+  "Return runs from a domain, optionally filtered by partial coordinate.
+  For map coords, partial matching is supported (subset match)."
   ([domain]
    (:runs domain))
   ([domain partial-coord]
@@ -180,11 +157,7 @@
 
 (defn axes
   "Infer dimension keys from all map coordinates in a domain.
-  Returns a set of keys. Keyword coordinates contribute no keys.
-
-  Example:
-  Given coords [{:n 100} {:n 1000 :impl :foo} :baseline]
-  Returns #{:n :impl}"
+  Returns a set of keys. Keyword coordinates contribute no keys."
   [domain]
   (into #{}
         (comp (map :coord)
@@ -206,18 +179,8 @@
   (:impl-axis domain))
 
 (defn select
-  "Filter domain to runs matching a partial coordinate.
-  Returns a new domain containing only runs that match.
-
-  For map coordinates, partial matching is supported:
-  (select domain {:n 100}) returns domain with runs matching {:n 100},
-  {:n 100 :impl :foo}, etc.
-
-  For keyword coordinates, exact match is required.
-
-  Example:
-  (select domain {:impl :foo})
-  ;; => domain with only :impl :foo runs"
+  "Filter domain to runs matching a partial coordinate. Returns a new domain.
+  For map coords, partial matching is supported (subset match)."
   [domain partial-coord]
   (assoc domain :runs (filterv #(coord-matches? (:coord %) partial-coord)
                                (:runs domain))))
