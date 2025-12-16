@@ -6,6 +6,8 @@
   (:require
    [criterium.bench :as bench]
    [criterium.domain :as domain]
+   [criterium.domain.analysis :as analysis]
+   [criterium.domain.builder :as builder]
    [criterium.view :as view]
    [criterium.viewer.print]
    [scicloj.kindly.v4.kind :as kind]))
@@ -100,11 +102,11 @@
 ;;
 ;; Pull a specific metric across all runs:
 
-(domain/extract sort-domain [:stats :elapsed-time :mean])
+(analysis/extract sort-domain [:stats :elapsed-time :mean])
 
 ;; Or extract all collected metrics at once (no metric-path):
 
-(keys (:metrics (domain/extract sort-domain)))
+(keys (:metrics (analysis/extract sort-domain)))
 
 ;; ### Compare Implementations
 ;;
@@ -132,13 +134,13 @@
 
 ;; Group by implementation:
 
-(let [grouped (domain/group-by-axis impl-domain :impl)]
+(let [grouped (analysis/group-by-axis impl-domain :impl)]
   {:axis (:axis grouped)
    :groups (keys (:data grouped))})
 
 ;; Compare elapsed time across implementations:
 
-(domain/compare-by impl-domain :impl [:stats :elapsed-time :mean])
+(analysis/compare-by impl-domain :impl [:stats :elapsed-time :mean])
 
 ;; ## Input Sequence Generators
 ;;
@@ -148,26 +150,26 @@
 ;;
 ;; Doubling input size reveals O(n), O(n log n), O(n²) patterns:
 
-(domain/powers-of-2 0 10)
+(builder/powers-of-2 0 10)
 
 ;; ### Logarithmic Range
 ;;
 ;; Cover wide ranges efficiently:
 
-(domain/log-range 10 10000 5)
+(builder/log-range 10 10000 5)
 
 ;; ### Linear Range
 ;;
 ;; Uniform sampling for linear scaling detection:
 
-(domain/linear-range 100 1000 5)
+(builder/linear-range 100 1000 5)
 
 ;; ### N Log N Range
 ;;
 ;; Values spaced along an n*log(n) curve - useful for testing O(n log n)
 ;; algorithms like merge sort where you want denser sampling at larger sizes:
 
-(domain/n-log-n-range 10 10000 5)
+(builder/n-log-n-range 10 10000 5)
 
 ;; ## Viewing Results
 ;;
@@ -178,7 +180,7 @@
 
 ((view/domain-extract {:extract-id :extract})
  :print
- {:extract (domain/extract sort-domain [:stats :elapsed-time :mean])})
+ {:extract (analysis/extract sort-domain [:stats :elapsed-time :mean])})
 
 ;; ### Comparison View
 ;;
@@ -186,7 +188,7 @@
 
 ((view/domain-comparison {:comparison-id :comparison})
  :print
- {:comparison (domain/compare-by impl-domain :impl [:stats :elapsed-time :mean])})
+ {:comparison (analysis/compare-by impl-domain :impl [:stats :elapsed-time :mean])})
 
 ;; ## Scaling Analysis
 ;;
@@ -194,7 +196,7 @@
 ;;
 ;; Benchmark sort across powers of 2 to observe n log n behavior:
 
-(def scaling-sizes (domain/powers-of-2 4 9))
+(def scaling-sizes (builder/powers-of-2 4 9))
 
 (def scaling-inputs
   (into {} (map (fn [n] [n (mapv rand-int (repeat n 10000))]) scaling-sizes)))
@@ -216,7 +218,7 @@
 
 ;; Extract times and observe scaling:
 
-(let [extract (domain/extract scaling-domain [:stats :elapsed-time :mean])]
+(let [extract (analysis/extract scaling-domain [:stats :elapsed-time :mean])]
   (kind/table
    {:column-names [:n :time-ns :ratio-to-previous]
     :row-vectors
@@ -236,8 +238,8 @@
 ;; The `fit-complexity` function fits O(log n), O(n), O(n log n), and O(n²) models
 ;; and identifies the best fit by R² value:
 
-(let [extract (domain/extract scaling-domain [:stats :elapsed-time :mean])
-      regression (domain/fit-complexity extract :n)
+(let [extract (analysis/extract scaling-domain [:stats :elapsed-time :mean])
+      regression (analysis/fit-complexity extract :n)
       elapsed-time-reg (get-in regression [:regressions :elapsed-time])]
   {:best-fit (:best-fit elapsed-time-reg)
    :models (map (fn [{:keys [label r-squared]}]
@@ -246,15 +248,15 @@
 
 ;; View regression results with the print viewer:
 
-(let [extract (domain/extract scaling-domain [:stats :elapsed-time :mean])]
+(let [extract (analysis/extract scaling-domain [:stats :elapsed-time :mean])]
   ((view/domain-regression {:regression-id :regression})
    :print
-   {:regression (domain/fit-complexity extract :n)}))
+   {:regression (analysis/fit-complexity extract :n)}))
 
 ;; Custom models can be provided for specific complexity classes:
 
-(let [result (domain/fit-complexity
-              (domain/extract scaling-domain [:stats :elapsed-time :mean])
+(let [result (analysis/fit-complexity
+              (analysis/extract scaling-domain [:stats :elapsed-time :mean])
               :n
               {:cubic {:transform (fn [n] (* n n n)) :label "O(n³)"}
                :linear {:transform identity :label "O(n)"}})]
@@ -265,10 +267,10 @@
 ;; For complex analyses, use pipeline functions that operate on data maps:
 
 (-> {:domain impl-domain}
-    ((domain/domain-extract-fn
+    ((analysis/domain-extract-fn
       {:id :mean-time
        :metric-path [:stats :elapsed-time :mean]}))
-    ((domain/domain-compare-fn
+    ((analysis/domain-compare-fn
       {:id :impl-comparison
        :axis-key :impl
        :metric-path [:stats :elapsed-time :mean]}))
@@ -280,10 +282,10 @@
 ;; Use the pipeline function for composable analysis:
 
 (-> {:domain scaling-domain}
-    ((domain/domain-extract-fn
+    ((analysis/domain-extract-fn
       {:id :extract
        :metric-path [:stats :elapsed-time :mean]}))
-    ((domain/domain-regression-fn
+    ((analysis/domain-regression-fn
       {:id :scaling
        :axis :n}))
     (get-in [:scaling :regressions :elapsed-time :best-fit]))

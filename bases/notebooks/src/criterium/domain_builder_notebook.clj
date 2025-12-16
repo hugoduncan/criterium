@@ -6,6 +6,8 @@
   (:require
    [criterium.bench :as bench]
    [criterium.domain :as domain]
+   [criterium.domain.analysis :as analysis]
+   [criterium.domain.builder :as builder]
    [criterium.domain-plans :as domain-plans]
    [criterium.measured :as measured]
    [scicloj.kindly.v4.kind :as kind]))
@@ -58,11 +60,11 @@
 ;;
 ;; `extract-elapsed-time` displays metric values across all runs:
 
-(domain/analyse-domain domain-plans/extract-elapsed-time sort-domain)
+(analysis/analyse-domain domain-plans/extract-elapsed-time sort-domain)
 
 ;; Build a scaling domain for complexity analysis:
 
-(def scaling-sizes (domain/powers-of-2 4 9))
+(def scaling-sizes (builder/powers-of-2 4 9))
 
 (def scaling-inputs
   (into {} (map (fn [n] [n (mapv rand-int (repeat n 10000))]) scaling-sizes)))
@@ -84,7 +86,7 @@
 
 ;; `complexity-analysis` extracts all collected metrics and fits regression models:
 
-(domain/analyse-domain domain-plans/complexity-analysis scaling-domain)
+(analysis/analyse-domain domain-plans/complexity-analysis scaling-domain)
 
 ;; Build an implementation comparison domain:
 
@@ -109,16 +111,16 @@
 
 ;; `implementation-comparison` compares metrics across implementations:
 
-(domain/analyse-domain domain-plans/implementation-comparison impl-domain)
+(analysis/analyse-domain domain-plans/implementation-comparison impl-domain)
 
 ;; ### Explicit Viewer Selection
 ;;
 ;; Override the default viewer with `options->domain-plan`:
 
 (do
-  (domain/analyse-domain
-   (domain/options->domain-plan domain-plans/complexity-analysis
-                                :viewer :print)
+  (analysis/analyse-domain
+   (analysis/options->domain-plan domain-plans/complexity-analysis
+                                  :viewer :print)
    scaling-domain)
   nil)
 
@@ -127,7 +129,7 @@
 ;; Build custom plans by specifying `:analyse` and `:view` vectors:
 
 (do
-  (domain/analyse-domain
+  (analysis/analyse-domain
    {:analyse [[:domain-extract-fn {:id :times
                                    :metric-path [:stats :elapsed-time :mean]}]
               [:domain-compare-fn {:id :by-size
@@ -140,9 +142,9 @@
 
 ;; Or customize a pre-defined plan with `options->domain-plan`:
 
-(-> (domain/options->domain-plan domain-plans/complexity-analysis
-                                 :viewer :none)
-    (domain/analyse-domain scaling-domain)
+(-> (analysis/options->domain-plan domain-plans/complexity-analysis
+                                   :viewer :none)
+    (analysis/analyse-domain scaling-domain)
     (get-in [:regression :regressions :elapsed-time :best-fit]))
 
 ;; ## Domain Builder
@@ -160,8 +162,8 @@
 
 (def simple-comparison-domain
   (let [input (vec (range 1000))]
-    (domain/domain-builder
-     {:sort    (measured/expr (sort input))
+    (builder/domain-builder
+     {:sort (measured/expr (sort input))
       :sort-by (measured/expr (sort-by identity input))}
      :reporter nil)))
 
@@ -171,7 +173,7 @@
 
 ;; Analyze with any domain plan:
 
-(domain/analyse-domain domain-plans/implementation-comparison simple-comparison-domain)
+(analysis/analyse-domain domain-plans/implementation-comparison simple-comparison-domain)
 
 ;; ### Full Form (With Axes)
 ;;
@@ -180,22 +182,22 @@
 ;; Building domain with domain-builder (this may take a minute)...
 
 (def builder-domain
-  (domain/domain-builder
+  (builder/domain-builder
    ;; Axes define the parameter space
-   {:n (domain/n-log-n-range 8 1000 4)}
+   {:n (builder/n-log-n-range 8 1000 4)}
    ;; Implementations to compare
    {:sort
-    {:measured     (measured/expr (sort (vec (range 100))))
+    {:measured (measured/expr (sort (vec (range 100))))
      :args-builder (fn [{:keys [n]}]
                      (fn [] [(mapv rand-int (repeat n 10000))]))}
     :sort-by
-    {:measured     (measured/expr (sort-by identity (vec (range 100))))
+    {:measured (measured/expr (sort-by identity (vec (range 100))))
      ;; Must provide both args: identity function AND collection
      :args-builder (fn [{:keys [n]}]
                      (fn []
                        [identity (mapv rand-int (repeat n 10000))]))}}
    ;; Options
-   :reporter nil)) ; nil for silent, or use (domain/dot-reporter)
+   :reporter nil)) ; nil for silent, or use (builder/dot-reporter)
 
 ;; Check what was built:
 
@@ -209,7 +211,7 @@
 ;;
 ;; Use domain plans to analyze the results:
 
-(domain/analyse-domain domain-plans/implementation-comparison builder-domain)
+(analysis/analyse-domain domain-plans/implementation-comparison builder-domain)
 
 ;; ### How It Works
 ;;
@@ -232,14 +234,14 @@
 ;; Building domain with allocation tracking...
 
 (def builder-domain-with-alloc
-  (domain/domain-builder
-   {:n (domain/n-log-n-range 8 1000 4)}
+  (builder/domain-builder
+   {:n (builder/n-log-n-range 8 1000 4)}
    {:sort
-    {:measured     (measured/expr (sort (vec (range 100))))
+    {:measured (measured/expr (sort (vec (range 100))))
      :args-builder (fn [{:keys [n]}]
                      (fn [] [(mapv rand-int (repeat n 10000))]))}
     :sort-by
-    {:measured     (measured/expr (sort-by identity (vec (range 100))))
+    {:measured (measured/expr (sort-by identity (vec (range 100))))
      :args-builder (fn [{:keys [n]}]
                      (fn [] [identity (mapv rand-int (repeat n 10000))]))}}
    :bench-options {:metric-ids [:elapsed-time :thread-allocation]}
@@ -249,11 +251,11 @@
 ;; This extracts and fits regression models for both elapsed-time and
 ;; thread-allocation:
 
-(domain/analyse-domain domain-plans/complexity-analysis builder-domain-with-alloc)
+(analysis/analyse-domain domain-plans/complexity-analysis builder-domain-with-alloc)
 
 ;; Compare allocations between implementations using a custom plan:
 
-(domain/analyse-domain
+(analysis/analyse-domain
  {:analyse [[:domain-compare-fn {:id :alloc
                                  :axis-key :impl
                                  :metric-path [:stats :thread-allocation :mean]}]]
