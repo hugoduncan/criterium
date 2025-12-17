@@ -79,8 +79,8 @@
   ;; Sample measured with estimation, warmup and forced GC.
   ;; Return a sampled data map.
   [collect-plan collector measured]
-  {:pre [(fn? (:f collector))
-         (measured/measured? measured)]
+  {:pre  [(fn? (:f collector))
+          (measured/measured? measured)]
    :post [(have? types/result-map? %)]}
   (let [{:keys [^long batch-time-ns
                 ^long limit-time-ns
@@ -104,35 +104,35 @@
                              num-warmup-samples
                              num-measure-samples)
 
-            t0 (collect/elapsed-time-point-estimate measured)
+            t0             (collect/elapsed-time-point-estimate measured)
             est-batch-size (collect/batch-size t0 batch-time-ns)
 
-            frac-est (double (/ num-estimation-samples total-samples))
+            frac-est        (double (/ num-estimation-samples total-samples))
             num-est-samples (max (min num-estimation-samples
                                       (long (/ (* limit-time-ns frac-est)
                                                (* t0 est-batch-size))))
                                  1)
-            est-data (collect/elapsed-time-min-estimate
-                      measured
-                      num-est-samples
-                      est-batch-size)
-            t1 (long (:t est-data))
+            est-data        (collect/elapsed-time-min-estimate
+                             measured
+                             num-est-samples
+                             est-batch-size)
+            t1              (long (:t est-data))
 
             warmup-batch-size (collect/batch-size t1 batch-time-ns)
             remaining-samples (+ num-warmup-samples num-measure-samples)
-            remaining-time (- limit-time-ns (long (:total-time est-data)) t0)
-            batch-time (* t1 warmup-batch-size)
+            remaining-time    (- limit-time-ns (long (:total-time est-data)) t0)
+            batch-time        (* t1 warmup-batch-size)
 
             projected-time (* batch-time remaining-samples)
 
-            limit-result (impl/limit-samples
-                          limit-time-ns
-                          num-warmup-samples
-                          num-measure-samples
-                          (:total-time est-data)
-                          remaining-time
-                          projected-time)
-            num-warmup-samples (:num-warmup-samples limit-result)
+            limit-result        (impl/limit-samples
+                                 limit-time-ns
+                                 num-warmup-samples
+                                 num-measure-samples
+                                 (:total-time est-data)
+                                 remaining-time
+                                 projected-time)
+            num-warmup-samples  (:num-warmup-samples limit-result)
             num-measure-samples (:num-measure-samples limit-result)
 
             _ (collect/force-gc! max-gc-attempts)
@@ -143,36 +143,39 @@
                          num-warmup-samples
                          warmup-batch-size)
 
-            t2 (max
-                1
-                (double (/ (long (:min-time warmup-data))
-                           warmup-batch-size)))
+            t2         (max
+                        1
+                        (double (/ (long (:min-time warmup-data))
+                                   warmup-batch-size)))
             batch-size (collect/batch-size t2 batch-time-ns)
 
             ;; Enter garbage Free zone
-            _ (collect/force-gc-no-capture! max-gc-attempts)
-            sample-data (collect/collect-arrays
-                         collector measured batch-size num-measure-samples)
-            final-gc-data (collect/force-gc! max-gc-attempts)
+            _                       (collect/force-gc-no-capture! max-gc-attempts)
+            sample-data             (collect/collect-arrays
+                                     collector measured batch-size num-measure-samples)
+            final-gc-data           (collect/force-gc! max-gc-attempts)
             ;; Leave garbage Free zone
-            ]
+            total-benchmark-time-ns (+ (long (:total-time est-data))
+                                       (long (:elapsed-time warmup-data))
+                                       (long (:elapsed-time sample-data)))
+            samples                 (cond-> (collected-data-map sample-data)
+                                      true
+                                      (assoc :total-benchmark-time-ns
+                                             total-benchmark-time-ns)
+                                      (:time-limited? limit-result)
+                                      (assoc
+                                       :time-limit
+                                       {:limited?          true
+                                        :projected-time-ns (:projected-time-ns
+                                                            limit-result)
+                                        :limit-time-ns     limit-time-ns}))]
 
-        (let [total-benchmark-time-ns (+ (long (:total-time est-data))
-                                         (long (:elapsed-time warmup-data))
-                                         (long (:elapsed-time sample-data)))
-              samples (cond-> (collected-data-map sample-data)
-                        true
-                        (assoc :total-benchmark-time-ns total-benchmark-time-ns)
-                        (:time-limited? limit-result)
-                        (assoc :time-limit {:limited? true
-                                            :projected-time-ns (:projected-time-ns limit-result)
-                                            :limit-time-ns limit-time-ns}))]
-          (cond->
-            {:samples samples}
-            keep-estimation? (assoc :estimation (collected-data-map est-data))
-            keep-warmup? (assoc :warmup (collected-data-map warmup-data))
-            keep-final-gc? (assoc :final-gc
-                                  (collected-data-map final-gc-data))))))))
+        (cond->
+          {:samples samples}
+          keep-estimation? (assoc :estimation (collected-data-map est-data))
+          keep-warmup?     (assoc :warmup (collected-data-map warmup-data))
+          keep-final-gc?   (assoc :final-gc
+                                  (collected-data-map final-gc-data)))))))
 
 (defn collect
   "Collect metrics from the measured according to the collect-plan.
