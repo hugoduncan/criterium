@@ -286,3 +286,42 @@
           :scale {:zero false}}
       :tooltip [{:field field-name :type "quantitative"}]}
      :mark "point"}))
+
+;;; Regression helpers
+
+(defn regression-model-fn
+  "Return a function that applies the model transform for plotting."
+  [model-id {:keys [a b c]}]
+  (case model-id
+    :logarithmic (fn [x] (+ (* a (Math/log x)) b))
+    :linear (fn [x] (+ (* a x) b))
+    :n-log-n (fn [x] (+ (* a x (Math/log x)) b))
+    :nlogn-linear (fn [x] (+ (* a x (Math/log x)) (* b x) c))
+    :quadratic (fn [x] (+ (* a x x) b))
+    (fn [x] (+ (* a x) b))))
+
+(defn regression-equation-str
+  "Format the fitted regression equation for a model."
+  [model-id {:keys [a b c]}]
+  (if c
+    ;; Composite model: y = a*f1(x) + b*f2(x) + c
+    (let [sign-b (if (neg? b) "-" "+")
+          sign-c (if (neg? c) "-" "+")]
+      (format "y = %.4g*n*log(n) %s %.4g*n %s %.4g"
+              a sign-b (Math/abs ^double b) sign-c (Math/abs ^double c)))
+    ;; Simple model: y = a*f(x) + b
+    (when (and a b)
+      (let [transform-str (case model-id
+                            :logarithmic "log(n)"
+                            :linear "n"
+                            :n-log-n "n*log(n)"
+                            :quadratic "n²"
+                            "x")
+            sign (if (neg? b) "-" "+")]
+        (format
+         "y = %.4g*%s %s %.4g"
+         a
+         transform-str
+         sign
+         (Math/abs ^double b))))))
+

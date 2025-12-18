@@ -13,11 +13,11 @@
      (let [v (first (sample (:path metric)))]
        (conj res
              {:metric (:label metric)
-              :value  (if (number? v)
-                        (format/format-value
-                         (:dimension metric)
-                         (* (double v) (double (:scale metric))))
-                        v)})))
+              :value (if (number? v)
+                       (format/format-value
+                        (:dimension metric)
+                        (* (double v) (double (:scale metric))))
+                       v)})))
    []
    metrics))
 
@@ -25,21 +25,21 @@
   [stats metric-configs transforms]
   (reduce
    (fn [res metric]
-     (let [stat          (util/transform-vals->
-                          (get-in stats (:path metric))
-                          transforms)
-           min-val       (double (:min-val stat))
-           metric-scale  (double (:scale metric))
+     (let [stat (util/transform-vals->
+                 (get-in stats (:path metric))
+                 transforms)
+           min-val (double (:min-val stat))
+           metric-scale (double (:scale metric))
            [scale label] (format/scale
                           (:dimension metric)
                           (* metric-scale min-val))
-           scale         (* (double scale) metric-scale)]
+           scale (* (double scale) metric-scale)]
        (conj res
              (reduce
               (fn add-key-k [res k]
                 (assoc res k
                        (format/round (* (double (get stat k)) scale) 4)))
-              {:_metric (str  (:label metric) " " label)} ; underscore so it sorts first
+              {:_metric (str (:label metric) " " label)} ; underscore so it sorts first
               [:mean :min-val :mean-minus-3sigma :mean-plus-3sigma :max-val]))))
    []
    (filterv (metric/type-pred :quantitative) metric-configs)))
@@ -51,7 +51,7 @@
   [event-stats _k metric ms]
   {:post [(have? (some-fn nil? map?) %)]}
   (let [sample-count-path (conj (pop (:path (first ms))) :sample-count)
-        sample-count      (event-stats sample-count-path)]
+        sample-count (event-stats sample-count-path)]
     (when (and sample-count (pos? (long sample-count)))
       (reduce
        (fn [res m]
@@ -62,14 +62,14 @@
                  (* (double (get event-stats (:path m)))
                     (double (:scale m))))))
        {:metric (:label metric)}
-       (into [{:path      sample-count-path
+       (into [{:path sample-count-path
                :dimension :count
-               :scale     1}]
+               :scale 1}]
              ms)))))
 
 (defn event-stats
   [metrics-defs ev-stats]
-  {:pre  [ev-stats]
+  {:pre [ev-stats]
    :post [(have? vector? %)]}
   (reduce-kv
    (fn [res k metric]
@@ -86,14 +86,14 @@
   {:pre [(have? all-quantiles)]}
   (reduce
    (fn [res metric-config]
-     (let [quantiles    (get-in all-quantiles (:path metric-config))
-           median-val   (double
-                         (util/transform-sample-> (quantiles 0.5) transforms))
+     (let [quantiles (get-in all-quantiles (:path metric-config))
+           median-val (double
+                       (util/transform-sample-> (quantiles 0.5) transforms))
            metric-scale (double (:scale metric-config))
            [scale unit] (format/scale
                          (:dimension metric-config)
                          (* metric-scale median-val))
-           scale        (* (double scale) metric-scale)]
+           scale (* (double scale) metric-scale)]
        (conj res
              (reduce-kv
               (fn [res q v]
@@ -129,10 +129,10 @@
 
 (defn collect-plan-data
   [bench-map]
-  (let [samples-schema    (sampled-scheme-data
-                           (-> bench-map :samples))
-        warmup-scheme     (sampled-scheme-data
-                           (some-> bench-map :warmup))
+  (let [samples-schema (sampled-scheme-data
+                        (-> bench-map :samples))
+        warmup-scheme (sampled-scheme-data
+                       (some-> bench-map :warmup))
         estimation-scheme (sampled-scheme-data
                            (some-> bench-map :estimation))]
     (cond-> [(merge {:phase :sample} samples-schema)]
@@ -155,33 +155,135 @@
 (defn histogram
   [histogram transforms metric-config]
   {:pre [(have? histogram)]}
-  (let [transform    #(util/transform-sample-> % transforms)
-        min-val      (double (transform (:min histogram)))
+  (let [transform #(util/transform-sample-> % transforms)
+        min-val (double (transform (:min histogram)))
         metric-scale (double (:scale metric-config))
         [scale unit] (format/scale
                       (:dimension metric-config)
                       (* metric-scale min-val))
-        scale        (* (double scale) metric-scale)
-        round        #(format/round % 4)
-        t-center     (comp round (partial * scale) transform)
-        t-density    #(format/round % 3)
-        histogram    (if (= :criterium/histogram-fixed-width (:type histogram))
-                       histogram
-                       (-> histogram
-                           #_(assoc
-                              :density
-                              (mapv
-                               (fn [^double d ^double w]
-                                 (* d w))
-                               (:density histogram)
-                               (:widths histogram)))
-                           (update :widths #(mapv t-density %))))
-        histogram    (-> histogram
-                         (update :centers #(mapv t-center %))
-                         (update :min t-center)
-                         (update :max t-center)
-                         (update :density #(mapv t-density %))
-                         (assoc
-                          :metric-config metric-config
-                          :unit unit))]
+        scale (* (double scale) metric-scale)
+        round #(format/round % 4)
+        t-center (comp round (partial * scale) transform)
+        t-density #(format/round % 3)
+        histogram (if (= :criterium/histogram-fixed-width (:type histogram))
+                    histogram
+                    (-> histogram
+                        #_(assoc
+                           :density
+                           (mapv
+                            (fn [^double d ^double w]
+                              (* d w))
+                            (:density histogram)
+                            (:widths histogram)))
+                        (update :widths #(mapv t-density %))))
+        histogram (-> histogram
+                      (update :centers #(mapv t-center %))
+                      (update :min t-center)
+                      (update :max t-center)
+                      (update :density #(mapv t-density %))
+                      (assoc
+                       :metric-config metric-config
+                       :unit unit))]
     histogram))
+
+;;; Domain view helpers
+
+(defn format-coord
+  "Format a coordinate for display."
+  [coord]
+  (if (map? coord)
+    (into {} (map (fn [[k v]] [(name k) v])) coord)
+    (name coord)))
+
+(defn metric-path->dimension
+  "Return the dimension keyword for a metric-path.
+  Used to determine appropriate scaling via format/scale."
+  [metric-path]
+  (case (first metric-path)
+    (:stats :log-stats)
+    (case (second metric-path)
+      :elapsed-time :time
+      :thread-allocation :memory
+      nil)
+    nil))
+
+(defn metric-path->base-scale
+  "Return base scale factor to convert raw metric values to base units.
+  Elapsed-time is stored in nanoseconds, so convert to seconds for scaling."
+  [metric-path]
+  (case (first metric-path)
+    (:stats :log-stats)
+    (case (second metric-path)
+      :elapsed-time 1e-9 ; ns -> s
+      1)
+    1))
+
+(defn compute-si-scaling
+  "Compute SI scaling factors for a metric-path given sample values.
+  Returns {:base-scale, :si-scale, :total-scale, :unit}.
+  - base-scale: converts raw values to base units (e.g., ns -> s)
+  - si-scale: SI prefix scaling factor
+  - total-scale: base-scale * si-scale
+  - unit: SI unit string (e.g., \"ms\", \"μs\")"
+  [metric-path values]
+  (let [base-scale (metric-path->base-scale metric-path)
+        dimension (metric-path->dimension metric-path)
+        base-values (when (seq values) (map #(* % base-scale) values))
+        representative-value (when (seq base-values)
+                               (/ (reduce + base-values) (count base-values)))
+        [si-scale si-unit] (if (and dimension representative-value)
+                             (format/scale dimension representative-value)
+                             [1 ""])]
+    {:base-scale base-scale
+     :si-scale si-scale
+     :total-scale (* base-scale si-scale)
+     :unit si-unit}))
+
+(defn format-value-with-unit
+  "Format a value from domain-extract as a string with SI units."
+  [value metric-path]
+  (when (some? value)
+    (let [base-value (* value (metric-path->base-scale metric-path))
+          dimension (metric-path->dimension metric-path)]
+      (if dimension
+        (format/format-value dimension base-value)
+        (format "%g" (double base-value))))))
+
+(defn single-key-coord-info
+  "Detect if all row-keys are single-key maps with the same key.
+  Returns {:key k :values [v1 v2 ...]} if so, nil otherwise."
+  [row-keys]
+  (when (and (seq row-keys)
+             (every? map? row-keys)
+             (every? #(= 1 (count %)) row-keys))
+    (let [keys-set (into #{} (mapcat keys) row-keys)]
+      (when (= 1 (count keys-set))
+        (let [k (first keys-set)]
+          {:key k
+           :values (mapv #(get % k) row-keys)})))))
+
+(defn sort-row-keys
+  "Sort row-keys, using numeric sort when all values are numbers."
+  [row-keys single-key-info]
+  (if single-key-info
+    (let [{:keys [values]} single-key-info
+          all-numeric? (every? number? values)]
+      (if all-numeric?
+        (sort-by #(get % (:key single-key-info)) row-keys)
+        (sort-by #(str (get % (:key single-key-info))) row-keys)))
+    (sort-by str row-keys)))
+
+(defn format-row-key-value
+  "Format a row-key for display, extracting the value for single-key maps."
+  [row-key single-key-info]
+  (if single-key-info
+    (get row-key (:key single-key-info))
+    (format-coord row-key)))
+
+(defn coord-column-header
+  "Return the appropriate column header for coordinates."
+  [single-key-info]
+  (if single-key-info
+    (name (:key single-key-info))
+    "coordinate"))
+
