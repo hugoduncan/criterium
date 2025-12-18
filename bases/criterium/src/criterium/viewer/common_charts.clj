@@ -431,3 +431,141 @@
          sign
          (Math/abs ^double b))))))
 
+(defn regression-scatter-layer
+  "Build scatter plot layer for regression points.
+  Options:
+    :color-field - field name for color encoding (e.g., \"impl\" or nil for static color)
+    :color-value - static color when color-field is nil (default \"steelblue\")
+    :legend-options - legend config map or nil for default"
+  [points {:keys [axis-name y-title color-field color-value legend-options]
+           :or {color-value "steelblue"}}]
+  {:data {:values points}
+   :mark {:type "point" :size 60}
+   :encoding (cond-> {:x {:field "x" :type "quantitative" :title axis-name}
+                      :y {:field "y" :type "quantitative" :title y-title}}
+               color-field
+               (assoc :color {:field color-field :type "nominal"
+                              :legend (merge {:title (if (= color-field "impl")
+                                                       "Implementation"
+                                                       "Model")}
+                                             legend-options)})
+               (not color-field)
+               (assoc :color {:value color-value}))})
+
+(defn regression-error-layer
+  "Build error bar layer for regression points with error bounds."
+  [points {:keys [color-field color-value]
+           :or {color-value "steelblue"}}]
+  {:data {:values points}
+   :mark {:type "rule" :strokeWidth 1.5}
+   :encoding (cond-> {:x {:field "x" :type "quantitative"}
+                      :y {:field "yLower" :type "quantitative"}
+                      :y2 {:field "yUpper"}
+                      :opacity {:value 0.5}}
+               color-field
+               (assoc :color {:field color-field :type "nominal" :legend nil})
+               (not color-field)
+               (assoc :color {:value color-value}))})
+
+(defn regression-line-layer
+  "Build fit line layer for regression models.
+  Options:
+    :color-field - field name for color encoding (\"impl\" or \"model\")
+    :legend-options - legend config map or nil for default"
+  [line-pts {:keys [color-field legend-options]}]
+  {:data {:values (vec line-pts)}
+   :mark {:type "line" :strokeWidth 2}
+   :encoding {:x {:field "x" :type "quantitative"}
+              :y {:field "y" :type "quantitative"}
+              :color {:field color-field :type "nominal"
+                      :legend (when legend-options
+                                (merge {:title (if (= color-field "impl")
+                                                 "Implementation"
+                                                 "Model")}
+                                       legend-options))}}})
+
+(defn regression-chart-spec
+  "Build complete regression scatter plot with fit lines.
+  Options:
+    :width - chart width
+    :height - chart height
+    :axis-name - x-axis title
+    :y-title - y-axis title
+    :color-field - field for color encoding (\"impl\" or \"model\" or nil)
+    :color-value - static color when color-field is nil
+    :legend-options - legend config map
+    :has-error-bounds? - whether to include error bars"
+  [points line-pts {:keys [width height axis-name y-title color-field color-value
+                           legend-options has-error-bounds?]
+                    :or {width 600 height 400 color-value "steelblue"} :as opts}]
+  (let [scatter-layer (regression-scatter-layer points opts)
+        line-layer (regression-line-layer line-pts
+                                          {:color-field color-field
+                                           :legend-options legend-options})
+        error-layer (when has-error-bounds?
+                      (regression-error-layer points
+                                              {:color-field color-field
+                                               :color-value color-value}))
+        layers (cond-> [scatter-layer line-layer]
+                 has-error-bounds? (conj error-layer))]
+    {:width width
+     :height height
+     :layer layers}))
+
+(defn regression-residual-layer
+  "Build scatter layer for residual plot.
+  Options:
+    :color-field - field name for color encoding
+    :legend-options - legend config map or nil for default"
+  [residual-pts {:keys [axis-name residual-title color-field legend-options]}]
+  {:data {:values (vec residual-pts)}
+   :mark {:type "point" :size 60}
+   :encoding {:x {:field "x" :type "quantitative" :title axis-name}
+              :y {:field "residual" :type "quantitative" :title residual-title}
+              :color {:field color-field :type "nominal"
+                      :legend (merge {:title (if (= color-field "impl")
+                                               "Implementation"
+                                               "Model")}
+                                     legend-options)}}})
+
+(defn regression-loess-layer
+  "Build loess smoothing layer for residual plot."
+  [residual-pts {:keys [color-field]}]
+  {:data {:values (vec residual-pts)}
+   :transform [{:loess "residual"
+                :on "x"
+                :groupby [color-field]
+                :bandwidth 0.3}]
+   :mark {:type "line" :strokeWidth 1}
+   :encoding {:x {:field "x" :type "quantitative"}
+              :y {:field "residual" :type "quantitative"}
+              :color {:field color-field :type "nominal" :legend nil}
+              :opacity {:value 0.4}}})
+
+(defn regression-zero-line-layer
+  "Build zero reference line layer for residual plot."
+  []
+  {:data {:values [{"y" 0}]}
+   :mark {:type "rule" :strokeDash [4 4]}
+   :encoding {:y {:field "y" :type "quantitative"}
+              :color {:value "gray"}}})
+
+(defn regression-residual-spec
+  "Build complete residual plot spec.
+  Options:
+    :width - chart width
+    :height - chart height (typically half of main chart)
+    :axis-name - x-axis title
+    :residual-title - y-axis title
+    :color-field - field for color encoding
+    :legend-options - legend config map"
+  [residual-pts {:keys [width height axis-name residual-title color-field
+                        legend-options]
+                 :or {width 600 height 200} :as opts}]
+  {:width width
+   :height height
+   :layer [(regression-residual-layer residual-pts opts)
+           (regression-loess-layer residual-pts {:color-field color-field})
+           (regression-zero-line-layer)]})
+
+

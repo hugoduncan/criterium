@@ -611,3 +611,176 @@
           (when-let [table (build-absolute-value-table axis metric data)]
             [table]))))))
 
+;;; Domain regression view helpers
+
+(defn prepare-regression-model-table
+  "Prepare model table rows for single-impl regression display.
+  Returns vector of row maps with :model :r-squared :equation :best-fit keys.
+  Options:
+    :best-fit-marker - string to show for best fit (default \"✓\")
+    :plotted-marker - string to show for plotted but not best (default \"\")
+    :tolerance - fraction within best r-squared to mark as plotted (default 0.01)"
+  [{:keys [models best-fit]}
+   {:keys [best-fit-marker plotted-marker tolerance]
+    :or {best-fit-marker "✓" plotted-marker "" tolerance 0.01}}
+   equation-str-fn]
+  (when (seq models)
+    (let [best-r-squared (->> models
+                              (filter #(= (:id %) best-fit))
+                              first
+                              :r-squared)
+          plotted-ids (when best-r-squared
+                        (->> models
+                             (filter #(>= (:r-squared %)
+                                          (* best-r-squared (- 1 tolerance))))
+                             (map :id)
+                             set))
+          sorted-models (sort-by :r-squared > models)]
+      (mapv (fn [{:keys [id label coefficients r-squared]}]
+              (let [plotted? (and plotted-ids (plotted-ids id))]
+                {:model label
+                 :r-squared (format "%.4f" r-squared)
+                 :equation (or (equation-str-fn id coefficients) "")
+                 :best-fit (cond
+                             (= id best-fit) best-fit-marker
+                             plotted? plotted-marker
+                             :else "")}))
+            sorted-models))))
+
+(defn prepare-regression-model-table-multi-impl
+  "Prepare model table rows for multi-impl regression display.
+  Returns vector of row maps with :implementation :model :r-squared :equation :best-fit.
+  Options same as prepare-regression-model-table."
+  [by-impl impl-keys options equation-str-fn]
+  (vec
+   (mapcat
+    (fn [impl-key]
+      (let [impl-data (get by-impl impl-key)
+            rows (prepare-regression-model-table impl-data options equation-str-fn)]
+        (mapv #(assoc % :implementation (name impl-key)) rows)))
+    impl-keys)))
+
+(defn prepare-regression-points
+  "Prepare data points for regression scatter plot.
+  Returns {:points [...] :total-scale number :unit string :x-vals [...]} or nil.
+  Points have keys: x, y, and optionally yLower, yUpper for error bounds.
+  For multi-impl mode, points also have :impl key."
+  [extract-data {:keys [axis impl-axis has-error-bounds? metric]}]
+  (when extract-data
+    (let [{:keys [data]} extract-data
+          get-value (if has-error-bounds?
+                      (fn [[_ v]] (when v (:value v)))
+                      (fn [[_ v]] v))
+          multi-impl? (some? impl-axis)
+          valid-data (filterv (fn [datum]
+                                (let [[coord _] datum
+                                      value (get-value datum)]
+                                  (and (some? value)
+                                       (map? coord)
+                                       (contains? coord axis)
+                                       (or (not multi-impl?)
+                                           (contains? coord impl-axis)))))
+                              data)]
+      (when (seq valid-data)
+        (let [raw-values (mapv get-value valid-data)
+              {:keys [total-scale unit]} (compute-si-scaling metric raw-values)
+              points (mapv (fn [[coord v]]
+                             (let [y-val (if has-error-bounds? (:value v) v)
+                                   x-val (double (get coord axis))]
+                               (cond-> {"x" x-val
+                                        "y" (* y-val total-scale)}
+                                 has-error-bounds?
+                                 (assoc "yLower" (* (:lower v) total-scale)
+                                        "yUpper" (* (:upper v) total-scale))
+                                 multi-impl?
+                                 (assoc "impl" (name (get coord impl-axis))))))
+                           valid-data)
+              x-vals (mapv #(get % "x") points)]
+          {:points points
+           :total-scale total-scale
+           :unit unit
+           :x-vals x-vals
+           :valid-data valid-data})))))
+
+(defn prepare-regression-fit-lines
+  "Generate fit line points for plotting.
+  For single-impl mode, models is a seq of model maps.
+  For multi-impl mode, by-impl is a map of impl-key -> {:models [...] :best-fit id}.
+  Returns vector of point maps with x, y, and model or impl key."
+  [{:keys [x-vals total-scale]} {:keys [models by-impl impl-keys]} model-fn-builder]
+  (when (seq x-vals)
+    (let [x-min (apply min x-vals)
+          x-max (apply max x-vals)
+          x-range (range x-min (+ x-max 1) (/ (- x-max x-min) 50))]
+      (if by-impl
+        ;; Multi-impl: one best-fit line per implementation
+        (vec
+         (mapcat
+          (fn [impl-key]
+            (let [{:keys [models best-fit]} (get by-impl impl-key)
+                  best-model (first (filter #(= (:id %) best-fit) models))]
+              (when best-model
+                (let [mfn (model-fn-builder best-fit (:coefficients best-model))]
+                  (mapv (fn [x]
+                          {"x" x
+                           "y" (* (mfn x) total-scale)
+                           "impl" (name impl-key)})
+                        x-range)))))
+          impl-keys))
+        ;; Single-impl: lines for all models to plot
+        (vec
+         (mapcat
+          (fn [model]
+            (let [mfn (model-fn-builder (:id model) (:coefficients model))]
+              (mapv (fn [x]
+                      {"x" x
+                       "y" (* (mfn x) total-scale)
+                       "model" (:label model)})
+                    x-range)))
+          models))))))
+
+(defn prepare-regression-residuals
+  "Compute residual points for plotting.
+  Returns vector of point maps with x, residual, and model or impl key."
+  [{:keys [valid-data total-scale]} {:keys [axis impl-axis has-error-bounds?
+                                            models by-impl impl-keys model-fns]}
+   model-fn-builder]
+  (let [get-value (if has-error-bounds?
+                    (fn [[_ v]] (when v (:value v)))
+                    (fn [[_ v]] v))]
+    (if by-impl
+      ;; Multi-impl mode
+      (vec
+       (mapcat
+        (fn [impl-key]
+          (let [{:keys [models best-fit]} (get by-impl impl-key)
+                best-model (first (filter #(= (:id %) best-fit) models))]
+            (when best-model
+              (let [mfn (model-fn-builder best-fit (:coefficients best-model))]
+                (keep (fn [[coord v]]
+                        (when (= (get coord impl-axis) impl-key)
+                          (let [y-val (get-value [coord v])
+                                x-val (double (get coord axis))
+                                predicted (mfn x-val)]
+                            {"x" x-val
+                             "residual" (* (- y-val predicted) total-scale)
+                             "impl" (name impl-key)})))
+                      valid-data)))))
+        impl-keys))
+      ;; Single-impl mode
+      (vec
+       (mapcat
+        (fn [model]
+          (let [mfn (or (get model-fns (:id model))
+                        (model-fn-builder (:id model) (:coefficients model)))]
+            (mapv (fn [[coord v]]
+                    (let [y-val (get-value [coord v])
+                          x-val (double (get coord axis))
+                          predicted (mfn x-val)]
+                      {"x" x-val
+                       "residual" (* (- y-val predicted) total-scale)
+                       "model" (:label model)}))
+                  valid-data)))
+        models)))))
+
+

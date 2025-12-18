@@ -364,7 +364,10 @@
   [_ {:keys [regression-id tolerance]} data-map]
   (let [regression-id (or regression-id :regression)
         regression (data-map regression-id)
-        tolerance (or tolerance 0.01)]
+        tolerance (or tolerance 0.01)
+        table-options {:best-fit-marker "<- best"
+                       :plotted-marker "[plotted]"
+                       :tolerance tolerance}]
     (when regression
       (let [{:keys [axis regressions impl-axis implementations]} regression
             multi-impl? (> (count implementations) 1)]
@@ -375,37 +378,9 @@
                              (name axis) (pr-str metric) (name impl-axis)))
             (if (seq by-impl)
               (let [impl-keys (sort (keys by-impl))
-                    table-rows
-                    (vec
-                     (mapcat
-                      (fn [impl-key]
-                        (let [{:keys [models best-fit]} (get by-impl impl-key)
-                              best-r-squared (when best-fit
-                                               (->> models
-                                                    (filter #(= (:id %) best-fit))
-                                                    first
-                                                    :r-squared))
-                              plotted-ids (when best-r-squared
-                                            (->> models
-                                                 (filter #(>= (:r-squared %)
-                                                              (* best-r-squared (- 1 tolerance))))
-                                                 (map :id)
-                                                 set))
-                              sorted-models (sort-by :r-squared > models)]
-                          (mapv (fn [{:keys [id label coefficients r-squared]}]
-                                  (let [plotted? (and plotted-ids (plotted-ids id))]
-                                    {:implementation (name impl-key)
-                                     :model label
-                                     :r-squared (format "%.4f" r-squared)
-                                     :equation (or (charts/regression-equation-str
-                                                    id coefficients)
-                                                   "")
-                                     :best-fit (cond
-                                                 (= id best-fit) "<- best"
-                                                 plotted? "[plotted]"
-                                                 :else "")}))
-                                sorted-models)))
-                      impl-keys))]
+                    table-rows (viewer-common/prepare-regression-model-table-multi-impl
+                                by-impl impl-keys table-options
+                                charts/regression-equation-str)]
                 (pprint/print-table
                  [:implementation :model :r-squared :equation :best-fit]
                  table-rows))
@@ -417,31 +392,10 @@
             (println (format "Domain Regression (axis: %s, metric: %s)"
                              (name axis) (pr-str metric)))
             (if (seq models)
-              (let [best-r-squared (when best-fit
-                                     (->> models
-                                          (filter #(= (:id %) best-fit))
-                                          first
-                                          :r-squared))
-                    plotted-ids (when best-r-squared
-                                  (->> models
-                                       (filter #(>= (:r-squared %)
-                                                    (* best-r-squared (- 1 tolerance))))
-                                       (map :id)
-                                       set))
-                    sorted-models (sort-by :r-squared > models)
-                    table-rows
-                    (mapv (fn [{:keys [id label coefficients r-squared]}]
-                            (let [plotted? (and plotted-ids (plotted-ids id))]
-                              {:model label
-                               :r-squared (format "%.4f" r-squared)
-                               :equation (or (charts/regression-equation-str
-                                              id coefficients)
-                                             "")
-                               :best-fit (cond
-                                           (= id best-fit) "<- best"
-                                           plotted? "[plotted]"
-                                           :else "")}))
-                          sorted-models)]
+              (let [table-rows (viewer-common/prepare-regression-model-table
+                                {:models models :best-fit best-fit}
+                                table-options
+                                charts/regression-equation-str)]
                 (pprint/print-table [:model :r-squared :equation :best-fit] table-rows))
               (println "  (insufficient data for regression)"))
             (println)))))))
