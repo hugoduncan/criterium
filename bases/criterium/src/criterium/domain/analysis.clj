@@ -5,7 +5,7 @@
   fitting complexity models, and composable analysis pipelines."
   (:require
    [criterium.bench.config :as bench-config]
-   [criterium.domain :as domain]
+   [criterium.domain.types :as types]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have have?]]
    [criterium.view :as view]))
@@ -67,9 +67,9 @@
   ([domain metric-path]
    (extract domain metric-path {}))
   ([domain metric-path {:keys [with-error-bounds metric-ids]}]
-   (let [runs (domain/runs domain)
-         impl-axis-key (domain/impl-axis domain)
-         impls (domain/implementations domain)
+   (let [runs (types/runs domain)
+         impl-axis-key (types/impl-axis domain)
+         impls (types/implementations domain)
          multi-impl? (> (count impls) 1)
          ;; Determine which metrics to extract
          metric-ids-to-extract
@@ -146,7 +146,7 @@
   ;;            :bar <domain with :impl :bar runs>
   ;;            nil  <domain with runs lacking :impl>}}"
   [domain axis-key]
-  (let [runs (domain/runs domain)
+  (let [runs (types/runs domain)
         grouped (group-by (fn [{:keys [coord]}]
                             (when (map? coord)
                               (get coord axis-key)))
@@ -156,8 +156,8 @@
      :data (into {}
                  (map (fn [[k runs]]
                         [k (reduce (fn [d {:keys [coord data]}]
-                                     (domain/add-run d coord data))
-                                   (domain/domain)
+                                     (types/add-run d coord data))
+                                   (types/domain)
                                    runs)]))
                  grouped)}))
 
@@ -195,7 +195,7 @@
   ([domain axis-key metric-path]
    (compare-by domain axis-key metric-path {}))
   ([domain axis-key metric-path {:keys [metric-ids]}]
-   (let [runs (domain/runs domain)
+   (let [runs (types/runs domain)
          impls (:implementations domain)
          grouped (:data (group-by-axis domain axis-key))
          compare-single
@@ -210,7 +210,7 @@
                                            :value (util/stats-value
                                                    data stats-id
                                                    metric-id value-key)})
-                                        (domain/runs sub-domain))]))
+                                        (types/runs sub-domain))]))
                           grouped)}))]
      (if metric-path
        ;; Single metric mode
@@ -226,7 +226,7 @@
                                                :value (util/stats-value
                                                        data stats-id
                                                        metric-id value-key)})
-                                            (domain/runs sub-domain))]))
+                                            (types/runs sub-domain))]))
                               grouped)}
            impls (assoc :implementations impls)))
        ;; Multi-metric mode

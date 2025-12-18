@@ -5,8 +5,8 @@
   inputs, plus input sequence generators for scaling analysis."
   (:require
    [criterium.bench :as bench]
-   [criterium.domain :as domain]
    [criterium.domain.analysis :as analysis]
+   [criterium.domain.types :as types]
    [criterium.measured :as measured]
    [criterium.util.invariant :refer [have]]))
 
@@ -55,8 +55,8 @@
   (if (= n 1)
     (list (long start))
     (let [log-start (Math/log start)
-          log-end   (Math/log end)
-          step      (/ (- log-end log-start) (dec n))]
+          log-end (Math/log end)
+          step (/ (- log-end log-start) (dec n))]
       (mapv
        (fn [^long n] (long (Math/round (Math/exp (+ log-start (* n step))))))
        (range n)))))
@@ -74,7 +74,7 @@
   [^long start ^long end ^long n]
   (if (= n 1)
     (list (long start))
-    (let [step (double  (/ (- end start) (unchecked-dec n)))]
+    (let [step (double (/ (- end start) (unchecked-dec n)))]
       (mapv
        (fn [^long n] (long (Math/round (double (+ start (* n step))))))
        (range n)))))
@@ -85,14 +85,14 @@
   x_{n+1} = x_n - f(x_n)/f'(x_n)"
   ^double [^double y ^double initial-guess]
   (let [max-iterations 50
-        tolerance      1e-10]
+        tolerance 1e-10]
     (loop [x initial-guess
            i 0]
       (if (>= i max-iterations)
         x
         (let [ln-x (Math/log x)
-              fx   (- (* x ln-x) y)
-              fpx  (+ ln-x 1.0)]
+              fx (- (* x ln-x) y)
+              fpx (+ ln-x 1.0)]
           (if (< (Math/abs fx) tolerance)
             x
             (recur (- x (/ fx fpx)) (inc i))))))))
@@ -112,10 +112,10 @@
   (have #(>= (double %) (/ 1.0 Math/E)) start {:msg "start must be >= e^-1"})
   (if (= n 1)
     [(long start)]
-    (let [f               (fn ^double [^double x] (* x (Math/log x)))
+    (let [f (fn ^double [^double x] (* x (Math/log x)))
           ^double y-start (f start)
-          ^double y-end   (f end)
-          y-step          (/ (- y-end y-start) (dec n))]
+          ^double y-end (f end)
+          y-step (/ (- y-end y-start) (dec n))]
       (mapv (fn [^long i]
               (let [y (+ y-start (* i y-step))]
                 (if (zero? i)
@@ -199,10 +199,10 @@
                              (get-in data [:samples :total-benchmark-time-ns]))]
                [coord time-ns]))
            impl-runs)
-          extract    {:type    :criterium/domain-extract
-                      :metrics {:benchmark-time
-                                {:metric [:samples :total-benchmark-time-ns]
-                                 :data   extract-data}}}
+          extract {:type :criterium/domain-extract
+                   :metrics {:benchmark-time
+                             {:metric [:samples :total-benchmark-time-ns]
+                              :data extract-data}}}
           regression (analysis/fit-complexity extract time-axis)
           best-model (first
                       (filter
@@ -213,11 +213,11 @@
                        (get-in
                         regression
                         [:regressions :benchmark-time :models])))
-          next-x     (get next-coord time-axis)]
+          next-x (get next-coord time-axis)]
       (if (and best-model next-x (> (double (:r-squared best-model)) 0.5))
         (let [predicted-ns (predict-time-ns best-model next-x)
               ;; Convert ns to seconds with margin
-              predicted-s  (* 2.5 (/ predicted-ns 1e9))]
+              predicted-s (* 2.5 (/ predicted-ns 1e9))]
           (max predicted-s (double initial-limit-time-s)))
         initial-limit-time-s))))
 
@@ -293,44 +293,44 @@
           [{} (normalize-implementations first-arg) (apply hash-map args)]
           [first-arg (first args) (apply hash-map (rest args))])
         {:keys [initial-limit-time-s time-axis reporter bench-options]
-         :or   {initial-limit-time-s default-initial-limit-time-s}}
+         :or {initial-limit-time-s default-initial-limit-time-s}}
         options
-        time-axis      (or time-axis (first (keys axes)))
-        reporter       (if (contains? #{nil false} reporter)
-                         nil
-                         (or reporter (dot-reporter)))
-        coords         (cartesian-product axes)
+        time-axis (or time-axis (first (keys axes)))
+        reporter (if (contains? #{nil false} reporter)
+                   nil
+                   (or reporter (dot-reporter)))
+        coords (cartesian-product axes)
         ;; Sort by time-axis ascending
-        sorted-coords  (sort-by #(get % time-axis) coords)
-        total-runs     (count sorted-coords)
-        impl-keys      (vec (keys implementations))
+        sorted-coords (sort-by #(get % time-axis) coords)
+        total-runs (count sorted-coords)
+        impl-keys (vec (keys implementations))
         ;; Create initial domain with :impl-axis when multiple impls
         initial-domain (if (> (count implementations) 1)
-                         (domain/domain {:impl-axis       :impl
-                                         :implementations impl-keys})
-                         (domain/domain {:implementations impl-keys}))
+                         (types/domain {:impl-axis :impl
+                                        :implementations impl-keys})
+                         (types/domain {:implementations impl-keys}))
         ;; Helper to run a single benchmark
-        run-bench      (fn [coord-measured limit-time-s]
-                         (let [bench-plan (bench/options->bench-plan
-                                           (merge bench-options
-                                                  {:limit-time-s limit-time-s
-                                                   :viewer       :none}))]
-                           (bench/bench-measured bench-plan coord-measured)
-                           (:data (bench/last-bench))))
+        run-bench (fn [coord-measured limit-time-s]
+                    (let [bench-plan (bench/options->bench-plan
+                                      (merge bench-options
+                                             {:limit-time-s limit-time-s
+                                              :viewer :none}))]
+                      (bench/bench-measured bench-plan coord-measured)
+                      (:data (bench/last-bench))))
         ;; Helper to check if re-run is needed (>5% difference)
-        needs-rerun?   (fn [bench-result limit-time-s]
-                         (when-let [time-limit (get-in
-                                                bench-result
-                                                [:samples :time-limit])]
-                           (let [projected-s (/
-                                              (double
-                                               (:projected-time-ns time-limit))
-                                              1e9)
-                                 diff-pct    (Math/abs
-                                              (/ (- projected-s
-                                                    (double limit-time-s))
-                                                 (double limit-time-s)))]
-                             (> diff-pct 0.05))))]
+        needs-rerun? (fn [bench-result limit-time-s]
+                       (when-let [time-limit (get-in
+                                              bench-result
+                                              [:samples :time-limit])]
+                         (let [projected-s (/
+                                            (double
+                                             (:projected-time-ns time-limit))
+                                            1e9)
+                               diff-pct (Math/abs
+                                         (/ (- projected-s
+                                               (double limit-time-s))
+                                            (double limit-time-s)))]
+                           (> diff-pct 0.05))))]
 
     (reduce
      (fn [domain [impl-key impl-spec]]
@@ -342,39 +342,39 @@
                (reduce
                 (fn [{:keys [domain impl-runs]} [idx coord]]
                   (let [;; Estimate time limit based on previous runs
-                        limit-time-s   (estimate-limit-time-s
-                                        impl-runs time-axis coord
-                                        initial-limit-time-s)
+                        limit-time-s (estimate-limit-time-s
+                                      impl-runs time-axis coord
+                                      initial-limit-time-s)
                         ;; Create args-fn for this coordinate
-                        args-fn        (args-builder coord)
+                        args-fn (args-builder coord)
                         ;; Create measured with new args-fn
                         coord-measured (measured/with-args-fn measured args-fn)
                         ;; Run benchmark
-                        bench-result   (run-bench coord-measured limit-time-s)
+                        bench-result (run-bench coord-measured limit-time-s)
                         ;; Re-run if time-limited and projected differs by >5%
-                        bench-result   (if (needs-rerun? bench-result limit-time-s)
-                                         (let [new-limit-s
-                                               (* 1.1
-                                                  (/
-                                                   (double
-                                                    (get-in
-                                                     bench-result
-                                                     [:samples :time-limit :projected-time-ns]))
-                                                   1e9))]
-                                           (run-bench coord-measured new-limit-s))
-                                         bench-result)
+                        bench-result (if (needs-rerun? bench-result limit-time-s)
+                                       (let [new-limit-s
+                                             (* 1.1
+                                                (/
+                                                 (double
+                                                  (get-in
+                                                   bench-result
+                                                   [:samples :time-limit :projected-time-ns]))
+                                                 1e9))]
+                                         (run-bench coord-measured new-limit-s))
+                                       bench-result)
                         ;; Build full coordinate with impl
-                        full-coord     (assoc coord :impl impl-key)
+                        full-coord (assoc coord :impl impl-key)
                         ;; Accumulate into domain
-                        new-domain     (domain/add-run domain full-coord bench-result)
+                        new-domain (types/add-run domain full-coord bench-result)
                         ;; Track impl-specific runs for time estimation
-                        new-impl-runs  (conj impl-runs {:coord coord
-                                                        :data  bench-result})]
+                        new-impl-runs (conj impl-runs {:coord coord
+                                                       :data bench-result})]
 
                     (when reporter
                       (report-run reporter impl-key coord idx))
 
-                    {:domain    new-domain
+                    {:domain new-domain
                      :impl-runs new-impl-runs}))
                 {:domain domain :impl-runs []}
                 (map-indexed vector sorted-coords))]

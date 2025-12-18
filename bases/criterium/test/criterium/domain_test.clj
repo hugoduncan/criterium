@@ -1889,3 +1889,26 @@
           (is (= 2 (count (args-fn))))
           (is (= 5 (count (first (args-fn)))))
           (is (= 3 (count (second (args-fn))))))))))
+
+(deftest extract-metrics-plan-test
+  ;; Tests for the extract-metrics domain plan.
+  ;; Validates plan structure and integration with analyse-domain.
+  (testing "extract-metrics"
+    (testing "has correct structure"
+      (is (contains? domain-plans/extract-metrics :analyse))
+      (is (contains? domain-plans/extract-metrics :view))
+      (is (vector? (:analyse domain-plans/extract-metrics)))
+      (is (vector? (:view domain-plans/extract-metrics))))
+    (testing "analyse spec uses domain-extract-fn without metric-path"
+      (let [[spec-kw spec-opts] (first (:analyse domain-plans/extract-metrics))]
+        (is (= :domain-extract-fn spec-kw))
+        (is (not (contains? spec-opts :metric-path)))))
+    (testing "works with analyse-domain"
+      (let [d (domain/domain
+               {:coord {:n 100}
+                :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
+            result (analysis/analyse-domain
+                    (assoc domain-plans/extract-metrics :viewer :none)
+                    d)]
+        (is (map? result))
+        (is (domain/domain-extract? (:extract result)))))))

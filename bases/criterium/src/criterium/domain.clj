@@ -21,181 +21,76 @@
   - criterium.domain.analysis for extract, compare-by, group-by-axis, fit-complexity
   - criterium.domain.builder for domain-builder and input generators"
   (:require
-   [criterium.measured :as measured]))
+   [criterium.domain.analysis :as analysis]
+   [criterium.domain.builder :as builder]
+   [criterium.domain.types :as types]
+   [criterium.domain-plans :as domain-plans]
+   [criterium.measured :as measured])
+  (:refer-clojure :exclude [select]))
 
-;;; Predicates
+;;; Re-export from types
 
-(defn run?
+(def run?
   "Returns true if x is a valid run map with :coord and :data keys."
-  [x]
-  (and (map? x)
-       (contains? x :coord)
-       (contains? x :data)))
+  types/run?)
 
-(defn domain?
+(def domain?
   "Returns true if x is a domain."
-  [x]
-  (and (map? x)
-       (= :criterium/domain (:type x))
-       (vector? (:runs x))))
+  types/domain?)
 
-(defn domain-extract?
-  "Returns true if x is a domain extract result.
-  Domain extracts contain a :metrics map with metric-id keys."
-  [x]
-  (and (map? x)
-       (= :criterium/domain-extract (:type x))
-       (map? (:metrics x))))
+(def domain-extract?
+  "Returns true if x is a domain extract result."
+  types/domain-extract?)
 
-(defn domain-grouped?
+(def domain-grouped?
   "Returns true if x is a domain grouped result."
-  [x]
-  (and (map? x)
-       (= :criterium/domain-grouped (:type x))
-       (contains? x :axis)
-       (contains? x :data)))
+  types/domain-grouped?)
 
-(defn domain-comparison?
-  "Returns true if x is a domain comparison result.
-  Supports both single-metric format (with :metric and :data keys)
-  and multi-metric format (with :metrics key)."
-  [x]
-  (and (map? x)
-       (= :criterium/domain-comparison (:type x))
-       (contains? x :axis)
-       (or (and (contains? x :metric) (contains? x :data)) ; single-metric
-           (contains? x :metrics))))
+(def domain-comparison?
+  "Returns true if x is a domain comparison result."
+  types/domain-comparison?)
 
-(defn domain-regression?
-  "Returns true if x is a domain regression result.
-  Domain regressions contain a :regressions map with metric-id keys."
-  [x]
-  (and (map? x)
-       (= :criterium/domain-regression (:type x))
-       (contains? x :axis)
-       (map? (:regressions x))))
+(def domain-regression?
+  "Returns true if x is a domain regression result."
+  types/domain-regression?)
 
-;;; Construction
+(def domain
+  "Create a domain from runs. Returns empty domain when called with no args."
+  types/domain)
 
-(defn domain
-  "Create a domain from runs. Returns empty domain when called with no args.
+(def add-run
+  "Add a benchmark result to a domain with the given coordinates."
+  types/add-run)
 
-  Each run is a map with :coord (keyword or map) and :data (bench result).
+(def remove-run
+  "Remove a run from a domain by coordinates."
+  types/remove-run)
 
-  Options (as final map argument):
-  - :impl-axis - Coordinate axis for implementations
-  - :implementations - Vector of impl keys to include"
-  [& args]
-  (let [[runs opts] (if (and (seq args)
-                             (map? (last args))
-                             (or (contains? (last args) :impl-axis)
-                                 (contains? (last args) :implementations)))
-                      [(butlast args) (last args)]
-                      [args nil])]
-    (cond-> {:type :criterium/domain
-             :runs (vec runs)}
-      (:implementations opts) (assoc :implementations (:implementations opts))
-      (:impl-axis opts) (assoc :impl-axis (:impl-axis opts)))))
+(def runs
+  "Return runs from a domain, optionally filtered by partial coordinate."
+  types/runs)
 
-;;; Accumulation
+(def coords
+  "Return all coordinates from a domain as a vector."
+  types/coords)
 
-(defn add-run
-  "Add a benchmark result to a domain with the given coordinates.
-  Returns a new domain. If a run with the same coordinates already exists,
-  it is replaced.
+(def axes
+  "Infer dimension keys from all map coordinates in a domain."
+  types/axes)
 
-  coord can be either a keyword label or a map of dimension keys to values.
-  data is the full benchmark result from bench."
-  [domain coord data]
-  (let [new-run {:coord coord :data data}
-        runs (:runs domain)
-        idx (reduce-kv (fn [_ i run]
-                         (when (= coord (:coord run))
-                           (reduced i)))
-                       nil
-                       runs)]
-    (if idx
-      (assoc domain :runs (assoc runs idx new-run))
-      (assoc domain :runs (conj runs new-run)))))
+(def implementations
+  "Returns the implementation keys for a domain."
+  types/implementations)
 
-(defn remove-run
-  "Remove a run from a domain by coordinates.
-  Returns a new domain. If no run with the given coordinates exists,
-  returns the domain unchanged."
-  [domain coord]
-  (assoc domain :runs (into [] (remove #(= coord (:coord %))) (:runs domain))))
+(def impl-axis
+  "Returns the impl-axis key for a domain, or nil if not set."
+  types/impl-axis)
 
-;;; Query
-
-(defn- coord-matches?
-  "Returns true if coord matches the partial-coord.
-  For keyword coords, matches only if equal.
-  For map coords, matches if partial-coord is a subset."
-  [coord partial-coord]
-  (cond
-    (keyword? partial-coord)
-    (= coord partial-coord)
-
-    (map? partial-coord)
-    (if (map? coord)
-      (every? (fn [[k v]] (= (get coord k) v)) partial-coord)
-      false)
-
-    :else false))
-
-(defn runs
-  "Return runs from a domain, optionally filtered by partial coordinate.
-  For map coords, partial matching is supported (subset match)."
-  ([domain]
-   (:runs domain))
-  ([domain partial-coord]
-   (filterv #(coord-matches? (:coord %) partial-coord) (:runs domain))))
-
-(defn coords
-  "Return all coordinates from a domain as a vector.
-  Preserves the order of runs."
-  [domain]
-  (mapv :coord (:runs domain)))
-
-(defn axes
-  "Infer dimension keys from all map coordinates in a domain.
-  Returns a set of keys. Keyword coordinates contribute no keys."
-  [domain]
-  (into #{}
-        (comp (map :coord)
-              (filter map?)
-              (mapcat keys))
-        (:runs domain)))
-
-(defn implementations
-  "Returns the implementation keys for a domain.
-  Defaults to [:default] for domains without explicit implementations."
-  [domain]
-  (or (:implementations domain) [:default]))
-
-(defn impl-axis
-  "Returns the impl-axis key for a domain, or nil if not set.
-  The impl-axis specifies which coordinate axis represents different
-  implementations for comparison analysis."
-  [domain]
-  (:impl-axis domain))
-
-(defn select
-  "Filter domain to runs matching a partial coordinate. Returns a new domain.
-  For map coords, partial matching is supported (subset match)."
-  [domain partial-coord]
-  (assoc domain :runs (filterv #(coord-matches? (:coord %) partial-coord)
-                               (:runs domain))))
+(def select
+  "Filter domain to runs matching a partial coordinate."
+  types/select)
 
 ;;; Domain Expression Macro
-
-(defn- parse-bindings
-  "Parse binding vector [sym1 range1 sym2 range2 ...] into axes map."
-  [bindings]
-  (into {}
-        (map (fn [[sym range-expr]]
-               [(keyword sym) range-expr]))
-        (partition 2 bindings)))
 
 (defn- gen-arg-sym
   "Generate a placeholder symbol for the nth argument."
@@ -214,8 +109,7 @@
           args (rest expr)
           n-args (count args)
           placeholders (mapv gen-arg-sym (range n-args))
-          measured-expr (cons f placeholders)
-          axis-keys (mapv keyword axis-syms)]
+          measured-expr (cons f placeholders)]
       {:measured `(measured/expr ~measured-expr)
        :args-builder `(fn [{:keys ~(vec axis-syms)}]
                         (fn [] ~(vec args)))})
@@ -262,3 +156,39 @@
                           impls)]
     `{:axes ~axes-map
       :implementations ~(into {} impl-entries)}))
+
+;;; High-level API
+
+(defn bench
+  "Run benchmarks across a domain and analyze the results.
+  
+  Convenience wrapper combining domain-builder and analyse-domain.
+  
+  Arguments:
+    domain-spec - Map with :axes and :implementations (as returned by domain-expr)
+  
+  Options:
+    :domain-plan  - Analysis plan (default: domain-plans/extract-metrics)
+    :reporter     - Progress reporter (default: dot-reporter, nil for silent)
+    :bench-options - Options passed to bench-measured
+    :time-axis    - Axis key for time estimation (default: first axis)
+  
+  Returns the analysis data-map (same as analyse-domain).
+  
+  Example:
+    (bench (domain-expr [n (log-range 100 10000 5)]
+                        {:sort (sort (random-seq n))
+                         :sort-by (sort-by identity (random-seq n))})
+           :domain-plan domain-plans/implementation-comparison)"
+  [domain-spec & {:keys [domain-plan reporter bench-options time-axis]
+                  :or {domain-plan domain-plans/extract-metrics}}]
+  (let [builder-opts (cond-> {}
+                       (some? reporter) (assoc :reporter reporter)
+                       (contains? #{nil false} reporter) (assoc :reporter nil)
+                       bench-options (assoc :bench-options bench-options)
+                       time-axis (assoc :time-axis time-axis))
+        domain (apply builder/domain-builder
+                      (:axes domain-spec)
+                      (:implementations domain-spec)
+                      (mapcat identity builder-opts))]
+    (analysis/analyse-domain domain-plan domain)))

@@ -41,6 +41,17 @@
   {:analyse [[:domain-compare-fn {:axis-key :impl}]]
    :view [[:domain-comparison {}]]})
 
+(def extract-metrics
+  "Extract all quantitative metrics from all runs.
+
+  Discovers available metrics automatically (elapsed-time, thread-allocation, etc.)
+  and extracts mean values for each.
+
+  Example:
+    (analyse-domain extract-metrics my-domain)"
+  {:analyse [[:domain-extract-fn {}]]
+   :view [[:domain-extract {}]]})
+
 (def extract-elapsed-time
   "Extract elapsed time mean values from all runs.
 
