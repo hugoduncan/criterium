@@ -19,7 +19,9 @@
 
   See also:
   - criterium.domain.analysis for extract, compare-by, group-by-axis, fit-complexity
-  - criterium.domain.builder for domain-builder and input generators")
+  - criterium.domain.builder for domain-builder and input generators"
+  (:require
+   [criterium.measured :as measured]))
 
 ;;; Predicates
 
@@ -184,3 +186,79 @@
   [domain partial-coord]
   (assoc domain :runs (filterv #(coord-matches? (:coord %) partial-coord)
                                (:runs domain))))
+
+;;; Domain Expression Macro
+
+(defn- parse-bindings
+  "Parse binding vector [sym1 range1 sym2 range2 ...] into axes map."
+  [bindings]
+  (into {}
+        (map (fn [[sym range-expr]]
+               [(keyword sym) range-expr]))
+        (partition 2 bindings)))
+
+(defn- gen-arg-sym
+  "Generate a placeholder symbol for the nth argument."
+  [n]
+  (symbol (str "arg" n)))
+
+(defn- transform-impl-expr
+  "Transform an implementation expression into {:measured ... :args-builder ...}.
+  
+  For a function call (f arg1 arg2 ...), generates:
+  - measured: (measured/expr (f placeholder1 placeholder2 ...))
+  - args-builder: (fn [{:keys [axis-syms]}] (fn [] [arg1 arg2 ...]))"
+  [expr axis-syms]
+  (if (and (seq? expr) (symbol? (first expr)))
+    (let [f (first expr)
+          args (rest expr)
+          n-args (count args)
+          placeholders (mapv gen-arg-sym (range n-args))
+          measured-expr (cons f placeholders)
+          axis-keys (mapv keyword axis-syms)]
+      {:measured `(measured/expr ~measured-expr)
+       :args-builder `(fn [{:keys ~(vec axis-syms)}]
+                        (fn [] ~(vec args)))})
+    ;; Non-function-call expression: wrap as nullary
+    {:measured `(measured/expr ~expr)
+     :args-builder `(constantly (fn [] []))}))
+
+(defmacro domain-expr
+  "Create a domain specification map from a concise expression syntax.
+  
+  Returns a map with :axes and :implementations suitable for use with
+  domain-builder: (apply domain-builder (mapcat identity (domain-expr ...)))
+  
+  Syntax:
+    ;; Single expression - uses :default impl key
+    (domain-expr [n (log-range 10 1000 5)] (sort (random-seq n)))
+    
+    ;; Multiple implementations via map
+    (domain-expr [n (log-range 10 1000 5)]
+      {:sort (sort (random-seq n))
+       :sort-by (sort-by identity (random-seq n))})
+    
+    ;; Multiple axes
+    (domain-expr [n (log-range 10 1000 5)
+                  m (linear-range 1 10 3)]
+      (matrix-mult (random-matrix n m)))
+  
+  The binding vector defines axes as [sym range-expr ...] pairs.
+  Axis symbols are available in implementation expressions.
+  
+  For each implementation expression (f arg1 arg2 ...):
+  - Arguments become the args-builder body (evaluated per coordinate)
+  - The function call structure becomes the measured expression"
+  [bindings body]
+  (let [axis-pairs (partition 2 bindings)
+        axis-syms (mapv first axis-pairs)
+        axes-map (into {}
+                       (map (fn [[sym range-expr]]
+                              [(keyword sym) range-expr]))
+                       axis-pairs)
+        impls (if (map? body) body {:default body})
+        impl-entries (map (fn [[impl-key expr]]
+                            [impl-key (transform-impl-expr expr axis-syms)])
+                          impls)]
+    `{:axes ~axes-map
+      :implementations ~(into {} impl-entries)}))

@@ -1833,3 +1833,59 @@
         (is (= #{:impl-a :impl-b} (set (keys result))))
         (is (= m1 (:measured (:impl-a result))))
         (is (= m2 (:measured (:impl-b result))))))))
+
+(deftest domain-expr-test
+  ;; Tests for the domain-expr macro.
+  ;; Validates transformation of concise expression syntax into domain-builder specs.
+  (testing "domain-expr"
+    (testing "with single expression and single axis"
+      (testing "uses :default as implementation key"
+        (let [spec (domain/domain-expr [n [10 100 1000]] (sort (vec (range n))))]
+          (is (= #{:default} (set (keys (:implementations spec)))))))
+      (testing "produces correct axes map"
+        (let [spec (domain/domain-expr [n [10 100 1000]] (sort (vec (range n))))]
+          (is (= {:n [10 100 1000]} (:axes spec)))))
+      (testing "produces valid Measured"
+        (let [spec (domain/domain-expr [n [10 100 1000]] (sort (vec (range n))))]
+          (is (measured/measured? (get-in spec [:implementations :default :measured])))))
+      (testing "produces args-builder that captures axis vars"
+        (let [spec (domain/domain-expr [n [10 100 1000]] (sort (vec (range n))))
+              args-builder (get-in spec [:implementations :default :args-builder])
+              args-fn (args-builder {:n 50})]
+          (is (fn? args-fn))
+          (is (= 50 (count (first (args-fn))))))))
+    (testing "with multiple implementations"
+      (testing "uses map keys as implementation keys"
+        (let [spec (domain/domain-expr [n [10 100]]
+                                       {:impl-a (sort (vec (range n)))
+                                        :impl-b (sort-by identity (vec (range n)))})]
+          (is (= #{:impl-a :impl-b} (set (keys (:implementations spec)))))))
+      (testing "produces valid Measured for each implementation"
+        (let [spec (domain/domain-expr [n [10 100]]
+                                       {:impl-a (sort (vec (range n)))
+                                        :impl-b (sort-by identity (vec (range n)))})]
+          (is (measured/measured? (get-in spec [:implementations :impl-a :measured])))
+          (is (measured/measured? (get-in spec [:implementations :impl-b :measured])))))
+      (testing "produces correct args count per implementation"
+        (let [spec (domain/domain-expr [n [10 100]]
+                                       {:impl-a (sort (vec (range n)))
+                                        :impl-b (sort-by identity (vec (range n)))})
+              args-a ((get-in spec [:implementations :impl-a :args-builder]) {:n 10})
+              args-b ((get-in spec [:implementations :impl-b :args-builder]) {:n 10})]
+          ;; sort has 1 arg, sort-by has 2 args
+          (is (= 1 (count (args-a))))
+          (is (= 2 (count (args-b)))))))
+    (testing "with multiple axes"
+      (testing "produces axes map with all bindings"
+        (let [spec (domain/domain-expr [n [10 100] m [1 2 3]]
+                                       (concat (vec (range n)) (vec (range m))))]
+          (is (= {:n [10 100] :m [1 2 3]} (:axes spec)))))
+      (testing "args-builder has access to all axis vars"
+        (let [spec (domain/domain-expr [n [10 100] m [1 2 3]]
+                                       (concat (vec (range n)) (vec (range m))))
+              args-builder (get-in spec [:implementations :default :args-builder])
+              args-fn (args-builder {:n 5 :m 3})]
+          ;; concat has 2 args: (range n) and (range m)
+          (is (= 2 (count (args-fn))))
+          (is (= 5 (count (first (args-fn)))))
+          (is (= 3 (count (second (args-fn))))))))))

@@ -175,6 +175,44 @@
 
 (analysis/analyse-domain domain-plans/implementation-comparison simple-comparison-domain)
 
+;; ### Domain Expression Macro
+;;
+;; The `domain-expr` macro provides concise syntax for defining domain
+;; specifications. It generates the `:axes` and `:implementations` map
+;; structure required by `domain-builder`.
+
+;; Single expression (uses `:default` as impl key):
+
+(defn random-seq [n] (vec (repeatedly n #(rand-int 10000))))
+
+(domain/domain-expr [n [100 500 1000]]
+                    (sort (random-seq n)))
+
+;; Multiple implementations via map:
+
+(domain/domain-expr [n [100 500 1000]]
+                    {:sort (sort (random-seq n))
+                     :sort-by (sort-by identity (random-seq n))})
+
+;; Multiple axes:
+
+(domain/domain-expr [n [100 500] m [1 2 3]]
+                    (take m (sort (random-seq n))))
+
+;; Use with domain-builder via `apply` and `mapcat`:
+
+(def expr-domain
+  (let [spec (domain/domain-expr [n (builder/log-range 100 1000 3)]
+                                 {:sort (sort (random-seq n))
+                                  :sort-by (sort-by identity (random-seq n))})]
+    (apply builder/domain-builder
+           (concat [(:axes spec) (:implementations spec)]
+                   [:reporter nil]))))
+
+(domain/coords expr-domain)
+
+(analysis/analyse-domain domain-plans/implementation-comparison expr-domain)
+
 ;; ### Full Form (With Axes)
 ;;
 ;; Define the parameter space (axes) and implementations:
