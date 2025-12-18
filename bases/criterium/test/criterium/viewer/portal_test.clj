@@ -227,6 +227,7 @@
   ;; Tests the portal viewer output for domain-extract results.
   ;; Verifies table generation with coordinate columns and metric columns.
   ;; New implementation provides table output with SI scaling like kindly viewer.
+  ;; Uniform axes (same value across all coords) are stripped for cleaner display.
   (testing "domain-extract*"
     (testing "produces table with single-key coords"
       (let [[title table] (with-tap-out
@@ -247,7 +248,9 @@
         (is (= [100 200 400] (mapv :n table))
             "Expected rows sorted by n")))
 
-    (testing "produces table with multi-key coords"
+    (testing "strips uniform axes leaving single-key coords"
+      ;; When one axis is uniform (same value in all coords), it's stripped
+      ;; leaving the varying axis as a single-key display
       (let [[title table] (with-tap-out
                             (view/domain-extract*
                              :portal
@@ -260,8 +263,26 @@
                                                  [{:n 100 :m 2} 2e-7]]}}}}))]
         (is (= [:b "Domain Extract"] title))
         (is (= 2 (count table)))
+        (is (every? #(contains? % :m) table)
+            "Expected :m column after stripping uniform :n axis")
+        (is (= [1 2] (mapv :m table))
+            "Expected rows with stripped :m values")))
+
+    (testing "produces table with multi-key coords when multiple axes vary"
+      (let [[title table] (with-tap-out
+                            (view/domain-extract*
+                             :portal
+                             {}
+                             {:extract
+                              {:type :criterium/domain-extract
+                               :metrics {:elapsed-time
+                                         {:metric [:stats :elapsed-time :mean]
+                                          :data [[{:n 100 :m 1} 1e-7]
+                                                 [{:n 200 :m 2} 2e-7]]}}}}))]
+        (is (= [:b "Domain Extract"] title))
+        (is (= 2 (count table)))
         (is (every? #(contains? % :coordinate) table)
-            "Expected :coordinate column for multi-key coords")))
+            "Expected :coordinate column when multiple axes vary")))
 
     (testing "handles nil values"
       (let [[_title table] (with-tap-out

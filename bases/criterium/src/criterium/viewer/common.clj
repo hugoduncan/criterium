@@ -294,6 +294,18 @@
     (:value v)
     v))
 
+(defn- detect-uniform-axes
+  "Find coordinate axes where all values are identical.
+  Returns a set of keys that have uniform values across all coords."
+  [coords]
+  (when (seq coords)
+    (let [first-coord (first coords)
+          uniform-keys (filter (fn [k]
+                                 (let [v (get first-coord k)]
+                                   (every? #(= v (get % k)) coords)))
+                               (keys first-coord))]
+      (set uniform-keys))))
+
 (defn prepare-domain-extract-table
   "Prepare domain-extract data for table rendering.
   Returns {:heading string :coord-header string :col-headers [string...]
@@ -315,9 +327,28 @@
                       :coord coord
                       :value (get-numeric-value value)})
 
-          ;; Determine row key (coord minus impl axis for multi-impl)
-          row-key-fn (if multi-impl?
+          ;; Collect all coordinates to detect uniform axes
+          all-coords (map :coord all-data)
+
+          ;; Find axes with uniform values across all coords (e.g., :impl :default)
+          ;; Only use uniform axes if stripping them leaves at least one key
+          uniform-axes (detect-uniform-axes all-coords)
+          first-coord (first all-coords)
+          remaining-after-strip (when (and (map? first-coord) (seq uniform-axes))
+                                  (count (apply dissoc first-coord uniform-axes)))
+          use-uniform-axes? (and (seq uniform-axes)
+                                 (some? remaining-after-strip)
+                                 (pos? remaining-after-strip))
+
+          ;; Determine row key: strip impl axis for multi-impl, or uniform axes
+          row-key-fn (cond
+                       multi-impl?
                        (fn [coord] (dissoc coord impl-axis-key))
+
+                       use-uniform-axes?
+                       (fn [coord] (apply dissoc coord uniform-axes))
+
+                       :else
                        identity)
 
           ;; Collect unique row keys

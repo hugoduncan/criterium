@@ -486,20 +486,52 @@
     (str (get coord (:key single-key-info)))
     (format-coord coord)))
 
+(defn- detect-uniform-axes
+  "Find coordinate axes where all values are identical.
+  Returns a set of keys that have uniform values across all coords.
+  Returns nil if any coord is not a map."
+  [coords]
+  (when (and (seq coords)
+             (every? map? coords))
+    (let [first-coord (first coords)
+          uniform-keys (filter (fn [k]
+                                 (let [v (get first-coord k)]
+                                   (every? #(= v (get % k)) coords)))
+                               (keys first-coord))]
+      (set uniform-keys))))
+
+(defn- strip-uniform-axes
+  "Strip uniform-value axes from coordinates.
+  Only strips axes if doing so leaves at least one key in each coord.
+  Returns coords unchanged if any coord is not a map."
+  [coords]
+  (if-not (every? map? coords)
+    coords
+    (let [uniform-axes (detect-uniform-axes coords)
+          first-coord (first coords)
+          remaining-keys (count (apply dissoc first-coord uniform-axes))]
+      (if (and (seq uniform-axes) (pos? remaining-keys))
+        (mapv #(apply dissoc % uniform-axes) coords)
+        coords))))
+
 (defmethod view/domain-extract* :print
   [_ {:keys [extract-id]} data-map]
   (let [extract-id (or extract-id :extract)
         extract (data-map extract-id)]
     (when extract
       (doseq [[metric-id {:keys [metric data]}] (:metrics extract)]
-        (let [coords (map first data)
-              single-key-info (single-key-coord-info coords)
+        (let [raw-coords (map first data)
+              ;; Strip uniform axes (e.g., :impl :default for single-impl scenarios)
+              stripped-coords (strip-uniform-axes raw-coords)
+              coord-map (zipmap raw-coords stripped-coords)
+              single-key-info (single-key-coord-info stripped-coords)
               sorted-data (sort-coords data single-key-info)]
           (println (format "Domain Extract: %s" (pr-str metric)))
           (doseq [[coord value] sorted-data]
-            (println (format "  %24s: %s"
-                             (format-coord-value coord single-key-info)
-                             (format-extract-value value metric))))
+            (let [display-coord (get coord-map coord coord)]
+              (println (format "  %24s: %s"
+                               (format-coord-value display-coord single-key-info)
+                               (format-extract-value value metric)))))
           (println))))))
 
 (defmethod view/domain-grouped* :print
