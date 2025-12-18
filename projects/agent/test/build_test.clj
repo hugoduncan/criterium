@@ -179,16 +179,20 @@
   (testing "build-agent-cpp!"
     (testing "builds agent library for current platform"
       (let [os (sut/detect-os)
-            arch (sut/detect-arch)]
+            arch (sut/detect-arch)
+            test-build-dir (io/file "target/test-agent-build")]
         (if (and (contains? #{:linux :macos} os)
                  (contains? #{:x64 :arm64} arch)
                  (not (and (= :linux os) (= :arm64 arch)))
                  (.isDirectory (io/file "agent-cpp")))
-          (let [lib-path (sut/build-agent-cpp!)
-                lib-file (io/file lib-path)]
-            (is (string? lib-path))
-            (is (.exists lib-file))
-            (is (> (.length lib-file) 0)))
+          (try
+            (let [lib-path (sut/build-agent-cpp! {:build-dir test-build-dir})
+                  lib-file (io/file lib-path)]
+              (is (string? lib-path))
+              (is (.exists lib-file))
+              (is (> (.length lib-file) 0)))
+            (finally
+              (delete-recursively test-build-dir)))
           (is true "Skipping on unsupported platform or missing agent-cpp"))))
 
     (testing "throws when agent-cpp directory missing"
@@ -205,11 +209,16 @@
       (let [os (sut/detect-os)
             arch (sut/detect-arch)
             platform (str (name os) "-" (name arch))
-            resources-dir (io/file "target/test-build-resources")]
+            resources-dir (io/file "target/test-build-resources")
+            test-build-dir (io/file "target/test-agent-build-copy")
+            original-build-agent-cpp! sut/build-agent-cpp!]
         (if (and (contains? #{"linux-x64" "macos-x64" "macos-arm64"} platform)
                  (.isDirectory (io/file "agent-cpp")))
           (try
-            (with-redefs [sut/resources-base-dir (constantly resources-dir)]
+            (with-redefs [sut/resources-base-dir (constantly resources-dir)
+                          sut/build-agent-cpp! (fn
+                                                 ([] (original-build-agent-cpp! {:build-dir test-build-dir}))
+                                                 ([opts] (original-build-agent-cpp! (assoc opts :build-dir test-build-dir))))]
               (let [result (sut/build-and-copy-agent!)
                     binary-file (io/file (:binary-path result))
                     hash-file (io/file (:hash-path result))]
@@ -219,5 +228,6 @@
                 (is (re-matches #"[0-9a-f]+\s+libcriterium\.(so|dylib)\n"
                                 (slurp hash-file)))))
             (finally
-              (delete-recursively resources-dir)))
+              (delete-recursively resources-dir)
+              (delete-recursively test-build-dir)))
           (is true "Skipping on unsupported platform or missing agent-cpp"))))))
