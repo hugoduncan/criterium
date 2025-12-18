@@ -287,3 +287,125 @@
     (name (:key single-key-info))
     "coordinate"))
 
+(defn- get-numeric-value
+  "Extract numeric value from plain value or error-bound format {:value v}."
+  [v]
+  (if (and (map? v) (contains? v :value))
+    (:value v)
+    v))
+
+(defn prepare-domain-extract-table
+  "Prepare domain-extract data for table rendering.
+  Returns {:heading string :coord-header string :col-headers [string...]
+           :rows [{col-header value...}...]} or nil if extract is nil.
+  Options:
+    :header-sep - separator between impl and metric in multi-impl headers (default \" \")"
+  [extract {:keys [header-sep] :or {header-sep " "}}]
+  (when extract
+    (let [impl-axis-key (:impl-axis extract)
+          multi-impl? (> (count (:implementations extract)) 1)
+          metrics (:metrics extract)
+          metric-ids (sort (keys metrics))
+
+          ;; Collect all data points with their full coords
+          all-data (for [[metric-id {:keys [metric data]}] metrics
+                         [coord value] data]
+                     {:metric-id metric-id
+                      :metric metric
+                      :coord coord
+                      :value (get-numeric-value value)})
+
+          ;; Determine row key (coord minus impl axis for multi-impl)
+          row-key-fn (if multi-impl?
+                       (fn [coord] (dissoc coord impl-axis-key))
+                       identity)
+
+          ;; Collect unique row keys
+          raw-row-keys (->> all-data
+                            (map (comp row-key-fn :coord))
+                            distinct)
+
+          ;; Detect single-key pattern and sort appropriately
+          single-key-info (single-key-coord-info raw-row-keys)
+          row-keys (sort-row-keys raw-row-keys single-key-info)
+          coord-header (coord-column-header single-key-info)
+
+          impl-vals (when multi-impl?
+                      (->> all-data
+                           (keep #(get (:coord %) impl-axis-key))
+                           distinct
+                           (sort-by str)))
+
+          ;; Build column specs: [{:metric-id :impl (optional)}...]
+          col-specs (if multi-impl?
+                      (for [metric-id metric-ids
+                            impl impl-vals]
+                        {:metric-id metric-id :impl impl})
+                      (for [metric-id metric-ids]
+                        {:metric-id metric-id}))
+
+          ;; Build lookup: {[row-key metric-id impl?] -> value}
+          lookup (reduce (fn [acc {:keys [metric-id coord value]}]
+                           (let [row-key (row-key-fn coord)
+                                 impl-val (when multi-impl? (get coord impl-axis-key))
+                                 lookup-key (if multi-impl?
+                                              [row-key metric-id impl-val]
+                                              [row-key metric-id])]
+                             (assoc acc lookup-key value)))
+                         {}
+                         all-data)
+
+          ;; Compute SI scale and unit per column
+          col-scales
+          (into {}
+                (map (fn [col-spec]
+                       (let [{:keys [metric-id impl]} col-spec
+                             metric-path (get-in metrics [metric-id :metric])
+                             col-values (for [row-key row-keys
+                                              :let [lk (if multi-impl?
+                                                         [row-key metric-id impl]
+                                                         [row-key metric-id])
+                                                    v (get lookup lk)]
+                                              :when (some? v)]
+                                          v)]
+                         [col-spec (compute-si-scaling metric-path col-values)])))
+                col-specs)
+
+          ;; Build column headers
+          col-headers
+          (mapv (fn [col-spec]
+                  (let [{:keys [metric-id impl]} col-spec
+                        {:keys [unit]} (get col-scales col-spec)
+                        metric-name (name metric-id)
+                        header-base (if (seq unit)
+                                      (str metric-name " (" unit ")")
+                                      metric-name)]
+                    (if multi-impl?
+                      (str (name impl) header-sep header-base)
+                      header-base)))
+                col-specs)
+
+          ;; Build table rows
+          table-rows
+          (mapv (fn [row-key]
+                  (into {(keyword coord-header)
+                         (format-row-key-value row-key single-key-info)}
+                        (map-indexed
+                         (fn [idx col-spec]
+                           (let [{:keys [metric-id impl]} col-spec
+                                 lk (if multi-impl?
+                                      [row-key metric-id impl]
+                                      [row-key metric-id])
+                                 raw-value (get lookup lk)
+                                 {:keys [total-scale]} (get col-scales col-spec)
+                                 header (nth col-headers idx)]
+                             [header (when raw-value
+                                       (format "%.3g" (double (* raw-value total-scale))))]))
+                         col-specs)))
+                row-keys)]
+
+      {:heading "Domain Extract"
+       :coord-header coord-header
+       :col-headers col-headers
+       :rows table-rows})))
+
