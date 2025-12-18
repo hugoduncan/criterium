@@ -129,47 +129,11 @@
                                             :height chart-height})))
 
 (defmethod view/histogram* :kindly
-  [_ {:keys [histogram-id samples-id stats-id]} data-map]
-  (let [histogram-id (or histogram-id :histograms)
-        stats-id (or stats-id :stats)
-        quant-samples-id (or samples-id :samples)
-        quant-samples (data-map quant-samples-id)
-        stats (data-map stats-id)
-        histograms-map (util/lookup-data data-map histogram-id)
-        histograms (:histograms histograms-map)
-        metrics-defs (-> (:metrics-defs quant-samples)
-                         (metric/filter-metrics
-                          (metric/type-pred :quantitative)))
-        metric-configs (metric/all-metric-configs metrics-defs)
-        hist-transforms (util/get-transforms data-map histogram-id)
-        stats-transforms (util/get-transforms data-map (:source-id stats))
-        layer-num (volatile! 0)]
-    (kindly-heading "Histogram")
-    (kindly-vega-lite
-     {:data {:values []}
-      :resolve {:scale {:x "independent"
-                        :y "independent"
-                        :color "shared"}}
-      :vconcat (mapv
-                (fn [metric-config]
-                  {:resolve {:scale {:x "shared" :y "independent"}}
-                   :width chart-width
-                   :height chart-height
-                   :layer
-                   (into
-                    [(charts/metric-computed-histo-layer
-                      hist-transforms
-                      (histograms (:path metric-config))
-                      metric-config
-                      (vswap! layer-num unchecked-inc))]
-                    (when stats
-                      (->>
-                       (charts/metric-sample-stats-layer
-                        stats-transforms
-                        (get-in (util/stats stats) (:path metric-config))
-                        metric-config
-                        (vswap! layer-num unchecked-inc)))))})
-                metric-configs)})))
+  [_ view data-map]
+  (kindly-heading "Histogram")
+  (kindly-vega-lite
+   (charts/histogram-vega-spec data-map view {:width chart-width
+                                              :height chart-height})))
 
 (defmethod view/sample-percentiles* :kindly
   [_ view data-map]

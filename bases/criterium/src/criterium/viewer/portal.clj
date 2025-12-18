@@ -2,7 +2,6 @@
   "A viewer that outputs to portal using tap>."
   (:refer-clojure :exclude [flush])
   (:require
-   [clojure.string :as str]
    [criterium.metric :as metric]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have]]
@@ -151,46 +150,10 @@
    (charts/samples-vega-spec data-map view {:height 800})))
 
 (defmethod view/histogram* :portal
-  [_ {:keys [histogram-id samples-id stats-id]} data-map]
-  (let [histogram-id (or histogram-id :histograms)
-        stats-id (or stats-id :stats)
-        quant-samples-id (or samples-id :samples)
-        quant-samples (data-map quant-samples-id)
-        stats (data-map stats-id)
-        histograms-map (util/lookup-data data-map histogram-id)
-        histograms (:histograms histograms-map)
-        metrics-defs (-> (:metrics-defs quant-samples)
-                         (metric/filter-metrics
-                          (metric/type-pred :quantitative)))
-        metric-configs (metric/all-metric-configs metrics-defs)
-        hist-transforms (util/get-transforms data-map histogram-id)
-        stats-transforms (util/get-transforms data-map (:source-id stats))
-        layer-num (volatile! 0)]
-    (heading "Histogram")
-    (portal-vega-lite
-     {:data {:values []}
-      :resolve {:scale {:x "independent"
-                        :y "independent"
-                        :color "shared"}}
-      :vconcat (mapv
-                (fn [metric-config]
-                  {:resolve {:scale {:x "shared" :y "independent"}}
-                   :height 800
-                   :layer
-                   (into
-                    [(charts/metric-computed-histo-layer
-                      hist-transforms
-                      (histograms (:path metric-config))
-                      metric-config
-                      (vswap! layer-num unchecked-inc))]
-                    (when stats
-                      (->>
-                       (charts/metric-sample-stats-layer
-                        stats-transforms
-                        (get-in (util/stats stats) (:path metric-config))
-                        metric-config
-                        (vswap! layer-num unchecked-inc)))))})
-                metric-configs)})))
+  [_ view data-map]
+  (heading "Histogram")
+  (portal-vega-lite
+   (charts/histogram-vega-spec data-map view {:height 800})))
 
 (defmethod view/sample-percentiles* :portal
   [_ view data-map]

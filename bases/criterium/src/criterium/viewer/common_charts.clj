@@ -259,6 +259,52 @@
                     nil mc)]}))
        e-metric-configs))}))
 
+(defn histogram-vega-spec
+  "Build a complete Vega-Lite spec for histogram visualization.
+
+  Takes data-map, view options, and chart-options map containing :width and/or
+  :height for chart dimensions. Returns the Vega-Lite spec without
+  viewer-specific wrapping."
+  [data-map view chart-options]
+  (let [histogram-id (or (:histogram-id view) :histograms)
+        stats-id (or (:stats-id view) :stats)
+        quant-samples-id (or (:samples-id view) :samples)
+        quant-samples (data-map quant-samples-id)
+        stats (data-map stats-id)
+        histograms-map (util/lookup-data data-map histogram-id)
+        histograms (:histograms histograms-map)
+        metrics-defs (-> (:metrics-defs quant-samples)
+                         (metric/filter-metrics
+                          (metric/type-pred :quantitative)))
+        metric-configs (metric/all-metric-configs metrics-defs)
+        hist-transforms (util/get-transforms data-map histogram-id)
+        stats-transforms (util/get-transforms data-map (:source-id stats))
+        layer-num (volatile! 0)]
+    {:data {:values []}
+     :resolve {:scale {:x "independent"
+                       :y "independent"
+                       :color "shared"}}
+     :vconcat (mapv
+               (fn [metric-config]
+                 (merge
+                  chart-options
+                  {:resolve {:scale {:x "shared" :y "independent"}}
+                   :layer
+                   (into
+                    [(metric-computed-histo-layer
+                      hist-transforms
+                      (histograms (:path metric-config))
+                      metric-config
+                      (vswap! layer-num unchecked-inc))]
+                    (when stats
+                      (->>
+                       (metric-sample-stats-layer
+                        stats-transforms
+                        (get-in (util/stats stats) (:path metric-config))
+                        metric-config
+                        (vswap! layer-num unchecked-inc)))))}))
+               metric-configs)}))
+
 ;;; Percentile charts
 
 (defn metric-percentile-layer
