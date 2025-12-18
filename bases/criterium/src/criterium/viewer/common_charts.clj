@@ -4,6 +4,7 @@
   Provides reusable chart-building functions extracted from the Portal viewer
   for generating histograms, scatter plots, and percentile charts."
   (:require
+   [criterium.metric :as metric]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have have?]]
    [criterium.util.probability :as probability]
@@ -198,6 +199,65 @@
                              {:field "index" :type "quantitative"})}
         :mark {:type "rule"
                :strokeDash [2 2]}}])))
+
+;;; Samples chart
+
+(defn samples-vega-spec
+  "Build a complete Vega-Lite spec for sample visualization.
+
+  Takes data-map, view options, and chart-options map containing :width and/or
+  :height for chart dimensions. Returns the Vega-Lite spec without
+  viewer-specific wrapping."
+  [data-map view chart-options]
+  (let [quant-samples-id (:samples-id view :samples)
+        event-samples-id (:event-samples-id view quant-samples-id)
+        outliers-analysis-id (:outliers-id view :outliers)
+
+        quant-samples (data-map quant-samples-id)
+        event-samples (data-map event-samples-id)
+        outliers (data-map outliers-analysis-id)
+
+        q-metrics-defs (-> (:metrics-defs quant-samples)
+                           (metric/filter-metrics
+                            (metric/type-pred :quantitative)))
+        e-metrics-defs (-> (:metrics-defs event-samples)
+                           (metric/filter-metrics
+                            (metric/type-pred :event)))
+        metric-configs (metric/all-metric-configs q-metrics-defs)
+        event-metric->values (util/metric->values event-samples)
+        e-metric-configs (->> (metric/all-metric-configs e-metrics-defs)
+                              (filterv #(not-every? zero?
+                                                    (get event-metric->values
+                                                         (:path %)))))
+
+        transforms (util/get-transforms data-map quant-samples-id)]
+    {:data {:values [{}]}
+     :encoding {:x {:field "index" :type "quantitative"}}
+     :resolve {:scale {:y "independent"}}
+     :vconcat
+     (into
+      [(merge
+        chart-options
+        {:layer
+         (vec
+          (into
+           [(metric-layer
+             (util/metric->values quant-samples)
+             transforms
+             (when outliers (util/outliers outliers))
+             (have (first metric-configs)))]
+           (mapcat
+            #(event-layer event-metric->values %)
+            e-metrics-defs)))})]
+      (mapv
+       (fn [mc]
+         (merge
+          chart-options
+          {:layer [(metric-layer
+                    event-metric->values
+                    transforms
+                    nil mc)]}))
+       e-metric-configs))}))
 
 ;;; Percentile charts
 

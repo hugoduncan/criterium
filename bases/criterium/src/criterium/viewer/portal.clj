@@ -145,54 +145,10 @@
    (viewer-common/collect-plan-data data-map)))
 
 (defmethod view/samples* :portal
-  [_ {:keys [] :as view} data-map]
-  (let [quant-samples-id (:samples-id view :samples)
-        event-samples-id (:event-samples-id view quant-samples-id)
-        outliers-analysis-id (:outliers-id view :outliers)
-
-        quant-samples (data-map quant-samples-id)
-        event-samples (data-map event-samples-id)
-        outliers (data-map outliers-analysis-id)
-
-        q-metrics-defs (-> (:metrics-defs quant-samples)
-                           (metric/filter-metrics
-                            (metric/type-pred :quantitative)))
-        e-metrics-defs (-> (:metrics-defs event-samples)
-                           (metric/filter-metrics
-                            (metric/type-pred :event)))
-        metric-configs (metric/all-metric-configs q-metrics-defs)
-        event-metric->values (util/metric->values event-samples)
-        e-metric-configs (->> (metric/all-metric-configs e-metrics-defs)
-                              (filterv #(not-every? zero?
-                                                    (get event-metric->values
-                                                         (:path %)))))
-
-        transforms (util/get-transforms data-map quant-samples-id)]
-    (heading "Samples")
-    (portal-vega-lite
-     {:data {:values [{}]}
-      :encoding {:x {:field "index" :type "quantitative"}}
-      :resolve {:scale {:y "independent"}}
-      :vconcat
-      (into
-       [{:height 800
-         :layer
-         (vec
-          (into
-           [(charts/metric-layer
-             (util/metric->values quant-samples)
-             transforms
-             (when outliers (util/outliers outliers))
-             (have (first metric-configs)))]
-           (mapcat
-            #(charts/event-layer event-metric->values %)
-            e-metrics-defs)))}]
-       (mapv
-        #(charts/metric-layer
-          event-metric->values
-          transforms
-          nil %)
-        e-metric-configs))})))
+  [_ view data-map]
+  (heading "Samples")
+  (portal-vega-lite
+   (charts/samples-vega-spec data-map view {:height 800})))
 
 (defmethod view/histogram* :portal
   [_ {:keys [histogram-id samples-id stats-id]} data-map]

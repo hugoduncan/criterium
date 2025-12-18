@@ -10,7 +10,6 @@
   (:refer-clojure :exclude [flush])
   (:require
    [criterium.metric :as metric]
-
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have]]
    [criterium.view :as view]
@@ -123,58 +122,11 @@
    (viewer-common/collect-plan-data data-map)))
 
 (defmethod view/samples* :kindly
-  [_ {:keys [] :as view} data-map]
-  (let [quant-samples-id (:samples-id view :samples)
-        event-samples-id (:event-samples-id view quant-samples-id)
-        outliers-analysis-id (:outliers-id view :outliers)
-
-        quant-samples (data-map quant-samples-id)
-        event-samples (data-map event-samples-id)
-        outliers (data-map outliers-analysis-id)
-
-        q-metrics-defs (-> (:metrics-defs quant-samples)
-                           (metric/filter-metrics
-                            (metric/type-pred :quantitative)))
-        e-metrics-defs (-> (:metrics-defs event-samples)
-                           (metric/filter-metrics
-                            (metric/type-pred :event)))
-        metric-configs (metric/all-metric-configs q-metrics-defs)
-        event-metric->values (util/metric->values event-samples)
-        e-metric-configs (->> (metric/all-metric-configs e-metrics-defs)
-                              (filterv #(not-every? zero?
-                                                    (get event-metric->values
-                                                         (:path %)))))
-
-        transforms (util/get-transforms data-map quant-samples-id)]
-    (kindly-heading "Samples")
-    (kindly-vega-lite
-     {:data {:values [{}]}
-      :encoding {:x {:field "index" :type "quantitative"}}
-      :resolve {:scale {:y "independent"}}
-      :vconcat
-      (into
-       [{:width chart-width
-         :height chart-height
-         :layer
-         (vec
-          (into
-           [(charts/metric-layer
-             (util/metric->values quant-samples)
-             transforms
-             (when outliers (util/outliers outliers))
-             (have (first metric-configs)))]
-           (mapcat
-            #(charts/event-layer event-metric->values %)
-            e-metrics-defs)))}]
-       (mapv
-        (fn [mc]
-          {:width chart-width
-           :height chart-height
-           :layer [(charts/metric-layer
-                    event-metric->values
-                    transforms
-                    nil mc)]})
-        e-metric-configs))})))
+  [_ view data-map]
+  (kindly-heading "Samples")
+  (kindly-vega-lite
+   (charts/samples-vega-spec data-map view {:width chart-width
+                                            :height chart-height})))
 
 (defmethod view/histogram* :kindly
   [_ {:keys [histogram-id samples-id stats-id]} data-map]
