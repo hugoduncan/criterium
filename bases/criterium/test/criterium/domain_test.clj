@@ -1853,7 +1853,19 @@
               args-builder (get-in spec [:implementations :default :args-builder])
               args-fn (args-builder {:n 50})]
           (is (fn? args-fn))
-          (is (= 50 (count (first (args-fn))))))))
+          (is (= 50 (count (first (args-fn)))))))
+      (testing "produces different args for different axis values"
+        (let [spec (domain/domain-expr [n [10 100 1000]] (sort (vec (range n))))
+              args-builder (get-in spec [:implementations :default :args-builder])
+              args-10 ((args-builder {:n 10}))
+              args-100 ((args-builder {:n 100}))
+              args-1000 ((args-builder {:n 1000}))]
+          (is (= 10 (count (first args-10)))
+              "axis value 10 should produce args with 10 elements")
+          (is (= 100 (count (first args-100)))
+              "axis value 100 should produce args with 100 elements")
+          (is (= 1000 (count (first args-1000)))
+              "axis value 1000 should produce args with 1000 elements"))))
     (testing "with multiple implementations"
       (testing "uses map keys as implementation keys"
         (let [spec (domain/domain-expr [n [10 100]]
@@ -1888,7 +1900,17 @@
           ;; concat has 2 args: (range n) and (range m)
           (is (= 2 (count (args-fn))))
           (is (= 5 (count (first (args-fn)))))
-          (is (= 3 (count (second (args-fn))))))))))
+          (is (= 3 (count (second (args-fn)))))))
+      (testing "produces different args for different axis combinations"
+        (let [spec (domain/domain-expr [n [10 100] m [1 2 3]]
+                                       (concat (vec (range n)) (vec (range m))))
+              args-builder (get-in spec [:implementations :default :args-builder])
+              args-10-1 ((args-builder {:n 10 :m 1}))
+              args-100-3 ((args-builder {:n 100 :m 3}))]
+          (is (= [10 1] [(count (first args-10-1)) (count (second args-10-1))])
+              "axis values n=10, m=1 should produce args with 10 and 1 elements")
+          (is (= [100 3] [(count (first args-100-3)) (count (second args-100-3))])
+              "axis values n=100, m=3 should produce args with 100 and 3 elements"))))))
 
 (deftest extract-metrics-plan-test
   ;; Tests for the extract-metrics domain plan.
