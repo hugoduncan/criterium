@@ -1788,55 +1788,54 @@
             output (with-out-str (builder/report-end reporter :test))]
         (is (= "\n" output))))))
 
-(deftest simplified-impl-map?-test
+(deftest measured-impl-map?-test
   ;; Tests for simplified implementation map detection.
-  ;; Validates recognition of {impl-key Measured} form vs full impl-spec form.
-  (testing "simplified-impl-map?"
+  ;; Validates recognition of {impl-key Measured} form vs function form.
+  (testing "measured-impl-map?"
     (testing "returns true for map with Measured values"
       (let [m (measured/expr (+ 1 2))]
-        (is (true? (#'builder/simplified-impl-map? {:impl-a m})))))
+        (is (true? (#'builder/measured-impl-map? {:impl-a m})))))
     (testing "returns true for map with multiple Measured values"
       (let [m1 (measured/expr (+ 1 2))
             m2 (measured/expr (* 3 4))]
-        (is (true? (#'builder/simplified-impl-map? {:impl-a m1 :impl-b m2})))))
-    (testing "returns false for full impl-spec form"
-      (let [m (measured/expr (+ 1 2))]
-        (is (not (#'builder/simplified-impl-map?
-                  {:impl-a {:measured m :args-builder (constantly (fn [] [1 2]))}})))))
+        (is (true? (#'builder/measured-impl-map? {:impl-a m1 :impl-b m2})))))
+    (testing "returns false for function form"
+      (is (not (#'builder/measured-impl-map?
+                {:impl-a (fn [_] (measured/expr (+ 1 2)))}))))
     (testing "returns falsy for empty map"
-      (is (not (#'builder/simplified-impl-map? {}))))
+      (is (not (#'builder/measured-impl-map? {}))))
     (testing "returns falsy for non-map"
-      (is (not (#'builder/simplified-impl-map? [(measured/expr (+ 1 2))]))))
+      (is (not (#'builder/measured-impl-map? [(measured/expr (+ 1 2))]))))
     (testing "returns falsy for nil"
-      (is (not (#'builder/simplified-impl-map? nil))))))
+      (is (not (#'builder/measured-impl-map? nil))))))
 
 (deftest normalize-implementations-test
   ;; Tests for implementation map normalization.
-  ;; Validates conversion from simplified to full impl-spec form.
+  ;; Validates conversion of Measured values to functions returning Measured.
   (testing "normalize-implementations"
-    (testing "converts single Measured to impl-spec"
-      (let [m (measured/expr (+ 1 2))
-            result (#'builder/normalize-implementations {:impl-a m})]
-        (is (= #{:impl-a} (set (keys result))))
-        (is (= m (:measured (:impl-a result))))
-        (is (fn? (:args-builder (:impl-a result))))))
-    (testing "args-builder returns measured's args-fn"
+    (testing "converts Measured to function returning that Measured"
       (let [m (measured/expr (+ 1 2))
             result (#'builder/normalize-implementations {:impl-a m})
-            args-builder (:args-builder (:impl-a result))]
-        ;; args-builder should return the same args-fn regardless of coord
-        (is (= (args-builder {}) (args-builder {:n 100})))))
+            impl-fn (:impl-a result)]
+        (is (= #{:impl-a} (set (keys result))))
+        (is (fn? impl-fn))
+        (is (= m (impl-fn {})))
+        (is (= m (impl-fn {:n 100})))))
     (testing "preserves multiple implementations"
       (let [m1 (measured/expr (+ 1 2))
             m2 (measured/expr (* 3 4))
             result (#'builder/normalize-implementations {:impl-a m1 :impl-b m2})]
         (is (= #{:impl-a :impl-b} (set (keys result))))
-        (is (= m1 (:measured (:impl-a result))))
-        (is (= m2 (:measured (:impl-b result))))))))
+        (is (= m1 ((:impl-a result) {})))
+        (is (= m2 ((:impl-b result) {})))))
+    (testing "passes through function values unchanged"
+      (let [impl-fn (fn [{:keys [n]}] (measured/expr (+ n 1)))
+            result (#'builder/normalize-implementations {:impl-a impl-fn})]
+        (is (= impl-fn (:impl-a result)))))))
 
 (deftest domain-expr-test
   ;; Tests for the domain-expr macro.
-  ;; Validates transformation of concise expression syntax into domain-builder specs.
+  ;; Validates transformation of concise expression syntax into measured functions.
   (testing "domain-expr"
     (testing "with single expression and single axis"
       (testing "uses :default as implementation key"
@@ -1845,72 +1844,71 @@
       (testing "produces correct axes map"
         (let [spec (domain/domain-expr [n [10 100 1000]] (sort (vec (range n))))]
           (is (= {:n [10 100 1000]} (:axes spec)))))
-      (testing "produces valid Measured"
-        (let [spec (domain/domain-expr [n [10 100 1000]] (sort (vec (range n))))]
-          (is (measured/measured? (get-in spec [:implementations :default :measured])))))
-      (testing "produces args-builder that captures axis vars"
+      (testing "produces function that returns Measured"
         (let [spec (domain/domain-expr [n [10 100 1000]] (sort (vec (range n))))
-              args-builder (get-in spec [:implementations :default :args-builder])
-              args-fn (args-builder {:n 50})]
-          (is (fn? args-fn))
-          (is (= 50 (count (first (args-fn)))))))
-      (testing "produces different args for different axis values"
+              impl-fn (get-in spec [:implementations :default])]
+          (is (fn? impl-fn))
+          (is (measured/measured? (impl-fn {:n 50})))))
+      (testing "produces different Measured for different axis values"
         (let [spec (domain/domain-expr [n [10 100 1000]] (sort (vec (range n))))
-              args-builder (get-in spec [:implementations :default :args-builder])
-              args-10 ((args-builder {:n 10}))
-              args-100 ((args-builder {:n 100}))
-              args-1000 ((args-builder {:n 1000}))]
-          (is (= 10 (count (first args-10)))
-              "axis value 10 should produce args with 10 elements")
-          (is (= 100 (count (first args-100)))
-              "axis value 100 should produce args with 100 elements")
-          (is (= 1000 (count (first args-1000)))
-              "axis value 1000 should produce args with 1000 elements"))))
+              impl-fn (get-in spec [:implementations :default])
+              m-10 (impl-fn {:n 10})
+              m-100 (impl-fn {:n 100})
+              m-1000 (impl-fn {:n 1000})]
+          (is (= 10 (count (first ((:args-fn m-10)))))
+              "axis value 10 should produce measured with 10 element arg")
+          (is (= 100 (count (first ((:args-fn m-100)))))
+              "axis value 100 should produce measured with 100 element arg")
+          (is (= 1000 (count (first ((:args-fn m-1000)))))
+              "axis value 1000 should produce measured with 1000 element arg"))))
     (testing "with multiple implementations"
       (testing "uses map keys as implementation keys"
         (let [spec (domain/domain-expr [n [10 100]]
                                        {:impl-a (sort (vec (range n)))
                                         :impl-b (sort-by identity (vec (range n)))})]
           (is (= #{:impl-a :impl-b} (set (keys (:implementations spec)))))))
-      (testing "produces valid Measured for each implementation"
-        (let [spec (domain/domain-expr [n [10 100]]
-                                       {:impl-a (sort (vec (range n)))
-                                        :impl-b (sort-by identity (vec (range n)))})]
-          (is (measured/measured? (get-in spec [:implementations :impl-a :measured])))
-          (is (measured/measured? (get-in spec [:implementations :impl-b :measured])))))
-      (testing "produces correct args count per implementation"
+      (testing "produces function returning Measured for each implementation"
         (let [spec (domain/domain-expr [n [10 100]]
                                        {:impl-a (sort (vec (range n)))
                                         :impl-b (sort-by identity (vec (range n)))})
-              args-a ((get-in spec [:implementations :impl-a :args-builder]) {:n 10})
-              args-b ((get-in spec [:implementations :impl-b :args-builder]) {:n 10})]
-          ;; sort has 1 arg, sort-by has 2 args
-          (is (= 1 (count (args-a))))
-          (is (= 2 (count (args-b)))))))
+              impl-a-fn (get-in spec [:implementations :impl-a])
+              impl-b-fn (get-in spec [:implementations :impl-b])]
+          (is (fn? impl-a-fn))
+          (is (fn? impl-b-fn))
+          (is (measured/measured? (impl-a-fn {:n 10})))
+          (is (measured/measured? (impl-b-fn {:n 10}))))))
     (testing "with multiple axes"
       (testing "produces axes map with all bindings"
         (let [spec (domain/domain-expr [n [10 100] m [1 2 3]]
                                        (concat (vec (range n)) (vec (range m))))]
           (is (= {:n [10 100] :m [1 2 3]} (:axes spec)))))
-      (testing "args-builder has access to all axis vars"
+      (testing "impl-fn has access to all axis vars"
         (let [spec (domain/domain-expr [n [10 100] m [1 2 3]]
                                        (concat (vec (range n)) (vec (range m))))
-              args-builder (get-in spec [:implementations :default :args-builder])
-              args-fn (args-builder {:n 5 :m 3})]
+              impl-fn (get-in spec [:implementations :default])
+              m (impl-fn {:n 5 :m 3})
+              args ((:args-fn m))]
           ;; concat has 2 args: (range n) and (range m)
-          (is (= 2 (count (args-fn))))
-          (is (= 5 (count (first (args-fn)))))
-          (is (= 3 (count (second (args-fn)))))))
-      (testing "produces different args for different axis combinations"
+          (is (= 2 (count args)))
+          (is (= 5 (count (first args))))
+          (is (= 3 (count (second args))))))
+      (testing "produces different Measured for different axis combinations"
         (let [spec (domain/domain-expr [n [10 100] m [1 2 3]]
                                        (concat (vec (range n)) (vec (range m))))
-              args-builder (get-in spec [:implementations :default :args-builder])
-              args-10-1 ((args-builder {:n 10 :m 1}))
-              args-100-3 ((args-builder {:n 100 :m 3}))]
+              impl-fn (get-in spec [:implementations :default])
+              m-10-1 (impl-fn {:n 10 :m 1})
+              m-100-3 (impl-fn {:n 100 :m 3})
+              args-10-1 ((:args-fn m-10-1))
+              args-100-3 ((:args-fn m-100-3))]
           (is (= [10 1] [(count (first args-10-1)) (count (second args-10-1))])
               "axis values n=10, m=1 should produce args with 10 and 1 elements")
           (is (= [100 3] [(count (first args-100-3)) (count (second args-100-3))])
-              "axis values n=100, m=3 should produce args with 100 and 3 elements"))))))
+              "axis values n=100, m=3 should produce args with 100 and 3 elements"))))
+    (testing "type hints transfer to destructured keys"
+      (let [spec (domain/domain-expr [^long n [10 100]] (+ n 1))
+            impl-fn (get-in spec [:implementations :default])]
+        (is (fn? impl-fn))
+        (is (measured/measured? (impl-fn {:n 10})))))))
 
 (deftest extract-metrics-plan-test
   ;; Tests for the extract-metrics domain plan.

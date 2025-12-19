@@ -129,24 +129,26 @@
 
 (def ^:private default-initial-limit-time-s 10)
 
-(defn- simplified-impl-map?
+(defn- measured-impl-map?
   "Check if implementations map uses simplified form (values are Measured instances).
-  In simplified form, each value is a Measured directly rather than a map with
-  :measured and :args-builder keys."
+  In simplified form, each value is a Measured directly rather than a function
+  returning a Measured."
   [implementations]
   (and (map? implementations)
        (seq implementations)
        (measured/measured? (val (first implementations)))))
 
 (defn- normalize-implementations
-  "Normalize simplified implementation map to full form.
-  Converts {:impl-key measured} to {:impl-key {:measured measured :args-builder ...}}
-  where args-builder returns the measured's own args-fn for any coordinate."
+  "Normalize implementation map to function form.
+  - Measured instances become (constantly measured)
+  - Functions are kept as-is
+  Returns map of {:impl-key (fn [coord] measured)}."
   [implementations]
   (into {}
-        (map (fn [[impl-key m]]
-               [impl-key {:measured m
-                          :args-builder (constantly (:args-fn m))}]))
+        (map (fn [[impl-key v]]
+               (if (measured/measured? v)
+                 [impl-key (constantly v)]
+                 [impl-key v])))
         implementations))
 
 (defn- cartesian-product
@@ -257,14 +259,12 @@
 
   Full form with axes:
     (domain-builder {:n (log-range 10 10000 5)}
-                    {:sort {:measured (measured/expr (sort coll))
-                            :args-builder (fn [{:keys [n]}] (fn [] [(vec (range n))]))}})
+                    {:sort (fn [{:keys [n]}]
+                             (measured/expr (sort (vec (range n)))))})
 
-  In the full form, implementations is a map of impl-key to impl-spec where
-  each impl-spec contains:
-    :measured     - A Measured created with example args (establishes type hints)
-    :args-builder - (fn [axis-map] (fn [] [args...])) returns zero-arg fn
-                    producing argument vector for the given coordinates
+  In the full form, implementations is a map of impl-key to measured-fn where
+  each measured-fn is (fn [axis-map] measured) that receives the axis values
+  and returns a Measured for that coordinate.
 
   Options:
     :initial-limit-time-s - Time limit for runs before estimation kicks in
@@ -289,9 +289,9 @@
   ;; In simplified form, first-arg is the implementations map, args are options
   ;; In full form, first-arg is axes, (first args) is implementations, rest are options
   (let [[axes implementations options]
-        (if (simplified-impl-map? first-arg)
+        (if (measured-impl-map? first-arg)
           [{} (normalize-implementations first-arg) (apply hash-map args)]
-          [first-arg (first args) (apply hash-map (rest args))])
+          [first-arg (normalize-implementations (first args)) (apply hash-map (rest args))])
         {:keys [initial-limit-time-s time-axis reporter bench-options]
          :or {initial-limit-time-s default-initial-limit-time-s}}
         options
@@ -333,55 +333,52 @@
                            (> diff-pct 0.05))))]
 
     (reduce
-     (fn [domain [impl-key impl-spec]]
-       (let [{:keys [measured args-builder]} impl-spec]
+     (fn [domain [impl-key impl-fn]]
+       (when reporter
+         (report-start reporter impl-key total-runs))
+
+       (let [result
+             (reduce
+              (fn [{:keys [domain impl-runs]} [idx coord]]
+                (let [;; Estimate time limit based on previous runs
+                      limit-time-s (estimate-limit-time-s
+                                    impl-runs time-axis coord
+                                    initial-limit-time-s)
+                      ;; Get measured for this coordinate
+                      coord-measured (impl-fn coord)
+                      ;; Run benchmark
+                      bench-result (run-bench coord-measured limit-time-s)
+                      ;; Re-run if time-limited and projected differs by >5%
+                      bench-result (if (needs-rerun? bench-result limit-time-s)
+                                     (let [new-limit-s
+                                           (* 1.1
+                                              (/
+                                               (double
+                                                (get-in
+                                                 bench-result
+                                                 [:samples :time-limit :projected-time-ns]))
+                                               1e9))]
+                                       (run-bench coord-measured new-limit-s))
+                                     bench-result)
+                      ;; Build full coordinate with impl
+                      full-coord (assoc coord :impl impl-key)
+                      ;; Accumulate into domain
+                      new-domain (types/add-run domain full-coord bench-result)
+                      ;; Track impl-specific runs for time estimation
+                      new-impl-runs (conj impl-runs {:coord coord
+                                                     :data bench-result})]
+
+                  (when reporter
+                    (report-run reporter impl-key coord idx))
+
+                  {:domain new-domain
+                   :impl-runs new-impl-runs}))
+              {:domain domain :impl-runs []}
+              (map-indexed vector sorted-coords))]
+
          (when reporter
-           (report-start reporter impl-key total-runs))
+           (report-end reporter impl-key))
 
-         (let [result
-               (reduce
-                (fn [{:keys [domain impl-runs]} [idx coord]]
-                  (let [;; Estimate time limit based on previous runs
-                        limit-time-s (estimate-limit-time-s
-                                      impl-runs time-axis coord
-                                      initial-limit-time-s)
-                        ;; Create args-fn for this coordinate
-                        args-fn (args-builder coord)
-                        ;; Create measured with new args-fn
-                        coord-measured (measured/with-args-fn measured args-fn)
-                        ;; Run benchmark
-                        bench-result (run-bench coord-measured limit-time-s)
-                        ;; Re-run if time-limited and projected differs by >5%
-                        bench-result (if (needs-rerun? bench-result limit-time-s)
-                                       (let [new-limit-s
-                                             (* 1.1
-                                                (/
-                                                 (double
-                                                  (get-in
-                                                   bench-result
-                                                   [:samples :time-limit :projected-time-ns]))
-                                                 1e9))]
-                                         (run-bench coord-measured new-limit-s))
-                                       bench-result)
-                        ;; Build full coordinate with impl
-                        full-coord (assoc coord :impl impl-key)
-                        ;; Accumulate into domain
-                        new-domain (types/add-run domain full-coord bench-result)
-                        ;; Track impl-specific runs for time estimation
-                        new-impl-runs (conj impl-runs {:coord coord
-                                                       :data bench-result})]
-
-                    (when reporter
-                      (report-run reporter impl-key coord idx))
-
-                    {:domain new-domain
-                     :impl-runs new-impl-runs}))
-                {:domain domain :impl-runs []}
-                (map-indexed vector sorted-coords))]
-
-           (when reporter
-             (report-end reporter impl-key))
-
-           (:domain result))))
+         (:domain result)))
      initial-domain
      implementations)))

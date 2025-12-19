@@ -92,57 +92,44 @@
 
 ;;; Domain Expression Macro
 
-(defn- gen-arg-sym
-  "Generate a placeholder symbol for the nth argument."
-  [n]
-  (symbol (str "arg" n)))
-
 (defn- transform-impl-expr
-  "Transform an implementation expression into {:measured ... :args-builder ...}.
-  
-  For a function call (f arg1 arg2 ...), generates:
-  - measured: (measured/expr (f placeholder1 placeholder2 ...))
-  - args-builder: (fn [{:keys [axis-syms]}] (fn [] [arg1 arg2 ...]))"
+  "Transform an implementation expression into (fn [{:keys [syms]}] (measured/expr body)).
+  Type hints on axis binding symbols transfer to the destructured keys."
   [expr axis-syms]
-  (if (and (seq? expr) (symbol? (first expr)))
-    (let [f (first expr)
-          args (rest expr)
-          n-args (count args)
-          placeholders (mapv gen-arg-sym (range n-args))
-          measured-expr (cons f placeholders)]
-      {:measured `(measured/expr ~measured-expr)
-       :args-builder `(fn [{:keys ~(vec axis-syms)}]
-                        (fn [] ~(vec args)))})
-    ;; Non-function-call expression: wrap as nullary
-    {:measured `(measured/expr ~expr)
-     :args-builder `(constantly (fn [] []))}))
+  (let [keys-with-hints (mapv (fn [sym]
+                                (if-let [hint (-> sym meta :tag)]
+                                  (with-meta (symbol (name sym)) {:tag hint})
+                                  (symbol (name sym))))
+                              axis-syms)]
+    `(fn [{:keys ~keys-with-hints}]
+       (measured/expr ~expr))))
 
 (defmacro domain-expr
   "Create a domain specification map from a concise expression syntax.
-  
+
   Returns a map with :axes and :implementations suitable for use with
   domain-builder: (apply domain-builder (mapcat identity (domain-expr ...)))
-  
+
   Syntax:
     ;; Single expression - uses :default impl key
     (domain-expr [n (log-range 10 1000 5)] (sort (random-seq n)))
-    
+
     ;; Multiple implementations via map
     (domain-expr [n (log-range 10 1000 5)]
       {:sort (sort (random-seq n))
        :sort-by (sort-by identity (random-seq n))})
-    
+
     ;; Multiple axes
     (domain-expr [n (log-range 10 1000 5)
                   m (linear-range 1 10 3)]
       (matrix-mult (random-matrix n m)))
-  
+
   The binding vector defines axes as [sym range-expr ...] pairs.
   Axis symbols are available in implementation expressions.
-  
-  For each implementation expression (f arg1 arg2 ...):
-  - Arguments become the args-builder body (evaluated per coordinate)
-  - The function call structure becomes the measured expression"
+
+  Each implementation becomes a function (fn [axis-map] measured) that
+  receives axis values and returns a Measured for that coordinate.
+  Type hints on axis bindings transfer to the destructured keys."
   [bindings body]
   (let [axis-pairs (partition 2 bindings)
         axis-syms (mapv first axis-pairs)
