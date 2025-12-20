@@ -2,7 +2,6 @@
  ^{:kindly/options {:kinds-that-hide-code #{:kind/hidden}}}
  criterium.domain-bench-notebook
   "Simplified domain benchmarking with domain/bench."
-
   (:require
    [criterium.bench :as bench]
    [criterium.domain :as domain]
@@ -35,8 +34,9 @@
 ;; Benchmark sorting across different input sizes:
 
 (domain/bench
- (domain/domain-expr [n (builder/log-range 100 1000 3)]
-                     (sort (random-seq n))))
+ (domain/domain-expr
+  [n (builder/log-range 10 100 3)]
+  (sort (random-seq n))))
 
 ;; The default plan is `extract-metrics`, which discovers and displays
 ;; all collected metrics.
@@ -46,9 +46,10 @@
 ;; Use a map in `domain-expr` to compare multiple implementations:
 
 (domain/bench
- (domain/domain-expr [n (builder/log-range 100 1000 3)]
-                     {:sort (sort (random-seq n))
-                      :sort-by (sort-by identity (random-seq n))})
+ (domain/domain-expr
+  [n (builder/log-range 10 100 3)]
+  {:sort    (sort (random-seq n))
+   :sort-by (sort-by identity (random-seq n))})
  :domain-plan domain-plans/implementation-comparison)
 
 ;; The `implementation-comparison` plan groups by implementation and
@@ -59,8 +60,9 @@
 ;; Use `complexity-analysis` to fit O(n), O(n log n), etc. models:
 
 (domain/bench
- (domain/domain-expr [n (builder/log-range 100 10000 5)]
-                     (sort (random-seq n)))
+ (domain/domain-expr
+  [n (builder/log-range 10 1000 5)]
+  (sort (random-seq n)))
  :domain-plan domain-plans/complexity-analysis)
 
 ;; ## Options
@@ -75,8 +77,9 @@
 ;; Silent benchmarking with custom time limit:
 
 (domain/bench
- (domain/domain-expr [n [100 500 1000]]
-                     (sort (random-seq n)))
+ (domain/domain-expr
+  [n [10 50 100]]
+  (sort (random-seq n)))
  :reporter nil
  :bench-options {:limit-time-s 1})
 
@@ -85,8 +88,9 @@
 ;; Use `:bench-options` to collect thread allocation data:
 
 (domain/bench
- (domain/domain-expr [n (builder/log-range 100 1000 3)]
-                     {:sort (sort (random-seq n))
-                      :sort-by (sort-by identity (random-seq n))})
+ (domain/domain-expr
+  [n (builder/log-range 10 100 3)]
+  {:sort    (sort (random-seq n))
+   :sort-by (sort-by identity (random-seq n))})
  :bench-options {:metric-ids [:elapsed-time :thread-allocation]}
  :domain-plan domain-plans/implementation-comparison)

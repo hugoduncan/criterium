@@ -2,7 +2,6 @@
  ^{:kindly/options {:kinds-that-hide-code #{:kind/hidden}}}
  criterium.domain-builder-notebook
   "Automated domain construction and analysis workflows."
-
   (:require
    [criterium.bench :as bench]
    [criterium.domain :as domain]
@@ -19,8 +18,8 @@
 ;;
 ;; This notebook covers high-level workflows for automated benchmarking
 ;; across parameter spaces. For foundational domain concepts and manual
-;; construction, see the [Domain Analysis](./criterium.analyse_domain_notebook.html)
-;; notebook.
+;; construction, see the
+;; [Domain Analysis](./criterium.analyse_domain_notebook.html) notebook.
 ;;
 ;; Key features:
 ;; - **Domain Plans** — Pre-defined analysis workflows with `analyse-domain`
@@ -35,11 +34,14 @@
 
 ;; First, let's build a domain manually for demonstration:
 
-(def sort-sizes [100 500 1000])
+(defn random-seq [n]
+  (mapv rand-int (repeat n 10000)))
+
+(def sort-sizes [10 50 100])
 
 (def sort-inputs
   (into {}
-        (map (fn [n] [n (mapv rand-int (repeat n 10000))]) sort-sizes)))
+        (map (fn [n] [n (random-seq n)]) sort-sizes)))
 
 (defn build-sort-domain
   "Build a domain with sort benchmarks at each size."
@@ -64,10 +66,10 @@
 
 ;; Build a scaling domain for complexity analysis:
 
-(def scaling-sizes (builder/powers-of-2 4 9))
+(def scaling-sizes (builder/powers-of-2 4 7))
 
 (def scaling-inputs
-  (into {} (map (fn [n] [n (mapv rand-int (repeat n 10000))]) scaling-sizes)))
+  (into {} (map (fn [n] [n (random-seq n)]) scaling-sizes)))
 
 (defn build-scaling-domain
   "Build domain for scaling analysis."
@@ -75,7 +77,7 @@
   (reduce
    (fn [d n]
      (let [input (scaling-inputs n)]
-       (bench/bench (sort input))
+       (bench/bench (sort input) :viewer :none)
        (domain/add-run d {:n n} (:data (bench/last-bench)))))
    (domain/domain)
    scaling-sizes))
@@ -91,7 +93,7 @@
 ;; Build an implementation comparison domain:
 
 (def impl-inputs
-  (into {} (map (fn [n] [n (mapv rand-int (repeat n 10000))]) [100 500])))
+  (into {} (map (fn [n] [n (random-seq n)]) [10 50])))
 
 (defn build-impl-domain
   "Build domain comparing sort implementations."
@@ -100,7 +102,7 @@
    (fn [d [n input]]
      (bench/bench (sort input))
      (let [d (domain/add-run d {:n n :impl :sort} (:data (bench/last-bench)))]
-       (bench/bench (sort-by identity input))
+       (bench/bench (sort-by identity input) :viewer :none)
        (domain/add-run d {:n n :impl :sort-by} (:data (bench/last-bench)))))
    (domain/domain {:impl-axis :impl :implementations [:sort :sort-by]})
    impl-inputs))
@@ -119,8 +121,9 @@
 
 (do
   (analysis/analyse-domain
-   (analysis/options->domain-plan domain-plans/complexity-analysis
-                                  :viewer :print)
+   (analysis/options->domain-plan
+    domain-plans/complexity-analysis
+    :viewer :print)
    scaling-domain)
   nil)
 
@@ -161,9 +164,9 @@
 ;;"Building domain with simplified domain-builder..."
 
 (def simple-comparison-domain
-  (let [input (vec (range 1000))]
+  (let [input (vec (range 64))]
     (builder/domain-builder
-     {:sort (measured/expr (sort input))
+     {:sort    (measured/expr (sort input))
       :sort-by (measured/expr (sort-by identity input))}
      :reporter nil)))
 
@@ -183,27 +186,25 @@
 
 ;; Single expression (uses `:default` as impl key):
 
-(defn random-seq [n] (vec (repeatedly n #(rand-int 10000))))
-
-(domain/domain-expr [n [100 500 1000]]
+(domain/domain-expr [n [10 50 100]]
                     (sort (random-seq n)))
 
 ;; Multiple implementations via map:
 
-(domain/domain-expr [n [100 500 1000]]
-                    {:sort (sort (random-seq n))
+(domain/domain-expr [n [10 50 100]]
+                    {:sort    (sort (random-seq n))
                      :sort-by (sort-by identity (random-seq n))})
 
 ;; Multiple axes:
 
-(domain/domain-expr [n [100 500] m [1 2 3]]
+(domain/domain-expr [n [10 50] m [1 2 3]]
                     (take m (sort (random-seq n))))
 
 ;; Use with domain-builder via `apply` and `mapcat`:
 
 (def expr-domain
-  (let [spec (domain/domain-expr [n (builder/log-range 100 1000 3)]
-                                 {:sort (sort (random-seq n))
+  (let [spec (domain/domain-expr [n (builder/log-range 8 128 3)]
+                                 {:sort    (sort (random-seq n))
                                   :sort-by (sort-by identity (random-seq n))})]
     (apply builder/domain-builder
            (concat [(:axes spec) (:implementations spec)]
@@ -222,18 +223,12 @@
 (def builder-domain
   (builder/domain-builder
    ;; Axes define the parameter space
-   {:n (builder/n-log-n-range 8 1000 4)}
+   {:n (builder/n-log-n-range 8 128 3)}
    ;; Implementations to compare
-   {:sort
-    {:measured (measured/expr (sort (vec (range 100))))
-     :args-builder (fn [{:keys [n]}]
-                     (fn [] [(mapv rand-int (repeat n 10000))]))}
-    :sort-by
-    {:measured (measured/expr (sort-by identity (vec (range 100))))
-     ;; Must provide both args: identity function AND collection
-     :args-builder (fn [{:keys [n]}]
-                     (fn []
-                       [identity (mapv rand-int (repeat n 10000))]))}}
+   {:sort    (fn [{:keys [n]}]
+               (measured/expr (sort (random-seq n))))
+    :sort-by (fn [{:keys [n]}]
+               (measured/expr (sort-by identity (random-seq n))))}
    ;; Options
    :reporter nil)) ; nil for silent, or use (builder/dot-reporter)
 
@@ -273,15 +268,12 @@
 
 (def builder-domain-with-alloc
   (builder/domain-builder
-   {:n (builder/n-log-n-range 8 1000 4)}
-   {:sort
-    {:measured (measured/expr (sort (vec (range 100))))
-     :args-builder (fn [{:keys [n]}]
-                     (fn [] [(mapv rand-int (repeat n 10000))]))}
-    :sort-by
-    {:measured (measured/expr (sort-by identity (vec (range 100))))
-     :args-builder (fn [{:keys [n]}]
-                     (fn [] [identity (mapv rand-int (repeat n 10000))]))}}
+   {:n (builder/n-log-n-range 8 256 4)}
+   {:sort    (fn [{:keys [n]}]
+               (measured/expr (sort (mapv rand-int (repeat n 10000)))))
+    :sort-by (fn [{:keys [n]}]
+               (measured/expr
+                (sort-by identity (mapv rand-int (repeat n 10000)))))}
    :bench-options {:metric-ids [:elapsed-time :thread-allocation]}
    :reporter nil))
 
@@ -289,7 +281,9 @@
 ;; This extracts and fits regression models for both elapsed-time and
 ;; thread-allocation:
 
-(analysis/analyse-domain domain-plans/complexity-analysis builder-domain-with-alloc)
+(analysis/analyse-domain
+ domain-plans/complexity-analysis
+ builder-domain-with-alloc)
 
 ;; Compare allocations between implementations using a custom plan:
 
