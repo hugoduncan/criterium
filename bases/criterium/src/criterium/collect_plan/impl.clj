@@ -11,6 +11,9 @@
     (:scheme-type collect-plan)))
 
 (defn limit-samples
+  "Determine sample counts, limiting if projected time exceeds remaining time.
+  Returns a map with :num-warmup-samples, :num-measure-samples, and when
+  time-limited, :time-limited? true and :projected-time-ns."
   [limit-time-ns
    num-warmup-samples
    num-measure-samples
@@ -28,7 +31,9 @@
         (double (/ (long limit-time-ns) (long units/SEC-NS)))))
       (println (format "  pass `:limit-time-s %.3g` to improve accuracy," t-s))
       (println "  or consider benchmarks at a lower level.")
-      [(max 10 (long (* (long num-warmup-samples) frac)))
-       (max 10 (long (* (long num-measure-samples) frac)))])
-    [(max 1 (long num-warmup-samples))
-     (max 1 (long num-measure-samples))]))
+      {:num-warmup-samples (max 10 (long (* (long num-warmup-samples) frac)))
+       :num-measure-samples (max 10 (long (* (long num-measure-samples) frac)))
+       :time-limited? true
+       :projected-time-ns t})
+    {:num-warmup-samples (max 1 (long num-warmup-samples))
+     :num-measure-samples (max 1 (long num-measure-samples))}))

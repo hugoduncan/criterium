@@ -227,3 +227,74 @@
   [_ _view _banch-map]
   ;; TODO
   )
+(defmethod view/domain-extract* :pprint
+  [_ {:keys [extract-id]} data-map]
+  (let [extract-id (or extract-id :extract)
+        extract    (data-map extract-id)]
+    (when-let [{:keys [heading coord-header col-headers rows]}
+               (viewer-common/prepare-domain-extract-table extract {:header-sep " "})]
+      (println heading)
+      ;; pprint/print-table needs string keys for column headers to display
+      ;; without colon prefix; transform the coord key from keyword to string
+      (let [coord-key   (keyword coord-header)
+            pprint-rows (mapv #(-> %
+                                   (assoc coord-header (get % coord-key))
+                                   (dissoc coord-key))
+                              rows)]
+        (pprint/print-table (into [coord-header] col-headers) pprint-rows)))))
+
+(defmethod view/domain-grouped* :pprint
+  [_ {:keys [grouped-id]} data-map]
+  (let [grouped-id (or grouped-id :grouped)
+        grouped    (data-map grouped-id)]
+    (when-let [{:keys [heading rows]} (viewer-common/prepare-domain-grouped-table
+                                       grouped)]
+      (println heading)
+      (pprint/print-table [:axis-value :run-count] rows))))
+
+(defmethod view/domain-comparison* :pprint
+  [_ {:keys [comparison-id]} data-map]
+  (let [comparison-id (or comparison-id :comparison)
+        comparison (data-map comparison-id)]
+    (when-let [tables (viewer-common/prepare-domain-comparison-tables comparison)]
+      (doseq [{:keys [heading coord-header col-headers rows]} tables]
+        (println heading)
+        (pprint/print-table (into [coord-header] col-headers) rows)))))
+
+(defmethod view/domain-regression* :pprint
+  [_ {:keys [regression-id tolerance]} data-map]
+  (let [regression-id (or regression-id :regression)
+        regression    (data-map regression-id)
+        tolerance     (or tolerance 0.01)
+        table-options {:best-fit-marker "<- best"
+                       :plotted-marker  "[plotted]"
+                       :tolerance       tolerance}]
+    (when regression
+      (let [{:keys [axis regressions impl-axis implementations]} regression
+            multi-impl?                                          (> (count implementations) 1)]
+        (if multi-impl?
+          ;; Multi-implementation mode
+          (doseq [[_metric-id {:keys [metric by-impl]}] regressions]
+            (println (format "Domain Regression (axis: %s, metric: %s, by: %s)"
+                             (name axis) (pr-str metric) (name impl-axis)))
+            (if (seq by-impl)
+              (let [impl-keys  (sort (keys by-impl))
+                    table-rows (viewer-common/prepare-regression-model-table-multi-impl
+                                by-impl impl-keys table-options)]
+                (pprint/print-table
+                 [:implementation :model :r-squared :equation :best-fit]
+                 table-rows))
+              (println "  (no implementations)"))
+            (println))
+
+          ;; Single-implementation mode
+          (doseq [[_metric-id {:keys [metric models best-fit]}] regressions]
+            (println (format "Domain Regression (axis: %s, metric: %s)"
+                             (name axis) (pr-str metric)))
+            (if (seq models)
+              (let [table-rows (viewer-common/prepare-regression-model-table
+                                {:models models :best-fit best-fit}
+                                table-options)]
+                (pprint/print-table [:model :r-squared :equation :best-fit] table-rows))
+              (println "  (insufficient data for regression)"))
+            (println)))))))

@@ -1,0 +1,2 @@
+{:lint-as
+ {criterium.domain/domain-expr clojure.core/let}}

@@ -91,24 +91,26 @@
 (defn build-agent-cpp!
   "Builds the agent from agent-cpp/ source for the current platform using CMake.
   Returns the path to the built library file.
+  Optionally accepts a custom build directory (defaults to agent-cpp/build).
   Throws on build failure or unsupported platform."
-  []
-  (let [platform (current-platform)
-        ^java.io.File agent-dir (agent-cpp-dir)
-        build-dir (io/file agent-dir "build")
-        lib-name (library-name platform)
-        lib-file (io/file build-dir lib-name)]
-    (when-not (.isDirectory agent-dir)
-      (throw (ex-info "agent-cpp directory not found"
-                      {:agent-dir (.getAbsolutePath agent-dir)})))
-    (.mkdirs build-dir)
-    (println "Building agent for" platform "using CMake...")
-    (run-process! ["cmake" ".."] build-dir "CMake configure")
-    (run-process! ["cmake" "--build" "."] build-dir "CMake build")
-    (when-not (.exists lib-file)
-      (throw (ex-info "Build succeeded but library file not found"
-                      {:expected (.getAbsolutePath lib-file)})))
-    (.getAbsolutePath lib-file)))
+  ([] (build-agent-cpp! nil))
+  ([opts]
+   (let [platform (current-platform)
+         ^java.io.File agent-dir (agent-cpp-dir)
+         build-dir (or (:build-dir opts) (io/file agent-dir "build"))
+         lib-name (library-name platform)
+         lib-file (io/file build-dir lib-name)]
+     (when-not (.isDirectory agent-dir)
+       (throw (ex-info "agent-cpp directory not found"
+                       {:agent-dir (.getAbsolutePath agent-dir)})))
+     (.mkdirs build-dir)
+     (println "Building agent for" platform "using CMake...")
+     (run-process! ["cmake" (.getAbsolutePath agent-dir)] build-dir "CMake configure")
+     (run-process! ["cmake" "--build" "."] build-dir "CMake build")
+     (when-not (.exists lib-file)
+       (throw (ex-info "Build succeeded but library file not found"
+                       {:expected (.getAbsolutePath lib-file)})))
+     (.getAbsolutePath lib-file))))
 
 (defn copy-agent-binary!
   "Copies the built agent binary to resources and generates SHA256 hash.

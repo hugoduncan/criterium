@@ -77,7 +77,7 @@
         metrics-defs (-> (:metrics-defs stats-map)
                          (metric/select-metrics metric-ids))
         metric-configs (metric/all-metric-configs metrics-defs)
-        transforms     (util/get-transforms data-map stats-id)]
+        transforms (util/get-transforms data-map stats-id)]
     (when (seq metric-configs)
       (heading "Summary stats")
       (portal-table
@@ -144,96 +144,16 @@
    (viewer-common/collect-plan-data data-map)))
 
 (defmethod view/samples* :portal
-  [_ {:keys [] :as view} data-map]
-  (let [quant-samples-id (:samples-id view :samples)
-        event-samples-id (:event-samples-id view quant-samples-id)
-        outliers-analysis-id (:outliers-id view :outliers)
-
-        quant-samples (data-map quant-samples-id)
-        event-samples (data-map event-samples-id)
-        outliers (data-map outliers-analysis-id)
-
-        q-metrics-defs (-> (:metrics-defs quant-samples)
-                           (metric/filter-metrics
-                            (metric/type-pred :quantitative)))
-        e-metrics-defs (-> (:metrics-defs event-samples)
-                           (metric/filter-metrics
-                            (metric/type-pred :event)))
-        metric-configs (metric/all-metric-configs q-metrics-defs)
-        event-metric->values (util/metric->values event-samples)
-        e-metric-configs (->> (metric/all-metric-configs e-metrics-defs)
-                              (filterv #(not-every? zero?
-                                                    (get event-metric->values
-                                                         (:path %)))))
-
-        transforms (util/get-transforms data-map quant-samples-id)]
-    (heading "Samples")
-    (portal-vega-lite
-     {:data {:values [{}]}
-      :encoding {:x {:field "index" :type "quantitative"}}
-      :resolve {:scale {:y "independent"}}
-      :vconcat
-      (into
-       [{:height 800
-         :layer
-         (vec
-          (into
-           [(charts/metric-layer
-             (util/metric->values quant-samples)
-             transforms
-             (when outliers (util/outliers outliers))
-             (have (first metric-configs)))]
-           (mapcat
-            #(charts/event-layer event-metric->values %)
-            e-metrics-defs)))}]
-       (mapv
-        #(charts/metric-layer
-          event-metric->values
-          transforms
-          nil %)
-        e-metric-configs))})))
+  [_ view data-map]
+  (heading "Samples")
+  (portal-vega-lite
+   (charts/samples-vega-spec data-map view {:height 800})))
 
 (defmethod view/histogram* :portal
-  [_ {:keys [histogram-id samples-id stats-id]} data-map]
-  (let [histogram-id (or histogram-id :histograms)
-        stats-id (or stats-id :stats)
-        quant-samples-id (or samples-id :samples)
-        quant-samples (data-map quant-samples-id)
-        stats (data-map stats-id)
-        histograms-map (util/lookup-data data-map histogram-id)
-        histograms (:histograms histograms-map)
-        metrics-defs (-> (:metrics-defs quant-samples)
-                         (metric/filter-metrics
-                          (metric/type-pred :quantitative)))
-        metric-configs (metric/all-metric-configs metrics-defs)
-        hist-transforms (util/get-transforms data-map histogram-id)
-        stats-transforms (util/get-transforms data-map (:source-id stats))
-        layer-num (volatile! 0)]
-    (heading "Histogram")
-    (portal-vega-lite
-     {:data {:values []}
-      :resolve {:scale {:x "independent"
-                        :y "independent"
-                        :color "shared"}}
-      :vconcat (mapv
-                (fn [metric-config]
-                  {:resolve {:scale {:x "shared" :y "independent"}}
-                   :height 800
-                   :layer
-                   (into
-                    [(charts/metric-computed-histo-layer
-                      hist-transforms
-                      (histograms (:path metric-config))
-                      metric-config
-                      (vswap! layer-num unchecked-inc))]
-                    (when stats
-                      (->>
-                       (charts/metric-sample-stats-layer
-                        stats-transforms
-                        (get-in (util/stats stats) (:path metric-config))
-                        metric-config
-                        (vswap! layer-num unchecked-inc)))))})
-                metric-configs)})))
+  [_ view data-map]
+  (heading "Histogram")
+  (portal-vega-lite
+   (charts/histogram-vega-spec data-map view {:height 800})))
 
 (defmethod view/sample-percentiles* :portal
   [_ view data-map]
@@ -285,3 +205,176 @@
 (defmethod view/os* :portal [_ _ _])
 
 (defmethod view/runtime* :portal [_ _ _])
+
+;;; Domain Views
+
+(defmethod view/domain-extract* :portal
+  [_ {:keys [extract-id]} data-map]
+  (let [extract-id (or extract-id :extract)
+        extract (data-map extract-id)]
+    (when-let [table-data (viewer-common/prepare-domain-extract-table
+                           extract {:header-sep " "})]
+      (heading (:heading table-data))
+      (portal-table (:rows table-data)))))
+
+(defmethod view/domain-grouped* :portal
+  [_ {:keys [grouped-id]} data-map]
+  (let [grouped-id (or grouped-id :grouped)
+        grouped    (data-map grouped-id)]
+    (when-let [{:keys [rows] heading-text :heading}
+               (viewer-common/prepare-domain-grouped-table grouped)]
+      (heading heading-text)
+      (portal-table rows))))
+
+(defmethod view/domain-comparison* :portal
+  [_ {:keys [comparison-id]} data-map]
+  (let [comparison-id (or comparison-id :comparison)
+        comparison    (data-map comparison-id)]
+    (when-let [tables (viewer-common/prepare-domain-comparison-tables
+                       comparison)]
+      (doseq [{:keys [rows] heading-text :heading} tables]
+        (heading heading-text)
+        (portal-table rows)))))
+
+(defmethod view/domain-regression* :portal
+  [_ {:keys [regression-id extract-id tolerance]} data-map]
+  (let [regression-id (or regression-id :regression)
+        regression    (data-map regression-id)
+        tolerance     (double (or tolerance 0.01))
+        chart-width   600
+        chart-height  400
+        table-options {:best-fit-marker "✓"
+                       :plotted-marker  ""
+                       :tolerance       tolerance}]
+    (when regression
+      (let [{:keys [axis regressions impl-axis implementations]}
+            regression
+            extract-id  (or extract-id :extract)
+            extract     (data-map extract-id)
+            multi-impl? (> (count implementations) 1)]
+
+        (if multi-impl?
+          ;; Multi-implementation mode
+          (doseq [[metric-id {:keys [metric by-impl with-error-bounds]}]
+                  regressions]
+            (let [metric-extract-data (get-in extract [:metrics metric-id])
+                  impl-keys           (sort (keys by-impl))]
+              (heading (str "Domain Regression (axis: " (name axis)
+                            ", metric: " (pr-str metric)
+                            ", by: " (name impl-axis) ")"))
+              ;; Model table
+              (when (seq by-impl)
+                (portal-table
+                 (viewer-common/prepare-regression-model-table-multi-impl
+                  by-impl impl-keys table-options)))
+              ;; Charts
+              (when-let [point-data (viewer-common/prepare-regression-points
+                                     metric-extract-data
+                                     {:axis              axis
+                                      :impl-axis         impl-axis
+                                      :has-error-bounds? with-error-bounds
+                                      :metric            metric})]
+                (let [{:keys [points unit]} point-data
+                      line-pts
+                      (viewer-common/prepare-regression-fit-lines
+                       point-data
+                       {:by-impl   by-impl
+                        :impl-keys impl-keys})
+                      y-title               (if (seq unit)
+                                              (str (pr-str metric)
+                                                   " (" unit ")")
+                                              (pr-str metric))
+                      residual-title        (if (seq unit)
+                                              (str "Residual (" unit ")")
+                                              "Residual")]
+                  (when (seq points)
+                    (portal-vega-lite
+                     (charts/regression-chart-spec
+                      points line-pts
+                      {:width             chart-width :height  chart-height
+                       :axis-name         (name axis) :y-title y-title
+                       :color-field       "impl"
+                       :has-error-bounds? with-error-bounds}))
+                    ;; Residual plot
+                    (let [residual-pts
+                          (viewer-common/prepare-regression-residuals
+                           point-data
+                           {:axis              axis
+                            :impl-axis         impl-axis
+                            :has-error-bounds? with-error-bounds
+                            :by-impl           by-impl
+                            :impl-keys         impl-keys})]
+                      (heading "Residual Plot")
+                      (portal-vega-lite
+                       (charts/regression-residual-spec
+                        residual-pts
+                        {:width       chart-width
+                         :height      (/ chart-height 2)
+                         :axis-name   (name axis) :residual-title residual-title
+                         :color-field "impl"}))))))))
+
+          ;; Single-implementation mode
+          (doseq [[metric-id {:keys [metric models best-fit with-error-bounds]}]
+                  regressions]
+            (let [metric-extract-data (get-in extract [:metrics metric-id])
+                  best-r-squared      (when best-fit
+                                        (->> models
+                                             (filter #(= (:id %) best-fit))
+                                             first
+                                             :r-squared))
+                  models-to-plot      (when best-r-squared
+                                        (->> models
+                                             (filter
+                                              #(>= (double (:r-squared %))
+                                                   (* (double best-r-squared)
+                                                      (- 1 tolerance))))
+                                             (sort-by :r-squared >)))]
+              (heading (str "Domain Regression (axis: " (name axis)
+                            ", metric: " (pr-str metric) ")"))
+              ;; Model table
+              (when (seq models)
+                (portal-table
+                 (viewer-common/prepare-regression-model-table
+                  {:models models :best-fit best-fit}
+                  table-options)))
+              ;; Charts
+              (when (and metric-extract-data (seq models-to-plot))
+                (when-let [point-data (viewer-common/prepare-regression-points
+                                       metric-extract-data
+                                       {:axis              axis
+                                        :has-error-bounds? with-error-bounds
+                                        :metric            metric})]
+                  (let [{:keys [points unit]}
+                        point-data
+                        line-pts       (viewer-common/prepare-regression-fit-lines
+                                        point-data
+                                        {:models models-to-plot})
+                        y-title        (if (seq unit)
+                                         (str (pr-str metric) " (" unit ")")
+                                         (pr-str metric))
+                        residual-title (if (seq unit)
+                                         (str "Residual (" unit ")")
+                                         "Residual")]
+                    (when (seq points)
+                      (portal-vega-lite
+                       (charts/regression-chart-spec
+                        points line-pts
+                        {:width             chart-width :height  chart-height
+                         :axis-name         (name axis) :y-title y-title
+                         :color-field       "model"
+                         :has-error-bounds? with-error-bounds}))
+                      ;; Residual plot
+                      (let [residual-pts (viewer-common/prepare-regression-residuals
+                                          point-data
+                                          {:axis              axis
+                                           :has-error-bounds? with-error-bounds
+                                           :models            models-to-plot})]
+                        (heading "Residual Plot")
+                        (portal-vega-lite
+                         (charts/regression-residual-spec
+                          residual-pts
+                          {:width          chart-width
+                           :height         (/ chart-height 2)
+                           :axis-name      (name axis)
+                           :residual-title residual-title
+                           :color-field    "model"}))))))))))))))

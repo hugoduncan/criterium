@@ -1,5 +1,6 @@
 {:config-paths
- ["../bases/arg-gen/resources/clj-kondo.exports/criterium/arg-gen/"]
+ ["../bases/arg-gen/resources/clj-kondo.exports/criterium/arg-gen/"
+  "../bases/criterium/resources/clj-kondo.exports/criterium/criterium/"]
  :hooks
  {:analyze-call
   {criterium.view/def-multi-view       hooks.impl/def-multi-view

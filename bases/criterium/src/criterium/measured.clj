@@ -48,6 +48,16 @@
   [args-fn f & [expr-fn]]
   (impl/measured args-fn f expr-fn))
 
+(defn with-args-fn
+  "Return a new Measured with the args-fn replaced.
+  Preserves the measurement function and symbolic representation.
+
+  This is useful for running the same measured expression with different
+  input generators, e.g., when benchmarking across a parameter space."
+  ^criterium.measured.impl.Measured
+  [measured new-args-fn]
+  (impl/measured new-args-fn (.-f ^Measured measured) (:expr-fn measured)))
+
 (defn args
   "Generate the input state for a measured.
 

@@ -24,7 +24,7 @@
   last-fragment
   (atom nil))
 
-(def ^:private chart-width
+(def ^:private  chart-width
   "Width for Kindly vega-lite charts, sized for notebook display."
   700)
 
@@ -122,101 +122,18 @@
    (viewer-common/collect-plan-data data-map)))
 
 (defmethod view/samples* :kindly
-  [_ {:keys [] :as view} data-map]
-  (let [quant-samples-id (:samples-id view :samples)
-        event-samples-id (:event-samples-id view quant-samples-id)
-        outliers-analysis-id (:outliers-id view :outliers)
-
-        quant-samples (data-map quant-samples-id)
-        event-samples (data-map event-samples-id)
-        outliers (data-map outliers-analysis-id)
-
-        q-metrics-defs (-> (:metrics-defs quant-samples)
-                           (metric/filter-metrics
-                            (metric/type-pred :quantitative)))
-        e-metrics-defs (-> (:metrics-defs event-samples)
-                           (metric/filter-metrics
-                            (metric/type-pred :event)))
-        metric-configs (metric/all-metric-configs q-metrics-defs)
-        event-metric->values (util/metric->values event-samples)
-        e-metric-configs (->> (metric/all-metric-configs e-metrics-defs)
-                              (filterv #(not-every? zero?
-                                                    (get event-metric->values
-                                                         (:path %)))))
-
-        transforms (util/get-transforms data-map quant-samples-id)]
-    (kindly-heading "Samples")
-    (kindly-vega-lite
-     {:data {:values [{}]}
-      :encoding {:x {:field "index" :type "quantitative"}}
-      :resolve {:scale {:y "independent"}}
-      :vconcat
-      (into
-       [{:width chart-width
-         :height chart-height
-         :layer
-         (vec
-          (into
-           [(charts/metric-layer
-             (util/metric->values quant-samples)
-             transforms
-             (when outliers (util/outliers outliers))
-             (have (first metric-configs)))]
-           (mapcat
-            #(charts/event-layer event-metric->values %)
-            e-metrics-defs)))}]
-       (mapv
-        (fn [mc]
-          {:width chart-width
-           :height chart-height
-           :layer [(charts/metric-layer
-                    event-metric->values
-                    transforms
-                    nil mc)]})
-        e-metric-configs))})))
+  [_ view data-map]
+  (kindly-heading "Samples")
+  (kindly-vega-lite
+   (charts/samples-vega-spec data-map view {:width chart-width
+                                            :height chart-height})))
 
 (defmethod view/histogram* :kindly
-  [_ {:keys [histogram-id samples-id stats-id]} data-map]
-  (let [histogram-id (or histogram-id :histograms)
-        stats-id (or stats-id :stats)
-        quant-samples-id (or samples-id :samples)
-        quant-samples (data-map quant-samples-id)
-        stats (data-map stats-id)
-        histograms-map (util/lookup-data data-map histogram-id)
-        histograms (:histograms histograms-map)
-        metrics-defs (-> (:metrics-defs quant-samples)
-                         (metric/filter-metrics
-                          (metric/type-pred :quantitative)))
-        metric-configs (metric/all-metric-configs metrics-defs)
-        hist-transforms (util/get-transforms data-map histogram-id)
-        stats-transforms (util/get-transforms data-map (:source-id stats))
-        layer-num (volatile! 0)]
-    (kindly-heading "Histogram")
-    (kindly-vega-lite
-     {:data {:values []}
-      :resolve {:scale {:x "independent"
-                        :y "independent"
-                        :color "shared"}}
-      :vconcat (mapv
-                (fn [metric-config]
-                  {:resolve {:scale {:x "shared" :y "independent"}}
-                   :width chart-width
-                   :height chart-height
-                   :layer
-                   (into
-                    [(charts/metric-computed-histo-layer
-                      hist-transforms
-                      (histograms (:path metric-config))
-                      metric-config
-                      (vswap! layer-num unchecked-inc))]
-                    (when stats
-                      (->>
-                       (charts/metric-sample-stats-layer
-                        stats-transforms
-                        (get-in (util/stats stats) (:path metric-config))
-                        metric-config
-                        (vswap! layer-num unchecked-inc)))))})
-                metric-configs)})))
+  [_ view data-map]
+  (kindly-heading "Histogram")
+  (kindly-vega-lite
+   (charts/histogram-vega-spec data-map view {:width chart-width
+                                              :height chart-height})))
 
 (defmethod view/sample-percentiles* :kindly
   [_ view data-map]
@@ -299,6 +216,186 @@
            [(charts/metric-diff-layer
              (util/metric->values quant-samples)
              (first metric-configs))]))}])})))
+
+;;; Domain view implementations
+
+(defmethod view/domain-extract* :kindly
+  [_ {:keys [extract-id]} data-map]
+  (let [extract-id (or extract-id :extract)
+        extract (data-map extract-id)]
+    (when-let [table-data (viewer-common/prepare-domain-extract-table
+                           extract {:header-sep "\n"})]
+      (kindly-heading (:heading table-data))
+      (kindly-table (:rows table-data)))))
+
+(defmethod view/domain-grouped* :kindly
+  [_ {:keys [grouped-id]} data-map]
+  (let [grouped-id (or grouped-id :grouped)
+        grouped    (data-map grouped-id)]
+    (when-let [{:keys [heading rows]} (viewer-common/prepare-domain-grouped-table
+                                       grouped)]
+      (kindly-heading heading)
+      (kindly-table rows))))
+
+(defmethod view/domain-comparison* :kindly
+  [_ {:keys [comparison-id]} data-map]
+  (let [comparison-id (or comparison-id :comparison)
+        comparison    (data-map comparison-id)]
+    (when-let [tables (viewer-common/prepare-domain-comparison-tables
+                       comparison)]
+      (doseq [{:keys [heading rows]} tables]
+        (kindly-heading heading)
+        (kindly-table rows)))))
+
+(defmethod view/domain-regression* :kindly
+  [_ {:keys [regression-id extract-id tolerance]} data-map]
+  (let [regression-id  (or regression-id :regression)
+        regression     (data-map regression-id)
+        tolerance      (double  (or tolerance 0.01))
+        table-options  {:best-fit-marker "✓"
+                        :plotted-marker  ""
+                        :tolerance       tolerance}
+        legend-options {:orient  "none"
+                        :legendX 10
+                        :legendY 10}]
+    (when regression
+      (let [{:keys [axis regressions impl-axis implementations]}          regression
+            extract-id  (or extract-id :extract)
+            extract     (data-map extract-id)
+            multi-impl? (> (count implementations) 1)]
+
+        (if multi-impl?
+          ;; Multi-implementation mode
+          (doseq [[metric-id {:keys [metric by-impl with-error-bounds]}]
+                  regressions]
+            (let [metric-extract-data (get-in extract [:metrics metric-id])
+                  impl-keys           (sort (keys by-impl))]
+              (kindly-heading (str "Domain Regression (axis: " (name axis)
+                                   ", metric: " (pr-str metric)
+                                   ", by: " (name impl-axis) ")"))
+              ;; Model table
+              (when (seq by-impl)
+                (kindly-table
+                 (viewer-common/prepare-regression-model-table-multi-impl
+                  by-impl impl-keys table-options)))
+              ;; Charts
+              (when-let [point-data (viewer-common/prepare-regression-points
+                                     metric-extract-data
+                                     {:axis              axis
+                                      :impl-axis         impl-axis
+                                      :has-error-bounds? with-error-bounds
+                                      :metric            metric})]
+                (let [{:keys [points unit]}
+                      point-data
+                      line-pts
+                      (viewer-common/prepare-regression-fit-lines
+                       point-data
+                       {:by-impl by-impl :impl-keys impl-keys})
+                      y-title        (if (seq unit)
+                                       (str (pr-str metric) " (" unit ")")
+                                       (pr-str metric))
+                      residual-title (if (seq unit)
+                                       (str "Residual (" unit ")")
+                                       "Residual")]
+                  (when (seq points)
+                    (kindly-vega-lite
+                     (charts/regression-chart-spec
+                      points line-pts
+                      {:width             chart-width
+                       :height            chart-height
+                       :axis-name         (name axis) :y-title y-title
+                       :color-field       "impl"
+                       :legend-options    legend-options
+                       :has-error-bounds? with-error-bounds}))
+                    ;; Residual plot
+                    (let [residual-pts
+                          (viewer-common/prepare-regression-residuals
+                           point-data
+                           {:axis              axis
+                            :impl-axis         impl-axis
+                            :has-error-bounds? with-error-bounds
+                            :by-impl           by-impl
+                            :impl-keys         impl-keys})]
+                      (kindly-heading "Residual Plot")
+                      (kindly-vega-lite
+                       (charts/regression-residual-spec
+                        residual-pts
+                        {:width          chart-width
+                         :height         (long (/ (long chart-height) 2))
+                         :axis-name      (name axis)
+                         :residual-title residual-title
+                         :color-field    "impl"
+                         :legend-options legend-options}))))))))
+
+          ;; Single-implementation mode
+          (doseq [[metric-id {:keys [metric models best-fit with-error-bounds]}]
+                  regressions]
+            (let [metric-extract-data (get-in extract [:metrics metric-id])
+                  best-r-squared      (when best-fit
+                                        (->> models
+                                             (filter #(= (:id %) best-fit))
+                                             first :r-squared))
+                  models-to-plot      (when best-r-squared
+                                        (->> models
+                                             (filter
+                                              #(>= (double (:r-squared %))
+                                                   (* (double best-r-squared)
+                                                      (- 1.0 tolerance))))
+                                             (sort-by :r-squared >)))]
+              (kindly-heading (str "Domain Regression (axis: " (name axis)
+                                   ", metric: " (pr-str metric) ")"))
+              ;; Model table
+              (when (seq models)
+                (kindly-table
+                 (viewer-common/prepare-regression-model-table
+                  {:models models :best-fit best-fit}
+                  table-options)))
+              ;; Charts
+              (when (and metric-extract-data (seq models-to-plot))
+                (when-let [point-data (viewer-common/prepare-regression-points
+                                       metric-extract-data
+                                       {:axis              axis
+                                        :has-error-bounds? with-error-bounds
+                                        :metric            metric})]
+                  (let [{:keys [points unit]}
+                        point-data
+                        line-pts
+                        (viewer-common/prepare-regression-fit-lines
+                         point-data {:models models-to-plot})
+                        y-title        (if (seq unit)
+                                         (str (pr-str metric) " (" unit ")")
+                                         (pr-str metric))
+                        residual-title (if (seq unit)
+                                         (str "Residual (" unit ")")
+                                         "Residual")]
+                    (when (seq points)
+                      (kindly-vega-lite
+                       (charts/regression-chart-spec
+                        points line-pts
+                        {:width             chart-width
+                         :height            chart-height
+                         :axis-name         (name axis)
+                         :y-title           y-title
+                         :color-field       "model"
+                         :legend-options    legend-options
+                         :has-error-bounds? with-error-bounds}))
+                      ;; Residual plot
+                      (let [residual-pts
+                            (viewer-common/prepare-regression-residuals
+                             point-data
+                             {:axis              axis
+                              :has-error-bounds? with-error-bounds
+                              :models            models-to-plot})]
+                        (kindly-heading "Residual Plot")
+                        (kindly-vega-lite
+                         (charts/regression-residual-spec
+                          residual-pts
+                          {:width          chart-width
+                           :height         (long (/ (long chart-height) 2))
+                           :axis-name      (name axis)
+                           :residual-title residual-title
+                           :color-field    "model"
+                           :legend-options legend-options}))))))))))))))
 
 ;;; Noop implementations for views not applicable to Kindly output
 

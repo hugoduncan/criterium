@@ -126,14 +126,14 @@
   ;; Verifies threshold calculation from quantiles and outlier classification.
   (testing "Outliers"
     (testing "with obvious outlier"
-      (let [raw-data [9 10 9 10 9 10 10000]
-            samples (digest-samples
-                     {[:elapsed-time] raw-data
-                      [:compilation :time-ms] [0 0 0]}
-                     10)
-            data-map {:samples samples}
+      (let [raw-data  [9 10 9 10 9 10 10000]
+            samples   (digest-samples
+                       {[:elapsed-time]         raw-data
+                        [:compilation :time-ms] [0 0 0]}
+                       10)
+            data-map  {:samples samples}
             quantiles (analyse/quantiles {:quantiles []})
-            outliers (analyse/outliers)]
+            outliers  (analyse/outliers)]
         (is (= {:low-severe 0, :low-mild 0, :high-mild 0, :high-severe 1}
                (-> data-map
                    quantiles
@@ -147,20 +147,20 @@
             ;; Using Box-Muller approximation via pre-computed values
             normal-data [80.5 85.2 88.7 91.3 93.8 96.1 98.2 100.0
                          101.8 103.9 106.2 108.7 111.3 114.8 119.5]
-            samples (digest-samples
-                     {[:elapsed-time] normal-data
-                      [:compilation :time-ms] (repeat (count normal-data) 0)}
-                     1)
-            data-map {:samples samples}
-            result (-> data-map
-                       ((analyse/quantiles {:quantiles []}))
-                       ((analyse/outliers)))
-            qs (-> result :quantiles util/quantiles :elapsed-time)
-            q1 (get qs 0.25)
-            q3 (get qs 0.75)
-            iqr (- q3 q1)
+            samples     (digest-samples
+                         {[:elapsed-time]         normal-data
+                          [:compilation :time-ms] (repeat (count normal-data) 0)}
+                         1)
+            data-map    {:samples samples}
+            result      (-> data-map
+                            ((analyse/quantiles {:quantiles []}))
+                            ((analyse/outliers)))
+            qs          (-> result :quantiles util/quantiles :elapsed-time)
+            ^double q1  (get qs 0.25)
+            ^double q3  (get qs 0.75)
+            iqr         (- q3 q1)
             outlier-map (-> result :outliers util/outliers :elapsed-time)
-            thresholds (:thresholds outlier-map)]
+            thresholds  (:thresholds outlier-map)]
         (testing "calculates thresholds from digest quantiles"
           (is (approx= (- q1 (* 3.0 iqr)) (nth thresholds 0))
               "low-severe threshold")

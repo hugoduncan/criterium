@@ -40,55 +40,116 @@
       (is (= [1 [:arg :arg]] (invoke m 3)))
       (is (= 3 @eval-count)))))
 
+(deftest with-args-fn-test
+  ;; Tests for with-args-fn which creates a new measured with a replaced args-fn.
+  ;; Validates that the measurement function is preserved while args-fn is swapped.
+  (testing "with-args-fn"
+    (testing "replaces args-fn while preserving measurement function"
+      (let [original-m  (measured/measured
+                         (fn [] [1])
+                         (fn [[x] _n] [0 (* x 10)])
+                         (fn [] ::original))
+            new-args-fn (fn [] [5])
+            modified-m  (measured/with-args-fn original-m new-args-fn)]
+        (is (measured/measured? modified-m))
+        (is (= [0 50] (invoke modified-m)))))
+    (testing "preserves symbolic representation"
+      (let [original-m (measured/measured
+                        (fn [] nil)
+                        (fn [_ _n] [0 nil])
+                        (fn [] ::my-symbolic))
+            modified-m (measured/with-args-fn original-m (fn [] nil))]
+        (is (= ::my-symbolic (measured/symbolic modified-m)))))
+    (testing "works with measured/callable"
+      (let [f          (fn [coll] (reduce + coll))
+            original-m (measured/callable (fn [] [[1 2 3]]) f)
+            modified-m (measured/with-args-fn original-m (fn [] [[10 20 30]]))]
+        (is (= 60 (second (invoke modified-m))))))
+    (testing "original measured is unchanged"
+      (let [original-m  (measured/measured
+                         (fn [] [1])
+                         (fn [[x] _n] [0 x])
+                         nil)
+            _modified-m (measured/with-args-fn original-m (fn [] [99]))]
+        (is (= [0 1] (invoke original-m)))))))
+
+(defn random-seq
+  [n]
+  (mapv rand-int (repeat n 10000)))
+
 (deftest expr-test
-  (testing "nil expr"
-    (let [nil-m (measured/expr nil)]
-      (is (nil? (second (invoke nil-m))))))
-  (testing "const expr"
-    (let [const-m (measured/expr ::const)]
-      (is (= ::const (second (invoke const-m))))))
-  (testing "function call"
-    (let [fncall-m (measured/expr (identity ::value))]
-      (is (= ::value (second (invoke fncall-m))))))
-  (testing "recursive function call"
-    (let [call-count (volatile! 0)
-          f (fn [v] (vswap! call-count inc-long) v)
-          recursive-fncall-m (measured/expr (f (f ::value)))]
-      (is (= ::value (second (invoke recursive-fncall-m))))
-      (is (= 2 @call-count))))
-  (testing "const expression is lifted"
-    (let [const-expr-m (measured/expr (identity (+ 1 2)))]
-      (is (= 3 (second (invoke const-expr-m))))
-      (is (= [3] ((:args-fn const-expr-m))))))
-  (testing "args are type hinted"
-    ;; if this gives a reflection warning then it should be treated as
-    ;; an error.
-    (let [vec-nth-m (measured/expr (.nth [0 1 3] 1))]
-      (is (= 1 (second (invoke vec-nth-m))))))
-  (testing "accepts time-fn option"
-    (let [invokes (volatile! 0)
-          f (fn ^long []
-              (vswap! invokes inc-long)
-              (jvm/thread-cpu-time))
-          m (measured/expr 1 {:time-fn f})]
-      (is (= 1 (second (invoke m))))
-      (is (= 2 @invokes))))
-  (testing "with transduce"
-    (let [m (measured/expr
-             (transduce (comp (filter odd?) (map inc)) + (range 5)))]
-      (is (= 6 (second (invoke m)))))))
+  (testing "expr"
+    (testing "with nil returns nil"
+      (let [nil-m (measured/expr nil)]
+        (is (= [nil] (measured/args nil-m)))
+        (is (nil? (second (invoke nil-m))))))
+    (testing "with const returns the const"
+      (let [const-m (measured/expr ::const)]
+        (is (= [::const] (measured/args const-m)))
+        (is (= ::const (second (invoke const-m))))))
+    (testing "with function call lifts the argument"
+      (let [fncall-m (measured/expr (identity ::value))]
+        (is (= [::value] (measured/args fncall-m)))
+        (is (= ::value (second (invoke fncall-m))))))
+    (testing "with recursive function call lifts innermost value"
+      (let [call-count         (volatile! 0)
+            f                  (fn [v] (vswap! call-count inc-long) v)
+            recursive-fncall-m (measured/expr (f (f ::value)))]
+        (is (= [::value] (measured/args recursive-fncall-m)))
+        (is (= ::value (second (invoke recursive-fncall-m))))
+        (is (= 2 @call-count))))
+    (testing "with const expression lifts the evaluated value"
+      (let [const-expr-m (measured/expr (identity (+ 1 2)))]
+        (is (= [3] (measured/args const-expr-m)))
+        (is (= 3 (second (invoke const-expr-m))))))
+    (testing "with type-hinted method call lifts the receiver"
+      ;; if this gives a reflection warning then it should be treated as
+      ;; an error.
+      (let [vec-nth-m (measured/expr (.nth [0 1 3] 1))]
+        (is (= [[0 1 3] 1] (measured/args vec-nth-m)))
+        (is (= 1 (second (invoke vec-nth-m))))))
+    (testing "with time-fn option uses the custom time function"
+      (let [invokes (volatile! 0)
+            f       (fn ^long []
+                      (vswap! invokes inc-long)
+                      (jvm/thread-cpu-time))
+            m       (measured/expr 1 {:time-fn f})]
+        (is (= [1] (measured/args m)))
+        (is (= 1 (second (invoke m))))
+        (is (= 2 @invokes))))
+    (testing "with transduce lifts the collection argument"
+      (let [m    (measured/expr
+                  (transduce (comp (filter odd?) (map inc)) + (range 5)))
+            args (measured/args m)
+            c    (first args)]
+        (is (= [+ '(0 1 2 3 4)] (rest args))) ; can't compare the comp
+        (is (= [2 4 6] (into [] c [1 2 3 4 5])))
+        (is (= 6 (second (invoke m))))))
+    (testing "with nested expr"
+      (let [m    (measured/expr
+                  (sort (range 10)))
+            args (measured/args m)]
+        (is (= [(range 10)] args))
+        (is (= (range 10) (second (invoke m))))))
+    (testing "with nested expr with local fn"
+      (let [m    (measured/expr
+                  (sort (random-seq 10)))
+            args (measured/args m)]
+        (is (= 1 (count args)))
+        (is (= 10 (count (first args))))
+        (is (= 10 (count (second (invoke m)))))))))
 
 (deftest zero-garbage-test
   (testing "return value is zero garbage"
-    (let [measured (measured/measured
-                    (fn [] nil)
-                    (fn [_ _] [1 2]))
-          _ (dotimes [_ 1000]
-              (measured/invoke measured nil 1))
-          [allocations ret] (agent/with-allocation-tracing
-                              (measured/invoke measured nil 1))
-          thread-allocations (->> allocations
-                                  (filterv (agent/allocation-on-thread?)))
+    (let [measured              (measured/measured
+                                 (fn [] nil)
+                                 (fn [_ _] [1 2]))
+          _                     (dotimes [_ 1000]
+                                  (measured/invoke measured nil 1))
+          [allocations ret]     (agent/with-allocation-tracing
+                                  (measured/invoke measured nil 1))
+          thread-allocations    (->> allocations
+                                     (filterv (agent/allocation-on-thread?)))
           {:keys [freed-bytes]} (-> thread-allocations
                                     agent/allocations-summary)]
       (is (zero? freed-bytes) thread-allocations)
@@ -171,40 +232,40 @@
 (deftest expr-local-capture-test
   (testing "measured/expr with local bindings"
     (testing "captures simple local binding"
-      (let [x   42
-            m   (measured/expr (+ x 1))
+      (let [x 42
+            m (measured/expr (+ x 1))
             res (second (invoke m))]
         (is (= 43 res))))
     (testing "captures collection local"
       (let [coll [1 2 3 4 5]
-            m    (measured/expr (reduce + coll))
-            res  (second (invoke m))]
+            m (measured/expr (reduce + coll))
+            res (second (invoke m))]
         (is (= 15 res))))
     (testing "captures multiple locals"
-      (let [a   10
-            b   20
-            m   (measured/expr (+ a b))
+      (let [a 10
+            b 20
+            m (measured/expr (+ a b))
             res (second (invoke m))]
         (is (= 30 res))))
     (testing "captures local in nested expression"
-      (let [x   5
-            m   (measured/expr (* 2 (+ x 3)))
+      (let [x 5
+            m (measured/expr (* 2 (+ x 3)))
             res (second (invoke m))]
         (is (= 16 res))))
     (testing "mixes locals with constants"
-      (let [x   10
-            m   (measured/expr (+ x 1 2))
+      (let [x 10
+            m (measured/expr (+ x 1 2))
             res (second (invoke m))]
         (is (= 13 res))))
     (testing "captures local used multiple times"
-      (let [x   3
-            m   (measured/expr (+ x x x))
+      (let [x 3
+            m (measured/expr (+ x x x))
             res (second (invoke m))]
         (is (= 9 res))))
     (testing "works in loop binding context"
       (let [results (atom [])]
         (doseq [^long i (range 3)]
-          (let [m   (measured/expr (+ i 10))
+          (let [m (measured/expr (+ i 10))
                 res (second (invoke m))]
             (swap! results conj res)))
         (is (= [10 11 12] @results))))))
@@ -254,19 +315,19 @@
   ;; - Loop binding
   (testing "measured/expr acceptance criteria"
     (testing "simple local binding: (let [x 42] (measured/expr (+ x 1)))"
-      (let [x   42
-            m   (measured/expr (+ x 1))
+      (let [x 42
+            m (measured/expr (+ x 1))
             res (second (invoke m))]
         (is (= 43 res))))
     (testing "collection local: (let [coll (vec (range 1000))] (measured/expr (reduce + coll)))"
       (let [coll (vec (range 1000))
-            m    (measured/expr (reduce + coll))
-            res  (second (invoke m))]
+            m (measured/expr (reduce + coll))
+            res (second (invoke m))]
         (is (= 499500 res))))
     (testing "loop binding: (doseq [i (range 3)] (measured/expr (+ i 2)))"
       (let [results (atom [])]
         (doseq [^long i (range 3)]
-          (let [m   (measured/expr (+ i 2))
+          (let [m (measured/expr (+ i 2))
                 res (second (invoke m))]
             (swap! results conj res)))
         (is (= [2 3 4] @results))))))
