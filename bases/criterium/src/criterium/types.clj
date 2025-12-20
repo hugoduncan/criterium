@@ -208,3 +208,16 @@
   [x]
   (and (map? x)
        (result-map? (:data x))))
+
+;;; Allocation trace types
+
+(def allocation-trace-map-keys
+  "Required keys for :criterium/allocation-trace type."
+  #{:type :records :thread-id :eval-count :elapsed-time})
+
+(defn allocation-trace?
+  "Check if x is an allocation trace map with :type :criterium/allocation-trace."
+  [x]
+  (and (map? x)
+       (= :criterium/allocation-trace (:type x))
+       (set/subset? allocation-trace-map-keys (set (keys x)))))
