@@ -4,6 +4,7 @@
    [criterium.collect :as collect]
    [criterium.collect-plan.impl :as impl]
    [criterium.collector :as collector]
+   [criterium.jvm :as jvm]
    [criterium.measured :as measured]
    [criterium.metric :as metric]
    [criterium.types :as types]
@@ -93,14 +94,15 @@
                 keep-warmup?
                 keep-final-gc?]} collect-plan]
 
-    ;; Start by running GC.
-    (collect/force-gc-no-capture! max-gc-attempts)
-
-    ;; First sample is always much longer than subsequent ones
-    (collect/throw-away-collection measured)
-
     (util/with-thread-priority thread-priority
-      (let [total-samples (+ num-estimation-samples
+      (let [start-time-ns (jvm/timestamp)
+            ;; Start by running GC.
+            _             (collect/force-gc-no-capture! max-gc-attempts)
+
+            ;; First sample is always much longer than subsequent ones
+            _ (collect/throw-away-collection measured)
+
+            total-samples (+ num-estimation-samples
                              num-warmup-samples
                              num-measure-samples)
 
@@ -155,9 +157,9 @@
                                      collector measured batch-size num-measure-samples)
             final-gc-data           (collect/force-gc! max-gc-attempts)
             ;; Leave garbage Free zone
-            total-benchmark-time-ns (+ (long (:total-time est-data))
-                                       (long (:elapsed-time warmup-data))
-                                       (long (:elapsed-time sample-data)))
+            total-benchmark-time-ns (jvm/elapsed-time
+                                     start-time-ns
+                                     (jvm/timestamp))
             samples                 (cond-> (collected-data-map sample-data)
                                       true
                                       (assoc :total-benchmark-time-ns
