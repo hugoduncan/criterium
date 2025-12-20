@@ -621,7 +621,7 @@
         col-headers     (mapv (fn [{:keys [type metric-id impl]}]
                                 (if (= type :baseline)
                                   (str (name impl) " " (name metric-id))
-                                  (str (name impl) " ×")))
+                                  (str (name impl) " " (name metric-id) " ×")))
                               col-specs)
         table-rows
         (mapv
