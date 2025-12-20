@@ -5,9 +5,9 @@
   (:require
    [criterium.bench :as bench]
    [criterium.domain :as domain]
+   [criterium.domain-plans :as domain-plans]
    [criterium.domain.analysis :as analysis]
    [criterium.domain.builder :as builder]
-   [criterium.domain-plans :as domain-plans]
    [criterium.measured :as measured]
    [scicloj.kindly.v4.kind :as kind]))
 

@@ -5,8 +5,8 @@
   (:require
    [criterium.bench :as bench]
    [criterium.domain :as domain]
-   [criterium.domain.builder :as builder]
    [criterium.domain-plans :as domain-plans]
+   [criterium.domain.builder :as builder]
    [scicloj.kindly.v4.kind :as kind]))
 
 (kind/hidden

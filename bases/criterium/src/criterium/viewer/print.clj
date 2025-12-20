@@ -734,7 +734,7 @@
 (defmethod view/domain-comparison* :print
   [_ {:keys [comparison-id]} data-map]
   (let [comparison-id (or comparison-id :comparison)
-        comparison (data-map comparison-id)]
+        comparison    (data-map comparison-id)]
     (when comparison
       (let [{:keys [axis metric metrics implementations data]} comparison]
         (if metrics
@@ -742,20 +742,25 @@
           (if implementations
             (print-multi-metric-comparison-table axis implementations metrics)
             ;; Multi-metric mode without implementations - show all values
-            (doseq [[metric-id {:keys [metric data]}] metrics]
+            (doseq [[_metric-id {:keys [metric data]}] metrics]
               (when (and (seq data) (some #(seq (second %)) data))
                 (print-comparison-table axis metric data))))
           ;; Single-metric mode
           (if (and (seq data) (some #(seq (second %)) data))
             (if implementations
               (let [data-keys (set (keys data))
-                    missing (remove data-keys implementations)]
+                    missing   (remove data-keys implementations)]
                 (when (seq missing)
-                  (throw (ex-info "Domain :implementations do not match comparison data keys"
-                                  {:implementations implementations
-                                   :data-keys (keys data)
-                                   :missing missing})))
-                (print-single-metric-factor-table axis metric implementations data))
+                  (throw
+                   (ex-info
+                    "Domain :implementations do not match comparison data keys"
+                    {:implementations implementations
+                     :data-keys       (keys data)
+                     :missing         missing})))
+                (print-single-metric-factor-table
+                 axis
+                 metric
+                 implementations data))
               (print-comparison-table axis metric data))
             (println (format "Domain Comparison by %s: %s (no data)"
                              (name axis) (pr-str metric)))))))))
@@ -763,71 +768,90 @@
 (defmethod view/domain-regression* :print
   [_ {:keys [regression-id tolerance]} data-map]
   (let [regression-id (or regression-id :regression)
-        regression (data-map regression-id)
-        tolerance (or tolerance 0.01)]
+        regression    (data-map regression-id)
+        tolerance     (or tolerance 0.01)]
     (when regression
-      (let [{:keys [axis regressions impl-axis implementations]} regression
+      (let [{:keys [axis regressions impl-axis implementations]}
+            regression
             multi-impl? (> (count implementations) 1)]
         (if multi-impl?
           ;; Multi-implementation mode
-          (doseq [[metric-id {:keys [metric by-impl]}] regressions]
+          (doseq [[_metric-id {:keys [metric by-impl]}] regressions]
             (println (format "Domain Regression (axis: %s, metric: %s, by: %s)"
                              (name axis) (pr-str metric) (name impl-axis)))
             (if (seq by-impl)
               (doseq [impl-key (sort (keys by-impl))]
                 (let [{:keys [models best-fit]} (get by-impl impl-key)
-                      best-r-squared (when best-fit
-                                       (->> models
-                                            (filter #(= (:id %) best-fit))
-                                            first
-                                            :r-squared))
-                      plotted-ids (when best-r-squared
-                                    (->> models
-                                         (filter #(>= (:r-squared %)
-                                                      (* best-r-squared (- 1 tolerance))))
-                                         (map :id)
-                                         set))]
+                      best-r-squared
+                      (when best-fit
+                        (->> models
+                             (filter #(= (:id %) best-fit))
+                             first
+                             :r-squared))
+                      plotted-ids
+                      (when best-r-squared
+                        (->> models
+                             (filter #(>= (:r-squared %)
+                                          (* best-r-squared (- 1 tolerance))))
+                             (map :id)
+                             set))]
                   (println (format "  [%s]" (name impl-key)))
                   (if (seq models)
                     (let [sorted-models (sort-by :r-squared > models)
-                          label-width (apply max (map #(count (:label %)) models))]
-                      (doseq [{:keys [id label equation-str r-squared]} sorted-models]
+                          label-width   (reduce
+                                         max
+                                         (map #(count (:label %)) models))]
+                      (doseq [{:keys [id label equation-str r-squared]}
+                              sorted-models]
                         (let [plotted? (and plotted-ids (plotted-ids id))]
-                          (println (format "    %s  R²=%.4f%s%s%s"
-                                           (format (str "%-" label-width "s") label)
-                                           r-squared
-                                           (if equation-str (str "  " equation-str) "")
-                                           (if (= id best-fit) "  <- best fit" "")
-                                           (if (and plotted? (not= id best-fit)) "  [plotted]" ""))))))
+                          (println
+                           (format
+                            "    %s  R²=%.4f%s%s%s"
+                            (format (str "%-" label-width "s") label)
+                            r-squared
+                            (if equation-str (str "  " equation-str) "")
+                            (if (= id best-fit) "  <- best fit" "")
+                            (if (and plotted? (not= id best-fit))
+                              "  [plotted]"
+                              ""))))))
                     (println "    (insufficient data)"))))
               (println "  (no implementations)"))
             (println))
 
           ;; Single-implementation mode (original behavior)
-          (doseq [[metric-id {:keys [metric models best-fit]}] regressions]
+          (doseq [[_metric-id {:keys [metric models best-fit]}] regressions]
             (let [best-r-squared (when best-fit
                                    (->> models
                                         (filter #(= (:id %) best-fit))
                                         first
                                         :r-squared))
-                  plotted-ids (when best-r-squared
-                                (->> models
-                                     (filter #(>= (:r-squared %)
-                                                  (* best-r-squared (- 1 tolerance))))
-                                     (map :id)
-                                     set))]
+                  plotted-ids    (when best-r-squared
+                                   (->> models
+                                        (filter
+                                         #(>= (:r-squared %)
+                                              (* best-r-squared
+                                                 (- 1 tolerance))))
+                                        (map :id)
+                                        set))]
               (println (format "Domain Regression (axis: %s, metric: %s)"
                                (name axis) (pr-str metric)))
               (if (seq models)
                 (let [sorted-models (sort-by :r-squared > models)
-                      label-width (apply max (map #(count (:label %)) models))]
-                  (doseq [{:keys [id label equation-str r-squared]} sorted-models]
+                      label-width   (reduce
+                                     max
+                                     (map #(count (:label %)) models))]
+                  (doseq [{:keys [id label equation-str r-squared]}
+                          sorted-models]
                     (let [plotted? (and plotted-ids (plotted-ids id))]
-                      (println (format "  %s  R²=%.4f%s%s%s"
-                                       (format (str "%-" label-width "s") label)
-                                       r-squared
-                                       (if equation-str (str "  " equation-str) "")
-                                       (if (= id best-fit) "  <- best fit" "")
-                                       (if (and plotted? (not= id best-fit)) "  [plotted]" ""))))))
+                      (println
+                       (format
+                        "  %s  R²=%.4f%s%s%s"
+                        (format (str "%-" label-width "s") label)
+                        r-squared
+                        (if equation-str (str "  " equation-str) "")
+                        (if (= id best-fit) "  <- best fit" "")
+                        (if (and plotted? (not= id best-fit))
+                          "  [plotted]"
+                          ""))))))
                 (println "  (insufficient data for regression)"))
               (println))))))))

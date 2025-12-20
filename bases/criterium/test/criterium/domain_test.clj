@@ -22,22 +22,24 @@
   (testing "domain-expr"
     (testing "with single expression and single axis"
       (testing "uses :default as implementation key"
-        (let [spec (domain/domain-expr [n [10 100 1000]] (sort (vec (range n))))]
+        (let [spec (domain/domain-expr
+                    [n [10 100 1000]]
+                    (sort (vec (range n))))]
           (is (= #{:default} (set (keys (:implementations spec)))))))
       (testing "produces correct axes map"
         (let [spec (domain/domain-expr [n [10 100 1000]] (sort (vec (range n))))]
           (is (= {:n [10 100 1000]} (:axes spec)))))
       (testing "produces function that returns Measured"
-        (let [spec (domain/domain-expr [n [10 100 1000]] (sort (vec (range n))))
+        (let [spec    (domain/domain-expr [n [10 100 1000]] (sort (vec (range n))))
               impl-fn (get-in spec [:implementations :default])]
           (is (fn? impl-fn))
           (is (measured/measured? (impl-fn {:n 50})))))
       (testing "produces different Measured for different axis values"
-        (let [spec (domain/domain-expr [n [10 100 1000]] (sort (vec (range n))))
+        (let [spec    (domain/domain-expr [n [10 100 1000]] (sort (vec (range n))))
               impl-fn (get-in spec [:implementations :default])
-              m-10 (impl-fn {:n 10})
-              m-100 (impl-fn {:n 100})
-              m-1000 (impl-fn {:n 1000})]
+              m-10    (impl-fn {:n 10})
+              m-100   (impl-fn {:n 100})
+              m-1000  (impl-fn {:n 1000})]
           (is (= 10 (count (first ((:args-fn m-10)))))
               "axis value 10 should produce measured with 10 element arg")
           (is (= 100 (count (first ((:args-fn m-100)))))
@@ -51,9 +53,9 @@
                                         :impl-b (sort-by identity (vec (range n)))})]
           (is (= #{:impl-a :impl-b} (set (keys (:implementations spec)))))))
       (testing "produces function returning Measured for each implementation"
-        (let [spec (domain/domain-expr [n [10 100]]
-                                       {:impl-a (sort (vec (range n)))
-                                        :impl-b (sort-by identity (vec (range n)))})
+        (let [spec      (domain/domain-expr [n [10 100]]
+                                            {:impl-a (sort (vec (range n)))
+                                             :impl-b (sort-by identity (vec (range n)))})
               impl-a-fn (get-in spec [:implementations :impl-a])
               impl-b-fn (get-in spec [:implementations :impl-b])]
           (is (fn? impl-a-fn))
@@ -66,29 +68,29 @@
                                        (concat (vec (range n)) (vec (range m))))]
           (is (= {:n [10 100] :m [1 2 3]} (:axes spec)))))
       (testing "impl-fn has access to all axis vars"
-        (let [spec (domain/domain-expr [n [10 100] m [1 2 3]]
-                                       (concat (vec (range n)) (vec (range m))))
+        (let [spec    (domain/domain-expr [n [10 100] m [1 2 3]]
+                                          (concat (vec (range n)) (vec (range m))))
               impl-fn (get-in spec [:implementations :default])
-              m (impl-fn {:n 5 :m 3})
-              args ((:args-fn m))]
+              m       (impl-fn {:n 5 :m 3})
+              args    ((:args-fn m))]
           ;; concat has 2 args: (range n) and (range m)
           (is (= 2 (count args)))
           (is (= 5 (count (first args))))
           (is (= 3 (count (second args))))))
       (testing "produces different Measured for different axis combinations"
-        (let [spec (domain/domain-expr [n [10 100] m [1 2 3]]
-                                       (concat (vec (range n)) (vec (range m))))
-              impl-fn (get-in spec [:implementations :default])
-              m-10-1 (impl-fn {:n 10 :m 1})
-              m-100-3 (impl-fn {:n 100 :m 3})
-              args-10-1 ((:args-fn m-10-1))
+        (let [spec       (domain/domain-expr [n [10 100] m [1 2 3]]
+                                             (concat (vec (range n)) (vec (range m))))
+              impl-fn    (get-in spec [:implementations :default])
+              m-10-1     (impl-fn {:n 10 :m 1})
+              m-100-3    (impl-fn {:n 100 :m 3})
+              args-10-1  ((:args-fn m-10-1))
               args-100-3 ((:args-fn m-100-3))]
           (is (= [10 1] [(count (first args-10-1)) (count (second args-10-1))])
               "axis values n=10, m=1 should produce args with 10 and 1 elements")
           (is (= [100 3] [(count (first args-100-3)) (count (second args-100-3))])
               "axis values n=100, m=3 should produce args with 100 and 3 elements"))))
     (testing "type hints transfer to destructured keys"
-      (let [spec (domain/domain-expr [^long n [10 100]] (+ n 1))
+      (let [spec    (domain/domain-expr [^long n [10 100]] (+ n 1))
             impl-fn (get-in spec [:implementations :default])]
         (is (fn? impl-fn))
         (is (measured/measured? (impl-fn {:n 10})))))))

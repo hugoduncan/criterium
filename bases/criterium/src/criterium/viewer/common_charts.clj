@@ -467,22 +467,23 @@
     :color-value - static color when color-field is nil
     :legend-options - legend config map
     :has-error-bounds? - whether to include error bars"
-  [points line-pts {:keys [width height axis-name y-title color-field color-value
-                           legend-options has-error-bounds?]
-                    :or {width 600 height 400 color-value "steelblue"} :as opts}]
+  [points line-pts
+   {:keys [width height color-field color-value
+           legend-options has-error-bounds?]
+    :or   {width 600 height 400 color-value "steelblue"} :as opts}]
   (let [scatter-layer (regression-scatter-layer points opts)
-        line-layer (regression-line-layer line-pts
-                                          {:color-field color-field
-                                           :legend-options legend-options})
-        error-layer (when has-error-bounds?
-                      (regression-error-layer points
-                                              {:color-field color-field
-                                               :color-value color-value}))
-        layers (cond-> [scatter-layer line-layer]
-                 has-error-bounds? (conj error-layer))]
-    {:width width
+        line-layer    (regression-line-layer line-pts
+                                             {:color-field    color-field
+                                              :legend-options legend-options})
+        error-layer   (when has-error-bounds?
+                        (regression-error-layer points
+                                                {:color-field color-field
+                                                 :color-value color-value}))
+        layers        (cond-> [scatter-layer line-layer]
+                        has-error-bounds? (conj error-layer))]
+    {:width  width
      :height height
-     :layer layers}))
+     :layer  layers}))
 
 (defn regression-residual-layer
   "Build scatter layer for residual plot.
@@ -531,11 +532,10 @@
     :residual-title - y-axis title
     :color-field - field for color encoding
     :legend-options - legend config map"
-  [residual-pts {:keys [width height axis-name residual-title color-field
-                        legend-options]
-                 :or {width 600 height 200} :as opts}]
-  {:width width
+  [residual-pts {:keys [width height color-field]
+                 :or   {width 600 height 200} :as opts}]
+  {:width  width
    :height height
-   :layer [(regression-residual-layer residual-pts opts)
-           (regression-loess-layer residual-pts {:color-field color-field})
-           (regression-zero-line-layer)]})
+   :layer  [(regression-residual-layer residual-pts opts)
+            (regression-loess-layer residual-pts {:color-field color-field})
+            (regression-zero-line-layer)]})

@@ -846,7 +846,7 @@
           (is
            (= 5 (count result))
            "Expected heading, table, chart, residual heading, residual chart")
-          (let [[_ table chart _ residual-chart] result]
+          (let [[_ _table chart _ residual-chart] result]
             ;; Chart should use color legend for multiple models
             (is (contains? (get-in chart [:layer 1 :encoding :color]) :field))
             ;; Residual chart should also use color legend

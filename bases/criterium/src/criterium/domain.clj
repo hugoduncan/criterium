@@ -21,10 +21,10 @@
   - criterium.domain.analysis for extract, compare-by, group-by-axis, fit-complexity
   - criterium.domain.builder for domain-builder and input generators"
   (:require
+   [criterium.domain-plans :as domain-plans]
    [criterium.domain.analysis :as analysis]
    [criterium.domain.builder :as builder]
    [criterium.domain.types :as types]
-   [criterium.domain-plans :as domain-plans]
    [criterium.measured :as measured])
   (:refer-clojure :exclude [select]))
 
@@ -148,34 +148,34 @@
 
 (defn bench
   "Run benchmarks across a domain and analyze the results.
-  
+
   Convenience wrapper combining domain-builder and analyse-domain.
-  
+
   Arguments:
     domain-spec - Map with :axes and :implementations (as returned by domain-expr)
-  
+
   Options:
     :domain-plan  - Analysis plan (default: domain-plans/extract-metrics)
     :reporter     - Progress reporter (default: dot-reporter, nil for silent)
     :bench-options - Options passed to bench-measured
     :time-axis    - Axis key for time estimation (default: first axis)
-  
+
   Returns the analysis data-map (same as analyse-domain).
-  
+
   Example:
     (bench (domain-expr [n (log-range 100 10000 5)]
                         {:sort (sort (random-seq n))
                          :sort-by (sort-by identity (random-seq n))})
            :domain-plan domain-plans/implementation-comparison)"
   [domain-spec & {:keys [domain-plan reporter bench-options time-axis]
-                  :or {domain-plan domain-plans/extract-metrics}}]
+                  :or   {domain-plan domain-plans/extract-metrics}}]
   (let [builder-opts (cond-> {}
-                       (some? reporter) (assoc :reporter reporter)
+                       (some? reporter)                  (assoc :reporter reporter)
                        (contains? #{nil false} reporter) (assoc :reporter nil)
-                       bench-options (assoc :bench-options bench-options)
-                       time-axis (assoc :time-axis time-axis))
-        domain (apply builder/domain-builder
-                      (:axes domain-spec)
-                      (:implementations domain-spec)
-                      (mapcat identity builder-opts))]
+                       bench-options                     (assoc :bench-options bench-options)
+                       time-axis                         (assoc :time-axis time-axis))
+        domain       (apply builder/domain-builder
+                            (:axes domain-spec)
+                            (:implementations domain-spec)
+                            (mapcat identity builder-opts))]
     (analysis/analyse-domain domain-plan domain)))
