@@ -6,8 +6,7 @@
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have]]
    [criterium.view :as view]
-   [criterium.viewer.common :as viewer-common]
-   [criterium.viewer.common-charts :as charts]))
+   [criterium.viewer.common :as viewer-common]))
 
 (defmethod view/metrics* :pprint
   [_ {:keys [samples-id]} data-map]
@@ -231,12 +230,12 @@
 (defmethod view/domain-extract* :pprint
   [_ {:keys [extract-id]} data-map]
   (let [extract-id (or extract-id :extract)
-        extract (data-map extract-id)]
+        extract    (data-map extract-id)]
     (when extract
       (let [impl-axis-key (:impl-axis extract)
-            multi-impl? (> (count (:implementations extract)) 1)
-            metrics (:metrics extract)
-            metric-ids (sort (keys metrics))
+            multi-impl?   (> (count (:implementations extract)) 1)
+            metrics       (:metrics extract)
+            metric-ids    (sort (keys metrics))
 
             get-value (fn [v]
                         (if (and (map? v) (contains? v :value))
@@ -244,11 +243,11 @@
                           v))
 
             all-data (for [[metric-id {:keys [metric data]}] metrics
-                           [coord value] data]
+                           [coord value]                     data]
                        {:metric-id metric-id
-                        :metric metric
-                        :coord coord
-                        :value (get-value value)})
+                        :metric    metric
+                        :coord     coord
+                        :value     (get-value value)})
 
             row-key-fn (if multi-impl?
                          (fn [coord] (dissoc coord impl-axis-key))
@@ -259,8 +258,8 @@
                               distinct)
 
             single-key-info (viewer-common/single-key-coord-info raw-row-keys)
-            row-keys (viewer-common/sort-row-keys raw-row-keys single-key-info)
-            coord-header (viewer-common/coord-column-header single-key-info)
+            row-keys        (viewer-common/sort-row-keys raw-row-keys single-key-info)
+            coord-header    (viewer-common/coord-column-header single-key-info)
 
             impl-vals (when multi-impl?
                         (->> all-data
@@ -270,14 +269,14 @@
 
             col-specs (if multi-impl?
                         (for [metric-id metric-ids
-                              impl impl-vals]
+                              impl      impl-vals]
                           {:metric-id metric-id :impl impl})
                         (for [metric-id metric-ids]
                           {:metric-id metric-id}))
 
             lookup (reduce (fn [acc {:keys [metric-id coord value]}]
-                             (let [row-key (row-key-fn coord)
-                                   impl-val (when multi-impl? (get coord impl-axis-key))
+                             (let [row-key    (row-key-fn coord)
+                                   impl-val   (when multi-impl? (get coord impl-axis-key))
                                    lookup-key (if multi-impl?
                                                 [row-key metric-id impl-val]
                                                 [row-key metric-id])]
@@ -289,14 +288,14 @@
             (into {}
                   (map (fn [col-spec]
                          (let [{:keys [metric-id impl]} col-spec
-                               metric-path (get-in metrics [metric-id :metric])
-                               col-values (for [row-key row-keys
-                                                :let [lk (if multi-impl?
-                                                           [row-key metric-id impl]
-                                                           [row-key metric-id])
-                                                      v (get lookup lk)]
-                                                :when (some? v)]
-                                            v)]
+                               metric-path              (get-in metrics [metric-id :metric])
+                               col-values               (for [row-key row-keys
+                                                              :let    [lk (if multi-impl?
+                                                                            [row-key metric-id impl]
+                                                                            [row-key metric-id])
+                                                                       v (get lookup lk)]
+                                                              :when   (some? v)]
+                                                          v)]
                            [col-spec (viewer-common/compute-si-scaling
                                       metric-path col-values)])))
                   col-specs)
@@ -304,11 +303,11 @@
             col-headers
             (mapv (fn [col-spec]
                     (let [{:keys [metric-id impl]} col-spec
-                          {:keys [unit]} (get col-scales col-spec)
-                          metric-name (name metric-id)
-                          header-base (if (seq unit)
-                                        (str metric-name " (" unit ")")
-                                        metric-name)]
+                          {:keys [unit]}           (get col-scales col-spec)
+                          metric-name              (name metric-id)
+                          header-base              (if (seq unit)
+                                                     (str metric-name " (" unit ")")
+                                                     metric-name)]
                       (if multi-impl?
                         (str (name impl) " " header-base)
                         header-base)))
@@ -320,12 +319,14 @@
                            (viewer-common/format-row-key-value
                             row-key single-key-info)}
                           (map (fn [col-spec header]
-                                 (let [{:keys [metric-id impl]} col-spec
-                                       lk (if multi-impl?
-                                            [row-key metric-id impl]
-                                            [row-key metric-id])
-                                       raw-value (get lookup lk)
-                                       {:keys [total-scale]} (get col-scales col-spec)]
+                                 (let [{:keys [metric-id impl]}
+                                       col-spec
+                                       lk        (if multi-impl?
+                                                   [row-key metric-id impl]
+                                                   [row-key metric-id])
+                                       raw-value (double (get lookup lk))
+                                       {:keys [^double total-scale]}
+                                       (get col-scales col-spec)]
                                    [header (when raw-value
                                              (format "%.3g"
                                                      (double (* raw-value total-scale))))]))
@@ -363,21 +364,21 @@
 (defmethod view/domain-regression* :pprint
   [_ {:keys [regression-id tolerance]} data-map]
   (let [regression-id (or regression-id :regression)
-        regression (data-map regression-id)
-        tolerance (or tolerance 0.01)
+        regression    (data-map regression-id)
+        tolerance     (or tolerance 0.01)
         table-options {:best-fit-marker "<- best"
-                       :plotted-marker "[plotted]"
-                       :tolerance tolerance}]
+                       :plotted-marker  "[plotted]"
+                       :tolerance       tolerance}]
     (when regression
       (let [{:keys [axis regressions impl-axis implementations]} regression
-            multi-impl? (> (count implementations) 1)]
+            multi-impl?                                          (> (count implementations) 1)]
         (if multi-impl?
           ;; Multi-implementation mode
           (doseq [[_metric-id {:keys [metric by-impl]}] regressions]
             (println (format "Domain Regression (axis: %s, metric: %s, by: %s)"
                              (name axis) (pr-str metric) (name impl-axis)))
             (if (seq by-impl)
-              (let [impl-keys (sort (keys by-impl))
+              (let [impl-keys  (sort (keys by-impl))
                     table-rows (viewer-common/prepare-regression-model-table-multi-impl
                                 by-impl impl-keys table-options)]
                 (pprint/print-table
@@ -397,4 +398,3 @@
                 (pprint/print-table [:model :r-squared :equation :best-fit] table-rows))
               (println "  (insufficient data for regression)"))
             (println)))))))
-

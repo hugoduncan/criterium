@@ -378,54 +378,58 @@
   Each model also includes:
     :predict-fn - Takes coefficients map → (fn [x] predicted-y)
     :equation-fn - Takes coefficients map → formatted equation string"
-  {:constant {:transform (constantly 1.0)
-              :label "O(1)"
-              :predict-fn (fn [{:keys [a b]}] (fn [_x] (+ a b)))
-              :equation-fn (fn [{:keys [a b]}]
-                             (format "y = %.4g" (+ a b)))}
-   :logarithmic {:transform (fn [^double n] (Math/log n))
-                 :label "O(log n)"
-                 :predict-fn (fn [{:keys [a b]}]
-                               (fn [x] (+ (* a (Math/log x)) b)))
-                 :equation-fn (fn [{:keys [a b]}]
-                                (let [sign (if (neg? b) "-" "+")]
-                                  (format "y = %.4g*log(n) %s %.4g"
-                                          a sign (Math/abs ^double b))))}
-   :linear {:transform identity
-            :label "O(n)"
-            :predict-fn (fn [{:keys [a b]}]
-                          (fn [x] (+ (* a x) b)))
-            :equation-fn (fn [{:keys [a b]}]
-                           (let [sign (if (neg? b) "-" "+")]
-                             (format "y = %.4g*n %s %.4g"
-                                     a sign (Math/abs ^double b))))}
-   :n-log-n {:transform (fn [^double n] (* n (Math/log n)))
-             :label "O(n log n)"
-             :predict-fn (fn [{:keys [a b]}]
-                           (fn [x] (+ (* a x (Math/log x)) b)))
-             :equation-fn (fn [{:keys [a b]}]
-                            (let [sign (if (neg? b) "-" "+")]
-                              (format "y = %.4g*n*log(n) %s %.4g"
-                                      a sign (Math/abs ^double b))))}
-   :nlogn-linear {:transforms [(fn [^double n] (* n (Math/log n)))
-                               (fn [^double n] n)]
-                  :label "O(n log n + n)"
-                  :predict-fn (fn [{:keys [a b c]}]
-                                (fn [x] (+ (* a x (Math/log x)) (* b x) c)))
-                  :equation-fn (fn [{:keys [a b c]}]
+  {:constant     {:transform   (constantly 1.0)
+                  :label       "O(1)"
+                  :predict-fn  (fn [{:keys [^double a ^double b]}]
+                                 (fn [_x] (+ a b)))
+                  :equation-fn (fn [{:keys [^double a ^double b]}]
+                                 (format "y = %.4g" (+ a b)))}
+   :logarithmic  {:transform   (fn [^double n] (Math/log n))
+                  :label       "O(log n)"
+                  :predict-fn  (fn [{:keys [^double a ^double b]}]
+                                 (fn [^double x] (+ (* a (Math/log x)) b)))
+                  :equation-fn (fn [{:keys [a ^double b]}]
+                                 (let [sign (if (neg? b) "-" "+")]
+                                   (format "y = %.4g*log(n) %s %.4g"
+                                           a sign (Math/abs ^double b))))}
+   :linear       {:transform   identity
+                  :label       "O(n)"
+                  :predict-fn  (fn [{:keys [^double a ^double b]}]
+                                 (fn [^double x] (+ (* a x) b)))
+                  :equation-fn (fn [{:keys [a ^double b]}]
+                                 (let [sign (if (neg? b) "-" "+")]
+                                   (format "y = %.4g*n %s %.4g"
+                                           a sign (Math/abs ^double b))))}
+   :n-log-n      {:transform   (fn [^double n] (* n (Math/log n)))
+                  :label       "O(n log n)"
+                  :predict-fn  (fn [{:keys [^double a ^double b]}]
+                                 (fn [^double x] (+ (* a x (Math/log x)) b)))
+                  :equation-fn (fn [{:keys [a ^double b]}]
+                                 (let [sign (if (neg? b) "-" "+")]
+                                   (format "y = %.4g*n*log(n) %s %.4g"
+                                           a sign (Math/abs ^double b))))}
+   :nlogn-linear {:transforms  [(fn [^double n] (* n (Math/log n)))
+                                (fn [^double n] n)]
+                  :label       "O(n log n + n)"
+                  :predict-fn  (fn [{:keys [^double a ^double b ^double c]}]
+                                 (fn [^double x]
+                                   (+ (* a x (Math/log x)) (* b x) c)))
+                  :equation-fn (fn [{:keys [^double a ^double b ^double c]}]
                                  (let [sign-b (if (neg? b) "-" "+")
                                        sign-c (if (neg? c) "-" "+")]
                                    (format "y = %.4g*n*log(n) %s %.4g*n %s %.4g"
                                            a sign-b (Math/abs ^double b)
                                            sign-c (Math/abs ^double c))))}
-   :quadratic {:transform (fn [^double n] (* n n))
-               :label "O(n²)"
-               :predict-fn (fn [{:keys [a b]}]
-                             (fn [x] (+ (* a x x) b)))
-               :equation-fn (fn [{:keys [a b]}]
-                              (let [sign (if (neg? b) "-" "+")]
-                                (format "y = %.4g*n² %s %.4g"
-                                        a sign (Math/abs ^double b))))}})
+   :quadratic
+   {:transform   (fn [^double n] (* n n))
+    :label       "O(n²)"
+    :predict-fn  (fn [{:keys [^double a ^double b]}]
+                   (fn [^double x]
+                     (+ (* a x x) b)))
+    :equation-fn (fn [{:keys [^double a ^double b]}]
+                   (let [sign (if (neg? b) "-" "+")]
+                     (format "y = %.4g*n² %s %.4g"
+                             a sign (Math/abs ^double b))))}})
 
 (defn- linear-regression
   "Perform simple linear regression: y = a*x + b.

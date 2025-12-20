@@ -266,23 +266,23 @@
   :height for chart dimensions. Returns the Vega-Lite spec without
   viewer-specific wrapping."
   [data-map view chart-options]
-  (let [histogram-id (or (:histogram-id view) :histograms)
-        stats-id (or (:stats-id view) :stats)
+  (let [histogram-id     (or (:histogram-id view) :histograms)
+        stats-id         (or (:stats-id view) :stats)
         quant-samples-id (or (:samples-id view) :samples)
-        quant-samples (data-map quant-samples-id)
-        stats (data-map stats-id)
-        histograms-map (util/lookup-data data-map histogram-id)
-        histograms (:histograms histograms-map)
-        metrics-defs (-> (:metrics-defs quant-samples)
-                         (metric/filter-metrics
-                          (metric/type-pred :quantitative)))
-        metric-configs (metric/all-metric-configs metrics-defs)
-        hist-transforms (util/get-transforms data-map histogram-id)
+        quant-samples    (data-map quant-samples-id)
+        stats            (data-map stats-id)
+        histograms-map   (util/lookup-data data-map histogram-id)
+        histograms       (:histograms histograms-map)
+        metrics-defs     (-> (:metrics-defs quant-samples)
+                             (metric/filter-metrics
+                              (metric/type-pred :quantitative)))
+        metric-configs   (metric/all-metric-configs metrics-defs)
+        hist-transforms  (util/get-transforms data-map histogram-id)
         stats-transforms (util/get-transforms data-map (:source-id stats))
-        layer-num (volatile! 0)]
-    {:data {:values []}
-     :resolve {:scale {:x "independent"
-                       :y "independent"
+        layer-num        (volatile! 0)]
+    {:data    {:values []}
+     :resolve {:scale {:x     "independent"
+                       :y     "independent"
                        :color "shared"}}
      :vconcat (mapv
                (fn [metric-config]
@@ -295,14 +295,18 @@
                       hist-transforms
                       (histograms (:path metric-config))
                       metric-config
-                      (vswap! layer-num unchecked-inc))]
+                      (vswap!
+                       layer-num
+                       (fn [^long x] (unchecked-inc x))))]
                     (when stats
                       (->>
                        (metric-sample-stats-layer
                         stats-transforms
                         (get-in (util/stats stats) (:path metric-config))
                         metric-config
-                        (vswap! layer-num unchecked-inc)))))}))
+                        (vswap!
+                         layer-num
+                         (fn [^long x] (unchecked-inc x)))))))}))
                metric-configs)}))
 
 ;;; Percentile charts
@@ -535,5 +539,3 @@
    :layer [(regression-residual-layer residual-pts opts)
            (regression-loess-layer residual-pts {:color-field color-field})
            (regression-zero-line-layer)]})
-
-
