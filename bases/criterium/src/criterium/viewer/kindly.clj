@@ -231,15 +231,11 @@
 (defmethod view/domain-grouped* :kindly
   [_ {:keys [grouped-id]} data-map]
   (let [grouped-id (or grouped-id :grouped)
-        grouped (data-map grouped-id)]
-    (when grouped
-      (let [{:keys [axis data]} grouped]
-        (kindly-heading (str "Domain Grouped by: " (name axis)))
-        (kindly-table
-         (mapv (fn [[axis-val sub-domain]]
-                 {:axis-value (if (nil? axis-val) "<nil>" (str axis-val))
-                  :run-count (count (:runs sub-domain))})
-               (sort-by (comp str key) data)))))))
+        grouped    (data-map grouped-id)]
+    (when-let [{:keys [heading rows]} (viewer-common/prepare-domain-grouped-table
+                                       grouped)]
+      (kindly-heading heading)
+      (kindly-table rows))))
 
 (defmethod view/domain-comparison* :kindly
   [_ {:keys [comparison-id]} data-map]

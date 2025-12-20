@@ -231,126 +231,26 @@
   [_ {:keys [extract-id]} data-map]
   (let [extract-id (or extract-id :extract)
         extract    (data-map extract-id)]
-    (when extract
-      (let [impl-axis-key (:impl-axis extract)
-            multi-impl?   (> (count (:implementations extract)) 1)
-            metrics       (:metrics extract)
-            metric-ids    (sort (keys metrics))
-
-            get-value (fn [v]
-                        (if (and (map? v) (contains? v :value))
-                          (:value v)
-                          v))
-
-            all-data (for [[metric-id {:keys [metric data]}] metrics
-                           [coord value]                     data]
-                       {:metric-id metric-id
-                        :metric    metric
-                        :coord     coord
-                        :value     (get-value value)})
-
-            row-key-fn (if multi-impl?
-                         (fn [coord] (dissoc coord impl-axis-key))
-                         identity)
-
-            raw-row-keys (->> all-data
-                              (map (comp row-key-fn :coord))
-                              distinct)
-
-            single-key-info (viewer-common/single-key-coord-info raw-row-keys)
-            row-keys        (viewer-common/sort-row-keys raw-row-keys single-key-info)
-            coord-header    (viewer-common/coord-column-header single-key-info)
-
-            impl-vals (when multi-impl?
-                        (->> all-data
-                             (keep #(get (:coord %) impl-axis-key))
-                             distinct
-                             (sort-by str)))
-
-            col-specs (if multi-impl?
-                        (for [metric-id metric-ids
-                              impl      impl-vals]
-                          {:metric-id metric-id :impl impl})
-                        (for [metric-id metric-ids]
-                          {:metric-id metric-id}))
-
-            lookup (reduce (fn [acc {:keys [metric-id coord value]}]
-                             (let [row-key    (row-key-fn coord)
-                                   impl-val   (when multi-impl? (get coord impl-axis-key))
-                                   lookup-key (if multi-impl?
-                                                [row-key metric-id impl-val]
-                                                [row-key metric-id])]
-                               (assoc acc lookup-key value)))
-                           {}
-                           all-data)
-
-            col-scales
-            (into {}
-                  (map (fn [col-spec]
-                         (let [{:keys [metric-id impl]} col-spec
-                               metric-path              (get-in metrics [metric-id :metric])
-                               col-values               (for [row-key row-keys
-                                                              :let    [lk (if multi-impl?
-                                                                            [row-key metric-id impl]
-                                                                            [row-key metric-id])
-                                                                       v (get lookup lk)]
-                                                              :when   (some? v)]
-                                                          v)]
-                           [col-spec (viewer-common/compute-si-scaling
-                                      metric-path col-values)])))
-                  col-specs)
-
-            col-headers
-            (mapv (fn [col-spec]
-                    (let [{:keys [metric-id impl]} col-spec
-                          {:keys [unit]}           (get col-scales col-spec)
-                          metric-name              (name metric-id)
-                          header-base              (if (seq unit)
-                                                     (str metric-name " (" unit ")")
-                                                     metric-name)]
-                      (if multi-impl?
-                        (str (name impl) " " header-base)
-                        header-base)))
-                  col-specs)
-
-            table-rows
-            (mapv (fn [row-key]
-                    (into {coord-header
-                           (viewer-common/format-row-key-value
-                            row-key single-key-info)}
-                          (map (fn [col-spec header]
-                                 (let [{:keys [metric-id impl]}
-                                       col-spec
-                                       lk        (if multi-impl?
-                                                   [row-key metric-id impl]
-                                                   [row-key metric-id])
-                                       raw-value (double (get lookup lk))
-                                       {:keys [^double total-scale]}
-                                       (get col-scales col-spec)]
-                                   [header (when raw-value
-                                             (format "%.3g"
-                                                     (double (* raw-value total-scale))))]))
-                               col-specs col-headers)))
-                  row-keys)
-
-            columns (into [coord-header] col-headers)]
-        (println "Domain Extract")
-        (pprint/print-table columns table-rows)))))
+    (when-let [{:keys [heading coord-header col-headers rows]}
+               (viewer-common/prepare-domain-extract-table extract {:header-sep " "})]
+      (println heading)
+      ;; pprint/print-table needs string keys for column headers to display
+      ;; without colon prefix; transform the coord key from keyword to string
+      (let [coord-key   (keyword coord-header)
+            pprint-rows (mapv #(-> %
+                                   (assoc coord-header (get % coord-key))
+                                   (dissoc coord-key))
+                              rows)]
+        (pprint/print-table (into [coord-header] col-headers) pprint-rows)))))
 
 (defmethod view/domain-grouped* :pprint
   [_ {:keys [grouped-id]} data-map]
   (let [grouped-id (or grouped-id :grouped)
-        grouped (data-map grouped-id)]
-    (when grouped
-      (let [{:keys [axis data]} grouped
-            table-rows (mapv (fn [[axis-val sub-domain]]
-                               {:axis-value (if (nil? axis-val)
-                                              "<nil>"
-                                              (str axis-val))
-                                :run-count (count (:runs sub-domain))})
-                             (sort-by (comp str key) data))]
-        (println (str "Domain Grouped by: " (name axis)))
-        (pprint/print-table [:axis-value :run-count] table-rows)))))
+        grouped    (data-map grouped-id)]
+    (when-let [{:keys [heading rows]} (viewer-common/prepare-domain-grouped-table
+                                       grouped)]
+      (println heading)
+      (pprint/print-table [:axis-value :run-count] rows))))
 
 (defmethod view/domain-comparison* :pprint
   [_ {:keys [comparison-id]} data-map]

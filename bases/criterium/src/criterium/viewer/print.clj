@@ -426,47 +426,16 @@
               [:count 1])]
         (format/format-value dimension (* raw-value scale))))))
 
-(defn- metric-path->dimension
-  "Return the dimension keyword for a metric-path."
-  [metric-path]
-  (case (first metric-path)
-    (:stats :log-stats)
-    (case (second metric-path)
-      :elapsed-time :time
-      :thread-allocation :memory
-      nil)
-    nil))
-
-(defn- metric-path->base-scale
-  "Return base scale factor to convert raw metric values to base units."
-  [metric-path]
-  (case (first metric-path)
-    (:stats :log-stats)
-    (case (second metric-path)
-      :elapsed-time 1e-9 ; ns -> s
-      1)
-    1))
-
 (defn- format-extract-value-with-unit
   "Format a value with SI units for display."
   [value metric-path]
   (when (some? value)
-    (let [base-value (* value (metric-path->base-scale metric-path))
-          dimension (metric-path->dimension metric-path)]
+    (let [base-value (* (double value)
+                        (viewer-common/metric-path->base-scale metric-path))
+          dimension  (viewer-common/metric-path->dimension metric-path)]
       (if dimension
         (format/format-value dimension base-value)
-        (format "%g" (double base-value))))))
-
-(defn- single-key-coord-info
-  "Detect if all coords are single-key maps with the same key.
-  Returns {:key k} if so, nil otherwise."
-  [coords]
-  (when (and (seq coords)
-             (every? map? coords)
-             (every? #(= 1 (count %)) coords))
-    (let [keys-set (into #{} (mapcat keys) coords)]
-      (when (= 1 (count keys-set))
-        {:key (first keys-set)}))))
+        (format "%g" base-value)))))
 
 (defn- sort-coords
   "Sort coordinate-value pairs, using numeric sort when coord values are numbers."
@@ -486,20 +455,6 @@
     (str (get coord (:key single-key-info)))
     (format-coord coord)))
 
-(defn- detect-uniform-axes
-  "Find coordinate axes where all values are identical.
-  Returns a set of keys that have uniform values across all coords.
-  Returns nil if any coord is not a map."
-  [coords]
-  (when (and (seq coords)
-             (every? map? coords))
-    (let [first-coord (first coords)
-          uniform-keys (filter (fn [k]
-                                 (let [v (get first-coord k)]
-                                   (every? #(= v (get % k)) coords)))
-                               (keys first-coord))]
-      (set uniform-keys))))
-
 (defn- strip-uniform-axes
   "Strip uniform-value axes from coordinates.
   Only strips axes if doing so leaves at least one key in each coord.
@@ -507,8 +462,8 @@
   [coords]
   (if-not (every? map? coords)
     coords
-    (let [uniform-axes (detect-uniform-axes coords)
-          first-coord (first coords)
+    (let [uniform-axes   (viewer-common/detect-uniform-axes coords)
+          first-coord    (first coords)
           remaining-keys (count (apply dissoc first-coord uniform-axes))]
       (if (and (seq uniform-axes) (pos? remaining-keys))
         (mapv #(apply dissoc % uniform-axes) coords)
@@ -517,15 +472,15 @@
 (defmethod view/domain-extract* :print
   [_ {:keys [extract-id]} data-map]
   (let [extract-id (or extract-id :extract)
-        extract (data-map extract-id)]
+        extract    (data-map extract-id)]
     (when extract
-      (doseq [[metric-id {:keys [metric data]}] (:metrics extract)]
-        (let [raw-coords (map first data)
+      (doseq [[_metric-id {:keys [metric data]}] (:metrics extract)]
+        (let [raw-coords      (map first data)
               ;; Strip uniform axes (e.g., :impl :default for single-impl scenarios)
               stripped-coords (strip-uniform-axes raw-coords)
-              coord-map (zipmap raw-coords stripped-coords)
-              single-key-info (single-key-coord-info stripped-coords)
-              sorted-data (sort-coords data single-key-info)]
+              coord-map       (zipmap raw-coords stripped-coords)
+              single-key-info (viewer-common/single-key-coord-info stripped-coords)
+              sorted-data     (sort-coords data single-key-info)]
           (println (format "Domain Extract: %s" (pr-str metric)))
           (doseq [[coord value] sorted-data]
             (let [display-coord (get coord-map coord coord)]
@@ -537,16 +492,15 @@
 (defmethod view/domain-grouped* :print
   [_ {:keys [grouped-id]} data-map]
   (let [grouped-id (or grouped-id :grouped)
-        grouped (data-map grouped-id)]
-    (when grouped
-      (let [{:keys [axis data]} grouped]
-        (println (format "Domain Grouped by: %s" (name axis)))
-        (doseq [[axis-val sub-domain] (sort-by (comp str key) data)]
-          (let [run-count (count (:runs sub-domain))]
-            (println (format "  %24s: %d run%s"
-                             (if (nil? axis-val) "<nil>" (str axis-val))
-                             run-count
-                             (if (= 1 run-count) "" "s")))))))))
+        grouped    (data-map grouped-id)]
+    (when-let [{:keys [heading rows]} (viewer-common/prepare-domain-grouped-table
+                                       grouped)]
+      (println heading)
+      (doseq [{:keys [axis-value run-count]} rows]
+        (println (format "  %24s: %d run%s"
+                         axis-value
+                         run-count
+                         (if (= 1 run-count) "" "s")))))))
 
 (defn- coord-without-axis
   "Remove the axis key from a map coordinate, or return the coord unchanged

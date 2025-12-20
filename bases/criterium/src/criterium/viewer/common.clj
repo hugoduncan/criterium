@@ -298,7 +298,7 @@
     (:value v)
     v))
 
-(defn- detect-uniform-axes
+(defn detect-uniform-axes
   "Find coordinate axes where all values are identical.
   Returns a set of keys that have uniform values across all coords."
   [coords]
@@ -681,6 +681,23 @@
           ;; Single-metric without implementations - absolute values
           (when-let [table (build-absolute-value-table axis metric data)]
             [table]))))))
+
+;;; Domain grouped view helpers
+
+(defn prepare-domain-grouped-table
+  "Prepare domain-grouped data for table rendering.
+  Returns {:heading string :rows [{:axis-value string :run-count int}...]}
+  or nil if grouped is nil."
+  [grouped]
+  (when grouped
+    (let [{:keys [axis data]} grouped]
+      {:heading (str "Domain Grouped by: " (name axis))
+       :rows    (mapv (fn [[axis-val sub-domain]]
+                        {:axis-value (if (nil? axis-val)
+                                       "<nil>"
+                                       (str axis-val))
+                         :run-count  (count (:runs sub-domain))})
+                      (sort-by (comp str key) data))})))
 
 ;;; Domain regression view helpers
 

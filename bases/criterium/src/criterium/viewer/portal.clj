@@ -220,17 +220,11 @@
 (defmethod view/domain-grouped* :portal
   [_ {:keys [grouped-id]} data-map]
   (let [grouped-id (or grouped-id :grouped)
-        grouped (data-map grouped-id)]
-    (when grouped
-      (let [{:keys [axis data]} grouped
-            table-data (mapv (fn [[axis-val sub-domain]]
-                               {:axis-value (if (nil? axis-val)
-                                              "<nil>"
-                                              (str axis-val))
-                                :run-count (count (:runs sub-domain))})
-                             (sort-by (comp str key) data))]
-        (heading (str "Domain Grouped by: " (name axis)))
-        (portal-table table-data)))))
+        grouped    (data-map grouped-id)]
+    (when-let [{:keys [rows] heading-text :heading}
+               (viewer-common/prepare-domain-grouped-table grouped)]
+      (heading heading-text)
+      (portal-table rows))))
 
 (defmethod view/domain-comparison* :portal
   [_ {:keys [comparison-id]} data-map]
