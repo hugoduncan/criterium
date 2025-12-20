@@ -184,6 +184,7 @@
 (defn- estimate-limit-time-s
   "Estimate limit-time-s for next run based on collected data.
   Uses projected time for time-limited runs, total benchmark time otherwise.
+  Takes max prediction from all models with r² within 1% of best fit.
   Returns initial-limit-time-s if insufficient data for estimation."
   [impl-runs time-axis next-coord initial-limit-time-s]
   (if (< (count impl-runs) 2)
@@ -201,25 +202,28 @@
                              (get-in data [:samples :total-benchmark-time-ns]))]
                [coord time-ns]))
            impl-runs)
-          extract {:type :criterium/domain-extract
-                   :metrics {:benchmark-time
-                             {:metric [:samples :total-benchmark-time-ns]
-                              :data extract-data}}}
-          regression (analysis/fit-complexity extract time-axis)
-          best-model (first
-                      (filter
-                       #(= (:id %)
-                           (get-in
-                            regression
-                            [:regressions :benchmark-time :best-fit]))
-                       (get-in
-                        regression
-                        [:regressions :benchmark-time :models])))
-          next-x (get next-coord time-axis)]
-      (if (and best-model next-x (> (double (:r-squared best-model)) 0.5))
-        (let [predicted-ns (predict-time-ns best-model next-x)
+          extract             {:type    :criterium/domain-extract
+                               :metrics {:benchmark-time
+                                         {:metric [:samples :total-benchmark-time-ns]
+                                          :data   extract-data}}}
+          regression          (analysis/fit-complexity extract time-axis)
+          all-models          (get-in regression [:regressions :benchmark-time :models])
+          best-r-squared      (double (reduce max (map :r-squared all-models)))
+          ;; Models within 1% of best r² are considered equally good fits
+          r-squared-threshold (* 0.99 best-r-squared)
+          candidate-models    (filterv
+                               #(>= (double (:r-squared %)) r-squared-threshold)
+                               all-models)
+          next-x              (get next-coord time-axis)]
+      (if (and (seq candidate-models) next-x (> best-r-squared 0.5))
+        (let [;; Predict with all candidate models, take maximum
+              predictions      (mapv
+                                (fn [model]
+                                  (predict-time-ns model next-x))
+                                candidate-models)
+              max-predicted-ns (double (reduce max predictions))
               ;; Convert ns to seconds with margin
-              predicted-s (* 2.5 (/ predicted-ns 1e9))]
+              predicted-s      (* 2.5 (/ max-predicted-ns 1e9))]
           (max predicted-s (double initial-limit-time-s)))
         initial-limit-time-s))))
 
