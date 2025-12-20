@@ -28,8 +28,8 @@
 
 (defn random-seq
   "Generate a random sequence of n integers."
-  [n]
-  (vec (repeatedly n #(rand-int 10000))))
+  ^clojure.lang.PersistentVector [n]
+  (mapv rand-int (repeat n 10000)))
 
 ;; Benchmark sorting across different input sizes:
 
@@ -61,7 +61,7 @@
 
 (domain/bench
  (domain/domain-expr
-  [n (builder/log-range 10 1000 5)]
+  [n (builder/n-log-n-range 10 1000 5)]
   (sort (random-seq n)))
  :domain-plan domain-plans/complexity-analysis)
 
@@ -94,3 +94,6 @@
    :sort-by (sort-by identity (random-seq n))})
  :bench-options {:metric-ids [:elapsed-time :thread-allocation]}
  :domain-plan domain-plans/implementation-comparison)
+
+(kind/hidden
+ (bench/set-default-viewer! :print))
