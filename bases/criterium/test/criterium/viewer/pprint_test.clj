@@ -297,10 +297,12 @@
                                   :models [{:id :linear
                                             :label "O(n)"
                                             :coefficients {:a 1.2e-9 :b 5e-8}
+                                            :equation-str "y = 1.200e-09*n + 5.000e-08"
                                             :r-squared 0.99}
                                            {:id :n-log-n
                                             :label "O(n log n)"
                                             :coefficients {:a 2.5e-10 :b 1e-7}
+                                            :equation-str "y = 2.500e-10*n*log(n) + 1.000e-07"
                                             :r-squared 0.85}]
                                   :best-fit :linear}}}}))))))
     (testing "shows [plotted] for models within tolerance"
@@ -323,10 +325,12 @@
                                   :models [{:id :linear
                                             :label "O(n)"
                                             :coefficients {:a 1.2e-9 :b 5e-8}
+                                            :equation-str "y = 1.200e-09*n + 5.000e-08"
                                             :r-squared 0.99}
                                            {:id :n-log-n
                                             :label "O(n log n)"
                                             :coefficients {:a 2.5e-10 :b 1e-7}
+                                            :equation-str "y = 2.500e-10*n*log(n) + 1.000e-07"
                                             :r-squared 0.985}]
                                   :best-fit :linear}}}}))))))
     (testing "handles empty models"

@@ -435,10 +435,14 @@
                                                     :models [{:id :linear
                                                               :label "O(n)"
                                                               :coefficients {:a 10000.0 :b 0.0}
+                                                              :equation-str "y = 10000*n + 0"
+                                                              :predict-fn (fn [x] (* 10000.0 x))
                                                               :r-squared 0.9999}
                                                              {:id :quadratic
                                                               :label "O(n²)"
                                                               :coefficients {:a 0.1 :b 100000.0}
+                                                              :equation-str "y = 0.1*n² + 100000"
+                                                              :predict-fn (fn [x] (+ (* 0.1 x x) 100000.0))
                                                               :r-squared 0.85}]
                                                     :best-fit :linear}}}}))]
         (is (>= (count outputs) 2) "Expected at least heading and table")
@@ -468,6 +472,8 @@
                                                     :models [{:id :linear
                                                               :label "O(n)"
                                                               :coefficients {:a 10000.0 :b 0.0}
+                                                              :equation-str "y = 10000*n + 0"
+                                                              :predict-fn (fn [x] (* 10000.0 x))
                                                               :r-squared 0.9999}]
                                                     :best-fit :linear}}}}))]
         ;; Should have heading, table, chart, residual heading, residual chart

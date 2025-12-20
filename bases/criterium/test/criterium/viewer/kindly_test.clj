@@ -740,10 +740,14 @@
                                                   :models [{:id :linear
                                                             :label "O(n)"
                                                             :coefficients {:a 10000.0 :b 0.0}
+                                                            :equation-str "y = 10000*n + 0"
+                                                            :predict-fn (fn [x] (* 10000.0 x))
                                                             :r-squared 0.9999}
                                                            {:id :quadratic
                                                             :label "O(n²)"
                                                             :coefficients {:a 0.1 :b 100000.0}
+                                                            :equation-str "y = 0.1*n² + 100000"
+                                                            :predict-fn (fn [x] (+ (* 0.1 x x) 100000.0))
                                                             :r-squared 0.85}]
                                                   :best-fit :linear}}}}]
         ;; With default 1% tolerance, only linear (0.9999) is plotted
@@ -790,10 +794,14 @@
                                                   :models [{:id :linear
                                                             :label "O(n)"
                                                             :coefficients {:a 10000.0 :b 0.0}
+                                                            :equation-str "y = 10000*n + 0"
+                                                            :predict-fn (fn [x] (* 10000.0 x))
                                                             :r-squared 0.9999}
                                                            {:id :n-log-n
                                                             :label "O(n log n)"
                                                             :coefficients {:a 1000.0 :b 0.0}
+                                                            :equation-str "y = 1000*n*log(n) + 0"
+                                                            :predict-fn (fn [x] (* 1000.0 x (Math/log x)))
                                                             :r-squared 0.9995}]
                                                   :best-fit :linear}}}}]
         ;; Both models within 1% tolerance (0.9999 * 0.99 = 0.9899)
@@ -824,10 +832,14 @@
                                                   :models [{:id :linear
                                                             :label "O(n)"
                                                             :coefficients {:a 10000.0 :b 0.0}
+                                                            :equation-str "y = 10000*n + 0"
+                                                            :predict-fn (fn [x] (* 10000.0 x))
                                                             :r-squared 0.9999}
                                                            {:id :quadratic
                                                             :label "O(n²)"
                                                             :coefficients {:a 0.1 :b 100000.0}
+                                                            :equation-str "y = 0.1*n² + 100000"
+                                                            :predict-fn (fn [x] (+ (* 0.1 x x) 100000.0))
                                                             :r-squared 0.85}]
                                                   :best-fit :linear}}}}]
         ;; With 20% tolerance, quadratic (0.85) is within threshold
@@ -849,6 +861,8 @@
                                                   :models [{:id :linear
                                                             :label "O(n)"
                                                             :coefficients {:a 10000.0 :b 0.0}
+                                                            :equation-str "y = 10000*n + 0"
+                                                            :predict-fn (fn [x] (* 10000.0 x))
                                                             :r-squared 0.9999}]
                                                   :best-fit :linear}}}}]
         (view/domain-regression* :kindly {} data-map)

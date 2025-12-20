@@ -653,8 +653,7 @@
     :tolerance - fraction within best r-squared to mark as plotted (default 0.01)"
   [{:keys [models best-fit]}
    {:keys [best-fit-marker plotted-marker tolerance]
-    :or {best-fit-marker "✓" plotted-marker "" tolerance 0.01}}
-   equation-str-fn]
+    :or {best-fit-marker "✓" plotted-marker "" tolerance 0.01}}]
   (when (seq models)
     (let [best-r-squared (->> models
                               (filter #(= (:id %) best-fit))
@@ -667,11 +666,11 @@
                              (map :id)
                              set))
           sorted-models (sort-by :r-squared > models)]
-      (mapv (fn [{:keys [id label coefficients r-squared]}]
+      (mapv (fn [{:keys [id label equation-str r-squared]}]
               (let [plotted? (and plotted-ids (plotted-ids id))]
                 {:model label
                  :r-squared (format "%.4f" r-squared)
-                 :equation (or (equation-str-fn id coefficients) "")
+                 :equation (or equation-str "")
                  :best-fit (cond
                              (= id best-fit) best-fit-marker
                              plotted? plotted-marker
@@ -682,12 +681,12 @@
   "Prepare model table rows for multi-impl regression display.
   Returns vector of row maps with :implementation :model :r-squared :equation :best-fit.
   Options same as prepare-regression-model-table."
-  [by-impl impl-keys options equation-str-fn]
+  [by-impl impl-keys options]
   (vec
    (mapcat
     (fn [impl-key]
       (let [impl-data (get by-impl impl-key)
-            rows (prepare-regression-model-table impl-data options equation-str-fn)]
+            rows (prepare-regression-model-table impl-data options)]
         (mapv #(assoc % :implementation (name impl-key)) rows)))
     impl-keys)))
 
@@ -738,7 +737,7 @@
   For single-impl mode, models is a seq of model maps.
   For multi-impl mode, by-impl is a map of impl-key -> {:models [...] :best-fit id}.
   Returns vector of point maps with x, y, and model or impl key."
-  [{:keys [x-vals total-scale]} {:keys [models by-impl impl-keys]} model-fn-builder]
+  [{:keys [x-vals total-scale]} {:keys [models by-impl impl-keys]}]
   (when (seq x-vals)
     (let [x-min (apply min x-vals)
           x-max (apply max x-vals)
@@ -751,7 +750,7 @@
             (let [{:keys [models best-fit]} (get by-impl impl-key)
                   best-model (first (filter #(= (:id %) best-fit) models))]
               (when best-model
-                (let [mfn (model-fn-builder best-fit (:coefficients best-model))]
+                (let [mfn (:predict-fn best-model)]
                   (mapv (fn [x]
                           {"x" x
                            "y" (* (mfn x) total-scale)
@@ -762,7 +761,7 @@
         (vec
          (mapcat
           (fn [model]
-            (let [mfn (model-fn-builder (:id model) (:coefficients model))]
+            (let [mfn (:predict-fn model)]
               (mapv (fn [x]
                       {"x" x
                        "y" (* (mfn x) total-scale)
@@ -774,8 +773,7 @@
   "Compute residual points for plotting.
   Returns vector of point maps with x, residual, and model or impl key."
   [{:keys [valid-data total-scale]} {:keys [axis impl-axis has-error-bounds?
-                                            models by-impl impl-keys model-fns]}
-   model-fn-builder]
+                                            models by-impl impl-keys]}]
   (let [get-value (if has-error-bounds?
                     (fn [[_ v]] (when v (:value v)))
                     (fn [[_ v]] v))]
@@ -787,7 +785,7 @@
           (let [{:keys [models best-fit]} (get by-impl impl-key)
                 best-model (first (filter #(= (:id %) best-fit) models))]
             (when best-model
-              (let [mfn (model-fn-builder best-fit (:coefficients best-model))]
+              (let [mfn (:predict-fn best-model)]
                 (keep (fn [[coord v]]
                         (when (= (get coord impl-axis) impl-key)
                           (let [y-val (get-value [coord v])
@@ -802,8 +800,7 @@
       (vec
        (mapcat
         (fn [model]
-          (let [mfn (or (get model-fns (:id model))
-                        (model-fn-builder (:id model) (:coefficients model)))]
+          (let [mfn (:predict-fn model)]
             (mapv (fn [[coord v]]
                     (let [y-val (get-value [coord v])
                           x-val (double (get coord axis))

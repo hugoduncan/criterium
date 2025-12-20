@@ -806,30 +806,6 @@
             (println (format "Domain Comparison by %s: %s (no data)"
                              (name axis) (pr-str metric)))))))))
 
-(defn- regression-equation-str
-  "Format the fitted regression equation for a model.
-  Simple models fit y = a*transform(x) + b.
-  Composite models fit y = a*f1(x) + b*f2(x) + c."
-  [model-id {:keys [a b c]}]
-  (if c
-    ;; Composite model: y = a*f1(x) + b*f2(x) + c
-    (let [sign-b (if (neg? b) "-" "+")
-          sign-c (if (neg? c) "-" "+")]
-      (format "y = %.4g*n*log(n) %s %.4g*n %s %.4g"
-              a sign-b (Math/abs ^double b) sign-c (Math/abs ^double c)))
-    ;; Simple model: y = a*f(x) + b
-    (when (and a b)
-      (case model-id
-        :constant (format "y = %.4g" b)
-        (let [transform-str (case model-id
-                              :logarithmic "log(n)"
-                              :linear "n"
-                              :n-log-n "n*log(n)"
-                              :quadratic "n²"
-                              "x")
-              sign (if (neg? b) "-" "+")]
-          (format "y = %.4g*%s %s %.4g" a transform-str sign (Math/abs ^double b)))))))
-
 (defmethod view/domain-regression* :print
   [_ {:keys [regression-id tolerance]} data-map]
   (let [regression-id (or regression-id :regression)
@@ -861,13 +837,12 @@
                   (if (seq models)
                     (let [sorted-models (sort-by :r-squared > models)
                           label-width (apply max (map #(count (:label %)) models))]
-                      (doseq [{:keys [id label coefficients r-squared]} sorted-models]
-                        (let [eq-str (regression-equation-str id coefficients)
-                              plotted? (and plotted-ids (plotted-ids id))]
+                      (doseq [{:keys [id label equation-str r-squared]} sorted-models]
+                        (let [plotted? (and plotted-ids (plotted-ids id))]
                           (println (format "    %s  R²=%.4f%s%s%s"
                                            (format (str "%-" label-width "s") label)
                                            r-squared
-                                           (if eq-str (str "  " eq-str) "")
+                                           (if equation-str (str "  " equation-str) "")
                                            (if (= id best-fit) "  <- best fit" "")
                                            (if (and plotted? (not= id best-fit)) "  [plotted]" ""))))))
                     (println "    (insufficient data)"))))
@@ -892,13 +867,12 @@
               (if (seq models)
                 (let [sorted-models (sort-by :r-squared > models)
                       label-width (apply max (map #(count (:label %)) models))]
-                  (doseq [{:keys [id label coefficients r-squared]} sorted-models]
-                    (let [eq-str (regression-equation-str id coefficients)
-                          plotted? (and plotted-ids (plotted-ids id))]
+                  (doseq [{:keys [id label equation-str r-squared]} sorted-models]
+                    (let [plotted? (and plotted-ids (plotted-ids id))]
                       (println (format "  %s  R²=%.4f%s%s%s"
                                        (format (str "%-" label-width "s") label)
                                        r-squared
-                                       (if eq-str (str "  " eq-str) "")
+                                       (if equation-str (str "  " equation-str) "")
                                        (if (= id best-fit) "  <- best fit" "")
                                        (if (and plotted? (not= id best-fit)) "  [plotted]" ""))))))
                 (println "  (insufficient data for regression)"))

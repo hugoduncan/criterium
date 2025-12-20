@@ -373,20 +373,59 @@
   Simple models use :transform to map input size n to a single predictor.
 
   Composite models use :transforms for multiple predictors (e.g.,
-  n*log(n) + n)."
+  n*log(n) + n).
+
+  Each model also includes:
+    :predict-fn - Takes coefficients map → (fn [x] predicted-y)
+    :equation-fn - Takes coefficients map → formatted equation string"
   {:constant {:transform (constantly 1.0)
-              :label "O(1)"}
+              :label "O(1)"
+              :predict-fn (fn [{:keys [a b]}] (fn [_x] (+ a b)))
+              :equation-fn (fn [{:keys [a b]}]
+                             (format "y = %.4g" (+ a b)))}
    :logarithmic {:transform (fn [^double n] (Math/log n))
-                 :label "O(log n)"}
+                 :label "O(log n)"
+                 :predict-fn (fn [{:keys [a b]}]
+                               (fn [x] (+ (* a (Math/log x)) b)))
+                 :equation-fn (fn [{:keys [a b]}]
+                                (let [sign (if (neg? b) "-" "+")]
+                                  (format "y = %.4g*log(n) %s %.4g"
+                                          a sign (Math/abs ^double b))))}
    :linear {:transform identity
-            :label "O(n)"}
+            :label "O(n)"
+            :predict-fn (fn [{:keys [a b]}]
+                          (fn [x] (+ (* a x) b)))
+            :equation-fn (fn [{:keys [a b]}]
+                           (let [sign (if (neg? b) "-" "+")]
+                             (format "y = %.4g*n %s %.4g"
+                                     a sign (Math/abs ^double b))))}
    :n-log-n {:transform (fn [^double n] (* n (Math/log n)))
-             :label "O(n log n)"}
+             :label "O(n log n)"
+             :predict-fn (fn [{:keys [a b]}]
+                           (fn [x] (+ (* a x (Math/log x)) b)))
+             :equation-fn (fn [{:keys [a b]}]
+                            (let [sign (if (neg? b) "-" "+")]
+                              (format "y = %.4g*n*log(n) %s %.4g"
+                                      a sign (Math/abs ^double b))))}
    :nlogn-linear {:transforms [(fn [^double n] (* n (Math/log n)))
                                (fn [^double n] n)]
-                  :label "O(n log n + n)"}
+                  :label "O(n log n + n)"
+                  :predict-fn (fn [{:keys [a b c]}]
+                                (fn [x] (+ (* a x (Math/log x)) (* b x) c)))
+                  :equation-fn (fn [{:keys [a b c]}]
+                                 (let [sign-b (if (neg? b) "-" "+")
+                                       sign-c (if (neg? c) "-" "+")]
+                                   (format "y = %.4g*n*log(n) %s %.4g*n %s %.4g"
+                                           a sign-b (Math/abs ^double b)
+                                           sign-c (Math/abs ^double c))))}
    :quadratic {:transform (fn [^double n] (* n n))
-               :label "O(n²)"}})
+               :label "O(n²)"
+               :predict-fn (fn [{:keys [a b]}]
+                             (fn [x] (+ (* a x x) b)))
+               :equation-fn (fn [{:keys [a b]}]
+                              (let [sign (if (neg? b) "-" "+")]
+                                (format "y = %.4g*n² %s %.4g"
+                                        a sign (Math/abs ^double b))))}})
 
 (defn- linear-regression
   "Perform simple linear regression: y = a*x + b.
@@ -475,8 +514,9 @@
   Supports simple models (single :transform) and composite
   models (two :transforms).
 
-  Returns map with :id, :label, :coefficients, :r-squared, :residuals."
-  [model-id {:keys [transform transforms label]} xs ys]
+  Returns map with :id, :label, :coefficients, :r-squared, :residuals,
+  and optionally :predict-fn (instantiated) and :equation-str."
+  [model-id {:keys [transform transforms label predict-fn equation-fn]} xs ys]
   (if transforms
     ;; Composite model: y = a*f1(x) + b*f2(x) + c
     (let [[t1 t2] transforms
@@ -484,26 +524,32 @@
           x2s (mapv (comp double t2) xs)
           {:keys [^double a ^double b ^double c ^double r-squared]}
           (linear-regression-2 x1s x2s ys)
+          coefficients {:a a :b b :c c}
           residuals (mapv (fn [^double x1 ^double x2 ^double y]
                             (- y (+ (* a x1) (* b x2) c)))
                           x1s x2s ys)]
-      {:id model-id
-       :label label
-       :coefficients {:a a :b b :c c}
-       :r-squared r-squared
-       :residuals residuals})
+      (cond-> {:id model-id
+               :label label
+               :coefficients coefficients
+               :r-squared r-squared
+               :residuals residuals}
+        predict-fn (assoc :predict-fn (predict-fn coefficients))
+        equation-fn (assoc :equation-str (equation-fn coefficients))))
     ;; Simple model: y = a*f(x) + b
     (let [transformed-xs (mapv (comp double transform) xs)
           {:keys [^double a ^double b ^double r-squared]}
           (linear-regression transformed-xs ys)
+          coefficients {:a a :b b}
           residuals (mapv (fn [^double tx ^double y]
                             (- y (+ (* a tx) b)))
                           transformed-xs ys)]
-      {:id model-id
-       :label label
-       :coefficients {:a a :b b}
-       :r-squared r-squared
-       :residuals residuals})))
+      (cond-> {:id model-id
+               :label label
+               :coefficients coefficients
+               :r-squared r-squared
+               :residuals residuals}
+        predict-fn (assoc :predict-fn (predict-fn coefficients))
+        equation-fn (assoc :equation-str (equation-fn coefficients))))))
 
 (defn fit-complexity
   "Fit complexity models to domain extract data.

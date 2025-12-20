@@ -379,8 +379,7 @@
             (if (seq by-impl)
               (let [impl-keys (sort (keys by-impl))
                     table-rows (viewer-common/prepare-regression-model-table-multi-impl
-                                by-impl impl-keys table-options
-                                charts/regression-equation-str)]
+                                by-impl impl-keys table-options)]
                 (pprint/print-table
                  [:implementation :model :r-squared :equation :best-fit]
                  table-rows))
@@ -394,8 +393,7 @@
             (if (seq models)
               (let [table-rows (viewer-common/prepare-regression-model-table
                                 {:models models :best-fit best-fit}
-                                table-options
-                                charts/regression-equation-str)]
+                                table-options)]
                 (pprint/print-table [:model :r-squared :equation :best-fit] table-rows))
               (println "  (insufficient data for regression)"))
             (println)))))))

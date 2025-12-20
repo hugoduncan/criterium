@@ -536,14 +536,17 @@
                                   :models [{:id :linear
                                             :label "O(n)"
                                             :coefficients {:a 1.2e-9 :b 5e-8}
+                                            :equation-str "y = 1.200e-09*n + 5.000e-08"
                                             :r-squared 0.99}
                                            {:id :n-log-n
                                             :label "O(n log n)"
                                             :coefficients {:a 2.5e-10 :b 1e-7}
+                                            :equation-str "y = 2.500e-10*n*log(n) + 1.000e-07"
                                             :r-squared 0.85}
                                            {:id :quadratic
                                             :label "O(n²)"
                                             :coefficients {:a 1e-12 :b 2e-7}
+                                            :equation-str "y = 1.000e-12*n² + 2.000e-07"
                                             :r-squared 0.70}]
                                   :best-fit :linear}}}}))))))
     (testing "shows [plotted] for models within tolerance"
@@ -563,10 +566,12 @@
                                   :models [{:id :linear
                                             :label "O(n)"
                                             :coefficients {:a 1.2e-9 :b 5e-8}
+                                            :equation-str "y = 1.200e-09*n + 5.000e-08"
                                             :r-squared 0.99}
                                            {:id :n-log-n
                                             :label "O(n log n)"
                                             :coefficients {:a 2.5e-10 :b 1e-7}
+                                            :equation-str "y = 2.500e-10*n*log(n) + 1.000e-07"
                                             :r-squared 0.985}]
                                   :best-fit :linear}}}}))))))
     (testing "respects custom tolerance parameter"
@@ -586,10 +591,12 @@
                                   :models [{:id :linear
                                             :label "O(n)"
                                             :coefficients {:a 1.2e-9 :b 5e-8}
+                                            :equation-str "y = 1.200e-09*n + 5.000e-08"
                                             :r-squared 0.99}
                                            {:id :n-log-n
                                             :label "O(n log n)"
                                             :coefficients {:a 2.5e-10 :b 1e-7}
+                                            :equation-str "y = 2.500e-10*n*log(n) + 1.000e-07"
                                             :r-squared 0.85}]
                                   :best-fit :linear}}}}))))))
     (testing "handles negative intercepts"
@@ -608,6 +615,7 @@
                                   :models [{:id :linear
                                             :label "O(n)"
                                             :coefficients {:a 1.2e-9 :b -5e-9}
+                                            :equation-str "y = 1.200e-09*n - 5.000e-09"
                                             :r-squared 0.95}]
                                   :best-fit :linear}}}}))))))
     (testing "handles models without coefficients"
@@ -656,6 +664,7 @@
                                   :models [{:id :linear
                                             :label "O(n)"
                                             :coefficients {:a 1.5e-9 :b 1e-8}
+                                            :equation-str "y = 1.500e-09*n + 1.000e-08"
                                             :r-squared 0.95}]
                                   :best-fit :linear}}}}))))))))
 

@@ -275,7 +275,7 @@
               (when (seq by-impl)
                 (kindly-table
                  (viewer-common/prepare-regression-model-table-multi-impl
-                  by-impl impl-keys table-options charts/regression-equation-str)))
+                  by-impl impl-keys table-options)))
               ;; Charts
               (when-let [point-data (viewer-common/prepare-regression-points
                                      metric-extract-data
@@ -285,8 +285,7 @@
                 (let [{:keys [points total-scale unit]} point-data
                       line-pts (viewer-common/prepare-regression-fit-lines
                                 point-data
-                                {:by-impl by-impl :impl-keys impl-keys}
-                                charts/regression-model-fn)
+                                {:by-impl by-impl :impl-keys impl-keys})
                       y-title (if (seq unit) (str (pr-str metric) " (" unit ")") (pr-str metric))
                       residual-title (if (seq unit) (str "Residual (" unit ")") "Residual")]
                   (when (seq points)
@@ -302,8 +301,7 @@
                                         point-data
                                         {:axis axis :impl-axis impl-axis
                                          :has-error-bounds? with-error-bounds
-                                         :by-impl by-impl :impl-keys impl-keys}
-                                        charts/regression-model-fn)]
+                                         :by-impl by-impl :impl-keys impl-keys})]
                       (kindly-heading "Residual Plot")
                       (kindly-vega-lite
                        (charts/regression-residual-spec
@@ -329,8 +327,7 @@
                 (kindly-table
                  (viewer-common/prepare-regression-model-table
                   {:models models :best-fit best-fit}
-                  table-options
-                  charts/regression-equation-str)))
+                  table-options)))
               ;; Charts
               (when (and metric-extract-data (seq models-to-plot))
                 (when-let [point-data (viewer-common/prepare-regression-points
@@ -338,14 +335,8 @@
                                        {:axis axis :has-error-bounds? with-error-bounds
                                         :metric metric})]
                   (let [{:keys [points total-scale unit]} point-data
-                        model-fns (into {}
-                                        (map (fn [m]
-                                               [(:id m)
-                                                (charts/regression-model-fn (:id m) (:coefficients m))])
-                                             models-to-plot))
                         line-pts (viewer-common/prepare-regression-fit-lines
-                                  point-data {:models models-to-plot}
-                                  charts/regression-model-fn)
+                                  point-data {:models models-to-plot})
                         y-title (if (seq unit) (str (pr-str metric) " (" unit ")") (pr-str metric))
                         residual-title (if (seq unit) (str "Residual (" unit ")") "Residual")]
                     (when (seq points)
@@ -360,8 +351,7 @@
                       (let [residual-pts (viewer-common/prepare-regression-residuals
                                           point-data
                                           {:axis axis :has-error-bounds? with-error-bounds
-                                           :models models-to-plot :model-fns model-fns}
-                                          charts/regression-model-fn)]
+                                           :models models-to-plot})]
                         (kindly-heading "Residual Plot")
                         (kindly-vega-lite
                          (charts/regression-residual-spec
