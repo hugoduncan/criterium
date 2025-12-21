@@ -668,5 +668,179 @@
                                             :r-squared 0.95}]
                                   :best-fit :linear}}}}))))))))
 
+;;; Allocation View Tests
 
+(deftest allocation-summary-print-test
+  ;; Tests the print viewer output for allocation-summary results.
+  ;; Verifies display of totals, counts, and freed ratio.
+  (testing "allocation-summary*"
+    (testing "prints summary statistics"
+      (is (= ["Allocation Summary:"
+              "Total allocated: 1.00 Kb"
+              "Total freed: 512 bytes"
+              "Retained: 512 bytes"
+              "Allocation count: 100"
+              "Freed count: 50"
+              "Freed ratio: 50.0%"]
+             (trimmed-lines
+              (with-out-str
+                (view/allocation-summary*
+                 :print
+                 {}
+                 {:allocation-summary
+                  {:type :criterium/allocation-summary
+                   :total-allocated 1024
+                   :total-freed 512
+                   :num-allocations 100
+                   :num-freed 50}}))))))
+    (testing "handles zero allocations"
+      (is (= ["Allocation Summary:"
+              "Total allocated: 0.00 bytes"
+              "Total freed: 0.00 bytes"
+              "Retained: 0.00 bytes"
+              "Allocation count: 0"
+              "Freed count: 0"]
+             (trimmed-lines
+              (with-out-str
+                (view/allocation-summary*
+                 :print
+                 {}
+                 {:allocation-summary
+                  {:type :criterium/allocation-summary
+                   :total-allocated 0
+                   :total-freed 0
+                   :num-allocations 0
+                   :num-freed 0}}))))))
+    (testing "uses custom summary-id"
+      (is (= ["Allocation Summary:"
+              "Total allocated: 256 bytes"
+              "Total freed: 128 bytes"
+              "Retained: 128 bytes"
+              "Allocation count: 10"
+              "Freed count: 5"
+              "Freed ratio: 50.0%"]
+             (trimmed-lines
+              (with-out-str
+                (view/allocation-summary*
+                 :print
+                 {:summary-id :my-summary}
+                 {:my-summary
+                  {:type :criterium/allocation-summary
+                   :total-allocated 256
+                   :total-freed 128
+                   :num-allocations 10
+                   :num-freed 5}}))))))))
 
+(deftest allocation-hotspots-print-test
+  ;; Tests the print viewer output for allocation-hotspots results.
+  ;; Verifies table format with call site, counts, and byte amounts.
+  (testing "allocation-hotspots*"
+    (testing "prints hotspots table"
+      (is (= ["Allocation Hotspots:"
+              "Count        Bytes    Freed  Freed Bytes  Call Site"
+              (apply str (repeat 80 "-"))
+              "100      1.00 Kb       50    512 bytes  my.ns$fn.invoke (my_ns.clj:42)"
+              "50    256 bytes       25    128 bytes  other.ns$g.apply (other.clj:10)"]
+             (trimmed-lines
+              (with-out-str
+                (view/allocation-hotspots*
+                 :print
+                 {}
+                 {:allocation-hotspots
+                  {:type :criterium/allocation-hotspots
+                   :hotspots [{:call-site {:call-class "my.ns$fn"
+                                           :call-method "invoke"
+                                           :call-file "my_ns.clj"
+                                           :call-line 42}
+                               :count 100
+                               :bytes 1024
+                               :freed-count 50
+                               :freed-bytes 512}
+                              {:call-site {:call-class "other.ns$g"
+                                           :call-method "apply"
+                                           :call-file "other.clj"
+                                           :call-line 10}
+                               :count 50
+                               :bytes 256
+                               :freed-count 25
+                               :freed-bytes 128}]}}))))))
+    (testing "handles empty hotspots gracefully"
+      (let [output (with-out-str
+                     (view/allocation-hotspots*
+                      :print
+                      {}
+                      {:allocation-hotspots
+                       {:type :criterium/allocation-hotspots
+                        :hotspots []}}))]
+        (is (str/blank? output))))
+    (testing "uses custom hotspots-id"
+      (is (= ["Allocation Hotspots:"
+              "Count        Bytes    Freed  Freed Bytes  Call Site"
+              (apply str (repeat 80 "-"))
+              "10    100 bytes        5   50.0 bytes  x.y$z.run (z.clj:1)"]
+             (trimmed-lines
+              (with-out-str
+                (view/allocation-hotspots*
+                 :print
+                 {:hotspots-id :my-hotspots}
+                 {:my-hotspots
+                  {:type :criterium/allocation-hotspots
+                   :hotspots [{:call-site {:call-class "x.y$z"
+                                           :call-method "run"
+                                           :call-file "z.clj"
+                                           :call-line 1}
+                               :count 10
+                               :bytes 100
+                               :freed-count 5
+                               :freed-bytes 50}]}}))))))))
+
+(deftest allocation-by-type-print-test
+  ;; Tests the print viewer output for allocation-by-type results.
+  ;; Verifies table format sorted by bytes descending.
+  (testing "allocation-by-type*"
+    (testing "prints by-type table sorted by bytes"
+      (is (= ["Allocations by Type:"
+              "Count        Bytes    Freed  Freed Bytes  Type"
+              (apply str (repeat 80 "-"))
+              "100      1.00 Kb       50    512 bytes  [B"
+              "50    256 bytes       25    128 bytes  Ljava/lang/String;"]
+             (trimmed-lines
+              (with-out-str
+                (view/allocation-by-type*
+                 :print
+                 {}
+                 {:allocation-by-type
+                  {:type :criterium/allocation-by-type
+                   :by-type {"Ljava/lang/String;" {:count 50
+                                                   :bytes 256
+                                                   :freed-count 25
+                                                   :freed-bytes 128}
+                             "[B" {:count 100
+                                   :bytes 1024
+                                   :freed-count 50
+                                   :freed-bytes 512}}}}))))))
+    (testing "handles empty by-type gracefully"
+      (let [output (with-out-str
+                     (view/allocation-by-type*
+                      :print
+                      {}
+                      {:allocation-by-type
+                       {:type :criterium/allocation-by-type
+                        :by-type {}}}))]
+        (is (str/blank? output))))
+    (testing "uses custom by-type-id"
+      (is (= ["Allocations by Type:"
+              "Count        Bytes    Freed  Freed Bytes  Type"
+              (apply str (repeat 80 "-"))
+              "10    100 bytes        5   50.0 bytes  Ljava/lang/Object;"]
+             (trimmed-lines
+              (with-out-str
+                (view/allocation-by-type*
+                 :print
+                 {:by-type-id :my-by-type}
+                 {:my-by-type
+                  {:type :criterium/allocation-by-type
+                   :by-type {"Ljava/lang/Object;" {:count 10
+                                                   :bytes 100
+                                                   :freed-count 5
+                                                   :freed-bytes 50}}}}))))))))

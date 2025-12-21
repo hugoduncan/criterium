@@ -855,3 +855,78 @@
                           ""))))))
                 (println "  (insufficient data for regression)"))
               (println))))))))
+
+;;; Allocation Views
+
+(defmethod view/allocation-summary* :print
+  [_ {:keys [summary-id]} data-map]
+  (let [summary-id (or summary-id :allocation-summary)
+        summary    (data-map summary-id)]
+    (when summary
+      (let [{:keys [total-allocated total-freed num-allocations num-freed]} summary
+            retained (- total-allocated total-freed)]
+        (println "Allocation Summary:")
+        (println (format "%32s: %s"
+                         "Total allocated"
+                         (format/format-value :memory total-allocated)))
+        (println (format "%32s: %s"
+                         "Total freed"
+                         (format/format-value :memory total-freed)))
+        (println (format "%32s: %s"
+                         "Retained"
+                         (format/format-value :memory retained)))
+        (println (format "%32s: %d"
+                         "Allocation count"
+                         num-allocations))
+        (println (format "%32s: %d"
+                         "Freed count"
+                         num-freed))
+        (when (pos? num-allocations)
+          (println (format "%32s: %.1f%%"
+                           "Freed ratio"
+                           (* 100.0 (/ num-freed num-allocations)))))))))
+
+(defn- format-call-site
+  "Format a call site for display."
+  [{:keys [call-class call-method call-file call-line]}]
+  (str call-class "." call-method " (" call-file ":" call-line ")"))
+
+(defmethod view/allocation-hotspots* :print
+  [_ {:keys [hotspots-id]} data-map]
+  (let [hotspots-id (or hotspots-id :allocation-hotspots)
+        hotspots-map (data-map hotspots-id)]
+    (when hotspots-map
+      (let [hotspots (:hotspots hotspots-map)]
+        (when (seq hotspots)
+          (println "Allocation Hotspots:")
+          (println (format "%8s %12s %8s %12s  %s"
+                           "Count" "Bytes" "Freed" "Freed Bytes" "Call Site"))
+          (println (apply str (repeat 80 "-")))
+          (doseq [{:keys [call-site count bytes freed-count freed-bytes]} hotspots]
+            (println (format "%8d %12s %8d %12s  %s"
+                             count
+                             (format/format-value :memory bytes)
+                             freed-count
+                             (format/format-value :memory freed-bytes)
+                             (format-call-site call-site)))))))))
+
+(defmethod view/allocation-by-type* :print
+  [_ {:keys [by-type-id]} data-map]
+  (let [by-type-id (or by-type-id :allocation-by-type)
+        by-type-map (data-map by-type-id)]
+    (when by-type-map
+      (let [by-type (:by-type by-type-map)
+            ;; Sort by bytes descending
+            sorted (sort-by (comp :bytes second) > by-type)]
+        (when (seq sorted)
+          (println "Allocations by Type:")
+          (println (format "%8s %12s %8s %12s  %s"
+                           "Count" "Bytes" "Freed" "Freed Bytes" "Type"))
+          (println (apply str (repeat 80 "-")))
+          (doseq [[type-name {:keys [count bytes freed-count freed-bytes]}] sorted]
+            (println (format "%8d %12s %8d %12s  %s"
+                             count
+                             (format/format-value :memory bytes)
+                             freed-count
+                             (format/format-value :memory freed-bytes)
+                             type-name))))))))
