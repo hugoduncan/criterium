@@ -58,7 +58,7 @@
   (testing "summary-fn"
     (testing "computes totals from allocation trace"
       (let [analyse (analysis/summary-fn)
-            result (analyse {:allocation-trace sample-trace})
+            result (analyse {:samples {:allocation-trace sample-trace}})
             summary (:allocation-summary result)]
         (is (= :criterium/allocation-summary (:type summary)))
         (is (= 4 (:num-allocations summary)))
@@ -68,7 +68,7 @@
 
     (testing "returns zeros for empty trace"
       (let [analyse (analysis/summary-fn)
-            result (analyse {:allocation-trace empty-trace})
+            result (analyse {:samples {:allocation-trace empty-trace}})
             summary (:allocation-summary result)]
         (is (= 0 (:num-allocations summary)))
         (is (= 0 (:num-freed summary)))
@@ -77,18 +77,18 @@
 
     (testing "uses custom :id option"
       (let [analyse (analysis/summary-fn {:id :my-summary})
-            result (analyse {:allocation-trace sample-trace})]
+            result (analyse {:samples {:allocation-trace sample-trace}})]
         (is (contains? result :my-summary))
         (is (not (contains? result :allocation-summary)))))
 
     (testing "uses custom :trace-id option"
-      (let [analyse (analysis/summary-fn {:trace-id :my-trace})
+      (let [analyse (analysis/summary-fn {:trace-id [:my-trace]})
             result (analyse {:my-trace sample-trace})]
         (is (= 4 (get-in result [:allocation-summary :num-allocations])))))
 
     (testing "preserves other data-map entries"
       (let [analyse (analysis/summary-fn)
-            result (analyse {:allocation-trace sample-trace
+            result (analyse {:samples {:allocation-trace sample-trace}
                              :other-data :preserved})]
         (is (= :preserved (:other-data result)))))))
 
@@ -96,7 +96,7 @@
   (testing "hotspots-fn"
     (testing "groups allocations by call-site"
       (let [analyse (analysis/hotspots-fn)
-            result (analyse {:allocation-trace sample-trace})
+            result (analyse {:samples {:allocation-trace sample-trace}})
             hotspots (get-in result [:allocation-hotspots :hotspots])]
         (is (= :criterium/allocation-hotspots
                (get-in result [:allocation-hotspots :type])))
@@ -110,7 +110,7 @@
 
     (testing "aggregates stats for same call-site"
       (let [analyse (analysis/hotspots-fn)
-            result (analyse {:allocation-trace sample-trace})
+            result (analyse {:samples {:allocation-trace sample-trace}})
             hotspots (get-in result [:allocation-hotspots :hotspots])
             my-ns-hotspot (first (filter #(= "my.ns$fn"
                                              (get-in % [:call-site :call-class]))
@@ -122,13 +122,13 @@
 
     (testing "respects :limit option"
       (let [analyse (analysis/hotspots-fn {:limit 1})
-            result (analyse {:allocation-trace sample-trace})
+            result (analyse {:samples {:allocation-trace sample-trace}})
             hotspots (get-in result [:allocation-hotspots :hotspots])]
         (is (= 1 (count hotspots)))))
 
     (testing "sorts by :count when specified"
       (let [analyse (analysis/hotspots-fn {:order-by :count})
-            result (analyse {:allocation-trace sample-trace})
+            result (analyse {:samples {:allocation-trace sample-trace}})
             hotspots (get-in result [:allocation-hotspots :hotspots])]
         ;; my.ns$fn has 3 allocations, other.ns$bar has 1
         (is (= "my.ns$fn"
@@ -136,20 +136,20 @@
 
     (testing "returns empty vector for empty trace"
       (let [analyse (analysis/hotspots-fn)
-            result (analyse {:allocation-trace empty-trace})
+            result (analyse {:samples {:allocation-trace empty-trace}})
             hotspots (get-in result [:allocation-hotspots :hotspots])]
         (is (= [] hotspots))))
 
     (testing "uses custom :id option"
       (let [analyse (analysis/hotspots-fn {:id :my-hotspots})
-            result (analyse {:allocation-trace sample-trace})]
+            result (analyse {:samples {:allocation-trace sample-trace}})]
         (is (contains? result :my-hotspots))))))
 
 (deftest by-type-fn-test
   (testing "by-type-fn"
     (testing "groups allocations by object type"
       (let [analyse (analysis/by-type-fn)
-            result (analyse {:allocation-trace sample-trace})
+            result (analyse {:samples {:allocation-trace sample-trace}})
             by-type (get-in result [:allocation-by-type :by-type])]
         (is (= :criterium/allocation-by-type
                (get-in result [:allocation-by-type :type])))
@@ -160,7 +160,7 @@
 
     (testing "computes per-type statistics"
       (let [analyse (analysis/by-type-fn)
-            result (analyse {:allocation-trace sample-trace})
+            result (analyse {:samples {:allocation-trace sample-trace}})
             string-stats (get-in result [:allocation-by-type
                                          :by-type
                                          "Ljava/lang/String;"])]
@@ -171,13 +171,13 @@
 
     (testing "returns empty map for empty trace"
       (let [analyse (analysis/by-type-fn)
-            result (analyse {:allocation-trace empty-trace})
+            result (analyse {:samples {:allocation-trace empty-trace}})
             by-type (get-in result [:allocation-by-type :by-type])]
         (is (= {} by-type))))
 
     (testing "uses custom :id option"
       (let [analyse (analysis/by-type-fn {:id :my-by-type})
-            result (analyse {:allocation-trace sample-trace})]
+            result (analyse {:samples {:allocation-trace sample-trace}})]
         (is (contains? result :my-by-type))))))
 
 (deftest ->allocation-analyse-test
@@ -187,7 +187,7 @@
                      [[:summary-fn {}]
                       [:hotspots-fn {:limit 5}]
                       [:by-type-fn {}]])
-            result (analyse {:allocation-trace sample-trace})]
+            result (analyse {:samples {:allocation-trace sample-trace}})]
         (is (contains? result :allocation-summary))
         (is (contains? result :allocation-hotspots))
         (is (contains? result :allocation-by-type))))
@@ -196,19 +196,19 @@
       (let [analyse (analysis/->allocation-analyse
                      [[:summary-fn {:id :first}]
                       [:summary-fn {:id :second}]])
-            result (analyse {:allocation-trace sample-trace})]
+            result (analyse {:samples {:allocation-trace sample-trace}})]
         (is (contains? result :first))
         (is (contains? result :second))))
 
     (testing "handles empty plan"
       (let [analyse (analysis/->allocation-analyse [])
-            result (analyse {:allocation-trace sample-trace})]
-        (is (= sample-trace (:allocation-trace result)))))
+            result (analyse {:samples {:allocation-trace sample-trace}})]
+        (is (= sample-trace (get-in result [:samples :allocation-trace])))))
 
     (testing "handles nil plan"
       (let [analyse (analysis/->allocation-analyse nil)
-            result (analyse {:allocation-trace sample-trace})]
-        (is (= sample-trace (:allocation-trace result)))))
+            result (analyse {:samples {:allocation-trace sample-trace}})]
+        (is (= sample-trace (get-in result [:samples :allocation-trace])))))
 
     (testing "throws on invalid plan type"
       (is (thrown? clojure.lang.ExceptionInfo

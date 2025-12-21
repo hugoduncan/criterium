@@ -136,7 +136,7 @@
           ;; Collect allocation trace if requested
           data-map (if with-allocation?
                      (if-let [trace (collect-allocation-trace measured)]
-                       (assoc data-map :allocation-trace trace)
+                       (assoc-in data-map [:samples :allocation-trace] trace)
                        data-map)
                      data-map)
           ;; Apply analysis (allocation analysis no-ops when trace absent)

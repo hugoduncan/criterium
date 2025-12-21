@@ -193,9 +193,9 @@
         (testing "includes :with-allocation-trace in bench-plan"
           (is (true? (get-in (bench/last-bench) [:bench-plan :with-allocation-trace]))))
         ;; If agent is attached, check allocation data is present
-        (when (:allocation-trace data)
+        (when (get-in data [:samples :allocation-trace])
           (testing "collects allocation trace"
-            (is (allocation/trace? (:allocation-trace data))))
+            (is (allocation/trace? (get-in data [:samples :allocation-trace]))))
           (testing "includes allocation summary"
             (is (= :criterium/allocation-summary
                    (:type (:allocation-summary data)))))
@@ -215,9 +215,9 @@
                                :limit-time-s 0.5))
             data (:data (bench/last-bench))]
         ;; If agent is attached, check allocation data is present
-        (when (:allocation-trace data)
+        (when (get-in data [:samples :allocation-trace])
           (testing "collects allocation trace with warmup"
-            (is (allocation/trace? (:allocation-trace data))))
+            (is (allocation/trace? (get-in data [:samples :allocation-trace]))))
           (testing "outputs allocation views"
             (is (re-find #"Allocation Summary" out))))))
 
@@ -227,7 +227,7 @@
                      :collect-plan :one-shot))
       (let [data (:data (bench/last-bench))]
         (testing "does not include allocation trace"
-          (is (nil? (:allocation-trace data))))
+          (is (nil? (get-in data [:samples :allocation-trace]))))
         (testing "does not include allocation analysis"
           (is (nil? (:allocation-summary data)))
           (is (nil? (:allocation-hotspots data)))

@@ -26,10 +26,10 @@
   Parameters:
     opts - Map with keys:
       :id       - Key for result in output (default: :allocation-summary)
-      :trace-id - Key for source allocation trace in input (default: :allocation-trace)
+      :trace-id - Path for source allocation trace (default: [:samples :allocation-trace])
 
   The returned function:
-  - Takes a data-map containing an allocation trace under :trace-id
+  - Takes a data-map containing an allocation trace at :trace-id path
   - Returns the data-map with summary added under :id
   - Returns data-map unchanged if trace is not present (no-op)
 
@@ -42,9 +42,9 @@
   ([] (summary-fn {}))
   ([{:keys [id trace-id]}]
    (fn [data-map]
-     (let [trace-id (or trace-id :allocation-trace)
+     (let [trace-id (or trace-id [:samples :allocation-trace])
            id (or id :allocation-summary)
-           trace (get data-map trace-id)]
+           trace (get-in data-map trace-id)]
        (if-not trace
          data-map
          (let [records (:records trace)
@@ -59,6 +59,7 @@
                                  freed? (-> (update :total-freed + size)
                                             (update :num-freed inc))))))
                        {:type :criterium/allocation-summary
+                        :transform {:sample-> identity :->sample identity}
                         :total-allocated 0
                         :total-freed 0
                         :num-allocations 0
@@ -72,12 +73,12 @@
   Parameters:
     opts - Map with keys:
       :id       - Key for result in output (default: :allocation-hotspots)
-      :trace-id - Key for source allocation trace in input (default: :allocation-trace)
+      :trace-id - Path for source allocation trace (default: [:samples :allocation-trace])
       :limit    - Maximum number of hotspots to return (default: 10)
       :order-by - Sort key, :bytes or :count (default: :bytes)
 
   The returned function:
-  - Takes a data-map containing an allocation trace under :trace-id
+  - Takes a data-map containing an allocation trace at :trace-id path
   - Returns the data-map with hotspots added under :id
   - Returns data-map unchanged if trace is not present (no-op)
 
@@ -92,9 +93,9 @@
   ([] (hotspots-fn {}))
   ([{:keys [id trace-id limit order-by]}]
    (fn [data-map]
-     (let [trace-id (or trace-id :allocation-trace)
+     (let [trace-id (or trace-id [:samples :allocation-trace])
            id (or id :allocation-hotspots)
-           trace (get data-map trace-id)]
+           trace (get-in data-map trace-id)]
        (if-not trace
          data-map
          (let [limit (or limit 10)
@@ -126,6 +127,7 @@
                              (take limit)
                              vec)]
            (assoc data-map id {:type :criterium/allocation-hotspots
+                               :transform {:sample-> identity :->sample identity}
                                :hotspots hotspots})))))))
 
 (defn by-type-fn
@@ -134,10 +136,10 @@
   Parameters:
     opts - Map with keys:
       :id       - Key for result in output (default: :allocation-by-type)
-      :trace-id - Key for source allocation trace in input (default: :allocation-trace)
+      :trace-id - Path for source allocation trace (default: [:samples :allocation-trace])
 
   The returned function:
-  - Takes a data-map containing an allocation trace under :trace-id
+  - Takes a data-map containing an allocation trace at :trace-id path
   - Returns the data-map with by-type grouping added under :id
   - Returns data-map unchanged if trace is not present (no-op)
 
@@ -148,9 +150,9 @@
   ([] (by-type-fn {}))
   ([{:keys [id trace-id]}]
    (fn [data-map]
-     (let [trace-id (or trace-id :allocation-trace)
+     (let [trace-id (or trace-id [:samples :allocation-trace])
            id (or id :allocation-by-type)
-           trace (get data-map trace-id)]
+           trace (get-in data-map trace-id)]
        (if-not trace
          data-map
          (let [records (:records trace)
@@ -172,6 +174,7 @@
                         {}
                         records)]
            (assoc data-map id {:type :criterium/allocation-by-type
+                               :transform {:sample-> identity :->sample identity}
                                :by-type by-type})))))))
 
 ;;; Analysis Pipeline

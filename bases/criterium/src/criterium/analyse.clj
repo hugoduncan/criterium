@@ -506,7 +506,7 @@
   Parameters:
     opts - Optional map with keys:
       :id       - Key for result in output (default: :allocation-summary)
-      :trace-id - Key for source trace in input (default: :allocation-trace)"
+      :trace-id - Path for source trace in input (default: [:samples :allocation-trace])"
   ([] (allocation-summary {}))
   ([opts]
    (allocation-analysis/summary-fn opts)))
@@ -520,7 +520,7 @@
   Parameters:
     opts - Optional map with keys:
       :id       - Key for result in output (default: :allocation-hotspots)
-      :trace-id - Key for source trace in input (default: :allocation-trace)
+      :trace-id - Path for source trace in input (default: [:samples :allocation-trace])
       :limit    - Maximum number of hotspots to return (default: 10)
       :order-by - Sort key, :bytes or :count (default: :bytes)"
   ([] (allocation-hotspots {}))
@@ -536,7 +536,7 @@
   Parameters:
     opts - Optional map with keys:
       :id       - Key for result in output (default: :allocation-by-type)
-      :trace-id - Key for source trace in input (default: :allocation-trace)"
+      :trace-id - Path for source trace in input (default: [:samples :allocation-trace])"
   ([] (allocation-by-type {}))
   ([opts]
    (allocation-analysis/by-type-fn opts)))
