@@ -3,6 +3,7 @@
   (:require
    [clojure.pprint :as pprint]
    [criterium.metric :as metric]
+   [criterium.util.format :as format]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have]]
    [criterium.view :as view]
@@ -298,3 +299,67 @@
                 (pprint/print-table [:model :r-squared :equation :best-fit] table-rows))
               (println "  (insufficient data for regression)"))
             (println)))))))
+
+;;; Allocation Views
+
+(defmethod view/allocation-summary* :pprint
+  [_ {:keys [summary-id]} data-map]
+  (let [summary-id (or summary-id :allocation-summary)
+        summary    (data-map summary-id)]
+    (when summary
+      (let [{:keys [total-allocated total-freed num-allocations num-freed]} summary
+            retained (- total-allocated total-freed)]
+        (println "Allocation Summary:")
+        (pprint/print-table
+         [:metric :value]
+         [{:metric "Total allocated"
+           :value (format/format-value :memory total-allocated)}
+          {:metric "Total freed"
+           :value (format/format-value :memory total-freed)}
+          {:metric "Retained"
+           :value (format/format-value :memory retained)}
+          {:metric "Allocation count"
+           :value num-allocations}
+          {:metric "Freed count"
+           :value num-freed}
+          {:metric "Freed ratio"
+           :value (if (pos? num-allocations)
+                    (format "%.1f%%" (* 100.0 (/ num-freed num-allocations)))
+                    "N/A")}])))))
+
+(defmethod view/allocation-hotspots* :pprint
+  [_ {:keys [hotspots-id]} data-map]
+  (let [hotspots-id (or hotspots-id :allocation-hotspots)
+        hotspots-map (data-map hotspots-id)]
+    (when hotspots-map
+      (let [hotspots (:hotspots hotspots-map)]
+        (when (seq hotspots)
+          (println "Allocation Hotspots:")
+          (pprint/print-table
+           [:count :bytes :freed-count :freed-bytes :call-site]
+           (mapv (fn [{:keys [call-site count bytes freed-count freed-bytes]}]
+                   {:count count
+                    :bytes (format/format-value :memory bytes)
+                    :freed-count freed-count
+                    :freed-bytes (format/format-value :memory freed-bytes)
+                    :call-site (viewer-common/format-call-site call-site)})
+                 hotspots)))))))
+
+(defmethod view/allocation-by-type* :pprint
+  [_ {:keys [by-type-id]} data-map]
+  (let [by-type-id (or by-type-id :allocation-by-type)
+        by-type-map (data-map by-type-id)]
+    (when by-type-map
+      (let [by-type (:by-type by-type-map)
+            sorted (sort-by (comp :bytes second) > by-type)]
+        (when (seq sorted)
+          (println "Allocations by Type:")
+          (pprint/print-table
+           [:type :count :bytes :freed-count :freed-bytes]
+           (mapv (fn [[type-name {:keys [count bytes freed-count freed-bytes]}]]
+                   {:type type-name
+                    :count count
+                    :bytes (format/format-value :memory bytes)
+                    :freed-count freed-count
+                    :freed-bytes (format/format-value :memory freed-bytes)})
+                 sorted)))))))
