@@ -28,6 +28,7 @@
    [criterium.collect-plan :as collect-plan]
    [criterium.collector :as collector]
    [criterium.measured :as measured]
+   [criterium.util.blackhole :as blackhole]
    [criterium.util.output :as output]))
 
 (defn default-viewer
@@ -112,9 +113,10 @@
 (defn- collect-allocation-trace
   "Collect allocation trace by running measured once with tracing enabled."
   [measured]
-  (let [state (measured/args measured)
-        [trace _] (allocation/with-allocation-trace {:eval-count 1}
-                    (measured/invoke measured state 1))]
+  (let [state         (measured/args measured)
+        [trace value] (allocation/with-allocation-trace {:eval-count 1}
+                        (measured/invoke measured state 1))]
+    (blackhole/consume value)
     trace))
 
 (defn bench-measured
