@@ -493,3 +493,200 @@
           (is (empty? @v))
           (finally
             (remove-tap f)))))))
+
+;;; Allocation View Tests
+
+(deftest portal-allocation-summary-test
+  ;; Tests the portal viewer output for allocation-summary results.
+  ;; Verifies table generation with allocation metrics.
+  (testing "allocation-summary*"
+    (testing "produces table with allocation metrics"
+      (let [[title table] (with-tap-out
+                            (view/allocation-summary*
+                             :portal
+                             {}
+                             {:allocation-summary
+                              {:type :criterium/allocation-summary
+                               :total-allocated 1024000
+                               :total-freed 512000
+                               :num-allocations 100
+                               :num-freed 50}}))]
+        (is (= [:b "Allocation Summary"] title))
+        (is (= 6 (count table)) "Expected 6 rows")
+        (is (= "Total allocated" (:metric (first table))))
+        (is (= 1024000 (:value (first table))))
+        (is (= "Retained" (:metric (nth table 2))))
+        (is (= 512000 (:value (nth table 2))))
+        (is (= "Freed ratio" (:metric (last table))))
+        (is (str/includes? (:value (last table)) "50.0%"))))
+
+    (testing "uses custom summary-id"
+      (let [[title _table] (with-tap-out
+                             (view/allocation-summary*
+                              :portal
+                              {:summary-id :my-summary}
+                              {:my-summary
+                               {:type :criterium/allocation-summary
+                                :total-allocated 1000
+                                :total-freed 500
+                                :num-allocations 10
+                                :num-freed 5}}))]
+        (is (= [:b "Allocation Summary"] title))))
+
+    (testing "handles nil summary gracefully"
+      (let [v (volatile! [])
+            f (fn [x] (when-not (= ::portal/_ x) (vswap! v conj x)))]
+        (try
+          (add-tap f)
+          (view/allocation-summary* :portal {} {:allocation-summary nil})
+          (portal/flush)
+          (is (empty? @v))
+          (finally
+            (remove-tap f)))))))
+
+(deftest portal-allocation-hotspots-test
+  ;; Tests the portal viewer output for allocation-hotspots results.
+  ;; Verifies table generation with call-site and allocation stats.
+  (testing "allocation-hotspots*"
+    (testing "produces table with hotspot data"
+      (let [[title table] (with-tap-out
+                            (view/allocation-hotspots*
+                             :portal
+                             {}
+                             {:allocation-hotspots
+                              {:type :criterium/allocation-hotspots
+                               :hotspots [{:call-site {:call-class "my.ns$fn"
+                                                       :call-method "invoke"
+                                                       :call-file "my_ns.clj"
+                                                       :call-line 42}
+                                           :count 50
+                                           :bytes 4800
+                                           :freed-count 30
+                                           :freed-bytes 2880}
+                                          {:call-site {:call-class "other.ns$g"
+                                                       :call-method "invoke"
+                                                       :call-file "other.clj"
+                                                       :call-line 10}
+                                           :count 25
+                                           :bytes 2400
+                                           :freed-count 10
+                                           :freed-bytes 960}]}}))
+            first-row (first table)]
+        (is (= [:b "Allocation Hotspots"] title))
+        (is (= 2 (count table)) "Expected 2 rows")
+        (is (str/includes? (:call-site first-row) "my.ns$fn"))
+        (is (str/includes? (:call-site first-row) "my_ns.clj:42"))
+        (is (= 50 (:count first-row)))
+        (is (= 4800 (:bytes first-row)))
+        (is (= 30 (:freed-count first-row)))
+        (is (= 2880 (:freed-bytes first-row)))))
+
+    (testing "uses custom hotspots-id"
+      (let [[title _table] (with-tap-out
+                             (view/allocation-hotspots*
+                              :portal
+                              {:hotspots-id :my-hotspots}
+                              {:my-hotspots
+                               {:type :criterium/allocation-hotspots
+                                :hotspots [{:call-site {:call-class "x"
+                                                        :call-method "y"
+                                                        :call-file "z"
+                                                        :call-line 1}
+                                            :count 1
+                                            :bytes 10
+                                            :freed-count 0
+                                            :freed-bytes 0}]}}))]
+        (is (= [:b "Allocation Hotspots"] title))))
+
+    (testing "handles empty hotspots gracefully"
+      (let [v (volatile! [])
+            f (fn [x] (when-not (= ::portal/_ x) (vswap! v conj x)))]
+        (try
+          (add-tap f)
+          (view/allocation-hotspots* :portal {} {:allocation-hotspots
+                                                 {:type :criterium/allocation-hotspots
+                                                  :hotspots []}})
+          (portal/flush)
+          (is (empty? @v))
+          (finally
+            (remove-tap f)))))
+
+    (testing "handles nil hotspots-map gracefully"
+      (let [v (volatile! [])
+            f (fn [x] (when-not (= ::portal/_ x) (vswap! v conj x)))]
+        (try
+          (add-tap f)
+          (view/allocation-hotspots* :portal {} {:allocation-hotspots nil})
+          (portal/flush)
+          (is (empty? @v))
+          (finally
+            (remove-tap f)))))))
+
+(deftest portal-allocation-by-type-test
+  ;; Tests the portal viewer output for allocation-by-type results.
+  ;; Verifies table generation with type names and allocation stats,
+  ;; sorted by bytes descending.
+  (testing "allocation-by-type*"
+    (testing "produces table sorted by bytes descending"
+      (let [[title table] (with-tap-out
+                            (view/allocation-by-type*
+                             :portal
+                             {}
+                             {:allocation-by-type
+                              {:type :criterium/allocation-by-type
+                               :by-type {"[B" {:count 10 :bytes 1000
+                                               :freed-count 5 :freed-bytes 500}
+                                         "Ljava/lang/String;" {:count 50
+                                                               :bytes 4800
+                                                               :freed-count 30
+                                                               :freed-bytes 2880}
+                                         "[Ljava/lang/Object;" {:count 5
+                                                                :bytes 200
+                                                                :freed-count 2
+                                                                :freed-bytes 80}}}}))
+            types (mapv :type table)]
+        (is (= [:b "Allocations by Type"] title))
+        (is (= 3 (count table)) "Expected 3 rows")
+        (is (= ["Ljava/lang/String;" "[B" "[Ljava/lang/Object;"] types)
+            "Expected sorted by bytes descending")
+        (let [first-row (first table)]
+          (is (= "Ljava/lang/String;" (:type first-row)))
+          (is (= 50 (:count first-row)))
+          (is (= 4800 (:bytes first-row)))
+          (is (= 30 (:freed-count first-row)))
+          (is (= 2880 (:freed-bytes first-row))))))
+
+    (testing "uses custom by-type-id"
+      (let [[title _table] (with-tap-out
+                             (view/allocation-by-type*
+                              :portal
+                              {:by-type-id :my-by-type}
+                              {:my-by-type
+                               {:type :criterium/allocation-by-type
+                                :by-type {"[I" {:count 1 :bytes 10
+                                                :freed-count 0 :freed-bytes 0}}}}))]
+        (is (= [:b "Allocations by Type"] title))))
+
+    (testing "handles empty by-type gracefully"
+      (let [v (volatile! [])
+            f (fn [x] (when-not (= ::portal/_ x) (vswap! v conj x)))]
+        (try
+          (add-tap f)
+          (view/allocation-by-type* :portal {} {:allocation-by-type
+                                                {:type :criterium/allocation-by-type
+                                                 :by-type {}}})
+          (portal/flush)
+          (is (empty? @v))
+          (finally
+            (remove-tap f)))))
+
+    (testing "handles nil by-type-map gracefully"
+      (let [v (volatile! [])
+            f (fn [x] (when-not (= ::portal/_ x) (vswap! v conj x)))]
+        (try
+          (add-tap f)
+          (view/allocation-by-type* :portal {} {:allocation-by-type nil})
+          (portal/flush)
+          (is (empty? @v))
+          (finally
+            (remove-tap f)))))))
