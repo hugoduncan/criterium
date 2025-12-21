@@ -20,11 +20,17 @@
                       :outliers
                       [:stats {}]
                       [:stats {:samples-id :log-samples :id :log-stats}]
-                      :event-stats]
+                      :event-stats
+                      :allocation-summary
+                      [:allocation-hotspots {:limit 10}]
+                      :allocation-by-type]
    :view             [[:stats {:metric-ids [:memory]}]
                       [:stats {:stats-id :log-stats}]
                       :event-stats
                       :collect-plan
+                      :allocation-summary
+                      :allocation-hotspots
+                      :allocation-by-type
                       #_[:final-gc-warnings
                          {:warn-threshold 0.01}]]
    :viewer           :print})
@@ -37,7 +43,10 @@
                       [:stats {}]
                       [:stats {:samples-id :log-samples :id :log-stats}]
                       :histogram
-                      :event-stats]
+                      :event-stats
+                      :allocation-summary
+                      [:allocation-hotspots {:limit 10}]
+                      :allocation-by-type]
    :view             [[:stats {:metric-ids [:memory]}]
                       [:stats {:stats-id :log-stats}]
                       :quantiles
@@ -46,5 +55,8 @@
                       :collect-plan
                       [:histogram {:stats-id :log-stats}]
                       :sample-percentiles
-                      :samples]
+                      :samples
+                      :allocation-summary
+                      :allocation-hotspots
+                      :allocation-by-type]
    :viewer           :print})

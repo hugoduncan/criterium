@@ -1,5 +1,6 @@
 (ns criterium.analyse
   (:require
+   [criterium.allocation.analysis :as allocation-analysis]
    [criterium.analyse.digest-samples]
    [criterium.analyse.methods :as methods]
    [criterium.analyse.metrics-samples]
@@ -493,3 +494,49 @@
                             :outliers-id          outliers-id
                             :source-id            stats-id})]
          (assoc data-map id os-map))))))
+
+;;; Allocation Analysis
+
+(defn allocation-summary
+  "Computes allocation summary statistics from an allocation trace.
+
+  Delegates to criterium.allocation.analysis/summary-fn. Returns data-map
+  unchanged if allocation trace is not present (no-op behavior).
+
+  Parameters:
+    opts - Optional map with keys:
+      :id       - Key for result in output (default: :allocation-summary)
+      :trace-id - Key for source trace in input (default: :allocation-trace)"
+  ([] (allocation-summary {}))
+  ([opts]
+   (allocation-analysis/summary-fn opts)))
+
+(defn allocation-hotspots
+  "Identifies allocation hotspots by call-site from an allocation trace.
+
+  Delegates to criterium.allocation.analysis/hotspots-fn. Returns data-map
+  unchanged if allocation trace is not present (no-op behavior).
+
+  Parameters:
+    opts - Optional map with keys:
+      :id       - Key for result in output (default: :allocation-hotspots)
+      :trace-id - Key for source trace in input (default: :allocation-trace)
+      :limit    - Maximum number of hotspots to return (default: 10)
+      :order-by - Sort key, :bytes or :count (default: :bytes)"
+  ([] (allocation-hotspots {}))
+  ([opts]
+   (allocation-analysis/hotspots-fn opts)))
+
+(defn allocation-by-type
+  "Groups allocations by object type from an allocation trace.
+
+  Delegates to criterium.allocation.analysis/by-type-fn. Returns data-map
+  unchanged if allocation trace is not present (no-op behavior).
+
+  Parameters:
+    opts - Optional map with keys:
+      :id       - Key for result in output (default: :allocation-by-type)
+      :trace-id - Key for source trace in input (default: :allocation-trace)"
+  ([] (allocation-by-type {}))
+  ([opts]
+   (allocation-analysis/by-type-fn opts)))

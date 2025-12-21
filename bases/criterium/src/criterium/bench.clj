@@ -21,7 +21,6 @@
   (set-default-viewer! :kindly)   ; Set default for all bench calls"
   (:require
    [criterium.allocation :as allocation]
-   [criterium.allocation.analysis :as allocation-analysis]
    [criterium.analyse]
    [criterium.bench.config :as bench-config]
    [criterium.bench.impl :as impl]
@@ -118,16 +117,6 @@
                     (measured/invoke measured state 1))]
     trace))
 
-(def ^:private default-allocation-analyse
-  [[:summary-fn {}]
-   [:hotspots-fn {:limit 10}]
-   [:by-type-fn {}]])
-
-(def ^:private default-allocation-view
-  [:allocation-summary
-   :allocation-hotspots
-   :allocation-by-type])
-
 (defn bench-measured
   "Evaluate measured and output the benchmark time.
 
@@ -150,19 +139,10 @@
                        (assoc data-map :allocation-trace trace)
                        data-map)
                      data-map)
-          ;; Apply standard analysis
+          ;; Apply analysis (allocation analysis no-ops when trace absent)
           data-map (analyze (:analyse bench-plan) data-map)
-          ;; Apply allocation analysis if trace present
-          data-map (if (:allocation-trace data-map)
-                     ((allocation-analysis/->allocation-analyse
-                       default-allocation-analyse)
-                      data-map)
-                     data-map)
-          ;; Run views - include allocation views if trace present
-          view-plan (if (:allocation-trace data-map)
-                      (into (vec (:view bench-plan)) default-allocation-view)
-                      (:view bench-plan))
-          viewer-output (view view-plan (:viewer bench-plan) data-map)
+          ;; Run views (allocation views no-op when trace absent)
+          viewer-output (view (:view bench-plan) (:viewer bench-plan) data-map)
           ;; Store viewer output as a proper data-entry-map
           data-map (assoc data-map :viewer
                           {:type :criterium/viewer-output
