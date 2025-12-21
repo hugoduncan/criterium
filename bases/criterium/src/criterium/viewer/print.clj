@@ -886,11 +886,6 @@
                            "Freed ratio"
                            (* 100.0 (/ num-freed num-allocations)))))))))
 
-(defn- format-call-site
-  "Format a call site for display."
-  [{:keys [call-class call-method call-file call-line]}]
-  (str call-class "." call-method " (" call-file ":" call-line ")"))
-
 (defmethod view/allocation-hotspots* :print
   [_ {:keys [hotspots-id]} data-map]
   (let [hotspots-id (or hotspots-id :allocation-hotspots)
@@ -908,7 +903,7 @@
                              (format/format-value :memory bytes)
                              freed-count
                              (format/format-value :memory freed-bytes)
-                             (format-call-site call-site)))))))))
+                             (viewer-common/format-call-site call-site)))))))))
 
 (defmethod view/allocation-by-type* :print
   [_ {:keys [by-type-id]} data-map]

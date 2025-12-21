@@ -401,11 +401,6 @@
                                                  (double num-allocations))))
                     "N/A")}])))))
 
-(defn- format-call-site
-  "Format a call site for display."
-  [{:keys [call-class call-method call-file call-line]}]
-  (str call-class "." call-method " (" call-file ":" call-line ")"))
-
 (defmethod view/allocation-hotspots* :portal
   [_ {:keys [hotspots-id]} data-map]
   (let [hotspots-id (or hotspots-id :allocation-hotspots)
@@ -416,7 +411,7 @@
           (heading "Allocation Hotspots")
           (portal-table
            (mapv (fn [{:keys [call-site count bytes freed-count freed-bytes]}]
-                   {:call-site (format-call-site call-site)
+                   {:call-site (viewer-common/format-call-site call-site)
                     :count count
                     :bytes bytes
                     :freed-count freed-count

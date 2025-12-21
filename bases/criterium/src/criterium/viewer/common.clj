@@ -875,3 +875,11 @@
                        "model"    (:label model)}))
                   valid-data)))
         models)))))
+
+;;; Allocation view helpers
+
+(defn format-call-site
+  "Format a call site map for display.
+  Returns a string like 'class.method (file:line)'."
+  [{:keys [call-class call-method call-file call-line]}]
+  (str call-class "." call-method " (" call-file ":" call-line ")"))

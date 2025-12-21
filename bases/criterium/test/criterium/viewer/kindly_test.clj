@@ -942,3 +942,167 @@
       (reset! kindly/accumulated [])
       (view/domain-regression* :kindly {} {:regression nil})
       (is (nil? (kindly/flush))))))
+
+(deftest allocation-summary-view-test
+  ;; Tests the view/allocation-summary* multimethod for :kindly viewer.
+  ;; Verifies that allocation summary data is rendered as a heading and table
+  ;; with metrics for total allocated/freed, retained, counts, and ratio.
+  (testing "view/allocation-summary* :kindly"
+    (testing "renders summary as heading and table"
+      (reset! kindly/accumulated [])
+      (let [data-map {:allocation-summary
+                      {:type :criterium/allocation-summary
+                       :total-allocated 1048576
+                       :total-freed 524288
+                       :num-allocations 100
+                       :num-freed 50}}]
+        (view/allocation-summary* :kindly {} data-map)
+        (let [result (kindly/flush)]
+          (is (= :kind/fragment (:kindly/kind (meta result))))
+          (is (= 2 (count result))
+              "Expected heading and table")
+          (let [[heading table] result]
+            (is (= :kind/md (:kindly/kind (meta heading))))
+            (is (= ["**Allocation Summary**"] heading))
+            (is (= :kind/table (:kindly/kind (meta table))))
+            (is (= 6 (count table))
+                "Expected 6 metrics")
+            (is (every? #(contains? % :metric) table)
+                "Expected :metric column")
+            (is (every? #(contains? % :value) table)
+                "Expected :value column")
+            (let [metrics-by-name (into {} (map (juxt :metric :value) table))]
+              (is (string? (get metrics-by-name "Total allocated"))
+                  "Expected formatted byte value")
+              (is (string? (get metrics-by-name "Freed ratio"))
+                  "Expected percentage string"))))))
+
+    (testing "handles zero allocations gracefully"
+      (reset! kindly/accumulated [])
+      (let [data-map {:allocation-summary
+                      {:type :criterium/allocation-summary
+                       :total-allocated 0
+                       :total-freed 0
+                       :num-allocations 0
+                       :num-freed 0}}]
+        (view/allocation-summary* :kindly {} data-map)
+        (let [result (kindly/flush)
+              [_ table] result
+              metrics-by-name (into {} (map (juxt :metric :value) table))]
+          (is (= "N/A" (get metrics-by-name "Freed ratio"))
+              "Expected N/A for zero allocations"))))
+
+    (testing "handles nil summary gracefully"
+      (reset! kindly/accumulated [])
+      (view/allocation-summary* :kindly {} {:allocation-summary nil})
+      (is (nil? (kindly/flush))))))
+
+(deftest allocation-hotspots-view-test
+  ;; Tests the view/allocation-hotspots* multimethod for :kindly viewer.
+  ;; Verifies that hotspots data is rendered as a heading and table with
+  ;; call-site, count, bytes, freed-count, and freed-bytes columns.
+  (testing "view/allocation-hotspots* :kindly"
+    (testing "renders hotspots as heading and table"
+      (reset! kindly/accumulated [])
+      (let [data-map {:allocation-hotspots
+                      {:type :criterium/allocation-hotspots
+                       :hotspots [{:call-site {:call-class "my.ns$fn"
+                                               :call-method "invoke"
+                                               :call-file "my_ns.clj"
+                                               :call-line 42}
+                                   :count 100
+                                   :bytes 4096
+                                   :freed-count 50
+                                   :freed-bytes 2048}
+                                  {:call-site {:call-class "other.ns$bar"
+                                               :call-method "invoke"
+                                               :call-file "other_ns.clj"
+                                               :call-line 10}
+                                   :count 50
+                                   :bytes 2048
+                                   :freed-count 25
+                                   :freed-bytes 1024}]}}]
+        (view/allocation-hotspots* :kindly {} data-map)
+        (let [result (kindly/flush)]
+          (is (= :kind/fragment (:kindly/kind (meta result))))
+          (is (= 2 (count result))
+              "Expected heading and table")
+          (let [[heading table] result]
+            (is (= :kind/md (:kindly/kind (meta heading))))
+            (is (= ["**Allocation Hotspots**"] heading))
+            (is (= :kind/table (:kindly/kind (meta table))))
+            (is (= 2 (count table))
+                "Expected 2 hotspot rows")
+            (let [first-row (first table)]
+              (is (str/includes? (:call-site first-row) "my.ns$fn")
+                  "Expected call-site to contain class name")
+              (is (str/includes? (:call-site first-row) "my_ns.clj:42")
+                  "Expected call-site to contain file:line")
+              (is (= 100 (:count first-row)))
+              (is (string? (:bytes first-row))
+                  "Expected formatted byte value")
+              (is (= 50 (:freed-count first-row))))))))
+
+    (testing "handles empty hotspots gracefully"
+      (reset! kindly/accumulated [])
+      (let [data-map {:allocation-hotspots
+                      {:type :criterium/allocation-hotspots
+                       :hotspots []}}]
+        (view/allocation-hotspots* :kindly {} data-map)
+        (is (nil? (kindly/flush)))))
+
+    (testing "handles nil hotspots gracefully"
+      (reset! kindly/accumulated [])
+      (view/allocation-hotspots* :kindly {} {:allocation-hotspots nil})
+      (is (nil? (kindly/flush))))))
+
+(deftest allocation-by-type-view-test
+  ;; Tests the view/allocation-by-type* multimethod for :kindly viewer.
+  ;; Verifies that by-type data is rendered as a heading and table with
+  ;; type, count, bytes, freed-count, and freed-bytes columns, sorted by bytes.
+  (testing "view/allocation-by-type* :kindly"
+    (testing "renders by-type as heading and table sorted by bytes"
+      (reset! kindly/accumulated [])
+      (let [data-map {:allocation-by-type
+                      {:type :criterium/allocation-by-type
+                       :by-type {"[B" {:count 10 :bytes 1024
+                                       :freed-count 5 :freed-bytes 512}
+                                 "java.lang.String" {:count 50 :bytes 4096
+                                                     :freed-count 25 :freed-bytes 2048}
+                                 "[J" {:count 5 :bytes 512
+                                       :freed-count 2 :freed-bytes 256}}}}]
+        (view/allocation-by-type* :kindly {} data-map)
+        (let [result (kindly/flush)]
+          (is (= :kind/fragment (:kindly/kind (meta result))))
+          (is (= 2 (count result))
+              "Expected heading and table")
+          (let [[heading table] result]
+            (is (= :kind/md (:kindly/kind (meta heading))))
+            (is (= ["**Allocations by Type**"] heading))
+            (is (= :kind/table (:kindly/kind (meta table))))
+            (is (= 3 (count table))
+                "Expected 3 type rows")
+            ;; Verify sorted by bytes descending
+            (is (= "java.lang.String" (:type (first table)))
+                "Expected String first (highest bytes)")
+            (is (= "[B" (:type (second table)))
+                "Expected byte array second")
+            (is (= "[J" (:type (nth table 2)))
+                "Expected long array last (lowest bytes)")
+            (let [first-row (first table)]
+              (is (= 50 (:count first-row)))
+              (is (string? (:bytes first-row))
+                  "Expected formatted byte value"))))))
+
+    (testing "handles empty by-type gracefully"
+      (reset! kindly/accumulated [])
+      (let [data-map {:allocation-by-type
+                      {:type :criterium/allocation-by-type
+                       :by-type {}}}]
+        (view/allocation-by-type* :kindly {} data-map)
+        (is (nil? (kindly/flush)))))
+
+    (testing "handles nil by-type gracefully"
+      (reset! kindly/accumulated [])
+      (view/allocation-by-type* :kindly {} {:allocation-by-type nil})
+      (is (nil? (kindly/flush))))))
