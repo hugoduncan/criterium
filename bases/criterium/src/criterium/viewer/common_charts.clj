@@ -590,14 +590,12 @@
         height (or (:height opts) 400)
         color-scheme (or (:color-scheme opts) "tableau10")
         root (:root treemap-data)
-        flat-data (when root (flatten-treemap-node root))
+        flat-data (when root (vec (flatten-treemap-node root)))
         size-by (or (:size-by treemap-data) :bytes)
         value-format (if (= size-by :count) "d" "~s")]
     {:$schema "https://vega.github.io/schema/vega/v5.json"
      :width width
      :height height
-     :padding 2
-     :autosize "none"
 
      :data [{:name "tree"
              :values (or flat-data [])
