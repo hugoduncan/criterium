@@ -219,6 +219,107 @@
             result (analyse {:samples {:allocation-trace sample-trace}})]
         (is (contains? result :my-by-type))))))
 
+;; Tests for treemap-fn.
+;; Validates hierarchical treemap generation with various grouping, sizing,
+;; and filtering options.
+(deftest treemap-fn-test
+  (testing "treemap-fn"
+    (testing "with default options produces correct hierarchy"
+      ;; Default: :class→line→type grouping, :bytes sizing, :all filtering
+      (let [analyse (analysis/treemap-fn)
+            result (analyse {:samples {:allocation-trace sample-trace}})
+            treemap (:allocation-treemap result)
+            root (:root treemap)]
+        (is (= :criterium/allocation-treemap (:type treemap)))
+        (is (= :class→line→type (:group-by treemap)))
+        (is (= :bytes (:size-by treemap)))
+        (is (= "allocations" (:name root)))
+        ;; Total bytes: 48 + 64 + 1024 + 24 = 1160
+        (is (= 1160 (:value root)))
+        ;; Should have children for each call-class
+        (is (contains? root :children))
+        (is (= 2 (count (:children root))))))
+
+    (testing "with :type→class→line grouping"
+      (let [analyse (analysis/treemap-fn {:group-by :type→class→line})
+            result (analyse {:samples {:allocation-trace sample-trace}})
+            treemap (:allocation-treemap result)
+            root (:root treemap)]
+        (is (= :type→class→line (:group-by treemap)))
+        ;; Should have children for each object-type (String, [J, Long)
+        (is (= 3 (count (:children root))))))
+
+    (testing "with :size-by :count"
+      (let [analyse (analysis/treemap-fn {:size-by :count})
+            result (analyse {:samples {:allocation-trace sample-trace}})
+            root (get-in result [:allocation-treemap :root])]
+        ;; Total count: 4 allocations
+        (is (= 4 (:value root)))))
+
+    (testing "with :size-by :bytes-per-allocation"
+      ;; Total bytes = 1160, total count = 4
+      ;; Average = 290.0
+      (let [analyse (analysis/treemap-fn {:size-by :bytes-per-allocation})
+            result (analyse {:samples {:allocation-trace sample-trace}})
+            root (get-in result [:allocation-treemap :root])]
+        ;; Value should be sum of children's bytes-per-allocation values
+        (is (number? (:value root)))
+        (is (pos? (:value root)))))
+
+    (testing "with :filter-by :freed"
+      ;; Only freed records: String (48 bytes) + [J (1024 bytes)
+      (let [analyse (analysis/treemap-fn {:filter-by :freed})
+            result (analyse {:samples {:allocation-trace sample-trace}})
+            root (get-in result [:allocation-treemap :root])]
+        (is (= (+ 48 1024) (:value root)))))
+
+    (testing "with :filter-by :not-freed"
+      ;; Only not-freed records: String (64 bytes) + Long (24 bytes)
+      (let [analyse (analysis/treemap-fn {:filter-by :not-freed})
+            result (analyse {:samples {:allocation-trace sample-trace}})
+            root (get-in result [:allocation-treemap :root])]
+        (is (= (+ 64 24) (:value root)))))
+
+    (testing "returns unchanged data-map when trace absent"
+      (let [analyse (analysis/treemap-fn)
+            input {:other :data}
+            result (analyse input)]
+        (is (= input result))
+        (is (not (contains? result :allocation-treemap)))))
+
+    (testing "hierarchical values sum correctly"
+      (let [analyse (analysis/treemap-fn)
+            result (analyse {:samples {:allocation-trace sample-trace}})
+            root (get-in result [:allocation-treemap :root])]
+        ;; Sum of all children values should equal root value
+        (let [children-sum (reduce + 0 (map :value (:children root)))]
+          (is (= (:value root) children-sum)))
+        ;; Check one level deeper - my.ns$fn class
+        (let [my-ns-node (first (filter #(= "my.ns$fn" (:name %))
+                                        (:children root)))]
+          (when my-ns-node
+            (let [children-sum (reduce + 0 (map :value (:children my-ns-node)))]
+              (is (= (:value my-ns-node) children-sum)))))))
+
+    (testing "uses custom :id option"
+      (let [analyse (analysis/treemap-fn {:id :my-treemap})
+            result (analyse {:samples {:allocation-trace sample-trace}})]
+        (is (contains? result :my-treemap))
+        (is (not (contains? result :allocation-treemap)))))
+
+    (testing "uses custom :trace-id option"
+      (let [analyse (analysis/treemap-fn {:trace-id [:custom :path]})
+            result (analyse {:custom {:path sample-trace}})]
+        (is (contains? result :allocation-treemap))))
+
+    (testing "returns empty root for empty trace"
+      (let [analyse (analysis/treemap-fn)
+            result (analyse {:samples {:allocation-trace empty-trace}})
+            root (get-in result [:allocation-treemap :root])]
+        (is (= "allocations" (:name root)))
+        (is (= 0 (:value root)))
+        (is (not (contains? root :children)))))))
+
 (deftest ->allocation-analyse-test
   (testing "->allocation-analyse"
     (testing "composes multiple analysis functions"

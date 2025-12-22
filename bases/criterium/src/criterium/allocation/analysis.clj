@@ -69,33 +69,33 @@
   ([{:keys [id trace-id]}]
    (fn [data-map]
      (let [trace-id (or trace-id [:samples :allocation-trace])
-           id       (or id :allocation-summary)
-           trace    (get-in data-map trace-id)]
+           id (or id :allocation-summary)
+           trace (get-in data-map trace-id)]
        (if-not trace
          data-map
-         (let [records         (:records trace)
-               result          (reduce
-                                (fn [acc record]
-                                  (let [size   (long (:object_size record 0))
-                                        freed? (:freed record)]
-                                    (-> acc
-                                        (update :total-allocated + size)
-                                        (update :num-allocations inc)
-                                        (cond->
-                                          freed? (-> (update :total-freed + size)
-                                                     (update :num-freed inc))))))
-                                {:type            :criterium/allocation-summary
-                                 :transform       {:sample-> identity :->sample identity}
-                                 :total-allocated 0
-                                 :total-freed     0
-                                 :num-allocations 0
-                                 :num-freed       0}
-                                records)
+         (let [records (:records trace)
+               result (reduce
+                       (fn [acc record]
+                         (let [size (long (:object_size record 0))
+                               freed? (:freed record)]
+                           (-> acc
+                               (update :total-allocated + size)
+                               (update :num-allocations inc)
+                               (cond->
+                                 freed? (-> (update :total-freed + size)
+                                            (update :num-freed inc))))))
+                       {:type :criterium/allocation-summary
+                        :transform {:sample-> identity :->sample identity}
+                        :total-allocated 0
+                        :total-freed 0
+                        :num-allocations 0
+                        :num-freed 0}
+                       records)
                total-allocated (long (:total-allocated result))
-               total-freed     (:total-freed result)
-               freed-ratio     (if (pos? total-allocated)
-                                 (/ (double total-freed) (double total-allocated))
-                                 0.0)]
+               total-freed (:total-freed result)
+               freed-ratio (if (pos? total-allocated)
+                             (/ (double total-freed) (double total-allocated))
+                             0.0)]
            (assoc data-map id (assoc result :freed-ratio freed-ratio))))))))
 
 (defn hotspots-fn
@@ -227,6 +227,134 @@
     (if (sequential? x)
       (apply (util/maybe-var-get (first x) options) (rest x))
       ((util/maybe-var-get x options)))))
+
+(defn- filter-records
+  "Filter allocation records based on freed status."
+  [records filter-by]
+  (case filter-by
+    :freed (filterv :freed records)
+    :not-freed (filterv (complement :freed) records)
+    :all records
+    records))
+
+(defn- compute-value
+  "Compute the value for a node based on size-by option."
+  [^long count ^long bytes size-by]
+  (case size-by
+    :count count
+    :bytes bytes
+    :bytes-per-allocation (if (pos? count)
+                            (/ (double bytes) (double count))
+                            0.0)
+    bytes))
+
+(defn- build-treemap-node
+  "Build a treemap node with children, computing values bottom-up.
+  Leaf nodes in the hierarchy have {:count N :bytes M} structure."
+  [name children-map size-by]
+  (if (empty? children-map)
+    {:name name :value 0}
+    (let [children (mapv (fn [[child-name child-data]]
+                           (if (and (map? child-data)
+                                    (contains? child-data :count)
+                                    (contains? child-data :bytes))
+                             ;; Leaf node with :count/:bytes
+                             {:name child-name
+                              :value (compute-value (long (:count child-data))
+                                                    (long (:bytes child-data))
+                                                    size-by)}
+                             ;; Intermediate node - recurse
+                             (build-treemap-node child-name child-data size-by)))
+                         children-map)
+          total-value (reduce + 0.0 (map :value children))]
+      (cond-> {:name name :value (if (every? integer? (map :value children))
+                                   (long total-value)
+                                   total-value)}
+        (seq children) (assoc :children children)))))
+
+(defn- group-by-hierarchy
+  "Group records into nested maps according to hierarchy.
+  Returns nested maps where leaves have {:count N :bytes M}."
+  [records group-by-opt]
+  (let [extract-keys (case group-by-opt
+                       :class→line→type
+                       (fn [r]
+                         (let [site (call-site-key r)]
+                           [(:call-class site)
+                            (str "L" (:call-line site))
+                            (:object-type r)]))
+
+                       :type→class→line
+                       (fn [r]
+                         (let [site (call-site-key r)]
+                           [(:object-type r)
+                            (:call-class site)
+                            (str "L" (:call-line site))]))
+
+                       ;; Default to :class→line→type
+                       (fn [r]
+                         (let [site (call-site-key r)]
+                           [(:call-class site)
+                            (str "L" (:call-line site))
+                            (:object-type r)])))]
+    (reduce
+     (fn [tree record]
+       (let [[k1 k2 k3] (extract-keys record)
+             size (long (:object_size record 0))]
+         (update-in tree [k1 k2 k3]
+                    (fn [stats]
+                      (let [cnt (long (get stats :count 0))
+                            bts (long (get stats :bytes 0))]
+                        {:count (inc cnt) :bytes (+ bts size)})))))
+     {}
+     records)))
+
+(defn treemap-fn
+  "Returns a function that transforms allocation records into hierarchical treemap data.
+
+  Parameters:
+    opts - Map with keys:
+      :id        - Key for result in output (default: :allocation-treemap)
+      :trace-id  - Path for source allocation trace (default: [:samples :allocation-trace])
+      :group-by  - Hierarchy option:
+                   :class→line→type (default): calling-class → calling-line → object-type
+                   :type→class→line: object-type → calling-class → calling-line
+      :size-by   - Value for node sizing: :count, :bytes, :bytes-per-allocation (default: :bytes)
+      :filter-by - Filter records: :freed, :not-freed, :all (default: :all)
+
+  The returned function:
+  - Takes a data-map containing an allocation trace at :trace-id path
+  - Returns the data-map with treemap added under :id
+  - Returns data-map unchanged if trace is not present (no-op)
+
+  Treemap result contains:
+    :type     - :criterium/allocation-treemap
+    :group-by - The grouping option used
+    :size-by  - The sizing option used
+    :root     - Root node with :name, :value, and optional :children
+                Leaf nodes have no :children key
+                Values at each level are sum of children values"
+  ([] (treemap-fn {}))
+  ([{:keys [id trace-id group-by size-by filter-by]}]
+   (fn [data-map]
+     (let [trace-id (or trace-id [:samples :allocation-trace])
+           id (or id :allocation-treemap)
+           group-by (or group-by :class→line→type)
+           size-by (or size-by :bytes)
+           filter-by (or filter-by :all)
+           trace (get-in data-map trace-id)]
+       (if-not trace
+         data-map
+         (let [records (:records trace)
+               filtered (filter-records records filter-by)
+               hierarchy (group-by-hierarchy filtered group-by)
+               root (build-treemap-node "allocations" hierarchy size-by)]
+           (assoc data-map id
+                  {:type :criterium/allocation-treemap
+                   :transform {:sample-> identity :->sample identity}
+                   :group-by group-by
+                   :size-by size-by
+                   :root root})))))))
 
 (defn ->allocation-analyse
   "Creates a composite analysis function from a sequence of analysis specs.
