@@ -7,7 +7,6 @@
    [criterium.bench-plans :as bench-plans]
    [criterium.bench.config :as bench-config]
    [criterium.bench.impl :as bench-impl]
-   [criterium.types :as types]
    [criterium.viewer.kindly :as kindly]))
 
 (deftest bench-test

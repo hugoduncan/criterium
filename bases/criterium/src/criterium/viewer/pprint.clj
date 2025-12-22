@@ -3,7 +3,6 @@
   (:require
    [clojure.pprint :as pprint]
    [criterium.metric :as metric]
-   [criterium.util.format :as format]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have]]
    [criterium.view :as view]
