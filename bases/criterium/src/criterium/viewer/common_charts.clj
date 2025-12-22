@@ -546,7 +546,7 @@
 (defn- flatten-treemap-node
   "Flatten a hierarchical treemap node into a sequence of flat records.
   Each record has :id, :parent, and :name keys for use with Vega stratify.
-  Only leaf nodes get :value - parent sizes are computed by Vega's treemap transform."
+  Only leaf nodes get stats - parent sizes are computed by Vega's treemap transform."
   ([node] (flatten-treemap-node node nil []))
   ([node parent-id path]
    (let [node-name (:name node)
@@ -559,8 +559,12 @@
                               :parent parent-id
                               :name node-name
                               :depth (count path)}
-                       ;; Only set value on leaf nodes
-                       (not children) (assoc :value (:value node 0)))]
+                       ;; Only set stats on leaf nodes
+                       (not children) (assoc :value (:value node 0)
+                                             :bytes (:bytes node)
+                                             :count (:count node)
+                                             :freed-bytes (:freed-bytes node 0)
+                                             :freed-count (:freed-count node 0)))]
      (if children
        (cons node-record
              (mapcat #(flatten-treemap-node % node-id current-path) children))
@@ -652,8 +656,11 @@
                 :fill {:value "transparent"}
                 :tooltip
                 {:signal
-                 (str "{'Name': datum.name, "
-                      "'Value': format(datum.value, '" value-format "'), "
-                      "'Path': replace(datum.id, /^[^/]+\\//, '')}")}}
+                 (str "{'Type': datum.name, "
+                      "'Bytes': format(datum.bytes, '~s'), "
+                      "'Count': datum.count, "
+                      "'Bytes/Alloc': format(datum.bytes / datum.count, '.1f'), "
+                      "'Freed %': format(datum['freed-count'] / datum.count, '.1%'), "
+                      "'Path': replace(replace(datum.id, /^[^/]+\\//, ''), /\\/[^/]+$/, '')}")}}
                :hover
                {:fill {:value "rgba(0,0,0,0.1)"}}}}]}))

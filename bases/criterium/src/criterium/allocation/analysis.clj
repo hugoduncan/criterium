@@ -250,7 +250,8 @@
 
 (defn- build-treemap-node
   "Build a treemap node with children, computing values bottom-up.
-  Leaf nodes in the hierarchy have {:count N :bytes M} structure."
+  Leaf nodes in the hierarchy have {:count N :bytes M :freed-count K :freed-bytes L}.
+  Leaf nodes in output preserve all stats for tooltips."
   [name children-map size-by]
   (if (empty? children-map)
     {:name name :value 0}
@@ -258,11 +259,15 @@
                            (if (and (map? child-data)
                                     (contains? child-data :count)
                                     (contains? child-data :bytes))
-                             ;; Leaf node with :count/:bytes
+                             ;; Leaf node with stats - preserve them
                              {:name child-name
                               :value (compute-value (long (:count child-data))
                                                     (long (:bytes child-data))
-                                                    size-by)}
+                                                    size-by)
+                              :bytes (:bytes child-data)
+                              :count (:count child-data)
+                              :freed-bytes (:freed-bytes child-data 0)
+                              :freed-count (:freed-count child-data 0)}
                              ;; Intermediate node - recurse
                              (build-treemap-node child-name child-data size-by)))
                          children-map)
@@ -274,7 +279,7 @@
 
 (defn- group-by-hierarchy
   "Group records into nested maps according to hierarchy.
-  Returns nested maps where leaves have {:count N :bytes M}."
+  Returns nested maps where leaves have {:count N :bytes M :freed-count K :freed-bytes L}."
   [records group-by-opt]
   (let [extract-keys (case group-by-opt
                        :class→line→type
@@ -300,12 +305,18 @@
     (reduce
      (fn [tree record]
        (let [[k1 k2 k3] (extract-keys record)
-             size (long (:object_size record 0))]
+             size (long (:object_size record 0))
+             freed? (:freed record)]
          (update-in tree [k1 k2 k3]
                     (fn [stats]
-                      (let [cnt (long (get stats :count 0))
-                            bts (long (get stats :bytes 0))]
-                        {:count (inc cnt) :bytes (+ bts size)})))))
+                      (let [stats (or stats {:count 0 :bytes 0
+                                             :freed-count 0 :freed-bytes 0})]
+                        (-> stats
+                            (update :count inc)
+                            (update :bytes + size)
+                            (cond->
+                              freed? (-> (update :freed-count inc)
+                                         (update :freed-bytes + size)))))))))
      {}
      records)))
 
