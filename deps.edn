@@ -8,7 +8,7 @@
     poly/notebooks {:local/root "bases/notebooks"}
     lambdaisland/kaocha {:mvn/version "1.87.1366"}
     lambdaisland/kaocha-cloverage {:mvn/version "1.1.89"}
-    org.clojure/clojure {:mvn/version "1.12.0"}}
+    org.clojure/clojure {:mvn/version "1.12.4"}}
    :jvm-opts ["-Djdk.attach.allowAttachSelf"]}
   :test {:extra-paths ["bases/criterium/test"
                        "bases/blackhole/test"
