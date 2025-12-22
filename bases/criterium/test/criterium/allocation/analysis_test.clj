@@ -93,34 +93,43 @@
         (is (= :preserved (:other-data result)))))))
 
 (deftest hotspots-fn-test
+  ;; Tests hotspots-fn which groups allocations by (call-site, object-type) pairs.
+  ;; Verifies aggregation, sorting, limiting, and fallback behavior.
   (testing "hotspots-fn"
-    (testing "groups allocations by call-site"
+    (testing "groups allocations by call-site and object-type"
       (let [analyse (analysis/hotspots-fn)
             result (analyse {:samples {:allocation-trace sample-trace}})
             hotspots (get-in result [:allocation-hotspots :hotspots])]
         (is (= :criterium/allocation-hotspots
                (get-in result [:allocation-hotspots :type])))
-        (is (= 2 (count hotspots)))
+        ;; With (call-site, object-type) grouping:
+        ;; - other.ns$bar + [J: 1024 bytes (1 alloc)
+        ;; - my.ns$fn + String: 112 bytes (2 allocs)
+        ;; - my.ns$fn + Long: 24 bytes (1 alloc)
+        (is (= 3 (count hotspots)))
         ;; First hotspot should be the one with most bytes
         (let [first-hotspot (first hotspots)]
           (is (= "other.ns$bar"
                  (get-in first-hotspot [:call-site :call-class])))
+          (is (= "[J" (:object-type first-hotspot)))
           (is (= 1024 (:bytes first-hotspot)))
           (is (= 1 (:count first-hotspot))))))
 
-    (testing "aggregates stats for same call-site"
+    (testing "aggregates stats for same call-site and object-type"
       (let [analyse (analysis/hotspots-fn)
             result (analyse {:samples {:allocation-trace sample-trace}})
             hotspots (get-in result [:allocation-hotspots :hotspots])
-            my-ns-hotspot (first (filter #(= "my.ns$fn"
-                                             (get-in % [:call-site :call-class]))
-                                         hotspots))]
-        (is (= 3 (:count my-ns-hotspot)))
-        (is (= (+ 48 64 24) (:bytes my-ns-hotspot)))
-        (is (= 1 (:freed-count my-ns-hotspot)))
-        (is (= 48 (:freed-bytes my-ns-hotspot)))
-        (is (= #{"Ljava/lang/String;" "Ljava/lang/Long;"}
-               (:object-types my-ns-hotspot)))))
+            string-hotspot (first (filter #(and (= "my.ns$fn"
+                                                   (get-in % [:call-site :call-class]))
+                                                (= "Ljava/lang/String;"
+                                                   (:object-type %)))
+                                          hotspots))]
+        ;; Two String allocations from my.ns$fn: 48 + 64 = 112 bytes
+        (is (= 2 (:count string-hotspot)))
+        (is (= (+ 48 64) (:bytes string-hotspot)))
+        (is (= 1 (:freed-count string-hotspot)))
+        (is (= 48 (:freed-bytes string-hotspot)))
+        (is (= "Ljava/lang/String;" (:object-type string-hotspot)))))
 
     (testing "respects :limit option"
       (let [analyse (analysis/hotspots-fn {:limit 1})
@@ -132,9 +141,10 @@
       (let [analyse (analysis/hotspots-fn {:order-by :count})
             result (analyse {:samples {:allocation-trace sample-trace}})
             hotspots (get-in result [:allocation-hotspots :hotspots])]
-        ;; my.ns$fn has 3 allocations, other.ns$bar has 1
+        ;; my.ns$fn + String has 2 allocations (highest count)
         (is (= "my.ns$fn"
-               (get-in (first hotspots) [:call-site :call-class])))))
+               (get-in (first hotspots) [:call-site :call-class])))
+        (is (= "Ljava/lang/String;" (:object-type (first hotspots))))))
 
     (testing "returns empty vector for empty trace"
       (let [analyse (analysis/hotspots-fn)
@@ -171,7 +181,8 @@
         (is (= "java.lang.Object" (get-in hotspot [:call-site :call-class])))
         (is (= "<init>" (get-in hotspot [:call-site :call-method])))
         (is (= "Object.java" (get-in hotspot [:call-site :call-file])))
-        (is (= 50 (get-in hotspot [:call-site :call-line])))))))
+        (is (= 50 (get-in hotspot [:call-site :call-line])))
+        (is (= "Ljava/lang/Object;" (:object-type hotspot)))))))
 
 (deftest by-type-fn-test
   (testing "by-type-fn"

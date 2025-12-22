@@ -26,22 +26,22 @@
         alloc-useful? (useful-string? alloc-class)]
     (cond
       call-useful?
-      {:call-class  call-class
+      {:call-class call-class
        :call-method (:call-method record)
-       :call-file   (:call-file record)
-       :call-line   (:call-line record)}
+       :call-file (:call-file record)
+       :call-line (:call-line record)}
 
       alloc-useful?
-      {:call-class  alloc-class
+      {:call-class alloc-class
        :call-method (:alloc-method record)
-       :call-file   (:alloc-file record)
-       :call-line   (:alloc-line record)}
+       :call-file (:alloc-file record)
+       :call-line (:alloc-line record)}
 
       :else
-      {:call-class  (:object-type record)
+      {:call-class (:object-type record)
        :call-method nil
-       :call-file   nil
-       :call-line   nil})))
+       :call-file nil
+       :call-line nil})))
 
 ;;; Analysis Functions
 
@@ -93,7 +93,7 @@
            (assoc data-map id result)))))))
 
 (defn hotspots-fn
-  "Returns a function that identifies allocation hotspots by call-site.
+  "Returns a function that identifies allocation hotspots by call-site and object type.
 
   Parameters:
     opts - Map with keys:
@@ -111,7 +111,7 @@
     :type     - :criterium/allocation-hotspots
     :hotspots - Vector of maps sorted by bytes descending:
                 [{:call-site {:call-class ... :call-method ... :call-file ... :call-line ...}
-                  :object-types #{\"Ljava/lang/String;\" ...}
+                  :object-type \"Ljava/lang/String;\"
                   :count N
                   :bytes M
                   :freed-count K
@@ -129,22 +129,21 @@
          (let [limit (or limit 10)
                sort-key (or order-by :bytes)
                records (:records trace)
-               ;; Group by call-site and aggregate
+               ;; Group by (call-site, object-type) pair
                grouped (reduce
                         (fn [acc record]
                           (let [site (call-site-key record)
                                 obj-type (:object-type record)
+                                key [site obj-type]
                                 size (long (:object_size record 0))
                                 freed? (:freed record)]
-                            (update acc site
+                            (update acc key
                                     (fn [stats]
                                       (let [stats (or stats {:count 0 :bytes 0
-                                                             :freed-count 0 :freed-bytes 0
-                                                             :object-types #{}})]
+                                                             :freed-count 0 :freed-bytes 0})]
                                         (-> stats
                                             (update :count inc)
                                             (update :bytes + size)
-                                            (update :object-types conj obj-type)
                                             (cond->
                                               freed? (-> (update :freed-count inc)
                                                          (update :freed-bytes + size)))))))))
@@ -152,8 +151,10 @@
                         records)
                ;; Convert to vector and sort
                hotspots (->> grouped
-                             (mapv (fn [[site stats]]
-                                     (assoc stats :call-site site)))
+                             (mapv (fn [[[site obj-type] stats]]
+                                     (assoc stats
+                                            :call-site site
+                                            :object-type obj-type)))
                              (sort-by sort-key >)
                              (take limit)
                              vec)]
