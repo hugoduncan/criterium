@@ -47,16 +47,21 @@
             values (:values tree-data)]
         (is (= "tree" (:name tree-data)))
         (is (= 5 (count values)) "Expected 5 nodes in flattened tree")
+        ;; Root node (parent) - no value, Vega computes from children
         (is (= "root" (:id (first values))))
         (is (nil? (:parent (first values))))
         (is (= "allocations" (:name (first values))))
-        (is (= 1000 (:value (first values))))
-        ;; Check a child node
+        (is (nil? (:value (first values))) "Parent nodes should not have values")
+        ;; Check an intermediate node (parent)
         (let [myclass-node (second values)]
           (is (= "allocations/MyClass" (:id myclass-node)))
           (is (= "root" (:parent myclass-node)))
           (is (= "MyClass" (:name myclass-node)))
-          (is (= 800 (:value myclass-node))))))
+          (is (nil? (:value myclass-node)) "Parent nodes should not have values"))
+        ;; Check leaf nodes have values
+        (let [leaf-nodes (filter :value values)]
+          (is (= 3 (count leaf-nodes)) "Expected 3 leaf nodes with values")
+          (is (= #{500 300 200} (set (map :value leaf-nodes)))))))
 
     (testing "respects width/height options"
       (let [spec (charts/treemap-vega-spec sample-treemap {:width 500 :height 300})]
@@ -82,7 +87,8 @@
         (is (= "https://vega.github.io/schema/vega/v5.json" (:$schema spec)))
         (let [values (-> spec :data first :values)]
           (is (= 1 (count values)))
-          (is (= "root" (:id (first values)))))))
+          (is (= "root" (:id (first values))))
+          (is (= 0 (:value (first values))) "Single node (leaf) has value"))))
 
     (testing "with nil root produces empty data"
       (let [nil-treemap {:type :criterium/allocation-treemap

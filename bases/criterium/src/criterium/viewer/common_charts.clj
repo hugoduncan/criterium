@@ -545,7 +545,8 @@
 
 (defn- flatten-treemap-node
   "Flatten a hierarchical treemap node into a sequence of flat records.
-  Each record has :id, :parent, :value, and :name keys for use with Vega stratify."
+  Each record has :id, :parent, and :name keys for use with Vega stratify.
+  Only leaf nodes get :value - parent sizes are computed by Vega's treemap transform."
   ([node] (flatten-treemap-node node nil []))
   ([node parent-id path]
    (let [node-name (:name node)
@@ -553,12 +554,14 @@
                    "root"
                    (str/join "/" (conj path node-name)))
          current-path (conj path node-name)
-         node-record {:id node-id
-                      :parent parent-id
-                      :name node-name
-                      :value (:value node 0)
-                      :depth (count path)}]
-     (if-let [children (:children node)]
+         children (:children node)
+         node-record (cond-> {:id node-id
+                              :parent parent-id
+                              :name node-name
+                              :depth (count path)}
+                       ;; Only set value on leaf nodes
+                       (not children) (assoc :value (:value node 0)))]
+     (if children
        (cons node-record
              (mapcat #(flatten-treemap-node % node-id current-path) children))
        [node-record]))))
