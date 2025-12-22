@@ -63,7 +63,8 @@
     :total-allocated - Total bytes allocated
     :total-freed     - Total bytes from freed objects
     :num-allocations - Total number of allocations
-    :num-freed       - Number of allocations that were freed"
+    :num-freed       - Number of allocations that were freed
+    :freed-ratio     - Ratio of bytes freed to bytes allocated (0.0 to 1.0)"
   ([] (summary-fn {}))
   ([{:keys [id trace-id]}]
    (fn [data-map]
@@ -89,8 +90,13 @@
                         :total-freed 0
                         :num-allocations 0
                         :num-freed 0}
-                       records)]
-           (assoc data-map id result)))))))
+                       records)
+               total-allocated (:total-allocated result)
+               total-freed (:total-freed result)
+               freed-ratio (if (pos? total-allocated)
+                             (/ (double total-freed) (double total-allocated))
+                             0.0)]
+           (assoc data-map id (assoc result :freed-ratio freed-ratio))))))))
 
 (defn hotspots-fn
   "Returns a function that identifies allocation hotspots by call-site and object type.

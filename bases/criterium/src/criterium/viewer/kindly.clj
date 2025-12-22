@@ -405,7 +405,8 @@
   (let [summary-id (or summary-id :allocation-summary)
         summary (data-map summary-id)]
     (when summary
-      (let [{:keys [total-allocated total-freed num-allocations num-freed]} summary
+      (let [{:keys [total-allocated total-freed num-allocations num-freed
+                    freed-ratio]} summary
             retained (- (long total-allocated) (long total-freed))]
         (kindly-heading "Allocation Summary")
         (kindly-table
@@ -420,11 +421,7 @@
           {:metric "Freed count"
            :value num-freed}
           {:metric "Freed ratio"
-           :value (if (pos? (long total-allocated))
-                    (clojure.core/format "%.1f%%"
-                                         (* 100.0 (/ (double total-freed)
-                                                     (double total-allocated))))
-                    "N/A")}])))))
+           :value (clojure.core/format "%.1f%%" (* 100.0 freed-ratio))}])))))
 
 (defmethod view/allocation-hotspots* :kindly
   [_ {:keys [hotspots-id]} data-map]
