@@ -656,7 +656,7 @@
                 {:signal
                  (str "{'Name': datum.name, "
                       "'Value': format(datum.value, '" value-format "'), "
-                      "'Path': datum.id}")}}
+                      "'Path': replace(datum.id, /^[^/]+\\//, '')}")}}
                :hover
                {:fill {:value "rgba(0,0,0,0.1)"}}}}
              ;; Text labels for larger cells
