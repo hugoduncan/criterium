@@ -933,3 +933,11 @@
                              freed-count
                              freed-bytes
                              type-name))))))))
+
+(defmethod view/allocation-treemap* :print
+  [_ {:keys [treemap-id]} data-map]
+  (let [treemap-id (or treemap-id :allocation-treemap)
+        treemap-data (data-map treemap-id)]
+    (when (and treemap-data (:root treemap-data))
+      (println)
+      (println (viewer-common/render-ascii-treemap treemap-data)))))

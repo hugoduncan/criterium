@@ -878,3 +878,67 @@
                                                    :bytes 100
                                                    :freed-count 5
                                                    :freed-bytes 50}}}}))))))))
+
+(deftest allocation-treemap-print-test
+  ;; Tests the print viewer output for allocation-treemap results.
+  ;; Verifies that ASCII treemap is rendered with proper structure.
+  (testing "allocation-treemap*"
+    (testing "prints ASCII tree structure with header"
+      (let [treemap-data {:type :criterium/allocation-treemap
+                          :group-by :class→line→type
+                          :size-by :bytes
+                          :root {:name "allocations"
+                                 :value 1024
+                                 :children [{:name "MyClass"
+                                             :value 1024
+                                             :children [{:name "L42"
+                                                         :value 1024
+                                                         :children [{:name "String"
+                                                                     :value 1024}]}]}]}}
+            output (with-out-str
+                     (view/allocation-treemap*
+                      :print
+                      {}
+                      {:allocation-treemap treemap-data}))
+            lines (str/split-lines output)]
+        (is (str/includes? (first (drop-while str/blank? lines))
+                           "Allocation Treemap"))
+        (is (str/includes? output "class→line→type"))
+        (is (str/includes? output "bytes"))
+        (is (str/includes? output "allocations/"))
+        (is (str/includes? output "MyClass/"))
+        (is (str/includes? output "L42/"))
+        (is (str/includes? output "String"))))
+
+    (testing "handles missing treemap data"
+      (let [output (with-out-str
+                     (view/allocation-treemap*
+                      :print
+                      {}
+                      {}))]
+        (is (str/blank? output))))
+
+    (testing "handles nil root"
+      (let [output (with-out-str
+                     (view/allocation-treemap*
+                      :print
+                      {}
+                      {:allocation-treemap {:type :criterium/allocation-treemap
+                                            :root nil}}))]
+        (is (str/blank? output))))
+
+    (testing "uses custom treemap-id"
+      (let [treemap-data {:type :criterium/allocation-treemap
+                          :group-by :type→class→line
+                          :size-by :count
+                          :root {:name "allocations"
+                                 :value 100
+                                 :children [{:name "Object" :value 100}]}}
+            output (with-out-str
+                     (view/allocation-treemap*
+                      :print
+                      {:treemap-id :my-treemap}
+                      {:my-treemap treemap-data}))]
+        (is (str/includes? output "type→class→line"))
+        (is (str/includes? output "count"))
+        (is (str/includes? output "Object"))))))

@@ -304,7 +304,7 @@
 (defmethod view/allocation-summary* :pprint
   [_ {:keys [summary-id]} data-map]
   (let [summary-id (or summary-id :allocation-summary)
-        summary    (data-map summary-id)]
+        summary (data-map summary-id)]
     (when summary
       (let [{:keys [^long total-allocated ^long total-freed
                     num-allocations num-freed
@@ -315,17 +315,17 @@
         (pprint/print-table
          [:metric :value]
          [{:metric "Total allocated"
-           :value  (str total-allocated " bytes")}
+           :value (str total-allocated " bytes")}
           {:metric "Total freed"
-           :value  (str total-freed " bytes")}
+           :value (str total-freed " bytes")}
           {:metric "Retained"
-           :value  (str retained " bytes")}
+           :value (str retained " bytes")}
           {:metric "Allocation count"
-           :value  num-allocations}
+           :value num-allocations}
           {:metric "Freed count"
-           :value  num-freed}
+           :value num-freed}
           {:metric "Freed ratio"
-           :value  (format "%.1f%%" (* 100.0 freed-ratio))}])))))
+           :value (format "%.1f%%" (* 100.0 freed-ratio))}])))))
 
 (defmethod view/allocation-hotspots* :pprint
   [_ {:keys [hotspots-id]} data-map]
@@ -364,3 +364,11 @@
                     :freed-count freed-count
                     :freed-bytes freed-bytes})
                  sorted)))))))
+
+(defmethod view/allocation-treemap* :pprint
+  [_ {:keys [treemap-id]} data-map]
+  (let [treemap-id (or treemap-id :allocation-treemap)
+        treemap-data (data-map treemap-id)]
+    (when (and treemap-data (:root treemap-data))
+      (println)
+      (println (viewer-common/render-ascii-treemap treemap-data)))))
