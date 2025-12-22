@@ -44,25 +44,25 @@
   ([] (transform-log {}))
   ([{:keys [id samples-id metric-ids] :as options}]
    (fn transform-log [data-map]
-     (let [samples-id      (or samples-id :samples)
-           id              (or id (keyword (str "log-" (name samples-id))))
+     (let [samples-id (or samples-id :samples)
+           id (or id (keyword (str "log-" (name samples-id))))
            metrics-samples (have types/generic-data-map? (data-map samples-id))
-           metrics-defs    (-> (:metrics-defs metrics-samples)
-                               (metric/select-metrics metric-ids)
-                               (metric/filter-metrics
-                                (every-pred
-                                 (metric/type-pred :quantitative)
-                                 (metric/dimension-pred :time))))
-           metric-configs  (metric/all-metric-configs metrics-defs)
-           transformed     (->
-                            (methods/transform
-                             metrics-samples
-                             metric-configs
-                             log
-                             exp
-                             options)
-                            (merge
-                             {:source-id samples-id :metrics-defs metrics-defs}))]
+           metrics-defs (-> (:metrics-defs metrics-samples)
+                            (metric/select-metrics metric-ids)
+                            (metric/filter-metrics
+                             (every-pred
+                              (metric/type-pred :quantitative)
+                              (metric/dimension-pred :time))))
+           metric-configs (metric/all-metric-configs metrics-defs)
+           transformed (->
+                        (methods/transform
+                         metrics-samples
+                         metric-configs
+                         log
+                         exp
+                         options)
+                        (merge
+                         {:source-id samples-id :metrics-defs metrics-defs}))]
        (assoc data-map id transformed)))))
 
 (defn quantiles
@@ -93,25 +93,25 @@
   ([{:keys [id samples-id metric-ids] :as analysis}]
    (fn quantiles [data-map]
      {:pre [(have? types/result-map? data-map)]}
-     (let [samples-id      (or samples-id :samples)
-           id              (or id :quantiles)
+     (let [samples-id (or samples-id :samples)
+           id (or id :quantiles)
            metrics-samples (data-map samples-id)
-           metrics-defs    (-> (:metrics-defs metrics-samples)
-                               (metric/select-metrics metric-ids)
-                               (metric/filter-metrics
-                                (metric/type-pred :quantitative)))
-           metric-configs  (metric/all-metric-configs metrics-defs)
-           quantiles       (methods/quantiles
-                            metrics-samples
-                            metric-configs
-                            analysis)
-           quantiles-map   (have
-                            types/quantiles-map?
-                            (merge
-                             {:type         :criterium/quantiles
-                              :source-id    samples-id
-                              :metrics-defs metrics-defs}
-                             quantiles))]
+           metrics-defs (-> (:metrics-defs metrics-samples)
+                            (metric/select-metrics metric-ids)
+                            (metric/filter-metrics
+                             (metric/type-pred :quantitative)))
+           metric-configs (metric/all-metric-configs metrics-defs)
+           quantiles (methods/quantiles
+                      metrics-samples
+                      metric-configs
+                      analysis)
+           quantiles-map (have
+                          types/quantiles-map?
+                          (merge
+                           {:type :criterium/quantiles
+                            :source-id samples-id
+                            :metrics-defs metrics-defs}
+                           quantiles))]
        (assoc data-map id quantiles-map)))))
 
 (defn outliers
@@ -150,29 +150,29 @@
   ([] (outliers {}))
   ([{:keys [id samples-id quantiles-id metric-ids]}]
    (fn [data-map]
-     (let [id              (or id :outliers)
-           quantiles-id    (or quantiles-id :quantiles)
-           samples-id      (or samples-id :samples)
-           all-quantiles   (have (data-map quantiles-id))
+     (let [id (or id :outliers)
+           quantiles-id (or quantiles-id :quantiles)
+           samples-id (or samples-id :samples)
+           all-quantiles (have (data-map quantiles-id))
            metrics-samples (have (data-map samples-id))
-           metrics-defs    (-> (:metrics-defs all-quantiles)
-                               (metric/select-metrics metric-ids))
-           metric-configs  (metric/all-metric-configs metrics-defs)]
+           metrics-defs (-> (:metrics-defs all-quantiles)
+                            (metric/select-metrics metric-ids))
+           metric-configs (metric/all-metric-configs metrics-defs)]
        (when-not all-quantiles
          (throw (ex-info
                  "outlier analysis requires quantiles analysis"
-                 {:quantiles-id  quantiles-id
+                 {:quantiles-id quantiles-id
                   :available-ids (keys data-map)})))
-       (let [outliers     (methods/outliers
-                           metrics-samples
-                           all-quantiles
-                           metric-configs
-                           {})
+       (let [outliers (methods/outliers
+                       metrics-samples
+                       all-quantiles
+                       metric-configs
+                       {})
              outliers-map (have
                            types/outliers-map?
                            (merge
-                            {:type         :criterium/outliers
-                             :source-id    samples-id
+                            {:type :criterium/outliers
+                             :source-id samples-id
                              :quantiles-id quantiles-id
                              :metrics-defs metrics-defs}
                             outliers))]
@@ -207,34 +207,34 @@
   ;; Returns {:mean 100.0 :variance 16.0 ...}"
   ([] (stats {}))
   ([{:keys [id samples-id outliers-id metric-ids]
-     :as   analysis}]
-   (let [samples-id  (or samples-id :samples)
-         id          (or id :stats)
+     :as analysis}]
+   (let [samples-id (or samples-id :samples)
+         id (or id :stats)
          outliers-id (or outliers-id :outliers)]
      (fn [data-map]
        (debug/dtap> {:stats id})
-       (let [outliers        (when outliers-id
-                               (data-map outliers-id))
+       (let [outliers (when outliers-id
+                        (data-map outliers-id))
              metrics-samples (have (data-map samples-id))
-             metrics-defs    (-> (have (:metrics-defs metrics-samples))
-                                 (metric/select-metrics metric-ids)
-                                 (metric/filter-metrics
-                                  (metric/type-pred :quantitative)))
-             metric-configs  (metric/all-metric-configs metrics-defs)
-             stats           (methods/stats
-                              metrics-samples
-                              outliers
-                              metric-configs
-                              analysis)
-             stats-map       (have
-                              types/stats-map?
-                              (merge
-                               {:type         :criterium/stats
-                                :metrics-defs metrics-defs
-                                :source-id    samples-id
-                                :outliers-id  outliers-id
-                                :batch-size   (:batch-size metrics-samples)}
-                               stats))]
+             metrics-defs (-> (have (:metrics-defs metrics-samples))
+                              (metric/select-metrics metric-ids)
+                              (metric/filter-metrics
+                               (metric/type-pred :quantitative)))
+             metric-configs (metric/all-metric-configs metrics-defs)
+             stats (methods/stats
+                    metrics-samples
+                    outliers
+                    metric-configs
+                    analysis)
+             stats-map (have
+                        types/stats-map?
+                        (merge
+                         {:type :criterium/stats
+                          :metrics-defs metrics-defs
+                          :source-id samples-id
+                          :outliers-id outliers-id
+                          :batch-size (:batch-size metrics-samples)}
+                         stats))]
          (assoc data-map id stats-map))))))
 
 (defn event-stats
@@ -265,26 +265,26 @@
   ;; Returns {:compilation {:time-ms 8 :sample-count 2} ...}"
   ([] (event-stats {}))
   ([{:keys [id samples-id metric-ids] :as analysis}]
-   (let [id         (or id :event-stats)
+   (let [id (or id :event-stats)
          samples-id (or samples-id :samples)]
      (fn [data-map]
        (debug/dtap> {:event-stats id})
        (let [metrics-samples (data-map samples-id)
-             metrics-defs    (-> (:metrics-defs metrics-samples)
-                                 (metric/select-metrics metric-ids)
-                                 (metric/filter-metrics
-                                  (metric/type-pred :event)))
-             event-stats     (methods/event-stats
-                              metrics-samples
-                              metrics-defs
-                              analysis)
-             es-map          (have
-                              types/event-stats-map?
-                              (merge
-                               {:type         :criterium/event-stats
-                                :source-id    samples-id
-                                :metrics-defs metrics-defs}
-                               event-stats))]
+             metrics-defs (-> (:metrics-defs metrics-samples)
+                              (metric/select-metrics metric-ids)
+                              (metric/filter-metrics
+                               (metric/type-pred :event)))
+             event-stats (methods/event-stats
+                          metrics-samples
+                          metrics-defs
+                          analysis)
+             es-map (have
+                     types/event-stats-map?
+                     (merge
+                      {:type :criterium/event-stats
+                       :source-id samples-id
+                       :metrics-defs metrics-defs}
+                      event-stats))]
          (assoc data-map id es-map))))))
 
 (defn histogram
@@ -310,36 +310,36 @@
     (get-in result [:histogram :elapsed-time]))"
   ([] (histogram {}))
   ([{:keys [id samples-id quantiles-id outliers-id metric-ids]
-     :as   analysis}]
-   (let [samples-id   (or samples-id :samples)
-         id           (or id :histograms)
+     :as analysis}]
+   (let [samples-id (or samples-id :samples)
+         id (or id :histograms)
          quantiles-id (or quantiles-id :quantiles)
-         outliers-id  (or outliers-id :outliers)]
+         outliers-id (or outliers-id :outliers)]
      (fn [data-map]
-       (let [outliers        (when outliers-id
-                               (data-map outliers-id))
-             quantiles       (util/lookup-data data-map quantiles-id)
+       (let [outliers (when outliers-id
+                        (data-map outliers-id))
+             quantiles (util/lookup-data data-map quantiles-id)
              metrics-samples (util/lookup-data data-map samples-id)
-             metrics-defs    (-> (have (:metrics-defs metrics-samples))
-                                 (metric/select-metrics metric-ids)
-                                 (metric/filter-metrics
-                                  (metric/type-pred :quantitative)))
-             metric-configs  (metric/all-metric-configs metrics-defs)
-             histogram       (methods/histogram
-                              metrics-samples
-                              quantiles
-                              outliers
-                              metric-configs
-                              analysis)
-             histogram-map   (have
-                              types/histogram-map?
-                              (merge
-                               {:type         :criterium/histogram
-                                :metrics-defs metrics-defs
-                                :source-id    samples-id
-                                :outliers-id  outliers-id
-                                :batch-size   (:batch-size metrics-samples)}
-                               histogram))]
+             metrics-defs (-> (have (:metrics-defs metrics-samples))
+                              (metric/select-metrics metric-ids)
+                              (metric/filter-metrics
+                               (metric/type-pred :quantitative)))
+             metric-configs (metric/all-metric-configs metrics-defs)
+             histogram (methods/histogram
+                        metrics-samples
+                        quantiles
+                        outliers
+                        metric-configs
+                        analysis)
+             histogram-map (have
+                            types/histogram-map?
+                            (merge
+                             {:type :criterium/histogram
+                              :metrics-defs metrics-defs
+                              :source-id samples-id
+                              :outliers-id outliers-id
+                              :batch-size (:batch-size metrics-samples)}
+                             histogram))]
          (assoc data-map id histogram-map))))))
 
 (defn- min-f
@@ -377,27 +377,27 @@
   (if (or (zero? variance) (< batch-size 16))
     0
     (let [variance-block (* batch-size variance)
-          std-dev-block  (Math/sqrt variance-block)
-          mean-g-min     (/ mean 2)
-          sigma-g        (min (/ mean-g-min 4)
-                              (/ std-dev-block (Math/sqrt batch-size)))
-          variance-g     (* sigma-g sigma-g)
+          std-dev-block (Math/sqrt variance-block)
+          mean-g-min (/ mean 2)
+          sigma-g (min (/ mean-g-min 4)
+                       (/ std-dev-block (Math/sqrt batch-size)))
+          variance-g (* sigma-g sigma-g)
           batch-size-sqr (util/sqr batch-size)
-          c-max-f        (fn ^long [^double t-min]    ; Eq 38
-                           (let [j0-sqr (util/sqr (- mean t-min))
-                                 k0     (- (* batch-size-sqr j0-sqr))
-                                 k1     (+ variance-block
-                                           (- (* batch-size variance-g))
-                                           (* batch-size j0-sqr))
-                                 det    (- (* k1 k1)
-                                           (* 4 variance-g k0))]
-                             (long (Math/floor (/ (* -2 k0)
-                                                  (+ k1 (Math/sqrt det)))))))
-          var-out        (fn ^double [^long c]        ; Eq 45
-                           (let [nmc (- batch-size c)]
-                             (* (/ nmc (double batch-size))
-                                (- variance-block (* nmc variance-g)))))
-          c-max          (min-f c-max-f 0.0 mean-g-min)]
+          c-max-f (fn ^long [^double t-min] ; Eq 38
+                    (let [j0-sqr (util/sqr (- mean t-min))
+                          k0 (- (* batch-size-sqr j0-sqr))
+                          k1 (+ variance-block
+                                (- (* batch-size variance-g))
+                                (* batch-size j0-sqr))
+                          det (- (* k1 k1)
+                                 (* 4 variance-g k0))]
+                      (long (Math/floor (/ (* -2 k0)
+                                           (+ k1 (Math/sqrt det)))))))
+          var-out (fn ^double [^long c] ; Eq 45
+                    (let [nmc (- batch-size c)]
+                      (* (/ nmc (double batch-size))
+                         (- variance-block (* nmc variance-g)))))
+          c-max (min-f c-max-f 0.0 mean-g-min)]
       (/ (min-f var-out 1.0 c-max) variance-block))))
 
 (defn outlier-effect
@@ -405,23 +405,23 @@
   [^double significance]
   (cond
     (< significance 0.01) :unaffected
-    (< significance 0.1)  :slight
-    (< significance 0.5)  :moderate
-    :else                 :severe))
+    (< significance 0.1) :slight
+    (< significance 0.5) :moderate
+    :else :severe))
 
 (defn- samples-outlier-significance [batch-size outliers stats metric-configs]
   (reduce
    (fn sample-m [result metric]
-     (let [path           (:path metric)
-           outlier-data   (get-in outliers path)
-           stat           (get-in stats path)
-           _              (assert (map? outlier-data) outlier-data)
+     (let [path (:path metric)
+           outlier-data (get-in outliers path)
+           stat (get-in stats path)
+           _ (assert (map? outlier-data) outlier-data)
            outlier-counts (:outlier-counts outlier-data)
-           significance   (when (some pos? (vals outlier-counts))
-                            (outlier-significance*
-                             (:mean stat)
-                             (:variance stat)
-                             batch-size))]
+           significance (when (some pos? (vals outlier-counts))
+                          (outlier-significance*
+                           (:mean stat)
+                           (:variance stat)
+                           batch-size))]
        (update-in result path
                   assoc
                   :significance significance
@@ -465,34 +465,34 @@
   ([] (outlier-significance {}))
   ([{:keys [id outliers-id stats-id metric-ids] :as _analysis}]
    (fn [data-map]
-     (let [id             (or id :outlier-significance)
-           outliers-id    (or outliers-id :outliers)
-           stats-id       (or stats-id :stats)
-           outliers       (data-map outliers-id)
-           stats          (data-map stats-id)
-           metrics-defs   (-> (:metrics-defs stats)
-                              (metric/select-metrics metric-ids)
-                              (metric/filter-metrics
-                               (metric/type-pred :quantitative)))
+     (let [id (or id :outlier-significance)
+           outliers-id (or outliers-id :outliers)
+           stats-id (or stats-id :stats)
+           outliers (data-map outliers-id)
+           stats (data-map stats-id)
+           metrics-defs (-> (:metrics-defs stats)
+                            (metric/select-metrics metric-ids)
+                            (metric/filter-metrics
+                             (metric/type-pred :quantitative)))
            metric-configs (metric/all-metric-configs metrics-defs)]
        (when-not outliers
          (throw (ex-info
                  "outlier significance requires outlier analysis"
-                 {:outliers-id   outliers-id
+                 {:outliers-id outliers-id
                   :available-ids (keys data-map)})))
        (let [significance (samples-outlier-significance
                            (:batch-size stats)
                            (util/outliers outliers)
                            (util/stats stats)
                            metric-configs)
-             os-map       (have
-                           types/outlier-significance-map?
-                           {:type                 :criterium/outlier-significance
-                            :transform            collect-plan/identity-transforms
-                            :outlier-significance significance
-                            :metrics-defs         metrics-defs
-                            :outliers-id          outliers-id
-                            :source-id            stats-id})]
+             os-map (have
+                     types/outlier-significance-map?
+                     {:type :criterium/outlier-significance
+                      :transform collect-plan/identity-transforms
+                      :outlier-significance significance
+                      :metrics-defs metrics-defs
+                      :outliers-id outliers-id
+                      :source-id stats-id})]
          (assoc data-map id os-map))))))
 
 ;;; Allocation Analysis
@@ -540,3 +540,20 @@
   ([] (allocation-by-type {}))
   ([opts]
    (allocation-analysis/by-type-fn opts)))
+
+(defn allocation-treemap
+  "Transforms allocation records into hierarchical treemap data.
+
+  Delegates to criterium.allocation.analysis/treemap-fn. Returns data-map
+  unchanged if allocation trace is not present (no-op behavior).
+
+  Parameters:
+    opts - Optional map with keys:
+      :id        - Key for result in output (default: :allocation-treemap)
+      :trace-id  - Path for source trace in input (default: [:samples :allocation-trace])
+      :group-by  - Hierarchy: :class→line→type or :type→class→line (default: :class→line→type)
+      :size-by   - Value sizing: :count, :bytes, :bytes-per-allocation (default: :bytes)
+      :filter-by - Filter: :freed, :not-freed, :all (default: :all)"
+  ([] (allocation-treemap {}))
+  ([opts]
+   (allocation-analysis/treemap-fn opts)))
