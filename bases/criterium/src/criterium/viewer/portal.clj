@@ -410,8 +410,8 @@
         (when (seq hotspots)
           (heading "Allocation Hotspots")
           (portal-table
-           (mapv (fn [{:keys [call-site count bytes freed-count freed-bytes]}]
-                   {:call-site (viewer-common/format-call-site call-site)
+           (mapv (fn [{:keys [call-site object-types count bytes freed-count freed-bytes]}]
+                   {:call-site (viewer-common/format-call-site call-site object-types)
                     :count count
                     :bytes bytes
                     :freed-count freed-count

@@ -435,8 +435,8 @@
         (when (seq hotspots)
           (kindly-heading "Allocation Hotspots")
           (kindly-table
-           (mapv (fn [{:keys [call-site count bytes freed-count freed-bytes]}]
-                   {:call-site (viewer-common/format-call-site call-site)
+           (mapv (fn [{:keys [call-site object-types count bytes freed-count freed-bytes]}]
+                   {:call-site (viewer-common/format-call-site call-site object-types)
                     :count count
                     :bytes (format/format-value :memory bytes)
                     :freed-count freed-count

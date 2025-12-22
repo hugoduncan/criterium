@@ -337,12 +337,12 @@
           (println "Allocation Hotspots:")
           (pprint/print-table
            [:count :bytes :freed-count :freed-bytes :call-site]
-           (mapv (fn [{:keys [call-site count bytes freed-count freed-bytes]}]
+           (mapv (fn [{:keys [call-site object-types count bytes freed-count freed-bytes]}]
                    {:count count
                     :bytes (format/format-value :memory bytes)
                     :freed-count freed-count
                     :freed-bytes (format/format-value :memory freed-bytes)
-                    :call-site (viewer-common/format-call-site call-site)})
+                    :call-site (viewer-common/format-call-site call-site object-types)})
                  hotspots)))))))
 
 (defmethod view/allocation-by-type* :pprint

@@ -897,13 +897,13 @@
           (println (format "%8s %12s %8s %12s  %s"
                            "Count" "Bytes" "Freed" "Freed Bytes" "Call Site"))
           (println (apply str (repeat 80 "-")))
-          (doseq [{:keys [call-site count bytes freed-count freed-bytes]} hotspots]
+          (doseq [{:keys [call-site object-types count bytes freed-count freed-bytes]} hotspots]
             (println (format "%8d %12s %8d %12s  %s"
                              count
                              (format/format-value :memory bytes)
                              freed-count
                              (format/format-value :memory freed-bytes)
-                             (viewer-common/format-call-site call-site)))))))))
+                             (viewer-common/format-call-site call-site object-types)))))))))
 
 (defmethod view/allocation-by-type* :print
   [_ {:keys [by-type-id]} data-map]

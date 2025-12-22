@@ -880,6 +880,25 @@
 
 (defn format-call-site
   "Format a call site map for display.
-  Returns a string like 'class.method (file:line)'."
-  [{:keys [call-class call-method call-file call-line]}]
-  (str call-class "." call-method " (" call-file ":" call-line ")"))
+  Returns a string like 'class.method (file:line)'.
+  When call-method is nil (object-type fallback), shows just the class.
+  When call-site is not useful but object-types provided, shows those."
+  ([call-site]
+   (format-call-site call-site nil))
+  ([{:keys [call-class call-method call-file call-line]} object-types]
+   (cond
+     ;; Full call-site info available
+     (and (seq call-class) (seq call-method))
+     (str call-class "." call-method " (" call-file ":" call-line ")")
+
+     ;; Object-type fallback (call-method is nil)
+     (and (seq call-class) (nil? call-method))
+     call-class
+
+     ;; No useful info, show object-types if available
+     (seq object-types)
+     (str "[" (clojure.string/join ", " (sort object-types)) "]")
+
+     ;; Last resort
+     :else
+     (str call-class "." call-method " (" call-file ":" call-line ")"))))
