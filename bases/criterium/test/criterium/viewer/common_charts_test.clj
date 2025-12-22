@@ -105,10 +105,9 @@
         (is (= "treemap" (:type (second transforms))))
         (is (= "squarify" (:method (second transforms))))))
 
-    (testing "includes three mark types"
+    (testing "includes two rect marks for nodes and leaves"
       (let [spec (charts/treemap-vega-spec sample-treemap {})
             marks (:marks spec)]
-        (is (= 3 (count marks)))
+        (is (= 2 (count marks)))
         (is (= "rect" (:type (first marks))))
-        (is (= "rect" (:type (second marks))))
-        (is (= "text" (:type (nth marks 2))))))))
+        (is (= "rect" (:type (second marks))))))))

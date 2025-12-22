@@ -583,9 +583,8 @@
     - stratify transform to build hierarchy from flat data
     - treemap transform with squarify tiling
     - rect marks sized by x0/x1/y0/y1
-    - text labels for cells above size threshold
     - color by first-level category
-    - tooltip showing name, value (formatted bytes), path"
+    - tooltip on hover showing name, value (formatted bytes), path"
   [treemap-data opts]
   (let [width (or (:width opts) 700)
         height (or (:height opts) 400)
@@ -639,7 +638,7 @@
                 :y {:field "y0"}
                 :x2 {:field "x1"}
                 :y2 {:field "y1"}}}}
-             ;; Leaf rectangles (white stroke, interactive)
+             ;; Leaf rectangles (white stroke, interactive with tooltip)
              {:type "rect"
               :from {:data "leaves"}
               :encode
@@ -658,21 +657,4 @@
                       "'Value': format(datum.value, '" value-format "'), "
                       "'Path': replace(datum.id, /^[^/]+\\//, '')}")}}
                :hover
-               {:fill {:value "rgba(0,0,0,0.1)"}}}}
-             ;; Text labels for larger cells
-             {:type "text"
-              :from {:data "leaves"}
-              :encode
-              {:enter
-               {:font {:value "Helvetica Neue, Arial"}
-                :align {:value "center"}
-                :baseline {:value "middle"}
-                :fill {:value "#000"}
-                :fontSize {:value 10}}
-               :update
-               {:x {:signal "(datum.x0 + datum.x1) / 2"}
-                :y {:signal "(datum.y0 + datum.y1) / 2"}
-                :text {:field "name"}
-                :opacity
-                {:signal
-                 "(datum.x1 - datum.x0) > 40 && (datum.y1 - datum.y0) > 20 ? 1 : 0"}}}}]}))
+               {:fill {:value "rgba(0,0,0,0.1)"}}}}]}))
