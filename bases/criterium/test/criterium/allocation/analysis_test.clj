@@ -17,7 +17,7 @@
               :call-file "my_ns.clj"
               :call-line 42
               :thread 1
-              :freed true}
+              :freed 1}
              {:object-type "Ljava/lang/String;"
               :object_size 64
               :call-class "my.ns$fn"
@@ -25,7 +25,7 @@
               :call-file "my_ns.clj"
               :call-line 42
               :thread 1
-              :freed false}
+              :freed 0}
              {:object-type "[J"
               :object_size 1024
               :call-class "other.ns$bar"
@@ -33,7 +33,7 @@
               :call-file "other_ns.clj"
               :call-line 10
               :thread 1
-              :freed true}
+              :freed 1}
              {:object-type "Ljava/lang/Long;"
               :object_size 24
               :call-class "my.ns$fn"
@@ -41,7 +41,7 @@
               :call-file "my_ns.clj"
               :call-line 42
               :thread 2
-              :freed false}]
+              :freed 0}]
    :thread-id 1
    :eval-count 100
    :elapsed-time 1.5e9})
@@ -118,7 +118,9 @@
         (is (= 3 (:count my-ns-hotspot)))
         (is (= (+ 48 64 24) (:bytes my-ns-hotspot)))
         (is (= 1 (:freed-count my-ns-hotspot)))
-        (is (= 48 (:freed-bytes my-ns-hotspot)))))
+        (is (= 48 (:freed-bytes my-ns-hotspot)))
+        (is (= #{"Ljava/lang/String;" "Ljava/lang/Long;"}
+               (:object-types my-ns-hotspot)))))
 
     (testing "respects :limit option"
       (let [analyse (analysis/hotspots-fn {:limit 1})
@@ -143,7 +145,33 @@
     (testing "uses custom :id option"
       (let [analyse (analysis/hotspots-fn {:id :my-hotspots})
             result (analyse {:samples {:allocation-trace sample-trace}})]
-        (is (contains? result :my-hotspots))))))
+        (is (contains? result :my-hotspots))))
+
+    (testing "falls back to alloc-* fields when call-* are empty"
+      (let [trace-with-fallback {:type :criterium/allocation-trace
+                                 :records [{:object-type "Ljava/lang/Object;"
+                                            :object_size 16
+                                            :call-class ""
+                                            :call-method ""
+                                            :call-file ""
+                                            :call-line -1
+                                            :alloc-class "java.lang.Object"
+                                            :alloc-method "<init>"
+                                            :alloc-file "Object.java"
+                                            :alloc-line 50
+                                            :thread 1
+                                            :freed 0}]
+                                 :thread-id 1
+                                 :eval-count 1
+                                 :elapsed-time 1e6}
+            analyse (analysis/hotspots-fn)
+            result (analyse {:samples {:allocation-trace trace-with-fallback}})
+            hotspots (get-in result [:allocation-hotspots :hotspots])
+            hotspot (first hotspots)]
+        (is (= "java.lang.Object" (get-in hotspot [:call-site :call-class])))
+        (is (= "<init>" (get-in hotspot [:call-site :call-method])))
+        (is (= "Object.java" (get-in hotspot [:call-site :call-file])))
+        (is (= 50 (get-in hotspot [:call-site :call-line])))))))
 
 (deftest by-type-fn-test
   (testing "by-type-fn"

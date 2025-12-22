@@ -10,13 +10,38 @@
 
 ;;; Helper functions
 
-(defn- call-site
-  "Extract call-site map from an allocation record."
+(defn- useful-string?
+  "Check if a string contains useful information."
+  [s]
+  (and (string? s) (seq s)))
+
+(defn- call-site-key
+  "Extract call-site key for grouping from an allocation record.
+  Falls back to alloc-* fields when call-* fields are not useful.
+  When neither has useful class info, uses object-type as fallback."
   [record]
-  {:call-class  (:call-class record)
-   :call-method (:call-method record)
-   :call-file   (:call-file record)
-   :call-line   (:call-line record)})
+  (let [call-class (:call-class record)
+        alloc-class (:alloc-class record)
+        call-useful? (useful-string? call-class)
+        alloc-useful? (useful-string? alloc-class)]
+    (cond
+      call-useful?
+      {:call-class  call-class
+       :call-method (:call-method record)
+       :call-file   (:call-file record)
+       :call-line   (:call-line record)}
+
+      alloc-useful?
+      {:call-class  alloc-class
+       :call-method (:alloc-method record)
+       :call-file   (:alloc-file record)
+       :call-line   (:alloc-line record)}
+
+      :else
+      {:call-class  (:object-type record)
+       :call-method nil
+       :call-file   nil
+       :call-line   nil})))
 
 ;;; Analysis Functions
 
@@ -51,7 +76,7 @@
                result (reduce
                        (fn [acc record]
                          (let [size (long (:object_size record 0))
-                               freed? (:freed record)]
+                               freed? (pos? (long (:freed record 0)))]
                            (-> acc
                                (update :total-allocated + size)
                                (update :num-allocations inc)
@@ -86,10 +111,13 @@
     :type     - :criterium/allocation-hotspots
     :hotspots - Vector of maps sorted by bytes descending:
                 [{:call-site {:call-class ... :call-method ... :call-file ... :call-line ...}
+                  :object-types #{\"Ljava/lang/String;\" ...}
                   :count N
                   :bytes M
                   :freed-count K
-                  :freed-bytes L} ...]"
+                  :freed-bytes L} ...]
+
+  Note: When call-* fields are empty, alloc-* fields are used as fallback."
   ([] (hotspots-fn {}))
   ([{:keys [id trace-id limit order-by]}]
    (fn [data-map]
@@ -104,16 +132,19 @@
                ;; Group by call-site and aggregate
                grouped (reduce
                         (fn [acc record]
-                          (let [site (call-site record)
+                          (let [site (call-site-key record)
+                                obj-type (:object-type record)
                                 size (long (:object_size record 0))
-                                freed? (:freed record)]
+                                freed? (pos? (long (:freed record 0)))]
                             (update acc site
                                     (fn [stats]
                                       (let [stats (or stats {:count 0 :bytes 0
-                                                             :freed-count 0 :freed-bytes 0})]
+                                                             :freed-count 0 :freed-bytes 0
+                                                             :object-types #{}})]
                                         (-> stats
                                             (update :count inc)
                                             (update :bytes + size)
+                                            (update :object-types conj obj-type)
                                             (cond->
                                               freed? (-> (update :freed-count inc)
                                                          (update :freed-bytes + size)))))))))
@@ -160,7 +191,7 @@
                         (fn [acc record]
                           (let [obj-type (:object-type record)
                                 size (long (:object_size record 0))
-                                freed? (:freed record)]
+                                freed? (pos? (long (:freed record 0)))]
                             (update acc obj-type
                                     (fn [stats]
                                       (let [stats (or stats {:count 0 :bytes 0
