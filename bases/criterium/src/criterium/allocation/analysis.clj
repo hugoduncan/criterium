@@ -69,33 +69,33 @@
   ([{:keys [id trace-id]}]
    (fn [data-map]
      (let [trace-id (or trace-id [:samples :allocation-trace])
-           id (or id :allocation-summary)
-           trace (get-in data-map trace-id)]
+           id       (or id :allocation-summary)
+           trace    (get-in data-map trace-id)]
        (if-not trace
          data-map
-         (let [records (:records trace)
-               result (reduce
-                       (fn [acc record]
-                         (let [size (long (:object_size record 0))
-                               freed? (:freed record)]
-                           (-> acc
-                               (update :total-allocated + size)
-                               (update :num-allocations inc)
-                               (cond->
-                                 freed? (-> (update :total-freed + size)
-                                            (update :num-freed inc))))))
-                       {:type :criterium/allocation-summary
-                        :transform {:sample-> identity :->sample identity}
-                        :total-allocated 0
-                        :total-freed 0
-                        :num-allocations 0
-                        :num-freed 0}
-                       records)
-               total-allocated (:total-allocated result)
-               total-freed (:total-freed result)
-               freed-ratio (if (pos? total-allocated)
-                             (/ (double total-freed) (double total-allocated))
-                             0.0)]
+         (let [records         (:records trace)
+               result          (reduce
+                                (fn [acc record]
+                                  (let [size   (long (:object_size record 0))
+                                        freed? (:freed record)]
+                                    (-> acc
+                                        (update :total-allocated + size)
+                                        (update :num-allocations inc)
+                                        (cond->
+                                          freed? (-> (update :total-freed + size)
+                                                     (update :num-freed inc))))))
+                                {:type            :criterium/allocation-summary
+                                 :transform       {:sample-> identity :->sample identity}
+                                 :total-allocated 0
+                                 :total-freed     0
+                                 :num-allocations 0
+                                 :num-freed       0}
+                                records)
+               total-allocated (long (:total-allocated result))
+               total-freed     (:total-freed result)
+               freed-ratio     (if (pos? total-allocated)
+                                 (/ (double total-freed) (double total-allocated))
+                                 0.0)]
            (assoc data-map id (assoc result :freed-ratio freed-ratio))))))))
 
 (defn hotspots-fn
