@@ -1,4 +1,6 @@
-(ns criterium.allocation-bench-notebook
+(ns
+ ^{:kindly/options {:kinds-that-hide-code #{:kind/hidden}}}
+ criterium.allocation-bench-notebook
   "Benchmarking with integrated allocation analysis."
   (:require
    [clojure.string :as str]
@@ -6,6 +8,9 @@
    [criterium.bench :as bench]
    [criterium.notebook.helpers :refer [bench-display]]
    [scicloj.kindly.v4.kind :as kind]))
+
+(kind/hidden
+ (bench/set-default-viewer! :kindly))
 
 ;; # Allocation Analysis with bench
 ;;
@@ -29,9 +34,7 @@
 ;;
 ;; Add `:with-allocation-trace true` to any bench call:
 
-^:kindly/hide-code
-(bench-display
- (bench/bench (vec (range 100)) :with-allocation-trace true))
+(bench/bench (vec (range 100)) :with-allocation-trace true)
 
 ;; The output now includes three additional sections:
 ;; - **Allocation Summary** - Aggregate allocation statistics
@@ -57,9 +60,7 @@
 ;;
 ;; The hotspots section identifies where allocations originate:
 
-^:kindly/hide-code
-(bench-display
- (bench/bench (mapv str (range 50)) :with-allocation-trace true))
+(bench/bench (mapv str (range 50)) :with-allocation-trace true)
 
 ;; Each hotspot entry shows:
 ;; - **Call Site** - The file, class, method, and line triggering allocation
@@ -74,10 +75,8 @@
 ;;
 ;; The by-type breakdown shows which object types are being created:
 
-^:kindly/hide-code
-(bench-display
- (bench/bench (into {} (map (fn [i] [(keyword (str i)) i]) (range 20)))
-              :with-allocation-trace true))
+(bench/bench (into {} (map (fn [i] [(keyword (str i)) i]) (range 20)))
+             :with-allocation-trace true)
 
 ;; This reveals:
 ;; - Primitive array allocations (e.g., `[J` for long arrays)
@@ -90,48 +89,36 @@
 
 ;; ### String Building Comparison
 
-^:kindly/hide-code
-(kind/md "**Using str with apply:**")
+;; **Using str with apply:**
 
-^:kindly/hide-code
-(bench-display
- (let [words ["the" "quick" "brown" "fox" "jumps"]]
-   (bench/bench (apply str (interpose " " words))
-                :with-allocation-trace true
-                :collect-plan :one-shot)))
+(let [words ["the" "quick" "brown" "fox" "jumps"]]
+  (bench/bench (apply str (interpose " " words))
+               :with-allocation-trace true
+               :collect-plan :one-shot))
 
-^:kindly/hide-code
-(kind/md "**Using clojure.string/join:**")
+;; **Using clojure.string/join:**
 
-^:kindly/hide-code
-(bench-display
- (let [words ["the" "quick" "brown" "fox" "jumps"]]
-   (bench/bench (str/join " " words)
-                :with-allocation-trace true
-                :collect-plan :one-shot)))
+(let [words ["the" "quick" "brown" "fox" "jumps"]]
+  (bench/bench (str/join " " words)
+               :with-allocation-trace true
+               :collect-plan :one-shot))
 
 ;; The `:one-shot` collect plan is useful for quick allocation comparisons
 ;; since allocation patterns are typically consistent across runs.
 
 ;; ### Collection Creation Comparison
 
-^:kindly/hide-code
-(kind/md "**Using vec on range:**")
+;; **Using vec on range:**
 
-^:kindly/hide-code
-(bench-display
- (bench/bench (vec (range 100))
-              :with-allocation-trace true
-              :collect-plan :one-shot))
+(bench/bench (vec (range 100))
+             :with-allocation-trace true
+             :collect-plan :one-shot)
 
-^:kindly/hide-code
-(kind/md "**Using into []:**")
+;; **Using into []:**
 
-^:kindly/hide-code
-(bench-display
- (bench/bench (into [] (range 100))
-              :with-allocation-trace true
-              :collect-plan :one-shot))
+(bench/bench (into [] (range 100))
+             :with-allocation-trace true
+             :collect-plan :one-shot)
 
 ;; ## Graceful Degradation
 ;;
@@ -144,12 +131,12 @@
 ;; This means code using `:with-allocation-trace` works on any system,
 ;; with allocation data appearing only when the agent is available.
 
-^:kindly/hide-code
-(kind/code
- ";; Same code works with or without agent
+;; Same code works with or without agent
+
 (bench/bench (vec (range 100)) :with-allocation-trace true)
+
 ;; Without agent: shows timing only
-;; With agent: shows timing + allocation analysis")
+;; With agent: shows timing + allocation analysis)
 
 ;; ## Using Different Viewers
 ;;
@@ -159,12 +146,12 @@
 ;;
 ;; Shows the raw data structures:
 
-^:kindly/hide-code
 (bench-display
  (bench/bench (vec (range 50))
               :with-allocation-trace true
               :viewer :pprint
-              :collect-plan :one-shot))
+              :collect-plan :one-shot
+              :return-value [:nil]))
 
 ;; ### :kindly Viewer
 ;;
@@ -180,14 +167,16 @@
 ;; Sends allocation tables to Portal for interactive exploration.
 ;; Ensure Portal is connected before using:
 
-(comment
-  (require '[portal.api :as p])
-  (def p (p/open))
-  (add-tap #'p/submit)
+(require '[portal.api :as p])
+(require 'criterium.viewer.portal)
+(def p (p/open))
+(def submit (criterium.viewer.portal/submit #'portal.api/submit))
+(add-tap #'submit)
 
-  (bench/bench (vec (range 100))
-               :with-allocation-trace true
-               :viewer :portal))
+(bench/bench (vec (range 100))
+             :with-allocation-trace true
+             :viewer :portal
+             :return-value [:nil])
 
 ;; ## Accessing Results Programmatically
 ;;
@@ -213,19 +202,25 @@
     {:total-allocated (:total-allocated summary)
      :num-allocations (:num-allocations summary)}))
 
+(kind/hidden
+ (bench/set-default-viewer! :print))
+
 ;; ## Best Practices
 ;;
-;; 1. **Use :one-shot for allocation comparisons** - Allocation patterns are
-;;    consistent, so a single run suffices for comparing implementations.
+;; 1. **Use :one-shot for allocation comparisons**
+;;    Allocation patterns are consistent, so a single run suffices for comparing
+;;    implementations.
 ;;
-;; 2. **Focus on hotspots first** - The top allocation sites usually reveal
-;;    the most impactful optimization opportunities.
+;; 2. **Focus on hotspots first**
+;;    The top allocation sites usually reveal the most impactful optimization
+;;    opportunities.
 ;;
-;; 3. **Watch the freed ratio** - High freed counts indicate temporary objects
-;;    that add GC pressure.
+;; 3. **Watch the freed ratio**
+;;    High freed counts indicate temporary objects that add GC pressure.
 ;;
-;; 4. **Compare similar workloads** - When comparing implementations, use
-;;    identical input sizes for meaningful comparisons.
+;; 4. **Compare similar workloads**
+;;    When comparing implementations, use identical input sizes for meaningful
+;;    comparisons.
 ;;
-;; 5. **Consider memory vs time tradeoffs** - Lower allocations often correlate
-;;    with better performance, but not always.
+;; 5. **Consider memory vs time tradeoffs**
+;;    Lower allocations often correlate with better performance, but not always.
