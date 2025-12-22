@@ -7,10 +7,16 @@
 
 (def default-one-shot
   {:collector-config default-collector-config
-   :analyse          [:event-stats]
+   :analyse          [:event-stats
+                      :allocation-summary
+                      [:allocation-hotspots {:limit 10}]
+                      :allocation-by-type]
    :view             [:metrics
                       :event-stats
-                      :collect-plan]
+                      :collect-plan
+                      :allocation-summary
+                      :allocation-by-type
+                      :allocation-hotspots]
    :viewer           :print})
 
 (def default-with-warmup
