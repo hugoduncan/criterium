@@ -607,6 +607,7 @@
                :parentKey "parent"}
               {:type "treemap"
                :field "value"
+               :sort {:field "value" :order "descending"}
                :method "squarify"
                :ratio 1.6
                :size [{:signal "width"} {:signal "height"}]
