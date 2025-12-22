@@ -60,6 +60,14 @@
      (assoc spec :$schema "https://vega.github.io/schema/vega-lite/v5.json")
      {:kindly/kind :kind/vega-lite})))
 
+(defn kindly-vega
+  "Add a full Vega chart to the accumulator."
+  [spec]
+  (kindly-add
+   (with-meta
+     (assoc spec :$schema "https://vega.github.io/schema/vega/v5.json")
+     {:kindly/kind :kind/vega})))
+
 (defn flush
   "Return accumulated values as a kind/fragment and clear the accumulator.
   Also stores the fragment in `last-fragment` for retrieval after bench completes."
@@ -402,7 +410,7 @@
 (defmethod view/allocation-summary* :kindly
   [_ {:keys [summary-id]} data-map]
   (let [summary-id (or summary-id :allocation-summary)
-        summary    (data-map summary-id)]
+        summary (data-map summary-id)]
     (when summary
       (let [{:keys [total-allocated total-freed num-allocations num-freed
                     ^double freed-ratio]}
@@ -411,17 +419,17 @@
         (kindly-heading "Allocation Summary")
         (kindly-table
          [{:metric "Total allocated"
-           :value  (str total-allocated " bytes")}
+           :value (str total-allocated " bytes")}
           {:metric "Total freed"
-           :value  (str total-freed " bytes")}
+           :value (str total-freed " bytes")}
           {:metric "Retained"
-           :value  (str retained " bytes")}
+           :value (str retained " bytes")}
           {:metric "Allocation count"
-           :value  num-allocations}
+           :value num-allocations}
           {:metric "Freed count"
-           :value  num-freed}
+           :value num-freed}
           {:metric "Freed ratio"
-           :value  (clojure.core/format "%.1f%%" (* 100.0 freed-ratio))}])))))
+           :value (clojure.core/format "%.1f%%" (* 100.0 freed-ratio))}])))))
 
 (defmethod view/allocation-hotspots* :kindly
   [_ {:keys [hotspots-id]} data-map]
@@ -458,6 +466,14 @@
                     :freed-count freed-count
                     :freed-bytes freed-bytes})
                  sorted)))))))
+
+(defmethod view/allocation-treemap* :kindly
+  [_ {:keys [treemap-id]} data-map]
+  (let [treemap-id (or treemap-id :allocation-treemap)
+        treemap-data (data-map treemap-id)]
+    (when (and treemap-data (:root treemap-data))
+      (kindly-heading "Allocation Treemap")
+      (kindly-vega (charts/treemap-vega-spec treemap-data {})))))
 
 ;;; Noop implementations for views not applicable to Kindly output
 

@@ -694,3 +694,68 @@
           (is (empty? @v))
           (finally
             (remove-tap f)))))))
+
+(deftest portal-allocation-treemap-test
+  ;; Tests the portal viewer output for allocation-treemap results.
+  ;; Verifies Vega spec generation with treemap visualization.
+  (testing "allocation-treemap*"
+    (testing "produces vega output with treemap spec"
+      (let [[title vega-spec] (with-tap-out
+                                (view/allocation-treemap*
+                                 :portal
+                                 {}
+                                 {:allocation-treemap
+                                  {:type :criterium/allocation-treemap
+                                   :size-by :bytes
+                                   :root {:name "root"
+                                          :value 1000
+                                          :children [{:name "java.lang.String"
+                                                      :value 600
+                                                      :children [{:name "L42"
+                                                                  :value 600}]}
+                                                     {:name "[B"
+                                                      :value 400
+                                                      :children [{:name "L10"
+                                                                  :value 400}]}]}}}))
+            viewer-meta (meta vega-spec)]
+        (is (= [:b "Allocation Treemap"] title))
+        (is (= :portal.viewer/vega (:portal.viewer/default viewer-meta)))
+        (is (str/includes? (:$schema vega-spec) "vega/v5.json"))
+        (is (contains? vega-spec :data))
+        (is (contains? vega-spec :marks))))
+
+    (testing "uses custom treemap-id"
+      (let [[title _spec] (with-tap-out
+                            (view/allocation-treemap*
+                             :portal
+                             {:treemap-id :my-treemap}
+                             {:my-treemap
+                              {:type :criterium/allocation-treemap
+                               :root {:name "root"
+                                      :value 100
+                                      :children [{:name "type1" :value 100}]}}}))]
+        (is (= [:b "Allocation Treemap"] title))))
+
+    (testing "handles nil treemap data gracefully"
+      (let [v (volatile! [])
+            f (fn [x] (when-not (= ::portal/_ x) (vswap! v conj x)))]
+        (try
+          (add-tap f)
+          (view/allocation-treemap* :portal {} {:allocation-treemap nil})
+          (portal/flush)
+          (is (empty? @v))
+          (finally
+            (remove-tap f)))))
+
+    (testing "handles missing root gracefully"
+      (let [v (volatile! [])
+            f (fn [x] (when-not (= ::portal/_ x) (vswap! v conj x)))]
+        (try
+          (add-tap f)
+          (view/allocation-treemap* :portal {}
+                                    {:allocation-treemap
+                                     {:type :criterium/allocation-treemap}})
+          (portal/flush)
+          (is (empty? @v))
+          (finally
+            (remove-tap f)))))))

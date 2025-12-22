@@ -56,6 +56,13 @@
           (assoc s :$schema "https://vega.github.io/schema/vega-lite/v5.json")
           {:portal.viewer/default :portal.viewer/vega-lite})))
 
+(defn portal-vega
+  "Submit a full Vega spec to Portal."
+  [s]
+  (tap> (with-meta
+          (assoc s :$schema "https://vega.github.io/schema/vega/v5.json")
+          {:portal.viewer/default :portal.viewer/vega})))
+
 (defn heading [s]
   (portal-heading [:b s]))
 
@@ -384,7 +391,7 @@
 (defmethod view/allocation-summary* :portal
   [_ {:keys [summary-id]} data-map]
   (let [summary-id (or summary-id :allocation-summary)
-        summary    (data-map summary-id)]
+        summary (data-map summary-id)]
     (when summary
       (let [{:keys [total-allocated total-freed num-allocations num-freed
                     ^double freed-ratio]}
@@ -399,7 +406,7 @@
           {:metric "Allocation count" :value num-allocations}
           {:metric "Freed count" :value num-freed}
           {:metric "Freed ratio"
-           :value  (format "%.1f%%" (* 100.0 freed-ratio))}])))))
+           :value (format "%.1f%%" (* 100.0 freed-ratio))}])))))
 
 (defmethod view/allocation-hotspots* :portal
   [_ {:keys [hotspots-id]} data-map]
@@ -436,3 +443,11 @@
                     :freed-count freed-count
                     :freed-bytes freed-bytes})
                  sorted)))))))
+
+(defmethod view/allocation-treemap* :portal
+  [_ {:keys [treemap-id]} data-map]
+  (let [treemap-id (or treemap-id :allocation-treemap)
+        treemap-data (data-map treemap-id)]
+    (when (and treemap-data (:root treemap-data))
+      (heading "Allocation Treemap")
+      (portal-vega (charts/treemap-vega-spec treemap-data {})))))

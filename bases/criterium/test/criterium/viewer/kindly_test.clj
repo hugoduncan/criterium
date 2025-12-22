@@ -1110,3 +1110,56 @@
       (reset! kindly/accumulated [])
       (view/allocation-by-type* :kindly {} {:allocation-by-type nil})
       (is (nil? (kindly/flush))))))
+
+(deftest allocation-treemap-view-test
+  ;; Tests the view/allocation-treemap* multimethod for :kindly viewer.
+  ;; Verifies that treemap data is rendered as a heading and Vega chart.
+  (testing "view/allocation-treemap* :kindly"
+    (testing "renders treemap as heading and vega chart"
+      (reset! kindly/accumulated [])
+      (let [data-map {:allocation-treemap
+                      {:type :criterium/allocation-treemap
+                       :size-by :bytes
+                       :root {:name "root"
+                              :value 1000
+                              :children [{:name "java.lang.String"
+                                          :value 600
+                                          :children [{:name "L42" :value 600}]}
+                                         {:name "[B"
+                                          :value 400
+                                          :children [{:name "L10" :value 400}]}]}}}]
+        (view/allocation-treemap* :kindly {} data-map)
+        (let [result (kindly/flush)]
+          (is (= :kind/fragment (:kindly/kind (meta result))))
+          (is (= 2 (count result)) "Expected heading and chart")
+          (let [[heading vega-spec] result]
+            (is (= :kind/md (:kindly/kind (meta heading))))
+            (is (= ["**Allocation Treemap**"] heading))
+            (is (= :kind/vega (:kindly/kind (meta vega-spec))))
+            (is (str/includes? (:$schema vega-spec) "vega/v5.json"))
+            (is (contains? vega-spec :data))
+            (is (contains? vega-spec :marks))))))
+
+    (testing "uses custom treemap-id"
+      (reset! kindly/accumulated [])
+      (let [data-map {:my-treemap
+                      {:type :criterium/allocation-treemap
+                       :root {:name "root"
+                              :value 100
+                              :children [{:name "type1" :value 100}]}}}]
+        (view/allocation-treemap* :kindly {:treemap-id :my-treemap} data-map)
+        (let [result (kindly/flush)
+              [heading _vega-spec] result]
+          (is (= ["**Allocation Treemap**"] heading)))))
+
+    (testing "handles nil treemap data gracefully"
+      (reset! kindly/accumulated [])
+      (view/allocation-treemap* :kindly {} {:allocation-treemap nil})
+      (is (nil? (kindly/flush))))
+
+    (testing "handles missing root gracefully"
+      (reset! kindly/accumulated [])
+      (view/allocation-treemap* :kindly {}
+                                {:allocation-treemap
+                                 {:type :criterium/allocation-treemap}})
+      (is (nil? (kindly/flush))))))
