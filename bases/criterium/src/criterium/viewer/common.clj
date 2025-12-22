@@ -911,3 +911,136 @@
     (->> object-types
          sort
          (clojure.string/join ", "))))
+
+;;; ASCII Treemap rendering
+
+(defn ascii-bar
+  "Generate a bar of █ characters proportional to value/max-value.
+  Returns a string of at most `width` characters."
+  ^String [^double value ^double max-value ^long width]
+  (if (or (<= max-value 0) (<= value 0))
+    ""
+    (let [ratio (min 1.0 (/ value max-value))
+          bar-len (max 0 (long (Math/round (* ratio width))))]
+      (apply str (repeat bar-len \█)))))
+
+(defn- render-treemap-node
+  "Recursively render a treemap node.
+  Returns a vector of lines."
+  [node prefix is-last? max-value opts depth]
+  (let [{:keys [^long bar-width ^long name-width depth-limit ^double min-percent]}
+        opts
+        depth (long depth)
+        {:keys [name value children]} node
+        is-leaf? (empty? children)
+        connector (if is-last? "└── " "├── ")
+        continuation (if is-last? "    " "│   ")
+        node-name (if is-leaf? name (str name "/"))
+        size-str (str "[" (format/format-value :memory value) "]")
+        bar-str (when is-leaf?
+                  (ascii-bar (double value) max-value bar-width))
+        ;; Build the line: prefix + connector + name + padding + size + bar
+        name-part (str prefix connector node-name)
+        name-part-len (long (count name-part))
+        padded-name (if (< name-part-len name-width)
+                      (str name-part
+                           (apply str (repeat (- name-width name-part-len) \space)))
+                      name-part)
+        line (str padded-name " " size-str
+                  (when (seq bar-str) (str " " bar-str)))
+        current-line [line]
+        ;; Recurse into children if not at depth limit
+        child-prefix (str prefix continuation)
+        at-depth-limit? (and depth-limit (>= depth (long depth-limit)))]
+    (if (or is-leaf? at-depth-limit?)
+      current-line
+      (let [root-value (double (:root-value opts))
+            filtered-children (->> children
+                                   (filter (fn [child]
+                                             (>= (* 100.0 (/ (double (:value child))
+                                                             root-value))
+                                                 min-percent)))
+                                   (sort-by :value >))
+            num-children (long (count filtered-children))]
+        (into current-line
+              (mapcat (fn [idx child]
+                        (render-treemap-node
+                         child
+                         child-prefix
+                         (= (long idx) (dec num-children))
+                         max-value
+                         opts
+                         (inc depth)))
+                      (range)
+                      filtered-children))))))
+
+(defn render-ascii-treemap
+  "Render an allocation treemap as an ASCII tree string.
+  
+  treemap-data should be a :criterium/allocation-treemap map with :root, :group-by, :size-by.
+  
+  Options:
+    :bar-width   - max bar characters (default 20)
+    :depth-limit - max nesting depth to display, nil = unlimited (default nil)
+    :min-percent - hide nodes below this % of root total (default 1)
+    :name-width  - column width for names (default 40)"
+  ([treemap-data] (render-ascii-treemap treemap-data {}))
+  ([treemap-data opts]
+   (let [{:keys [root group-by size-by]} treemap-data
+         {:keys [bar-width depth-limit min-percent name-width]
+          :or {bar-width 20 min-percent 1.0 name-width 40}} opts
+         ^long name-width name-width]
+     (if (nil? root)
+       ""
+       (let [root-value (double (:value root))
+             max-leaf-value (if (empty? (:children root))
+                              root-value
+                              (->> (tree-seq :children :children root)
+                                   (remove :children)
+                                   (map :value)
+                                   (reduce max 0.0)
+                                   double))
+             size-by-str (case size-by
+                           :bytes "bytes"
+                           :count "count"
+                           :bytes-per-allocation "bytes/alloc"
+                           (name (or size-by :bytes)))
+             group-by-str (case group-by
+                            :class→line→type "class→line→type"
+                            :type→class→line "type→class→line"
+                            (name (or group-by :class→line→type)))
+             header (str "Allocation Treemap (by " size-by-str ", " group-by-str ")")
+             root-name (str (:name root) "/")
+             root-size (str "[" (format/format-value :memory root-value) "]")
+             root-line (let [name-part root-name
+                             name-part-len (long (count name-part))
+                             padded (if (< name-part-len name-width)
+                                      (str name-part
+                                           (apply str (repeat (- name-width name-part-len) \space)))
+                                      name-part)]
+                         (str padded " " root-size))
+             render-opts {:bar-width bar-width
+                          :depth-limit depth-limit
+                          :min-percent (double min-percent)
+                          :name-width name-width
+                          :root-value root-value}
+             children (:children root)
+             filtered-children (->> children
+                                    (filter (fn [child]
+                                              (>= (* 100.0 (/ (double (:value child))
+                                                              root-value))
+                                                  (double min-percent))))
+                                    (sort-by :value >))
+             num-children (long (count filtered-children))
+             child-lines (mapcat (fn [^long idx child]
+                                   (render-treemap-node
+                                    child
+                                    ""
+                                    (= idx (dec num-children))
+                                    max-leaf-value
+                                    render-opts
+                                    1))
+                                 (range)
+                                 filtered-children)]
+         (str/join "\n" (into [header root-line] child-lines)))))))
+
