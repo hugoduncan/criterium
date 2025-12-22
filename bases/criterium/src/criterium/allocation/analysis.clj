@@ -76,7 +76,7 @@
                result (reduce
                        (fn [acc record]
                          (let [size (long (:object_size record 0))
-                               freed? (pos? (long (:freed record 0)))]
+                               freed? (:freed record)]
                            (-> acc
                                (update :total-allocated + size)
                                (update :num-allocations inc)
@@ -135,7 +135,7 @@
                           (let [site (call-site-key record)
                                 obj-type (:object-type record)
                                 size (long (:object_size record 0))
-                                freed? (pos? (long (:freed record 0)))]
+                                freed? (:freed record)]
                             (update acc site
                                     (fn [stats]
                                       (let [stats (or stats {:count 0 :bytes 0
@@ -191,7 +191,7 @@
                         (fn [acc record]
                           (let [obj-type (:object-type record)
                                 size (long (:object_size record 0))
-                                freed? (pos? (long (:freed record 0)))]
+                                freed? (:freed record)]
                             (update acc obj-type
                                     (fn [stats]
                                       (let [stats (or stats {:count 0 :bytes 0

@@ -17,7 +17,7 @@
               :call-file "my_ns.clj"
               :call-line 42
               :thread 1
-              :freed 1}
+              :freed true}
              {:object-type "Ljava/lang/String;"
               :object_size 64
               :call-class "my.ns$fn"
@@ -25,7 +25,7 @@
               :call-file "my_ns.clj"
               :call-line 42
               :thread 1
-              :freed 0}
+              :freed false}
              {:object-type "[J"
               :object_size 1024
               :call-class "other.ns$bar"
@@ -33,7 +33,7 @@
               :call-file "other_ns.clj"
               :call-line 10
               :thread 1
-              :freed 1}
+              :freed true}
              {:object-type "Ljava/lang/Long;"
               :object_size 24
               :call-class "my.ns$fn"
@@ -41,7 +41,7 @@
               :call-file "my_ns.clj"
               :call-line 42
               :thread 2
-              :freed 0}]
+              :freed false}]
    :thread-id 1
    :eval-count 100
    :elapsed-time 1.5e9})
@@ -160,7 +160,7 @@
                                             :alloc-file "Object.java"
                                             :alloc-line 50
                                             :thread 1
-                                            :freed 0}]
+                                            :freed false}]
                                  :thread-id 1
                                  :eval-count 1
                                  :elapsed-time 1e6}
