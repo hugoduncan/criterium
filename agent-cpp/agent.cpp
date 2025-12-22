@@ -1013,7 +1013,7 @@ public:
     std::array<jvmtiFrameInfo, MAX_FRAMES> frames = {};
     jint count=0;
 
-    if (!internal) {
+    if (internal) {
       if (!agent_context.get_stack_trace(event.thread, frames.data(), &count)) {
       	return;
       }
@@ -1021,10 +1021,10 @@ public:
 
     // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
     auto rec = internal ? allocation_record(env, class_sig, event.size,
-                                            event.thread, event.tag)
-                        : allocation_record(env, class_sig, event.size,
                                             event.thread, count,
-                                            frames.data(), event.tag);
+                                            frames.data(), event.tag)
+                        : allocation_record(env, class_sig, event.size,
+                                            event.thread, event.tag);
 
     if (starting) {
       // DEBUG_PRINT("Start marker seen\n");
