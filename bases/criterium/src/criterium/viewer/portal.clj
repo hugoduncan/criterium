@@ -220,7 +220,7 @@
 (defmethod view/domain-grouped* :portal
   [_ {:keys [grouped-id]} data-map]
   (let [grouped-id (or grouped-id :grouped)
-        grouped    (data-map grouped-id)]
+        grouped (data-map grouped-id)]
     (when-let [{:keys [rows] heading-text :heading}
                (viewer-common/prepare-domain-grouped-table grouped)]
       (heading heading-text)
@@ -229,7 +229,7 @@
 (defmethod view/domain-comparison* :portal
   [_ {:keys [comparison-id]} data-map]
   (let [comparison-id (or comparison-id :comparison)
-        comparison    (data-map comparison-id)]
+        comparison (data-map comparison-id)]
     (when-let [tables (viewer-common/prepare-domain-comparison-tables
                        comparison)]
       (doseq [{:keys [rows] heading-text :heading} tables]
@@ -239,18 +239,18 @@
 (defmethod view/domain-regression* :portal
   [_ {:keys [regression-id extract-id tolerance]} data-map]
   (let [regression-id (or regression-id :regression)
-        regression    (data-map regression-id)
-        tolerance     (double (or tolerance 0.01))
-        chart-width   600
-        chart-height  400
+        regression (data-map regression-id)
+        tolerance (double (or tolerance 0.01))
+        chart-width 600
+        chart-height 400
         table-options {:best-fit-marker "✓"
-                       :plotted-marker  ""
-                       :tolerance       tolerance}]
+                       :plotted-marker ""
+                       :tolerance tolerance}]
     (when regression
       (let [{:keys [axis regressions impl-axis implementations]}
             regression
-            extract-id  (or extract-id :extract)
-            extract     (data-map extract-id)
+            extract-id (or extract-id :extract)
+            extract (data-map extract-id)
             multi-impl? (> (count implementations) 1)]
 
         (if multi-impl?
@@ -258,7 +258,7 @@
           (doseq [[metric-id {:keys [metric by-impl with-error-bounds]}]
                   regressions]
             (let [metric-extract-data (get-in extract [:metrics metric-id])
-                  impl-keys           (sort (keys by-impl))]
+                  impl-keys (sort (keys by-impl))]
               (heading (str "Domain Regression (axis: " (name axis)
                             ", metric: " (pr-str metric)
                             ", by: " (name impl-axis) ")"))
@@ -270,65 +270,65 @@
               ;; Charts
               (when-let [point-data (viewer-common/prepare-regression-points
                                      metric-extract-data
-                                     {:axis              axis
-                                      :impl-axis         impl-axis
+                                     {:axis axis
+                                      :impl-axis impl-axis
                                       :has-error-bounds? with-error-bounds
-                                      :metric            metric})]
+                                      :metric metric})]
                 (let [{:keys [points unit]} point-data
                       line-pts
                       (viewer-common/prepare-regression-fit-lines
                        point-data
-                       {:by-impl   by-impl
+                       {:by-impl by-impl
                         :impl-keys impl-keys})
-                      y-title               (if (seq unit)
-                                              (str (pr-str metric)
-                                                   " (" unit ")")
-                                              (pr-str metric))
-                      residual-title        (if (seq unit)
-                                              (str "Residual (" unit ")")
-                                              "Residual")]
+                      y-title (if (seq unit)
+                                (str (pr-str metric)
+                                     " (" unit ")")
+                                (pr-str metric))
+                      residual-title (if (seq unit)
+                                       (str "Residual (" unit ")")
+                                       "Residual")]
                   (when (seq points)
                     (portal-vega-lite
                      (charts/regression-chart-spec
                       points line-pts
-                      {:width             chart-width :height  chart-height
-                       :axis-name         (name axis) :y-title y-title
-                       :color-field       "impl"
+                      {:width chart-width :height chart-height
+                       :axis-name (name axis) :y-title y-title
+                       :color-field "impl"
                        :has-error-bounds? with-error-bounds}))
                     ;; Residual plot
                     (let [residual-pts
                           (viewer-common/prepare-regression-residuals
                            point-data
-                           {:axis              axis
-                            :impl-axis         impl-axis
+                           {:axis axis
+                            :impl-axis impl-axis
                             :has-error-bounds? with-error-bounds
-                            :by-impl           by-impl
-                            :impl-keys         impl-keys})]
+                            :by-impl by-impl
+                            :impl-keys impl-keys})]
                       (heading "Residual Plot")
                       (portal-vega-lite
                        (charts/regression-residual-spec
                         residual-pts
-                        {:width       chart-width
-                         :height      (/ chart-height 2)
-                         :axis-name   (name axis) :residual-title residual-title
+                        {:width chart-width
+                         :height (/ chart-height 2)
+                         :axis-name (name axis) :residual-title residual-title
                          :color-field "impl"}))))))))
 
           ;; Single-implementation mode
           (doseq [[metric-id {:keys [metric models best-fit with-error-bounds]}]
                   regressions]
             (let [metric-extract-data (get-in extract [:metrics metric-id])
-                  best-r-squared      (when best-fit
-                                        (->> models
-                                             (filter #(= (:id %) best-fit))
-                                             first
-                                             :r-squared))
-                  models-to-plot      (when best-r-squared
-                                        (->> models
-                                             (filter
-                                              #(>= (double (:r-squared %))
-                                                   (* (double best-r-squared)
-                                                      (- 1 tolerance))))
-                                             (sort-by :r-squared >)))]
+                  best-r-squared (when best-fit
+                                   (->> models
+                                        (filter #(= (:id %) best-fit))
+                                        first
+                                        :r-squared))
+                  models-to-plot (when best-r-squared
+                                   (->> models
+                                        (filter
+                                         #(>= (double (:r-squared %))
+                                              (* (double best-r-squared)
+                                                 (- 1 tolerance))))
+                                        (sort-by :r-squared >)))]
               (heading (str "Domain Regression (axis: " (name axis)
                             ", metric: " (pr-str metric) ")"))
               ;; Model table
@@ -341,17 +341,17 @@
               (when (and metric-extract-data (seq models-to-plot))
                 (when-let [point-data (viewer-common/prepare-regression-points
                                        metric-extract-data
-                                       {:axis              axis
+                                       {:axis axis
                                         :has-error-bounds? with-error-bounds
-                                        :metric            metric})]
+                                        :metric metric})]
                   (let [{:keys [points unit]}
                         point-data
-                        line-pts       (viewer-common/prepare-regression-fit-lines
-                                        point-data
-                                        {:models models-to-plot})
-                        y-title        (if (seq unit)
-                                         (str (pr-str metric) " (" unit ")")
-                                         (pr-str metric))
+                        line-pts (viewer-common/prepare-regression-fit-lines
+                                  point-data
+                                  {:models models-to-plot})
+                        y-title (if (seq unit)
+                                  (str (pr-str metric) " (" unit ")")
+                                  (pr-str metric))
                         residual-title (if (seq unit)
                                          (str "Residual (" unit ")")
                                          "Residual")]
@@ -359,25 +359,25 @@
                       (portal-vega-lite
                        (charts/regression-chart-spec
                         points line-pts
-                        {:width             chart-width :height  chart-height
-                         :axis-name         (name axis) :y-title y-title
-                         :color-field       "model"
+                        {:width chart-width :height chart-height
+                         :axis-name (name axis) :y-title y-title
+                         :color-field "model"
                          :has-error-bounds? with-error-bounds}))
                       ;; Residual plot
                       (let [residual-pts (viewer-common/prepare-regression-residuals
                                           point-data
-                                          {:axis              axis
+                                          {:axis axis
                                            :has-error-bounds? with-error-bounds
-                                           :models            models-to-plot})]
+                                           :models models-to-plot})]
                         (heading "Residual Plot")
                         (portal-vega-lite
                          (charts/regression-residual-spec
                           residual-pts
-                          {:width          chart-width
-                           :height         (/ chart-height 2)
-                           :axis-name      (name axis)
+                          {:width chart-width
+                           :height (/ chart-height 2)
+                           :axis-name (name axis)
                            :residual-title residual-title
-                           :color-field    "model"}))))))))))))))
+                           :color-field "model"}))))))))))))))
 
 ;;; Allocation Views
 
@@ -410,8 +410,9 @@
         (when (seq hotspots)
           (heading "Allocation Hotspots")
           (portal-table
-           (mapv (fn [{:keys [call-site object-types count bytes freed-count freed-bytes]}]
-                   {:call-site (viewer-common/format-call-site call-site object-types)
+           (mapv (fn [{:keys [call-site object-type count bytes freed-count freed-bytes]}]
+                   {:call-site (viewer-common/format-call-site call-site nil)
+                    :object-type (or object-type "")
                     :count count
                     :bytes bytes
                     :freed-count freed-count

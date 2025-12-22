@@ -356,14 +356,14 @@
                              :portal
                              {}
                              {:comparison
-                              {:type    :criterium/domain-comparison
-                               :axis    :impl
+                              {:type :criterium/domain-comparison
+                               :axis :impl
                                :metrics {:elapsed-time
                                          {:metric [:stats :elapsed-time :mean]
-                                          :data   {:foo [{:coord {:impl :foo :n 100}
-                                                          :value 1e-7}]
-                                                   :bar [{:coord {:impl :bar :n 100}
-                                                          :value 2e-7}]}}}}}))]
+                                          :data {:foo [{:coord {:impl :foo :n 100}
+                                                        :value 1e-7}]
+                                                 :bar [{:coord {:impl :bar :n 100}
+                                                        :value 2e-7}]}}}}}))]
         (is (string? (second title)))
         (is (str/includes? (second title) "Domain Comparison"))
         (is (= 1 (count table)) "Expected 1 row for single n value")
@@ -376,24 +376,24 @@
                              :portal
                              {}
                              {:comparison
-                              {:type            :criterium/domain-comparison
-                               :axis            :impl
-                               :metrics         {:elapsed-time
-                                                 {:metric [:stats :elapsed-time :mean]
-                                                  :data   {:foo [{:coord {:impl :foo :n 100}
-                                                                  :value 1e-7}
-                                                                 {:coord {:impl :foo :n 200}
-                                                                  :value 2e-7}]
-                                                           :bar [{:coord {:impl :bar :n 100}
-                                                                  :value 2e-7}
-                                                                 {:coord {:impl :bar :n 200}
-                                                                  :value 4e-7}]}}}
+                              {:type :criterium/domain-comparison
+                               :axis :impl
+                               :metrics {:elapsed-time
+                                         {:metric [:stats :elapsed-time :mean]
+                                          :data {:foo [{:coord {:impl :foo :n 100}
+                                                        :value 1e-7}
+                                                       {:coord {:impl :foo :n 200}
+                                                        :value 2e-7}]
+                                                 :bar [{:coord {:impl :bar :n 100}
+                                                        :value 2e-7}
+                                                       {:coord {:impl :bar :n 200}
+                                                        :value 4e-7}]}}}
                                :implementations [:foo :bar]}}))]
         (is (str/includes? (second title) "Domain Comparison"))
         (is (= 2 (count table)) "Expected 2 rows")
         ;; Check that baseline impl has absolute values and factor impl has ×
         (let [first-row (first table)
-              col-keys  (set (map str (keys first-row)))]
+              col-keys (set (map str (keys first-row)))]
           (is (some #(str/includes? % "foo") col-keys)
               "Expected foo column")
           (is (some #(and (str/includes? % "bar")
@@ -422,29 +422,29 @@
                       (view/domain-regression*
                        :portal
                        {}
-                       {:extract    {:type    :criterium/domain-extract
-                                     :metrics {:elapsed-time
-                                               {:metric [:stats :elapsed-time :mean]
-                                                :data   [[{:n 100} 1e6]
-                                                         [{:n 200} 2e6]
-                                                         [{:n 400} 4e6]
-                                                         [{:n 800} 8e6]]}}}
-                        :regression {:type        :criterium/domain-regression
-                                     :axis        :n
+                       {:extract {:type :criterium/domain-extract
+                                  :metrics {:elapsed-time
+                                            {:metric [:stats :elapsed-time :mean]
+                                             :data [[{:n 100} 1e6]
+                                                    [{:n 200} 2e6]
+                                                    [{:n 400} 4e6]
+                                                    [{:n 800} 8e6]]}}}
+                        :regression {:type :criterium/domain-regression
+                                     :axis :n
                                      :regressions {:elapsed-time
-                                                   {:metric   [:stats :elapsed-time :mean]
-                                                    :models   [{:id           :linear
-                                                                :label        "O(n)"
-                                                                :coefficients {:a 10000.0 :b 0.0}
-                                                                :equation-str "y = 10000*n + 0"
-                                                                :predict-fn   (fn [x] (* 10000.0 x))
-                                                                :r-squared    0.9999}
-                                                               {:id           :quadratic
-                                                                :label        "O(n²)"
-                                                                :coefficients {:a 0.1 :b 100000.0}
-                                                                :equation-str "y = 0.1*n² + 100000"
-                                                                :predict-fn   (fn [x] (+ (* 0.1 x x) 100000.0))
-                                                                :r-squared    0.85}]
+                                                   {:metric [:stats :elapsed-time :mean]
+                                                    :models [{:id :linear
+                                                              :label "O(n)"
+                                                              :coefficients {:a 10000.0 :b 0.0}
+                                                              :equation-str "y = 10000*n + 0"
+                                                              :predict-fn (fn [x] (* 10000.0 x))
+                                                              :r-squared 0.9999}
+                                                             {:id :quadratic
+                                                              :label "O(n²)"
+                                                              :coefficients {:a 0.1 :b 100000.0}
+                                                              :equation-str "y = 0.1*n² + 100000"
+                                                              :predict-fn (fn [x] (+ (* 0.1 x x) 100000.0))
+                                                              :r-squared 0.85}]
                                                     :best-fit :linear}}}}))]
         (is (>= (count outputs) 2) "Expected at least heading and table")
         (let [[heading table] outputs]
@@ -460,22 +460,22 @@
                       (view/domain-regression*
                        :portal
                        {}
-                       {:extract    {:type    :criterium/domain-extract
-                                     :metrics {:elapsed-time
-                                               {:metric [:stats :elapsed-time :mean]
-                                                :data   [[{:n 100} 1e6]
-                                                         [{:n 200} 2e6]
-                                                         [{:n 400} 4e6]]}}}
-                        :regression {:type        :criterium/domain-regression
-                                     :axis        :n
+                       {:extract {:type :criterium/domain-extract
+                                  :metrics {:elapsed-time
+                                            {:metric [:stats :elapsed-time :mean]
+                                             :data [[{:n 100} 1e6]
+                                                    [{:n 200} 2e6]
+                                                    [{:n 400} 4e6]]}}}
+                        :regression {:type :criterium/domain-regression
+                                     :axis :n
                                      :regressions {:elapsed-time
-                                                   {:metric   [:stats :elapsed-time :mean]
-                                                    :models   [{:id           :linear
-                                                                :label        "O(n)"
-                                                                :coefficients {:a 10000.0 :b 0.0}
-                                                                :equation-str "y = 10000*n + 0"
-                                                                :predict-fn   (fn [x] (* 10000.0 x))
-                                                                :r-squared    0.9999}]
+                                                   {:metric [:stats :elapsed-time :mean]
+                                                    :models [{:id :linear
+                                                              :label "O(n)"
+                                                              :coefficients {:a 10000.0 :b 0.0}
+                                                              :equation-str "y = 10000*n + 0"
+                                                              :predict-fn (fn [x] (* 10000.0 x))
+                                                              :r-squared 0.9999}]
                                                     :best-fit :linear}}}}))]
         ;; Should have heading, table, chart, residual heading, residual chart
         (is (>= (count outputs) 4) "Expected heading, table, chart, residual outputs")
@@ -546,9 +546,9 @@
 
 (deftest portal-allocation-hotspots-test
   ;; Tests the portal viewer output for allocation-hotspots results.
-  ;; Verifies table generation with call-site and allocation stats.
+  ;; Verifies table generation with call-site, object-type, and allocation stats.
   (testing "allocation-hotspots*"
-    (testing "produces table with hotspot data"
+    (testing "produces table with hotspot data including object-type"
       (let [[title table] (with-tap-out
                             (view/allocation-hotspots*
                              :portal
@@ -559,6 +559,7 @@
                                                        :call-method "invoke"
                                                        :call-file "my_ns.clj"
                                                        :call-line 42}
+                                           :object-type "Ljava/lang/String;"
                                            :count 50
                                            :bytes 4800
                                            :freed-count 30
@@ -567,6 +568,7 @@
                                                        :call-method "invoke"
                                                        :call-file "other.clj"
                                                        :call-line 10}
+                                           :object-type "[B"
                                            :count 25
                                            :bytes 2400
                                            :freed-count 10
@@ -576,6 +578,7 @@
         (is (= 2 (count table)) "Expected 2 rows")
         (is (str/includes? (:call-site first-row) "my.ns$fn"))
         (is (str/includes? (:call-site first-row) "my_ns.clj:42"))
+        (is (= "Ljava/lang/String;" (:object-type first-row)))
         (is (= 50 (:count first-row)))
         (is (= 4800 (:bytes first-row)))
         (is (= 30 (:freed-count first-row)))
@@ -592,6 +595,7 @@
                                                         :call-method "y"
                                                         :call-file "z"
                                                         :call-line 1}
+                                            :object-type "Ljava/lang/Object;"
                                             :count 1
                                             :bytes 10
                                             :freed-count 0

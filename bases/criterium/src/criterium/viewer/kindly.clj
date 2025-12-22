@@ -25,7 +25,7 @@
   last-fragment
   (atom nil))
 
-(def ^:private  chart-width
+(def ^:private chart-width
   "Width for Kindly vega-lite charts, sized for notebook display."
   700)
 
@@ -232,7 +232,7 @@
 (defmethod view/domain-grouped* :kindly
   [_ {:keys [grouped-id]} data-map]
   (let [grouped-id (or grouped-id :grouped)
-        grouped    (data-map grouped-id)]
+        grouped (data-map grouped-id)]
     (when-let [{:keys [heading rows]} (viewer-common/prepare-domain-grouped-table
                                        grouped)]
       (kindly-heading heading)
@@ -241,7 +241,7 @@
 (defmethod view/domain-comparison* :kindly
   [_ {:keys [comparison-id]} data-map]
   (let [comparison-id (or comparison-id :comparison)
-        comparison    (data-map comparison-id)]
+        comparison (data-map comparison-id)]
     (when-let [tables (viewer-common/prepare-domain-comparison-tables
                        comparison)]
       (doseq [{:keys [heading rows]} tables]
@@ -250,19 +250,19 @@
 
 (defmethod view/domain-regression* :kindly
   [_ {:keys [regression-id extract-id tolerance]} data-map]
-  (let [regression-id  (or regression-id :regression)
-        regression     (data-map regression-id)
-        tolerance      (double  (or tolerance 0.01))
-        table-options  {:best-fit-marker "✓"
-                        :plotted-marker  ""
-                        :tolerance       tolerance}
-        legend-options {:orient  "none"
+  (let [regression-id (or regression-id :regression)
+        regression (data-map regression-id)
+        tolerance (double (or tolerance 0.01))
+        table-options {:best-fit-marker "✓"
+                       :plotted-marker ""
+                       :tolerance tolerance}
+        legend-options {:orient "none"
                         :legendX 10
                         :legendY 10}]
     (when regression
-      (let [{:keys [axis regressions impl-axis implementations]}          regression
-            extract-id  (or extract-id :extract)
-            extract     (data-map extract-id)
+      (let [{:keys [axis regressions impl-axis implementations]} regression
+            extract-id (or extract-id :extract)
+            extract (data-map extract-id)
             multi-impl? (> (count implementations) 1)]
 
         (if multi-impl?
@@ -270,7 +270,7 @@
           (doseq [[metric-id {:keys [metric by-impl with-error-bounds]}]
                   regressions]
             (let [metric-extract-data (get-in extract [:metrics metric-id])
-                  impl-keys           (sort (keys by-impl))]
+                  impl-keys (sort (keys by-impl))]
               (kindly-heading (str "Domain Regression (axis: " (name axis)
                                    ", metric: " (pr-str metric)
                                    ", by: " (name impl-axis) ")"))
@@ -282,19 +282,19 @@
               ;; Charts
               (when-let [point-data (viewer-common/prepare-regression-points
                                      metric-extract-data
-                                     {:axis              axis
-                                      :impl-axis         impl-axis
+                                     {:axis axis
+                                      :impl-axis impl-axis
                                       :has-error-bounds? with-error-bounds
-                                      :metric            metric})]
+                                      :metric metric})]
                 (let [{:keys [points unit]}
                       point-data
                       line-pts
                       (viewer-common/prepare-regression-fit-lines
                        point-data
                        {:by-impl by-impl :impl-keys impl-keys})
-                      y-title        (if (seq unit)
-                                       (str (pr-str metric) " (" unit ")")
-                                       (pr-str metric))
+                      y-title (if (seq unit)
+                                (str (pr-str metric) " (" unit ")")
+                                (pr-str metric))
                       residual-title (if (seq unit)
                                        (str "Residual (" unit ")")
                                        "Residual")]
@@ -302,47 +302,47 @@
                     (kindly-vega-lite
                      (charts/regression-chart-spec
                       points line-pts
-                      {:width             chart-width
-                       :height            chart-height
-                       :axis-name         (name axis) :y-title y-title
-                       :color-field       "impl"
-                       :legend-options    legend-options
+                      {:width chart-width
+                       :height chart-height
+                       :axis-name (name axis) :y-title y-title
+                       :color-field "impl"
+                       :legend-options legend-options
                        :has-error-bounds? with-error-bounds}))
                     ;; Residual plot
                     (let [residual-pts
                           (viewer-common/prepare-regression-residuals
                            point-data
-                           {:axis              axis
-                            :impl-axis         impl-axis
+                           {:axis axis
+                            :impl-axis impl-axis
                             :has-error-bounds? with-error-bounds
-                            :by-impl           by-impl
-                            :impl-keys         impl-keys})]
+                            :by-impl by-impl
+                            :impl-keys impl-keys})]
                       (kindly-heading "Residual Plot")
                       (kindly-vega-lite
                        (charts/regression-residual-spec
                         residual-pts
-                        {:width          chart-width
-                         :height         (long (/ (long chart-height) 2))
-                         :axis-name      (name axis)
+                        {:width chart-width
+                         :height (long (/ (long chart-height) 2))
+                         :axis-name (name axis)
                          :residual-title residual-title
-                         :color-field    "impl"
+                         :color-field "impl"
                          :legend-options legend-options}))))))))
 
           ;; Single-implementation mode
           (doseq [[metric-id {:keys [metric models best-fit with-error-bounds]}]
                   regressions]
             (let [metric-extract-data (get-in extract [:metrics metric-id])
-                  best-r-squared      (when best-fit
-                                        (->> models
-                                             (filter #(= (:id %) best-fit))
-                                             first :r-squared))
-                  models-to-plot      (when best-r-squared
-                                        (->> models
-                                             (filter
-                                              #(>= (double (:r-squared %))
-                                                   (* (double best-r-squared)
-                                                      (- 1.0 tolerance))))
-                                             (sort-by :r-squared >)))]
+                  best-r-squared (when best-fit
+                                   (->> models
+                                        (filter #(= (:id %) best-fit))
+                                        first :r-squared))
+                  models-to-plot (when best-r-squared
+                                   (->> models
+                                        (filter
+                                         #(>= (double (:r-squared %))
+                                              (* (double best-r-squared)
+                                                 (- 1.0 tolerance))))
+                                        (sort-by :r-squared >)))]
               (kindly-heading (str "Domain Regression (axis: " (name axis)
                                    ", metric: " (pr-str metric) ")"))
               ;; Model table
@@ -355,17 +355,17 @@
               (when (and metric-extract-data (seq models-to-plot))
                 (when-let [point-data (viewer-common/prepare-regression-points
                                        metric-extract-data
-                                       {:axis              axis
+                                       {:axis axis
                                         :has-error-bounds? with-error-bounds
-                                        :metric            metric})]
+                                        :metric metric})]
                   (let [{:keys [points unit]}
                         point-data
                         line-pts
                         (viewer-common/prepare-regression-fit-lines
                          point-data {:models models-to-plot})
-                        y-title        (if (seq unit)
-                                         (str (pr-str metric) " (" unit ")")
-                                         (pr-str metric))
+                        y-title (if (seq unit)
+                                  (str (pr-str metric) " (" unit ")")
+                                  (pr-str metric))
                         residual-title (if (seq unit)
                                          (str "Residual (" unit ")")
                                          "Residual")]
@@ -373,29 +373,29 @@
                       (kindly-vega-lite
                        (charts/regression-chart-spec
                         points line-pts
-                        {:width             chart-width
-                         :height            chart-height
-                         :axis-name         (name axis)
-                         :y-title           y-title
-                         :color-field       "model"
-                         :legend-options    legend-options
+                        {:width chart-width
+                         :height chart-height
+                         :axis-name (name axis)
+                         :y-title y-title
+                         :color-field "model"
+                         :legend-options legend-options
                          :has-error-bounds? with-error-bounds}))
                       ;; Residual plot
                       (let [residual-pts
                             (viewer-common/prepare-regression-residuals
                              point-data
-                             {:axis              axis
+                             {:axis axis
                               :has-error-bounds? with-error-bounds
-                              :models            models-to-plot})]
+                              :models models-to-plot})]
                         (kindly-heading "Residual Plot")
                         (kindly-vega-lite
                          (charts/regression-residual-spec
                           residual-pts
-                          {:width          chart-width
-                           :height         (long (/ (long chart-height) 2))
-                           :axis-name      (name axis)
+                          {:width chart-width
+                           :height (long (/ (long chart-height) 2))
+                           :axis-name (name axis)
                            :residual-title residual-title
-                           :color-field    "model"
+                           :color-field "model"
                            :legend-options legend-options}))))))))))))))
 
 ;;; Allocation view implementations
@@ -410,20 +410,20 @@
         (kindly-heading "Allocation Summary")
         (kindly-table
          [{:metric "Total allocated"
-           :value (format/format-value :memory total-allocated)}
+           :value (str total-allocated " bytes")}
           {:metric "Total freed"
-           :value (format/format-value :memory total-freed)}
+           :value (str total-freed " bytes")}
           {:metric "Retained"
-           :value (format/format-value :memory retained)}
+           :value (str retained " bytes")}
           {:metric "Allocation count"
            :value num-allocations}
           {:metric "Freed count"
            :value num-freed}
           {:metric "Freed ratio"
-           :value (if (pos? (long num-allocations))
+           :value (if (pos? (long total-allocated))
                     (clojure.core/format "%.1f%%"
-                                         (* 100.0 (/ (double num-freed)
-                                                     (double num-allocations))))
+                                         (* 100.0 (/ (double total-freed)
+                                                     (double total-allocated))))
                     "N/A")}])))))
 
 (defmethod view/allocation-hotspots* :kindly
@@ -435,12 +435,13 @@
         (when (seq hotspots)
           (kindly-heading "Allocation Hotspots")
           (kindly-table
-           (mapv (fn [{:keys [call-site object-types count bytes freed-count freed-bytes]}]
-                   {:call-site (viewer-common/format-call-site call-site object-types)
+           (mapv (fn [{:keys [call-site object-type count bytes freed-count freed-bytes]}]
+                   {:call-site (viewer-common/format-call-site call-site nil)
+                    :object-type (or object-type "")
                     :count count
-                    :bytes (format/format-value :memory bytes)
+                    :bytes bytes
                     :freed-count freed-count
-                    :freed-bytes (format/format-value :memory freed-bytes)})
+                    :freed-bytes freed-bytes})
                  hotspots)))))))
 
 (defmethod view/allocation-by-type* :kindly
@@ -456,9 +457,9 @@
            (mapv (fn [[type-name {:keys [count bytes freed-count freed-bytes]}]]
                    {:type type-name
                     :count count
-                    :bytes (format/format-value :memory bytes)
+                    :bytes bytes
                     :freed-count freed-count
-                    :freed-bytes (format/format-value :memory freed-bytes)})
+                    :freed-bytes freed-bytes})
                  sorted)))))))
 
 ;;; Noop implementations for views not applicable to Kindly output
