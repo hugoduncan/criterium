@@ -24,7 +24,9 @@
                                        :kaocha.plugin/filter
                                        :kaocha.plugin/capture-output
                                        :kaocha.plugin/profiling
+                                       :kaocha.plugin/hooks
                                        #_:kaocha.plugin/cloverage]
+  :kaocha.hooks/pre-run               [criterium.kaocha-hooks/instrument-pre-run]
   :cloverage/opts                     {:ns-regex ["^criterium.*$"]}
   :capture-output?                    #profile {:default true
                                                 :dots    true

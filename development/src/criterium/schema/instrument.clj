@@ -4,6 +4,10 @@
   Provides instrument! and unstrument! functions to enable runtime
   validation of function inputs and outputs during development and testing.
 
+  Only instruments the true public API in criterium.bench. Internal
+  functions in criterium.collect have complex polymorphic behaviors
+  that don't lend themselves to simple schema validation.
+
   Usage:
     (require '[criterium.schema.instrument :as inst])
 
@@ -17,13 +21,11 @@
     (inst/unstrument!)"
   (:require
    [criterium.bench]
-   [criterium.collect]
    [criterium.schema :as schema]
    [malli.core :as m]
    [malli.instrument :as mi]))
 
-;;; Function schemas for criterium.bench
-;; Use inline schemas since m/=> only takes 2 args
+;;; Function schemas for criterium.bench public API
 
 (m/=> criterium.bench/default-viewer
       [:=> :cat keyword?])
@@ -39,97 +41,21 @@
        map?])
 
 (m/=> criterium.bench/analyze
-      [:=> [:cat vector? map?]
+      [:=> [:cat sequential? map?]
        map?])
 
 (m/=> criterium.bench/view
-      [:=> [:cat vector? keyword? map?]
+      [:=> [:cat sequential? keyword? map?]
        :any])
 
 (m/=> criterium.bench/bench-measured
       [:=> [:cat map? [:map [:args-fn fn?] [:f fn?]]]
        :any])
 
-;;; Function schemas for criterium.collect
-
-(m/=> criterium.collect/transform
-      [:=> [:cat [:map
-                  [:eval-count pos-int?]
-                  [:elapsed-time nat-int?]
-                  [:collections sequential?]
-                  [:num-samples pos-int?]
-                  [:batch-size pos-int?]
-                  [:collector map?]]]
-       map?])
-
-(m/=> criterium.collect/force-gc-no-capture!
-      [:=> [:cat pos-int?]
-       nil?])
-
-(m/=> criterium.collect/force-gc!
-      [:=> [:cat pos-int?]
-       [:map
-        [:eval-count pos-int?]
-        [:elapsed-time nat-int?]
-        [:collections sequential?]
-        [:num-samples pos-int?]
-        [:batch-size pos-int?]
-        [:collector map?]]])
-
-(m/=> criterium.collect/batch-size
-      [:=> [:cat pos-int? pos-int?]
-       pos-int?])
-
-(m/=> criterium.collect/throw-away-collection
-      [:=> [:cat [:map [:args-fn fn?] [:f fn?]]]
-       nil?])
-
-(m/=> criterium.collect/collect-arrays
-      [:=> [:cat
-            [:map [:f fn?] [:x fn?] [:length pos-int?] [:metrics-defs map?]]
-            [:map [:args-fn fn?] [:f fn?]]
-            pos-int?
-            pos-int?]
-       [:map
-        [:eval-count pos-int?]
-        [:elapsed-time nat-int?]
-        [:collections sequential?]
-        [:num-samples pos-int?]
-        [:batch-size pos-int?]
-        [:collector map?]]])
-
-(m/=> criterium.collect/elapsed-time-point-estimate
-      [:=> [:cat [:map [:args-fn fn?] [:f fn?]]]
-       int?])
-
-(m/=> criterium.collect/elapsed-time-min-estimate
-      [:=> [:cat [:map [:args-fn fn?] [:f fn?]] pos-int? pos-int?]
-       [:map
-        [:eval-count pos-int?]
-        [:elapsed-time nat-int?]
-        [:collections sequential?]
-        [:num-samples pos-int?]
-        [:batch-size pos-int?]
-        [:collector map?]]])
-
-(m/=> criterium.collect/warmup
-      [:=> [:cat
-            [:map [:f fn?] [:x fn?] [:length pos-int?] [:metrics-defs map?]]
-            [:map [:args-fn fn?] [:f fn?]]
-            pos-int?
-            pos-int?]
-       [:map
-        [:eval-count pos-int?]
-        [:elapsed-time nat-int?]
-        [:collections sequential?]
-        [:num-samples pos-int?]
-        [:batch-size pos-int?]
-        [:collector map?]]])
-
 ;;; Instrumentation functions
 
 (defn instrument!
-  "Enable malli instrumentation for criterium.bench and criterium.collect.
+  "Enable malli instrumentation for criterium.bench public API.
 
   Wraps public API functions to validate inputs and outputs at runtime.
   Invalid data will cause exceptions with detailed error messages.
@@ -144,12 +70,11 @@
   ([options]
    (mi/instrument!
     (merge
-     {:filters [(mi/-filter-ns 'criterium.bench)
-                (mi/-filter-ns 'criterium.collect)]}
+     {:filters [(mi/-filter-ns 'criterium.bench)]}
      options))))
 
 (defn unstrument!
-  "Disable malli instrumentation for criterium.bench and criterium.collect.
+  "Disable malli instrumentation for criterium.bench public API.
 
   Removes validation wrappers from public API functions.
 
@@ -159,8 +84,7 @@
   ([options]
    (mi/unstrument!
     (merge
-     {:filters [(mi/-filter-ns 'criterium.bench)
-                (mi/-filter-ns 'criterium.collect)]}
+     {:filters [(mi/-filter-ns 'criterium.bench)]}
      options))))
 
 (defn instrumented?
