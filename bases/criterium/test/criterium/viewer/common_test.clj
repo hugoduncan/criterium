@@ -60,7 +60,7 @@
   (testing "render-ascii-treemap"
     (testing "produces correct tree structure"
       (let [result (common/render-ascii-treemap sample-treemap)
-            lines (str/split-lines result)]
+            lines  (str/split-lines result)]
         (is (string? result))
         (is (str/starts-with? (first lines) "Allocation Treemap"))
         (is (str/includes? (first lines) "bytes"))
@@ -83,22 +83,24 @@
 
     (testing "shows bars only on leaf nodes"
       (let [result (common/render-ascii-treemap sample-treemap)
-            lines (str/split-lines result)]
+            lines  (str/split-lines result)]
         (doseq [line lines]
           (when (str/includes? line "█")
             (is (not (str/ends-with? (first (str/split line #"\[")) "/"))
                 (str "Bar found on non-leaf: " line))))))
 
     (testing "respects depth-limit option"
-      (let [result (common/render-ascii-treemap sample-treemap {:depth-limit 1})
-            lines (str/split-lines result)]
+      (let [result (common/render-ascii-treemap
+                    sample-treemap
+                    {:depth-limit 1})]
         (is (not (str/includes? result "L42")))
         (is (not (str/includes? result "java.lang.String")))
         (is (str/includes? result "MyClass/"))))
 
     (testing "respects depth-limit 2"
-      (let [result (common/render-ascii-treemap sample-treemap {:depth-limit 2})
-            lines (str/split-lines result)]
+      (let [result (common/render-ascii-treemap
+                    sample-treemap
+                    {:depth-limit 2})]
         (is (str/includes? result "L42/"))
         (is (not (str/includes? result "java.lang.String")))))
 
@@ -110,18 +112,18 @@
         (is (not (str/includes? result "L58")))))
 
     (testing "handles empty children"
-      (let [empty-treemap {:type :criterium/allocation-treemap
+      (let [empty-treemap {:type     :criterium/allocation-treemap
                            :group-by :class→line→type
-                           :size-by :bytes
-                           :root {:name "allocations" :value 0}}
-            result (common/render-ascii-treemap empty-treemap)]
+                           :size-by  :bytes
+                           :root     {:name "allocations" :value 0}}
+            result        (common/render-ascii-treemap empty-treemap)]
         (is (string? result))
         (is (str/includes? result "Allocation Treemap"))
         (is (str/includes? result "allocations/"))))
 
     (testing "handles nil root"
       (let [nil-treemap {:type :criterium/allocation-treemap :root nil}
-            result (common/render-ascii-treemap nil-treemap)]
+            result      (common/render-ascii-treemap nil-treemap)]
         (is (= "" result))))
 
     (testing "formats sizes correctly"
@@ -131,14 +133,14 @@
                 (str/includes? result "bytes")))))
 
     (testing "respects name-width option"
-      (let [result-wide (common/render-ascii-treemap sample-treemap {:name-width 60})
+      (let [result-wide   (common/render-ascii-treemap sample-treemap {:name-width 60})
             result-narrow (common/render-ascii-treemap sample-treemap {:name-width 30})
-            lines-wide (str/split-lines result-wide)
-            lines-narrow (str/split-lines result-narrow)]
+            lines-wide    (str/split-lines result-wide)
+            lines-narrow  (str/split-lines result-narrow)]
         (is (> (count (second lines-wide)) (count (second lines-narrow))))))
 
     (testing "respects bar-width option"
-      (let [result-wide (common/render-ascii-treemap sample-treemap {:bar-width 30})
+      (let [result-wide   (common/render-ascii-treemap sample-treemap {:bar-width 30})
             result-narrow (common/render-ascii-treemap sample-treemap {:bar-width 10})]
         (is (> (count (filter #(= % \█) result-wide))
                (count (filter #(= % \█) result-narrow))))))

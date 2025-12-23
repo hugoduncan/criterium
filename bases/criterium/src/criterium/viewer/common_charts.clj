@@ -590,45 +590,43 @@
     - color by first-level category
     - tooltip on hover showing name, value (formatted bytes), path"
   [treemap-data opts]
-  (let [width (or (:width opts) 700)
-        height (or (:height opts) 400)
+  (let [width        (or (:width opts) 700)
+        height       (or (:height opts) 400)
         color-scheme (or (:color-scheme opts) "tableau10")
-        root (:root treemap-data)
-        flat-data (when root (vec (flatten-treemap-node root)))
-        size-by (or (:size-by treemap-data) :bytes)
-        value-format (if (= size-by :count) "d" "~s")]
+        root         (:root treemap-data)
+        flat-data    (when root (vec (flatten-treemap-node root)))]
     {:$schema "https://vega.github.io/schema/vega/v5.json"
-     :width width
-     :height height
+     :width   width
+     :height  height
 
-     :data [{:name "tree"
+     :data [{:name   "tree"
              :values (or flat-data [])
              :transform
-             [{:type "stratify"
-               :key "id"
+             [{:type      "stratify"
+               :key       "id"
                :parentKey "parent"}
-              {:type "treemap"
-               :field "value"
-               :sort {:field "value" :order "descending"}
+              {:type   "treemap"
+               :field  "value"
+               :sort   {:field "value" :order "descending"}
                :method "squarify"
-               :ratio 1.6
-               :size [{:signal "width"} {:signal "height"}]
-               :as ["x0" "y0" "x1" "y1" "depth" "children"]}]}
-            {:name "nodes"
-             :source "tree"
+               :ratio  1.6
+               :size   [{:signal "width"} {:signal "height"}]
+               :as     ["x0" "y0" "x1" "y1" "depth" "children"]}]}
+            {:name      "nodes"
+             :source    "tree"
              :transform [{:type "filter"
                           :expr "datum.children"}]}
-            {:name "leaves"
-             :source "tree"
+            {:name      "leaves"
+             :source    "tree"
              :transform [{:type "filter"
                           :expr "!datum.children"}]}]
 
-     :scales [{:name "color"
-               :type "ordinal"
-               :domain {:data "nodes"
+     :scales [{:name   "color"
+               :type   "ordinal"
+               :domain {:data  "nodes"
                         :field "name"
-                        :sort true}
-               :range {:scheme color-scheme}}]
+                        :sort  true}
+               :range  {:scheme color-scheme}}]
 
      :marks [;; Parent category rectangles (colored background)
              {:type "rect"
@@ -637,8 +635,8 @@
               {:enter
                {:fill {:scale "color" :field "name"}}
                :update
-               {:x {:field "x0"}
-                :y {:field "y0"}
+               {:x  {:field "x0"}
+                :y  {:field "y0"}
                 :x2 {:field "x1"}
                 :y2 {:field "y1"}}}}
              ;; Leaf rectangles (white stroke, interactive with tooltip)
@@ -646,13 +644,13 @@
               :from {:data "leaves"}
               :encode
               {:enter
-               {:stroke {:value "#fff"}
+               {:stroke      {:value "#fff"}
                 :strokeWidth {:value 1}}
                :update
-               {:x {:field "x0"}
-                :y {:field "y0"}
-                :x2 {:field "x1"}
-                :y2 {:field "y1"}
+               {:x    {:field "x0"}
+                :y    {:field "y0"}
+                :x2   {:field "x1"}
+                :y2   {:field "y1"}
                 :fill {:value "transparent"}
                 :tooltip
                 {:signal
