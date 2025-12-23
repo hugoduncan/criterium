@@ -510,7 +510,8 @@
                                :total-allocated 1024000
                                :total-freed 512000
                                :num-allocations 100
-                               :num-freed 50}}))]
+                               :num-freed 50
+                               :freed-ratio 0.5}}))]
         (is (= [:b "Allocation Summary"] title))
         (is (= 6 (count table)) "Expected 6 rows")
         (is (= "Total allocated" (:metric (first table))))
@@ -530,7 +531,8 @@
                                 :total-allocated 1000
                                 :total-freed 500
                                 :num-allocations 10
-                                :num-freed 5}}))]
+                                :num-freed 5
+                                :freed-ratio 0.5}}))]
         (is (= [:b "Allocation Summary"] title))))
 
     (testing "handles nil summary gracefully"

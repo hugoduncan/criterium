@@ -417,13 +417,7 @@
             summary
             total-allocated (long total-allocated)
             total-freed (long total-freed)
-            retained (- total-allocated total-freed)
-            freed-ratio (or freed-ratio
-                            (when (pos? total-allocated)
-                              (/ (double total-freed) (double total-allocated))))
-            freed-ratio-str (if (some? freed-ratio)
-                              (clojure.core/format "%.1f%%" (* 100.0 (double freed-ratio)))
-                              "N/A")]
+            retained (- total-allocated total-freed)]
         (kindly-heading "Allocation Summary")
         (kindly-table
          [{:metric "Total allocated"
@@ -437,7 +431,7 @@
           {:metric "Freed count"
            :value num-freed}
           {:metric "Freed ratio"
-           :value freed-ratio-str}])))))
+           :value (clojure.core/format "%.1f%%" (* 100.0 (double freed-ratio)))}])))))
 
 (defmethod view/allocation-hotspots* :kindly
   [_ {:keys [hotspots-id]} data-map]

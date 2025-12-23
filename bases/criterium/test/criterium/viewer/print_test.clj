@@ -693,7 +693,8 @@
                    :total-allocated 1024
                    :total-freed 512
                    :num-allocations 100
-                   :num-freed 50}}))))))
+                   :num-freed 50
+                   :freed-ratio 0.5}}))))))
     (testing "handles zero allocations"
       (is (= [""
               "Allocation Summary:"
@@ -701,7 +702,8 @@
               "Total freed:            0 bytes"
               "Retained:            0 bytes"
               "Allocation count:            0"
-              "Freed count:            0"]
+              "Freed count:            0"
+              "Freed ratio:          0.0%"]
              (trimmed-lines
               (with-out-str
                 (view/allocation-summary*
@@ -712,7 +714,8 @@
                    :total-allocated 0
                    :total-freed 0
                    :num-allocations 0
-                   :num-freed 0}}))))))
+                   :num-freed 0
+                   :freed-ratio 0.0}}))))))
     (testing "uses custom summary-id"
       (is (= [""
               "Allocation Summary:"
@@ -732,7 +735,8 @@
                    :total-allocated 256
                    :total-freed 128
                    :num-allocations 10
-                   :num-freed 5}}))))))))
+                   :num-freed 5
+                   :freed-ratio 0.5}}))))))))
 
 (deftest allocation-hotspots-print-test
   ;; Tests the print viewer output for allocation-hotspots results.

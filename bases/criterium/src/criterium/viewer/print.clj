@@ -867,10 +867,7 @@
                     freed-ratio]} summary
             total-allocated (long total-allocated)
             total-freed (long total-freed)
-            retained (- total-allocated total-freed)
-            freed-ratio (or freed-ratio
-                            (when (pos? total-allocated)
-                              (/ (double total-freed) (double total-allocated))))]
+            retained (- total-allocated total-freed)]
         (println)
         (println "Allocation Summary:")
         (println (format "  %16s: %12d bytes"
@@ -888,10 +885,9 @@
         (println (format "  %16s: %12d"
                          "Freed count"
                          num-freed))
-        (when (some? freed-ratio)
-          (println (format "  %16s: %12.1f%%"
-                           "Freed ratio"
-                           (* 100.0 (double freed-ratio)))))))))
+        (println (format "  %16s: %12.1f%%"
+                         "Freed ratio"
+                         (* 100.0 (double freed-ratio))))))))
 
 (defmethod view/allocation-hotspots* :print
   [_ {:keys [hotspots-id]} data-map]

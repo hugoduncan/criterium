@@ -311,13 +311,7 @@
             summary
             total-allocated (long total-allocated)
             total-freed (long total-freed)
-            retained (- total-allocated total-freed)
-            freed-ratio (or freed-ratio
-                            (when (pos? total-allocated)
-                              (/ (double total-freed) (double total-allocated))))
-            freed-ratio-str (if (some? freed-ratio)
-                              (format "%.1f%%" (* 100.0 (double freed-ratio)))
-                              "N/A")]
+            retained (- total-allocated total-freed)]
         (println "Allocation Summary:")
         (pprint/print-table
          [:metric :value]
@@ -332,7 +326,7 @@
           {:metric "Freed count"
            :value num-freed}
           {:metric "Freed ratio"
-           :value freed-ratio-str}])))))
+           :value (format "%.1f%%" (* 100.0 (double freed-ratio)))}])))))
 
 (defmethod view/allocation-hotspots* :pprint
   [_ {:keys [hotspots-id]} data-map]

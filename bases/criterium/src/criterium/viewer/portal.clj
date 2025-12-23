@@ -398,13 +398,7 @@
             summary
             total-allocated (long total-allocated)
             total-freed (long total-freed)
-            retained (- total-allocated total-freed)
-            freed-ratio (or freed-ratio
-                            (when (pos? total-allocated)
-                              (/ (double total-freed) (double total-allocated))))
-            freed-ratio-str (if (some? freed-ratio)
-                              (format "%.1f%%" (* 100.0 (double freed-ratio)))
-                              "N/A")]
+            retained (- total-allocated total-freed)]
         (heading "Allocation Summary")
         (portal-table
          [{:metric "Total allocated" :value total-allocated}
@@ -412,7 +406,8 @@
           {:metric "Retained" :value retained}
           {:metric "Allocation count" :value num-allocations}
           {:metric "Freed count" :value num-freed}
-          {:metric "Freed ratio" :value freed-ratio-str}])))))
+          {:metric "Freed ratio"
+           :value (format "%.1f%%" (* 100.0 (double freed-ratio)))}])))))
 
 (defmethod view/allocation-hotspots* :portal
   [_ {:keys [hotspots-id]} data-map]

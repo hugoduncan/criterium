@@ -955,7 +955,8 @@
                        :total-allocated 1048576
                        :total-freed 524288
                        :num-allocations 100
-                       :num-freed 50}}]
+                       :num-freed 50
+                       :freed-ratio 0.5}}]
         (view/allocation-summary* :kindly {} data-map)
         (let [result (kindly/flush)]
           (is (= :kind/fragment (:kindly/kind (meta result))))
@@ -977,20 +978,21 @@
               (is (= "50.0%" (get metrics-by-name "Freed ratio"))
                   "Expected percentage string based on bytes"))))))
 
-    (testing "handles zero allocations gracefully"
+    (testing "handles zero allocations"
       (reset! kindly/accumulated [])
       (let [data-map {:allocation-summary
                       {:type :criterium/allocation-summary
                        :total-allocated 0
                        :total-freed 0
                        :num-allocations 0
-                       :num-freed 0}}]
+                       :num-freed 0
+                       :freed-ratio 0.0}}]
         (view/allocation-summary* :kindly {} data-map)
         (let [result (kindly/flush)
               [_ table] result
               metrics-by-name (into {} (map (juxt :metric :value) table))]
-          (is (= "N/A" (get metrics-by-name "Freed ratio"))
-              "Expected N/A for zero allocations"))))
+          (is (= "0.0%" (get metrics-by-name "Freed ratio"))
+              "Expected 0.0% for zero allocations"))))
 
     (testing "handles nil summary gracefully"
       (reset! kindly/accumulated [])
