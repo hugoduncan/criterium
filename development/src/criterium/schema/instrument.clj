@@ -23,33 +23,44 @@
    [criterium.bench]
    [criterium.schema :as schema]
    [malli.core :as m]
-   [malli.instrument :as mi]))
+   [malli.instrument :as mi]
+   [malli.registry :as mr]))
+
+;;; Registry setup
+;; Set malli's default registry to include criterium schemas so that
+;; function schema references like :criterium/measured resolve correctly.
+
+(defonce ^{:private true :no-doc true} _registry-init
+  (mr/set-default-registry!
+   (mr/composite-registry
+    (m/default-schemas)
+    schema/registry)))
 
 ;;; Function schemas for criterium.bench public API
 
 (m/=> criterium.bench/default-viewer
-      [:=> :cat keyword?])
+      [:=> :cat :criterium/viewer])
 
 (m/=> criterium.bench/set-default-viewer!
-      [:=> [:cat keyword?] :any])
+      [:=> [:cat :criterium/viewer] :any])
 
 (m/=> criterium.bench/last-bench
       [:=> :cat [:maybe map?]])
 
 (m/=> criterium.bench/collect-data-map
-      [:=> [:cat map? map? [:map [:args-fn fn?] [:f fn?]]]
+      [:=> [:cat :criterium/collector-config :criterium/collect-plan :criterium/measured]
        map?])
 
 (m/=> criterium.bench/analyze
-      [:=> [:cat sequential? map?]
+      [:=> [:cat :criterium/analyse-plan map?]
        map?])
 
 (m/=> criterium.bench/view
-      [:=> [:cat sequential? keyword? map?]
+      [:=> [:cat :criterium/view-plan :criterium/viewer map?]
        :any])
 
 (m/=> criterium.bench/bench-measured
-      [:=> [:cat map? [:map [:args-fn fn?] [:f fn?]]]
+      [:=> [:cat :criterium/bench-plan :criterium/measured]
        :any])
 
 ;;; Instrumentation functions
