@@ -181,13 +181,74 @@
   [:map
    [:type [:enum :criterium/metrics-samples :criterium/collected-metrics-samples :criterium/digest]]])
 
+;;; Function input types
+;; Schemas for types used as inputs to public API functions
+
+(def measured
+  "Schema for Measured instances - the unit of benchmarking.
+  A Measured wraps a function with an argument generator."
+  [:map
+   [:args-fn fn?]
+   [:f fn?]
+   [:expr-fn {:optional true} [:maybe fn?]]])
+
+(def collector-config
+  "Schema for collector configuration maps."
+  [:map
+   [:stages [:vector keyword?]]
+   [:terminator keyword?]])
+
+(def collector
+  "Schema for collector pipeline maps."
+  [:map
+   [:f fn?]
+   [:x fn?]
+   [:length pos-int?]
+   [:metrics-defs map?]])
+
+(def collect-plan
+  "Schema for collection plan configuration."
+  [:map
+   [:scheme-type keyword?]])
+
+(def analyse-plan
+  "Schema for analysis plan - vector of analysis step specifications."
+  [:vector [:or keyword? vector?]])
+
+(def view-plan
+  "Schema for view plan - vector of view component specifications."
+  [:vector [:or keyword? vector?]])
+
+(def viewer
+  "Schema for viewer keyword."
+  keyword?)
+
+(def bench-plan
+  "Schema for benchmark plan configuration."
+  [:map
+   [:collect-plan collect-plan]
+   [:collector-config collector-config]
+   [:viewer viewer]
+   [:return-value vector?]
+   [:analyse {:optional true} analyse-plan]
+   [:view {:optional true} view-plan]
+   [:verbose {:optional true} boolean?]
+   [:with-allocation-trace {:optional true} boolean?]])
+
+(def data-map
+  "Schema for data maps passed through the benchmarking pipeline.
+  Contains :samples key with metrics data."
+  [:map
+   [:samples {:optional true} map?]])
+
 ;;; Registry
 
 (def registry
   "Malli registry with all criterium schemas."
   (merge
    (m/default-schemas)
-   {:criterium/transform-map          transform-map
+   {;; Data type schemas
+    :criterium/transform-map          transform-map
     :criterium/collection-map         collection-map
     :criterium/data-entry-map         data-entry-map
     :criterium/collected-metrics-map  collected-metrics-map
@@ -204,7 +265,17 @@
     :criterium/benchmark-map          benchmark-map
     :criterium/allocation-trace       allocation-trace
     :criterium/generic-metrics-samples-map generic-metrics-samples-map
-    :criterium/generic-data-map       generic-data-map}))
+    :criterium/generic-data-map       generic-data-map
+    ;; Function input type schemas
+    :criterium/measured               measured
+    :criterium/collector-config       collector-config
+    :criterium/collector              collector
+    :criterium/collect-plan           collect-plan
+    :criterium/analyse-plan           analyse-plan
+    :criterium/view-plan              view-plan
+    :criterium/viewer                 viewer
+    :criterium/bench-plan             bench-plan
+    :criterium/data-map               data-map}))
 
 (defn validator
   "Create a validator function for a schema.
