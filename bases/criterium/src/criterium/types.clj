@@ -1,8 +1,7 @@
 (ns criterium.types
   "Type predicates and accessors for benchmarking data structures"
   (:require
-   [clojure.set :as set]
-   [criterium.util.invariant :as invariant]))
+   [clojure.set :as set]))
 
 ;;; Type predicates
 
@@ -51,25 +50,8 @@
 (defn metrics-samples-map?
   [x]
   (and (map? x)
-       (or
-        (= :criterium/metrics-samples (:type x))
-        (throw
-         (invariant/assertion-error
-          "Invalid tupe"
-          {:error-tupe ::invalid-type
-           :date       {:expected :criterium/metrics-samples
-                        :actual   (:type x)}})))
-       (or
-        (set/subset? metrics-samples-keys (set (keys x)))
-        (throw
-         (invariant/assertion-error
-          "Invalid keys"
-          {:error-tupe ::invalid-map-keys
-           :date       {:expected metrics-samples-keys
-                        :actual   (keys x)
-                        :missing  (set/difference
-                                   metrics-samples-keys
-                                   (set (keys x)))}})))))
+       (= :criterium/metrics-samples (:type x))
+       (set/subset? metrics-samples-keys (set (keys x)))))
 
 (def digest-samples-keys
   #{:type
@@ -82,25 +64,8 @@
 (defn digest-samples-map?
   [x]
   (and (map? x)
-       (or
-        (= :criterium/digest (:type x))
-        (throw
-         (invariant/assertion-error
-          "Invalid tupe"
-          {:error-tupe ::invalid-type
-           :date       {:expected :criterium/digest
-                        :actual   (:type x)}})))
-       (or
-        (set/subset? digest-samples-keys (set (keys x)))
-        (throw
-         (invariant/assertion-error
-          "Invalid keys"
-          {:error-tupe ::invalid-map-keys
-           :date       {:expected digest-samples-keys
-                        :actual   (keys x)
-                        :missing  (set/difference
-                                   digest-samples-keys
-                                   (set (keys x)))}})))))
+       (= :criterium/digest (:type x))
+       (set/subset? digest-samples-keys (set (keys x)))))
 
 (defn generic-metrics-samples-map?
   [x]
@@ -131,17 +96,7 @@
   [x]
   (and (map? x)
        (= :criterium/outliers (:type x))
-       (or
-        (set/subset? outliers-map-keys (set (keys x)))
-        (throw
-         (invariant/assertion-error
-          "Invalid keys"
-          {:error-tupe ::invalid-map-keys
-           :date       {:expected outliers-map-keys
-                        :actual   (keys x)
-                        :missing  (set/difference
-                                   outliers-map-keys
-                                   (set (keys x)))}})))))
+       (set/subset? outliers-map-keys (set (keys x)))))
 
 (def stats-map-keys
   #{:type :stats :metrics-defs :transform :batch-size :source-id
@@ -170,16 +125,7 @@
   [x]
   (and (map? x)
        (= :criterium/histogram (:type x))
-       (or (set/subset? histogram-map-keys (set (keys x)))
-           (throw
-            (invariant/assertion-error
-             "Invalid keys"
-             {:error-tupe ::invalid-map-keys
-              :date       {:expected histogram-map-keys
-                           :actual   (keys x)
-                           :missing  (set/difference
-                                      histogram-map-keys
-                                      (set (keys x)))}})))))
+       (set/subset? histogram-map-keys (set (keys x)))))
 
 (def outlier-significance-map-keys
   #{:type :outlier-significance :metrics-defs :source-id :outliers-id})
