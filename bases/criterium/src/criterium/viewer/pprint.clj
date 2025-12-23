@@ -306,11 +306,18 @@
   (let [summary-id (or summary-id :allocation-summary)
         summary (data-map summary-id)]
     (when summary
-      (let [{:keys [^long total-allocated ^long total-freed
-                    num-allocations num-freed
-                    ^double freed-ratio]}
+      (let [{:keys [total-allocated total-freed num-allocations num-freed
+                    freed-ratio]}
             summary
-            retained (- total-allocated total-freed)]
+            total-allocated (long total-allocated)
+            total-freed (long total-freed)
+            retained (- total-allocated total-freed)
+            freed-ratio (or freed-ratio
+                            (when (pos? total-allocated)
+                              (/ (double total-freed) (double total-allocated))))
+            freed-ratio-str (if (some? freed-ratio)
+                              (format "%.1f%%" (* 100.0 (double freed-ratio)))
+                              "N/A")]
         (println "Allocation Summary:")
         (pprint/print-table
          [:metric :value]
@@ -325,7 +332,7 @@
           {:metric "Freed count"
            :value num-freed}
           {:metric "Freed ratio"
-           :value (format "%.1f%%" (* 100.0 freed-ratio))}])))))
+           :value freed-ratio-str}])))))
 
 (defmethod view/allocation-hotspots* :pprint
   [_ {:keys [hotspots-id]} data-map]
