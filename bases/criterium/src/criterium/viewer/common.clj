@@ -924,6 +924,28 @@
           bar-len (max 0 (long (Math/round (* ratio width))))]
       (apply str (repeat bar-len \█)))))
 
+;;; Treemap box-drawing constants
+
+(def ^:private ^String tree-branch
+  "Branch connector for non-last children: ├── "
+  "\u251C\u2500\u2500 ")
+
+(def ^:private ^String tree-last
+  "Last child connector: └── "
+  "\u2514\u2500\u2500 ")
+
+(def ^:private ^String tree-vertical
+  "Vertical continuation line: │   "
+  "\u2502   ")
+
+(def ^:private ^String tree-space
+  "Space continuation (after last child): 4 spaces"
+  "    ")
+
+(def ^:private ^String ellipsis
+  "Ellipsis for truncated names: …"
+  "\u2026")
+
 (defn- render-treemap-node
   "Recursively render a treemap node.
   Returns a vector of lines."
@@ -933,20 +955,35 @@
         depth (long depth)
         {:keys [name value children]} node
         is-leaf? (empty? children)
-        connector (if is-last? "└── " "├── ")
-        continuation (if is-last? "    " "│   ")
+        connector (if is-last? tree-last tree-branch)
+        continuation (if is-last? tree-space tree-vertical)
         node-name (if is-leaf? name (str name "/"))
         size-str (str "[" (format/format-value :memory value) "]")
         bar-str (when is-leaf?
                   (ascii-bar (double value) max-value bar-width))
-        ;; Build the line: prefix + connector + name + padding + size + bar
-        name-part (str prefix connector node-name)
-        name-part-len (long (count name-part))
-        padded-name (if (< name-part-len name-width)
-                      (str name-part
-                           (apply str (repeat (- name-width name-part-len) \space)))
-                      name-part)
-        line (str padded-name " " size-str
+        ;; Keep prefix + connector intact, only truncate the name if needed
+        prefix-connector (str prefix connector)
+        prefix-len (long (count prefix-connector))
+        available-for-name (- name-width prefix-len)
+        node-name-len (long (count node-name))
+        ;; Truncate name from left if it exceeds available space
+        ;; Ensure at least 2 chars available (for ellipsis + 1 char)
+        truncated-name (cond
+                         (<= available-for-name 1)
+                         ellipsis
+
+                         (> node-name-len available-for-name)
+                         (str ellipsis (subs node-name (- node-name-len (dec available-for-name))))
+
+                         :else
+                         node-name)
+        truncated-name-len (long (count truncated-name))
+        ;; Pad to fill remaining space
+        padding-needed (max 0 (- available-for-name truncated-name-len))
+        padded-line (str prefix-connector truncated-name
+                         (when (pos? padding-needed)
+                           (apply str (repeat padding-needed \space))))
+        line (str padded-line " " size-str
                   (when (seq bar-str) (str " " bar-str)))
         current-line [line]
         ;; Recurse into children if not at depth limit
@@ -1012,12 +1049,18 @@
              header (str "Allocation Treemap (by " size-by-str ", " group-by-str ")")
              root-name (str (:name root) "/")
              root-size (str "[" (format/format-value :memory root-value) "]")
-             root-line (let [name-part root-name
-                             name-part-len (long (count name-part))
-                             padded (if (< name-part-len name-width)
-                                      (str name-part
-                                           (apply str (repeat (- name-width name-part-len) \space)))
-                                      name-part)]
+             ;; Format root line with same fixed-width treatment as children
+             root-name-len (long (count root-name))
+             root-line (let [padded (cond
+                                      (< root-name-len name-width)
+                                      (str root-name
+                                           (apply str (repeat (- name-width root-name-len) \space)))
+
+                                      (> root-name-len name-width)
+                                      (str ellipsis (subs root-name (- root-name-len (dec name-width))))
+
+                                      :else
+                                      root-name)]
                          (str padded " " root-size))
              render-opts {:bar-width bar-width
                           :depth-limit depth-limit
