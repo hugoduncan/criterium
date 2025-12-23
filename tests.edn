@@ -17,7 +17,8 @@
                                   "bases/agent/test"
                                   "bases/arg-gen/test"
                                   "build/test"
-                                  "projects/agent/test"]
+                                  "projects/agent/test"
+                                  "development/test"]
            :skip-meta            [:very-slow :requires-build-artifacts]}]
 
   :plugins                            [:kaocha.plugin/randomize
