@@ -13,3 +13,11 @@
   [test-plan]
   (inst/instrument!)
   test-plan)
+
+(defn unstrument-post-run
+  "Post-run hook that disables malli instrumentation.
+
+  Returns the test-plan unchanged after disabling instrumentation."
+  [test-plan]
+  (inst/unstrument!)
+  test-plan)
