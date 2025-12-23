@@ -103,4 +103,4 @@
 
   Returns true if the var has been instrumented, false otherwise."
   [v]
-  (boolean (:malli.instrument/instrumented (meta v))))
+  (boolean (some-> v deref meta :malli.instrument/original)))

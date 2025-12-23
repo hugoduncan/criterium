@@ -105,3 +105,21 @@
       (testing "last-bench returns nil or map"
         (let [result (bench/last-bench)]
           (is (or (nil? result) (map? result))))))))
+
+;;; instrumented? tests
+
+(deftest instrumented?-test
+  ;; Tests that instrumented? correctly detects instrumentation state.
+  (testing "instrumented?"
+    (testing "returns false when not instrumented"
+      (with-clean-instrumentation
+        (is (false? (inst/instrumented? #'bench/analyze)))))
+    (testing "returns true when instrumented"
+      (with-clean-instrumentation
+        (inst/instrument!)
+        (is (true? (inst/instrumented? #'bench/analyze)))))
+    (testing "returns false after unstrument!"
+      (with-clean-instrumentation
+        (inst/instrument!)
+        (inst/unstrument!)
+        (is (false? (inst/instrumented? #'bench/analyze)))))))
