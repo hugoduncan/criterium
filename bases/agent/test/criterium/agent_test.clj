@@ -194,9 +194,9 @@
 
 (deftest allocation-freed?-test
   (testing "Freed allocation detection"
-    (is (agent/allocation-freed? {:freed 1})
+    (is (agent/allocation-freed? {:freed true})
         "Should identify freed allocation")
-    (is (not (agent/allocation-freed? {:freed 0}))
+    (is (not (agent/allocation-freed? {:freed false}))
         "Should identify non-freed allocation")))
 
 (deftest allocations-summary-test
@@ -210,9 +210,9 @@
           "Should return zero summary for empty input")))
 
   (testing "Allocation summary with records"
-    (let [records [{:object_size 100 :freed 1}
-                   {:object_size 200 :freed 0}
-                   {:object_size 300 :freed 1}]
+    (let [records [{:object_size 100 :freed true}
+                   {:object_size 200 :freed false}
+                   {:object_size 300 :freed true}]
           summary (agent/allocations-summary records)]
       (is (= {:num-allocated 3
               :num-freed 2

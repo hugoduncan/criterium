@@ -182,6 +182,8 @@ struct AllocationEvent {
   jthread thread;
   jlong size;
   jlong tag;
+  std::array<jvmtiFrameInfo, MAX_FRAMES> frames;
+  jint frame_count;
 
   void delete_global_refs(JNIEnv* env) const {
     env->DeleteGlobalRef(object_klass);
@@ -556,13 +558,27 @@ public:
       std::cout << "Failed to tag object: " << err << '\n';
       debug_print_jvmti_err(err);
     }
+
+    // Capture stack trace synchronously while still on the allocating thread
+    std::array<jvmtiFrameInfo, MAX_FRAMES> frames = {};
+    jint frame_count = 0;
+    auto stack_err = jvmti->GetStackTrace(thread, 0, MAX_FRAMES,
+                                          frames.data(), &frame_count);
+    if (stack_err != JVMTI_ERROR_NONE) {
+      DEBUG_PRINTLN("Failed to get stack trace: " << stack_err);
+      debug_print_jvmti_err(stack_err);
+      frame_count = 0;
+    }
+
     message_queue.push(AllocationEvent{
 	env->NewGlobalRef(object),
 	// NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
 	reinterpret_cast<jclass>(env->NewGlobalRef(object_klass)),
 	static_cast<jthread>(env->NewGlobalRef(thread)),
 	size,
-	tag
+	tag,
+	frames,
+	frame_count
       });
   }
 
@@ -1010,21 +1026,16 @@ public:
 
     auto internal = !(starting || stopping);
 
-    std::array<jvmtiFrameInfo, MAX_FRAMES> frames = {};
-    jint count=0;
-
-    if (!internal) {
-      if (!agent_context.get_stack_trace(event.thread, frames.data(), &count)) {
-      	return;
-      }
-    }
-
+    // Use the pre-captured stack frames from the allocation event
     // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
-    auto rec = internal ? allocation_record(env, class_sig, event.size,
-                                            event.thread, event.tag)
-                        : allocation_record(env, class_sig, event.size,
-                                            event.thread, count,
-                                            frames.data(), event.tag);
+    auto rec = (internal && event.frame_count > 0)
+                   ? allocation_record(env, class_sig, event.size,
+                                       event.thread, event.frame_count,
+                                       // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+                                       const_cast<jvmtiFrameInfo*>(event.frames.data()),
+                                       event.tag)
+                   : allocation_record(env, class_sig, event.size,
+                                       event.thread, event.tag);
 
     if (starting) {
       // DEBUG_PRINT("Start marker seen\n");

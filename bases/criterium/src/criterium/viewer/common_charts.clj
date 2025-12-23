@@ -2,8 +2,9 @@
   "Common Vega-Lite chart generation functions for viewers.
 
   Provides reusable chart-building functions extracted from the Portal viewer
-  for generating histograms, scatter plots, and percentile charts."
+  for generating histograms, scatter plots, percentile charts, and treemaps."
   (:require
+   [clojure.string :as str]
    [criterium.metric :as metric]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have have?]]
@@ -266,23 +267,23 @@
   :height for chart dimensions. Returns the Vega-Lite spec without
   viewer-specific wrapping."
   [data-map view chart-options]
-  (let [histogram-id     (or (:histogram-id view) :histograms)
-        stats-id         (or (:stats-id view) :stats)
+  (let [histogram-id (or (:histogram-id view) :histograms)
+        stats-id (or (:stats-id view) :stats)
         quant-samples-id (or (:samples-id view) :samples)
-        quant-samples    (data-map quant-samples-id)
-        stats            (data-map stats-id)
-        histograms-map   (util/lookup-data data-map histogram-id)
-        histograms       (:histograms histograms-map)
-        metrics-defs     (-> (:metrics-defs quant-samples)
-                             (metric/filter-metrics
-                              (metric/type-pred :quantitative)))
-        metric-configs   (metric/all-metric-configs metrics-defs)
-        hist-transforms  (util/get-transforms data-map histogram-id)
+        quant-samples (data-map quant-samples-id)
+        stats (data-map stats-id)
+        histograms-map (util/lookup-data data-map histogram-id)
+        histograms (:histograms histograms-map)
+        metrics-defs (-> (:metrics-defs quant-samples)
+                         (metric/filter-metrics
+                          (metric/type-pred :quantitative)))
+        metric-configs (metric/all-metric-configs metrics-defs)
+        hist-transforms (util/get-transforms data-map histogram-id)
         stats-transforms (util/get-transforms data-map (:source-id stats))
-        layer-num        (volatile! 0)]
-    {:data    {:values []}
-     :resolve {:scale {:x     "independent"
-                       :y     "independent"
+        layer-num (volatile! 0)]
+    {:data {:values []}
+     :resolve {:scale {:x "independent"
+                       :y "independent"
                        :color "shared"}}
      :vconcat (mapv
                (fn [metric-config]
@@ -470,20 +471,20 @@
   [points line-pts
    {:keys [width height color-field color-value
            legend-options has-error-bounds?]
-    :or   {width 600 height 400 color-value "steelblue"} :as opts}]
+    :or {width 600 height 400 color-value "steelblue"} :as opts}]
   (let [scatter-layer (regression-scatter-layer points opts)
-        line-layer    (regression-line-layer line-pts
-                                             {:color-field    color-field
-                                              :legend-options legend-options})
-        error-layer   (when has-error-bounds?
-                        (regression-error-layer points
-                                                {:color-field color-field
-                                                 :color-value color-value}))
-        layers        (cond-> [scatter-layer line-layer]
-                        has-error-bounds? (conj error-layer))]
-    {:width  width
+        line-layer (regression-line-layer line-pts
+                                          {:color-field color-field
+                                           :legend-options legend-options})
+        error-layer (when has-error-bounds?
+                      (regression-error-layer points
+                                              {:color-field color-field
+                                               :color-value color-value}))
+        layers (cond-> [scatter-layer line-layer]
+                 has-error-bounds? (conj error-layer))]
+    {:width width
      :height height
-     :layer  layers}))
+     :layer layers}))
 
 (defn regression-residual-layer
   "Build scatter layer for residual plot.
@@ -533,9 +534,131 @@
     :color-field - field for color encoding
     :legend-options - legend config map"
   [residual-pts {:keys [width height color-field]
-                 :or   {width 600 height 200} :as opts}]
-  {:width  width
+                 :or {width 600 height 200} :as opts}]
+  {:width width
    :height height
-   :layer  [(regression-residual-layer residual-pts opts)
-            (regression-loess-layer residual-pts {:color-field color-field})
-            (regression-zero-line-layer)]})
+   :layer [(regression-residual-layer residual-pts opts)
+           (regression-loess-layer residual-pts {:color-field color-field})
+           (regression-zero-line-layer)]})
+
+;;; Treemap charts
+
+(defn- flatten-treemap-node
+  "Flatten a hierarchical treemap node into a sequence of flat records.
+  Each record has :id, :parent, and :name keys for use with Vega stratify.
+  Only leaf nodes get stats - parent sizes are computed by Vega's treemap transform."
+  ([node] (flatten-treemap-node node nil []))
+  ([node parent-id path]
+   (let [node-name (:name node)
+         node-id (if (empty? path)
+                   "root"
+                   (str/join "/" (conj path node-name)))
+         current-path (conj path node-name)
+         children (:children node)
+         node-record (cond-> {:id node-id
+                              :parent parent-id
+                              :name node-name
+                              :depth (count path)}
+                       ;; Only set stats on leaf nodes
+                       (not children) (assoc :value (:value node 0)
+                                             :bytes (:bytes node)
+                                             :count (:count node)
+                                             :freed-bytes (:freed-bytes node 0)
+                                             :freed-count (:freed-count node 0)))]
+     (if children
+       (cons node-record
+             (mapcat #(flatten-treemap-node % node-id current-path) children))
+       [node-record]))))
+
+(defn treemap-vega-spec
+  "Build a complete Vega spec for treemap visualization.
+
+  Takes treemap-data (a :criterium/allocation-treemap map from analysis)
+  and opts map containing display options.
+
+  Parameters:
+    treemap-data - The allocation treemap map with :root containing hierarchy
+    opts - Display options:
+      :width (default 700)
+      :height (default 400)
+      :color-scheme (default \"tableau10\")
+
+  Returns a full Vega spec (not Vega-Lite) using:
+    - stratify transform to build hierarchy from flat data
+    - treemap transform with squarify tiling
+    - rect marks sized by x0/x1/y0/y1
+    - color by first-level category
+    - tooltip on hover showing name, value (formatted bytes), path"
+  [treemap-data opts]
+  (let [width        (or (:width opts) 700)
+        height       (or (:height opts) 400)
+        color-scheme (or (:color-scheme opts) "tableau10")
+        root         (:root treemap-data)
+        flat-data    (when root (vec (flatten-treemap-node root)))]
+    {:$schema "https://vega.github.io/schema/vega/v5.json"
+     :width   width
+     :height  height
+
+     :data [{:name   "tree"
+             :values (or flat-data [])
+             :transform
+             [{:type      "stratify"
+               :key       "id"
+               :parentKey "parent"}
+              {:type   "treemap"
+               :field  "value"
+               :sort   {:field "value" :order "descending"}
+               :method "squarify"
+               :ratio  1.6
+               :size   [{:signal "width"} {:signal "height"}]
+               :as     ["x0" "y0" "x1" "y1" "depth" "children"]}]}
+            {:name      "nodes"
+             :source    "tree"
+             :transform [{:type "filter"
+                          :expr "datum.children"}]}
+            {:name      "leaves"
+             :source    "tree"
+             :transform [{:type "filter"
+                          :expr "!datum.children"}]}]
+
+     :scales [{:name   "color"
+               :type   "ordinal"
+               :domain {:data  "nodes"
+                        :field "name"
+                        :sort  true}
+               :range  {:scheme color-scheme}}]
+
+     :marks [;; Parent category rectangles (colored background)
+             {:type "rect"
+              :from {:data "nodes"}
+              :encode
+              {:enter
+               {:fill {:scale "color" :field "name"}}
+               :update
+               {:x  {:field "x0"}
+                :y  {:field "y0"}
+                :x2 {:field "x1"}
+                :y2 {:field "y1"}}}}
+             ;; Leaf rectangles (white stroke, interactive with tooltip)
+             {:type "rect"
+              :from {:data "leaves"}
+              :encode
+              {:enter
+               {:stroke      {:value "#fff"}
+                :strokeWidth {:value 1}}
+               :update
+               {:x    {:field "x0"}
+                :y    {:field "y0"}
+                :x2   {:field "x1"}
+                :y2   {:field "y1"}
+                :fill {:value "transparent"}
+                :tooltip
+                {:signal
+                 (str "{'Type': datum.name, "
+                      "'Bytes': format(datum.bytes, '~s'), "
+                      "'Count': datum.count, "
+                      "'Bytes/Alloc': format(datum.bytes / datum.count, '.1f'), "
+                      "'Freed %': format(datum['freed-count'] / datum.count, '.1%'), "
+                      "'Path': replace(replace(datum.id, /^[^/]+\\//, ''), /\\/[^/]+$/, '')}")}}
+               :hover
+               {:fill {:value "rgba(0,0,0,0.1)"}}}}]}))

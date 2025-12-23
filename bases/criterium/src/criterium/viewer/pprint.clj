@@ -230,13 +230,13 @@
 (defmethod view/domain-extract* :pprint
   [_ {:keys [extract-id]} data-map]
   (let [extract-id (or extract-id :extract)
-        extract    (data-map extract-id)]
+        extract (data-map extract-id)]
     (when-let [{:keys [heading coord-header col-headers rows]}
                (viewer-common/prepare-domain-extract-table extract {:header-sep " "})]
       (println heading)
       ;; pprint/print-table needs string keys for column headers to display
       ;; without colon prefix; transform the coord key from keyword to string
-      (let [coord-key   (keyword coord-header)
+      (let [coord-key (keyword coord-header)
             pprint-rows (mapv #(-> %
                                    (assoc coord-header (get % coord-key))
                                    (dissoc coord-key))
@@ -246,7 +246,7 @@
 (defmethod view/domain-grouped* :pprint
   [_ {:keys [grouped-id]} data-map]
   (let [grouped-id (or grouped-id :grouped)
-        grouped    (data-map grouped-id)]
+        grouped (data-map grouped-id)]
     (when-let [{:keys [heading rows]} (viewer-common/prepare-domain-grouped-table
                                        grouped)]
       (println heading)
@@ -264,21 +264,21 @@
 (defmethod view/domain-regression* :pprint
   [_ {:keys [regression-id tolerance]} data-map]
   (let [regression-id (or regression-id :regression)
-        regression    (data-map regression-id)
-        tolerance     (or tolerance 0.01)
+        regression (data-map regression-id)
+        tolerance (or tolerance 0.01)
         table-options {:best-fit-marker "<- best"
-                       :plotted-marker  "[plotted]"
-                       :tolerance       tolerance}]
+                       :plotted-marker "[plotted]"
+                       :tolerance tolerance}]
     (when regression
       (let [{:keys [axis regressions impl-axis implementations]} regression
-            multi-impl?                                          (> (count implementations) 1)]
+            multi-impl? (> (count implementations) 1)]
         (if multi-impl?
           ;; Multi-implementation mode
           (doseq [[_metric-id {:keys [metric by-impl]}] regressions]
             (println (format "Domain Regression (axis: %s, metric: %s, by: %s)"
                              (name axis) (pr-str metric) (name impl-axis)))
             (if (seq by-impl)
-              (let [impl-keys  (sort (keys by-impl))
+              (let [impl-keys (sort (keys by-impl))
                     table-rows (viewer-common/prepare-regression-model-table-multi-impl
                                 by-impl impl-keys table-options)]
                 (pprint/print-table
@@ -298,3 +298,78 @@
                 (pprint/print-table [:model :r-squared :equation :best-fit] table-rows))
               (println "  (insufficient data for regression)"))
             (println)))))))
+
+;;; Allocation Views
+
+(defmethod view/allocation-summary* :pprint
+  [_ {:keys [summary-id]} data-map]
+  (let [summary-id (or summary-id :allocation-summary)
+        summary (data-map summary-id)]
+    (when summary
+      (let [{:keys [total-allocated total-freed num-allocations num-freed
+                    freed-ratio]}
+            summary
+            total-allocated (long total-allocated)
+            total-freed (long total-freed)
+            retained (- total-allocated total-freed)]
+        (println "Allocation Summary:")
+        (pprint/print-table
+         [:metric :value]
+         [{:metric "Total allocated"
+           :value (str total-allocated " bytes")}
+          {:metric "Total freed"
+           :value (str total-freed " bytes")}
+          {:metric "Retained"
+           :value (str retained " bytes")}
+          {:metric "Allocation count"
+           :value num-allocations}
+          {:metric "Freed count"
+           :value num-freed}
+          {:metric "Freed ratio"
+           :value (format "%.1f%%" (* 100.0 (double freed-ratio)))}])))))
+
+(defmethod view/allocation-hotspots* :pprint
+  [_ {:keys [hotspots-id]} data-map]
+  (let [hotspots-id (or hotspots-id :allocation-hotspots)
+        hotspots-map (data-map hotspots-id)]
+    (when hotspots-map
+      (let [hotspots (:hotspots hotspots-map)]
+        (when (seq hotspots)
+          (println "Allocation Hotspots:")
+          (pprint/print-table
+           [:count :bytes :freed-count :freed-bytes :object-type :call-site]
+           (mapv (fn [{:keys [call-site object-type count bytes freed-count freed-bytes]}]
+                   {:count count
+                    :bytes bytes
+                    :freed-count freed-count
+                    :freed-bytes freed-bytes
+                    :object-type (or object-type "")
+                    :call-site (viewer-common/format-call-site call-site nil)})
+                 hotspots)))))))
+
+(defmethod view/allocation-by-type* :pprint
+  [_ {:keys [by-type-id]} data-map]
+  (let [by-type-id (or by-type-id :allocation-by-type)
+        by-type-map (data-map by-type-id)]
+    (when by-type-map
+      (let [by-type (:by-type by-type-map)
+            sorted (sort-by (comp :bytes second) > by-type)]
+        (when (seq sorted)
+          (println "Allocations by Type:")
+          (pprint/print-table
+           [:type :count :bytes :freed-count :freed-bytes]
+           (mapv (fn [[type-name {:keys [count bytes freed-count freed-bytes]}]]
+                   {:type type-name
+                    :count count
+                    :bytes bytes
+                    :freed-count freed-count
+                    :freed-bytes freed-bytes})
+                 sorted)))))))
+
+(defmethod view/allocation-treemap* :pprint
+  [_ {:keys [treemap-id]} data-map]
+  (let [treemap-id (or treemap-id :allocation-treemap)
+        treemap-data (data-map treemap-id)]
+    (when (and treemap-data (:root treemap-data))
+      (println)
+      (println (viewer-common/render-ascii-treemap treemap-data)))))

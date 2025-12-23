@@ -36,6 +36,14 @@
 (def-multi-view samples)
 (def-multi-view stats)
 
+;;; Allocation Views
+
+(def-multi-view allocation-summary)
+(def-multi-view allocation-hotspots)
+(def-multi-view allocation-by-type)
+
+(def-multi-view allocation-treemap)
+
 ;;; Domain Views
 
 (def-multi-view domain-extract)
@@ -44,7 +52,7 @@
 (def-multi-view domain-regression)
 
 (defmulti flush-viewer (fn [viewer] viewer))
-(defmethod flush-viewer :default  [_])
+(defmethod flush-viewer :default [_])
 
 ;; Null Viewer
 
@@ -63,6 +71,13 @@
 (defmethod collect-plan* :none [_ _ _])
 (defmethod samples* :none [_ _ _])
 (defmethod stats* :none [_ _ _])
+
+;; Allocation Null Viewer
+(defmethod allocation-summary* :none [_ _ _])
+(defmethod allocation-hotspots* :none [_ _ _])
+(defmethod allocation-by-type* :none [_ _ _])
+
+(defmethod allocation-treemap* :none [_ _ _])
 
 ;; Domain Null Viewer
 (defmethod domain-extract* :none [_ _ _])

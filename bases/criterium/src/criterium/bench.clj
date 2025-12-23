@@ -20,6 +20,7 @@
   (bench (+ 1 1) :viewer :pprint) ; With pretty-printed output
   (set-default-viewer! :kindly)   ; Set default for all bench calls"
   (:require
+   [criterium.allocation :as allocation]
    [criterium.analyse]
    [criterium.bench.config :as bench-config]
    [criterium.bench.impl :as impl]
@@ -27,6 +28,7 @@
    [criterium.collect-plan :as collect-plan]
    [criterium.collector :as collector]
    [criterium.measured :as measured]
+   [criterium.util.blackhole :as blackhole]
    [criterium.util.output :as output]))
 
 (defn default-viewer
@@ -108,6 +110,15 @@
   [config bench-map]
   (get-in bench-map (:return-value config)))
 
+(defn- collect-allocation-trace
+  "Collect allocation trace by running measured once with tracing enabled."
+  [measured]
+  (let [state         (measured/args measured)
+        [trace value] (allocation/with-allocation-trace {:eval-count 1}
+                        (measured/invoke measured state 1))]
+    (blackhole/consume value)
+    trace))
+
 (defn bench-measured
   "Evaluate measured and output the benchmark time.
 
@@ -119,10 +130,20 @@
   Takes a bench-plan that fully specifies the benchmark behaviour."
   [bench-plan measured]
   (output/with-progress-reporting (:verbose bench-plan)
-    (let [data-map (->> (collect-data-map
-                         (:collector-config bench-plan)
-                         (:collect-plan bench-plan) measured)
-                        (analyze (:analyse bench-plan)))
+    (let [with-allocation? (:with-allocation-trace bench-plan)
+          ;; Collect metrics
+          data-map (collect-data-map
+                    (:collector-config bench-plan)
+                    (:collect-plan bench-plan) measured)
+          ;; Collect allocation trace if requested
+          data-map (if with-allocation?
+                     (if-let [trace (collect-allocation-trace measured)]
+                       (assoc-in data-map [:samples :allocation-trace] trace)
+                       data-map)
+                     data-map)
+          ;; Apply analysis (allocation analysis no-ops when trace absent)
+          data-map (analyze (:analyse bench-plan) data-map)
+          ;; Run views (allocation views no-op when trace absent)
           viewer-output (view (:view bench-plan) (:viewer bench-plan) data-map)
           ;; Store viewer output as a proper data-entry-map
           data-map (assoc data-map :viewer
@@ -196,6 +217,9 @@
       :limit-time-s - Time limit in seconds (optional)
       :collect-plan - Sampling strategy (optional)
       :time-fn     - Custom timing function (optional)
+      :with-allocation-trace - When true, collect allocation trace and display
+                     allocation analysis (summary, hotspots, by-type). Requires
+                     the native agent to be attached. (optional)
 
   Returns:
   The value from evaluating the expression.

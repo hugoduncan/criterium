@@ -2,7 +2,7 @@
   (clojure-indent-style . 'always-align)
   (clojure-special-arg-indent-factor . 1) ; for cljfmt equivalence
   (cider-preferred-build-tool . "clojure-cli")
-  (cider-clojure-cli-aliases . "dev:test")
+  (cider-clojure-cli-aliases . "dev:test:with-agent-mac")
   (eval .
         (define-clojure-indent
           ;; Please keep this list sorted

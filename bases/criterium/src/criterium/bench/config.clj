@@ -73,7 +73,8 @@
                         :view
                         :bench-plan
                         :verbose
-                        :viewer})
+                        :viewer
+                        :with-allocation-trace})
         limit-time-s (:limit-time-s options-map)
         analyse (:analyse options-map)
         view (:view options-map)
@@ -110,7 +111,7 @@
       (throw (ex-info "Unknown options" {:options unknown-keys})))
     (cond-> (assoc (select-keys
                     options-map
-                    [:return-value :verbose])
+                    [:return-value :verbose :with-allocation-trace])
                    :collect-plan collect-plan
                    :collector-config collector-config
                    :viewer viewer

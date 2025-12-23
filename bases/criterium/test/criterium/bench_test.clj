@@ -1,6 +1,7 @@
 (ns criterium.bench-test
   (:require
    [clojure.test :refer [deftest is testing]]
+   [criterium.allocation :as allocation]
    [criterium.analyse]
    [criterium.bench :as bench]
    [criterium.bench-plans :as bench-plans]
@@ -168,3 +169,69 @@
         (let [config (bench-config/config-map {})]
           (is (= :kindly (:viewer config)))))
       (is (= :print (bench/default-viewer))))))
+
+;; Tests for :with-allocation-trace option.
+;; Validates integration of allocation tracing into the bench pipeline.
+;; Agent may or may not be attached in test environment.
+
+(deftest with-allocation-trace-test
+  (testing ":with-allocation-trace option"
+    (testing "returns expression value"
+      (let [result (with-out-str
+                     (bench/bench (+ 1 2)
+                                  :with-allocation-trace true
+                                  :collect-plan :one-shot))]
+        (is (string? result))))
+
+    (testing "with one-shot collect plan"
+      (let [out (with-out-str
+                  (bench/bench (str "allocate" "strings")
+                               :with-allocation-trace true
+                               :collect-plan :one-shot))
+            data (:data (bench/last-bench))]
+        (testing "includes :with-allocation-trace in bench-plan"
+          (is (true? (get-in (bench/last-bench) [:bench-plan :with-allocation-trace]))))
+        ;; If agent is attached, check allocation data is present
+        (when (get-in data [:samples :allocation-trace])
+          (testing "collects allocation trace"
+            (is (allocation/trace? (get-in data [:samples :allocation-trace]))))
+          (testing "includes allocation summary"
+            (is (= :criterium/allocation-summary
+                   (:type (:allocation-summary data)))))
+          (testing "includes allocation hotspots"
+            (is (= :criterium/allocation-hotspots
+                   (:type (:allocation-hotspots data)))))
+          (testing "includes allocation by-type"
+            (is (= :criterium/allocation-by-type
+                   (:type (:allocation-by-type data)))))
+          (testing "outputs allocation views"
+            (is (re-find #"Allocation Summary" out))))))
+
+    (testing "with warmup collect plan"
+      (let [out (with-out-str
+                  (bench/bench (str "allocate" "strings")
+                               :with-allocation-trace true
+                               :limit-time-s 0.5))
+            data (:data (bench/last-bench))]
+        ;; If agent is attached, check allocation data is present
+        (when (get-in data [:samples :allocation-trace])
+          (testing "collects allocation trace with warmup"
+            (is (allocation/trace? (get-in data [:samples :allocation-trace]))))
+          (testing "outputs allocation views"
+            (is (re-find #"Allocation Summary" out))))))
+
+    (testing "without allocation trace option"
+      (with-out-str
+        (bench/bench (str "no" "trace")
+                     :collect-plan :one-shot))
+      (let [data (:data (bench/last-bench))]
+        (testing "does not include allocation trace"
+          (is (nil? (get-in data [:samples :allocation-trace]))))
+        (testing "does not include allocation analysis"
+          (is (nil? (:allocation-summary data)))
+          (is (nil? (:allocation-hotspots data)))
+          (is (nil? (:allocation-by-type data)))))))
+
+  (testing "config-map accepts :with-allocation-trace"
+    (let [config (bench-config/config-map {:with-allocation-trace true})]
+      (is (true? (:with-allocation-trace config))))))

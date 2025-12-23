@@ -181,7 +181,7 @@
                  :alloc-file (.get alloc-file object)
                  :alloc-line (.get alloc-line object)
                  :thread (.get thread-field object)
-                 :freed (.get freed object)})))
+                 :freed (pos? (long (.get freed object)))})))
 
      :else
      (prn :received object (type object))))
@@ -196,7 +196,7 @@
              :size (Long/parseLong e)
              :thread (Long/parseLong f)
              :line (Long/parseLong g)
-             :freed (Long/parseLong h)}))))
+             :freed (pos? (Long/parseLong h))}))))
 
 ;;; Lazy Agent Initialization
 
@@ -286,9 +286,9 @@
   - Thread-safe but uncoordinated
   - Returns state keywords from states map"
   []
-  (let [^clojure.lang.IFn$L f @wrapper-read-state]
-    (assert f "Agent not loaded")
-    (get states (.invokePrim f) :not-attached)))
+  (if-let [^clojure.lang.IFn$L f @wrapper-read-state]
+    (get states (.invokePrim f) :not-attached)
+    :not-attached))
 
 (defn attached?
   "Returns true if the Criterium native agent is currently loaded.
@@ -450,7 +450,7 @@
 
   Returns true if the record indicates the object was freed during tracking."
   [record]
-  (pos? (long (:freed record))))
+  (:freed record))
 
 (defn allocations-summary
   "Returns a summary of allocation statistics for the given records.

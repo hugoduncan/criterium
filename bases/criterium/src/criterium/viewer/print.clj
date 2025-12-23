@@ -432,7 +432,7 @@
   (when (some? value)
     (let [base-value (* (double value)
                         (viewer-common/metric-path->base-scale metric-path))
-          dimension  (viewer-common/metric-path->dimension metric-path)]
+          dimension (viewer-common/metric-path->dimension metric-path)]
       (if dimension
         (format/format-value dimension base-value)
         (format "%g" base-value)))))
@@ -462,8 +462,8 @@
   [coords]
   (if-not (every? map? coords)
     coords
-    (let [uniform-axes   (viewer-common/detect-uniform-axes coords)
-          first-coord    (first coords)
+    (let [uniform-axes (viewer-common/detect-uniform-axes coords)
+          first-coord (first coords)
           remaining-keys (count (apply dissoc first-coord uniform-axes))]
       (if (and (seq uniform-axes) (pos? remaining-keys))
         (mapv #(apply dissoc % uniform-axes) coords)
@@ -472,15 +472,15 @@
 (defmethod view/domain-extract* :print
   [_ {:keys [extract-id]} data-map]
   (let [extract-id (or extract-id :extract)
-        extract    (data-map extract-id)]
+        extract (data-map extract-id)]
     (when extract
       (doseq [[_metric-id {:keys [metric data]}] (:metrics extract)]
-        (let [raw-coords      (map first data)
+        (let [raw-coords (map first data)
               ;; Strip uniform axes (e.g., :impl :default for single-impl scenarios)
               stripped-coords (strip-uniform-axes raw-coords)
-              coord-map       (zipmap raw-coords stripped-coords)
+              coord-map (zipmap raw-coords stripped-coords)
               single-key-info (viewer-common/single-key-coord-info stripped-coords)
-              sorted-data     (sort-coords data single-key-info)]
+              sorted-data (sort-coords data single-key-info)]
           (println (format "Domain Extract: %s" (pr-str metric)))
           (doseq [[coord value] sorted-data]
             (let [display-coord (get coord-map coord coord)]
@@ -492,7 +492,7 @@
 (defmethod view/domain-grouped* :print
   [_ {:keys [grouped-id]} data-map]
   (let [grouped-id (or grouped-id :grouped)
-        grouped    (data-map grouped-id)]
+        grouped (data-map grouped-id)]
     (when-let [{:keys [heading rows]} (viewer-common/prepare-domain-grouped-table
                                        grouped)]
       (println heading)
@@ -734,7 +734,7 @@
 (defmethod view/domain-comparison* :print
   [_ {:keys [comparison-id]} data-map]
   (let [comparison-id (or comparison-id :comparison)
-        comparison    (data-map comparison-id)]
+        comparison (data-map comparison-id)]
     (when comparison
       (let [{:keys [axis metric metrics implementations data]} comparison]
         (if metrics
@@ -749,14 +749,14 @@
           (if (and (seq data) (some #(seq (second %)) data))
             (if implementations
               (let [data-keys (set (keys data))
-                    missing   (remove data-keys implementations)]
+                    missing (remove data-keys implementations)]
                 (when (seq missing)
                   (throw
                    (ex-info
                     "Domain :implementations do not match comparison data keys"
                     {:implementations implementations
-                     :data-keys       (keys data)
-                     :missing         missing})))
+                     :data-keys (keys data)
+                     :missing missing})))
                 (print-single-metric-factor-table
                  axis
                  metric
@@ -768,8 +768,8 @@
 (defmethod view/domain-regression* :print
   [_ {:keys [regression-id tolerance]} data-map]
   (let [regression-id (or regression-id :regression)
-        regression    (data-map regression-id)
-        tolerance     (or tolerance 0.01)]
+        regression (data-map regression-id)
+        tolerance (or tolerance 0.01)]
     (when regression
       (let [{:keys [axis regressions impl-axis implementations]}
             regression
@@ -798,9 +798,9 @@
                   (println (format "  [%s]" (name impl-key)))
                   (if (seq models)
                     (let [sorted-models (sort-by :r-squared > models)
-                          label-width   (reduce
-                                         max
-                                         (map #(count (:label %)) models))]
+                          label-width (reduce
+                                       max
+                                       (map #(count (:label %)) models))]
                       (doseq [{:keys [id label equation-str r-squared]}
                               sorted-models]
                         (let [plotted? (and plotted-ids (plotted-ids id))]
@@ -825,21 +825,21 @@
                                         (filter #(= (:id %) best-fit))
                                         first
                                         :r-squared))
-                  plotted-ids    (when best-r-squared
-                                   (->> models
-                                        (filter
-                                         #(>= (:r-squared %)
-                                              (* best-r-squared
-                                                 (- 1 tolerance))))
-                                        (map :id)
-                                        set))]
+                  plotted-ids (when best-r-squared
+                                (->> models
+                                     (filter
+                                      #(>= (:r-squared %)
+                                           (* best-r-squared
+                                              (- 1 tolerance))))
+                                     (map :id)
+                                     set))]
               (println (format "Domain Regression (axis: %s, metric: %s)"
                                (name axis) (pr-str metric)))
               (if (seq models)
                 (let [sorted-models (sort-by :r-squared > models)
-                      label-width   (reduce
-                                     max
-                                     (map #(count (:label %)) models))]
+                      label-width (reduce
+                                   max
+                                   (map #(count (:label %)) models))]
                   (doseq [{:keys [id label equation-str r-squared]}
                           sorted-models]
                     (let [plotted? (and plotted-ids (plotted-ids id))]
@@ -855,3 +855,91 @@
                           ""))))))
                 (println "  (insufficient data for regression)"))
               (println))))))))
+
+;;; Allocation Views
+
+(defmethod view/allocation-summary* :print
+  [_ {:keys [summary-id]} data-map]
+  (let [summary-id (or summary-id :allocation-summary)
+        summary (data-map summary-id)]
+    (when summary
+      (let [{:keys [total-allocated total-freed num-allocations num-freed
+                    freed-ratio]} summary
+            total-allocated (long total-allocated)
+            total-freed (long total-freed)
+            retained (- total-allocated total-freed)]
+        (println)
+        (println "Allocation Summary:")
+        (println (format "  %16s: %12d bytes"
+                         "Total allocated"
+                         total-allocated))
+        (println (format "  %16s: %12d bytes"
+                         "Total freed"
+                         total-freed))
+        (println (format "  %16s: %12d bytes"
+                         "Retained"
+                         retained))
+        (println (format "  %16s: %12d"
+                         "Allocation count"
+                         num-allocations))
+        (println (format "  %16s: %12d"
+                         "Freed count"
+                         num-freed))
+        (println (format "  %16s: %12.1f%%"
+                         "Freed ratio"
+                         (* 100.0 (double freed-ratio))))))))
+
+(defmethod view/allocation-hotspots* :print
+  [_ {:keys [hotspots-id]} data-map]
+  (let [hotspots-id (or hotspots-id :allocation-hotspots)
+        hotspots-map (data-map hotspots-id)]
+    (when hotspots-map
+      (let [hotspots (:hotspots hotspots-map)
+            type-col-width 30
+            truncate-type (fn [s]
+                            (if (and s (> (count s) type-col-width))
+                              (str "…" (subs s (- (count s) (- type-col-width 1))))
+                              (or s "")))]
+        (when (seq hotspots)
+          (println)
+          (println "Allocation Hotspots:")
+          (println (format "%8s %12s %8s %12s  %-30s  %s"
+                           "Count" "Bytes" "Freed" "Freed Bytes" "Object Type" "Call Site"))
+          (println (apply str (repeat 110 "-")))
+          (doseq [{:keys [call-site object-type count bytes freed-count freed-bytes]} hotspots]
+            (println (format "%8d %12d %8d %12d  %-30s  %s"
+                             count
+                             bytes
+                             freed-count
+                             freed-bytes
+                             (truncate-type object-type)
+                             (viewer-common/format-call-site call-site nil)))))))))
+
+(defmethod view/allocation-by-type* :print
+  [_ {:keys [by-type-id]} data-map]
+  (let [by-type-id (or by-type-id :allocation-by-type)
+        by-type-map (data-map by-type-id)]
+    (when by-type-map
+      (let [by-type (:by-type by-type-map)
+            sorted (sort-by (comp :bytes second) > by-type)]
+        (when (seq sorted)
+          (println)
+          (println "Allocations by Type:")
+          (println (format "%8s %12s %8s %12s  %s"
+                           "Count" "Bytes" "Freed" "Freed Bytes" "Type"))
+          (println (apply str (repeat 80 "-")))
+          (doseq [[type-name {:keys [count bytes freed-count freed-bytes]}] sorted]
+            (println (format "%8d %12d %8d %12d  %s"
+                             count
+                             bytes
+                             freed-count
+                             freed-bytes
+                             type-name))))))))
+
+(defmethod view/allocation-treemap* :print
+  [_ {:keys [treemap-id]} data-map]
+  (let [treemap-id (or treemap-id :allocation-treemap)
+        treemap-data (data-map treemap-id)]
+    (when (and treemap-data (:root treemap-data))
+      (println)
+      (println (viewer-common/render-ascii-treemap treemap-data)))))

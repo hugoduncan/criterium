@@ -111,9 +111,9 @@
           "Should not match other thread")))
 
   (testing "Freed allocation detection"
-    (is (agent-core/allocation-freed? {:freed 1})
+    (is (agent-core/allocation-freed? {:freed true})
         "Should detect freed allocation")
-    (is (not (agent-core/allocation-freed? {:freed 0}))
+    (is (not (agent-core/allocation-freed? {:freed false}))
         "Should detect non-freed allocation")))
 
 ;; Integration Tests
