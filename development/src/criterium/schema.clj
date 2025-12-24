@@ -245,11 +245,15 @@
 ;;; Domain types
 ;; Schemas for criterium.domain data structures
 
+(def coord
+  "Schema for run coordinates - keyword label or map of dimension keys to values."
+  [:or keyword? [:map-of keyword? :any]])
+
 (def run-map
   "Schema for run maps with :coord and :data keys."
   [:map
-   [:coord :any]
-   [:data :any]])
+   [:coord coord]
+   [:data result-map]])
 
 (def domain-map
   "Schema for domain maps with :type :criterium/domain."
@@ -327,6 +331,7 @@
     :criterium/bench-plan             bench-plan
     :criterium/data-map               data-map
     ;; Domain type schemas
+    :criterium/coord                  coord
     :criterium/run-map                run-map
     :criterium/domain-map             domain-map
     :criterium/domain-extract-map     domain-extract-map

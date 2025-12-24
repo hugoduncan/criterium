@@ -144,7 +144,7 @@
 
 (def valid-run-map
   {:coord {:n 100}
-   :data {:some "result"}})
+   :data {:entry valid-data-entry-map}})
 
 (def valid-domain-map
   {:type :criterium/domain
@@ -249,6 +249,7 @@
       (is (contains? schema/registry :criterium/bench-plan))
       (is (contains? schema/registry :criterium/data-map)))
     (testing "contains domain type schemas"
+      (is (contains? schema/registry :criterium/coord))
       (is (contains? schema/registry :criterium/run-map))
       (is (contains? schema/registry :criterium/domain-map))
       (is (contains? schema/registry :criterium/domain-extract-map))
@@ -681,6 +682,25 @@
 
 ;;; Domain type schema tests
 
+(deftest coord-test
+  ;; Tests the coord schema for run coordinates - keyword or map.
+  (testing "coord"
+    (testing "accepts keyword"
+      (is (true? (schema/validate schema/coord :baseline)))
+      (is (true? (schema/validate schema/coord :impl-a))))
+    (testing "accepts map of keyword to any"
+      (is (true? (schema/validate schema/coord {:n 100})))
+      (is (true? (schema/validate schema/coord {:n 100 :impl :foo})))
+      (is (true? (schema/validate schema/coord {:impl :bar :size "large"}))))
+    (testing "accepts empty map"
+      (is (true? (schema/validate schema/coord {}))))
+    (testing "rejects string"
+      (is (false? (schema/validate schema/coord "baseline"))))
+    (testing "rejects vector"
+      (is (false? (schema/validate schema/coord [:a :b]))))
+    (testing "rejects map with non-keyword keys"
+      (is (false? (schema/validate schema/coord {"n" 100}))))))
+
 (deftest run-map-test
   ;; Tests the run-map schema for run maps with :coord and :data keys.
   (testing "run-map"
@@ -692,6 +712,11 @@
       (is (false? (schema/validate schema/run-map {:data {}}))))
     (testing "rejects missing :data"
       (is (false? (schema/validate schema/run-map {:coord :a}))))
+    (testing "rejects string coord"
+      (is (false? (schema/validate schema/run-map {:coord "baseline" :data {}}))))
+    (testing "rejects invalid :data (not result-map)"
+      (is (false? (schema/validate schema/run-map {:coord :a :data "invalid"})))
+      (is (false? (schema/validate schema/run-map {:coord :a :data {:some "not-data-entry"}}))))
     (testing "rejects non-map"
       (is (false? (schema/validate schema/run-map nil)))
       (is (false? (schema/validate schema/run-map []))))))
