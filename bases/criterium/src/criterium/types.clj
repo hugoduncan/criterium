@@ -1,7 +1,5 @@
 (ns criterium.types
-  "Type predicates and accessors for benchmarking data structures"
-  (:require
-   [clojure.set :as set]))
+  "Type predicates and accessors for benchmarking data structures")
 
 ;;; Type predicates
 
@@ -18,26 +16,28 @@
        (contains? x :collector)))
 
 (defn data-entry-map?
+  "Check if x is a data entry map with required keys."
   [x]
   (and (map? x)
-       (set/subset? #{:type :transform} (set (keys x)))))
+       (contains? x :type)
+       (contains? x :transform)))
 
 (defn collected-metrics-map?
+  "Check if x is a collected-metrics map with required keys."
   [x]
   (and (map? x)
-       (set/subset?
-        #{:type
-          :transform
-          :metric->values
-          :elapsed-time
-          :num-samples
-          :batch-size
-          :eval-count
-          :metrics-defs
-          :expr-value}
-        (set (keys x)))))
+       (contains? x :type)
+       (contains? x :transform)
+       (contains? x :metric->values)
+       (contains? x :elapsed-time)
+       (contains? x :num-samples)
+       (contains? x :batch-size)
+       (contains? x :eval-count)
+       (contains? x :metrics-defs)
+       (contains? x :expr-value)))
 
 (def metrics-samples-keys
+  "Required keys for :criterium/metrics-samples type."
   #{:type
     :transform
     :source-id
@@ -48,12 +48,20 @@
     :expr-value})
 
 (defn metrics-samples-map?
+  "Check if x is a metrics-samples map with :type :criterium/metrics-samples."
   [x]
   (and (map? x)
        (= :criterium/metrics-samples (:type x))
-       (set/subset? metrics-samples-keys (set (keys x)))))
+       (contains? x :transform)
+       (contains? x :source-id)
+       (contains? x :metric->values)
+       (contains? x :num-samples)
+       (contains? x :batch-size)
+       (contains? x :metrics-defs)
+       (contains? x :expr-value)))
 
 (def digest-samples-keys
+  "Required keys for :criterium/digest type."
   #{:type
     :transform
     :source-id
@@ -62,10 +70,15 @@
     :expr-value})
 
 (defn digest-samples-map?
+  "Check if x is a digest-samples map with :type :criterium/digest."
   [x]
   (and (map? x)
        (= :criterium/digest (:type x))
-       (set/subset? digest-samples-keys (set (keys x)))))
+       (contains? x :transform)
+       (contains? x :source-id)
+       (contains? x :metric->digest)
+       (contains? x :metrics-defs)
+       (contains? x :expr-value)))
 
 (defn generic-metrics-samples-map?
   [x]
@@ -80,70 +93,82 @@
      :criterium/digest}
    (:type x)))
 
-(def quantiles-map-keys #{:type :quantiles :metrics-defs :source-id})
-
 (defn quantiles-map?
+  "Check if x is a quantiles map with :type :criterium/quantiles."
   [x]
   (and (map? x)
        (= :criterium/quantiles (:type x))
-       (set/subset? quantiles-map-keys (set (keys x)))))
-
-(def outliers-map-keys
-  #{:type :outliers :metrics-defs :source-id :quantiles-id :num-samples
-    :transform})
+       (contains? x :quantiles)
+       (contains? x :metrics-defs)
+       (contains? x :source-id)))
 
 (defn outliers-map?
+  "Check if x is an outliers map with :type :criterium/outliers."
   [x]
   (and (map? x)
        (= :criterium/outliers (:type x))
-       (set/subset? outliers-map-keys (set (keys x)))))
-
-(def stats-map-keys
-  #{:type :stats :metrics-defs :transform :batch-size :source-id
-    :outliers-id})
+       (contains? x :outliers)
+       (contains? x :metrics-defs)
+       (contains? x :source-id)
+       (contains? x :quantiles-id)
+       (contains? x :num-samples)
+       (contains? x :transform)))
 
 (defn stats-map?
+  "Check if x is a stats map with :type :criterium/stats."
   [x]
   (and (map? x)
        (= :criterium/stats (:type x))
-       (set/subset? stats-map-keys (set (keys x)))))
-
-(def event-stats-map-keys
-  #{:type :event-stats :metrics-defs :transform :batch-size :source-id})
+       (contains? x :stats)
+       (contains? x :metrics-defs)
+       (contains? x :transform)
+       (contains? x :batch-size)
+       (contains? x :source-id)
+       (contains? x :outliers-id)))
 
 (defn event-stats-map?
+  "Check if x is an event-stats map with :type :criterium/event-stats."
   [x]
   (and (map? x)
        (= :criterium/event-stats (:type x))
-       (set/subset? event-stats-map-keys (set (keys x)))))
-
-(def histogram-map-keys
-  #{:type :histograms :metrics-defs :transform :batch-size :source-id
-    :outliers-id})
+       (contains? x :event-stats)
+       (contains? x :metrics-defs)
+       (contains? x :transform)
+       (contains? x :batch-size)
+       (contains? x :source-id)))
 
 (defn histogram-map?
+  "Check if x is a histogram map with :type :criterium/histogram."
   [x]
   (and (map? x)
        (= :criterium/histogram (:type x))
-       (set/subset? histogram-map-keys (set (keys x)))))
-
-(def outlier-significance-map-keys
-  #{:type :outlier-significance :metrics-defs :source-id :outliers-id})
+       (contains? x :histograms)
+       (contains? x :metrics-defs)
+       (contains? x :transform)
+       (contains? x :batch-size)
+       (contains? x :source-id)
+       (contains? x :outliers-id)))
 
 (defn outlier-significance-map?
+  "Check if x is an outlier-significance map with :type :criterium/outlier-significance."
   [x]
   (and (map? x)
        (= :criterium/outlier-significance (:type x))
-       (set/subset? outlier-significance-map-keys (set (keys x)))))
-
-(def bootstrap-map-keys
-  #{:type :bootstrap :metrics-defs :transform :batch-size :source-id})
+       (contains? x :outlier-significance)
+       (contains? x :metrics-defs)
+       (contains? x :source-id)
+       (contains? x :outliers-id)))
 
 (defn bootstrap-map?
+  "Check if x is a bootstrap map with :type :criterium/bootstrap."
   [x]
   (and (map? x)
        (= :criterium/bootstrap (:type x))
-       (set/subset? bootstrap-map-keys (set (keys x)))))
+       (contains? x :bootstrap)
+       (contains? x :metrics-defs)
+       (contains? x :transform)
+       (contains? x :batch-size)
+       (contains? x :source-id)))
 
 (defn result-map?
   [x]
@@ -157,13 +182,12 @@
 
 ;;; Allocation trace types
 
-(def allocation-trace-map-keys
-  "Required keys for :criterium/allocation-trace type."
-  #{:type :records :thread-id :eval-count :elapsed-time})
-
 (defn allocation-trace?
   "Check if x is an allocation trace map with :type :criterium/allocation-trace."
   [x]
   (and (map? x)
        (= :criterium/allocation-trace (:type x))
-       (set/subset? allocation-trace-map-keys (set (keys x)))))
+       (contains? x :records)
+       (contains? x :thread-id)
+       (contains? x :eval-count)
+       (contains? x :elapsed-time)))
