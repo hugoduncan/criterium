@@ -358,8 +358,7 @@
 (defmethod view/quantiles* :print
   [_ {:keys [quantiles-id]} data-map]
   (let [quantiles-id (or quantiles-id :quantiles)
-        quantiles-map (have types/quantiles-map?
-                            (data-map quantiles-id))
+        quantiles-map (util/get-quantiles-entry data-map quantiles-id)
         metrics-defs (:metrics-defs quantiles-map)
         metric-configs (metric/all-metric-configs metrics-defs)
         transforms (util/get-transforms data-map quantiles-id)

@@ -326,3 +326,21 @@
       (throw (ex-info "Failed to find data set"
                       {:available-ids (keys data-map)
                        :id id}))))
+
+;;; Typed entry accessors
+;; These are simple lookup functions that can be instrumented via malli
+;; for return type validation during development.
+
+(defn get-generic-data-entry
+  "Look up a generic data entry by id from a result map.
+  Returns the entry or nil if not found. Type validation is
+  handled by malli instrumentation during development."
+  [result-map id]
+  (result-map id))
+
+(defn get-quantiles-entry
+  "Look up a quantiles entry by id from a result map.
+  Returns the entry or nil if not found. Type validation is
+  handled by malli instrumentation during development."
+  [result-map id]
+  (result-map id))

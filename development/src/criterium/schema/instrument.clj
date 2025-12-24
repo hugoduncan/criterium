@@ -4,8 +4,11 @@
   Provides instrument! and unstrument! functions to enable runtime
   validation of function inputs and outputs during development and testing.
 
-  Only instruments the true public API in criterium.bench. Internal
-  functions in criterium.collect have complex polymorphic behaviors
+  Instruments:
+  - criterium.bench public API functions
+  - criterium.util.helpers typed accessor functions
+
+  Internal functions in criterium.collect have complex polymorphic behaviors
   that don't lend themselves to simple schema validation.
 
   Usage:
@@ -21,6 +24,7 @@
     (inst/unstrument!)"
   (:require
    [criterium.bench]
+   [criterium.util.helpers]
    [criterium.schema :as schema]
    [malli.core :as m]
    [malli.instrument :as mi]
@@ -60,10 +64,20 @@
       [:=> [:cat :criterium/bench-plan :criterium/measured]
        :any])
 
+;;; Function schemas for criterium.util.helpers typed accessors
+
+(m/=> criterium.util.helpers/get-generic-data-entry
+      [:=> [:cat :criterium/result-map keyword?]
+       [:maybe :criterium/generic-data-map]])
+
+(m/=> criterium.util.helpers/get-quantiles-entry
+      [:=> [:cat :criterium/result-map keyword?]
+       [:maybe :criterium/quantiles-map]])
+
 ;;; Instrumentation functions
 
 (defn instrument!
-  "Enable malli instrumentation for criterium.bench public API.
+  "Enable malli instrumentation for criterium public API.
 
   Wraps public API functions to validate inputs and outputs at runtime.
   Invalid data will cause exceptions with detailed error messages.
@@ -78,11 +92,12 @@
   ([options]
    (mi/instrument!
     (merge
-     {:filters [(mi/-filter-ns 'criterium.bench)]}
+     {:filters [(mi/-filter-ns 'criterium.bench)
+                (mi/-filter-ns 'criterium.util.helpers)]}
      options))))
 
 (defn unstrument!
-  "Disable malli instrumentation for criterium.bench public API.
+  "Disable malli instrumentation for criterium public API.
 
   Removes validation wrappers from public API functions.
 
@@ -92,7 +107,8 @@
   ([options]
    (mi/unstrument!
     (merge
-     {:filters [(mi/-filter-ns 'criterium.bench)]}
+     {:filters [(mi/-filter-ns 'criterium.bench)
+                (mi/-filter-ns 'criterium.util.helpers)]}
      options))))
 
 (defn instrumented?

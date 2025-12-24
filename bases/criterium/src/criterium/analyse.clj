@@ -46,7 +46,7 @@
    (fn transform-log [data-map]
      (let [samples-id (or samples-id :samples)
            id (or id (keyword (str "log-" (name samples-id))))
-           metrics-samples (have types/generic-data-map? (data-map samples-id))
+           metrics-samples (util/get-generic-data-entry data-map samples-id)
            metrics-defs (-> (:metrics-defs metrics-samples)
                             (metric/select-metrics metric-ids)
                             (metric/filter-metrics
