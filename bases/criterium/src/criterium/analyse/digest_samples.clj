@@ -4,13 +4,12 @@
    [criterium.collect-plan :as collect-plan]
    [criterium.types :as types]
    [criterium.util.helpers :as util]
-   [criterium.util.invariant :refer [have have?]]
+   [criterium.util.invariant :refer [have]]
    [criterium.util.stats :as stats]
    [criterium.util.t-digest :as t-digest]))
 
 (defmethod methods/transform :criterium/digest
   [digest-samples metric-configs f inv-f _options]
-  {:pre [(have? types/digest-samples-map? digest-samples)]}
   (let [metric->digest  (util/metric->digest digest-samples)
         metric->digest' (reduce
                          (fn x-path [result path]
@@ -32,7 +31,6 @@
 
 (defmethod methods/quantiles :criterium/digest
   [digest-samples metric-configs options]
-  {:pre [(have? types/digest-samples-map? digest-samples)]}
   (let [metric->digest (util/metric->digest digest-samples)
         quantiles      (into [0.25 0.5 0.75] (:quantiles options))
         quantiles      (reduce
@@ -90,7 +88,6 @@
 
 (defmethod methods/outliers :criterium/digest
   [digest-samples all-quantiles metric-configs _options]
-  {:pre [(have? types/digest-samples-map? digest-samples)]}
   (let [metric->digest (util/metric->digest digest-samples)
         quantiles      (util/quantiles all-quantiles)
         outliers       (reduce
@@ -124,7 +121,6 @@
 
 (defmethod methods/stats :criterium/digest
   [digest-samples outliers metric-configs _options]
-  {:pre [(have? types/digest-samples-map? digest-samples)]}
   (let [metric->digest (util/metric->digest digest-samples)
         outliers       (when outliers (util/outliers outliers))
         stats          (reduce
@@ -166,7 +162,6 @@
 
 (defmethod methods/histogram :criterium/digest
   [digest-samples quantiles outliers metric-configs _options]
-  {:pre [(have? types/digest-samples-map? digest-samples)]}
   (let [histograms (->> metric-configs
                         (mapv
                          (juxt :path

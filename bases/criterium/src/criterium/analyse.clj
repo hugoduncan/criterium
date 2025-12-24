@@ -9,7 +9,7 @@
    [criterium.types :as types]
    [criterium.util.debug :as debug]
    [criterium.util.helpers :as util]
-   [criterium.util.invariant :refer [have have?]]))
+   [criterium.util.invariant :refer [have]]))
 
 (defn exp [v]
   (Math/exp v))
@@ -92,7 +92,6 @@
   ([] (quantiles {}))
   ([{:keys [id samples-id metric-ids] :as analysis}]
    (fn quantiles [data-map]
-     {:pre [(have? types/result-map? data-map)]}
      (let [samples-id (or samples-id :samples)
            id (or id :quantiles)
            metrics-samples (data-map samples-id)

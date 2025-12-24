@@ -3,7 +3,6 @@
    Provides functionality to construct benchmark functions from analysis and view
    configurations."
   (:require
-   [criterium.types :as types]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have have?]]
    [criterium.view :as view]))
@@ -85,8 +84,7 @@
      (ex-info "view must be a sequence of specs" {:view view-plan})))
   (let [fns (resolve-view-fns view-plan)]
     (fn [viewer result]
-      {:pre [(have? keyword? viewer)
-             (have? types/result-map? result)]}
+      {:pre [(have? keyword? viewer)]}
       (run! #(% viewer result) fns)
       (or (view/flush-viewer viewer) result))))
 
