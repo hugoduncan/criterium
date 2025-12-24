@@ -221,6 +221,8 @@ When instrumented, invalid inputs throw exceptions with `:malli.core/invalid-inp
 
 **Tests run with instrumentation enabled** via kaocha hooks defined in `tests.edn`.
 
+**Registry side effect:** Requiring `criterium.schema.instrument` modifies malli's global default registry via `malli.registry/set-default-registry!` to include criterium schemas. If you use malli elsewhere in the same JVM, the default registry will include criterium's schema definitions (`:criterium/measured`, `:criterium/result-map`, etc.).
+
 ## Development Notes
 
 - The codebase follows the project's Clojure style guide (referenced in global CLAUDE.md)

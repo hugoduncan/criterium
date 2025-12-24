@@ -4,6 +4,13 @@
   Provides instrument! and unstrument! functions to enable runtime
   validation of function inputs and outputs during development and testing.
 
+  **Side Effect:** Requiring this namespace modifies malli's global default
+  registry via `malli.registry/set-default-registry!` to include criterium
+  schemas. This allows function schemas to reference types like
+  `:criterium/measured` and `:criterium/result-map`. If you use malli
+  elsewhere in the same JVM, be aware that the default registry will include
+  criterium's schema definitions.
+
   Instruments:
   - criterium.bench public API functions
   - criterium.util.helpers typed accessor functions
