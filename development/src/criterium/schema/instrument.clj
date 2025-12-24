@@ -1,5 +1,5 @@
 (ns criterium.schema.instrument
-  "Malli instrumentation for criterium public API and internal validators.
+  "Malli instrumentation for criterium public API.
 
   Provides instrument! and unstrument! functions to enable runtime
   validation of function inputs and outputs during development and testing.
@@ -7,10 +7,6 @@
   Instruments:
   - criterium.bench public API functions
   - criterium.util.helpers typed accessor functions
-  - criterium.schema.validators checkpoint functions for type validation
-
-  The validators namespace provides identity functions that can be used as
-  type validation checkpoints for multimethod inputs and other internal types.
 
   Usage:
     (require '[criterium.schema.instrument :as inst])
@@ -26,7 +22,6 @@
   (:require
    [criterium.bench]
    [criterium.schema :as schema]
-   [criterium.schema.validators]
    [criterium.util.helpers]
    [malli.core :as m]
    [malli.instrument :as mi]
@@ -150,61 +145,6 @@
       [:=> [:cat :criterium/outlier-significance-map]
        :criterium/outlier-significance-map])
 
-;;; Function schemas for criterium.schema.validators checkpoint functions
-;; These are identity functions used to validate types at development time
-
-(m/=> criterium.schema.validators/check-digest-samples-map
-      [:=> [:cat :criterium/digest-samples-map]
-       :criterium/digest-samples-map])
-
-(m/=> criterium.schema.validators/check-generic-metrics-samples-map
-      [:=> [:cat :criterium/generic-metrics-samples-map]
-       :criterium/generic-metrics-samples-map])
-
-(m/=> criterium.schema.validators/check-collection-map
-      [:=> [:cat :criterium/collection-map]
-       :criterium/collection-map])
-
-(m/=> criterium.schema.validators/check-result-map
-      [:=> [:cat :criterium/result-map]
-       :criterium/result-map])
-
-(m/=> criterium.schema.validators/check-metrics-samples-map
-      [:=> [:cat :criterium/metrics-samples-map]
-       :criterium/metrics-samples-map])
-
-(m/=> criterium.schema.validators/check-quantiles-map
-      [:=> [:cat :criterium/quantiles-map]
-       :criterium/quantiles-map])
-
-(m/=> criterium.schema.validators/check-outliers-map
-      [:=> [:cat :criterium/outliers-map]
-       :criterium/outliers-map])
-
-(m/=> criterium.schema.validators/check-stats-map
-      [:=> [:cat :criterium/stats-map]
-       :criterium/stats-map])
-
-(m/=> criterium.schema.validators/check-event-stats-map
-      [:=> [:cat :criterium/event-stats-map]
-       :criterium/event-stats-map])
-
-(m/=> criterium.schema.validators/check-histogram-map
-      [:=> [:cat :criterium/histogram-map]
-       :criterium/histogram-map])
-
-(m/=> criterium.schema.validators/check-outlier-significance-map
-      [:=> [:cat :criterium/outlier-significance-map]
-       :criterium/outlier-significance-map])
-
-(m/=> criterium.schema.validators/check-bootstrap-map
-      [:=> [:cat :criterium/bootstrap-map]
-       :criterium/bootstrap-map])
-
-(m/=> criterium.schema.validators/check-data-entry-map
-      [:=> [:cat :criterium/data-entry-map]
-       :criterium/data-entry-map])
-
 ;;; Instrumentation functions
 
 (defn instrument!
@@ -224,8 +164,7 @@
    (mi/instrument!
     (merge
      {:filters [(mi/-filter-ns 'criterium.bench)
-                (mi/-filter-ns 'criterium.util.helpers)
-                (mi/-filter-ns 'criterium.schema.validators)]}
+                (mi/-filter-ns 'criterium.util.helpers)]}
      options))))
 
 (defn unstrument!
@@ -240,8 +179,7 @@
    (mi/unstrument!
     (merge
      {:filters [(mi/-filter-ns 'criterium.bench)
-                (mi/-filter-ns 'criterium.util.helpers)
-                (mi/-filter-ns 'criterium.schema.validators)]}
+                (mi/-filter-ns 'criterium.util.helpers)]}
      options))))
 
 (defn instrumented?
