@@ -2,11 +2,19 @@
   (:require
    [criterium.analyse.methods :as methods]
    [criterium.collect-plan :as collect-plan]
-   [criterium.types :as types]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have]]
    [criterium.util.stats :as stats]
    [criterium.util.t-digest :as t-digest]))
+
+(def ^:private digest-samples-keys
+  "Keys for :criterium/digest type, used for select-keys."
+  #{:type
+    :transform
+    :source-id
+    :metric->digest
+    :metrics-defs
+    :expr-value})
 
 (defmethod methods/transform :criterium/digest
   [digest-samples metric-configs f inv-f _options]
@@ -24,7 +32,7 @@
     (->
      (select-keys
       digest-samples
-      types/digest-samples-keys)
+      digest-samples-keys)
      (merge
       {:metric->digest metric->digest'
        :transform      {:sample-> inv-f :->sample f}}))))

@@ -2,12 +2,22 @@
   (:require
    [criterium.analyse.methods :as methods]
    [criterium.collect-plan :as collect-plan]
-   [criterium.types :as types]
    [criterium.util.helpers :as util]
    [criterium.util.histogram :as histogram]
    [criterium.util.invariant :refer [have]]
    [criterium.util.sampled-stats :as sampled-stats]
    [criterium.util.stats :as stats]))
+
+(def ^:private metrics-samples-keys
+  "Keys for :criterium/metrics-samples type, used for select-keys."
+  #{:type
+    :transform
+    :source-id
+    :metric->values
+    :num-samples
+    :batch-size
+    :metrics-defs
+    :expr-value})
 
 (derive :criterium/collected-metrics-samples :criterium/metrics-samples)
 
@@ -25,7 +35,7 @@
     (->
      (select-keys
       metrics-samples
-      (disj types/metrics-samples-keys :metrics-defs))
+      (disj metrics-samples-keys :metrics-defs))
      (merge
       {:metric->values metric->values'
        :transform      {:sample-> inv-f :->sample f}}))))

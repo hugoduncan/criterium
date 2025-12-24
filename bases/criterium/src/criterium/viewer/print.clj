@@ -4,7 +4,6 @@
    [clojure.string :as str]
    [criterium.jvm :as jvm]
    [criterium.metric :as metric]
-   [criterium.types :as types]
    [criterium.util.format :as format]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have have?]]

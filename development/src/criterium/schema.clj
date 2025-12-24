@@ -1,9 +1,9 @@
 (ns criterium.schema
   "Malli schemas for criterium data structures.
 
-  Provides schema definitions that mirror the type predicates in
-  criterium.types. These schemas enable runtime validation and
-  instrumentation during development and testing.
+  Provides schema definitions for criterium's benchmarking data types.
+  These schemas enable runtime validation and instrumentation during
+  development and testing.
 
   Usage:
     (require '[malli.core :as m])
