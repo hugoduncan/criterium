@@ -31,10 +31,7 @@
 ;; function schema references like :criterium/measured resolve correctly.
 
 (defonce ^{:private true :no-doc true} _registry-init
-  (mr/set-default-registry!
-   (mr/composite-registry
-    (m/default-schemas)
-    schema/registry)))
+  (mr/set-default-registry! schema/registry))
 
 ;;; Function schemas for criterium.bench public API
 
