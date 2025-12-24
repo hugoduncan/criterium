@@ -50,10 +50,13 @@
            :git/sha "f096de8"
            :deps/root "projects/test-runner"}}}
   :build {:extra-deps {org.clojure/clojure {:mvn/version "1.12.3"}
-                       local/build {:local/root "build"}}
+                       local/build {:local/root "build"}
+                       poly/criterium {:local/root "bases/criterium"}
+                       poly/notebooks {:local/root "bases/notebooks"}}
           :ns-default build.tasks
           :exec-fn help
-          :jvm-opts ["-Dclojure.main.report=stderr"]}
+          :jvm-opts ["-Dclojure.main.report=stderr"
+                     "-Djdk.attach.allowAttachSelf"]}
   :cljfmt {:deps {cljfmt/cljfmt {:mvn/version "0.9.0"}}
            :main-opts ["-m" "cljfmt.main"]}
   :outdated {:deps {com.github.liquidz/antq {:mvn/version "RELEASE"}}

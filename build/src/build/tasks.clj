@@ -137,3 +137,13 @@
   (let [params ((requiring-resolve 'build.project-data/project-data) params)]
     (println (:version params))
     nil))
+
+(defn notebooks
+  "Render all notebooks to HTML documentation.
+
+  Usage:
+    clojure -T:build notebooks
+
+  Returns: nil"
+  [_params]
+  ((requiring-resolve 'criterium.notebook.render/render-site!)))
