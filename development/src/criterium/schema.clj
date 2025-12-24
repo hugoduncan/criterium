@@ -94,7 +94,7 @@
    [:metrics-defs map?]
    [:source-id keyword?]
    [:quantiles-id keyword?]
-   [:num-samples pos-int?]
+   [:num-samples [:maybe pos-int?]]
    [:transform transform-map]])
 
 (def stats-map
@@ -106,7 +106,7 @@
    [:transform transform-map]
    [:batch-size pos-int?]
    [:source-id keyword?]
-   [:outliers-id keyword?]])
+   [:outliers-id [:maybe keyword?]]])
 
 (def event-stats-map
   "Schema for event statistics analysis results."
@@ -127,7 +127,7 @@
    [:transform transform-map]
    [:batch-size pos-int?]
    [:source-id keyword?]
-   [:outliers-id keyword?]])
+   [:outliers-id [:maybe keyword?]]])
 
 (def outlier-significance-map
   "Schema for outlier significance analysis results."
@@ -136,7 +136,7 @@
    [:outlier-significance map?]
    [:metrics-defs map?]
    [:source-id keyword?]
-   [:outliers-id keyword?]])
+   [:outliers-id [:maybe keyword?]]])
 
 (def bootstrap-map
   "Schema for bootstrap analysis results."
