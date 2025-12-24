@@ -26,3 +26,8 @@
   ((requiring-resolve 'build.agent/build-and-copy-agent!))
   (tasks/install (assoc params :project :criterium)))
 
+(defn ^{:params []} notebooks
+  "Render all notebooks to HTML documentation."
+  [params]
+  (tasks/notebooks params))
+
