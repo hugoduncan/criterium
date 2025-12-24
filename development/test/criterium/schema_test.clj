@@ -140,6 +140,41 @@
    :viewer :print
    :return-value [:data]})
 
+;;; Domain type fixtures
+
+(def valid-run-map
+  {:coord {:n 100}
+   :data {:some "result"}})
+
+(def valid-domain-map
+  {:type :criterium/domain
+   :runs []})
+
+(def valid-domain-extract-map
+  {:type :criterium/domain-extract
+   :metrics {}})
+
+(def valid-domain-grouped-map
+  {:type :criterium/domain-grouped
+   :axis :impl
+   :data {}})
+
+(def valid-domain-comparison-map-single
+  {:type :criterium/domain-comparison
+   :axis :impl
+   :metric [:stats :elapsed-time :mean]
+   :data {}})
+
+(def valid-domain-comparison-map-multi
+  {:type :criterium/domain-comparison
+   :axis :impl
+   :metrics {:elapsed-time {:data []}}})
+
+(def valid-domain-regression-map
+  {:type :criterium/domain-regression
+   :axis :n
+   :regressions {}})
+
 ;;; Helper function tests
 
 (deftest validate-test
@@ -212,7 +247,14 @@
       (is (contains? schema/registry :criterium/view-plan))
       (is (contains? schema/registry :criterium/viewer))
       (is (contains? schema/registry :criterium/bench-plan))
-      (is (contains? schema/registry :criterium/data-map)))))
+      (is (contains? schema/registry :criterium/data-map)))
+    (testing "contains domain type schemas"
+      (is (contains? schema/registry :criterium/run-map))
+      (is (contains? schema/registry :criterium/domain-map))
+      (is (contains? schema/registry :criterium/domain-extract-map))
+      (is (contains? schema/registry :criterium/domain-grouped-map))
+      (is (contains? schema/registry :criterium/domain-comparison-map))
+      (is (contains? schema/registry :criterium/domain-regression-map)))))
 
 ;;; Base schema tests
 
@@ -636,3 +678,119 @@
     (testing "rejects non-map"
       (is (false? (schema/validate schema/data-map nil)))
       (is (false? (schema/validate schema/data-map []))))))
+
+;;; Domain type schema tests
+
+(deftest run-map-test
+  ;; Tests the run-map schema for run maps with :coord and :data keys.
+  (testing "run-map"
+    (testing "accepts valid run with keyword coord"
+      (is (true? (schema/validate schema/run-map {:coord :baseline :data {}}))))
+    (testing "accepts valid run with map coord"
+      (is (true? (schema/validate schema/run-map valid-run-map))))
+    (testing "rejects missing :coord"
+      (is (false? (schema/validate schema/run-map {:data {}}))))
+    (testing "rejects missing :data"
+      (is (false? (schema/validate schema/run-map {:coord :a}))))
+    (testing "rejects non-map"
+      (is (false? (schema/validate schema/run-map nil)))
+      (is (false? (schema/validate schema/run-map []))))))
+
+(deftest domain-map-test
+  ;; Tests the domain-map schema for domain maps with :type :criterium/domain.
+  (testing "domain-map"
+    (testing "accepts valid empty domain"
+      (is (true? (schema/validate schema/domain-map valid-domain-map))))
+    (testing "accepts domain with runs"
+      (is (true? (schema/validate schema/domain-map
+                                  {:type :criterium/domain
+                                   :runs [{:coord :a :data {}}]}))))
+    (testing "rejects wrong type"
+      (is (false? (schema/validate schema/domain-map {:type :other :runs []}))))
+    (testing "rejects missing type"
+      (is (false? (schema/validate schema/domain-map {:runs []}))))
+    (testing "rejects non-vector runs"
+      (is (false? (schema/validate schema/domain-map
+                                   {:type :criterium/domain :runs '()}))))
+    (testing "rejects non-map"
+      (is (false? (schema/validate schema/domain-map nil))))))
+
+(deftest domain-extract-map-test
+  ;; Tests the domain-extract-map schema for domain extract results.
+  (testing "domain-extract-map"
+    (testing "accepts valid domain extract"
+      (is (true? (schema/validate schema/domain-extract-map valid-domain-extract-map))))
+    (testing "accepts with metrics content"
+      (is (true? (schema/validate schema/domain-extract-map
+                                  {:type :criterium/domain-extract
+                                   :metrics {:elapsed-time {:data []}}}))))
+    (testing "rejects wrong type"
+      (is (false? (schema/validate schema/domain-extract-map
+                                   {:type :other :metrics {}}))))
+    (testing "rejects missing metrics"
+      (is (false? (schema/validate schema/domain-extract-map
+                                   {:type :criterium/domain-extract}))))
+    (testing "rejects non-map metrics"
+      (is (false? (schema/validate schema/domain-extract-map
+                                   {:type :criterium/domain-extract :metrics []}))))))
+
+(deftest domain-grouped-map-test
+  ;; Tests the domain-grouped-map schema for domain grouped results.
+  (testing "domain-grouped-map"
+    (testing "accepts valid domain grouped"
+      (is (true? (schema/validate schema/domain-grouped-map valid-domain-grouped-map))))
+    (testing "rejects wrong type"
+      (is (false? (schema/validate schema/domain-grouped-map
+                                   {:type :other :axis :impl :data {}}))))
+    (testing "rejects missing axis"
+      (is (false? (schema/validate schema/domain-grouped-map
+                                   {:type :criterium/domain-grouped :data {}}))))
+    (testing "rejects missing data"
+      (is (false? (schema/validate schema/domain-grouped-map
+                                   {:type :criterium/domain-grouped :axis :impl}))))))
+
+(deftest domain-comparison-map-test
+  ;; Tests the domain-comparison-map schema for domain comparison results.
+  ;; Supports single-metric (:metric + :data) and multi-metric (:metrics) formats.
+  (testing "domain-comparison-map"
+    (testing "accepts single-metric format with :metric and :data"
+      (is (true? (schema/validate schema/domain-comparison-map
+                                  valid-domain-comparison-map-single))))
+    (testing "accepts multi-metric format with :metrics"
+      (is (true? (schema/validate schema/domain-comparison-map
+                                  valid-domain-comparison-map-multi))))
+    (testing "rejects wrong type"
+      (is (false? (schema/validate schema/domain-comparison-map
+                                   {:type :other :axis :impl :metric [] :data {}}))))
+    (testing "rejects missing axis"
+      (is (false? (schema/validate schema/domain-comparison-map
+                                   {:type :criterium/domain-comparison :metric [] :data {}}))))
+    (testing "rejects missing both :metric/:data and :metrics"
+      (is (false? (schema/validate schema/domain-comparison-map
+                                   {:type :criterium/domain-comparison :axis :impl}))))))
+
+(deftest domain-regression-map-test
+  ;; Tests the domain-regression-map schema for domain regression results.
+  (testing "domain-regression-map"
+    (testing "accepts valid domain regression"
+      (is (true? (schema/validate schema/domain-regression-map
+                                  valid-domain-regression-map))))
+    (testing "accepts with regressions content"
+      (is (true? (schema/validate schema/domain-regression-map
+                                  {:type :criterium/domain-regression
+                                   :axis :n
+                                   :regressions {:elapsed-time {:best-fit :linear}}}))))
+    (testing "rejects wrong type"
+      (is (false? (schema/validate schema/domain-regression-map
+                                   {:type :other :axis :n :regressions {}}))))
+    (testing "rejects missing axis"
+      (is (false? (schema/validate schema/domain-regression-map
+                                   {:type :criterium/domain-regression :regressions {}}))))
+    (testing "rejects missing regressions"
+      (is (false? (schema/validate schema/domain-regression-map
+                                   {:type :criterium/domain-regression :axis :n}))))
+    (testing "rejects non-map regressions"
+      (is (false? (schema/validate schema/domain-regression-map
+                                   {:type :criterium/domain-regression
+                                    :axis :n
+                                    :regressions []}))))))

@@ -94,7 +94,7 @@
    [:metrics-defs map?]
    [:source-id keyword?]
    [:quantiles-id keyword?]
-   [:num-samples [:maybe pos-int?]]
+   [:num-samples [:maybe pos?]]
    [:transform transform-map]])
 
 (def stats-map
@@ -242,6 +242,55 @@
   [:map
    [:samples {:optional true} map?]])
 
+;;; Domain types
+;; Schemas for criterium.domain data structures
+
+(def run-map
+  "Schema for run maps with :coord and :data keys."
+  [:map
+   [:coord :any]
+   [:data :any]])
+
+(def domain-map
+  "Schema for domain maps with :type :criterium/domain."
+  [:map
+   [:type [:= :criterium/domain]]
+   [:runs vector?]])
+
+(def domain-extract-map
+  "Schema for domain extract results with :metrics map."
+  [:map
+   [:type [:= :criterium/domain-extract]]
+   [:metrics map?]])
+
+(def domain-grouped-map
+  "Schema for domain grouped results."
+  [:map
+   [:type [:= :criterium/domain-grouped]]
+   [:axis :any]
+   [:data :any]])
+
+(def domain-comparison-map
+  "Schema for domain comparison results.
+  Supports single-metric format (:metric + :data) or multi-metric format (:metrics)."
+  [:and
+   [:map
+    [:type [:= :criterium/domain-comparison]]
+    [:axis :any]]
+   [:or
+    [:map
+     [:metric :any]
+     [:data :any]]
+    [:map
+     [:metrics :any]]]])
+
+(def domain-regression-map
+  "Schema for domain regression results with :regressions map."
+  [:map
+   [:type [:= :criterium/domain-regression]]
+   [:axis :any]
+   [:regressions map?]])
+
 ;;; Registry
 
 (def registry
@@ -276,7 +325,14 @@
     :criterium/view-plan              view-plan
     :criterium/viewer                 viewer
     :criterium/bench-plan             bench-plan
-    :criterium/data-map               data-map}))
+    :criterium/data-map               data-map
+    ;; Domain type schemas
+    :criterium/run-map                run-map
+    :criterium/domain-map             domain-map
+    :criterium/domain-extract-map     domain-extract-map
+    :criterium/domain-grouped-map     domain-grouped-map
+    :criterium/domain-comparison-map  domain-comparison-map
+    :criterium/domain-regression-map  domain-regression-map}))
 
 (defn validator
   "Create a validator function for a schema.

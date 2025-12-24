@@ -43,8 +43,8 @@
             result (analysis/analyse-domain plan d)]
         (is (contains? result :extract))
         (is (contains? result :regression))
-        (is (domain/domain-extract? (:extract result)))
-        (is (domain/domain-regression? (:regression result)))))
+        (is (= :criterium/domain-extract (:type (:extract result))))
+        (is (= :criterium/domain-regression (:type (:regression result))))))
     (testing "implementation-comparison executes successfully"
       (let [d (domain/domain
                {:coord {:impl :foo}
@@ -57,7 +57,7 @@
                   :viewer :none)
             result (analysis/analyse-domain plan d)]
         (is (contains? result :comparison))
-        (is (domain/domain-comparison? (:comparison result)))
+        (is (= :criterium/domain-comparison (:type (:comparison result))))
         (is (contains? (:comparison result) :metrics))
         (is (= [:foo :bar] (:implementations (:comparison result))))))
     (testing "extract-elapsed-time executes successfully"
@@ -69,4 +69,4 @@
                   :viewer :none)
             result (analysis/analyse-domain plan d)]
         (is (contains? result :extract))
-        (is (domain/domain-extract? (:extract result)))))))
+        (is (= :criterium/domain-extract (:type (:extract result))))))))

@@ -22,7 +22,7 @@
                  {:coord {:n 100}
                   :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
               result (analysis/extract d [:stats :elapsed-time :mean])]
-          (is (domain/domain-extract? result))
+          (is (= :criterium/domain-extract (:type result)))
           (is (= :criterium/domain-extract (:type result)))
           (is (contains? (:metrics result) :elapsed-time))
           (is (= [:stats :elapsed-time :mean]
@@ -77,7 +77,7 @@
       (testing "returns empty vector in :data for empty domain"
         (let [result (analysis/extract (domain/domain)
                                        [:stats :elapsed-time :mean])]
-          (is (domain/domain-extract? result))
+          (is (= :criterium/domain-extract (:type result)))
           (is (= [] (get-in result [:metrics :elapsed-time :data])))))
       (testing "extracts different value-keys"
         (let [d (domain/domain
@@ -170,7 +170,7 @@
       (let [d (domain/domain
                {:coord {:n 100 :impl :foo} :data sample-data})
             result (analysis/group-by-axis d :impl)]
-        (is (domain/domain-grouped? result))
+        (is (= :criterium/domain-grouped (:type result)))
         (is (= :criterium/domain-grouped (:type result)))
         (is (= :impl (:axis result)))))
     (testing "groups runs by axis key value"
@@ -180,7 +180,7 @@
                {:coord {:n 100 :impl :bar} :data {:third "result"}})
             grouped (:data (analysis/group-by-axis d :impl))]
         (is (= #{:foo :bar} (set (keys grouped))))
-        (is (domain/domain? (get grouped :foo)))
+        (is (= :criterium/domain (:type (get grouped :foo))))
         (is (= 2 (count (:runs (get grouped :foo)))))
         (is (= 1 (count (:runs (get grouped :bar)))))))
     (testing "groups keyword coords under nil"
@@ -200,7 +200,7 @@
         (is (= {:n 100} (-> grouped (get nil) :runs first :coord)))))
     (testing "returns empty map in :data for empty domain"
       (let [result (analysis/group-by-axis (domain/domain) :impl)]
-        (is (domain/domain-grouped? result))
+        (is (= :criterium/domain-grouped (:type result)))
         (is (= {} (:data result)))))
     (testing "preserves run order within groups"
       (let [d (domain/domain
@@ -219,7 +219,7 @@
                {:coord {:n 100 :impl :bar} :data sample-data-2})
             grouped (:data (analysis/group-by-axis d :impl))]
         (doseq [[_ sub-domain] grouped]
-          (is (domain/domain? sub-domain)))))))
+          (is (= :criterium/domain (:type sub-domain))))))))
 
 ;; Tests for domain compare-by function.
 ;; Validates comparing metric values across axis dimensions, producing
@@ -238,7 +238,7 @@
                  {:coord {:n 100 :impl :bar}
                   :data (mock-bench-result {:elapsed-time {:mean 2.0}})})
               result (analysis/compare-by d :impl [:stats :elapsed-time :mean])]
-          (is (domain/domain-comparison? result))
+          (is (= :criterium/domain-comparison (:type result)))
           (is (= :criterium/domain-comparison (:type result)))
           (is (= :impl (:axis result)))
           (is (= [:stats :elapsed-time :mean] (:metric result)))
@@ -285,7 +285,7 @@
       (testing "returns empty :data for empty domain"
         (let [result (analysis/compare-by (domain/domain) :impl
                                           [:stats :elapsed-time :mean])]
-          (is (domain/domain-comparison? result))
+          (is (= :criterium/domain-comparison (:type result)))
           (is (= :impl (:axis result)))
           (is (= {} (:data result)))))
       (testing "preserves run order within groups"
@@ -326,7 +326,7 @@
                          {:elapsed-time {:mean 2.0}
                           :thread-allocation {:mean 200}})})
               result (analysis/compare-by d :impl nil)]
-          (is (domain/domain-comparison? result))
+          (is (= :criterium/domain-comparison (:type result)))
           (is (contains? result :metrics))
           (is (not (contains? result :metric)))
           (is (not (contains? result :data)))))
@@ -402,7 +402,7 @@
             result (f {:domain d})]
         (is (contains? result :domain))
         (is (contains? result :mean))
-        (is (domain/domain-extract? (:mean result)))))
+        (is (= :criterium/domain-extract (:type (:mean result))))))
     (testing "uses default :id when not specified"
       (let [d (domain/domain
                {:coord :a
@@ -421,7 +421,7 @@
                 :metric-path [:stats :elapsed-time :mean]})
             result (f {:my-domain d})]
         (is (contains? result :mean))
-        (is (domain/domain-extract? (:mean result)))))
+        (is (= :criterium/domain-extract (:type (:mean result))))))
     (testing "preserves other keys in data-map"
       (let [d (domain/domain
                {:coord :a
@@ -459,7 +459,7 @@
             result (f {:domain d})]
         (is (contains? result :domain))
         (is (contains? result :by-impl))
-        (is (domain/domain-grouped? (:by-impl result)))))
+        (is (= :criterium/domain-grouped (:type (:by-impl result))))))
     (testing "uses default :id when not specified"
       (let [d (domain/domain
                {:coord {:impl :foo} :data sample-data})
@@ -473,7 +473,7 @@
                {:id :by-impl :domain-id :src :axis-key :impl})
             result (f {:src d})]
         (is (contains? result :by-impl))
-        (is (domain/domain-grouped? (:by-impl result)))))
+        (is (= :criterium/domain-grouped (:type (:by-impl result))))))
     (testing "preserves other keys in data-map"
       (let [d (domain/domain
                {:coord {:impl :foo} :data sample-data})
@@ -502,7 +502,7 @@
               result (f {:domain d})]
           (is (contains? result :domain))
           (is (contains? result :impl-time))
-          (is (domain/domain-comparison? (:impl-time result)))))
+          (is (= :criterium/domain-comparison (:type (:impl-time result))))))
       (testing "uses default :id when not specified"
         (let [d (domain/domain
                  {:coord {:impl :foo}
@@ -522,7 +522,7 @@
                   :metric-path [:stats :elapsed-time :mean]})
               result (f {:source d})]
           (is (contains? result :cmp))
-          (is (domain/domain-comparison? (:cmp result)))))
+          (is (= :criterium/domain-comparison (:type (:cmp result))))))
       (testing "preserves other keys in data-map"
         (let [d (domain/domain
                  {:coord {:impl :foo}
@@ -591,8 +591,8 @@
         (is (contains? result :domain))
         (is (contains? result :mean))
         (is (contains? result :var))
-        (is (domain/domain-extract? (:mean result)))
-        (is (domain/domain-extract? (:var result)))))
+        (is (= :criterium/domain-extract (:type (:mean result))))
+        (is (= :criterium/domain-extract (:type (:var result))))))
     (testing "chains extract with group-by"
       (let [d (domain/domain
                {:coord {:n 100 :impl :foo}
@@ -605,8 +605,8 @@
                           :metric-path [:stats :elapsed-time :mean]}))
                        ((analysis/domain-group-by-fn
                          {:id :by-impl :axis-key :impl})))]
-        (is (domain/domain-extract? (:mean result)))
-        (is (domain/domain-grouped? (:by-impl result)))))
+        (is (= :criterium/domain-extract (:type (:mean result))))
+        (is (= :criterium/domain-grouped (:type (:by-impl result))))))
     (testing "chains multiple analysis types"
       (let [d (domain/domain
                {:coord {:n 100 :impl :foo}
@@ -631,10 +631,10 @@
                           :metric-path [:stats :elapsed-time :mean]})))]
         (is (= #{:domain :mean :by-impl :impl-time :n-time}
                (set (keys result))))
-        (is (domain/domain-extract? (:mean result)))
-        (is (domain/domain-grouped? (:by-impl result)))
-        (is (domain/domain-comparison? (:impl-time result)))
-        (is (domain/domain-comparison? (:n-time result)))))))
+        (is (= :criterium/domain-extract (:type (:mean result))))
+        (is (= :criterium/domain-grouped (:type (:by-impl result))))
+        (is (= :criterium/domain-comparison (:type (:impl-time result))))
+        (is (= :criterium/domain-comparison (:type (:n-time result))))))))
 
 ;; Tests for domain-regression? predicate and fit-complexity function.
 ;; Validates regression fitting for algorithmic complexity analysis.
@@ -651,7 +651,7 @@
                                                      [{:n 200} 200.0]
                                                      [{:n 300} 300.0]]}}}
             result (analysis/fit-complexity extract :n)]
-        (is (domain/domain-regression? result))
+        (is (= :criterium/domain-regression (:type result)))
         (is (= :criterium/domain-regression (:type result)))
         (is (= :n (:axis result)))
         (is (contains? (:regressions result) :elapsed-time))
@@ -688,7 +688,7 @@
                                                      [{:n 200} nil]
                                                      [{:n 300} 300.0]]}}}
             result (analysis/fit-complexity extract :n)]
-        (is (domain/domain-regression? result))
+        (is (= :criterium/domain-regression (:type result)))
         (is (seq (get-in result [:regressions :elapsed-time :models])))))
     (testing "filters out coordinates missing axis key"
       (let [extract {:type :criterium/domain-extract
@@ -697,7 +697,7 @@
                                                      [{:m 200} 200.0]
                                                      [{:n 300} 300.0]]}}}
             result (analysis/fit-complexity extract :n)]
-        (is (domain/domain-regression? result))
+        (is (= :criterium/domain-regression (:type result)))
         (is (seq (get-in result [:regressions :elapsed-time :models])))))
     (testing "filters out keyword coordinates"
       (let [extract {:type :criterium/domain-extract
@@ -706,7 +706,7 @@
                                                      [:baseline 50.0]
                                                      [{:n 300} 300.0]]}}}
             result (analysis/fit-complexity extract :n)]
-        (is (domain/domain-regression? result))
+        (is (= :criterium/domain-regression (:type result)))
         (is (seq (get-in result [:regressions :elapsed-time :models])))))
     (testing "returns empty models with insufficient data"
       (let [extract {:type :criterium/domain-extract
@@ -714,7 +714,7 @@
                                               :data [[{:n 100} 100.0]]}}}
             result (analysis/fit-complexity extract :n)
             regression (get-in result [:regressions :elapsed-time])]
-        (is (domain/domain-regression? result))
+        (is (= :criterium/domain-regression (:type result)))
         (is (empty? (:models regression)))
         (is (nil? (:best-fit regression)))))
     (testing "returns empty models for empty extract"
@@ -723,7 +723,7 @@
                                               :data []}}}
             result (analysis/fit-complexity extract :n)
             regression (get-in result [:regressions :elapsed-time])]
-        (is (domain/domain-regression? result))
+        (is (= :criterium/domain-regression (:type result)))
         (is (empty? (:models regression)))))
     (testing "supports custom models"
       (let [extract {:type :criterium/domain-extract
@@ -735,7 +735,7 @@
                             :label "O(n³)"}}
             result (analysis/fit-complexity extract :n models)
             regression (get-in result [:regressions :elapsed-time])]
-        (is (domain/domain-regression? result))
+        (is (= :criterium/domain-regression (:type result)))
         (is (= 1 (count (:models regression))))
         (is (= :cubic (:id (first (:models regression)))))))
     (testing "handles multiple metrics"
@@ -749,7 +749,7 @@
                                                           [{:n 200} 2000.0]
                                                           [{:n 300} 3000.0]]}}}
             result (analysis/fit-complexity extract :n)]
-        (is (domain/domain-regression? result))
+        (is (= :criterium/domain-regression (:type result)))
         (is (contains? (:regressions result) :elapsed-time))
         (is (contains? (:regressions result) :thread-allocation))
         (is (= :linear (get-in result [:regressions :elapsed-time :best-fit])))
@@ -765,7 +765,7 @@
               result (analysis/fit-complexity extract :n)
               regression (get-in result [:regressions :elapsed-time])
               linear (first (filter #(= :linear (:id %)) (:models regression)))]
-          (is (domain/domain-regression? result))
+          (is (= :criterium/domain-regression (:type result)))
           (is (= :linear (:best-fit regression)))
           (is (> (:r-squared linear) 0.99))))
       (testing "filters out nil error-bound values"
@@ -776,7 +776,7 @@
                                                        [{:n 200} nil]
                                                        [{:n 300} {:value 300.0 :lower 270.0 :upper 330.0}]]}}}
               result (analysis/fit-complexity extract :n)]
-          (is (domain/domain-regression? result))
+          (is (= :criterium/domain-regression (:type result)))
           (is (seq (get-in result [:regressions :elapsed-time :models]))))))))
 
 (deftest fit-complexity-multi-impl-test
@@ -794,7 +794,7 @@
                                                      [{:n 100 :impl :list} 150.0]
                                                      [{:n 200 :impl :list} 300.0]]}}}
             result (analysis/fit-complexity extract :n)]
-        (is (domain/domain-regression? result))
+        (is (= :criterium/domain-regression (:type result)))
         (is (= :impl (:impl-axis result)))
         (is (= [:vec :list] (:implementations result)))))
     (testing "groups regression by implementation in :by-impl"
@@ -882,7 +882,7 @@
             result (f {:extract extract})]
         (is (contains? result :extract))
         (is (contains? result :scaling))
-        (is (domain/domain-regression? (:scaling result)))))
+        (is (= :criterium/domain-regression (:type (:scaling result))))))
     (testing "uses default :id when not specified"
       (let [extract {:type :criterium/domain-extract
                      :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
@@ -900,7 +900,7 @@
                {:id :scaling :extract-id :my-extract :axis :n})
             result (f {:my-extract extract})]
         (is (contains? result :scaling))
-        (is (domain/domain-regression? (:scaling result)))))
+        (is (= :criterium/domain-regression (:type (:scaling result))))))
     (testing "preserves other keys in data-map"
       (let [extract {:type :criterium/domain-extract
                      :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
@@ -923,8 +923,8 @@
                           :metric-path [:stats :elapsed-time :mean]}))
                        ((analysis/domain-regression-fn
                          {:id :scaling :axis :n})))]
-        (is (domain/domain-extract? (:extract result)))
-        (is (domain/domain-regression? (:scaling result)))
+        (is (= :criterium/domain-extract (:type (:extract result))))
+        (is (= :criterium/domain-regression (:type (:scaling result))))
         (is (= :linear (get-in (:scaling result) [:regressions :elapsed-time :best-fit])))))))
 
 ;; Tests for domain plan execution functions.
@@ -946,7 +946,7 @@
         (is (map? result))
         (is (contains? result :domain))
         (is (contains? result :extract))
-        (is (domain/domain-extract? (:extract result)))))
+        (is (= :criterium/domain-extract (:type (:extract result))))))
     (testing "creates analysis function from multiple specs"
       (let [d (domain/domain
                {:coord {:n 100}
@@ -960,8 +960,8 @@
             result (analyse {:domain d})]
         (is (contains? result :extract))
         (is (contains? result :scaling))
-        (is (domain/domain-extract? (:extract result)))
-        (is (domain/domain-regression? (:scaling result)))))
+        (is (= :criterium/domain-extract (:type (:extract result))))
+        (is (= :criterium/domain-regression (:type (:scaling result))))))
     (testing "handles empty spec vector"
       (let [analyse (analysis/->domain-analyse [])
             result (analyse {:domain (domain/domain) :other "data"})]
@@ -1055,7 +1055,7 @@
         (is (map? result))
         (is (contains? result :domain))
         (is (contains? result :extract))
-        (is (domain/domain-extract? (:extract result)))))
+        (is (= :criterium/domain-extract (:type (:extract result))))))
     (testing "chains multiple analysis functions"
       (let [d (domain/domain
                {:coord {:n 100}
@@ -1069,8 +1069,8 @@
                   :view []
                   :viewer :none}
             result (analysis/analyse-domain plan d)]
-        (is (domain/domain-extract? (:extract result)))
-        (is (domain/domain-regression? (:scaling result)))))
+        (is (= :criterium/domain-extract (:type (:extract result))))
+        (is (= :criterium/domain-regression (:type (:scaling result))))))
     (testing "defaults viewer to :print"
       (let [d (domain/domain)
             plan {:analyse [] :view []}
