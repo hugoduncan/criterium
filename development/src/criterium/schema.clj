@@ -83,7 +83,8 @@
    [:type [:= :criterium/quantiles]]
    [:quantiles map?]
    [:metrics-defs map?]
-   [:source-id keyword?]])
+   [:source-id keyword?]
+   [:transform transform-map]])
 
 (def outliers-map
   "Schema for outliers analysis results."

@@ -57,7 +57,8 @@
   {:type :criterium/quantiles
    :quantiles {}
    :metrics-defs {}
-   :source-id :samples})
+   :source-id :samples
+   :transform valid-transform})
 
 (def valid-outliers-map
   {:type :criterium/outliers
