@@ -4,8 +4,7 @@
    [criterium.collector :as collector]
    [criterium.instrument-fn :as instrument-fn]
    [criterium.jvm :as jvm]
-   [criterium.sampler :as sampler]
-   [criterium.types :as types]))
+   [criterium.sampler :as sampler]))
 
 (def ^:private seen (volatile! 0))
 
@@ -86,7 +85,7 @@
           finish   (jvm/timestamp)
           elapsed  (unchecked-subtract finish start)
           sample-m (sampler/samples-map inst-f)]
-      (is (types/metrics-samples-map? sample-m))
+      (is (= :criterium/metrics-samples (:type sample-m)))
       (is (= 2 (count ((:metric->values sample-m) [:elapsed-time])))
           "samples returned")
       (is (= (count ((:metric->values sample-m) [:elapsed-time]))

@@ -1,7 +1,6 @@
 (ns criterium.bench-test
   (:require
    [clojure.test :refer [deftest is testing]]
-   [criterium.allocation :as allocation]
    [criterium.analyse]
    [criterium.bench :as bench]
    [criterium.bench-plans :as bench-plans]
@@ -194,7 +193,8 @@
         ;; If agent is attached, check allocation data is present
         (when (get-in data [:samples :allocation-trace])
           (testing "collects allocation trace"
-            (is (allocation/trace? (get-in data [:samples :allocation-trace]))))
+            (is (= :criterium/allocation-trace
+                   (:type (get-in data [:samples :allocation-trace])))))
           (testing "includes allocation summary"
             (is (= :criterium/allocation-summary
                    (:type (:allocation-summary data)))))
@@ -216,7 +216,8 @@
         ;; If agent is attached, check allocation data is present
         (when (get-in data [:samples :allocation-trace])
           (testing "collects allocation trace with warmup"
-            (is (allocation/trace? (get-in data [:samples :allocation-trace]))))
+            (is (= :criterium/allocation-trace
+                   (:type (get-in data [:samples :allocation-trace])))))
           (testing "outputs allocation views"
             (is (re-find #"Allocation Summary" out))))))
 

@@ -6,9 +6,7 @@
    [criterium.collect-plan :as collect-plan]
    [criterium.collector.metrics :as metrics]
    [criterium.test-utils :refer [approx=]]
-   [criterium.types :as types]
-   [criterium.util.helpers :as util]
-   [criterium.util.invariant :refer [have?]]))
+   [criterium.util.helpers :as util]))
 
 (deftest outlier-significance-impl--test
   ;; http://www.ellipticgroup.com/misc/article_supplement.pdf, p22
@@ -23,7 +21,6 @@
 
 (defn metrics-samples
   [data ^long batch-size]
-  {:post [(have? types/metrics-samples-map? %)]}
   (let [n (count (first (vals data)))]
     {:type           :criterium/metrics-samples
      :metric->values data

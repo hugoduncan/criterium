@@ -6,14 +6,11 @@
    [criterium.collect-plan :as collect-plan]
    [criterium.collector.metrics :as metrics]
    [criterium.test-utils :refer [approx=]]
-   [criterium.types :as types]
    [criterium.util.helpers :as util]
-   [criterium.util.invariant :refer [have?]]
    [criterium.util.t-digest :as t-digest]))
 
 (defn digest-samples
   [data ^long batch-size]
-  {:post [(have? types/digest-samples-map? %)]}
   (let [n (count (first (vals data)))]
     {:type :criterium/digest
      :metric->digest (reduce-kv

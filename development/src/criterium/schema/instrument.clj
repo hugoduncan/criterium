@@ -119,6 +119,37 @@
       [:=> [:cat :criterium/result-map keyword? keyword? keyword?]
        [:maybe number?]])
 
+;;; Function schemas for criterium.util.helpers type constructors
+;; Identity functions that validate constructed data types during development
+
+(m/=> criterium.util.helpers/->collected-metrics-map
+      [:=> [:cat :criterium/collected-metrics-map]
+       :criterium/collected-metrics-map])
+
+(m/=> criterium.util.helpers/->quantiles-map
+      [:=> [:cat :criterium/quantiles-map]
+       :criterium/quantiles-map])
+
+(m/=> criterium.util.helpers/->outliers-map
+      [:=> [:cat :criterium/outliers-map]
+       :criterium/outliers-map])
+
+(m/=> criterium.util.helpers/->stats-map
+      [:=> [:cat :criterium/stats-map]
+       :criterium/stats-map])
+
+(m/=> criterium.util.helpers/->event-stats-map
+      [:=> [:cat :criterium/event-stats-map]
+       :criterium/event-stats-map])
+
+(m/=> criterium.util.helpers/->histogram-map
+      [:=> [:cat :criterium/histogram-map]
+       :criterium/histogram-map])
+
+(m/=> criterium.util.helpers/->outlier-significance-map
+      [:=> [:cat :criterium/outlier-significance-map]
+       :criterium/outlier-significance-map])
+
 ;;; Function schemas for criterium.schema.validators checkpoint functions
 ;; These are identity functions used to validate types at development time
 

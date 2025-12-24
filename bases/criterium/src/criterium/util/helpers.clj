@@ -334,3 +334,42 @@
   handled by malli instrumentation during development."
   [result-map id]
   (result-map id))
+
+;;; Type constructors
+;; Identity functions that can be instrumented via malli to validate
+;; constructed data types during development.
+
+(defn ->collected-metrics-map
+  "Identity wrapper for collected-metrics-map construction.
+  Validation handled by malli instrumentation during development."
+  [x] x)
+
+(defn ->quantiles-map
+  "Identity wrapper for quantiles-map construction.
+  Validation handled by malli instrumentation during development."
+  [x] x)
+
+(defn ->outliers-map
+  "Identity wrapper for outliers-map construction.
+  Validation handled by malli instrumentation during development."
+  [x] x)
+
+(defn ->stats-map
+  "Identity wrapper for stats-map construction.
+  Validation handled by malli instrumentation during development."
+  [x] x)
+
+(defn ->event-stats-map
+  "Identity wrapper for event-stats-map construction.
+  Validation handled by malli instrumentation during development."
+  [x] x)
+
+(defn ->histogram-map
+  "Identity wrapper for histogram-map construction.
+  Validation handled by malli instrumentation during development."
+  [x] x)
+
+(defn ->outlier-significance-map
+  "Identity wrapper for outlier-significance-map construction.
+  Validation handled by malli instrumentation during development."
+  [x] x)
