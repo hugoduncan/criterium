@@ -141,9 +141,17 @@
 (defn notebooks
   "Render all notebooks to HTML documentation.
 
+  Shells out to clojure with :render-docs alias since the notebook
+  dependencies require poly/agent and poly/blackhole to be prepped.
+
   Usage:
     clojure -T:build notebooks
 
   Returns: nil"
   [_params]
-  ((requiring-resolve 'criterium.notebook.render/render-site!)))
+  (let [pb (ProcessBuilder. ["clojure" "-M:render-docs"])
+        _ (.inheritIO pb)
+        proc (.start pb)
+        exit (.waitFor proc)]
+    (when-not (zero? exit)
+      (throw (ex-info "Failed to render notebooks" {:exit exit})))))
