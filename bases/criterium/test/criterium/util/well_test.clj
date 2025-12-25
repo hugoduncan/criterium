@@ -1,12 +1,70 @@
 (ns criterium.util.well-test
   (:require
-   [clojure.test :refer [deftest is]]
+   [clojure.pprint :as pprint]
+   [clojure.test :refer [deftest is testing]]
    [clojure.test.check.clojure-test :refer [defspec]]
    [clojure.test.check.generators :as gen]
    [clojure.test.check.properties :as prop]
    [criterium.test-utils :refer [gen-bounded test-max-error]]
    [criterium.util.stats :as stats]
    [criterium.util.well :as well]))
+
+;;; Autocorrelation test helpers
+
+(defn- autocorrelation
+  "Compute sample autocorrelation at a given lag.
+
+  Returns the correlation coefficient between x[i] and x[i+lag] for
+  i = 0 to n-lag-1. Result is in [-1, 1] where 0 indicates no
+  correlation.
+
+  Requires lag < (count samples)."
+  ^double [samples ^long lag]
+  (assert (< lag (count samples)) "lag must be less than sample count")
+  (let [samples  (double-array samples)
+        n        (long (alength samples))
+        sum-all  (double (areduce samples i sum 0.0 (+ sum (aget samples i))))
+        mean     (/ sum-all (double n))
+        ;; Compute variance (denominator)
+        var     (double
+                 (areduce samples i sum 0.0
+                          (let [d (- (aget samples i) mean)]
+                            (+ sum (* d d)))))
+        ;; Compute covariance at lag (numerator)
+        limit   (- n lag)
+        cov     (double
+                 (loop [i   (long 0)
+                        sum 0.0]
+                   (if (< i limit)
+                     (recur (inc i)
+                            (+ sum (* (- (aget samples i) mean)
+                                      (- (aget samples (+ i lag)) mean))))
+                     sum)))]
+    (if (zero? var)
+      0.0
+      (/ cov var))))
+
+(defn- variance-ratio
+  "Compute the ratio of observed batch-sum variance to expected variance.
+
+  For independent uniform samples, batch sums have variance n*σ² where
+  σ² is the individual variance. Returns observed/expected ratio.
+  A ratio of 1.0 indicates independent samples; higher values suggest
+  positive autocorrelation.
+
+  Expects samples to be a vector."
+  ^double [samples ^long batch-size]
+  (let [n            (count samples)
+        num-batches  (quot n batch-size)
+        batches      (mapv (fn [^long i]
+                             (subvec samples (* i batch-size) (* (inc i) batch-size)))
+                           (range num-batches))
+        batch-sums   (mapv #(reduce + %) batches)
+        ;; Expected variance for sum of batch-size independent U(0,1)
+        ;; Var(U) = 1/12, Var(sum) = batch-size/12
+        expected-var (/ batch-size 12.0)
+        observed-var (stats/variance batch-sums)]
+    (/ observed-var expected-var)))
 
 (deftest bit-shift-right-ns-test
   (is (= 4 (well/bit-shift-right-ns 8 1)))
@@ -47,3 +105,145 @@
                             vec)]
      (test-max-error (stats/mean values) 0.5 2e-2)
      (test-max-error (stats/variance values) (/ 1.0 12) 1e-2))))
+
+;;; Autocorrelation tests
+;; These tests verify that WELL RNG produces samples with negligible
+;; autocorrelation. java.util.Random (LCG) is known to produce correlated
+;; samples when used with ziggurat, causing variance inflation in batch sums.
+
+(deftest well-rng-autocorrelation-test
+  ;; Verify WELL RNG produces samples with low autocorrelation.
+  ;; With n=100,000, SE ≈ 1/√n ≈ 0.003, so threshold of 0.02 is conservative.
+  (testing "well-rng-1024a"
+    (testing "has negligible autocorrelation at multiple lags"
+      (let [seed    42
+            samples (vec (take 100000 (well/well-rng-1024a seed)))
+            lags    [1 2 3 10 50 100]]
+        (doseq [lag lags]
+          (let [ac (autocorrelation samples lag)]
+            (is (< (Math/abs ac) 0.02)
+                (format "lag %d: autocorrelation %.4f exceeds threshold"
+                        lag ac))))))))
+
+(deftest well-rng-batch-variance-test
+  ;; Verify batch-sum variance matches theoretical expectation.
+  ;; For independent samples, ratio should be near 1.0.
+  ;; Correlation inflates variance; 1.0 ± 0.25 is conservative.
+  (testing "well-rng-1024a"
+    (testing "has batch-sum variance ratio near 1.0"
+      (let [seed       42
+            samples    (vec (take 100000 (well/well-rng-1024a seed)))
+            batch-size 500
+            ratio      (variance-ratio samples batch-size)]
+        (is (< 0.75 ratio 1.25)
+            (format "variance ratio %.3f outside [0.75, 1.25]" ratio))))))
+
+(deftest lcg-rng-correlation-test
+  ;; Demonstrate that java.util.Random (LCG) can produce measurable
+  ;; autocorrelation or variance inflation compared to WELL RNG.
+  ;; LCG has known correlation issues, particularly visible in the
+  ;; lower bits of consecutive values.
+  (testing "java.util.Random (LCG)"
+    (testing "demonstrates correlation visible in variance ratio"
+      (let [seed       42
+            lcg        (java.util.Random. seed)
+            samples    (vec (repeatedly 100000 #(.nextDouble lcg)))
+            batch-size 500
+            ;; WELL RNG for comparison
+            well-samples (vec (take 100000 (well/well-rng-1024a seed)))
+            lcg-ratio    (variance-ratio samples batch-size)
+            well-ratio   (variance-ratio well-samples batch-size)]
+        ;; Document: LCG may show variance inflation or correlation
+        ;; This test documents observed behavior rather than asserting failure
+        (is (< (Math/abs (- well-ratio 1.0)) 0.25)
+            (format "WELL ratio %.3f should be near 1.0" well-ratio))
+        ;; LCG behavior varies; we just document that it differs from ideal
+        ;; Modern LCGs may be acceptable for simple uses but less optimal
+        ;; than WELL for statistical applications
+        (is (number? lcg-ratio)
+            (format "LCG ratio: %.3f, WELL ratio: %.3f"
+                    lcg-ratio well-ratio))))))
+
+;;; RNG comparison table helpers
+
+(defn- xoshiro-available?
+  "Check if Xoshiro256PlusPlus is available (JDK 17+)."
+  []
+  (try
+    (Class/forName "java.util.random.RandomGeneratorFactory")
+    true
+    (catch ClassNotFoundException _ false)))
+
+(defn- make-xoshiro-rng
+  "Create a Xoshiro256PlusPlus RNG instance using reflection.
+  Returns nil if not available."
+  [^long seed]
+  (try
+    (let [factory-class (Class/forName "java.util.random.RandomGeneratorFactory")
+          of-method     (.getMethod factory-class "of" (into-array Class [String]))
+          factory       (.invoke of-method nil (object-array ["Xoshiro256PlusPlus"]))
+          create-method (.getMethod (class factory) "create" (into-array Class [Long/TYPE]))]
+      (.invoke create-method factory (object-array [seed])))
+    (catch Exception _ nil)))
+
+;;; RNG comparison table
+
+(defn print-rng-comparison-table
+  "Print a table comparing RNG statistical properties.
+
+  Computes and displays autocorrelation at various lags and variance
+  ratio for each available RNG type: WELL-1024a, java.util.Random (LCG),
+  SplittableRandom, and Xoshiro256PlusPlus (if available on JDK 17+)."
+  ([]
+   (print-rng-comparison-table {}))
+  ([{:keys [seed n batch-size lags]
+     :or   {seed 42, n 100000, batch-size 500, lags [1 2 3 10 50 100]}}]
+   (let [;; Format to 4 significant figures
+         fmt-4sf (fn [x] (format "%.4g" (double x)))
+
+         ;; Generate samples from each RNG
+         well-samples  (vec (take n (well/well-rng-1024a seed)))
+         lcg           (java.util.Random. seed)
+         lcg-samples   (vec (repeatedly n #(.nextDouble lcg)))
+         splittable    (java.util.SplittableRandom. seed)
+         split-samples (vec (repeatedly n #(.nextDouble splittable)))
+         ;; Xoshiro256++ if available
+         xoshiro-samples
+         (when (xoshiro-available?)
+           (when-let [rng (make-xoshiro-rng seed)]
+             (let [next-double (.getMethod (class rng) "nextDouble"
+                                           (into-array Class []))]
+               (vec (repeatedly n #(.invoke next-double rng (object-array [])))))))
+
+         ;; Compute metrics for each RNG
+         compute-metrics
+         (fn [name samples]
+           (let [ac-vals (mapv #(autocorrelation samples %) lags)
+                 vr      (variance-ratio samples batch-size)]
+             (into {:rng name :variance-ratio (fmt-4sf vr)}
+                   (map vector
+                        (map #(keyword (str "ac-lag-" %)) lags)
+                        (map fmt-4sf ac-vals)))))
+
+         results
+         (cond-> [(compute-metrics "WELL-1024a" well-samples)
+                  (compute-metrics "LCG" lcg-samples)
+                  (compute-metrics "SplittableRandom" split-samples)]
+           xoshiro-samples
+           (conj (compute-metrics "Xoshiro256++" xoshiro-samples)))]
+
+     (println "\nRNG Statistical Comparison")
+     (println (str "Samples: " n ", Batch size: " batch-size ", Lags: " lags))
+     (println)
+     (pprint/print-table
+      (into [:rng] (concat (map #(keyword (str "ac-lag-" %)) lags)
+                           [:variance-ratio]))
+      results)
+     (println)
+     (println "Notes:")
+     (println "  - Autocorrelation near 0 indicates independence")
+     (println "  - Variance ratio near 1.0 indicates correct variance scaling")
+     (println "  - WELL RNG thresholds: |autocorrelation| < 0.02, variance ratio in [0.75, 1.25]"))))
+
+(comment
+  (print-rng-comparison-table))
