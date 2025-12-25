@@ -16,23 +16,30 @@
 
   Returns the correlation coefficient between x[i] and x[i+lag] for
   i = 0 to n-lag-1. Result is in [-1, 1] where 0 indicates no
-  correlation."
+  correlation.
+
+  Requires lag < (count samples)."
   ^double [samples ^long lag]
-  (let [samples (double-array samples)
-        n       (alength samples)
-        mean    (/ (areduce samples i sum 0.0 (+ sum (aget samples i))) n)
+  (assert (< lag (count samples)) "lag must be less than sample count")
+  (let [samples  (double-array samples)
+        n        (long (alength samples))
+        sum-all  (double (areduce samples i sum 0.0 (+ sum (aget samples i))))
+        mean     (/ sum-all (double n))
         ;; Compute variance (denominator)
-        var     (areduce samples i sum 0.0
-                         (let [d (- (aget samples i) mean)]
-                           (+ sum (* d d))))
+        var     (double
+                 (areduce samples i sum 0.0
+                          (let [d (- (aget samples i) mean)]
+                            (+ sum (* d d)))))
         ;; Compute covariance at lag (numerator)
-        cov     (loop [i   0
-                       sum 0.0]
-                  (if (< i (- n lag))
-                    (recur (inc i)
-                           (+ sum (* (- (aget samples i) mean)
-                                     (- (aget samples (+ i lag)) mean))))
-                    sum))]
+        limit   (- n lag)
+        cov     (double
+                 (loop [i   (long 0)
+                        sum 0.0]
+                   (if (< i limit)
+                     (recur (inc i)
+                            (+ sum (* (- (aget samples i) mean)
+                                      (- (aget samples (+ i lag)) mean))))
+                     sum)))]
     (if (zero? var)
       0.0
       (/ cov var))))
@@ -43,12 +50,14 @@
   For independent uniform samples, batch sums have variance n*σ² where
   σ² is the individual variance. Returns observed/expected ratio.
   A ratio of 1.0 indicates independent samples; higher values suggest
-  positive autocorrelation."
+  positive autocorrelation.
+
+  Expects samples to be a vector."
   ^double [samples ^long batch-size]
-  (let [samples      (vec samples)
-        n            (count samples)
+  (let [n            (count samples)
         num-batches  (quot n batch-size)
-        batches      (mapv #(subvec samples (* % batch-size) (* (inc %) batch-size))
+        batches      (mapv (fn [^long i]
+                             (subvec samples (* i batch-size) (* (inc i) batch-size)))
                            (range num-batches))
         batch-sums   (mapv #(reduce + %) batches)
         ;; Expected variance for sum of batch-size independent U(0,1)
