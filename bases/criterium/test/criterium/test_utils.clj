@@ -2,7 +2,8 @@
   (:require
    [clojure.string :as str]
    [clojure.test :refer [deftest is testing]]
-   [clojure.test.check.generators :as gen]))
+   [clojure.test.check.generators :as gen]
+   [criterium.util.stats :as stats]))
 
 (defn abs-error
   ^double [^double expected ^double actual]
@@ -178,3 +179,98 @@
     (is (approx= 1.0 (plus-frac 1.0 0.1)))
     (is (approx= [1.0] [(plus-frac 1.0 0.1)]))
     (is (approx= [1.0] [(plus-frac 1.0 1e-9)]))))
+
+;;; Statistical test helpers
+
+(defn autocorrelation
+  "Compute sample autocorrelation at a given lag.
+
+  Returns the correlation coefficient between x[i] and x[i+lag] for
+  i = 0 to n-lag-1. Result is in [-1, 1] where 0 indicates no
+  correlation.
+
+  Requires lag < (count samples)."
+  ^double [samples ^long lag]
+  (assert (< lag (count samples)) "lag must be less than sample count")
+  (let [samples  (double-array samples)
+        n        (long (alength samples))
+        sum-all  (double (areduce samples i sum 0.0 (+ sum (aget samples i))))
+        mean     (/ sum-all (double n))
+        ;; Compute variance (denominator)
+        var     (double
+                 (areduce samples i sum 0.0
+                          (let [d (- (aget samples i) mean)]
+                            (+ sum (* d d)))))
+        ;; Compute covariance at lag (numerator)
+        limit   (- n lag)
+        cov     (double
+                 (loop [i   (long 0)
+                        sum 0.0]
+                   (if (< i limit)
+                     (recur (inc i)
+                            (+ sum (* (- (aget samples i) mean)
+                                      (- (aget samples (+ i lag)) mean))))
+                     sum)))]
+    (if (zero? var)
+      0.0
+      (/ cov var))))
+
+(defn variance-ratio
+  "Compute the ratio of observed batch-sum variance to expected variance.
+
+  For independent samples, batch sums have variance n*σ² where σ² is
+  the individual sample variance. Returns observed/expected ratio.
+  A ratio of 1.0 indicates independent samples; higher values suggest
+  positive autocorrelation.
+
+  Parameters:
+    samples - vector of samples
+    batch-size - number of samples per batch
+    expected-individual-variance - expected variance of individual samples (default 1.0)
+
+  Expects samples to be a vector."
+  (^double [samples ^long batch-size]
+   (variance-ratio samples batch-size 1.0))
+  (^double [samples ^long batch-size ^double expected-individual-variance]
+   (let [n            (count samples)
+         num-batches  (quot n batch-size)
+         batches      (mapv (fn [^long i]
+                              (subvec samples (* i batch-size) (* (inc i) batch-size)))
+                            (range num-batches))
+         batch-sums   (mapv #(reduce + %) batches)
+         ;; Expected variance for sum of batch-size independent samples
+         ;; Var(sum) = batch-size * expected-individual-variance
+         expected-var (* batch-size expected-individual-variance)
+         observed-var (stats/variance batch-sums)]
+     (/ observed-var expected-var))))
+
+(defn variance-ratio-uniform
+  "Compute variance ratio for uniform [0,1) samples.
+
+  Convenience function that calls variance-ratio with
+  expected-individual-variance of 1/12 (the variance of U(0,1))."
+  ^double [samples ^long batch-size]
+  (variance-ratio samples batch-size (/ 1.0 12)))
+
+;;; Xoshiro RNG helpers (JDK 17+)
+
+(defn xoshiro-available?
+  "Check if Xoshiro256PlusPlus is available (JDK 17+)."
+  []
+  (try
+    (Class/forName "java.util.random.RandomGeneratorFactory")
+    true
+    (catch ClassNotFoundException _ false)))
+
+(defn make-xoshiro-rng
+  "Create a Xoshiro256PlusPlus RNG instance using reflection.
+
+  Returns nil if not available (JDK < 17)."
+  [^long seed]
+  (try
+    (let [factory-class (Class/forName "java.util.random.RandomGeneratorFactory")
+          of-method     (.getMethod factory-class "of" (into-array Class [String]))
+          factory       (.invoke of-method nil (object-array ["Xoshiro256PlusPlus"]))
+          create-method (.getMethod (class factory) "create" (into-array Class [Long/TYPE]))]
+      (.invoke create-method factory (object-array [seed])))
+    (catch Exception _ nil)))
