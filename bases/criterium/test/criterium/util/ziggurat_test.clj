@@ -5,7 +5,11 @@
    [clojure.test.check.clojure-test :refer [defspec]]
    [clojure.test.check.generators :as gen]
    [clojure.test.check.properties :as prop]
-   [criterium.test-utils :refer [abs-error autocorrelation variance-ratio]]
+   [criterium.test-utils :refer [abs-error
+                                 autocorrelation
+                                 make-xoshiro-rng
+                                 variance-ratio
+                                 xoshiro-available?]]
    [criterium.util.stats :as stats]
    [criterium.util.well :as well]
    [criterium.util.ziggurat :as ziggurat]))
@@ -64,28 +68,6 @@
               (format "mean %.4f exceeds tolerance 0.02" mean))
           (is (< (Math/abs (- variance 1.0)) 0.1)
               (format "variance %.4f not within 0.1 of 1.0" variance)))))))
-
-;;; Normal sample comparison table helpers
-
-(defn- xoshiro-available?
-  "Check if Xoshiro256PlusPlus is available (JDK 17+)."
-  []
-  (try
-    (Class/forName "java.util.random.RandomGeneratorFactory")
-    true
-    (catch ClassNotFoundException _ false)))
-
-(defn- make-xoshiro-rng
-  "Create a Xoshiro256PlusPlus RNG instance using reflection.
-  Returns nil if not available."
-  [^long seed]
-  (try
-    (let [factory-class (Class/forName "java.util.random.RandomGeneratorFactory")
-          of-method     (.getMethod factory-class "of" (into-array Class [String]))
-          factory       (.invoke of-method nil (object-array ["Xoshiro256PlusPlus"]))
-          create-method (.getMethod (class factory) "create" (into-array Class [Long/TYPE]))]
-      (.invoke create-method factory (object-array [seed])))
-    (catch Exception _ nil)))
 
 ;;; Normal sample comparison table
 

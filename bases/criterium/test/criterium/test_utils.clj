@@ -251,3 +251,26 @@
   expected-individual-variance of 1/12 (the variance of U(0,1))."
   ^double [samples ^long batch-size]
   (variance-ratio samples batch-size (/ 1.0 12)))
+
+;;; Xoshiro RNG helpers (JDK 17+)
+
+(defn xoshiro-available?
+  "Check if Xoshiro256PlusPlus is available (JDK 17+)."
+  []
+  (try
+    (Class/forName "java.util.random.RandomGeneratorFactory")
+    true
+    (catch ClassNotFoundException _ false)))
+
+(defn make-xoshiro-rng
+  "Create a Xoshiro256PlusPlus RNG instance using reflection.
+
+  Returns nil if not available (JDK < 17)."
+  [^long seed]
+  (try
+    (let [factory-class (Class/forName "java.util.random.RandomGeneratorFactory")
+          of-method     (.getMethod factory-class "of" (into-array Class [String]))
+          factory       (.invoke of-method nil (object-array ["Xoshiro256PlusPlus"]))
+          create-method (.getMethod (class factory) "create" (into-array Class [Long/TYPE]))]
+      (.invoke create-method factory (object-array [seed])))
+    (catch Exception _ nil)))

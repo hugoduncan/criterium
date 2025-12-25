@@ -7,8 +7,10 @@
    [clojure.test.check.properties :as prop]
    [criterium.test-utils :refer [autocorrelation
                                  gen-bounded
+                                 make-xoshiro-rng
                                  test-max-error
-                                 variance-ratio-uniform]]
+                                 variance-ratio-uniform
+                                 xoshiro-available?]]
    [criterium.util.stats :as stats]
    [criterium.util.well :as well]))
 
@@ -109,28 +111,6 @@
         (is (number? lcg-ratio)
             (format "LCG ratio: %.3f, WELL ratio: %.3f"
                     lcg-ratio well-ratio))))))
-
-;;; RNG comparison table helpers
-
-(defn- xoshiro-available?
-  "Check if Xoshiro256PlusPlus is available (JDK 17+)."
-  []
-  (try
-    (Class/forName "java.util.random.RandomGeneratorFactory")
-    true
-    (catch ClassNotFoundException _ false)))
-
-(defn- make-xoshiro-rng
-  "Create a Xoshiro256PlusPlus RNG instance using reflection.
-  Returns nil if not available."
-  [^long seed]
-  (try
-    (let [factory-class (Class/forName "java.util.random.RandomGeneratorFactory")
-          of-method     (.getMethod factory-class "of" (into-array Class [String]))
-          factory       (.invoke of-method nil (object-array ["Xoshiro256PlusPlus"]))
-          create-method (.getMethod (class factory) "create" (into-array Class [Long/TYPE]))]
-      (.invoke create-method factory (object-array [seed])))
-    (catch Exception _ nil)))
 
 ;;; RNG comparison table
 
