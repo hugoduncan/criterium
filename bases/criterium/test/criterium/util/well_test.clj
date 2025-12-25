@@ -5,66 +5,12 @@
    [clojure.test.check.clojure-test :refer [defspec]]
    [clojure.test.check.generators :as gen]
    [clojure.test.check.properties :as prop]
-   [criterium.test-utils :refer [gen-bounded test-max-error]]
+   [criterium.test-utils :refer [autocorrelation
+                                 gen-bounded
+                                 test-max-error
+                                 variance-ratio-uniform]]
    [criterium.util.stats :as stats]
    [criterium.util.well :as well]))
-
-;;; Autocorrelation test helpers
-
-(defn- autocorrelation
-  "Compute sample autocorrelation at a given lag.
-
-  Returns the correlation coefficient between x[i] and x[i+lag] for
-  i = 0 to n-lag-1. Result is in [-1, 1] where 0 indicates no
-  correlation.
-
-  Requires lag < (count samples)."
-  ^double [samples ^long lag]
-  (assert (< lag (count samples)) "lag must be less than sample count")
-  (let [samples  (double-array samples)
-        n        (long (alength samples))
-        sum-all  (double (areduce samples i sum 0.0 (+ sum (aget samples i))))
-        mean     (/ sum-all (double n))
-        ;; Compute variance (denominator)
-        var     (double
-                 (areduce samples i sum 0.0
-                          (let [d (- (aget samples i) mean)]
-                            (+ sum (* d d)))))
-        ;; Compute covariance at lag (numerator)
-        limit   (- n lag)
-        cov     (double
-                 (loop [i   (long 0)
-                        sum 0.0]
-                   (if (< i limit)
-                     (recur (inc i)
-                            (+ sum (* (- (aget samples i) mean)
-                                      (- (aget samples (+ i lag)) mean))))
-                     sum)))]
-    (if (zero? var)
-      0.0
-      (/ cov var))))
-
-(defn- variance-ratio
-  "Compute the ratio of observed batch-sum variance to expected variance.
-
-  For independent uniform samples, batch sums have variance n*σ² where
-  σ² is the individual variance. Returns observed/expected ratio.
-  A ratio of 1.0 indicates independent samples; higher values suggest
-  positive autocorrelation.
-
-  Expects samples to be a vector."
-  ^double [samples ^long batch-size]
-  (let [n            (count samples)
-        num-batches  (quot n batch-size)
-        batches      (mapv (fn [^long i]
-                             (subvec samples (* i batch-size) (* (inc i) batch-size)))
-                           (range num-batches))
-        batch-sums   (mapv #(reduce + %) batches)
-        ;; Expected variance for sum of batch-size independent U(0,1)
-        ;; Var(U) = 1/12, Var(sum) = batch-size/12
-        expected-var (/ batch-size 12.0)
-        observed-var (stats/variance batch-sums)]
-    (/ observed-var expected-var)))
 
 (deftest bit-shift-right-ns-test
   (is (= 4 (well/bit-shift-right-ns 8 1)))
@@ -134,7 +80,7 @@
       (let [seed       42
             samples    (vec (take 100000 (well/well-rng-1024a seed)))
             batch-size 500
-            ratio      (variance-ratio samples batch-size)]
+            ratio      (variance-ratio-uniform samples batch-size)]
         (is (< 0.75 ratio 1.25)
             (format "variance ratio %.3f outside [0.75, 1.25]" ratio))))))
 
@@ -151,8 +97,8 @@
             batch-size 500
             ;; WELL RNG for comparison
             well-samples (vec (take 100000 (well/well-rng-1024a seed)))
-            lcg-ratio    (variance-ratio samples batch-size)
-            well-ratio   (variance-ratio well-samples batch-size)]
+            lcg-ratio    (variance-ratio-uniform samples batch-size)
+            well-ratio   (variance-ratio-uniform well-samples batch-size)]
         ;; Document: LCG may show variance inflation or correlation
         ;; This test documents observed behavior rather than asserting failure
         (is (< (Math/abs (- well-ratio 1.0)) 0.25)
@@ -219,7 +165,7 @@
          compute-metrics
          (fn [name samples]
            (let [ac-vals (mapv #(autocorrelation samples %) lags)
-                 vr      (variance-ratio samples batch-size)]
+                 vr      (variance-ratio-uniform samples batch-size)]
              (into {:rng name :variance-ratio (fmt-4sf vr)}
                    (map vector
                         (map #(keyword (str "ac-lag-" %)) lags)
