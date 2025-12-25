@@ -1,5 +1,6 @@
 (ns criterium.util.well-test
   (:require
+   [clojure.pprint :as pprint]
    [clojure.test :refer [deftest is testing]]
    [clojure.test.check.clojure-test :refer [defspec]]
    [clojure.test.check.generators :as gen]
@@ -267,3 +268,62 @@
             (format "SplittableRandom lag-1 autocorrelation: %.4f" split-ac1))
         (is (number? split-ratio)
             (format "SplittableRandom variance ratio: %.3f" split-ratio))))))
+
+;;; RNG comparison table
+
+(defn print-rng-comparison-table
+  "Print a table comparing RNG statistical properties.
+
+  Computes and displays autocorrelation at various lags and variance
+  ratio for each available RNG type: WELL-1024a, java.util.Random (LCG),
+  SplittableRandom, and Xoshiro256PlusPlus (if available on JDK 17+)."
+  ([]
+   (print-rng-comparison-table {}))
+  ([{:keys [seed n batch-size lags]
+     :or   {seed 42, n 100000, batch-size 500, lags [1 2 3 10 50 100]}}]
+   (let [;; Generate samples from each RNG
+         well-samples  (vec (take n (well/well-rng-1024a seed)))
+         lcg           (java.util.Random. seed)
+         lcg-samples   (vec (repeatedly n #(.nextDouble lcg)))
+         splittable    (java.util.SplittableRandom. seed)
+         split-samples (vec (repeatedly n #(.nextDouble splittable)))
+         ;; Xoshiro256++ if available
+         xoshiro-samples
+         (when (xoshiro-available?)
+           (when-let [rng (make-xoshiro-rng seed)]
+             (let [next-double (.getMethod (class rng) "nextDouble"
+                                           (into-array Class []))]
+               (vec (repeatedly n #(.invoke next-double rng (object-array [])))))))
+
+         ;; Compute metrics for each RNG
+         compute-metrics
+         (fn [name samples]
+           (let [ac-vals (mapv #(autocorrelation samples %) lags)
+                 vr      (variance-ratio samples batch-size)]
+             (into {:rng name :variance-ratio vr}
+                   (map vector
+                        (map #(keyword (str "ac-lag-" %)) lags)
+                        ac-vals))))
+
+         results
+         (cond-> [(compute-metrics "WELL-1024a" well-samples)
+                  (compute-metrics "LCG" lcg-samples)
+                  (compute-metrics "SplittableRandom" split-samples)]
+           xoshiro-samples
+           (conj (compute-metrics "Xoshiro256++" xoshiro-samples)))]
+
+     (println "\nRNG Statistical Comparison")
+     (println (str "Samples: " n ", Batch size: " batch-size ", Lags: " lags))
+     (println)
+     (pprint/print-table
+      (into [:rng] (concat (map #(keyword (str "ac-lag-" %)) lags)
+                           [:variance-ratio]))
+      results)
+     (println)
+     (println "Notes:")
+     (println "  - Autocorrelation near 0 indicates independence")
+     (println "  - Variance ratio near 1.0 indicates correct variance scaling")
+     (println "  - WELL RNG thresholds: |autocorrelation| < 0.02, variance ratio in [0.75, 1.25]"))))
+
+(comment
+  (print-rng-comparison-table))
