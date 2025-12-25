@@ -1,5 +1,6 @@
 (ns criterium.util.ziggurat-test
   (:require
+   [clojure.pprint :as pprint]
    [clojure.test :refer [deftest is testing]]
    [clojure.test.check.clojure-test :refer [defspec]]
    [clojure.test.check.generators :as gen]
@@ -64,3 +65,111 @@
               (format "mean %.4f exceeds tolerance 0.02" mean))
           (is (< (Math/abs (- variance 1.0)) 0.1)
               (format "variance %.4f not within 0.1 of 1.0" variance)))))))
+
+;;; Normal sample comparison table helpers
+
+(defn- xoshiro-available?
+  "Check if Xoshiro256PlusPlus is available (JDK 17+)."
+  []
+  (try
+    (Class/forName "java.util.random.RandomGeneratorFactory")
+    true
+    (catch ClassNotFoundException _ false)))
+
+(defn- make-xoshiro-rng
+  "Create a Xoshiro256PlusPlus RNG instance using reflection.
+  Returns nil if not available."
+  [^long seed]
+  (try
+    (let [factory-class (Class/forName "java.util.random.RandomGeneratorFactory")
+          of-method     (.getMethod factory-class "of" (into-array Class [String]))
+          factory       (.invoke of-method nil (object-array ["Xoshiro256PlusPlus"]))
+          create-method (.getMethod (class factory) "create" (into-array Class [Long/TYPE]))]
+      (.invoke create-method factory (object-array [seed])))
+    (catch Exception _ nil)))
+
+;;; Normal sample comparison table
+
+(defn print-ziggurat-comparison-table
+  "Print a table comparing normal sample sources.
+
+  Computes and displays mean, variance, autocorrelation at various lags,
+  and variance ratio for each available normal sample source:
+  - LCG (java.util.Random) + ziggurat
+  - WELL-1024a + ziggurat
+  - Xoshiro256++ + ziggurat (JDK 17+)
+  - Xoshiro256++ nextGaussian (JDK 17+, native normal generation)
+
+  This function is for manual exploration and is not called in tests."
+  ([]
+   (print-ziggurat-comparison-table {}))
+  ([{:keys [seed n batch-size lags]
+     :or   {seed 42, n 100000, batch-size 500, lags [1 2 5 10]}}]
+   (let [;; Format to 4 significant figures
+         fmt-4sf (fn [x] (format "%.4g" (double x)))
+
+         ;; Generate normal samples from each source
+         lcg           (java.util.Random. seed)
+         lcg-rng-seq   (repeatedly #(.nextDouble lcg))
+         lcg-samples   (vec (take n (ziggurat/random-normal-zig lcg-rng-seq)))
+         well-samples  (vec (take n (ziggurat/random-normal-zig
+                                     (well/well-rng-1024a seed))))
+
+         ;; Xoshiro256++ + ziggurat if available
+         xoshiro-zig-samples
+         (when (xoshiro-available?)
+           (when-let [rng (make-xoshiro-rng seed)]
+             (let [next-double (.getMethod (class rng) "nextDouble"
+                                           (into-array Class []))
+                   rng-seq     (repeatedly #(.invoke next-double rng (object-array [])))]
+               (vec (take n (ziggurat/random-normal-zig rng-seq))))))
+
+         ;; Xoshiro256++ nextGaussian (native normal) if available
+         xoshiro-gaussian-samples
+         (when (xoshiro-available?)
+           (when-let [rng (make-xoshiro-rng seed)]
+             (let [next-gaussian (.getMethod (class rng) "nextGaussian"
+                                             (into-array Class []))]
+               (vec (repeatedly n #(.invoke next-gaussian rng (object-array [])))))))
+
+         ;; Compute metrics for each source
+         compute-metrics
+         (fn [name samples]
+           (let [mean      (stats/mean samples)
+                 variance  (stats/variance samples)
+                 ac-vals   (mapv #(autocorrelation samples %) lags)
+                 ;; Normal samples have variance 1.0
+                 vr        (variance-ratio samples batch-size 1.0)]
+             (into {:source         name
+                    :mean           (fmt-4sf mean)
+                    :variance       (fmt-4sf variance)
+                    :variance-ratio (fmt-4sf vr)}
+                   (map vector
+                        (map #(keyword (str "ac-lag-" %)) lags)
+                        (map fmt-4sf ac-vals)))))
+
+         results
+         (cond-> [(compute-metrics "LCG + ziggurat" lcg-samples)
+                  (compute-metrics "WELL + ziggurat" well-samples)]
+           xoshiro-zig-samples
+           (conj (compute-metrics "Xoshiro++ + ziggurat" xoshiro-zig-samples))
+           xoshiro-gaussian-samples
+           (conj (compute-metrics "Xoshiro++ nextGaussian" xoshiro-gaussian-samples)))]
+
+     (println "\nNormal Sample Source Comparison")
+     (println (str "Samples: " n ", Batch size: " batch-size ", Lags: " lags))
+     (println)
+     (pprint/print-table
+      (into [:source :mean :variance]
+            (concat (map #(keyword (str "ac-lag-" %)) lags)
+                    [:variance-ratio]))
+      results)
+     (println)
+     (println "Expected values for standard normal:")
+     (println "  - Mean ≈ 0, Variance ≈ 1")
+     (println "  - Autocorrelation ≈ 0 (threshold: |ac| < 0.02)")
+     (println "  - Variance ratio ≈ 1.0 (threshold: 0.9 to 1.1)"))))
+
+(comment
+  (print-ziggurat-comparison-table)
+  (print-ziggurat-comparison-table {:n 50000}))
