@@ -8,9 +8,14 @@
   ["bases/notebooks/src/criterium/index.clj"
    "bases/notebooks/src/criterium/basic_usage_notebook.clj"
    "bases/notebooks/src/criterium/bench_options_notebook.clj"
+   "bases/notebooks/src/criterium/arg_gen_notebook.clj"
    "bases/notebooks/src/criterium/sampled_fn_notebook.clj"
    "bases/notebooks/src/criterium/instrument_fn_notebook.clj"
-   "bases/notebooks/src/criterium/allocation_tracking_notebook.clj"])
+   "bases/notebooks/src/criterium/allocation_tracking_notebook.clj"
+   "bases/notebooks/src/criterium/allocation_bench_notebook.clj"
+   "bases/notebooks/src/criterium/domain_bench_notebook.clj"
+   "bases/notebooks/src/criterium/analyse_domain_notebook.clj"
+   "bases/notebooks/src/criterium/domain_builder_notebook.clj"])
 
 (defn render-site!
   "Render all notebooks to HTML in the docs directory."

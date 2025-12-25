@@ -87,11 +87,6 @@ jobs:
           test -f agent-cpp/build/libcriterium.dylib
         fi
 
-    - name: build jar
-      run: |
-        set -x
-        clojure -T:build jar :project :criterium :verbose true
-
     - name: prep deps
       run: |
         set -x
@@ -100,6 +95,11 @@ jobs:
         clojure -T:build javac :project :blackhole :class-dir '"bases/blackhole/target/classes"' :verbose true
         ls -laR bases/blackhole/target/classes/ || echo "No target/classes directory"
         clojure -P -A:test:dev
+
+    - name: build jar
+      run: |
+        set -x
+        clojure -T:build jar :project :criterium :verbose true
 
     - name: test
       run: |
