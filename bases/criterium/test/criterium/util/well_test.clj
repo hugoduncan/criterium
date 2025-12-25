@@ -164,32 +164,7 @@
             (format "LCG ratio: %.3f, WELL ratio: %.3f"
                     lcg-ratio well-ratio))))))
 
-;;; Additional RNG comparison tests
-
-(deftest splittable-random-correlation-test
-  ;; Test SplittableRandom (JDK 8+) which uses a splitmix64-based algorithm.
-  ;; SplittableRandom is designed for parallel computation and should have
-  ;; good statistical properties.
-  (testing "java.util.SplittableRandom"
-    (testing "autocorrelation at multiple lags"
-      (let [seed    42
-            rng     (java.util.SplittableRandom. seed)
-            samples (vec (repeatedly 100000 #(.nextDouble rng)))
-            lags    [1 2 3 10 50 100]]
-        (doseq [lag lags]
-          (let [ac (autocorrelation samples lag)]
-            ;; Document observed behavior - SplittableRandom typically performs well
-            (is (number? ac)
-                (format "lag %d: autocorrelation %.4f" lag ac))))))
-    (testing "batch-sum variance ratio"
-      (let [seed       42
-            rng        (java.util.SplittableRandom. seed)
-            samples    (vec (repeatedly 100000 #(.nextDouble rng)))
-            batch-size 500
-            ratio      (variance-ratio samples batch-size)]
-        ;; Document observed behavior
-        (is (number? ratio)
-            (format "SplittableRandom variance ratio: %.3f" ratio))))))
+;;; RNG comparison table helpers
 
 (defn- xoshiro-available?
   "Check if Xoshiro256PlusPlus is available (JDK 17+)."
@@ -210,73 +185,6 @@
           create-method (.getMethod (class factory) "create" (into-array Class [Long/TYPE]))]
       (.invoke create-method factory (object-array [seed])))
     (catch Exception _ nil)))
-
-(deftest xoshiro256-plusplus-correlation-test
-  ;; Test Xoshiro256PlusPlus (JDK 17+), a modern RNG with excellent
-  ;; statistical properties. This test is skipped on older JDKs.
-  (testing "java.util.random.Xoshiro256PlusPlus"
-    (if-not (xoshiro-available?)
-      (testing "skipped on JDK < 17"
-        (is true "Xoshiro256PlusPlus not available"))
-      (let [seed 42
-            rng  (make-xoshiro-rng seed)]
-        (if (nil? rng)
-          (testing "failed to create RNG"
-            (is false "Could not create Xoshiro256PlusPlus"))
-          (let [next-double-method (.getMethod (class rng) "nextDouble" (into-array Class []))]
-            (testing "autocorrelation at multiple lags"
-              (let [samples (vec (repeatedly 100000 #(.invoke next-double-method rng (object-array []))))
-                    lags    [1 2 3 10 50 100]]
-                (doseq [lag lags]
-                  (let [ac (autocorrelation samples lag)]
-                    ;; Xoshiro256++ should have excellent statistical properties
-                    (is (number? ac)
-                        (format "lag %d: autocorrelation %.4f" lag ac))))))
-            (testing "batch-sum variance ratio"
-              (let [rng2       (make-xoshiro-rng seed) ; Fresh RNG for this test
-                    next-double (.getMethod (class rng2) "nextDouble" (into-array Class []))
-                    samples    (vec (repeatedly 100000 #(.invoke next-double rng2 (object-array []))))
-                    batch-size 500
-                    ratio      (variance-ratio samples batch-size)]
-                (is (number? ratio)
-                    (format "Xoshiro256PlusPlus variance ratio: %.3f" ratio))))))))))
-
-(deftest rng-comparison-summary-test
-  ;; Comprehensive comparison of multiple RNGs.
-  ;; Documents observed statistical behavior for reference.
-  (testing "RNG comparison summary"
-    (let [seed       42
-          n          100000
-          batch-size 500
-          ;; Generate samples from each RNG
-          well-samples   (vec (take n (well/well-rng-1024a seed)))
-          lcg            (java.util.Random. seed)
-          lcg-samples    (vec (repeatedly n #(.nextDouble lcg)))
-          splittable     (java.util.SplittableRandom. seed)
-          split-samples  (vec (repeatedly n #(.nextDouble splittable)))
-          ;; Compute metrics
-          well-ac1       (autocorrelation well-samples 1)
-          well-ratio     (variance-ratio well-samples batch-size)
-          lcg-ac1        (autocorrelation lcg-samples 1)
-          lcg-ratio      (variance-ratio lcg-samples batch-size)
-          split-ac1      (autocorrelation split-samples 1)
-          split-ratio    (variance-ratio split-samples batch-size)]
-      ;; WELL RNG should meet our quality standards
-      (testing "WELL RNG meets quality thresholds"
-        (is (< (Math/abs well-ac1) 0.02)
-            (format "WELL lag-1 autocorrelation: %.4f" well-ac1))
-        (is (< 0.75 well-ratio 1.25)
-            (format "WELL variance ratio: %.3f" well-ratio)))
-      ;; Document other RNGs' behavior
-      (testing "documents other RNGs' behavior"
-        (is (number? lcg-ac1)
-            (format "LCG lag-1 autocorrelation: %.4f" lcg-ac1))
-        (is (number? lcg-ratio)
-            (format "LCG variance ratio: %.3f" lcg-ratio))
-        (is (number? split-ac1)
-            (format "SplittableRandom lag-1 autocorrelation: %.4f" split-ac1))
-        (is (number? split-ratio)
-            (format "SplittableRandom variance ratio: %.3f" split-ratio))))))
 
 ;;; RNG comparison table
 
