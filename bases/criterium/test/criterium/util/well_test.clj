@@ -198,7 +198,10 @@
    (print-rng-comparison-table {}))
   ([{:keys [seed n batch-size lags]
      :or   {seed 42, n 100000, batch-size 500, lags [1 2 3 10 50 100]}}]
-   (let [;; Generate samples from each RNG
+   (let [;; Format to 4 significant figures
+         fmt-4sf (fn [x] (format "%.4g" (double x)))
+
+         ;; Generate samples from each RNG
          well-samples  (vec (take n (well/well-rng-1024a seed)))
          lcg           (java.util.Random. seed)
          lcg-samples   (vec (repeatedly n #(.nextDouble lcg)))
@@ -217,10 +220,10 @@
          (fn [name samples]
            (let [ac-vals (mapv #(autocorrelation samples %) lags)
                  vr      (variance-ratio samples batch-size)]
-             (into {:rng name :variance-ratio vr}
+             (into {:rng name :variance-ratio (fmt-4sf vr)}
                    (map vector
                         (map #(keyword (str "ac-lag-" %)) lags)
-                        ac-vals))))
+                        (map fmt-4sf ac-vals)))))
 
          results
          (cond-> [(compute-metrics "WELL-1024a" well-samples)
