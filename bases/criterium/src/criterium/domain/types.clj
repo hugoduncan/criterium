@@ -1,61 +1,9 @@
 (ns criterium.domain.types
-  "Core domain types, predicates, and operations.
+  "Core domain types and operations.
 
   A domain is an immutable collection of benchmark runs indexed by coordinates.
   This namespace provides the foundational data structures used by
   criterium.domain.builder and criterium.domain.analysis.")
-
-;;; Predicates
-
-(defn run?
-  "Returns true if x is a valid run map with :coord and :data keys."
-  [x]
-  (and (map? x)
-       (contains? x :coord)
-       (contains? x :data)))
-
-(defn domain?
-  "Returns true if x is a domain."
-  [x]
-  (and (map? x)
-       (= :criterium/domain (:type x))
-       (vector? (:runs x))))
-
-(defn domain-extract?
-  "Returns true if x is a domain extract result.
-  Domain extracts contain a :metrics map with metric-id keys."
-  [x]
-  (and (map? x)
-       (= :criterium/domain-extract (:type x))
-       (map? (:metrics x))))
-
-(defn domain-grouped?
-  "Returns true if x is a domain grouped result."
-  [x]
-  (and (map? x)
-       (= :criterium/domain-grouped (:type x))
-       (contains? x :axis)
-       (contains? x :data)))
-
-(defn domain-comparison?
-  "Returns true if x is a domain comparison result.
-  Supports both single-metric format (with :metric and :data keys)
-  and multi-metric format (with :metrics key)."
-  [x]
-  (and (map? x)
-       (= :criterium/domain-comparison (:type x))
-       (contains? x :axis)
-       (or (and (contains? x :metric) (contains? x :data)) ; single-metric
-           (contains? x :metrics))))
-
-(defn domain-regression?
-  "Returns true if x is a domain regression result.
-  Domain regressions contain a :regressions map with metric-id keys."
-  [x]
-  (and (map? x)
-       (= :criterium/domain-regression (:type x))
-       (contains? x :axis)
-       (map? (:regressions x))))
 
 ;;; Construction
 

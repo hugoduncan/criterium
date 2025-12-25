@@ -188,6 +188,46 @@ When using the `:portal` viewer:
 2. Results include interactive charts and detailed breakdowns
 3. Supports histogram visualizations and statistical overlays
 
+## Schema Validation
+
+Criterium uses [malli](https://github.com/metosin/malli) for schema validation during development. Schemas are defined in `development/src/criterium/schema.clj` and instrumentation is available via `development/src/criterium/schema/instrument.clj`.
+
+**Enable instrumentation in REPL:**
+```clojure
+(require '[criterium.schema.instrument :as inst])
+
+;; Enable validation on criterium.bench public API
+(inst/instrument!)
+
+;; Disable validation
+(inst/unstrument!)
+
+;; Check if a var is instrumented
+(inst/instrumented? #'criterium.bench/bench-measured)
+```
+
+**Interpreting validation errors:**
+
+When instrumented, invalid inputs throw exceptions with `:malli.core/invalid-input` type. The error contains:
+- `:schema` - The expected schema
+- `:args` - The actual arguments passed
+
+```clojure
+;; Example error when passing invalid measured
+(bench-measured {} {:args-fn (fn [] []) :f +})
+;; => ExceptionInfo :malli.core/invalid-input
+;;    {:data {:schema [...] :args [...]}}
+```
+
+**Tests run with instrumentation enabled** via kaocha hooks defined in `tests.edn`.
+
+**Registry side effect:** Requiring `criterium.schema.instrument` modifies malli's global default registry via `malli.registry/set-default-registry!` to include criterium schemas.
+
+**Load order considerations:**
+- If you use malli elsewhere, require `criterium.schema.instrument` AFTER any other code that calls `set-default-registry!`, since it will overwrite the registry.
+- To combine criterium schemas with your own, create a composite registry that includes both `criterium.schema/registry` and your schemas, then call `set-default-registry!` with your composite registry AFTER requiring `criterium.schema.instrument`.
+- Alternatively, pass explicit registries to malli functions rather than relying on the default registry.
+
 ## Development Notes
 
 - The codebase follows the project's Clojure style guide (referenced in global CLAUDE.md)

@@ -9,13 +9,7 @@
   alongside raw allocation records."
   (:require
    [criterium.agent :as agent]
-   [criterium.jvm :as jvm]
-   [criterium.types :as types]))
-
-(def trace?
-  "Check if x is an allocation trace map with :type :criterium/allocation-trace.
-  Re-exported from criterium.types."
-  types/allocation-trace?)
+   [criterium.jvm :as jvm]))
 
 (defn filter-thread
   "Filter allocation records to those from a specific thread.

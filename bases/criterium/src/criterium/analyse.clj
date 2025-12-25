@@ -6,10 +6,9 @@
    [criterium.analyse.metrics-samples]
    [criterium.collect-plan :as collect-plan]
    [criterium.metric :as metric]
-   [criterium.types :as types]
    [criterium.util.debug :as debug]
    [criterium.util.helpers :as util]
-   [criterium.util.invariant :refer [have have?]]))
+   [criterium.util.invariant :refer [have]]))
 
 (defn exp [v]
   (Math/exp v))
@@ -46,7 +45,7 @@
    (fn transform-log [data-map]
      (let [samples-id (or samples-id :samples)
            id (or id (keyword (str "log-" (name samples-id))))
-           metrics-samples (have types/generic-data-map? (data-map samples-id))
+           metrics-samples (util/get-generic-data-entry data-map samples-id)
            metrics-defs (-> (:metrics-defs metrics-samples)
                             (metric/select-metrics metric-ids)
                             (metric/filter-metrics
@@ -92,7 +91,6 @@
   ([] (quantiles {}))
   ([{:keys [id samples-id metric-ids] :as analysis}]
    (fn quantiles [data-map]
-     {:pre [(have? types/result-map? data-map)]}
      (let [samples-id (or samples-id :samples)
            id (or id :quantiles)
            metrics-samples (data-map samples-id)
@@ -105,8 +103,7 @@
                       metrics-samples
                       metric-configs
                       analysis)
-           quantiles-map (have
-                          types/quantiles-map?
+           quantiles-map (util/->quantiles-map
                           (merge
                            {:type :criterium/quantiles
                             :source-id samples-id
@@ -168,8 +165,7 @@
                        all-quantiles
                        metric-configs
                        {})
-             outliers-map (have
-                           types/outliers-map?
+             outliers-map (util/->outliers-map
                            (merge
                             {:type :criterium/outliers
                              :source-id samples-id
@@ -226,8 +222,7 @@
                     outliers
                     metric-configs
                     analysis)
-             stats-map (have
-                        types/stats-map?
+             stats-map (util/->stats-map
                         (merge
                          {:type :criterium/stats
                           :metrics-defs metrics-defs
@@ -278,8 +273,7 @@
                           metrics-samples
                           metrics-defs
                           analysis)
-             es-map (have
-                     types/event-stats-map?
+             es-map (util/->event-stats-map
                      (merge
                       {:type :criterium/event-stats
                        :source-id samples-id
@@ -331,8 +325,7 @@
                         outliers
                         metric-configs
                         analysis)
-             histogram-map (have
-                            types/histogram-map?
+             histogram-map (util/->histogram-map
                             (merge
                              {:type :criterium/histogram
                               :metrics-defs metrics-defs
@@ -485,8 +478,7 @@
                            (util/outliers outliers)
                            (util/stats stats)
                            metric-configs)
-             os-map (have
-                     types/outlier-significance-map?
+             os-map (util/->outlier-significance-map
                      {:type :criterium/outlier-significance
                       :transform collect-plan/identity-transforms
                       :outlier-significance significance

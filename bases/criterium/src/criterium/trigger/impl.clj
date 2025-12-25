@@ -4,13 +4,10 @@
    [criterium.collect-plan :as collect-plan]
    [criterium.collector :as collector]
    [criterium.jvm :as jvm]
-   [criterium.sampler :as sampler]
-   [criterium.types :as types]
-   [criterium.util.invariant :refer [have?]]))
+   [criterium.sampler :as sampler]))
 
 (defn samples->samples-map
   [samples]
-  {:post [(have? types/metrics-samples-map? %)]}
   (let [collector (collector/collector
                    {:terminator :elapsed-time})]
     {:type           :criterium/metrics-samples

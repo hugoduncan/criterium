@@ -1,27 +1,11 @@
 (ns criterium.allocation-test
   (:require
    [clojure.test :refer [deftest is testing]]
-   [criterium.allocation :as allocation]
-   [criterium.types :as types]))
+   [criterium.allocation :as allocation]))
 
 ;; Tests for criterium.allocation namespace.
 ;; Validates the allocation tracing wrapper that bridges the native agent
 ;; to the criterium pipeline architecture.
-
-(deftest trace?-test
-  (testing "trace?"
-    (testing "is the same as types/allocation-trace?"
-      (is (= allocation/trace? types/allocation-trace?)))
-    (testing "returns true for valid allocation trace"
-      (is (true? (allocation/trace?
-                  {:type :criterium/allocation-trace
-                   :records []
-                   :thread-id 1
-                   :eval-count 100
-                   :elapsed-time 1.5e9}))))
-    (testing "returns false for invalid trace"
-      (is (false? (allocation/trace? {:type :other})))
-      (is (false? (allocation/trace? nil))))))
 
 (deftest filter-thread-test
   (testing "filter-thread"
@@ -52,7 +36,7 @@
         ;; Agent may or may not be attached in test environment
         (is (= :test-value result))
         (when trace
-          (is (allocation/trace? trace)))))
+          (is (= :criterium/allocation-trace (:type trace))))))
     (testing "uses default eval-count of 1"
       (let [[trace _] (allocation/with-allocation-trace {}
                         nil)]

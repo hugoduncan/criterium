@@ -7,7 +7,6 @@
    [criterium.jvm :as jvm]
    [criterium.measured :as measured]
    [criterium.metric :as metric]
-   [criterium.types :as types]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have have?]]))
 
@@ -62,10 +61,9 @@
 
 (defn- collected-data-map
   [collection-map]
-  (have
-   types/collected-metrics-map?
-   (let [metric->values (collect/transform collection-map)
-         batch-size (:batch-size collection-map)]
+  (let [metric->values (collect/transform collection-map)
+        batch-size (:batch-size collection-map)]
+    (util/->collected-metrics-map
      (merge
       collection-map
       {:metric->values metric->values
@@ -80,9 +78,8 @@
   ;; Sample measured with estimation, warmup and forced GC.
   ;; Return a sampled data map.
   [collect-plan collector measured]
-  {:pre  [(fn? (:f collector))
-          (measured/measured? measured)]
-   :post [(have? types/result-map? %)]}
+  {:pre [(fn? (:f collector))
+         (measured/measured? measured)]}
   (let [{:keys [^long batch-time-ns
                 ^long limit-time-ns
                 ^long max-gc-attempts

@@ -117,4 +117,4 @@
                     (assoc domain-plans/extract-metrics :viewer :none)
                     d)]
         (is (map? result))
-        (is (domain/domain-extract? (:extract result)))))))
+        (is (= :criterium/domain-extract (:type (:extract result))))))))

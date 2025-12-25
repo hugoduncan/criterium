@@ -2,12 +2,22 @@
   (:require
    [criterium.analyse.methods :as methods]
    [criterium.collect-plan :as collect-plan]
-   [criterium.types :as types]
    [criterium.util.helpers :as util]
    [criterium.util.histogram :as histogram]
-   [criterium.util.invariant :refer [have have?]]
+   [criterium.util.invariant :refer [have]]
    [criterium.util.sampled-stats :as sampled-stats]
    [criterium.util.stats :as stats]))
+
+(def ^:private metrics-samples-keys
+  "Keys for :criterium/metrics-samples type, used for select-keys."
+  #{:type
+    :transform
+    :source-id
+    :metric->values
+    :num-samples
+    :batch-size
+    :metrics-defs
+    :expr-value})
 
 (derive :criterium/collected-metrics-samples :criterium/metrics-samples)
 
@@ -25,7 +35,7 @@
     (->
      (select-keys
       metrics-samples
-      (disj types/metrics-samples-keys :metrics-defs))
+      (disj metrics-samples-keys :metrics-defs))
      (merge
       {:metric->values metric->values'
        :transform      {:sample-> inv-f :->sample f}}))))
@@ -87,7 +97,6 @@
 
 (defmethod methods/outliers :criterium/metrics-samples
   [metrics-samples all-quantiles metric-configs _options]
-  {:pre [(have? types/generic-metrics-samples-map? metrics-samples)]}
   (let [outliers (samples-outliers
                   metric-configs
                   (util/quantiles all-quantiles)
@@ -99,7 +108,6 @@
 
 (defmethod methods/stats :criterium/metrics-samples
   [metrics-samples outliers metric-configs options]
-  {:pre [(have? types/generic-metrics-samples-map? metrics-samples)]}
   (let [metric->values (util/metric->values metrics-samples)
         stats          (sampled-stats/sample-stats
                         metric->values
@@ -112,7 +120,6 @@
 
 (defmethod methods/event-stats :criterium/metrics-samples
   [metrics-samples metrics-defs _options]
-  {:pre [(have? types/generic-metrics-samples-map? metrics-samples)]}
   (let [metric->values (util/metric->values metrics-samples)
         event-stats    (sampled-stats/event-stats
                         metrics-defs
@@ -150,7 +157,6 @@
 
 (defmethod methods/histogram :criterium/metrics-samples
   [metrics-samples quantiles outliers metric-configs _options]
-  {:pre [(have? types/generic-metrics-samples-map? metrics-samples)]}
   (let [histograms (->> metric-configs
                         (mapv
                          (juxt :path

@@ -30,30 +30,6 @@
 
 ;;; Re-export from types
 
-(def run?
-  "Returns true if x is a valid run map with :coord and :data keys."
-  types/run?)
-
-(def domain?
-  "Returns true if x is a domain."
-  types/domain?)
-
-(def domain-extract?
-  "Returns true if x is a domain extract result."
-  types/domain-extract?)
-
-(def domain-grouped?
-  "Returns true if x is a domain grouped result."
-  types/domain-grouped?)
-
-(def domain-comparison?
-  "Returns true if x is a domain comparison result."
-  types/domain-comparison?)
-
-(def domain-regression?
-  "Returns true if x is a domain regression result."
-  types/domain-regression?)
-
 (def domain
   "Create a domain from runs. Returns empty domain when called with no args."
   types/domain)
