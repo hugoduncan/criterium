@@ -21,27 +21,28 @@
 
 (def default-with-warmup
   {:collector-config default-collector-config
-   :analyse [:transform-log
-             [:quantiles {:quantiles [0.9 0.99 0.99]}]
-             :outliers
-             [:stats {}]
-             [:stats {:samples-id :log-samples :id :log-stats}]
-             :event-stats
-             :allocation-summary
-             [:allocation-hotspots {:limit 10}]
-             :allocation-by-type
-             :allocation-treemap]
-   :view [[:stats {:metric-ids [:memory]}]
-          [:stats {:stats-id :log-stats}]
-          :event-stats
-          :collect-plan
-          :allocation-summary
-          :allocation-hotspots
-          :allocation-by-type
-          :allocation-treemap
-          #_[:final-gc-warnings
-             {:warn-threshold 0.01}]]
-   :viewer :print})
+   :analyse          [:transform-log
+                      [:quantiles {:quantiles [0.9 0.99 0.99]}]
+                      :outliers
+                      [:stats {}]
+                      [:stats {:samples-id :log-samples :id :log-stats}]
+                      :event-stats
+                      :allocation-summary
+                      [:allocation-hotspots {:limit 10}]
+                      :allocation-by-type
+                      :allocation-treemap]
+   :view             [[:stats {:metric-ids [:memory]}]
+                      [:stats {:stats-id :log-stats}]
+                      :event-stats
+                      :outlier-counts
+                      :collect-plan
+                      :allocation-summary
+                      :allocation-hotspots
+                      :allocation-by-type
+                      :allocation-treemap
+                      #_[:final-gc-warnings
+                         {:warn-threshold 0.01}]]
+   :viewer           :print})
 
 (def log-histogram
   {:collector-config default-collector-config
