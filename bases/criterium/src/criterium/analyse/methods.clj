@@ -30,3 +30,9 @@
   "Calculate histogram."
   (fn [sample-map _quantiles _outliers _metric-configs _options]
     (:type sample-map)))
+
+(defmulti kde
+  "Calculate kernel density estimation.
+  Returns nil if sample data is not available (e.g., digest-based samples)."
+  (fn [sample-map _metric-configs _options]
+    (:type sample-map)))

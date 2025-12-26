@@ -5,6 +5,7 @@
    [criterium.util.helpers :as util]
    [criterium.util.histogram :as histogram]
    [criterium.util.invariant :refer [have]]
+   [criterium.util.kde :as kde]
    [criterium.util.sampled-stats :as sampled-stats]
    [criterium.util.stats :as stats]))
 
@@ -23,7 +24,7 @@
 
 (defmethod methods/transform :criterium/metrics-samples
   [metrics-samples metric-configs f inv-f _options]
-  (let [metric->values  (util/metric->values metrics-samples)
+  (let [metric->values (util/metric->values metrics-samples)
         metric->values' (reduce
                          (fn x-path [result path]
                            (assoc
@@ -38,7 +39,7 @@
       (disj metrics-samples-keys :metrics-defs))
      (merge
       {:metric->values metric->values'
-       :transform      {:sample-> inv-f :->sample f}}))))
+       :transform {:sample-> inv-f :->sample f}}))))
 
 (defmethod methods/quantiles :criterium/metrics-samples
   [metrics-samples metric-configs options]
@@ -46,15 +47,15 @@
                    (util/metric->values metrics-samples)
                    metric-configs
                    options)]
-    {:type      :criterium/quantiles
+    {:type :criterium/quantiles
      :quantiles quantiles
      :transform collect-plan/identity-transforms}))
 
 (defn outlier-count
   [low-severe low-mild high-mild high-severe]
-  {:low-severe  low-severe
-   :low-mild    low-mild
-   :high-mild   high-mild
+  {:low-severe low-severe
+   :low-mild low-mild
+   :high-mild high-mild
    :high-severe high-severe})
 
 (defn classifier
@@ -62,26 +63,26 @@
   (fn [^double x i]
     (when-not (<= low-mild x high-mild)
       [i (cond
-           (<= x low-severe)           :low-severe
-           (< low-severe x low-mild)   :low-mild
+           (<= x low-severe) :low-severe
+           (< low-severe x low-mild) :low-mild
            (> high-severe x high-mild) :high-mild
-           (>= x high-severe)          :high-severe)])))
+           (>= x high-severe) :high-severe)])))
 
 (defn samples-outliers [metric-configs all-quantiles samples]
   (reduce
    (fn sample-m [result metric-config]
-     (let [path           (:path metric-config)
-           quantiles      (have map? (get-in all-quantiles path)
-                                {:all-quantiles all-quantiles})
-           thresholds     (stats/boxplot-outlier-thresholds
-                           (get quantiles 0.25)
-                           (get quantiles 0.75))
-           classifier     (classifier thresholds)
-           outliers       (when (apply not= thresholds)
-                            (into {}
-                                  (mapv classifier
-                                        (get samples path)
-                                        (range))))
+     (let [path (:path metric-config)
+           quantiles (have map? (get-in all-quantiles path)
+                           {:all-quantiles all-quantiles})
+           thresholds (stats/boxplot-outlier-thresholds
+                       (get quantiles 0.25)
+                       (get quantiles 0.75))
+           classifier (classifier thresholds)
+           outliers (when (apply not= thresholds)
+                      (into {}
+                            (mapv classifier
+                                  (get samples path)
+                                  (range))))
            outlier-counts (reduce-kv
                            (fn [counts _i v]
                              (update counts v inc))
@@ -101,33 +102,33 @@
                   metric-configs
                   (util/quantiles all-quantiles)
                   (util/metric->values metrics-samples))]
-    {:type        :criterium/outliers
-     :outliers    outliers
+    {:type :criterium/outliers
+     :outliers outliers
      :num-samples (:num-samples metrics-samples)
-     :transform   collect-plan/identity-transforms}))
+     :transform collect-plan/identity-transforms}))
 
 (defmethod methods/stats :criterium/metrics-samples
   [metrics-samples outliers metric-configs options]
   (let [metric->values (util/metric->values metrics-samples)
-        stats          (sampled-stats/sample-stats
-                        metric->values
-                        (when outliers (util/outliers outliers))
-                        metric-configs
-                        options)]
-    {:type      :criterium/stats
-     :stats     stats
+        stats (sampled-stats/sample-stats
+               metric->values
+               (when outliers (util/outliers outliers))
+               metric-configs
+               options)]
+    {:type :criterium/stats
+     :stats stats
      :transform collect-plan/identity-transforms}))
 
 (defmethod methods/event-stats :criterium/metrics-samples
   [metrics-samples metrics-defs _options]
   (let [metric->values (util/metric->values metrics-samples)
-        event-stats    (sampled-stats/event-stats
-                        metrics-defs
-                        metric->values)]
-    {:type        :criterium/event-stats
+        event-stats (sampled-stats/event-stats
+                     metrics-defs
+                     metric->values)]
+    {:type :criterium/event-stats
      :event-stats event-stats
-     :batch-size  (:batch-size metrics-samples)
-     :transform   collect-plan/identity-transforms}))
+     :batch-size (:batch-size metrics-samples)
+     :transform collect-plan/identity-transforms}))
 
 (defn- remove-outliers
   [samples outliers]
@@ -140,14 +141,14 @@
 (defn histogram
   [metric->values quantiles outliers metric-config]
   (try
-    (let [p        (:path metric-config)
-          iqr      (when-let [qs (get-in quantiles p)]
-                     (- (double (get qs 0.75)) (double (get qs 0.25))))
-          samples  (metric->values p)
+    (let [p (:path metric-config)
+          iqr (when-let [qs (get-in quantiles p)]
+                (- (double (get qs 0.75)) (double (get qs 0.25))))
+          samples (metric->values p)
           outliers (get-in outliers p)
-          samples  (if-let [ols (:outliers outliers)]
-                     (remove-outliers samples ols)
-                     samples)]
+          samples (if-let [ols (:outliers outliers)]
+                    (remove-outliers samples ols)
+                    samples)]
       (histogram/histogram samples iqr))
     (catch clojure.lang.ExceptionInfo e
       (let [data (ex-data e)]
@@ -167,6 +168,33 @@
                                  %)))
                         (filterv (comp some? second))
                         (into {}))]
-    {:type       :criterium/histogram
+    {:type :criterium/histogram
      :histograms histograms
-     :transform  collect-plan/identity-transforms}))
+     :transform collect-plan/identity-transforms}))
+
+(defn kde-for-metric
+  "Compute KDE for a single metric's samples."
+  [metric->values metric-config options]
+  (try
+    (let [p (:path metric-config)
+          samples (metric->values p)]
+      (when (seq samples)
+        (kde/kde samples options)))
+    (catch clojure.lang.ExceptionInfo e
+      (let [data (ex-data e)]
+        (when-not (#{:kde/no-data :kde/constant-data} (:error data))
+          (throw e))))))
+
+(defmethod methods/kde :criterium/metrics-samples
+  [metrics-samples metric-configs options]
+  (let [metric->values (util/metric->values metrics-samples)
+        kdes (->> metric-configs
+                  (mapv
+                   (juxt :path
+                         #(kde-for-metric metric->values % options)))
+                  (filterv (comp some? second))
+                  (into {}))]
+    (when (seq kdes)
+      {:type :criterium/kde
+       :kdes kdes
+       :transform collect-plan/identity-transforms})))

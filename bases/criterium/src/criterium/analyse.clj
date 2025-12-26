@@ -335,6 +335,70 @@
                              histogram))]
          (assoc data-map id histogram-map))))))
 
+(defn kde
+  "Calculate kernel density estimation for sample measurements.
+
+  Returns a function that computes KDE for quantitative metrics, providing
+  density estimates, bandwidth selection, confidence bands, and mode detection.
+
+  Parameters:
+    opts - Optional map with keys:
+      :id          - Key for KDE results in output (default: :kde)
+      :samples-id  - Key for source samples (default: :log-samples)
+      :metric-ids  - Set of metric ids to analyze (default: all quantitative)
+      :n-points    - Grid size for density evaluation (default: 512)
+      :n-bootstrap - Bootstrap samples for confidence bands (default: 200)
+      :n-modes     - Maximum modes to detect (default: 5)
+      :alpha       - Confidence level (default: 0.05)
+
+  The returned function:
+  - Takes a sampled data map containing samples
+  - Returns the map with KDE analysis added under :id key
+  - Returns data-map unchanged if samples unavailable (e.g., digest-based)
+  - For each metric provides:
+    - bandwidth: ISJ-selected bandwidth
+    - grid/density: evaluation points and density values
+    - lower-band/upper-band: bootstrap confidence bands
+    - modes: detected peaks with confidence intervals
+
+  Example:
+  (let [analyze (kde {:n-points 256})
+        result (analyze {:log-samples {...}})]
+    (get-in result [:kde :elapsed-time]))"
+  ([] (kde {}))
+  ([{:keys [id samples-id metric-ids n-points n-bootstrap n-modes alpha]
+     :as _options}]
+   (let [samples-id (or samples-id :log-samples)
+         id (or id :kde)]
+     (fn [data-map]
+       (let [metrics-samples (get data-map samples-id)]
+         (if-not metrics-samples
+           data-map
+           (let [metrics-defs (-> (have (:metrics-defs metrics-samples))
+                                  (metric/select-metrics metric-ids)
+                                  (metric/filter-metrics
+                                   (metric/type-pred :quantitative)))
+                 metric-configs (metric/all-metric-configs metrics-defs)
+                 kde-options (cond-> {}
+                               n-points (assoc :n-points n-points)
+                               n-bootstrap (assoc :n-bootstrap n-bootstrap)
+                               n-modes (assoc :n-modes n-modes)
+                               alpha (assoc :alpha alpha))
+                 kde-result (methods/kde
+                             metrics-samples
+                             metric-configs
+                             kde-options)]
+             (if kde-result
+               (let [kde-map (util/->kde-map
+                              (merge
+                               {:type :criterium/kde
+                                :metrics-defs metrics-defs
+                                :source-id samples-id
+                                :batch-size (:batch-size metrics-samples)}
+                               kde-result))]
+                 (assoc data-map id kde-map))
+               data-map))))))))
+
 (defn- min-f
   ^double [f ^double q ^double r]
   (min ^double (f q) ^double (f r)))

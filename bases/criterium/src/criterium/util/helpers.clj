@@ -369,6 +369,11 @@
   Validation handled by malli instrumentation during development."
   [x] x)
 
+(defn ->kde-map
+  "Identity wrapper for kde-map construction.
+  Validation handled by malli instrumentation during development."
+  [x] x)
+
 (defn ->outlier-significance-map
   "Identity wrapper for outlier-significance-map construction.
   Validation handled by malli instrumentation during development."
