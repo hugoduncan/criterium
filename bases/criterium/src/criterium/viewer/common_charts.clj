@@ -585,7 +585,7 @@
                       :density d})
                    grid density)]
     {:data {:values data}
-     :transform [{:calculate (str "'" "Density " label "'") :as "layer"}]
+     :transform [{:calculate (str "'" "KDE " label "'") :as "layer"}]
      :mark {:type "line" :strokeWidth 2}
      :encoding {:x {:field field-name :type "quantitative"
                     :scale {:zero false}}
@@ -612,7 +612,7 @@
                     :scale {:zero false}}
                 :y {:field "lower" :type "quantitative"}
                 :y2 {:field "upper"}
-                :color {:value "steelblue"}}}))
+                :color {:value "#ff7f0e"}}}))
 
 (defn kde-modes-layer
   "Build mode markers layer for KDE visualization.
