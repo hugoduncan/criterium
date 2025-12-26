@@ -169,8 +169,8 @@
 
 (defn variable-work
   "Simulate variable-time work with occasional slow paths."
-  [n]
-  (if (zero? (mod (rand-int 100) 10))
+  [^long n]
+  (if (zero? (long (mod (rand-int 100) 10)))
     (reduce + (range (* n 10))) ; 10% slow path
     (reduce + (range n)))) ; 90% fast path
 
