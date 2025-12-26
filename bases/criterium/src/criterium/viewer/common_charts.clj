@@ -574,23 +574,28 @@
 
 (defn kde-density-layer
   "Build a density curve layer for KDE visualization.
-  Uses 'kde-density' field to avoid Y-scale conflicts with histogram.
+  Applies Jacobian correction to convert log-space density to linear-space.
+  Uses 'density' field to share Y-axis with histogram.
   Returns a Vega-Lite layer spec."
   [kde-data metric-config transforms]
   (let [{:keys [grid density]} kde-data
         {:keys [label]} metric-config
         k (first (:path metric-config))
         field-name (name k)
-        data (mapv (fn [x d]
-                     {field-name (util/transform-sample-> x transforms)
-                      "kde-density" d})
+        ;; Apply Jacobian correction: p_linear(x) = p_log(log(x)) / x
+        ;; Grid is in log-space, so linear value is exp(grid).
+        ;; The Jacobian factor uses the linear value before display scaling.
+        data (mapv (fn [log-x d]
+                     (let [linear-x (Math/exp log-x)]
+                       {field-name (util/transform-sample-> log-x transforms)
+                        "density" (/ d linear-x)}))
                    grid density)]
     {:data {:values data}
      :transform [{:calculate (str "'" "KDE " label "'") :as "layer"}]
      :mark {:type "line" :strokeWidth 2}
      :encoding {:x {:field field-name :type "quantitative"
                     :scale {:zero false}}
-                :y {:field "kde-density" :type "quantitative"}
+                :y {:field "density" :type "quantitative"}
                 :color {:field "layer" :type "nominal"
                         :legend {:orient "top-left" :offset 10}}}}))
 
@@ -715,18 +720,24 @@
                        histogram
                        metric-config
                        0))
-                ;; Add confidence band
+                ;; Wrap KDE layers in a nested group with shared Y-scale
+                ;; This gives them independent Y-scale from histogram
                 true
-                (conj (kde-confidence-band-layer
-                       kde-data metric-config kde-transforms))
-                ;; Add density curve
-                true
-                (conj (kde-density-layer
-                       kde-data metric-config kde-transforms))
-                ;; Add mode markers from separate modes analysis
-                (and modes-data (seq (:modes modes-data)))
-                (conj (kde-modes-layer
-                       modes-data metric-config kde-transforms)))}))))
+                (conj {:resolve {:scale {:y "shared"}}
+                       :layer
+                       (cond-> []
+                         ;; Add confidence band
+                         true
+                         (conj (kde-confidence-band-layer
+                                kde-data metric-config kde-transforms))
+                         ;; Add density curve
+                         true
+                         (conj (kde-density-layer
+                                kde-data metric-config kde-transforms))
+                         ;; Add mode markers from separate modes analysis
+                         (and modes-data (seq (:modes modes-data)))
+                         (conj (kde-modes-layer
+                                modes-data metric-config kde-transforms)))}))}))))
       metric-configs)}))
 
 (defn treemap-vega-spec

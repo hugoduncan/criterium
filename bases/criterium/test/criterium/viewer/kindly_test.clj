@@ -1200,10 +1200,14 @@
             (is (= :kind/vega-lite (:kindly/kind (meta chart))))
             (is (string? (:$schema chart)) "Expected Vega-Lite schema")
             (is (contains? chart :vconcat))
-            (let [first-chart (first (:vconcat chart))]
+            (let [first-chart (first (:vconcat chart))
+                  layers (:layer first-chart)
+                  ;; KDE layers are nested in a group for independent Y-scale
+                  kde-group (first layers)
+                  kde-layers (:layer kde-group)]
               (is (contains? first-chart :layer))
-              (is (>= (count (:layer first-chart)) 2)
-                  "Expected at least confidence band and density layers"))))))
+              (is (>= (count kde-layers) 2)
+                  "Expected at least confidence band and density layers in nested group"))))))
 
     (testing "uses custom kde-id"
       (reset! kindly/accumulated [])

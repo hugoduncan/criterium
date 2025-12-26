@@ -791,9 +791,14 @@
         (is (str/includes? (:$schema vega-spec) "vega-lite"))
         (is (contains? vega-spec :vconcat))
         (is (vector? (:vconcat vega-spec)))
-        (let [first-chart (first (:vconcat vega-spec))]
+        (let [first-chart (first (:vconcat vega-spec))
+              layers (:layer first-chart)
+              ;; KDE layers are nested in a group for independent Y-scale
+              kde-group (first layers)
+              kde-layers (:layer kde-group)]
           (is (contains? first-chart :layer))
-          (is (>= (count (:layer first-chart)) 2)))))
+          (is (>= (count kde-layers) 2)
+              "Expected at least confidence band and density layers in nested group"))))
 
     (testing "handles missing kde data gracefully"
       (let [v (volatile! [])
