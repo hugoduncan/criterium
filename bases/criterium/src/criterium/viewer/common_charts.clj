@@ -574,6 +574,7 @@
 
 (defn kde-density-layer
   "Build a density curve layer for KDE visualization.
+  Uses 'kde-density' field to avoid Y-scale conflicts with histogram.
   Returns a Vega-Lite layer spec."
   [kde-data metric-config transforms]
   (let [{:keys [grid density]} kde-data
@@ -582,19 +583,20 @@
         field-name (name k)
         data (mapv (fn [x d]
                      {field-name (util/transform-sample-> x transforms)
-                      :density d})
+                      "kde-density" d})
                    grid density)]
     {:data {:values data}
      :transform [{:calculate (str "'" "KDE " label "'") :as "layer"}]
      :mark {:type "line" :strokeWidth 2}
      :encoding {:x {:field field-name :type "quantitative"
                     :scale {:zero false}}
-                :y {:field "density" :type "quantitative"}
+                :y {:field "kde-density" :type "quantitative"}
                 :color {:field "layer" :type "nominal"
                         :legend {:orient "top-left" :offset 10}}}}))
 
 (defn kde-confidence-band-layer
   "Build a confidence band area layer for KDE visualization.
+  Uses 'kde-lower'/'kde-upper' fields to avoid Y-scale conflicts.
   Returns a Vega-Lite layer spec."
   [kde-data metric-config transforms]
   (let [{:keys [grid lower-band upper-band]} kde-data
@@ -603,20 +605,21 @@
         field-name (name k)
         data (mapv (fn [x lo hi]
                      {field-name (util/transform-sample-> x transforms)
-                      :lower lo
-                      :upper hi})
+                      "kde-lower" lo
+                      "kde-upper" hi})
                    grid lower-band upper-band)]
     {:data {:values data}
      :mark {:type "area" :opacity 0.2}
      :encoding {:x {:field field-name :type "quantitative"
                     :scale {:zero false}}
-                :y {:field "lower" :type "quantitative"}
-                :y2 {:field "upper"}
+                :y {:field "kde-lower" :type "quantitative"}
+                :y2 {:field "kde-upper"}
                 :color {:value "#ff7f0e"}}}))
 
 (defn kde-modes-layer
   "Build mode markers layer for KDE visualization.
   Takes modes-data from separate modes analysis (not from kde-data).
+  Uses 'kde-density' field to match KDE curve scale.
   Returns a Vega-Lite layer spec."
   [modes-data metric-config transforms]
   (let [modes (:modes modes-data)
@@ -624,23 +627,23 @@
         field-name (name k)
         data (mapv (fn [{:keys [location density ci-lower ci-upper significant?]}]
                      (cond-> {field-name (util/transform-sample-> location transforms)
-                              :density density
-                              :significant (if significant? "yes" "no")}
-                       ci-lower (assoc :ci-lower (util/transform-sample-> ci-lower transforms))
-                       ci-upper (assoc :ci-upper (util/transform-sample-> ci-upper transforms))))
+                              "kde-density" density
+                              "significant" (if significant? "yes" "no")}
+                       ci-lower (assoc "ci-lower" (util/transform-sample-> ci-lower transforms))
+                       ci-upper (assoc "ci-upper" (util/transform-sample-> ci-upper transforms))))
                    modes)]
     (when (seq data)
       {:data {:values data}
        :layer [{:mark {:type "point" :size 100}
                 :encoding {:x {:field field-name :type "quantitative"}
-                           :y {:field "density" :type "quantitative"}
+                           :y {:field "kde-density" :type "quantitative"}
                            :color {:field "significant" :type "nominal"
                                    :scale {:domain ["yes" "no"]
                                            :range ["red" "orange"]}
                                    :legend {:title "Significant"}}
                            :tooltip [{:field field-name :type "quantitative"
                                       :title "Mode Location"}
-                                     {:field "density" :type "quantitative"
+                                     {:field "kde-density" :type "quantitative"
                                       :title "Density"}
                                      {:field "ci-lower" :type "quantitative"
                                       :title "CI Lower"}
@@ -651,7 +654,7 @@
                {:mark {:type "rule" :strokeWidth 1 :strokeDash [4 4]}
                 :encoding {:x {:field "ci-lower" :type "quantitative"}
                            :x2 {:field "ci-upper"}
-                           :y {:field "density" :type "quantitative"}
+                           :y {:field "kde-density" :type "quantitative"}
                            :color {:field "significant" :type "nominal"
                                    :scale {:domain ["yes" "no"]
                                            :range ["red" "orange"]}}}}]})))
