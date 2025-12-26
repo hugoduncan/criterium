@@ -616,23 +616,28 @@
 
 (defn kde-modes-layer
   "Build mode markers layer for KDE visualization.
+  Takes modes-data from separate modes analysis (not from kde-data).
   Returns a Vega-Lite layer spec."
-  [kde-data metric-config transforms]
-  (let [{:keys [modes]} kde-data
-        {:keys [label]} metric-config
+  [modes-data metric-config transforms]
+  (let [modes (:modes modes-data)
         k (first (:path metric-config))
         field-name (name k)
-        data (mapv (fn [{:keys [location density ci-lower ci-upper]}]
-                     {field-name (util/transform-sample-> location transforms)
-                      :density density
-                      :ci-lower (util/transform-sample-> ci-lower transforms)
-                      :ci-upper (util/transform-sample-> ci-upper transforms)})
+        data (mapv (fn [{:keys [location density ci-lower ci-upper significant?]}]
+                     (cond-> {field-name (util/transform-sample-> location transforms)
+                              :density density
+                              :significant (if significant? "yes" "no")}
+                       ci-lower (assoc :ci-lower (util/transform-sample-> ci-lower transforms))
+                       ci-upper (assoc :ci-upper (util/transform-sample-> ci-upper transforms))))
                    modes)]
     (when (seq data)
       {:data {:values data}
-       :layer [{:mark {:type "point" :size 100 :color "red"}
+       :layer [{:mark {:type "point" :size 100}
                 :encoding {:x {:field field-name :type "quantitative"}
                            :y {:field "density" :type "quantitative"}
+                           :color {:field "significant" :type "nominal"
+                                   :scale {:domain ["yes" "no"]
+                                           :range ["red" "orange"]}
+                                   :legend {:title "Significant"}}
                            :tooltip [{:field field-name :type "quantitative"
                                       :title "Mode Location"}
                                      {:field "density" :type "quantitative"
@@ -640,12 +645,16 @@
                                      {:field "ci-lower" :type "quantitative"
                                       :title "CI Lower"}
                                      {:field "ci-upper" :type "quantitative"
-                                      :title "CI Upper"}]}}
-               {:mark {:type "rule" :color "red" :strokeWidth 1
-                       :strokeDash [4 4]}
+                                      :title "CI Upper"}
+                                     {:field "significant" :type "nominal"
+                                      :title "Significant"}]}}
+               {:mark {:type "rule" :strokeWidth 1 :strokeDash [4 4]}
                 :encoding {:x {:field "ci-lower" :type "quantitative"}
                            :x2 {:field "ci-upper"}
-                           :y {:field "density" :type "quantitative"}}}]})))
+                           :y {:field "density" :type "quantitative"}
+                           :color {:field "significant" :type "nominal"
+                                   :scale {:domain ["yes" "no"]
+                                           :range ["red" "orange"]}}}}]})))
 
 (defn kde-vega-spec
   "Build a complete Vega-Lite spec for KDE visualization.
@@ -656,15 +665,20 @@
   View options:
     :kde-id - Key for KDE data in data-map (default :kde)
     :histogram-id - Optional key for histogram data to overlay
+    :modes-id - Optional key for modes data (default :modes)
 
   Returns the Vega-Lite spec without viewer-specific wrapping."
   [data-map view chart-options]
   (let [kde-id (or (:kde-id view) :kde)
         histogram-id (:histogram-id view)
+        modes-id (or (:modes-id view) :modes)
         kde-map (util/lookup-data data-map kde-id)
         histograms-map (when histogram-id
                          (util/lookup-data data-map histogram-id))
+        ;; Use get for optional modes lookup - don't throw if not present
+        modes-map (get data-map modes-id)
         kdes (:kdes kde-map)
+        all-modes (when modes-map (:modes modes-map))
         metrics-defs (-> (:metrics-defs kde-map)
                          (metric/filter-metrics
                           (metric/type-pred :quantitative)))
@@ -682,7 +696,9 @@
         (let [kde-data (get kdes (:path metric-config))
               histogram (when histograms-map
                           (get (:histograms histograms-map)
-                               (:path metric-config)))]
+                               (:path metric-config)))
+              modes-data (when all-modes
+                           (get all-modes (:path metric-config)))]
           (when kde-data
             (merge
              chart-options
@@ -704,10 +720,10 @@
                 true
                 (conj (kde-density-layer
                        kde-data metric-config kde-transforms))
-                ;; Add mode markers
-                (seq (:modes kde-data))
+                ;; Add mode markers from separate modes analysis
+                (and modes-data (seq (:modes modes-data)))
                 (conj (kde-modes-layer
-                       kde-data metric-config kde-transforms)))}))))
+                       modes-data metric-config kde-transforms)))}))))
       metric-configs)}))
 
 (defn treemap-vega-spec

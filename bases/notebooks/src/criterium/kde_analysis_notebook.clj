@@ -19,7 +19,7 @@
 
 ;; ## Using the kde-histogram Bench Plan
 ;;
-;; The `kde-histogram` bench plan includes both histogram and KDE analysis.
+;; The `kde-histogram` bench plan includes histogram and KDE analysis.
 ;; This is not part of the default plan; use it explicitly when density
 ;; analysis is needed.
 
@@ -32,7 +32,21 @@
 ;; - Standard statistics (mean, standard deviation)
 ;; - Histogram visualization
 ;; - KDE density curve overlaid on the histogram
-;; - Detected modes with confidence intervals
+
+;; ## Using the kde-modes Bench Plan
+;;
+;; For statistically validated mode detection, use the `kde-modes` bench plan.
+;; This includes Silverman's bootstrap test for multimodality.
+
+^:kindly/hide-code
+(bench-display
+ (bench/bench (reduce + (range 1000))
+              :bench-plan bench-plans/kde-modes))
+
+;; The kde-modes plan adds:
+;; - Mode detection with confidence intervals
+;; - Silverman's test p-values for each k (number of modes)
+;; - Validated mode count based on statistical significance
 
 ;; ## Understanding KDE Output
 ;;
@@ -56,27 +70,45 @@
 ;; Bootstrap confidence bands show the uncertainty in the density estimate.
 ;; The shaded area represents the range where the true density likely falls.
 
-;; ### Modes
+;; ## Understanding Modes Output
 ;;
-;; Modes are the peaks of the density curve, representing the most likely
-;; execution times. Each mode includes:
-;; - Location: the x-value of the peak
-;; - Density: the height of the peak
-;; - Confidence interval: the range within which the mode location is estimated
+;; Mode analysis (from the `kde-modes` plan) provides statistically validated
+;; peaks in the density curve:
 
-;; ## Accessing KDE Results Programmatically
+;; ### Silverman's Test
 ;;
-;; Use `last-bench` to access the full KDE results:
+;; Silverman's bootstrap test determines if the data supports k modes. The test
+;; is run for k=1, 2, 3, ... up to max-modes. A low p-value indicates evidence
+;; for more than k modes.
+;;
+;; For k=1, the Hall-York correction is applied for better calibration.
+
+;; ### Validated Mode Count
+;;
+;; The `n-modes` value in the output is the smallest k where we fail to reject
+;; the null hypothesis (H0: at most k modes). This gives a statistically
+;; supported mode count.
+
+;; ### Mode Significance
+;;
+;; Each detected mode is marked with `significant?` indicating whether
+;; Silverman's test supports its existence.
+
+;; ## Accessing KDE and Modes Results Programmatically
+;;
+;; Use `last-bench` to access the full results:
 
 (do
   (bench/bench (reduce + (range 1000))
-               :bench-plan bench-plans/kde-histogram
+               :bench-plan bench-plans/kde-modes
                :viewer :none)
   (let [data (:data (bench/last-bench))
-        kde-result (:kde data)]
+        kde-result (:kde data)
+        modes-result (:modes data)]
     {:bandwidth (get-in kde-result [:kdes [:elapsed-time] :bandwidth])
-     :n-modes (count (get-in kde-result [:kdes [:elapsed-time] :modes]))
-     :modes (get-in kde-result [:kdes [:elapsed-time] :modes])}))
+     :n-modes (get-in modes-result [:modes [:elapsed-time] :n-modes])
+     :silverman-p-values (get-in modes-result [:modes [:elapsed-time] :silverman :p-values])
+     :modes (get-in modes-result [:modes [:elapsed-time] :modes])}))
 
 ;; ## Customizing KDE Options
 ;;
@@ -92,21 +124,25 @@
 ;; Number of bootstrap samples for confidence bands. Default is 200.
 ;; More samples give more accurate confidence intervals but take longer.
 
-;; ### n-modes
-;;
-;; Maximum number of modes to detect. Default is 5. Set higher if you
-;; expect more distinct performance modes.
-
 ;; ### alpha
 ;;
 ;; Confidence level for intervals. Default is 0.05 (95% confidence).
 
+;; ## Customizing Modes Options
+;;
+;; The `modes` analysis step has additional options:
+
+;; ### max-modes
+;;
+;; Maximum number of modes to test. Default is 5. Silverman's test is run
+;; for k=1 through max-modes.
+
 ;; ### Custom Bench Plan Example
 ;;
-;; Create a custom bench plan with modified KDE options:
+;; Create a custom bench plan with modified options:
 
-(def custom-kde-plan
-  (-> bench-plans/kde-histogram
+(def custom-kde-modes-plan
+  (-> bench-plans/kde-modes
       (assoc :analyse
              [:transform-log
               [:quantiles {:quantiles [0.9 0.99 0.99]}]
@@ -114,20 +150,22 @@
               [:stats {}]
               [:stats {:samples-id :log-samples :id :log-stats}]
               :histogram
-              [:kde {:n-points 256 :n-bootstrap 100 :n-modes 3}]
+              [:kde {:n-points 256 :n-bootstrap 100}]
+              [:modes {:max-modes 3 :n-bootstrap 100}]
               :event-stats])))
 
 ^:kindly/hide-code
 (bench-display
  (bench/bench (reduce + (range 1000))
-              :bench-plan custom-kde-plan))
+              :bench-plan custom-kde-modes-plan))
 
 ;; ## Visualization with Portal and Kindly
 ;;
 ;; The `:portal` and `:kindly` viewers render the KDE as a Vega-Lite chart:
 ;; - Density curve overlaid on histogram bars
 ;; - Shaded confidence bands
-;; - Mode markers with horizontal confidence interval lines
+;; - Mode markers with horizontal confidence interval lines (when modes data present)
+;; - Color coding for significant vs non-significant modes
 
 ;; ### Portal Viewer
 ;;
@@ -139,16 +177,17 @@
 (add-tap #'p/submit)
 
 (bench/bench (reduce + (range 1000))
-             :bench-plan bench-plans/kde-histogram
+             :bench-plan bench-plans/kde-modes
              :viewer :portal)")
 
 ;; ### Kindly Viewer
 ;;
 ;; For Clay notebooks, use `:viewer :kindly` to get embedded charts:
 
-(bench/bench (reduce + (range 1000))
-             :bench-plan bench-plans/kde-histogram
-             :viewer :kindly)
+(bench/bench
+ (reduce + (range 1000))
+ :bench-plan bench-plans/kde-modes
+ :viewer :kindly)
 
 ;; ## Detecting Multimodality
 ;;
@@ -160,8 +199,8 @@
 ;; - CPU frequency scaling
 ;; - Cache effects
 ;;
-;; When KDE detects multiple modes, investigate the cause to understand
-;; your benchmark's behavior.
+;; Silverman's test provides statistical validation for multimodality. A low
+;; p-value for k=1 suggests the distribution is not unimodal.
 
 ;; ### Example: Synthetic Multimodal Distribution
 ;;
@@ -170,14 +209,13 @@
 (defn variable-work
   "Simulate variable-time work with occasional slow paths."
   [^long n]
-  (if (zero? (long (mod (rand-int 100) 10)))
-    (reduce + (range (* n 10))) ; 10% slow path
+  (if (zero? (long (mod (rand-int 100) 5)))
+    (reduce + (range (* n 10))) ; 20% slow path
     (reduce + (range n)))) ; 90% fast path
 
-^:kindly/hide-code
-(bench-display
- (bench/bench (variable-work 100)
-              :bench-plan bench-plans/kde-histogram))
+(bench/bench (variable-work 100)
+             :bench-plan bench-plans/kde-modes
+             :viewer :kindly)
 
 ;; ## Comparing KDE to Histograms
 ;;
@@ -195,37 +233,43 @@
 
 ;; ## Best Practices
 ;;
-;; 1. **Use KDE when you need mode detection** - The automatic mode finding
-;;    with confidence intervals is valuable for identifying performance modes.
+;; 1. **Use kde-histogram for density visualization** - When you just need
+;;    to see the distribution shape without statistical mode validation.
 ;;
-;; 2. **Combine with histograms** - The `kde-histogram` plan overlays KDE
-;;    on histograms, giving you both discrete bin counts and smooth density.
+;; 2. **Use kde-modes for mode detection** - When you need statistically
+;;    validated mode counts with Silverman's test.
 ;;
-;; 3. **Check for multimodality** - Multiple modes may indicate that your
-;;    benchmark is measuring different code paths or JIT states.
+;; 3. **Check Silverman's p-values** - Low p-values for k=1 indicate
+;;    evidence against unimodality.
 ;;
-;; 4. **Consider computation cost** - KDE with bootstrap confidence bands
-;;    takes longer than basic statistics. Use the default plan for quick
-;;    benchmarks; use `kde-histogram` when you need density analysis.
+;; 4. **Consider computation cost** - Mode analysis with Silverman's test
+;;    involves multiple rounds of bootstrap resampling. Use `kde-histogram`
+;;    when you only need the density curve.
 
 ;; ## Running Examples
 ;;
-;; Execute benchmarks with KDE analysis:
+;; Execute benchmarks with KDE and mode analysis:
 
 (comment
-  ;; Basic KDE analysis
+  ;; Basic KDE analysis (no mode testing)
   (bench/bench (reduce + (range 1000))
                :bench-plan bench-plans/kde-histogram)
 
-  ;; Access KDE results programmatically
-  (let [data (:data (bench/last-bench))]
-    (get-in data [:kde :kdes [:elapsed-time] :modes]))
-
-  ;; Custom KDE options
+  ;; KDE with mode detection and Silverman's test
   (bench/bench (reduce + (range 1000))
-               :bench-plan custom-kde-plan)
+               :bench-plan bench-plans/kde-modes)
+
+  ;; Access modes results programmatically
+  (let [data (:data (bench/last-bench))]
+    {:kde-bandwidth (get-in data [:kde :kdes [:elapsed-time] :bandwidth])
+     :n-modes (get-in data [:modes :modes [:elapsed-time] :n-modes])
+     :p-values (get-in data [:modes :modes [:elapsed-time] :silverman :p-values])})
+
+  ;; Custom options
+  (bench/bench (reduce + (range 1000))
+               :bench-plan custom-kde-modes-plan)
 
   ;; With Portal visualization
   (bench/bench (reduce + (range 1000))
-               :bench-plan bench-plans/kde-histogram
+               :bench-plan bench-plans/kde-modes
                :viewer :portal))

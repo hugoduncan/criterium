@@ -203,3 +203,88 @@
       {:type :criterium/kde
        :kdes kdes
        :transform collect-plan/identity-transforms})))
+
+(defn modes-for-metric
+  "Compute modes with statistical validation for a single metric.
+  
+  Takes KDE output and raw samples, runs Silverman's test for k=1 up to max-modes,
+  and computes confidence intervals for detected modes."
+  [kde-data samples outliers metric-config options]
+  (try
+    (let [{:keys [grid density bandwidth]} kde-data
+          {:keys [max-modes n-bootstrap alpha n-points]
+           :or {max-modes 5 n-bootstrap 200 alpha 0.05 n-points 512}} options
+          p (:path metric-config)
+          ;; Filter outliers from samples
+          outliers-data (get-in outliers p)
+          samples (if-let [ols (:outliers outliers-data)]
+                    (remove-outliers samples ols)
+                    samples)
+          ;; Find modes from existing KDE density
+          grid-arr (double-array grid)
+          density-arr (double-array density)
+          all-modes (kde/find-modes grid-arr density-arr)
+          ;; Run Silverman's test for each k from 1 to max-modes
+          silverman-results
+          (into {}
+                (for [k (range 1 (inc (min max-modes (count all-modes))))]
+                  [k (kde/silverman-test samples k
+                                         {:n-bootstrap n-bootstrap
+                                          :n-points n-points
+                                          :alpha alpha})]))
+          ;; Determine validated number of modes
+          ;; Find smallest k where p-value >= alpha (fail to reject H0: <= k modes)
+          validated-k (or (some (fn [k]
+                                  (when (>= (get-in silverman-results [k :p-value]) alpha)
+                                    k))
+                                (range 1 (inc (min max-modes (count all-modes)))))
+                          (count all-modes))
+          ;; Compute confidence intervals for modes
+          modes-with-ci (kde/mode-confidence-intervals
+                         samples bandwidth grid-arr validated-k
+                         {:n-bootstrap n-bootstrap
+                          :alpha alpha})
+          ;; Mark significance based on Silverman results
+          modes-with-significance
+          (vec (map-indexed
+                (fn [i mode]
+                  (let [k (inc i)
+                        test-result (get silverman-results k)
+                        significant? (and test-result
+                                          (< (:p-value test-result) alpha))]
+                    (assoc mode :significant? significant?)))
+                modes-with-ci))]
+      {:modes modes-with-significance
+       :n-modes validated-k
+       :silverman {:k-tested (vec (keys silverman-results))
+                   :p-values (into {} (map (fn [[k v]] [k (:p-value v)])
+                                           silverman-results))
+                   :critical-bandwidths (into {} (map (fn [[k v]]
+                                                        [k (:critical-bandwidth v)])
+                                                      silverman-results))}})
+    (catch Exception e
+      (when-not (#{:kde/no-data :kde/constant-data}
+                 (:error (ex-data e)))
+        (throw e)))))
+
+(defmethod methods/modes :criterium/kde
+  [kde-map samples outliers metric-configs options]
+  (let [kdes (:kdes kde-map)
+        metric->values (util/metric->values samples)
+        outliers (when outliers (util/outliers outliers))
+        modes-results
+        (->> metric-configs
+             (mapv
+              (fn [metric-config]
+                (let [p (:path metric-config)
+                      kde-data (get kdes p)
+                      sample-values (metric->values p)]
+                  (when (and kde-data sample-values)
+                    [p (modes-for-metric kde-data sample-values outliers
+                                         metric-config options)]))))
+             (filterv (comp some? second))
+             (into {}))]
+    (when (seq modes-results)
+      {:type :criterium/modes
+       :modes modes-results
+       :transform (:transform kde-map)})))

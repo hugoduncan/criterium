@@ -119,7 +119,8 @@
 
 (deftest kde-test
   ;; Tests the main kde function for correct output structure
-  ;; and reasonable values.
+  ;; and reasonable values. Note: modes are now computed separately
+  ;; via the modes analysis step.
   (testing "kde"
     (testing "returns correct structure"
       (let [data (range 0 100)
@@ -130,7 +131,7 @@
         (is (vector? (:density result)))
         (is (vector? (:lower-band result)))
         (is (vector? (:upper-band result)))
-        (is (vector? (:modes result)))
+        (is (nil? (:modes result)) "modes are computed separately")
         (is (= 100 (:n result)))))
 
     (testing "throws on empty data"
@@ -145,16 +146,7 @@
       (let [data (range 0 100)
             h 5.0
             result (kde/kde data {:bandwidth h :n-bootstrap 10})]
-        (is (= h (:bandwidth result)))))
-
-    (testing "finds mode near data center for unimodal data"
-      (let [;; Data concentrated around 50
-            data (concat (range 40 60) (range 45 55))
-            result (kde/kde data {:n-bootstrap 10 :n-points 64})]
-        (when (seq (:modes result))
-          (let [mode-loc (:location (first (:modes result)))]
-            (is (< 40 mode-loc 60)
-                "mode should be near the data concentration")))))))
+        (is (= h (:bandwidth result)))))))
 
 (deftest dct-ii-test
   ;; Tests DCT-II implementation for basic properties.
@@ -187,3 +179,104 @@
             weights (kde/linear-bin data grid)]
         (is (> (aget weights 1) 0.9)
             "weight should be concentrated at matching grid point")))))
+
+(deftest count-modes-test
+  ;; Tests the count-modes function for mode counting at different bandwidths.
+  (testing "count-modes"
+    (testing "finds single mode for unimodal data with appropriate bandwidth"
+      (let [data (range 0 100)]
+        (is (= 1 (kde/count-modes data 20.0 128))
+            "large bandwidth should give single mode")))
+
+    (testing "finds multiple modes for bimodal data with small bandwidth"
+      (let [bimodal (concat (repeat 50 10.0) (repeat 50 90.0))]
+        (is (>= (kde/count-modes bimodal 5.0 128) 2)
+            "small bandwidth on bimodal data should find multiple modes")))))
+
+(deftest critical-bandwidth-test
+  ;; Tests critical bandwidth computation for mode testing.
+  (testing "critical-bandwidth"
+    (testing "returns positive bandwidth"
+      (let [data (range 0 100)
+            h (kde/critical-bandwidth data 1 {})]
+        (is (pos? h) "critical bandwidth should be positive")))
+
+    (testing "larger k allows smaller bandwidth"
+      (let [data (range 0 100)
+            h1 (kde/critical-bandwidth data 1 {})
+            h2 (kde/critical-bandwidth data 2 {})]
+        (is (<= h2 h1) "more modes allowed means smaller bandwidth OK")))
+
+    (testing "finds appropriate bandwidth for bimodal data"
+      (let [bimodal (concat (repeat 50 10.0) (repeat 50 90.0))
+            h1 (kde/critical-bandwidth bimodal 1 {})
+            h2 (kde/critical-bandwidth bimodal 2 {})]
+        (is (> h1 h2) "bandwidth for 1 mode should be larger than for 2")))))
+
+(deftest silverman-test-test
+  ;; Tests Silverman's bootstrap test for multimodality.
+  (testing "silverman-test"
+    (testing "returns correct structure"
+      (let [data (range 0 100)
+            result (kde/silverman-test data 1 {:n-bootstrap 20})]
+        (is (= 1 (:k result)))
+        (is (number? (:critical-bandwidth result)))
+        (is (number? (:p-value result)))
+        (is (<= 0 (:p-value result) 1) "p-value should be between 0 and 1")
+        (is (boolean? (:corrected? result)))))
+
+    (testing "applies Hall-York correction for k=1"
+      (let [data (range 0 100)
+            result (kde/silverman-test data 1 {:n-bootstrap 20})]
+        (is (:corrected? result) "k=1 should have correction applied")))
+
+    (testing "does not apply correction for k>1"
+      (let [data (range 0 100)
+            result (kde/silverman-test data 2 {:n-bootstrap 20})]
+        (is (not (:corrected? result)) "k>1 should not have correction")))
+
+    (testing "unimodal Gaussian data should not reject k=1"
+      ;; Generate proper Gaussian data using Box-Muller transform
+      (let [n 200
+            normals (loop [i 0 result []]
+                      (if (>= i n)
+                        result
+                        (let [u1 (max 1e-10 (rand))
+                              u2 (rand)
+                              z (* (Math/sqrt (* -2.0 (Math/log u1)))
+                                   (Math/cos (* 2.0 Math/PI u2)))
+                              ;; N(50, 10^2)
+                              x (+ 50.0 (* 10.0 z))]
+                          (recur (inc i) (conj result x)))))
+            result (kde/silverman-test normals 1 {:n-bootstrap 100})]
+        ;; p-value should be relatively high (fail to reject H0: <= 1 mode)
+        (is (>= (:p-value result) 0.01)
+            "Gaussian unimodal data should not strongly reject single mode")))))
+
+(deftest mode-confidence-intervals-test
+  ;; Tests mode confidence interval computation.
+  (testing "mode-confidence-intervals"
+    (testing "returns correct structure"
+      (let [data (range 0 100)
+            h (kde/isj-bandwidth data)
+            grid (double-array (range 0.0 100.0 1.0))
+            modes (kde/mode-confidence-intervals data h grid 3
+                                                 {:n-bootstrap 20})]
+        (is (vector? modes))
+        (doseq [mode modes]
+          (is (number? (:location mode)))
+          (is (number? (:density mode)))
+          (is (number? (:ci-lower mode)))
+          (is (number? (:ci-upper mode))))))
+
+    (testing "CI lower <= location <= CI upper"
+      (let [data (concat (range 40 60) (range 45 55))
+            h (kde/isj-bandwidth data)
+            grid (double-array (range 0.0 100.0 1.0))
+            modes (kde/mode-confidence-intervals data h grid 1
+                                                 {:n-bootstrap 30})]
+        (doseq [mode modes]
+          (is (<= (:ci-lower mode) (:location mode))
+              "CI lower should be <= location")
+          (is (<= (:location mode) (:ci-upper mode))
+              "location should be <= CI upper"))))))

@@ -344,13 +344,11 @@
 
 (deftest kde-test
   ;; Tests the analyse/kde function for correct structure,
-  ;; multimodal detection, outlier filtering, and graceful handling of missing data.
+  ;; outlier filtering, and graceful handling of missing data.
+  ;; Note: Mode detection is now a separate analysis step via analyse/modes.
   (testing "kde"
-    (testing "returns correct structure with multimodal data"
-      (let [;; Bimodal: cluster around 100 and cluster around 200
-            cluster1 (repeat 30 100)
-            cluster2 (repeat 30 200)
-            ;; Add some variation to avoid constant-data error
+    (testing "returns correct structure"
+      (let [;; Bimodal: clusters around 100 and 200
             raw-data (concat
                       (mapv #(+ 98 (* 4 %)) (range 30))
                       (mapv #(+ 198 (* 4 %)) (range 30)))
@@ -372,7 +370,9 @@
             (is (number? (:bandwidth elapsed-kde)))
             (is (vector? (:grid elapsed-kde)))
             (is (vector? (:density elapsed-kde)))
-            (is (vector? (:modes elapsed-kde)))))))
+            ;; Modes are now computed separately via analyse/modes
+            (is (nil? (:modes elapsed-kde))
+                "modes should not be in KDE output (now separate)")))))
 
     (testing "uses custom samples-id"
       (let [raw-data (mapv #(+ 10.0 (* 0.5 %)) (range 50))

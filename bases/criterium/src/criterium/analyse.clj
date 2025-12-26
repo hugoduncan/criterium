@@ -339,7 +339,7 @@
   "Calculate kernel density estimation for sample measurements.
 
   Returns a function that computes KDE for quantitative metrics, providing
-  density estimates, bandwidth selection, confidence bands, and mode detection.
+  density estimates, bandwidth selection, and confidence bands.
 
   Parameters:
     opts - Optional map with keys:
@@ -349,7 +349,6 @@
       :metric-ids  - Set of metric ids to analyze (default: all quantitative)
       :n-points    - Grid size for density evaluation (default: 512)
       :n-bootstrap - Bootstrap samples for confidence bands (default: 200)
-      :n-modes     - Maximum modes to detect (default: 5)
       :alpha       - Confidence level (default: 0.05)
 
   The returned function:
@@ -360,14 +359,16 @@
     - bandwidth: ISJ-selected bandwidth
     - grid/density: evaluation points and density values
     - lower-band/upper-band: bootstrap confidence bands
-    - modes: detected peaks with confidence intervals
+
+  Note: Mode detection is now a separate analysis step. Use `modes` function
+  after KDE to compute statistically validated modes with Silverman's test.
 
   Example:
   (let [analyze (kde {:n-points 256})
         result (analyze {:log-samples {...} :outliers {...}})]
     (get-in result [:kde :elapsed-time]))"
   ([] (kde {}))
-  ([{:keys [id samples-id outliers-id metric-ids n-points n-bootstrap n-modes alpha]
+  ([{:keys [id samples-id outliers-id metric-ids n-points n-bootstrap alpha]
      :as _options}]
    (let [samples-id (or samples-id :log-samples)
          id (or id :kde)
@@ -386,7 +387,6 @@
                  kde-options (cond-> {}
                                n-points (assoc :n-points n-points)
                                n-bootstrap (assoc :n-bootstrap n-bootstrap)
-                               n-modes (assoc :n-modes n-modes)
                                alpha (assoc :alpha alpha))
                  kde-result (methods/kde
                              metrics-samples
@@ -403,6 +403,76 @@
                                 :batch-size (:batch-size metrics-samples)}
                                kde-result))]
                  (assoc data-map id kde-map))
+               data-map))))))))
+
+(defn modes
+  "Calculate statistically validated mode analysis for KDE output.
+
+  Returns a function that computes modes with Silverman's test for significance.
+  Tests from k=1 up to max-modes to determine the statistically supported
+  number of modes. For k=1, applies Hall-York correction for better calibration.
+
+  Parameters:
+    opts - Optional map with keys:
+      :id          - Key for modes results in output (default: :modes)
+      :kde-id      - Key for source KDE data (default: :kde)
+      :samples-id  - Key for raw samples (default: :log-samples)
+      :outliers-id - Key for outlier data (default: :outliers)
+      :metric-ids  - Set of metric ids to analyze (default: all from KDE)
+      :max-modes   - Maximum modes to test (default: 5)
+      :n-bootstrap - Bootstrap samples for CIs and Silverman test (default: 200)
+      :alpha       - Significance level (default: 0.05)
+
+  The returned function:
+  - Takes a data map containing KDE and samples
+  - Returns the map with mode analysis added under :id key
+  - For each metric provides:
+    - modes: detected peaks with CIs and significance flags
+    - n-modes: statistically validated mode count
+    - silverman: test results with p-values and critical bandwidths
+
+  Example:
+  (let [analyze (comp (modes) (kde))
+        result (analyze {:log-samples {...}})]
+    (get-in result [:modes :elapsed-time :n-modes]))"
+  ([] (modes {}))
+  ([{:keys [id kde-id samples-id outliers-id metric-ids max-modes n-bootstrap alpha]
+     :as _options}]
+   (let [id (or id :modes)
+         kde-id (or kde-id :kde)
+         samples-id (or samples-id :log-samples)
+         outliers-id (or outliers-id :outliers)]
+     (fn [data-map]
+       (let [kde-map (get data-map kde-id)
+             samples (get data-map samples-id)]
+         (if-not (and kde-map samples)
+           data-map
+           (let [outliers (when outliers-id (get data-map outliers-id))
+                 metrics-defs (-> (have (:metrics-defs kde-map))
+                                  (metric/select-metrics metric-ids)
+                                  (metric/filter-metrics
+                                   (metric/type-pred :quantitative)))
+                 metric-configs (metric/all-metric-configs metrics-defs)
+                 modes-options (cond-> {}
+                                 max-modes (assoc :max-modes max-modes)
+                                 n-bootstrap (assoc :n-bootstrap n-bootstrap)
+                                 alpha (assoc :alpha alpha))
+                 modes-result (methods/modes
+                               kde-map
+                               samples
+                               outliers
+                               metric-configs
+                               modes-options)]
+             (if modes-result
+               (let [modes-map (util/->modes-map
+                                (merge
+                                 {:type :criterium/modes
+                                  :metrics-defs metrics-defs
+                                  :source-id kde-id
+                                  :samples-id samples-id
+                                  :outliers-id outliers-id}
+                                 modes-result))]
+                 (assoc data-map id modes-map))
                data-map))))))))
 
 (defn- min-f

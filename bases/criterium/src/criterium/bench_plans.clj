@@ -21,28 +21,28 @@
 
 (def default-with-warmup
   {:collector-config default-collector-config
-   :analyse          [:transform-log
-                      [:quantiles {:quantiles [0.9 0.99 0.99]}]
-                      :outliers
-                      [:stats {}]
-                      [:stats {:samples-id :log-samples :id :log-stats}]
-                      :event-stats
-                      :allocation-summary
-                      [:allocation-hotspots {:limit 10}]
-                      :allocation-by-type
-                      :allocation-treemap]
-   :view             [[:stats {:metric-ids [:memory]}]
-                      [:stats {:stats-id :log-stats}]
-                      :event-stats
-                      :outlier-counts
-                      :collect-plan
-                      :allocation-summary
-                      :allocation-hotspots
-                      :allocation-by-type
-                      :allocation-treemap
-                      #_[:final-gc-warnings
-                         {:warn-threshold 0.01}]]
-   :viewer           :print})
+   :analyse [:transform-log
+             [:quantiles {:quantiles [0.9 0.99 0.99]}]
+             :outliers
+             [:stats {}]
+             [:stats {:samples-id :log-samples :id :log-stats}]
+             :event-stats
+             :allocation-summary
+             [:allocation-hotspots {:limit 10}]
+             :allocation-by-type
+             :allocation-treemap]
+   :view [[:stats {:metric-ids [:memory]}]
+          [:stats {:stats-id :log-stats}]
+          :event-stats
+          :outlier-counts
+          :collect-plan
+          :allocation-summary
+          :allocation-hotspots
+          :allocation-by-type
+          :allocation-treemap
+          #_[:final-gc-warnings
+             {:warn-threshold 0.01}]]
+   :viewer :print})
 
 (def log-histogram
   {:collector-config default-collector-config
@@ -98,6 +98,42 @@
           :collect-plan
           [:histogram {:stats-id :log-stats}]
           [:kde {:histogram-id :histograms}]
+          :sample-percentiles
+          :samples
+          :allocation-summary
+          :allocation-hotspots
+          :allocation-by-type
+          :allocation-treemap]
+   :viewer :print})
+
+(def kde-modes
+  "Benchmark plan with KDE and mode detection using Silverman's test.
+
+  Includes histogram, KDE, and statistically validated mode analysis.
+  Use when you need to detect and validate multimodality in sample distributions.
+  Mode detection tests from k=1 up to max-modes with Silverman's bootstrap test."
+  {:collector-config default-collector-config
+   :analyse [:transform-log
+             [:quantiles {:quantiles [0.9 0.99 0.99]}]
+             :outliers
+             [:stats {}]
+             [:stats {:samples-id :log-samples :id :log-stats}]
+             :histogram
+             :kde
+             :modes
+             :event-stats
+             :allocation-summary
+             [:allocation-hotspots {:limit 10}]
+             :allocation-by-type
+             :allocation-treemap]
+   :view [[:stats {:metric-ids [:memory]}]
+          [:stats {:stats-id :log-stats}]
+          :quantiles
+          :event-stats
+          :outlier-counts
+          :collect-plan
+          [:histogram {:stats-id :log-stats}]
+          [:kde {:histogram-id :histograms :modes-id :modes}]
           :sample-percentiles
           :samples
           :allocation-summary

@@ -36,3 +36,10 @@
   Returns nil if sample data is not available (e.g., digest-based samples)."
   (fn [sample-map _outliers _metric-configs _options]
     (:type sample-map)))
+
+(defmulti modes
+  "Calculate mode analysis with statistical validation.
+  Takes KDE output and computes modes with Silverman's test for significance.
+  Returns nil if raw sample data is not available."
+  (fn [kde-map _samples _outliers _metric-configs _options]
+    (:type kde-map)))
