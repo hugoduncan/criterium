@@ -70,3 +70,37 @@
           :allocation-by-type
           :allocation-treemap]
    :viewer :print})
+
+(def kde-histogram
+  "Benchmark plan with KDE analysis for density estimation and mode detection.
+
+  Includes histogram and KDE analysis for visualizing sample distributions.
+  Not part of default-with-warmup; use explicitly when density analysis is needed."
+  {:collector-config default-collector-config
+   :analyse [:transform-log
+             [:quantiles {:quantiles [0.9 0.99 0.99]}]
+             :outliers
+             [:stats {}]
+             [:stats {:samples-id :log-samples :id :log-stats}]
+             :histogram
+             :kde
+             :event-stats
+             :allocation-summary
+             [:allocation-hotspots {:limit 10}]
+             :allocation-by-type
+             :allocation-treemap]
+   :view [[:stats {:metric-ids [:memory]}]
+          [:stats {:stats-id :log-stats}]
+          :quantiles
+          :event-stats
+          :outlier-counts
+          :collect-plan
+          [:histogram {:stats-id :log-stats}]
+          [:kde {:histogram-id :histograms}]
+          :sample-percentiles
+          :samples
+          :allocation-summary
+          :allocation-hotspots
+          :allocation-by-type
+          :allocation-treemap]
+   :viewer :print})
