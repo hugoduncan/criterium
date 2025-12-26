@@ -143,6 +143,16 @@
    (charts/histogram-vega-spec data-map view {:width chart-width
                                               :height chart-height})))
 
+(defmethod view/kde* :kindly
+  [_ view data-map]
+  (let [kde-id (or (:kde-id view) :kde)
+        kde-map (get data-map kde-id)]
+    (when kde-map
+      (kindly-heading "Kernel Density Estimation")
+      (kindly-vega-lite
+       (charts/kde-vega-spec data-map view {:width chart-width
+                                            :height chart-height})))))
+
 (defmethod view/sample-percentiles* :kindly
   [_ view data-map]
   (let [quant-samples-id (:samples-id view :samples)

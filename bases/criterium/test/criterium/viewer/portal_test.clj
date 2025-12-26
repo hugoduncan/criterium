@@ -761,3 +761,65 @@
           (is (empty? @v))
           (finally
             (remove-tap f)))))))
+
+(deftest portal-kde-test
+  ;; Tests the portal viewer output for KDE analysis results.
+  ;; Verifies Vega-Lite spec generation with density curve and optional histogram overlay.
+  (testing "kde*"
+    (testing "produces vega-lite output with kde spec"
+      (let [metrics-defs (select-keys (criterium.collector.metrics/metrics) [:elapsed-time])
+            kde-data {:type :criterium/kde
+                      :metrics-defs metrics-defs
+                      :transform {:sample-> identity :->sample identity}
+                      :kdes {[:elapsed-time]
+                             {:type :criterium/kde
+                              :bandwidth 0.5
+                              :grid [1.0 2.0 3.0]
+                              :density [0.1 0.3 0.1]
+                              :lower-band [0.08 0.25 0.08]
+                              :upper-band [0.12 0.35 0.12]
+                              :modes [{:location 2.0
+                                       :density 0.3
+                                       :ci-lower 1.8
+                                       :ci-upper 2.2}]
+                              :n 100}}}
+            [title vega-spec] (with-tap-out
+                                (view/kde* :portal {} {:kde kde-data}))
+            viewer-meta (meta vega-spec)]
+        (is (= [:b "Kernel Density Estimation"] title))
+        (is (= :portal.viewer/vega-lite (:portal.viewer/default viewer-meta)))
+        (is (str/includes? (:$schema vega-spec) "vega-lite"))
+        (is (contains? vega-spec :vconcat))
+        (is (vector? (:vconcat vega-spec)))
+        (let [first-chart (first (:vconcat vega-spec))]
+          (is (contains? first-chart :layer))
+          (is (>= (count (:layer first-chart)) 2)))))
+
+    (testing "handles missing kde data gracefully"
+      (let [v (volatile! [])
+            f (fn [x] (when-not (= ::portal/_ x) (vswap! v conj x)))]
+        (try
+          (add-tap f)
+          (view/kde* :portal {} {})
+          (portal/flush)
+          (is (empty? @v))
+          (finally
+            (remove-tap f)))))
+
+    (testing "uses custom kde-id"
+      (let [metrics-defs (select-keys (criterium.collector.metrics/metrics) [:elapsed-time])
+            kde-data {:type :criterium/kde
+                      :metrics-defs metrics-defs
+                      :transform {:sample-> identity :->sample identity}
+                      :kdes {[:elapsed-time]
+                             {:type :criterium/kde
+                              :bandwidth 0.3
+                              :grid [1.0]
+                              :density [0.5]
+                              :lower-band [0.4]
+                              :upper-band [0.6]
+                              :modes []
+                              :n 25}}}
+            [title _spec] (with-tap-out
+                            (view/kde* :portal {:kde-id :my-kde} {:my-kde kde-data}))]
+        (is (= [:b "Kernel Density Estimation"] title))))))

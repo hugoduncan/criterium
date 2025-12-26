@@ -24,6 +24,8 @@
 (def-multi-view event-stats)
 (def-multi-view final-gc-warnings)
 (def-multi-view histogram)
+
+(def-multi-view kde)
 (def-multi-view metrics)
 (def-multi-view os)
 (def-multi-view outlier-counts)
@@ -60,6 +62,8 @@
 (defmethod event-stats* :none [_ _ _])
 (defmethod final-gc-warnings* :none [_ _ _])
 (defmethod histogram* :none [_ _ _])
+
+(defmethod kde* :none [_ _ _])
 (defmethod metrics* :none [_ _ _])
 (defmethod os* :none [_ _ _])
 (defmethod outlier-counts* :none [_ _ _])

@@ -223,6 +223,52 @@
          :density #(format "%-7.3g" %)}))
       (println))))
 
+(defn- kde-modes-table
+  "Prepare modes data for pprint table display."
+  [modes metric-config transforms]
+  (let [{:keys [dimension scale]} metric-config]
+    (mapv (fn [{:keys [location density ci-lower ci-upper]}]
+            {:location (format "%.4g"
+                               (* scale
+                                  (util/transform-sample-> location transforms)))
+             :density (format "%.4g" density)
+             :ci-lower (format "%.4g"
+                               (* scale
+                                  (util/transform-sample-> ci-lower transforms)))
+             :ci-upper (format "%.4g"
+                               (* scale
+                                  (util/transform-sample-> ci-upper transforms)))})
+          modes)))
+
+(defn- pprint-kde-metric
+  "Pretty-print KDE summary for a single metric."
+  [metric-config kde-data transforms]
+  (let [{:keys [bandwidth modes n]} kde-data
+        {:keys [label dimension scale]} metric-config
+        bw (* (double scale) (util/transform-sample-> bandwidth transforms))]
+    (println (format "\nKDE of %s (n=%d, bandwidth=%.4g)"
+                     label n bw))
+    (when (seq modes)
+      (pprint/print-table
+       [:location :density :ci-lower :ci-upper]
+       (kde-modes-table modes metric-config transforms)))
+    (println)))
+
+(defmethod view/kde* :pprint
+  [_ {:keys [kde-id] :as _view} data-map]
+  (let [kde-id (or kde-id :kde)
+        kde-map (get data-map kde-id)]
+    (when kde-map
+      (let [metrics-defs (-> (:metrics-defs kde-map)
+                             (metric/filter-metrics
+                              (metric/type-pred :quantitative)))
+            metric-configs (metric/all-metric-configs metrics-defs)
+            transforms (util/get-transforms data-map kde-id)
+            kdes (:kdes kde-map)]
+        (doseq [metric-config metric-configs]
+          (when-let [kde-data (get kdes (:path metric-config))]
+            (pprint-kde-metric metric-config kde-data transforms)))))))
+
 (defmethod view/sample-percentiles* :pprint
   [_ _view _banch-map]
   ;; TODO

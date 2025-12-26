@@ -570,6 +570,146 @@
              (mapcat #(flatten-treemap-node % node-id current-path) children))
        [node-record]))))
 
+;;; KDE charts
+
+(defn kde-density-layer
+  "Build a density curve layer for KDE visualization.
+  Returns a Vega-Lite layer spec."
+  [kde-data metric-config transforms]
+  (let [{:keys [grid density]} kde-data
+        {:keys [label]} metric-config
+        k (first (:path metric-config))
+        field-name (name k)
+        data (mapv (fn [x d]
+                     {field-name (util/transform-sample-> x transforms)
+                      :density d})
+                   grid density)]
+    {:data {:values data}
+     :transform [{:calculate (str "'" "Density " label "'") :as "layer"}]
+     :mark {:type "line" :strokeWidth 2}
+     :encoding {:x {:field field-name :type "quantitative"
+                    :scale {:zero false}}
+                :y {:field "density" :type "quantitative"}
+                :color {:field "layer" :type "nominal"
+                        :legend {:orient "top-left" :offset 10}}}}))
+
+(defn kde-confidence-band-layer
+  "Build a confidence band area layer for KDE visualization.
+  Returns a Vega-Lite layer spec."
+  [kde-data metric-config transforms]
+  (let [{:keys [grid lower-band upper-band]} kde-data
+        {:keys [label]} metric-config
+        k (first (:path metric-config))
+        field-name (name k)
+        data (mapv (fn [x lo hi]
+                     {field-name (util/transform-sample-> x transforms)
+                      :lower lo
+                      :upper hi})
+                   grid lower-band upper-band)]
+    {:data {:values data}
+     :mark {:type "area" :opacity 0.2}
+     :encoding {:x {:field field-name :type "quantitative"
+                    :scale {:zero false}}
+                :y {:field "lower" :type "quantitative"}
+                :y2 {:field "upper"}
+                :color {:value "steelblue"}}}))
+
+(defn kde-modes-layer
+  "Build mode markers layer for KDE visualization.
+  Returns a Vega-Lite layer spec."
+  [kde-data metric-config transforms]
+  (let [{:keys [modes]} kde-data
+        {:keys [label]} metric-config
+        k (first (:path metric-config))
+        field-name (name k)
+        data (mapv (fn [{:keys [location density ci-lower ci-upper]}]
+                     {field-name (util/transform-sample-> location transforms)
+                      :density density
+                      :ci-lower (util/transform-sample-> ci-lower transforms)
+                      :ci-upper (util/transform-sample-> ci-upper transforms)})
+                   modes)]
+    (when (seq data)
+      {:data {:values data}
+       :layer [{:mark {:type "point" :size 100 :color "red"}
+                :encoding {:x {:field field-name :type "quantitative"}
+                           :y {:field "density" :type "quantitative"}
+                           :tooltip [{:field field-name :type "quantitative"
+                                      :title "Mode Location"}
+                                     {:field "density" :type "quantitative"
+                                      :title "Density"}
+                                     {:field "ci-lower" :type "quantitative"
+                                      :title "CI Lower"}
+                                     {:field "ci-upper" :type "quantitative"
+                                      :title "CI Upper"}]}}
+               {:mark {:type "rule" :color "red" :strokeWidth 1
+                       :strokeDash [4 4]}
+                :encoding {:x {:field "ci-lower" :type "quantitative"}
+                           :x2 {:field "ci-upper"}
+                           :y {:field "density" :type "quantitative"}}}]})))
+
+(defn kde-vega-spec
+  "Build a complete Vega-Lite spec for KDE visualization.
+
+  Takes data-map, view options, and chart-options map containing :width and/or
+  :height for chart dimensions.
+
+  View options:
+    :kde-id - Key for KDE data in data-map (default :kde)
+    :histogram-id - Optional key for histogram data to overlay
+
+  Returns the Vega-Lite spec without viewer-specific wrapping."
+  [data-map view chart-options]
+  (let [kde-id (or (:kde-id view) :kde)
+        histogram-id (:histogram-id view)
+        kde-map (util/lookup-data data-map kde-id)
+        histograms-map (when histogram-id
+                         (util/lookup-data data-map histogram-id))
+        kdes (:kdes kde-map)
+        metrics-defs (-> (:metrics-defs kde-map)
+                         (metric/filter-metrics
+                          (metric/type-pred :quantitative)))
+        metric-configs (metric/all-metric-configs metrics-defs)
+        kde-transforms (util/get-transforms data-map kde-id)
+        hist-transforms (when histogram-id
+                          (util/get-transforms data-map histogram-id))]
+    {:data {:values []}
+     :resolve {:scale {:x "independent"
+                       :y "independent"
+                       :color "shared"}}
+     :vconcat
+     (mapv
+      (fn [metric-config]
+        (let [kde-data (get kdes (:path metric-config))
+              histogram (when histograms-map
+                          (get (:histograms histograms-map)
+                               (:path metric-config)))]
+          (when kde-data
+            (merge
+             chart-options
+             {:resolve {:scale {:x "shared" :y "independent"}}
+              :layer
+              (cond-> []
+                ;; Add histogram bars if available
+                histogram
+                (conj (metric-computed-histo-layer
+                       hist-transforms
+                       histogram
+                       metric-config
+                       0))
+                ;; Add confidence band
+                true
+                (conj (kde-confidence-band-layer
+                       kde-data metric-config kde-transforms))
+                ;; Add density curve
+                true
+                (conj (kde-density-layer
+                       kde-data metric-config kde-transforms))
+                ;; Add mode markers
+                (seq (:modes kde-data))
+                (conj (kde-modes-layer
+                       kde-data metric-config kde-transforms)))}))))
+      metric-configs)}))
+
 (defn treemap-vega-spec
   "Build a complete Vega spec for treemap visualization.
 
@@ -590,43 +730,43 @@
     - color by first-level category
     - tooltip on hover showing name, value (formatted bytes), path"
   [treemap-data opts]
-  (let [width        (or (:width opts) 700)
-        height       (or (:height opts) 400)
+  (let [width (or (:width opts) 700)
+        height (or (:height opts) 400)
         color-scheme (or (:color-scheme opts) "tableau10")
-        root         (:root treemap-data)
-        flat-data    (when root (vec (flatten-treemap-node root)))]
+        root (:root treemap-data)
+        flat-data (when root (vec (flatten-treemap-node root)))]
     {:$schema "https://vega.github.io/schema/vega/v5.json"
-     :width   width
-     :height  height
+     :width width
+     :height height
 
-     :data [{:name   "tree"
+     :data [{:name "tree"
              :values (or flat-data [])
              :transform
-             [{:type      "stratify"
-               :key       "id"
+             [{:type "stratify"
+               :key "id"
                :parentKey "parent"}
-              {:type   "treemap"
-               :field  "value"
-               :sort   {:field "value" :order "descending"}
+              {:type "treemap"
+               :field "value"
+               :sort {:field "value" :order "descending"}
                :method "squarify"
-               :ratio  1.6
-               :size   [{:signal "width"} {:signal "height"}]
-               :as     ["x0" "y0" "x1" "y1" "depth" "children"]}]}
-            {:name      "nodes"
-             :source    "tree"
+               :ratio 1.6
+               :size [{:signal "width"} {:signal "height"}]
+               :as ["x0" "y0" "x1" "y1" "depth" "children"]}]}
+            {:name "nodes"
+             :source "tree"
              :transform [{:type "filter"
                           :expr "datum.children"}]}
-            {:name      "leaves"
-             :source    "tree"
+            {:name "leaves"
+             :source "tree"
              :transform [{:type "filter"
                           :expr "!datum.children"}]}]
 
-     :scales [{:name   "color"
-               :type   "ordinal"
-               :domain {:data  "nodes"
+     :scales [{:name "color"
+               :type "ordinal"
+               :domain {:data "nodes"
                         :field "name"
-                        :sort  true}
-               :range  {:scheme color-scheme}}]
+                        :sort true}
+               :range {:scheme color-scheme}}]
 
      :marks [;; Parent category rectangles (colored background)
              {:type "rect"
@@ -635,8 +775,8 @@
               {:enter
                {:fill {:scale "color" :field "name"}}
                :update
-               {:x  {:field "x0"}
-                :y  {:field "y0"}
+               {:x {:field "x0"}
+                :y {:field "y0"}
                 :x2 {:field "x1"}
                 :y2 {:field "y1"}}}}
              ;; Leaf rectangles (white stroke, interactive with tooltip)
@@ -644,13 +784,13 @@
               :from {:data "leaves"}
               :encode
               {:enter
-               {:stroke      {:value "#fff"}
+               {:stroke {:value "#fff"}
                 :strokeWidth {:value 1}}
                :update
-               {:x    {:field "x0"}
-                :y    {:field "y0"}
-                :x2   {:field "x1"}
-                :y2   {:field "y1"}
+               {:x {:field "x0"}
+                :y {:field "y0"}
+                :x2 {:field "x1"}
+                :y2 {:field "y1"}
                 :fill {:value "transparent"}
                 :tooltip
                 {:signal

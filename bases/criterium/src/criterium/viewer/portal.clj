@@ -162,6 +162,15 @@
   (portal-vega-lite
    (charts/histogram-vega-spec data-map view {:height 800})))
 
+(defmethod view/kde* :portal
+  [_ view data-map]
+  (let [kde-id (or (:kde-id view) :kde)
+        kde-map (get data-map kde-id)]
+    (when kde-map
+      (heading "Kernel Density Estimation")
+      (portal-vega-lite
+       (charts/kde-vega-spec data-map view {:height 400})))))
+
 (defmethod view/sample-percentiles* :portal
   [_ view data-map]
   (let [quant-samples-id (:samples-id view :samples)

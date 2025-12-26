@@ -413,3 +413,37 @@
         (is (str/includes? output "type→class→line"))
         (is (str/includes? output "count"))
         (is (str/includes? output "Object"))))))
+
+(deftest kde-pprint-test
+  ;; Tests the pprint viewer output for KDE analysis results.
+  ;; Verifies tabular mode display format with bandwidth and modes table.
+  (testing "kde*"
+    (testing "prints KDE summary with modes table"
+      (let [metrics-defs (select-keys (criterium.collector.metrics/metrics) [:elapsed-time])
+            kde-data {:type :criterium/kde
+                      :metrics-defs metrics-defs
+                      :transform {:sample-> identity :->sample identity}
+                      :kdes {[:elapsed-time]
+                             {:type :criterium/kde
+                              :bandwidth 0.5
+                              :grid [1.0 2.0 3.0]
+                              :density [0.1 0.3 0.1]
+                              :lower-band [0.08 0.25 0.08]
+                              :upper-band [0.12 0.35 0.12]
+                              :modes [{:location 2.0
+                                       :density 0.3
+                                       :ci-lower 1.8
+                                       :ci-upper 2.2}]
+                              :n 100}}}
+            output (with-out-str
+                     (view/kde* :pprint {} {:kde kde-data}))
+            lines (trimmed-lines output)]
+        (is (some #(str/includes? % "KDE of Elapsed Time") lines))
+        (is (some #(str/includes? % "n=100") lines))
+        (is (some #(str/includes? % ":location") lines))
+        (is (some #(str/includes? % ":density") lines))))
+
+    (testing "handles missing KDE data"
+      (let [output (with-out-str
+                     (view/kde* :pprint {} {}))]
+        (is (str/blank? output))))))

@@ -946,3 +946,80 @@
         (is (str/includes? output "type→class→line"))
         (is (str/includes? output "count"))
         (is (str/includes? output "Object"))))))
+
+(deftest kde-print-test
+  ;; Tests the print viewer output for KDE analysis results.
+  ;; Verifies bandwidth display, mode count, and mode table formatting.
+  (testing "kde*"
+    (testing "prints KDE summary with bandwidth and modes"
+      (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])
+            kde-data {:type :criterium/kde
+                      :metrics-defs metrics-defs
+                      :transform collect-plan/identity-transforms
+                      :kdes {[:elapsed-time]
+                             {:type :criterium/kde
+                              :bandwidth 0.5
+                              :grid [1.0 2.0 3.0]
+                              :density [0.1 0.3 0.1]
+                              :lower-band [0.08 0.25 0.08]
+                              :upper-band [0.12 0.35 0.12]
+                              :modes [{:location 2.0
+                                       :density 0.3
+                                       :ci-lower 1.8
+                                       :ci-upper 2.2}]
+                              :n 100}}}
+            output (with-out-str
+                     (view/kde* :print {} {:kde kde-data}))
+            lines (trimmed-lines output)]
+        (is (some #(str/includes? % "Elapsed Time") lines))
+        (is (some #(str/includes? % "KDE") lines))
+        (is (some #(str/includes? % "n=100") lines))
+        (is (some #(str/includes? % "bandwidth") lines))
+        (is (some #(str/includes? % "modes: 1") lines))
+        (is (some #(str/includes? % "Location") lines))
+        (is (some #(str/includes? % "Density") lines))
+        (is (some #(str/includes? % "CI Lower") lines))
+        (is (some #(str/includes? % "CI Upper") lines))))
+
+    (testing "handles KDE with no modes"
+      (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])
+            kde-data {:type :criterium/kde
+                      :metrics-defs metrics-defs
+                      :transform collect-plan/identity-transforms
+                      :kdes {[:elapsed-time]
+                             {:type :criterium/kde
+                              :bandwidth 0.5
+                              :grid [1.0 2.0 3.0]
+                              :density [0.1 0.2 0.1]
+                              :lower-band [0.08 0.18 0.08]
+                              :upper-band [0.12 0.22 0.12]
+                              :modes []
+                              :n 50}}}
+            output (with-out-str
+                     (view/kde* :print {} {:kde kde-data}))
+            lines (trimmed-lines output)]
+        (is (some #(str/includes? % "n=50") lines))
+        (is (not (some #(str/includes? % "modes:") lines)))))
+
+    (testing "handles missing KDE data"
+      (let [output (with-out-str
+                     (view/kde* :print {} {}))]
+        (is (str/blank? output))))
+
+    (testing "uses custom kde-id"
+      (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])
+            kde-data {:type :criterium/kde
+                      :metrics-defs metrics-defs
+                      :transform collect-plan/identity-transforms
+                      :kdes {[:elapsed-time]
+                             {:type :criterium/kde
+                              :bandwidth 0.3
+                              :grid [1.0]
+                              :density [0.5]
+                              :lower-band [0.4]
+                              :upper-band [0.6]
+                              :modes []
+                              :n 25}}}
+            output (with-out-str
+                     (view/kde* :print {:kde-id :my-kde} {:my-kde kde-data}))]
+        (is (str/includes? output "n=25"))))))
