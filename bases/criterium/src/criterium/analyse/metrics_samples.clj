@@ -173,11 +173,15 @@
      :transform collect-plan/identity-transforms}))
 
 (defn kde-for-metric
-  "Compute KDE for a single metric's samples."
-  [metric->values metric-config options]
+  "Compute KDE for a single metric's samples, filtering outliers if present."
+  [metric->values outliers metric-config options]
   (try
     (let [p (:path metric-config)
-          samples (metric->values p)]
+          samples (metric->values p)
+          outliers (get-in outliers p)
+          samples (if-let [ols (:outliers outliers)]
+                    (remove-outliers samples ols)
+                    samples)]
       (when (seq samples)
         (kde/kde samples options)))
     (catch clojure.lang.ExceptionInfo e
@@ -186,12 +190,13 @@
           (throw e))))))
 
 (defmethod methods/kde :criterium/metrics-samples
-  [metrics-samples metric-configs options]
+  [metrics-samples outliers metric-configs options]
   (let [metric->values (util/metric->values metrics-samples)
+        outliers (when outliers (util/outliers outliers))
         kdes (->> metric-configs
                   (mapv
                    (juxt :path
-                         #(kde-for-metric metric->values % options)))
+                         #(kde-for-metric metric->values outliers % options)))
                   (filterv (comp some? second))
                   (into {}))]
     (when (seq kdes)

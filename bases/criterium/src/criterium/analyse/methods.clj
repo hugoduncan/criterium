@@ -34,5 +34,5 @@
 (defmulti kde
   "Calculate kernel density estimation.
   Returns nil if sample data is not available (e.g., digest-based samples)."
-  (fn [sample-map _metric-configs _options]
+  (fn [sample-map _outliers _metric-configs _options]
     (:type sample-map)))

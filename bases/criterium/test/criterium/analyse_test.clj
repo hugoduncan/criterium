@@ -344,7 +344,7 @@
 
 (deftest kde-test
   ;; Tests the analyse/kde function for correct structure,
-  ;; multimodal detection, and graceful handling of missing data.
+  ;; multimodal detection, outlier filtering, and graceful handling of missing data.
   (testing "kde"
     (testing "returns correct structure with multimodal data"
       (let [;; Bimodal: cluster around 100 and cluster around 200
@@ -403,4 +403,30 @@
                                   :n-points 32})
                     data-map)]
         (is (contains? result :my-kde))
-        (is (not (contains? result :kde)))))))
+        (is (not (contains? result :kde)))))
+
+    (testing "excludes outliers from KDE computation"
+      (let [;; Normal samples around 100, with one extreme outlier at end
+            raw-data (conj (vec (mapv #(+ 100.0 (* 0.5 %)) (range 49)))
+                           10000.0)
+            samples (metrics-samples
+                     {[:elapsed-time] raw-data}
+                     1)
+            data-map {:samples samples}
+            ;; Use the analysis functions to generate proper outliers
+            with-quantiles ((analyse/quantiles {:quantiles []}) data-map)
+            with-outliers ((analyse/outliers) with-quantiles)
+            ;; KDE uses log-samples by default, but we test with raw samples
+            result ((analyse/kde {:samples-id :samples
+                                  :n-bootstrap 10
+                                  :n-points 32})
+                    with-outliers)
+            kde-data (:kde result)
+            elapsed-kde (get-in kde-data [:kdes [:elapsed-time]])
+            grid (:grid elapsed-kde)
+            grid-max (apply max grid)]
+        ;; If outlier was included, grid would extend to ~10000
+        ;; With outlier excluded, grid max should be near 124 (100 + 0.5*48)
+        (is (< grid-max 200) "grid should not extend to outlier value")
+        (is (= :outliers (:outliers-id kde-data))
+            "should record outliers-id in output")))))

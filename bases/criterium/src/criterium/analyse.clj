@@ -345,6 +345,7 @@
     opts - Optional map with keys:
       :id          - Key for KDE results in output (default: :kde)
       :samples-id  - Key for source samples (default: :log-samples)
+      :outliers-id - Key for outlier analysis if available (default: :outliers)
       :metric-ids  - Set of metric ids to analyze (default: all quantitative)
       :n-points    - Grid size for density evaluation (default: 512)
       :n-bootstrap - Bootstrap samples for confidence bands (default: 200)
@@ -363,18 +364,21 @@
 
   Example:
   (let [analyze (kde {:n-points 256})
-        result (analyze {:log-samples {...}})]
+        result (analyze {:log-samples {...} :outliers {...}})]
     (get-in result [:kde :elapsed-time]))"
   ([] (kde {}))
-  ([{:keys [id samples-id metric-ids n-points n-bootstrap n-modes alpha]
+  ([{:keys [id samples-id outliers-id metric-ids n-points n-bootstrap n-modes alpha]
      :as _options}]
    (let [samples-id (or samples-id :log-samples)
-         id (or id :kde)]
+         id (or id :kde)
+         outliers-id (or outliers-id :outliers)]
      (fn [data-map]
        (let [metrics-samples (get data-map samples-id)]
          (if-not metrics-samples
            data-map
-           (let [metrics-defs (-> (have (:metrics-defs metrics-samples))
+           (let [outliers (when outliers-id
+                            (data-map outliers-id))
+                 metrics-defs (-> (have (:metrics-defs metrics-samples))
                                   (metric/select-metrics metric-ids)
                                   (metric/filter-metrics
                                    (metric/type-pred :quantitative)))
@@ -386,6 +390,7 @@
                                alpha (assoc :alpha alpha))
                  kde-result (methods/kde
                              metrics-samples
+                             outliers
                              metric-configs
                              kde-options)]
              (if kde-result
@@ -394,6 +399,7 @@
                                {:type :criterium/kde
                                 :metrics-defs metrics-defs
                                 :source-id samples-id
+                                :outliers-id outliers-id
                                 :batch-size (:batch-size metrics-samples)}
                                kde-result))]
                  (assoc data-map id kde-map))

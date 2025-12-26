@@ -185,6 +185,6 @@
      :transform collect-plan/identity-transforms}))
 
 (defmethod methods/kde :criterium/digest
-  [_digest-samples _metric-configs _options]
+  [_digest-samples _outliers _metric-configs _options]
   ;; KDE requires raw sample values which t-digest doesn't preserve
   nil)
