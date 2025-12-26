@@ -1,60 +1,380 @@
-(ns criterium.util.kde)
+(ns criterium.util.kde
+  "Kernel Density Estimation utilities.
 
-;; Mellin-Meijer-kernel density estimation on R+. Gery Geenens∗ School of
-;; Mathematics and Statistics, UNSW Sydney, Australia July 17, 2017
+  Provides ISJ (Improved Sheather-Jones) bandwidth selection, Gaussian kernel
+  density estimation, bootstrap confidence bands, and mode finding."
+  (:require
+   [criterium.util.stats :as stats]
+   [criterium.util.well :as well]))
 
-(defn gamma-fn
-  "Returns Gamma(z + 1 = number) using Lanczos approximation.
-  Taken from rosettacode."
-  ^double [^double number]
-  (if (< number 0.5)
-    (/ Math/PI (* (Math/sin (* Math/PI number))
-                  (gamma-fn (- 1 number))))
-    (let [n (dec number)
-          c [0.99999999999980993 676.5203681218851 -1259.1392167224028
-             771.32342877765313 -176.61502916214059 12.507343278686905
-             -0.13857109526572012 9.9843695780195716e-6 1.5056327351493116e-7]]
-      (* (Math/sqrt (* 2.0 Math/PI))
-         (Math/pow (+ n 7 0.5) (+ n 0.5))
-         (Math/exp (- (+ n 7 0.5)))
-         (+ (double (first c))
-            (double
-             (reduce
-              +
-              (map-indexed #(/ (double %2) (+ n (long %1) 1)) (next c)))))))))
+;;; DCT-II implementation
 
-(comment
-  (gamma-fn 1)  ; 1
-  (gamma-fn 2)  ; 1
-  (gamma-fn 3)  ; 2
-  (gamma-fn 4)  ; 6
-  (gamma-fn 5)  ; 24
-  )
+(defn dct-ii
+  "Discrete Cosine Transform Type II.
+  Direct O(n²) implementation without FFT dependency.
 
-(defn mellin-transform
-  "Mellin transform.
+  DCT-II formula: X_k = sum_{n=0}^{N-1} x_n * cos(π/N * (n + 0.5) * k)
 
-  Mellin-Meijer-kernel density estimation on R+. Gery Geenens∗ School of
-  Mathematics and Statistics, UNSW Sydney, Australia July 17, 2017
+  Returns vector of N DCT coefficients."
+  ^doubles [^doubles data]
+  (let [n (alength data)
+        result (double-array n)
+        pi-n (/ Math/PI (double n))]
+    (dotimes [k n]
+      (let [kd (double k)
+            sum (double
+                 (loop [i 0
+                        acc 0.0]
+                   (if (< i n)
+                     (recur (inc i)
+                            (+ acc (* (aget data i)
+                                      (Math/cos (* pi-n (+ (double i) 0.5) kd)))))
+                     acc)))]
+        (aset result k sum)))
+    result))
 
-  Eq, 2.19"
-  [nu gamma zeta theta z]
-  (let [^double nu    nu
-        ^double gamma gamma
-        ^double zeta  zeta
-        ^double theta theta
-        ^double z     z
-        tan-theta     (Math/tan theta)
-        cos-theta     (Math/cos theta)
-        ;; sin-theta (Math/sin theta)
-        a1            (/ (* zeta zeta) (* gamma gamma cos-theta cos-theta))
-        a2            (/ (* zeta zeta) (* gamma gamma cos-theta cos-theta))
-        e1            (+ a1 (* zeta (- z 1)))
-        e2            (+ a2 (* zeta (- 1 z)))]
-    (* (Math/pow nu (- z 1))
-       (Math/pow (/ 1 (* tan-theta tan-theta)) (* zeta (- z 1)))
-       (/ (* (gamma-fn e1) (gamma-fn e2))
-          (* (gamma-fn a1) (gamma-fn a2))))))
+;;; Linear binning
 
-;; (mellin-transform 1 1 1 0 1)
-;; (mellin-transform 3 1 2 0 1)
+(defn linear-bin
+  "Bin data onto a regular grid using linear interpolation.
+  Returns vector of bin weights that sum to 1.0.
+
+  Each data point contributes to two adjacent bins proportionally
+  to its distance from bin centers."
+  ^doubles [data ^doubles grid]
+  (let [n (alength grid)
+        weights (double-array n)
+        x-min (aget grid 0)
+        x-max (aget grid (dec n))
+        dx (/ (- x-max x-min) (dec n))
+        n-data (count data)]
+    (doseq [x data]
+      (let [x (double x)
+            ;; Clamp to grid range
+            x (max x-min (min x-max x))
+            ;; Find position in grid
+            pos (/ (- x x-min) dx)
+            i-low (long (Math/floor pos))
+            i-low (min i-low (- n 2))
+            i-high (inc i-low)
+            ;; Linear interpolation weights
+            w-high (- pos i-low)
+            w-low (- 1.0 w-high)]
+        (aset weights i-low (+ (aget weights i-low) w-low))
+        (aset weights i-high (+ (aget weights i-high) w-high))))
+    ;; Normalize to sum to 1
+    (let [total (double n-data)]
+      (dotimes [i n]
+        (aset weights i (/ (aget weights i) total))))
+    weights))
+
+;;; ISJ bandwidth selection
+
+(defn- fixed-point
+  "Fixed-point function for ISJ bandwidth selection.
+  Equation from Botev et al. 'Kernel Density Estimation via Diffusion'."
+  ^double [^double t ^long n ^doubles i-sq ^doubles a2]
+  (let [n-terms (alength i-sq)
+        f (double
+           (loop [i 0
+                  sum 0.0]
+             (if (< i n-terms)
+               (let [i-val (aget i-sq i)
+                     a-val (aget a2 i)
+                     exp-t (* i-val i-val Math/PI Math/PI t)]
+                 (recur (inc i)
+                        (+ sum (* i-val i-val a-val
+                                  (Math/exp (* -2.0 exp-t))))))
+               sum)))]
+    (- (Math/pow
+        (/ (* 2.0 (double n) (Math/sqrt Math/PI) f)
+           1.0)
+        -0.4)
+       t)))
+
+(defn- isj-solve
+  "Solve for optimal ISJ bandwidth using bisection.
+  Returns t* parameter or nil if no solution found."
+  [^long n ^doubles i-sq ^doubles a2]
+  (let [tol 1e-12
+        max-t 1.0]
+    (loop [lo 1e-10
+           hi max-t
+           its 0]
+      (when (< its 100)
+        (let [mid (* 0.5 (+ lo hi))
+              f-mid (fixed-point mid n i-sq a2)]
+          (cond
+            (< (Math/abs f-mid) tol) mid
+            (< (Math/abs (- hi lo)) tol) mid
+            (neg? f-mid) (recur lo mid (inc its))
+            :else (recur mid hi (inc its))))))))
+
+(defn silverman-bandwidth
+  "Silverman's rule of thumb bandwidth selector.
+  h = 0.9 * min(σ, IQR/1.34) * n^(-1/5)
+
+  A simple fallback when ISJ doesn't converge."
+  ^double [data]
+  (let [n (count data)
+        sigma (Math/sqrt (stats/variance data))
+        sorted (sort data)
+        q1 (double (stats/quantile 0.25 sorted))
+        q3 (double (stats/quantile 0.75 sorted))
+        iqr (- q3 q1)
+        spread (min sigma (/ iqr 1.34))]
+    (* 0.9 spread (Math/pow (double n) -0.2))))
+
+(defn isj-bandwidth
+  "Improved Sheather-Jones bandwidth selector.
+
+  Uses DCT-based algorithm from Botev et al. for optimal bandwidth
+  selection that works well for multimodal distributions.
+
+  Falls back to Silverman's rule if ISJ doesn't converge or gives
+  an unreasonable result (bandwidth > half the data range)."
+  ^double [data]
+  (let [data (vec data)
+        n (count data)
+        n-grid 1024
+        x-min (double (reduce min data))
+        x-max (double (reduce max data))
+        r (- x-max x-min)]
+    (if (zero? r)
+      1e-10
+      (let [grid (double-array n-grid)
+            _ (dotimes [i n-grid]
+                (aset grid i (+ x-min (* r (/ (double i) (double (dec n-grid)))))))
+            binned (linear-bin data grid)
+            dct (dct-ii binned)
+            i-sq (double-array (dec n-grid))
+            a2 (double-array (dec n-grid))
+            _ (dotimes [i (dec n-grid)]
+                (let [k (inc i)]
+                  (aset i-sq i (double (* k k)))
+                  (aset a2 i (let [d (aget dct k)] (* d d)))))
+            t-star (isj-solve n i-sq a2)
+            h-isj (when t-star (* (Math/sqrt (double t-star)) r))
+            h-silv (silverman-bandwidth data)]
+        (if (and h-isj (< (double h-isj) (* 0.5 r)))
+          h-isj
+          h-silv)))))
+
+;;; Gaussian kernel density estimation
+
+(defn- gaussian-kernel
+  "Standard Gaussian kernel K(u) = (1/√2π) * exp(-u²/2)."
+  ^double [^double u]
+  (* (/ 1.0 (Math/sqrt (* 2.0 Math/PI)))
+     (Math/exp (* -0.5 u u))))
+
+(defn gaussian-kde
+  "Compute Gaussian kernel density estimate at grid points.
+
+  Parameters:
+  - data: vector of sample values
+  - bandwidth: kernel bandwidth (h)
+  - grid: vector of evaluation points
+
+  Returns vector of density values at each grid point."
+  ^doubles [data ^double bandwidth ^doubles grid]
+  (let [n (long (count data))
+        n-grid (alength grid)
+        density (double-array n-grid)
+        h bandwidth
+        nd (double n)
+        data-a (double-array data)]
+    (dotimes [i n-grid]
+      (let [x (aget grid i)
+            sum (double
+                 (loop [j 0
+                        acc 0.0]
+                   (if (< j n)
+                     (let [xj (aget data-a j)
+                           u (/ (- x xj) h)]
+                       (recur (inc j)
+                              (+ acc (gaussian-kernel u))))
+                     acc)))]
+        (aset density i (/ sum (* nd h)))))
+    density))
+
+;;; Mode finding
+
+(defn find-modes
+  "Find modes (local maxima) in a density estimate.
+
+  Returns vector of maps with :location and :density for each mode,
+  sorted by density (highest first)."
+  [^doubles grid ^doubles density]
+  (let [n (alength density)]
+    (->> (loop [i 1
+                result []]
+           (if (< i (dec n))
+             (let [d-prev (aget density (dec i))
+                   d-curr (aget density i)
+                   d-next (aget density (inc i))]
+               (if (and (> d-curr d-prev)
+                        (> d-curr d-next))
+                 (recur (inc i)
+                        (conj result {:location (aget grid i)
+                                      :density d-curr
+                                      :index i}))
+                 (recur (inc i) result)))
+             result))
+         (sort-by :density >)
+         vec)))
+
+;;; Bootstrap confidence bands
+
+(defn kde-bootstrap-sample
+  "Generate a bootstrap sample of KDE density at fixed grid points.
+  Uses the same bandwidth for all bootstrap iterations.
+  rng is a lazy sequence of random doubles in [0,1)."
+  [data ^double bandwidth ^doubles grid rng]
+  (let [resampled (stats/sample data rng)]
+    (gaussian-kde resampled bandwidth grid)))
+
+(defn kde-confidence-bands
+  "Compute bootstrap confidence bands for KDE.
+
+  Parameters:
+  - data: original sample data
+  - bandwidth: kernel bandwidth
+  - grid: evaluation grid points
+  - n-bootstrap: number of bootstrap samples (default 200)
+  - alpha: confidence level (default 0.05 for 95% CI)
+  - rng-factory: function returning RNG (default: WELL RNG)
+
+  Returns map with :lower and :upper vectors."
+  ([data bandwidth grid]
+   (kde-confidence-bands data bandwidth grid {}))
+  ([data bandwidth ^doubles grid {:keys [n-bootstrap alpha rng-factory]
+                                  :or {n-bootstrap 200
+                                       alpha 0.05
+                                       rng-factory #(well/well-rng-1024a)}}]
+   (let [n-grid (alength grid)
+         samples (vec (for [_ (range n-bootstrap)]
+                        (kde-bootstrap-sample data bandwidth grid (rng-factory))))
+         alpha-low (/ (double alpha) 2.0)
+         alpha-hi (- 1.0 alpha-low)
+         lower (double-array n-grid)
+         upper (double-array n-grid)]
+     (dotimes [i n-grid]
+       (let [point-samples (mapv #(aget ^doubles % i) samples)
+             sorted (sort point-samples)]
+         (aset lower i (double (stats/quantile alpha-low sorted)))
+         (aset upper i (double (stats/quantile alpha-hi sorted)))))
+     {:lower lower
+      :upper upper})))
+
+;;; Mode confidence intervals
+
+(defn mode-confidence-intervals
+  "Compute bootstrap confidence intervals for mode locations.
+
+  Parameters:
+  - data: original sample data
+  - bandwidth: kernel bandwidth
+  - grid: evaluation grid
+  - n-modes: number of modes to track (default 3)
+  - n-bootstrap: number of bootstrap samples (default 200)
+  - alpha: confidence level (default 0.05)
+  - rng-factory: function returning RNG
+
+  Returns vector of mode CIs, each with :location, :ci-lower, :ci-upper."
+  ([data bandwidth grid n-modes]
+   (mode-confidence-intervals data bandwidth grid n-modes {}))
+  ([data bandwidth ^doubles grid n-modes
+    {:keys [n-bootstrap alpha rng-factory]
+     :or {n-bootstrap 200
+          alpha 0.05
+          rng-factory #(well/well-rng-1024a)}}]
+   (let [density (gaussian-kde data bandwidth grid)
+         orig-modes (vec (take n-modes (find-modes grid density)))
+         boot-modes (vec (for [_ (range n-bootstrap)]
+                           (let [boot-density (kde-bootstrap-sample
+                                               data bandwidth grid (rng-factory))]
+                             (vec (take n-modes (find-modes grid boot-density))))))
+         alpha-low (/ (double alpha) 2.0)
+         alpha-high (- 1.0 alpha-low)]
+     (vec
+      (for [[i mode] (map-indexed vector orig-modes)]
+        (let [boot-locs (keep #(when-let [m (get % i)]
+                                 (:location m))
+                              boot-modes)
+              sorted (sort boot-locs)]
+          (if (seq sorted)
+            (assoc mode
+                   :ci-lower (stats/quantile alpha-low sorted)
+                   :ci-upper (stats/quantile alpha-high sorted))
+            mode)))))))
+
+;;; Main KDE function
+
+(defn kde
+  "Compute complete KDE analysis on sample data.
+
+  Parameters:
+  - data: vector of sample values
+  - opts: optional map with:
+    - :n-points: grid size (default 512)
+    - :bandwidth: override bandwidth (default: ISJ selection)
+    - :n-bootstrap: bootstrap samples for confidence bands (default 200)
+    - :n-modes: maximum modes to detect (default 5)
+    - :alpha: confidence level (default 0.05)
+    - :rng-factory: RNG factory function
+
+  Returns map with:
+  - :type :criterium/kde
+  - :bandwidth: selected or provided bandwidth
+  - :grid: evaluation points
+  - :density: density values at grid points
+  - :lower-band: lower confidence band
+  - :upper-band: upper confidence band
+  - :modes: vector of detected modes with CIs
+  - :n: sample size"
+  ([data] (kde data {}))
+  ([data {:keys [n-points bandwidth n-bootstrap n-modes alpha rng-factory]
+          :or {n-points 512
+               n-bootstrap 200
+               n-modes 5
+               alpha 0.05
+               rng-factory #(well/well-rng-1024a)}}]
+   (when (empty? data)
+     (throw (ex-info "Input data cannot be empty"
+                     {:error :kde/no-data})))
+   (let [data (vec data)
+         n (count data)
+         x-min (double (reduce min data))
+         x-max (double (reduce max data))]
+     (when (= x-min x-max)
+       (throw (ex-info "All values are the same - cannot compute KDE"
+                       {:error :kde/constant-data
+                        :value x-min})))
+     (let [margin (/ (- x-max x-min) 10.0)
+           g-min (- x-min margin)
+           g-max (+ x-max margin)
+           g-range (- g-max g-min)
+           n-pts (long n-points)
+           grid (double-array n-pts)
+           _ (dotimes [i n-pts]
+               (aset grid i (+ g-min (* g-range
+                                        (/ (double i) (double (dec n-pts)))))))
+           h (double (or bandwidth (isj-bandwidth data)))
+           density (gaussian-kde data h grid)
+           bands (kde-confidence-bands data h grid
+                                       {:n-bootstrap n-bootstrap
+                                        :alpha alpha
+                                        :rng-factory rng-factory})
+           modes (mode-confidence-intervals data h grid n-modes
+                                            {:n-bootstrap n-bootstrap
+                                             :alpha alpha
+                                             :rng-factory rng-factory})]
+       {:type :criterium/kde
+        :bandwidth h
+        :grid (vec grid)
+        :density (vec density)
+        :lower-band (vec (:lower bands))
+        :upper-band (vec (:upper bands))
+        :modes modes
+        :n n}))))
