@@ -690,6 +690,61 @@
        :raw-p-value raw-p
        :corrected? corrected?})))
 
+(defn acr-test
+  "ACR test for H0: at most k modes.
+  
+  Combines critical bandwidth and excess mass approaches from
+  Ameijeiras-Alonso, Crujeiras, and Rodríguez-Casal (2019).
+  
+  Unlike Silverman's test which uses mode count as test statistic,
+  ACR uses excess mass which provides better calibration.
+  
+  Parameters:
+  - data: sample values
+  - k: number of modes under H0
+  - opts: optional map with:
+    - :n-bootstrap (default 200)
+    - :n-points (default 512) 
+    - :tol (for critical bandwidth search, default 1e-6)
+    - :rng-factory (default: WELL RNG)
+  
+  Returns map with:
+  - :k - number of modes tested
+  - :excess-mass - observed excess mass statistic
+  - :critical-bandwidth - bandwidth giving exactly k modes
+  - :p-value - proportion of bootstrap excess masses >= observed
+  
+  Reference: Ameijeiras-Alonso et al. (2019) 'Mode testing, critical
+  bandwidth and excess mass' TEST 28, 900-919"
+  [data ^long k {:keys [n-bootstrap n-points tol rng-factory]
+                 :or {n-bootstrap 200
+                      n-points 512
+                      tol 1e-6
+                      rng-factory #(well/well-rng-1024a)}}]
+  (let [data (vec data)
+        n-pts (long n-points)
+        ;; Find critical bandwidth
+        h-crit (double (critical-bandwidth data k {:tol tol :n-points n-pts}))
+        ;; Compute observed excess mass statistic
+        observed-em (:statistic (excess-mass data k {:rng-factory rng-factory}))
+        observed-em (double observed-em)
+        ;; Bootstrap: count how many times bootstrap excess mass >= observed
+        exceeds (atom 0)]
+    (dotimes [_ n-bootstrap]
+      (let [rng (rng-factory)
+            ;; Generate smoothed bootstrap sample at critical bandwidth
+            boot-sample (silverman-bootstrap-sample data h-crit rng)
+            ;; Compute excess mass for bootstrap sample
+            boot-em (:statistic (excess-mass boot-sample k {:rng-factory rng-factory}))]
+        (when (>= (double boot-em) observed-em)
+          (swap! exceeds inc))))
+    ;; Calculate p-value
+    (let [p-value (/ (double @exceeds) (double n-bootstrap))]
+      {:k k
+       :excess-mass observed-em
+       :critical-bandwidth h-crit
+       :p-value p-value})))
+
 ;;; Main KDE function
 
 (defn kde

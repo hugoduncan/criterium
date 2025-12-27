@@ -252,6 +252,52 @@
         (is (>= (:p-value result) 0.01)
             "Gaussian unimodal data should not strongly reject single mode")))))
 
+(deftest acr-test-test
+  ;; Tests ACR test (Ameijeiras-Alonso et al. 2019) for multimodality.
+  ;; Combines critical bandwidth and excess mass for better calibration.
+  (testing "acr-test"
+    (testing "returns correct structure"
+      (let [data (range 0 100)
+            result (kde/acr-test data 1 {:n-bootstrap 20})]
+        (is (= 1 (:k result)))
+        (is (number? (:critical-bandwidth result)))
+        (is (number? (:excess-mass result)))
+        (is (>= (:excess-mass result) 0) "excess mass should be non-negative")
+        (is (number? (:p-value result)))
+        (is (<= 0 (:p-value result) 1) "p-value should be between 0 and 1")))
+
+    (testing "unimodal Gaussian data should not reject k=1"
+      (let [n 200
+            normals (loop [i 0 result []]
+                      (if (>= i n)
+                        result
+                        (let [u1 (max 1e-10 (rand))
+                              u2 (rand)
+                              z (* (Math/sqrt (* -2.0 (Math/log u1)))
+                                   (Math/cos (* 2.0 Math/PI u2)))
+                              x (+ 50.0 (* 10.0 z))]
+                          (recur (inc i) (conj result x)))))
+            result (kde/acr-test normals 1 {:n-bootstrap 100})]
+        (is (>= (:p-value result) 0.01)
+            "Gaussian unimodal data should not strongly reject single mode")))
+
+    (testing "bimodal data should reject k=1"
+      ;; Well-separated bimodal data
+      (let [cluster1 (repeatedly 100 #(+ -2.0 (* 0.5 (- (rand) 0.5))))
+            cluster2 (repeatedly 100 #(+ 2.0 (* 0.5 (- (rand) 0.5))))
+            data (concat cluster1 cluster2)
+            result (kde/acr-test data 1 {:n-bootstrap 50})]
+        (is (<= (:p-value result) 0.1)
+            "Bimodal data should reject single mode hypothesis")))
+
+    (testing "bimodal data should not reject k=2"
+      (let [cluster1 (repeatedly 100 #(+ -2.0 (* 0.5 (- (rand) 0.5))))
+            cluster2 (repeatedly 100 #(+ 2.0 (* 0.5 (- (rand) 0.5))))
+            data (concat cluster1 cluster2)
+            result (kde/acr-test data 2 {:n-bootstrap 50})]
+        (is (>= (:p-value result) 0.01)
+            "Bimodal data should not reject k=2 hypothesis")))))
+
 (deftest excess-mass-test
   ;; Tests the excess mass statistic (Müller-Sawitzki 1991) for multimodality.
   ;; Verifies the algorithm correctly distinguishes unimodal from multimodal data.
