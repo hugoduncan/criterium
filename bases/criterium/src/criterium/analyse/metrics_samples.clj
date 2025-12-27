@@ -285,15 +285,20 @@
              :mode-bandwidth bandwidth
              :antimodes nil})
           ;; Mark significance based on test results
+          ;; For ACR, all validated modes are significant by construction
+          ;; (validated-k is the number of modes supported by the test)
           modes-with-significance
-          (vec (map-indexed
-                (fn [i mode]
-                  (let [k (inc (long i))
-                        test-result (get test-results k)
-                        significant? (and test-result
-                                          (< (double (:p-value test-result)) alpha))]
-                    (assoc mode :significant? significant?)))
-                modes-with-ci))]
+          (if (= method :acr)
+            (mapv #(assoc % :significant? true) modes-with-ci)
+            ;; For Silverman, use per-k p-value check
+            (vec (map-indexed
+                  (fn [i mode]
+                    (let [k (inc (long i))
+                          test-result (get test-results k)
+                          significant? (and test-result
+                                            (< (double (:p-value test-result)) alpha))]
+                      (assoc mode :significant? significant?)))
+                  modes-with-ci)))]
       (cond-> {:modes modes-with-significance
                :n-modes validated-k
                :test-results {:method method
