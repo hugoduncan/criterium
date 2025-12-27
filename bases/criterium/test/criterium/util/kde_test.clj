@@ -4,6 +4,7 @@
   ;; mode detection, and bootstrap confidence intervals.
   (:require
    [clojure.test :refer [deftest is testing]]
+   [criterium.test-utils :as tu]
    [criterium.util.kde :as kde]))
 
 (defn rand-double
@@ -397,31 +398,30 @@
   ;; unimodal and bimodal distributions.
   (testing "locate-modes"
     (testing "with unimodal data"
-      (testing "returns exactly one mode with k=1"
-        (let [unimodal (range 0 100)
-              result (kde/locate-modes unimodal 1 {})]
-          (is (= 1 (count (:modes result))))
-          (is (pos? (:critical-bandwidth result)))))
+      (let [unimodal (tu/gaussian-samples 100 50.0 10.0)]
+        (testing "returns exactly one mode with k=1"
+          (let [result (kde/locate-modes unimodal 1 {})]
+            (is (= 1 (count (:modes result))))
+            (is (pos? (:critical-bandwidth result)))))
 
-      (testing "returns no antimodes for single mode"
-        (let [unimodal (range 0 100)
-              result (kde/locate-modes unimodal 1 {})]
-          (is (empty? (:antimodes result))))))
+        (testing "returns no antimodes for single mode"
+          (let [result (kde/locate-modes unimodal 1 {})]
+            (is (empty? (:antimodes result)))))))
 
     (testing "with bimodal data"
-      (testing "returns two modes with k=2"
-        (let [bimodal (concat (range 0 50) (range 100 150))
-              result (kde/locate-modes bimodal 2 {})]
-          (is (= 2 (count (:modes result))))))
+      (let [bimodal (concat (tu/gaussian-samples 50 0.0 1.0 1)
+                            (tu/gaussian-samples 50 10.0 1.0 2))]
+        (testing "returns two modes with k=2"
+          (let [result (kde/locate-modes bimodal 2 {})]
+            (is (= 2 (count (:modes result))))))
 
-      (testing "modes are sorted by location"
-        (let [bimodal (concat (range 0 50) (range 100 150))
-              result (kde/locate-modes bimodal 2 {})
-              locs (map :location (:modes result))]
-          (is (apply < locs) "modes should be in ascending order"))))
+        (testing "modes are sorted by location"
+          (let [result (kde/locate-modes bimodal 2 {})
+                locs (map :location (:modes result))]
+            (is (apply < locs) "modes should be in ascending order")))))
 
     (testing "returns correct structure"
-      (let [data (range 0 100)
+      (let [data (tu/gaussian-samples 100 50.0 10.0)
             result (kde/locate-modes data 1 {})]
         (is (contains? result :modes))
         (is (contains? result :antimodes))
@@ -431,7 +431,7 @@
         (is (number? (:critical-bandwidth result)))))
 
     (testing "mode maps have required keys"
-      (let [data (range 0 100)
+      (let [data (tu/gaussian-samples 100 50.0 10.0)
             result (kde/locate-modes data 1 {})
             mode (first (:modes result))]
         (is (contains? mode :location))
