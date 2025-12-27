@@ -385,3 +385,51 @@
               "CI lower should be <= location")
           (is (<= (:location mode) (:ci-upper mode))
               "location should be <= CI upper"))))))
+
+(deftest locate-modes-test
+  ;; Tests locate-modes using critical bandwidth for mode/antimode finding.
+  ;; Verifies that modes and antimodes are correctly identified for
+  ;; unimodal and bimodal distributions.
+  (testing "locate-modes"
+    (testing "with unimodal data"
+      (testing "returns exactly one mode with k=1"
+        (let [unimodal (range 0 100)
+              result (kde/locate-modes unimodal 1 {})]
+          (is (= 1 (count (:modes result))))
+          (is (pos? (:critical-bandwidth result)))))
+
+      (testing "returns no antimodes for single mode"
+        (let [unimodal (range 0 100)
+              result (kde/locate-modes unimodal 1 {})]
+          (is (empty? (:antimodes result))))))
+
+    (testing "with bimodal data"
+      (testing "returns two modes with k=2"
+        (let [bimodal (concat (range 0 50) (range 100 150))
+              result (kde/locate-modes bimodal 2 {})]
+          (is (= 2 (count (:modes result))))))
+
+      (testing "modes are sorted by location"
+        (let [bimodal (concat (range 0 50) (range 100 150))
+              result (kde/locate-modes bimodal 2 {})
+              locs (map :location (:modes result))]
+          (is (apply < locs) "modes should be in ascending order"))))
+
+    (testing "returns correct structure"
+      (let [data (range 0 100)
+            result (kde/locate-modes data 1 {})]
+        (is (contains? result :modes))
+        (is (contains? result :antimodes))
+        (is (contains? result :critical-bandwidth))
+        (is (vector? (:modes result)))
+        (is (vector? (:antimodes result)))
+        (is (number? (:critical-bandwidth result)))))
+
+    (testing "mode maps have required keys"
+      (let [data (range 0 100)
+            result (kde/locate-modes data 1 {})
+            mode (first (:modes result))]
+        (is (contains? mode :location))
+        (is (contains? mode :density))
+        (is (number? (:location mode)))
+        (is (number? (:density mode)))))))

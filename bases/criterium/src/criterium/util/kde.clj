@@ -588,6 +588,70 @@
             ;; Too many modes, need larger bandwidth
             (recur mid hi (inc its))))))))
 
+(defn- find-antimodes
+  "Find antimodes (local minima) in a density estimate.
+  Returns vector of maps with :location and :density for each antimode,
+  sorted by location (left to right)."
+  [^doubles grid ^doubles density]
+  (let [n (alength density)]
+    (->> (loop [i 1
+                result []]
+           (if (< i (dec n))
+             (let [d-prev (aget density (dec i))
+                   d-curr (aget density i)
+                   d-next (aget density (inc i))]
+               (if (and (< d-curr d-prev)
+                        (< d-curr d-next))
+                 (recur (inc i)
+                        (conj result {:location (aget grid i)
+                                      :density d-curr}))
+                 (recur (inc i) result)))
+             result))
+         (sort-by :location)
+         vec)))
+
+(defn locate-modes
+  "Find mode and antimode locations using critical bandwidth.
+
+  Given target number of modes k, finds the critical bandwidth h_k
+  (smallest bandwidth with at most k modes) and locates both modes
+  (local maxima) and antimodes (local minima) at that bandwidth.
+
+  Parameters:
+  - data: sample values
+  - k: target number of modes
+  - opts: optional map with :n-points (grid size, default 512),
+          :tol (tolerance, default 1e-6)
+
+  Returns:
+  {:modes [{:location, :density} ...] - sorted by location
+   :antimodes [{:location, :density} ...] - sorted by location
+   :critical-bandwidth h_k}"
+  [data ^long k {:keys [n-points tol]
+                 :or {n-points 512
+                      tol 1e-6}}]
+  (let [data (vec data)
+        n-pts (long n-points)
+        h (critical-bandwidth data k {:n-points n-pts :tol tol})
+        x-min (double (reduce min data))
+        x-max (double (reduce max data))
+        margin (/ (- x-max x-min) 10.0)
+        g-min (- x-min margin)
+        g-max (+ x-max margin)
+        g-range (- g-max g-min)
+        grid (double-array n-pts)]
+    (dotimes [i n-pts]
+      (aset grid i (+ g-min (* g-range (/ (double i) (double (dec n-pts)))))))
+    (let [density (gaussian-kde data h grid)
+          modes (->> (find-modes grid density)
+                     (map #(dissoc % :index))
+                     (sort-by :location)
+                     vec)
+          antimodes (find-antimodes grid density)]
+      {:modes modes
+       :antimodes antimodes
+       :critical-bandwidth h})))
+
 (defn silverman-bootstrap-sample
   "Generate a smoothed bootstrap sample for Silverman's test.
   
