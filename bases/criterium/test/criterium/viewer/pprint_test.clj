@@ -3,6 +3,7 @@
    [clojure.string :as str]
    [clojure.test :refer [deftest is testing]]
    [criterium.analyse :as analyse]
+   [criterium.collector.metrics]
    [criterium.test-data :as test-data]
    [criterium.test-utils :refer [trimmed-lines]]
    [criterium.view :as view]

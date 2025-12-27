@@ -226,7 +226,7 @@
 (defn- kde-modes-table
   "Prepare modes data for pprint table display."
   [modes metric-config transforms]
-  (let [{:keys [dimension scale]} metric-config]
+  (let [{:keys [_dimension scale]} metric-config]
     (mapv (fn [{:keys [location density ci-lower ci-upper]}]
             {:location (format "%.4g"
                                (* scale
@@ -244,7 +244,7 @@
   "Pretty-print KDE summary for a single metric."
   [metric-config kde-data transforms]
   (let [{:keys [bandwidth modes n]} kde-data
-        {:keys [label dimension scale]} metric-config
+        {:keys [label _dimension scale]} metric-config
         bw (* (double scale) (util/transform-sample-> bandwidth transforms))]
     (println (format "\nKDE of %s (n=%d, bandwidth=%.4g)"
                      label n bw))

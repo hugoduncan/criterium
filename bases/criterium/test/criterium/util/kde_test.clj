@@ -4,8 +4,7 @@
   ;; mode detection, and bootstrap confidence intervals.
   (:require
    [clojure.test :refer [deftest is testing]]
-   [criterium.util.kde :as kde]
-   [criterium.util.well :as well]))
+   [criterium.util.kde :as kde]))
 
 (deftest silverman-bandwidth-test
   ;; Tests Silverman's rule of thumb bandwidth selector against
