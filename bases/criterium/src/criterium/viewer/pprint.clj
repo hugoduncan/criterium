@@ -226,7 +226,8 @@
 (defn- kde-modes-table
   "Prepare modes data for pprint table display."
   [modes metric-config transforms]
-  (let [{:keys [_dimension scale]} metric-config]
+  (let [{:keys [_dimension scale]} metric-config
+        scale (double scale)]
     (mapv (fn [{:keys [location density ci-lower ci-upper]}]
             {:location (format "%.4g"
                                (* scale

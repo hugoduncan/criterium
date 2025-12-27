@@ -214,6 +214,8 @@
     (let [{:keys [grid density bandwidth]} kde-data
           {:keys [max-modes n-bootstrap alpha n-points]
            :or {max-modes 5 n-bootstrap 200 alpha 0.05 n-points 512}} options
+          max-modes (long max-modes)
+          alpha (double alpha)
           p (:path metric-config)
           ;; Filter outliers from samples
           outliers-data (get-in outliers p)
@@ -224,10 +226,11 @@
           grid-arr (double-array grid)
           density-arr (double-array density)
           all-modes (kde/find-modes grid-arr density-arr)
+          n-all-modes (long (count all-modes))
           ;; Run Silverman's test for each k from 1 to max-modes
           silverman-results
           (into {}
-                (for [k (range 1 (inc (min max-modes (count all-modes))))]
+                (for [k (range 1 (inc (min max-modes n-all-modes)))]
                   [k (kde/silverman-test samples k
                                          {:n-bootstrap n-bootstrap
                                           :n-points n-points
@@ -235,10 +238,10 @@
           ;; Determine validated number of modes
           ;; Find smallest k where p-value >= alpha (fail to reject H0: <= k modes)
           validated-k (or (some (fn [k]
-                                  (when (>= (get-in silverman-results [k :p-value]) alpha)
+                                  (when (>= (double (get-in silverman-results [k :p-value])) alpha)
                                     k))
-                                (range 1 (inc (min max-modes (count all-modes)))))
-                          (count all-modes))
+                                (range 1 (inc (min max-modes n-all-modes))))
+                          n-all-modes)
           ;; Compute confidence intervals for modes
           modes-with-ci (kde/mode-confidence-intervals
                          samples bandwidth grid-arr validated-k
@@ -248,10 +251,10 @@
           modes-with-significance
           (vec (map-indexed
                 (fn [i mode]
-                  (let [k (inc i)
+                  (let [k (inc (long i))
                         test-result (get silverman-results k)
                         significant? (and test-result
-                                          (< (:p-value test-result) alpha))]
+                                          (< (double (:p-value test-result)) alpha))]
                     (assoc mode :significant? significant?)))
                 modes-with-ci))]
       {:modes modes-with-significance
