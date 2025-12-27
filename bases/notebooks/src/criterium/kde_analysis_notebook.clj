@@ -36,7 +36,7 @@
 ;; ## Using the kde-modes Bench Plan
 ;;
 ;; For statistically validated mode detection, use the `kde-modes` bench plan.
-;; This includes Silverman's bootstrap test for multimodality.
+;; This includes multimodality testing to validate the number of distribution modes.
 
 ^:kindly/hide-code
 (bench-display
@@ -45,7 +45,7 @@
 
 ;; The kde-modes plan adds:
 ;; - Mode detection with confidence intervals
-;; - Silverman's test p-values for each k (number of modes)
+;; - ACR test p-values for each k (number of modes)
 ;; - Validated mode count based on statistical significance
 
 ;; ## Understanding KDE Output
@@ -75,13 +75,30 @@
 ;; Mode analysis (from the `kde-modes` plan) provides statistically validated
 ;; peaks in the density curve:
 
-;; ### Silverman's Test
+;; ### Multimodality Testing Methods
 ;;
-;; Silverman's bootstrap test determines if the data supports k modes. The test
-;; is run for k=1, 2, 3, ... up to max-modes. A low p-value indicates evidence
-;; for more than k modes.
+;; Criterium supports two methods for testing multimodality:
 ;;
-;; For k=1, the Hall-York correction is applied for better calibration.
+;; **ACR Test (Default)**
+;;
+;; The ACR test (Ameijeiras-Alonso, Crujeiras, Rodríguez-Casal 2019) uses
+;; excess mass as the test statistic. This provides better calibration than
+;; mode counting, especially for detecting genuine multimodality vs noise.
+;;
+;; **Silverman's Test**
+;;
+;; Silverman's bootstrap test determines if the data supports k modes by
+;; counting modes in bootstrap samples. For k=1, the Hall-York correction
+;; is applied. However, mode counting can be sensitive to noise and may
+;; be overly conservative.
+;;
+;; **Why ACR is Recommended**
+;;
+;; - Excess mass is more robust to small fluctuations in the density
+;; - Better calibrated p-values across different sample sizes
+;; - Less sensitive to bandwidth choice than mode counting
+;;
+;; Use `:method :silverman` if you specifically need backward compatibility.
 
 ;; ### Validated Mode Count
 ;;
@@ -92,7 +109,28 @@
 ;; ### Mode Significance
 ;;
 ;; Each detected mode is marked with `significant?` indicating whether
-;; Silverman's test supports its existence.
+;; the test supports its existence.
+
+;; ### Understanding ACR Test Results
+;;
+;; The ACR test output includes:
+;;
+;; - `:method` - The test method used (`:acr` or `:silverman`)
+;; - `:k-tested` - Vector of k values tested (e.g., [1 2 3])
+;; - `:p-values` - Map of k to p-value (e.g., {1 0.02, 2 0.45})
+;; - `:critical-bandwidths` - Map of k to h_k (smallest bandwidth giving ≤ k modes)
+;; - `:excess-mass` - Map of k to excess mass statistic (ACR only)
+;;
+;; **Interpreting excess mass:**
+;; - Larger values suggest stronger evidence for more than k modes
+;; - The p-value is computed by comparing observed excess mass to bootstrap
+;;   samples under the null hypothesis
+;;
+;; **Example interpretation:**
+;; If `:p-values {1 0.02, 2 0.35}`:
+;; - p=0.02 for k=1: Reject H0 (unimodal), evidence for >1 mode
+;; - p=0.35 for k=2: Fail to reject H0 (≤2 modes)
+;; - Conclusion: n-modes = 2 (bimodal distribution)
 
 ;; ## Accessing KDE and Modes Results Programmatically
 ;;
@@ -107,7 +145,7 @@
         modes-result (:modes data)]
     {:bandwidth (get-in kde-result [:kdes [:elapsed-time] :bandwidth])
      :n-modes (get-in modes-result [:modes [:elapsed-time] :n-modes])
-     :silverman-p-values (get-in modes-result [:modes [:elapsed-time] :silverman :p-values])
+     :test-results (get-in modes-result [:modes [:elapsed-time] :test-results])
      :modes (get-in modes-result [:modes [:elapsed-time] :modes])}))
 
 ;; ## Customizing KDE Options
@@ -134,8 +172,27 @@
 
 ;; ### max-modes
 ;;
-;; Maximum number of modes to test. Default is 5. Silverman's test is run
+;; Maximum number of modes to test. Default is 5. The test is run
 ;; for k=1 through max-modes.
+
+;; ### method
+;;
+;; The multimodality test method. Options:
+;; - `:acr` (default) - Uses excess mass statistic for better calibration
+;; - `:silverman` - Uses bootstrap mode count (legacy method)
+
+;; ### mode-method
+;;
+;; How mode locations are determined. Options:
+;; - `:isj` (default) - Find modes from KDE density at ISJ bandwidth
+;; - `:critical` - Find modes at critical bandwidth for validated k modes
+;;
+;; When using `:critical`, the output includes additional fields:
+;; - `:antimodes` - Local minima between modes (useful for segmentation)
+;; - `:mode-bandwidth` - The critical bandwidth used for mode finding
+;;
+;; The critical bandwidth approach finds the smallest bandwidth that gives
+;; exactly k modes, which can provide more stable mode locations.
 
 ;; ### Custom Bench Plan Example
 ;;
@@ -151,13 +208,34 @@
               [:stats {:samples-id :log-samples :id :log-stats}]
               :histogram
               [:kde {:n-points 256 :n-bootstrap 100}]
-              [:modes {:max-modes 3 :n-bootstrap 100}]
+              [:modes {:max-modes 3 :n-bootstrap 100 :method :acr}]
               :event-stats])))
 
 ^:kindly/hide-code
 (bench-display
  (bench/bench (reduce + (range 1000))
               :bench-plan custom-kde-modes-plan))
+
+;; ### Using Critical Bandwidth for Mode Finding
+;;
+;; The critical bandwidth approach can provide more stable mode locations:
+
+(def critical-modes-plan
+  (-> bench-plans/kde-modes
+      (assoc :analyse
+             [:transform-log
+              [:quantiles {:quantiles [0.25 0.5 0.75]}]
+              :outliers
+              [:stats {}]
+              :histogram
+              [:kde {:n-points 512}]
+              [:modes {:max-modes 3 :mode-method :critical}]
+              :event-stats])))
+
+^:kindly/hide-code
+(bench-display
+ (bench/bench (reduce + (range 1000))
+              :bench-plan critical-modes-plan))
 
 ;; ## Visualization with Portal and Kindly
 ;;
@@ -199,8 +277,10 @@
 ;; - CPU frequency scaling
 ;; - Cache effects
 ;;
-;; Silverman's test provides statistical validation for multimodality. A low
-;; p-value for k=1 suggests the distribution is not unimodal.
+;; The ACR test provides statistical validation for multimodality. A low
+;; p-value for k=1 suggests the distribution is not unimodal. The ACR test
+;; uses the excess mass statistic, which measures how much the empirical
+;; distribution exceeds what would be expected under k modes.
 
 ;; ### Example: Synthetic Multimodal Distribution
 ;;
@@ -208,14 +288,49 @@
 
 (defn variable-work
   "Simulate variable-time work with occasional slow paths."
-  [^long n]
-  (if (zero? (long (mod (rand-int 100) 5)))
-    (reduce + (range (* n 10))) ; 20% slow path
-    (reduce + (range n)))) ; 90% fast path
+  [^long n slow?]
+  (if slow?
+    (reduce + (range (* n 3))) ; slow path
+    (reduce + (range n)))) ; fast path
 
-(bench/bench (variable-work 100)
-             :bench-plan bench-plans/kde-modes
-             :viewer :kindly)
+(bench/bench
+ (variable-work 100 (zero? (long (mod (rand-int 100) 3))))
+ :bench-plan bench-plans/kde-modes
+ :viewer :kindly)
+
+;; ### Comparing ACR and Silverman Results
+;;
+;; You can compare results from both test methods:
+
+(defn compare-test-methods
+  "Run both ACR and Silverman tests and compare results."
+  [expr-fn]
+  (let [acr-plan bench-plans/kde-modes
+        silverman-plan (assoc-in bench-plans/kde-modes
+                                 [:analyse 7 1 :method] :silverman)]
+    ;; Run with ACR
+    (bench/bench-measured {:args-fn (fn [] [])
+                           :f expr-fn}
+                          {:bench-plan acr-plan
+                           :viewer :none})
+    (let [acr-result (get-in (:data (bench/last-bench))
+                             [:modes :modes [:elapsed-time]])]
+      ;; Run with Silverman
+      (bench/bench-measured {:args-fn (fn [] [])
+                             :f expr-fn}
+                            {:bench-plan silverman-plan
+                             :viewer :none})
+      (let [silv-result (get-in (:data (bench/last-bench))
+                                [:modes :modes [:elapsed-time]])]
+        {:acr {:n-modes (:n-modes acr-result)
+               :p-values (get-in acr-result [:test-results :p-values])
+               :excess-mass (get-in acr-result [:test-results :excess-mass])}
+         :silverman {:n-modes (:n-modes silv-result)
+                     :p-values (get-in silv-result [:test-results :p-values])}}))))
+
+;; Compare results on the multimodal example:
+(kind/code
+ "(compare-test-methods #(variable-work 100 (zero? (mod (rand-int 100) 3))))")
 
 ;; ## Comparing KDE to Histograms
 ;;
@@ -237,14 +352,20 @@
 ;;    to see the distribution shape without statistical mode validation.
 ;;
 ;; 2. **Use kde-modes for mode detection** - When you need statistically
-;;    validated mode counts with Silverman's test.
+;;    validated mode counts with the ACR test.
 ;;
-;; 3. **Check Silverman's p-values** - Low p-values for k=1 indicate
-;;    evidence against unimodality.
+;; 3. **Check test p-values** - Low p-values for k=1 indicate evidence
+;;    against unimodality. The `test-results` map contains p-values for each k.
 ;;
-;; 4. **Consider computation cost** - Mode analysis with Silverman's test
-;;    involves multiple rounds of bootstrap resampling. Use `kde-histogram`
-;;    when you only need the density curve.
+;; 4. **Use ACR over Silverman** - ACR provides better calibrated p-values
+;;    and is less sensitive to noise in the density estimate.
+;;
+;; 5. **Consider :mode-method :critical** - When you need stable mode
+;;    locations and want to identify antimodes (valleys between peaks).
+;;
+;; 6. **Consider computation cost** - Mode analysis involves multiple rounds
+;;    of bootstrap resampling. Use `kde-histogram` when you only need the
+;;    density curve.
 
 ;; ## Running Examples
 ;;
@@ -255,7 +376,7 @@
   (bench/bench (reduce + (range 1000))
                :bench-plan bench-plans/kde-histogram)
 
-  ;; KDE with mode detection and Silverman's test
+  ;; KDE with mode detection and ACR test (default)
   (bench/bench (reduce + (range 1000))
                :bench-plan bench-plans/kde-modes)
 
@@ -263,7 +384,18 @@
   (let [data (:data (bench/last-bench))]
     {:kde-bandwidth (get-in data [:kde :kdes [:elapsed-time] :bandwidth])
      :n-modes (get-in data [:modes :modes [:elapsed-time] :n-modes])
-     :p-values (get-in data [:modes :modes [:elapsed-time] :silverman :p-values])})
+     :test-results (get-in data [:modes :modes [:elapsed-time] :test-results])
+     :excess-mass (get-in data [:modes :modes [:elapsed-time] :test-results :excess-mass])})
+
+  ;; Use Silverman test instead of ACR
+  (bench/bench (reduce + (range 1000))
+               :bench-plan (assoc-in bench-plans/kde-modes
+                                     [:analyse 7 1 :method] :silverman))
+
+  ;; Use critical bandwidth for mode finding
+  (bench/bench (reduce + (range 1000))
+               :bench-plan (assoc-in bench-plans/kde-modes
+                                     [:analyse 7 1 :mode-method] :critical))
 
   ;; Custom options
   (bench/bench (reduce + (range 1000))
