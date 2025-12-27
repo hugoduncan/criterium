@@ -7,6 +7,231 @@
    [criterium.util.stats :as stats]
    [criterium.util.well :as well]))
 
+;;; Excess Mass computation (Müller-Sawitzki 1991)
+
+(defn- add-jitter
+  "Add small uniform jitter to handle ties in data.
+  Perturbs each point by ±mindist/2 where mindist is the smallest
+  non-zero distance between points."
+  ^doubles [^doubles sorted-data rng]
+  (let [n (alength sorted-data)]
+    (if (< n 2)
+      sorted-data
+      (let [;; Find minimum non-zero distance
+            min-dist-raw (loop [i (long 1)
+                                md Double/MAX_VALUE]
+                           (if (< i n)
+                             (let [d (- (aget sorted-data i) (aget sorted-data (dec i)))]
+                               (recur (inc i)
+                                      (if (> d 0.0) (Math/min md d) md)))
+                             md))
+            min-dist (double (if (= min-dist-raw Double/MAX_VALUE) 1e-10 min-dist-raw))
+            half-dist (/ min-dist 2.0)
+            result (double-array n)
+            rng-seq (take n rng)]
+        (loop [i (long 0)
+               rs (seq rng-seq)]
+          (when (< i n)
+            (let [r (double (first rs))
+                  jitter (- (* 2.0 r half-dist) half-dist)]
+              (aset result i (+ (aget sorted-data i) jitter))
+              (recur (inc i) (rest rs)))))
+        result))))
+
+(defn- build-distance-matrix
+  "Build upper-triangular distance matrix.
+  A[i,j] = data[j] - data[i] for j > i.
+  Returns a flat array in row-major order for upper triangle."
+  ^doubles [^doubles sorted-data]
+  (let [n (long (alength sorted-data))
+        ;; Number of entries in upper triangle (excluding diagonal)
+        size (long (/ (* n (dec n)) 2))
+        result (double-array size)]
+    (loop [i (long 0)
+           idx (long 0)]
+      (when (< i (dec n))
+        (loop [j (long (inc i))
+               idx2 idx]
+          (when (< j n)
+            (aset result idx2 (- (aget sorted-data j) (aget sorted-data i)))
+            (recur (inc j) (inc idx2))))
+        (recur (inc i) (+ idx (- n 1 i)))))
+    result))
+
+(defn- distance-at
+  "Get distance A[i,j] from flat upper triangular array.
+  Requires i < j."
+  ^double [^doubles dist-arr ^long n ^long i ^long j]
+  (let [;; Index in flattened upper triangular array
+        ;; For row i, entries start at: i*n - i*(i+1)/2
+        row-start (- (* i n) (long (/ (* i (inc i)) 2)))
+        ;; Column offset within row (j - i - 1)
+        col-offset (- j i 1)]
+    (aget dist-arr (+ row-start col-offset))))
+
+(defn- compute-interval-distances
+  "Compute minimum cumulative distances for k disjoint intervals.
+  
+  For each 'span' (total points covered by k intervals), find the
+  minimum total distance (sum of interval widths) achievable.
+  
+  Returns vector where element i is the min distance for span (i+k)."
+  ^doubles [^doubles dist-arr ^long n ^long k]
+  (if (= k 1)
+    ;; For k=1, min distance for span s is simply the min interval of that span
+    (let [result (double-array (- n 1))]
+      (dotimes [span (- n 1)]
+        (let [interval-size (long (inc span))
+              min-d (double
+                     (loop [start (long 0)
+                            md Double/MAX_VALUE]
+                       (if (< (+ start interval-size) n)
+                         (let [end (+ start interval-size)
+                               d (distance-at dist-arr n start end)]
+                           (recur (inc start) (Math/min md d)))
+                         md)))]
+          (aset result (int span) min-d)))
+      result)
+    ;; For k>1, build on k-1 solution
+    (let [^doubles prev-mins (compute-interval-distances dist-arr n (dec k))
+          prev-len (long (alength prev-mins))
+          result-len (- n k)
+          result (double-array result-len)]
+      (dotimes [span result-len]
+        (let [total-span (long (+ span k 1))
+              min-d (double
+                     (loop [new-int-size (long 2)
+                            md Double/MAX_VALUE]
+                       (if (<= new-int-size (- total-span (* 2 (dec k))))
+                         (let [prev-span (long (- total-span new-int-size))
+                               prev-idx (long (- prev-span k))
+                               prev-d (if (and (>= prev-idx 0) (< prev-idx prev-len))
+                                        (aget prev-mins prev-idx)
+                                        Double/MAX_VALUE)
+                               new-d (loop [start (long (- total-span new-int-size))
+                                            nd Double/MAX_VALUE]
+                                       (if (>= start prev-span)
+                                         (if (< (+ start new-int-size) n)
+                                           (let [end (+ start (dec new-int-size))
+                                                 d (distance-at dist-arr n start end)]
+                                             (recur (dec start) (Math/min nd d)))
+                                           (recur (dec start) nd))
+                                         nd))]
+                           (recur (inc new-int-size) (Math/min md (+ prev-d (double new-d)))))
+                         md)))]
+          (aset result (int span) min-d)))
+      result)))
+
+(defn excess-mass
+  "Compute excess mass statistic for testing k modes.
+  
+  The excess mass test statistic is max_λ{E_{n,k+1}(P_n,λ) - E_{n,k}(P_n,λ)}
+  where E_{n,k}(P_n,λ) = sup{∑P_n(C_m) - λ|C_m|} over k disjoint intervals
+  with endpoints at data points.
+  
+  Parameters:
+  - data: sample values (will be sorted internally)
+  - k: number of modes to test (tests H0: at most k modes)
+  - opts: optional map with:
+    - :rng-factory: RNG factory for jitter (default: WELL RNG)
+  
+  Returns map with:
+  - :statistic - the excess mass test statistic
+  - :k - number of modes tested
+  - :n - sample size
+  
+  Reference: Müller, D.W. and Sawitzki, G. (1991) 'Excess Mass Estimates
+  and Tests for Multimodality' JASA 86, 738-746"
+  ([data k] (excess-mass data k {}))
+  ([data k {:keys [rng-factory]
+            :or {rng-factory #(well/well-rng-1024a)}}]
+   (let [data (vec data)
+         n (long (count data))
+         k (long k)]
+     (when (< n 3)
+       (throw (ex-info "Need at least 3 data points for excess mass"
+                       {:error :excess-mass/insufficient-data
+                        :n n})))
+     (when (< k 1)
+       (throw (ex-info "k must be at least 1"
+                       {:error :excess-mass/invalid-k
+                        :k k})))
+     (let [sorted-data (double-array (sort data))
+           ;; Check for ties and add jitter if needed
+           has-ties? (loop [i (long 1)]
+                       (if (< i n)
+                         (if (= (aget sorted-data i) (aget sorted-data (dec i)))
+                           true
+                           (recur (inc i)))
+                         false))
+           sorted-data (if has-ties?
+                         (let [jittered (add-jitter sorted-data (rng-factory))]
+                           (java.util.Arrays/sort jittered)
+                           jittered)
+                         sorted-data)
+           ;; Build distance matrix
+           dist-arr (build-distance-matrix sorted-data)
+           nd (double n)
+           ;; Compute min distances for spans of k and k+1 intervals
+           ^doubles min-dist-k (compute-interval-distances dist-arr n k)
+           ^doubles min-dist-k1 (compute-interval-distances dist-arr n (inc k))
+           len-k (long (alength min-dist-k))
+           len-k1 (long (alength min-dist-k1))
+           ;; Find all possible lambda values where transitions occur
+           lambdas (atom #{})
+           _ (dotimes [i (dec len-k)]
+               (let [i (long i)
+                     p1 (/ (double (+ i k 1)) nd)
+                     p2 (/ (double (+ i k 2)) nd)
+                     d1 (aget min-dist-k i)
+                     d2 (aget min-dist-k (inc i))
+                     dd (double (- d2 d1))]
+                 (when (> (Math/abs dd) 1e-15)
+                   (let [lam (/ (- p2 p1) dd)]
+                     (when (pos? lam)
+                       (swap! lambdas conj lam))))))
+           _ (dotimes [i (dec len-k1)]
+               (let [i (long i)
+                     p1 (/ (double (+ i k 2)) nd)
+                     p2 (/ (double (+ i k 3)) nd)
+                     d1 (aget min-dist-k1 i)
+                     d2 (aget min-dist-k1 (inc i))
+                     dd (double (- d2 d1))]
+                 (when (> (Math/abs dd) 1e-15)
+                   (let [lam (/ (- p2 p1) dd)]
+                     (when (pos? lam)
+                       (swap! lambdas conj lam))))))
+           lambda-vec (vec (sort @lambdas))
+           ;; For each lambda, compute excess mass difference
+           compute-em (fn ^double [^double lam ^long num-k ^doubles min-dists ^long len]
+                        (loop [span (long 0)
+                               max-em Double/NEGATIVE_INFINITY]
+                          (if (< span len)
+                            (let [p (/ (double (+ span num-k 1)) nd)
+                                  d (aget min-dists span)
+                                  em (- p (* lam d))]
+                              (recur (inc span) (Math/max max-em em)))
+                            max-em)))
+           ;; Compute max difference over all lambdas
+           max-diff (double
+                     (if (empty? lambda-vec)
+                       (let [lam 1.0
+                             em-k (double (compute-em lam k min-dist-k len-k))
+                             em-k1 (double (compute-em lam (inc k) min-dist-k1 len-k1))]
+                         (- em-k1 em-k))
+                       (loop [idx (long 0)
+                              max-d Double/NEGATIVE_INFINITY]
+                         (if (< idx (count lambda-vec))
+                           (let [lam (double (nth lambda-vec idx))
+                                 em-k (double (compute-em lam k min-dist-k len-k))
+                                 em-k1 (double (compute-em lam (inc k) min-dist-k1 len-k1))
+                                 d (- em-k1 em-k)]
+                             (recur (inc idx) (Math/max max-d d)))
+                           max-d))))]
+       {:statistic (Math/max 0.0 max-diff)
+        :k k
+        :n n}))))
+
 ;;; DCT-II implementation
 
 (defn dct-ii

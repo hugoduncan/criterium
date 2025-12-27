@@ -252,6 +252,66 @@
         (is (>= (:p-value result) 0.01)
             "Gaussian unimodal data should not strongly reject single mode")))))
 
+(deftest excess-mass-test
+  ;; Tests the excess mass statistic (Müller-Sawitzki 1991) for multimodality.
+  ;; Verifies the algorithm correctly distinguishes unimodal from multimodal data.
+  (testing "excess-mass"
+    (testing "returns correct structure"
+      (let [data (range 10 110)
+            result (kde/excess-mass data 1)]
+        (is (= 1 (:k result)))
+        (is (= 100 (:n result)))
+        (is (number? (:statistic result)))
+        (is (>= (:statistic result) 0) "statistic should be non-negative")))
+
+    (testing "handles small data"
+      (let [result (kde/excess-mass [1 2 3 4 5] 1)]
+        (is (number? (:statistic result)))))
+
+    (testing "rejects insufficient data"
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"at least 3"
+                            (kde/excess-mass [1 2] 1))))
+
+    (testing "rejects invalid k"
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"at least 1"
+                            (kde/excess-mass [1 2 3 4 5] 0))))
+
+    (testing "unimodal data has small excess mass for k=1"
+      ;; Uniform data is clearly unimodal
+      (let [data (range 0 100)
+            result (kde/excess-mass data 1)]
+        (is (< (:statistic result) 0.2)
+            "Uniform data should have small excess mass for k=1")))
+
+    (testing "bimodal data has larger excess mass for k=1"
+      ;; Two well-separated random clusters
+      (let [cluster1 (repeatedly 50 rand) ;; [0, 1)
+            cluster2 (repeatedly 50 #(+ 5.0 (rand))) ;; [5, 6)
+            data (concat cluster1 cluster2)
+            em-k1 (:statistic (kde/excess-mass data 1))
+            em-k2 (:statistic (kde/excess-mass data 2))]
+        (is (> em-k1 0.2)
+            (str "Bimodal data should have larger excess mass for k=1, got: " em-k1))
+        (is (< em-k2 em-k1)
+            "Bimodal data should have smaller excess mass for k=2 than k=1")))
+
+    (testing "handles ties in data via jitter"
+      ;; Data with many repeated values
+      (let [data (concat (repeat 30 1.0) (repeat 30 5.0) (repeat 30 10.0))
+            result (kde/excess-mass data 1)]
+        (is (number? (:statistic result))
+            "Should handle ties without error")))
+
+    (testing "statistic increases with more modes"
+      ;; Compare unimodal vs bimodal random data for k=1
+      (let [unimodal (repeatedly 100 rand)
+            bimodal (concat (repeatedly 50 rand)
+                            (repeatedly 50 #(+ 5.0 (rand))))
+            em-unimodal (:statistic (kde/excess-mass unimodal 1))
+            em-bimodal (:statistic (kde/excess-mass bimodal 1))]
+        (is (< em-unimodal em-bimodal)
+            "Bimodal data should have larger excess mass than unimodal")))))
+
 (deftest mode-confidence-intervals-test
   ;; Tests mode confidence interval computation.
   (testing "mode-confidence-intervals"
