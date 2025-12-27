@@ -425,6 +425,10 @@
       :method      - Test method, :acr (default) or :silverman
                      :acr uses excess mass statistic (better calibrated)
                      :silverman uses bootstrap mode count
+      :mode-method - Mode finding method (default: :isj)
+                     :isj - find modes from KDE density at ISJ bandwidth
+                     :critical - find modes at critical bandwidth for validated k
+                     When :critical, output includes :antimodes and :mode-bandwidth
 
   The returned function:
   - Takes a data map containing KDE and samples
@@ -433,6 +437,9 @@
     - modes: detected peaks with CIs and significance flags
     - n-modes: statistically validated mode count
     - test-results: p-values, critical bandwidths, and method used
+    - When :mode-method is :critical:
+      - antimodes: local minima between modes
+      - mode-bandwidth: critical bandwidth used for mode finding
 
   Example:
   (let [analyze (comp (modes) (kde))
@@ -440,7 +447,7 @@
     (get-in result [:modes :elapsed-time :n-modes]))"
   ([] (modes {}))
   ([{:keys [id kde-id samples-id outliers-id metric-ids max-modes n-bootstrap alpha
-            method]
+            method mode-method]
      :as _options}]
    (let [id (or id :modes)
          kde-id (or kde-id :kde)
@@ -461,7 +468,8 @@
                                  max-modes (assoc :max-modes max-modes)
                                  n-bootstrap (assoc :n-bootstrap n-bootstrap)
                                  alpha (assoc :alpha alpha)
-                                 method (assoc :method method))
+                                 method (assoc :method method)
+                                 mode-method (assoc :mode-method mode-method))
                  modes-result (methods/modes
                                kde-map
                                samples

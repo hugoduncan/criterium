@@ -210,15 +210,18 @@
   Takes KDE output and raw samples, runs multimodality test for k=1 up to max-modes,
   and computes confidence intervals for detected modes.
 
-  Supports two test methods:
-  - :acr (default) - ACR test using excess mass statistic, better calibrated
-  - :silverman - Silverman's bootstrap test using mode count"
+  Options:
+  - :method - test method, :acr (default) or :silverman
+  - :mode-method - mode finding method:
+    - :isj (default) - find modes from KDE density at ISJ bandwidth
+    - :critical - find modes at critical bandwidth for validated k modes
+  - :max-modes, :n-bootstrap, :alpha, :n-points - as usual"
   [kde-data samples outliers metric-config options]
   (try
     (let [{:keys [grid density bandwidth]} kde-data
-          {:keys [max-modes n-bootstrap alpha n-points method]
+          {:keys [max-modes n-bootstrap alpha n-points method mode-method]
            :or {max-modes 5 n-bootstrap 200 alpha 0.05 n-points 512
-                method :acr}} options
+                method :acr mode-method :isj}} options
           max-modes (long max-modes)
           alpha (double alpha)
           test-fn (case method
@@ -230,7 +233,7 @@
           samples (if-let [ols (:outliers outliers-data)]
                     (remove-outliers samples ols)
                     samples)
-          ;; Find modes from existing KDE density
+          ;; Find modes from existing KDE density (for initial mode count)
           grid-arr (double-array grid)
           density-arr (double-array density)
           all-modes (kde/find-modes grid-arr density-arr)
@@ -250,11 +253,37 @@
                                     k))
                                 (range 1 (inc (min max-modes n-all-modes))))
                           n-all-modes)
-          ;; Compute confidence intervals for modes
-          modes-with-ci (kde/mode-confidence-intervals
-                         samples bandwidth grid-arr validated-k
-                         {:n-bootstrap n-bootstrap
-                          :alpha alpha})
+          ;; Get mode locations based on mode-method
+          {:keys [modes-with-ci mode-bandwidth antimodes]}
+          (case mode-method
+            :critical
+            ;; Use critical bandwidth to find modes
+            (let [locate-result (kde/locate-modes samples validated-k
+                                                  {:n-points n-points})
+                  h-crit (:critical-bandwidth locate-result)
+                  ;; Build mode CIs at critical bandwidth
+                  sample-min (double (reduce min samples))
+                  sample-max (double (reduce max samples))
+                  sample-range (- sample-max sample-min)
+                  grid-step (/ sample-range (double (dec (long n-points))))
+                  crit-grid (double-array (range sample-min
+                                                 (+ sample-max 0.1)
+                                                 grid-step))
+                  modes-ci (kde/mode-confidence-intervals
+                            samples h-crit crit-grid validated-k
+                            {:n-bootstrap n-bootstrap
+                             :alpha alpha})]
+              {:modes-with-ci modes-ci
+               :mode-bandwidth h-crit
+               :antimodes (:antimodes locate-result)})
+
+            ;; :isj - use existing KDE density from ISJ bandwidth
+            {:modes-with-ci (kde/mode-confidence-intervals
+                             samples bandwidth grid-arr validated-k
+                             {:n-bootstrap n-bootstrap
+                              :alpha alpha})
+             :mode-bandwidth bandwidth
+             :antimodes nil})
           ;; Mark significance based on test results
           modes-with-significance
           (vec (map-indexed
@@ -265,18 +294,22 @@
                                           (< (double (:p-value test-result)) alpha))]
                     (assoc mode :significant? significant?)))
                 modes-with-ci))]
-      {:modes modes-with-significance
-       :n-modes validated-k
-       :test-results {:method method
-                      :k-tested (vec (keys test-results))
-                      :p-values (into {} (map (fn [[k v]] [k (:p-value v)])
-                                              test-results))
-                      :critical-bandwidths (into {} (map (fn [[k v]]
-                                                           [k (:critical-bandwidth v)])
-                                                         test-results))
-                      :excess-mass (when (= method :acr)
-                                     (into {} (map (fn [[k v]] [k (:excess-mass v)])
-                                                   test-results)))}})
+      (cond-> {:modes modes-with-significance
+               :n-modes validated-k
+               :test-results {:method method
+                              :k-tested (vec (keys test-results))
+                              :p-values (into {} (map (fn [[k v]] [k (:p-value v)])
+                                                      test-results))
+                              :critical-bandwidths (into {} (map (fn [[k v]]
+                                                                   [k (:critical-bandwidth v)])
+                                                                 test-results))
+                              :excess-mass (when (= method :acr)
+                                             (into {} (map (fn [[k v]] [k (:excess-mass v)])
+                                                           test-results)))}}
+        ;; Include mode-method and mode-bandwidth when using critical
+        (= mode-method :critical) (assoc :mode-method :critical
+                                         :mode-bandwidth mode-bandwidth
+                                         :antimodes antimodes)))
     (catch Exception e
       (when-not (#{:kde/no-data :kde/constant-data}
                  (:error (ex-data e)))

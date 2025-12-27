@@ -487,4 +487,63 @@
         (is (map? (:test-results elapsed-modes)))
         (is (contains? (:test-results elapsed-modes) :k-tested))
         (is (contains? (:test-results elapsed-modes) :p-values))
-        (is (contains? (:test-results elapsed-modes) :critical-bandwidths))))))
+        (is (contains? (:test-results elapsed-modes) :critical-bandwidths))))
+
+    (testing "with :mode-method :critical"
+      (testing "includes antimodes and mode-bandwidth"
+        (let [raw-data (mapv #(+ 100.0 (* 0.5 %)) (range 50))
+              samples (metrics-samples {[:elapsed-time] raw-data} 1)
+              data-map {:samples samples}
+              with-log ((analyse/transform-log {:id :log-samples
+                                                :samples-id :samples})
+                        data-map)
+              with-kde ((analyse/kde {:n-bootstrap 10 :n-points 64}) with-log)
+              result ((analyse/modes {:n-bootstrap 10 :mode-method :critical})
+                      with-kde)
+              modes-data (:modes result)
+              elapsed-modes (get-in modes-data [:modes [:elapsed-time]])]
+          (is (= :critical (:mode-method elapsed-modes))
+              "should record mode-method in output")
+          (is (number? (:mode-bandwidth elapsed-modes))
+              "should include mode-bandwidth")
+          (is (vector? (:antimodes elapsed-modes))
+              "should include antimodes vector")))
+
+      (testing "for multimodal data produces antimodes"
+        (let [;; Create well-separated bimodal data (log-transform will be applied)
+              ;; Use exponential values so log-transform creates clearly separated modes
+              raw-data (concat
+                        (mapv #(* (Math/exp 1.0) (+ 1.0 (* 0.01 %))) (range 30))
+                        (mapv #(* (Math/exp 5.0) (+ 1.0 (* 0.01 %))) (range 30)))
+              samples (metrics-samples {[:elapsed-time] (vec raw-data)} 1)
+              data-map {:samples samples}
+              with-log ((analyse/transform-log {:id :log-samples
+                                                :samples-id :samples})
+                        data-map)
+              with-kde ((analyse/kde {:n-bootstrap 10 :n-points 64}) with-log)
+              result ((analyse/modes {:n-bootstrap 10 :mode-method :critical})
+                      with-kde)
+              elapsed-modes (get-in result [:modes :modes [:elapsed-time]])]
+          ;; Antimodes vector should exist for :critical method
+          (is (vector? (:antimodes elapsed-modes))
+              "antimodes should be a vector")
+          ;; When we have multiple modes, there should be antimodes between them
+          (when (> (:n-modes elapsed-modes) 1)
+            (is (pos? (count (:antimodes elapsed-modes)))
+                "multiple modes should have at least one antimode"))))
+
+      (testing "with :isj (default) does not include antimodes"
+        (let [raw-data (mapv #(+ 100.0 (* 0.5 %)) (range 50))
+              samples (metrics-samples {[:elapsed-time] raw-data} 1)
+              data-map {:samples samples}
+              with-log ((analyse/transform-log {:id :log-samples
+                                                :samples-id :samples})
+                        data-map)
+              with-kde ((analyse/kde {:n-bootstrap 10 :n-points 64}) with-log)
+              result ((analyse/modes {:n-bootstrap 10 :mode-method :isj})
+                      with-kde)
+              elapsed-modes (get-in result [:modes :modes [:elapsed-time]])]
+          (is (nil? (:mode-method elapsed-modes))
+              "should not include mode-method for :isj")
+          (is (nil? (:antimodes elapsed-modes))
+              "should not include antimodes for :isj"))))))
