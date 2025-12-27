@@ -39,7 +39,8 @@
 
 (defmulti modes
   "Calculate mode analysis with statistical validation.
-  Takes KDE output and computes modes with Silverman's test for significance.
+  Takes KDE output and computes modes with multimodality testing for significance.
+  Supports :acr (default) and :silverman test methods via :method option.
   Returns nil if raw sample data is not available."
   (fn [kde-map _samples _outliers _metric-configs _options]
     (:type kde-map)))

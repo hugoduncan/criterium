@@ -408,9 +408,9 @@
 (defn modes
   "Calculate statistically validated mode analysis for KDE output.
 
-  Returns a function that computes modes with Silverman's test for significance.
+  Returns a function that computes modes with multimodality testing for significance.
   Tests from k=1 up to max-modes to determine the statistically supported
-  number of modes. For k=1, applies Hall-York correction for better calibration.
+  number of modes.
 
   Parameters:
     opts - Optional map with keys:
@@ -420,8 +420,11 @@
       :outliers-id - Key for outlier data (default: :outliers)
       :metric-ids  - Set of metric ids to analyze (default: all from KDE)
       :max-modes   - Maximum modes to test (default: 5)
-      :n-bootstrap - Bootstrap samples for CIs and Silverman test (default: 200)
+      :n-bootstrap - Bootstrap samples for CIs and test (default: 200)
       :alpha       - Significance level (default: 0.05)
+      :method      - Test method, :acr (default) or :silverman
+                     :acr uses excess mass statistic (better calibrated)
+                     :silverman uses bootstrap mode count
 
   The returned function:
   - Takes a data map containing KDE and samples
@@ -429,14 +432,15 @@
   - For each metric provides:
     - modes: detected peaks with CIs and significance flags
     - n-modes: statistically validated mode count
-    - silverman: test results with p-values and critical bandwidths
+    - test-results: p-values, critical bandwidths, and method used
 
   Example:
   (let [analyze (comp (modes) (kde))
         result (analyze {:log-samples {...}})]
     (get-in result [:modes :elapsed-time :n-modes]))"
   ([] (modes {}))
-  ([{:keys [id kde-id samples-id outliers-id metric-ids max-modes n-bootstrap alpha]
+  ([{:keys [id kde-id samples-id outliers-id metric-ids max-modes n-bootstrap alpha
+            method]
      :as _options}]
    (let [id (or id :modes)
          kde-id (or kde-id :kde)
@@ -456,7 +460,8 @@
                  modes-options (cond-> {}
                                  max-modes (assoc :max-modes max-modes)
                                  n-bootstrap (assoc :n-bootstrap n-bootstrap)
-                                 alpha (assoc :alpha alpha))
+                                 alpha (assoc :alpha alpha)
+                                 method (assoc :method method))
                  modes-result (methods/modes
                                kde-map
                                samples

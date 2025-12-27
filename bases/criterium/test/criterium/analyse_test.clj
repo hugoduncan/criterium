@@ -430,3 +430,61 @@
         (is (< grid-max 200) "grid should not extend to outlier value")
         (is (= :outliers (:outliers-id kde-data))
             "should record outliers-id in output")))))
+
+(deftest modes-test
+  ;; Tests analyse/modes function for multimodality testing.
+  ;; Verifies ACR (default) and Silverman methods work correctly
+  ;; and produce expected output structure.
+  (testing "modes"
+    (testing "uses ACR test by default"
+      (let [raw-data (mapv #(+ 100.0 (* 0.5 %)) (range 50))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            with-log ((analyse/transform-log {:id :log-samples
+                                              :samples-id :samples})
+                      data-map)
+            with-kde ((analyse/kde {:n-bootstrap 10 :n-points 64}) with-log)
+            result ((analyse/modes {:n-bootstrap 10}) with-kde)]
+        (is (contains? result :modes))
+        (let [modes-data (:modes result)
+              elapsed-modes (get-in modes-data [:modes [:elapsed-time]])]
+          (is (= :acr (get-in elapsed-modes [:test-results :method]))
+              "should use ACR method by default")
+          (is (contains? (:test-results elapsed-modes) :excess-mass)
+              "ACR results should include excess-mass"))))
+
+    (testing "supports Silverman method via :method option"
+      (let [raw-data (mapv #(+ 100.0 (* 0.5 %)) (range 50))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            with-log ((analyse/transform-log {:id :log-samples
+                                              :samples-id :samples})
+                      data-map)
+            with-kde ((analyse/kde {:n-bootstrap 10 :n-points 64}) with-log)
+            result ((analyse/modes {:n-bootstrap 10 :method :silverman}) with-kde)]
+        (is (contains? result :modes))
+        (let [modes-data (:modes result)
+              elapsed-modes (get-in modes-data [:modes [:elapsed-time]])]
+          (is (= :silverman (get-in elapsed-modes [:test-results :method]))
+              "should use Silverman method when specified")
+          (is (nil? (get-in elapsed-modes [:test-results :excess-mass]))
+              "Silverman results should not include excess-mass"))))
+
+    (testing "returns correct output structure"
+      (let [raw-data (mapv #(+ 100.0 (* 0.5 %)) (range 50))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            with-log ((analyse/transform-log {:id :log-samples
+                                              :samples-id :samples})
+                      data-map)
+            with-kde ((analyse/kde {:n-bootstrap 10 :n-points 64}) with-log)
+            result ((analyse/modes {:n-bootstrap 10}) with-kde)
+            modes-data (:modes result)
+            elapsed-modes (get-in modes-data [:modes [:elapsed-time]])]
+        (is (= :criterium/modes (:type modes-data)))
+        (is (vector? (:modes elapsed-modes)))
+        (is (number? (:n-modes elapsed-modes)))
+        (is (map? (:test-results elapsed-modes)))
+        (is (contains? (:test-results elapsed-modes) :k-tested))
+        (is (contains? (:test-results elapsed-modes) :p-values))
+        (is (contains? (:test-results elapsed-modes) :critical-bandwidths))))))

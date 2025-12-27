@@ -206,16 +206,24 @@
 
 (defn modes-for-metric
   "Compute modes with statistical validation for a single metric.
-  
-  Takes KDE output and raw samples, runs Silverman's test for k=1 up to max-modes,
-  and computes confidence intervals for detected modes."
+
+  Takes KDE output and raw samples, runs multimodality test for k=1 up to max-modes,
+  and computes confidence intervals for detected modes.
+
+  Supports two test methods:
+  - :acr (default) - ACR test using excess mass statistic, better calibrated
+  - :silverman - Silverman's bootstrap test using mode count"
   [kde-data samples outliers metric-config options]
   (try
     (let [{:keys [grid density bandwidth]} kde-data
-          {:keys [max-modes n-bootstrap alpha n-points]
-           :or {max-modes 5 n-bootstrap 200 alpha 0.05 n-points 512}} options
+          {:keys [max-modes n-bootstrap alpha n-points method]
+           :or {max-modes 5 n-bootstrap 200 alpha 0.05 n-points 512
+                method :acr}} options
           max-modes (long max-modes)
           alpha (double alpha)
+          test-fn (case method
+                    :acr kde/acr-test
+                    :silverman kde/silverman-test)
           p (:path metric-config)
           ;; Filter outliers from samples
           outliers-data (get-in outliers p)
@@ -227,18 +235,18 @@
           density-arr (double-array density)
           all-modes (kde/find-modes grid-arr density-arr)
           n-all-modes (long (count all-modes))
-          ;; Run Silverman's test for each k from 1 to max-modes
-          silverman-results
+          ;; Run multimodality test for each k from 1 to max-modes
+          test-results
           (into {}
                 (for [k (range 1 (inc (min max-modes n-all-modes)))]
-                  [k (kde/silverman-test samples k
-                                         {:n-bootstrap n-bootstrap
-                                          :n-points n-points
-                                          :alpha alpha})]))
+                  [k (test-fn samples k
+                              {:n-bootstrap n-bootstrap
+                               :n-points n-points
+                               :alpha alpha})]))
           ;; Determine validated number of modes
           ;; Find smallest k where p-value >= alpha (fail to reject H0: <= k modes)
           validated-k (or (some (fn [k]
-                                  (when (>= (double (get-in silverman-results [k :p-value])) alpha)
+                                  (when (>= (double (get-in test-results [k :p-value])) alpha)
                                     k))
                                 (range 1 (inc (min max-modes n-all-modes))))
                           n-all-modes)
@@ -247,24 +255,28 @@
                          samples bandwidth grid-arr validated-k
                          {:n-bootstrap n-bootstrap
                           :alpha alpha})
-          ;; Mark significance based on Silverman results
+          ;; Mark significance based on test results
           modes-with-significance
           (vec (map-indexed
                 (fn [i mode]
                   (let [k (inc (long i))
-                        test-result (get silverman-results k)
+                        test-result (get test-results k)
                         significant? (and test-result
                                           (< (double (:p-value test-result)) alpha))]
                     (assoc mode :significant? significant?)))
                 modes-with-ci))]
       {:modes modes-with-significance
        :n-modes validated-k
-       :silverman {:k-tested (vec (keys silverman-results))
-                   :p-values (into {} (map (fn [[k v]] [k (:p-value v)])
-                                           silverman-results))
-                   :critical-bandwidths (into {} (map (fn [[k v]]
-                                                        [k (:critical-bandwidth v)])
-                                                      silverman-results))}})
+       :test-results {:method method
+                      :k-tested (vec (keys test-results))
+                      :p-values (into {} (map (fn [[k v]] [k (:p-value v)])
+                                              test-results))
+                      :critical-bandwidths (into {} (map (fn [[k v]]
+                                                           [k (:critical-bandwidth v)])
+                                                         test-results))
+                      :excess-mass (when (= method :acr)
+                                     (into {} (map (fn [[k v]] [k (:excess-mass v)])
+                                                   test-results)))}})
     (catch Exception e
       (when-not (#{:kde/no-data :kde/constant-data}
                  (:error (ex-data e)))
