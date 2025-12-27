@@ -6,6 +6,11 @@
    [clojure.test :refer [deftest is testing]]
    [criterium.util.kde :as kde]))
 
+(defn rand-double
+  "Returns a random double between 0 and 1."
+  ^double []
+  (clojure.core/rand))
+
 (deftest silverman-bandwidth-test
   ;; Tests Silverman's rule of thumb bandwidth selector against
   ;; expected values for known distributions.
@@ -44,20 +49,20 @@
   ;; estimation properties.
   (testing "gaussian-kde"
     (testing "density integrates to approximately 1"
-      (let [data [1.0 2.0 3.0 4.0 5.0]
-            h 1.0
-            grid (double-array (range 0.0 6.0 0.1))
+      (let [data    [1.0 2.0 3.0 4.0 5.0]
+            h       1.0
+            grid    (double-array (range 0.0 6.0 0.1))
             density (kde/gaussian-kde data h grid)
-            dx 0.1
-            total (* dx (reduce + density))]
+            dx      0.1
+            total   (* dx (double (reduce + density)))]
         (is (< (Math/abs (- total 1.0)) 0.1)
             "density should integrate to approximately 1")))
 
     (testing "density is highest near data concentration"
-      (let [data (double-array (repeat 10 5.0))
-            h 1.0
-            grid (double-array [0.0 2.5 5.0 7.5 10.0])
-            density (kde/gaussian-kde (vec data) h grid)]
+      (let [data             (double-array (repeat 10 5.0))
+            h                1.0
+            grid             (double-array [0.0 2.5 5.0 7.5 10.0])
+            ^doubles density (kde/gaussian-kde (vec data) h grid)]
         (is (> (aget density 2) (aget density 0))
             "density at mode should be higher than at edges")
         (is (> (aget density 2) (aget density 4))
@@ -165,16 +170,16 @@
   ;; Tests linear binning for correct distribution of weights.
   (testing "linear-bin"
     (testing "weights sum to 1"
-      (let [data [1.0 2.0 3.0 4.0 5.0]
-            grid (double-array [0.0 2.0 4.0 6.0])
-            weights (kde/linear-bin data grid)
-            total (reduce + weights)]
+      (let [data          [1.0 2.0 3.0 4.0 5.0]
+            grid          (double-array [0.0 2.0 4.0 6.0])
+            weights       (kde/linear-bin data grid)
+            ^double total (reduce + weights)]
         (is (< (Math/abs (- total 1.0)) 0.0001)
             "weights should sum to 1")))
 
     (testing "data at grid point goes to that bin"
-      (let [data [2.0]
-            grid (double-array [0.0 2.0 4.0 6.0])
+      (let [data    [2.0]
+            grid    (double-array [0.0 2.0 4.0 6.0])
             weights (kde/linear-bin data grid)]
         (is (> (aget weights 1) 0.9)
             "weight should be concentrated at matching grid point")))))
@@ -240,8 +245,8 @@
             normals (loop [i 0 result []]
                       (if (>= i n)
                         result
-                        (let [u1 (max 1e-10 (rand))
-                              u2 (rand)
+                        (let [u1 (max 1e-10 (rand-double))
+                              u2 (rand-double)
                               z (* (Math/sqrt (* -2.0 (Math/log u1)))
                                    (Math/cos (* 2.0 Math/PI u2)))
                               ;; N(50, 10^2)
@@ -271,8 +276,8 @@
             normals (loop [i 0 result []]
                       (if (>= i n)
                         result
-                        (let [u1 (max 1e-10 (rand))
-                              u2 (rand)
+                        (let [u1 (max 1e-10 (rand-double))
+                              u2 (rand-double)
                               z (* (Math/sqrt (* -2.0 (Math/log u1)))
                                    (Math/cos (* 2.0 Math/PI u2)))
                               x (+ 50.0 (* 10.0 z))]
@@ -283,16 +288,16 @@
 
     (testing "bimodal data should reject k=1"
       ;; Well-separated bimodal data
-      (let [cluster1 (repeatedly 100 #(+ -2.0 (* 0.5 (- (rand) 0.5))))
-            cluster2 (repeatedly 100 #(+ 2.0 (* 0.5 (- (rand) 0.5))))
+      (let [cluster1 (repeatedly 100 #(+ -2.0 (* 0.5 (- (rand-double) 0.5))))
+            cluster2 (repeatedly 100 #(+ 2.0 (* 0.5 (- (rand-double) 0.5))))
             data (concat cluster1 cluster2)
             result (kde/acr-test data 1 {:n-bootstrap 50})]
         (is (<= (:p-value result) 0.1)
             "Bimodal data should reject single mode hypothesis")))
 
     (testing "bimodal data should not reject k=2"
-      (let [cluster1 (repeatedly 100 #(+ -2.0 (* 0.5 (- (rand) 0.5))))
-            cluster2 (repeatedly 100 #(+ 2.0 (* 0.5 (- (rand) 0.5))))
+      (let [cluster1 (repeatedly 100 #(+ -2.0 (* 0.5 (- (rand-double) 0.5))))
+            cluster2 (repeatedly 100 #(+ 2.0 (* 0.5 (- (rand-double) 0.5))))
             data (concat cluster1 cluster2)
             result (kde/acr-test data 2 {:n-bootstrap 50})]
         (is (>= (:p-value result) 0.01)
@@ -332,7 +337,7 @@
     (testing "bimodal data has larger excess mass for k=1"
       ;; Two well-separated random clusters
       (let [cluster1 (repeatedly 50 rand) ;; [0, 1)
-            cluster2 (repeatedly 50 #(+ 5.0 (rand))) ;; [5, 6)
+            cluster2 (repeatedly 50 #(+ 5.0 (rand-double))) ;; [5, 6)
             data (concat cluster1 cluster2)
             em-k1 (:statistic (kde/excess-mass data 1))
             em-k2 (:statistic (kde/excess-mass data 2))]
@@ -352,7 +357,7 @@
       ;; Compare unimodal vs bimodal random data for k=1
       (let [unimodal (repeatedly 100 rand)
             bimodal (concat (repeatedly 50 rand)
-                            (repeatedly 50 #(+ 5.0 (rand))))
+                            (repeatedly 50 #(+ 5.0 (rand-double))))
             em-unimodal (:statistic (kde/excess-mass unimodal 1))
             em-bimodal (:statistic (kde/excess-mass bimodal 1))]
         (is (< em-unimodal em-bimodal)
