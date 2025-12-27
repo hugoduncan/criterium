@@ -620,6 +620,7 @@
   "Build mode marker layers for KDE visualization.
   Takes modes-data from separate modes analysis (not from kde-data).
   Uses 'kde-density' field to match KDE curve scale.
+  Uses shape (not color) for significance to avoid color scale conflicts.
   Returns a vector of Vega-Lite layer specs (point markers and CI rules)."
   [modes-data metric-config transforms]
   (let [modes (:modes modes-data)
@@ -634,14 +635,16 @@
                    modes)]
     (when (seq data)
       ;; Return a vector of individual layers to avoid nested layer structure
+      ;; Use shape instead of color for significance to avoid color scale conflicts
       [{:data {:values data}
-        :mark {:type "point" :size 100}
+        :mark {:type "point" :size 150 :filled true}
         :encoding {:x {:field field-name :type "quantitative"}
                    :y {:field "kde-density" :type "quantitative"}
-                   :color {:field "significant" :type "nominal"
+                   :shape {:field "significant" :type "nominal"
                            :scale {:domain ["yes" "no"]
-                                   :range ["red" "orange"]}
-                           :legend {:title "Significant"}}
+                                   :range ["circle" "triangle-up"]}
+                           :legend {:title "Significant Mode"}}
+                   :color {:value "red"}
                    :tooltip [{:field field-name :type "quantitative"
                               :title "Mode Location"}
                              {:field "kde-density" :type "quantitative"
@@ -653,13 +656,15 @@
                              {:field "significant" :type "nominal"
                               :title "Significant"}]}}
        {:data {:values data}
-        :mark {:type "rule" :strokeWidth 1 :strokeDash [4 4]}
+        :mark {:type "rule" :strokeWidth 2}
         :encoding {:x {:field "ci-lower" :type "quantitative"}
                    :x2 {:field "ci-upper"}
                    :y {:field "kde-density" :type "quantitative"}
-                   :color {:field "significant" :type "nominal"
-                           :scale {:domain ["yes" "no"]
-                                   :range ["red" "orange"]}}}}])))
+                   :color {:value "red"}
+                   :strokeDash {:field "significant" :type "nominal"
+                                :scale {:domain ["yes" "no"]
+                                        :range [[1 0] [4 4]]}
+                                :legend nil}}}])))
 
 (defn kde-vega-spec
   "Build a complete Vega-Lite spec for KDE visualization.
@@ -694,7 +699,7 @@
     {:data {:values []}
      :resolve {:scale {:x "independent"
                        :y "independent"
-                       :color "shared"}}
+                       :color "independent"}}
      :vconcat
      (mapv
       (fn [metric-config]
