@@ -3,6 +3,7 @@
   (:require
    [criterium.bench :as bench]
    [criterium.bench-plans :as bench-plans]
+   [criterium.measured :as measured]
    [criterium.notebook.helpers :refer [bench-display]]
    [scicloj.kindly.v4.kind :as kind]))
 
@@ -227,6 +228,7 @@
               [:quantiles {:quantiles [0.25 0.5 0.75]}]
               :outliers
               [:stats {}]
+              [:stats {:samples-id :log-samples :id :log-stats}]
               :histogram
               [:kde {:n-points 512}]
               [:modes {:max-modes 3 :mode-method :critical}]
@@ -303,34 +305,32 @@
 ;; You can compare results from both test methods:
 
 (defn compare-test-methods
-  "Run both ACR and Silverman tests and compare results."
-  [expr-fn]
-  (let [acr-plan bench-plans/kde-modes
-        silverman-plan (assoc-in bench-plans/kde-modes
-                                 [:analyse 7 1 :method] :silverman)]
-    ;; Run with ACR
-    (bench/bench-measured {:args-fn (fn [] [])
-                           :f expr-fn}
-                          {:bench-plan acr-plan
-                           :viewer :none})
+  "Run both ACR and Silverman tests and compare results.
+  Takes a measured (created with measured/callable or measured/expr)."
+  [m]
+  (let [silverman-plan (assoc-in bench-plans/kde-modes
+                                 [:analyse 7] [:modes {:method :silverman}])]
+    ;; Run with ACR (default method)
+    (bench/bench-measured
+     (bench/options->bench-plan :bench-plan bench-plans/kde-modes :viewer :none)
+     m)
     (let [acr-result (get-in (:data (bench/last-bench))
                              [:modes :modes [:elapsed-time]])]
       ;; Run with Silverman
-      (bench/bench-measured {:args-fn (fn [] [])
-                             :f expr-fn}
-                            {:bench-plan silverman-plan
-                             :viewer :none})
+      (bench/bench-measured
+       (bench/options->bench-plan :bench-plan silverman-plan :viewer :none)
+       m)
       (let [silv-result (get-in (:data (bench/last-bench))
                                 [:modes :modes [:elapsed-time]])]
-        {:acr {:n-modes (:n-modes acr-result)
-               :p-values (get-in acr-result [:test-results :p-values])
-               :excess-mass (get-in acr-result [:test-results :excess-mass])}
-         :silverman {:n-modes (:n-modes silv-result)
+        {:acr       {:n-modes     (:n-modes acr-result)
+                     :p-values    (get-in acr-result [:test-results :p-values])
+                     :excess-mass (get-in acr-result [:test-results :excess-mass])}
+         :silverman {:n-modes  (:n-modes silv-result)
                      :p-values (get-in silv-result [:test-results :p-values])}}))))
 
 ;; Compare results on the multimodal example:
-(kind/code
- "(compare-test-methods #(variable-work 100 (zero? (mod (rand-int 100) 3))))")
+(compare-test-methods
+ (measured/callable #(variable-work 100 (zero? (mod (rand-int 100) 3)))))
 
 ;; ## Comparing KDE to Histograms
 ;;
@@ -383,19 +383,19 @@
   ;; Access modes results programmatically
   (let [data (:data (bench/last-bench))]
     {:kde-bandwidth (get-in data [:kde :kdes [:elapsed-time] :bandwidth])
-     :n-modes (get-in data [:modes :modes [:elapsed-time] :n-modes])
-     :test-results (get-in data [:modes :modes [:elapsed-time] :test-results])
-     :excess-mass (get-in data [:modes :modes [:elapsed-time] :test-results :excess-mass])})
+     :n-modes       (get-in data [:modes :modes [:elapsed-time] :n-modes])
+     :test-results  (get-in data [:modes :modes [:elapsed-time] :test-results])
+     :excess-mass   (get-in data [:modes :modes [:elapsed-time] :test-results :excess-mass])})
 
   ;; Use Silverman test instead of ACR
   (bench/bench (reduce + (range 1000))
                :bench-plan (assoc-in bench-plans/kde-modes
-                                     [:analyse 7 1 :method] :silverman))
+                                     [:analyse 7] [:modes {:method :silverman}]))
 
   ;; Use critical bandwidth for mode finding
   (bench/bench (reduce + (range 1000))
                :bench-plan (assoc-in bench-plans/kde-modes
-                                     [:analyse 7 1 :mode-method] :critical))
+                                     [:analyse 7] [:modes {:mode-method :critical}]))
 
   ;; Custom options
   (bench/bench (reduce + (range 1000))
