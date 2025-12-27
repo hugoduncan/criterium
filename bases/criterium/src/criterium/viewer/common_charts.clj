@@ -617,10 +617,10 @@
                 :color {:value "#ff7f0e"}}}))
 
 (defn kde-modes-layer
-  "Build mode markers layer for KDE visualization.
+  "Build mode marker layers for KDE visualization.
   Takes modes-data from separate modes analysis (not from kde-data).
   Uses 'kde-density' field to match KDE curve scale.
-  Returns a Vega-Lite layer spec."
+  Returns a vector of Vega-Lite layer specs (point markers and CI rules)."
   [modes-data metric-config transforms]
   (let [modes (:modes modes-data)
         k (first (:path metric-config))
@@ -633,31 +633,33 @@
                        ci-upper (assoc "ci-upper" (util/transform-sample-> ci-upper transforms))))
                    modes)]
     (when (seq data)
-      {:data {:values data}
-       :layer [{:mark {:type "point" :size 100}
-                :encoding {:x {:field field-name :type "quantitative"}
-                           :y {:field "kde-density" :type "quantitative"}
-                           :color {:field "significant" :type "nominal"
-                                   :scale {:domain ["yes" "no"]
-                                           :range ["red" "orange"]}
-                                   :legend {:title "Significant"}}
-                           :tooltip [{:field field-name :type "quantitative"
-                                      :title "Mode Location"}
-                                     {:field "kde-density" :type "quantitative"
-                                      :title "Density"}
-                                     {:field "ci-lower" :type "quantitative"
-                                      :title "CI Lower"}
-                                     {:field "ci-upper" :type "quantitative"
-                                      :title "CI Upper"}
-                                     {:field "significant" :type "nominal"
-                                      :title "Significant"}]}}
-               {:mark {:type "rule" :strokeWidth 1 :strokeDash [4 4]}
-                :encoding {:x {:field "ci-lower" :type "quantitative"}
-                           :x2 {:field "ci-upper"}
-                           :y {:field "kde-density" :type "quantitative"}
-                           :color {:field "significant" :type "nominal"
-                                   :scale {:domain ["yes" "no"]
-                                           :range ["red" "orange"]}}}}]})))
+      ;; Return a vector of individual layers to avoid nested layer structure
+      [{:data {:values data}
+        :mark {:type "point" :size 100}
+        :encoding {:x {:field field-name :type "quantitative"}
+                   :y {:field "kde-density" :type "quantitative"}
+                   :color {:field "significant" :type "nominal"
+                           :scale {:domain ["yes" "no"]
+                                   :range ["red" "orange"]}
+                           :legend {:title "Significant"}}
+                   :tooltip [{:field field-name :type "quantitative"
+                              :title "Mode Location"}
+                             {:field "kde-density" :type "quantitative"
+                              :title "Density"}
+                             {:field "ci-lower" :type "quantitative"
+                              :title "CI Lower"}
+                             {:field "ci-upper" :type "quantitative"
+                              :title "CI Upper"}
+                             {:field "significant" :type "nominal"
+                              :title "Significant"}]}}
+       {:data {:values data}
+        :mark {:type "rule" :strokeWidth 1 :strokeDash [4 4]}
+        :encoding {:x {:field "ci-lower" :type "quantitative"}
+                   :x2 {:field "ci-upper"}
+                   :y {:field "kde-density" :type "quantitative"}
+                   :color {:field "significant" :type "nominal"
+                           :scale {:domain ["yes" "no"]
+                                   :range ["red" "orange"]}}}}])))
 
 (defn kde-vega-spec
   "Build a complete Vega-Lite spec for KDE visualization.
@@ -731,7 +733,7 @@
                                 kde-data metric-config kde-transforms))
                          ;; Add mode markers from separate modes analysis
                          (and modes-data (seq (:modes modes-data)))
-                         (conj (kde-modes-layer
+                         (into (kde-modes-layer
                                 modes-data metric-config kde-transforms)))}))}))))
       metric-configs)}))
 
