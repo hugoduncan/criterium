@@ -9,13 +9,12 @@
 
   Tests skip gracefully when R/Rserve is unavailable."
   (:require
-   [clojure.string :as str]
    [clojure.test :refer [deftest is testing]]
    [criterium.test.assert :refer [approx=]]
    [criterium.util.bootstrap :as bootstrap]
    [criterium.util.stats :as stats]
    [criterium.util.well :as well]
-   [criterium.validation.r :as r]))
+   [criterium.validation.r :as r :refer [vec->r-str]]))
 
 ;;; Test data sets
 ;; Fixed datasets for reproducible validation
@@ -36,11 +35,6 @@
 (def small-data [2.0 4.0 6.0 8.0 10.0])
 
 ;;; Helper functions
-
-(defn- vec->r-str
-  "Convert Clojure vector to R c() syntax."
-  [v]
-  (str "c(" (str/join ", " v) ")"))
 
 (defn- within-factor?
   "Check if two values are within a multiplicative factor of each other.

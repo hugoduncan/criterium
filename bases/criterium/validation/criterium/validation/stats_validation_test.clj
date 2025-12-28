@@ -3,11 +3,10 @@
 
   Tests skip gracefully when R/Rserve is unavailable."
   (:require
-   [clojure.string :as str]
    [clojure.test :refer [deftest is testing]]
    [criterium.test.assert :refer [approx=]]
    [criterium.util.stats :as stats]
-   [criterium.validation.r :as r]))
+   [criterium.validation.r :as r :refer [vec->r-str]]))
 
 ;;; Test data sets
 ;; Fixed datasets for reproducible validation
@@ -23,13 +22,6 @@
 (def two-values [1.0 3.0])
 
 (def large-range [0.001 1000000.0 500000.0 250000.0 750000.0])
-
-;;; Helper functions
-
-(defn- vec->r-str
-  "Convert Clojure vector to R c() syntax."
-  [v]
-  (str "c(" (str/join ", " v) ")"))
 
 ;;; Tests
 

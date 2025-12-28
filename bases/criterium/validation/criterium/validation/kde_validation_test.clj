@@ -3,11 +3,10 @@
 
   Tests skip gracefully when R/Rserve is unavailable."
   (:require
-   [clojure.string :as str]
    [clojure.test :refer [deftest is testing]]
    [criterium.test.assert :refer [approx=]]
    [criterium.util.kde :as kde]
-   [criterium.validation.r :as r]))
+   [criterium.validation.r :as r :refer [vec->r-str]]))
 
 ;;; Test data sets
 ;; Fixed datasets for reproducible validation
@@ -30,13 +29,6 @@
 (def bimodal-data
   [1.0 1.2 1.5 1.8 2.0 2.1 2.3
    8.0 8.2 8.5 8.7 9.0 9.1 9.3])
-
-;;; Helper functions
-
-(defn- vec->r-str
-  "Convert Clojure vector to R c() syntax."
-  [v]
-  (str "c(" (str/join ", " v) ")"))
 
 ;;; Tests
 

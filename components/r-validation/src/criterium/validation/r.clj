@@ -5,7 +5,9 @@
   when R is unavailable. Uses clojisr for R interop.
 
   The clojisr library is loaded lazily to prevent connection errors at
-  namespace load time when R/Rserve is not available.")
+  namespace load time when R/Rserve is not available."
+  (:require
+   [clojure.string :as str]))
 
 (def ^:private connection-state
   "Holds the R connection state: :untested, :available, or :unavailable"
@@ -127,3 +129,10 @@
        (println skip-msg#)
        nil)
      (do ~@body)))
+
+(defn vec->r-str
+  "Convert a Clojure vector of numbers to R's c() syntax.
+
+  Returns a string like \"c(1, 2, 3)\" that can be used in R expressions."
+  [v]
+  (str "c(" (str/join ", " v) ")"))
