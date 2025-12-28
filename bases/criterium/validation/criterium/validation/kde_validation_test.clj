@@ -92,3 +92,54 @@
                 clj-bw (kde/silverman-bandwidth bimodal-data)]
             (is (approx= r-bw clj-bw 1e-10)
                 (format "bandwidth mismatch: R=%.15f, clj=%.15f" r-bw clj-bw))))))))
+
+(deftest gaussian-kde-validation-test
+  ;; Validates criterium.util.kde/gaussian-kde against R's density().
+  ;; R's density() with kernel="gaussian" uses the same Gaussian kernel:
+  ;; K(u) = (1/√2π) * exp(-u²/2)
+  ;; We compare density values at the same grid points using the same bandwidth.
+  (testing "gaussian-kde"
+    (if-not (r/r-available?)
+      (do
+        (println "Skipping gaussian-kde validation: R/Rserve not available")
+        (is true "Skipped - R unavailable"))
+      (letfn [(make-grid ^doubles [data ^long n-points]
+                ;; Match the grid construction from criterium.util.kde/kde
+                (let [x-min (double (reduce min data))
+                      x-max (double (reduce max data))
+                      margin (/ (- x-max x-min) 10.0)
+                      g-min (- x-min margin)
+                      g-max (+ x-max margin)
+                      g-range (- g-max g-min)
+                      grid (double-array n-points)]
+                  (dotimes [i n-points]
+                    (aset grid i (+ g-min (* g-range
+                                             (/ (double i)
+                                                (double (dec n-points)))))))
+                  grid))
+              (compare-kde [data description]
+                (testing description
+                  (let [n-points (int 64)
+                        bw (kde/silverman-bandwidth data)
+                        ^doubles grid (make-grid data n-points)
+                        ^doubles clj-density (kde/gaussian-kde data bw grid)
+                        ;; R's density with matching parameters
+                        r-cmd (str "density(" (vec->r-str data)
+                                   ", bw=" bw
+                                   ", kernel='gaussian'"
+                                   ", from=" (aget grid (int 0))
+                                   ", to=" (aget grid (dec n-points))
+                                   ", n=" n-points ")$y")
+                        r-density (r/r-eval r-cmd)]
+                    ;; Check that densities match at all grid points
+                    (doseq [i (range n-points)]
+                      (let [r-d (nth r-density i)
+                            clj-d (aget clj-density (int i))]
+                        (is (approx= r-d clj-d 1e-10)
+                            (format "density[%d] mismatch: R=%.15f, clj=%.15f"
+                                    i r-d clj-d)))))))]
+        (compare-kde simple-integers "with simple integers")
+        (compare-kde simple-doubles "with simple doubles")
+        (compare-kde mixed-signs "with mixed positive and negative values")
+        (compare-kde normal-like "with normal-like distribution")
+        (compare-kde bimodal-data "with bimodal data")))))
