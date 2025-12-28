@@ -212,6 +212,8 @@
 
 ;; Integration test for build-and-copy-agent! function.
 ;; Contract: build-and-copy-agent! builds and copies agent to resources.
+;; Uses with-redefs to inject cached builds because we need to test
+;; build-and-copy-agent! itself, which internally calls build-agent-cpp!.
 (deftest ^:slow build-and-copy-agent-test
   (testing "build-and-copy-agent!"
     (testing "builds agent and copies to resources directory"
