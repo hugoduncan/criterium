@@ -107,11 +107,12 @@
    :viewer :print})
 
 (def kde-modes
-  "Benchmark plan with KDE and mode detection using Silverman's test.
+  "Benchmark plan with KDE and mode detection using ACR test.
 
   Includes histogram, KDE, and statistically validated mode analysis.
   Use when you need to detect and validate multimodality in sample distributions.
-  Mode detection tests from k=1 up to max-modes with Silverman's bootstrap test."
+  Mode detection tests from k=1 up to max-modes. Supports ACR (default) and
+  Silverman test methods via :modes analysis options."
   {:collector-config default-collector-config
    :analyse [:transform-log
              [:quantiles {:quantiles [0.9 0.99 0.99]}]
