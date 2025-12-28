@@ -3,7 +3,9 @@
    [clojure.string :as str]
    [clojure.test :refer [deftest is testing]]
    [clojure.test.check.generators :as gen]
-   [criterium.util.stats :as stats]))
+   [criterium.util.stats :as stats]
+   [criterium.util.well :as well]
+   [criterium.util.ziggurat :as ziggurat]))
 
 (defn abs-error
   ^double [^double expected ^double actual]
@@ -133,6 +135,18 @@
   (->> s
        str/split-lines
        (mapv str/trim)))
+
+(defn gaussian-samples
+  "Generate n samples from a Gaussian distribution.
+  Uses WELL RNG and Ziggurat algorithm for high-quality random numbers.
+  Returns a vector of doubles."
+  ([n] (gaussian-samples n 0.0 1.0))
+  ([n mean std-dev] (gaussian-samples n mean std-dev 42))
+  ([n mean std-dev seed]
+   (let [rng (well/well-rng-1024a seed)
+         normals (ziggurat/random-normal-zig rng)]
+     (mapv (fn [^double x] (+ (double mean) (* (double std-dev) x)))
+           (take n normals)))))
 
 (defn plus-frac ^double [^double x ^double f]
   (+ x (* x f)))

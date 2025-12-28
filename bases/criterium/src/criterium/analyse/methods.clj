@@ -30,3 +30,17 @@
   "Calculate histogram."
   (fn [sample-map _quantiles _outliers _metric-configs _options]
     (:type sample-map)))
+
+(defmulti kde
+  "Calculate kernel density estimation.
+  Returns nil if sample data is not available (e.g., digest-based samples)."
+  (fn [sample-map _outliers _metric-configs _options]
+    (:type sample-map)))
+
+(defmulti modes
+  "Calculate mode analysis with statistical validation.
+  Takes KDE output and computes modes with multimodality testing for significance.
+  Supports :acr (default) and :silverman test methods via :method option.
+  Returns nil if raw sample data is not available."
+  (fn [kde-map _samples _outliers _metric-configs _options]
+    (:type kde-map)))

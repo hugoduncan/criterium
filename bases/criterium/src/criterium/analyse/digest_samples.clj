@@ -18,7 +18,7 @@
 
 (defmethod methods/transform :criterium/digest
   [digest-samples metric-configs f inv-f _options]
-  (let [metric->digest  (util/metric->digest digest-samples)
+  (let [metric->digest (util/metric->digest digest-samples)
         metric->digest' (reduce
                          (fn x-path [result path]
                            (assoc
@@ -35,33 +35,33 @@
       digest-samples-keys)
      (merge
       {:metric->digest metric->digest'
-       :transform      {:sample-> inv-f :->sample f}}))))
+       :transform {:sample-> inv-f :->sample f}}))))
 
 (defmethod methods/quantiles :criterium/digest
   [digest-samples metric-configs options]
   (let [metric->digest (util/metric->digest digest-samples)
-        quantiles      (into [0.25 0.5 0.75] (:quantiles options))
-        quantiles      (reduce
-                        (fn qs [result path]
-                          (let [digest (metric->digest path)]
-                            (assoc-in
-                             result path
-                             (zipmap
-                              quantiles
-                              (mapv
-                               (partial t-digest/quantile digest)
-                               quantiles)))))
-                        {}
-                        (mapv :path metric-configs))]
-    {:type      :criterium/quantiles
+        quantiles (into [0.25 0.5 0.75] (:quantiles options))
+        quantiles (reduce
+                   (fn qs [result path]
+                     (let [digest (metric->digest path)]
+                       (assoc-in
+                        result path
+                        (zipmap
+                         quantiles
+                         (mapv
+                          (partial t-digest/quantile digest)
+                          quantiles)))))
+                   {}
+                   (mapv :path metric-configs))]
+    {:type :criterium/quantiles
      :quantiles quantiles
      :transform collect-plan/identity-transforms}))
 
 (defn outlier-count
   [low-severe low-mild high-mild high-severe]
-  {:low-severe  low-severe
-   :low-mild    low-mild
-   :high-mild   high-mild
+  {:low-severe low-severe
+   :low-mild low-mild
+   :high-mild high-mild
    :high-severe high-severe})
 
 (defn classifier
@@ -69,94 +69,94 @@
   (fn [^double x i]
     (when-not (<= low-mild x high-mild)
       [i (cond
-           (<= x low-severe)           :low-severe
-           (< low-severe x low-mild)   :low-mild
+           (<= x low-severe) :low-severe
+           (< low-severe x low-mild) :low-mild
            (> high-severe x high-mild) :high-mild
-           (>= x high-severe)          :high-severe)])))
+           (>= x high-severe) :high-severe)])))
 
 (defn digest-outliers
   [digest quantiles]
-  (let [thresholds     (stats/boxplot-outlier-thresholds
-                        (get quantiles 0.25)
-                        (get quantiles 0.75))
-        classifier     (classifier thresholds)
-        outliers       (when (apply not= thresholds)
-                         (into {}
-                               (mapv classifier
-                                     (t-digest/centroid-means digest)
-                                     (range))))
+  (let [thresholds (stats/boxplot-outlier-thresholds
+                    (get quantiles 0.25)
+                    (get quantiles 0.75))
+        classifier (classifier thresholds)
+        outliers (when (apply not= thresholds)
+                   (into {}
+                         (mapv classifier
+                               (t-digest/centroid-means digest)
+                               (range))))
         outlier-counts (reduce-kv
                         (fn [counts _i v]
                           (update counts v inc))
                         (outlier-count 0 0 0 0)
                         outliers)]
-    {:thresholds     thresholds
-     :outliers       outliers
+    {:thresholds thresholds
+     :outliers outliers
      :outlier-counts outlier-counts}))
 
 (defmethod methods/outliers :criterium/digest
   [digest-samples all-quantiles metric-configs _options]
   (let [metric->digest (util/metric->digest digest-samples)
-        quantiles      (util/quantiles all-quantiles)
-        outliers       (reduce
-                        (fn qs [result path]
-                          (let [digest    (metric->digest path)
-                                quantiles (get-in quantiles path)]
-                            (assoc-in
-                             result path
-                             (digest-outliers digest quantiles))))
-                        {}
-                        (mapv :path metric-configs))]
-    {:type        :criterium/outliers
-     :outliers    outliers
+        quantiles (util/quantiles all-quantiles)
+        outliers (reduce
+                  (fn qs [result path]
+                    (let [digest (metric->digest path)
+                          quantiles (get-in quantiles path)]
+                      (assoc-in
+                       result path
+                       (digest-outliers digest quantiles))))
+                  {}
+                  (mapv :path metric-configs))]
+    {:type :criterium/outliers
+     :outliers outliers
      :num-samples (t-digest/sample-count (first (vals metric->digest)))
-     :transform   collect-plan/identity-transforms}))
+     :transform collect-plan/identity-transforms}))
 
 (defn- digest-sample-stats
   [digest]
-  (let [mean        (t-digest/mean digest)
-        variance    (t-digest/variance digest mean)
-        sigma       (Math/sqrt variance)
+  (let [mean (t-digest/mean digest)
+        variance (t-digest/variance digest mean)
+        sigma (Math/sqrt variance)
         three-sigma (* 3.0 sigma)]
-    {:n                 (t-digest/sample-count digest)
-     :mean              mean
-     :variance          variance
-     :sigma             sigma
-     :mean-plus-3sigma  (+ mean three-sigma)
+    {:n (t-digest/sample-count digest)
+     :mean mean
+     :variance variance
+     :sigma sigma
+     :mean-plus-3sigma (+ mean three-sigma)
      :mean-minus-3sigma (- mean three-sigma)
-     :min-val           (t-digest/minimum digest)
-     :max-val           (t-digest/maximum digest)}))
+     :min-val (t-digest/minimum digest)
+     :max-val (t-digest/maximum digest)}))
 
 (defmethod methods/stats :criterium/digest
   [digest-samples outliers metric-configs _options]
   (let [metric->digest (util/metric->digest digest-samples)
-        outliers       (when outliers (util/outliers outliers))
-        stats          (reduce
-                        (fn qs [result path]
-                          (let [digest   (have (metric->digest path))
-                                digest   (t-digest/compress digest)
-                                outliers (when outliers (get-in outliers path))
-                                digest   (if outliers
-                                           (t-digest/filter-outliers
-                                            digest
-                                            outliers)
-                                           digest)]
-                            (assoc-in
-                             result path
-                             (digest-sample-stats digest))))
-                        {}
-                        (mapv :path metric-configs))]
-    {:type      :criterium/stats
-     :stats     stats
+        outliers (when outliers (util/outliers outliers))
+        stats (reduce
+               (fn qs [result path]
+                 (let [digest (have (metric->digest path))
+                       digest (t-digest/compress digest)
+                       outliers (when outliers (get-in outliers path))
+                       digest (if outliers
+                                (t-digest/filter-outliers
+                                 digest
+                                 outliers)
+                                digest)]
+                   (assoc-in
+                    result path
+                    (digest-sample-stats digest))))
+               {}
+               (mapv :path metric-configs))]
+    {:type :criterium/stats
+     :stats stats
      :transform collect-plan/identity-transforms}))
 
 (defn histogram
   [metric->digest quantiles outliers metric-config]
   (try
-    (let [p            (:path metric-config)
-          iqr      (when-let [qs (get-in quantiles p)]
-                     (- (double (get qs 0.75)) (double (get qs 0.25))))
-          digest   (metric->digest p)
+    (let [p (:path metric-config)
+          iqr (when-let [qs (get-in quantiles p)]
+                (- (double (get qs 0.75)) (double (get qs 0.25))))
+          digest (metric->digest p)
           _outliers (get-in outliers p)
           #_#__samples (if-let [ols (:outliers outliers)]
                          (remove-outliers samples ols)
@@ -180,6 +180,11 @@
                                  %)))
                         (filterv (comp some? second))
                         (into {}))]
-    {:type       :criterium/histogram
+    {:type :criterium/histogram
      :histograms histograms
-     :transform  collect-plan/identity-transforms}))
+     :transform collect-plan/identity-transforms}))
+
+(defmethod methods/kde :criterium/digest
+  [_digest-samples _outliers _metric-configs _options]
+  ;; KDE requires raw sample values which t-digest doesn't preserve
+  nil)

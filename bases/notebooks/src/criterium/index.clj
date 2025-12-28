@@ -25,3 +25,4 @@
 ;; - [Domain Bench](./criterium.domain_bench_notebook.html) - Simplified domain benchmarking with domain/bench
 ;; - [Domain Analysis](./criterium.analyse_domain_notebook.html) - Manual domain construction and analysis
 ;; - [Domain Builder](./criterium.domain_builder_notebook.html) - Automated domain construction and workflows
+;; - [KDE Analysis](./criterium.kde_analysis_notebook.html) - Kernel density estimation for sample distributions

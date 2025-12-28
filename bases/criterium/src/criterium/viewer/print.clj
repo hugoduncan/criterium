@@ -354,6 +354,68 @@
        (mapv vector (:centers h) (:counts h) (:density h)))
       (println))))
 
+(defn- format-kde-mode
+  "Format a single mode for display with significance indicator."
+  [mode metric-config transforms]
+  (let [{:keys [location density ci-lower ci-upper significant?]} mode
+        {:keys [dimension scale]} metric-config
+        loc (util/transform-sample-> location transforms)
+        ci-lo (when ci-lower (util/transform-sample-> ci-lower transforms))
+        ci-hi (when ci-upper (util/transform-sample-> ci-upper transforms))
+        sig-marker (if significant? "*" "")]
+    [(str (format/format-value dimension (* scale loc)) sig-marker)
+     (format "%.4g" density)
+     (if ci-lo (format/format-value dimension (* scale ci-lo)) "-")
+     (if ci-hi (format/format-value dimension (* scale ci-hi)) "-")]))
+
+(defn- print-kde-metric
+  "Print KDE summary for a single metric with optional modes from separate analysis."
+  [metric-config kde-data modes-data transforms]
+  (let [{:keys [bandwidth n]} kde-data
+        {:keys [label dimension scale]} metric-config
+        bw (util/transform-sample-> bandwidth transforms)
+        modes (when modes-data (:modes modes-data))
+        n-modes (when modes-data (:n-modes modes-data))
+        silverman (when modes-data (:silverman modes-data))]
+    (println (format "%32s: KDE (n=%d)" label n))
+    (println (format "%34s bandwidth: %s"
+                     ""
+                     (format/format-value dimension (* scale bw))))
+    (when (seq modes)
+      (println (format "%34s modes: %d (validated: %s)"
+                       "" (count modes) (or n-modes "?")))
+      (println (format "%34s %12s %12s %12s %12s"
+                       "" "Location" "Density" "CI Lower" "CI Upper"))
+      (doseq [mode modes]
+        (let [[loc dens ci-lo ci-hi] (format-kde-mode mode metric-config transforms)]
+          (println (format "%34s %12s %12s %12s %12s"
+                           "" loc dens ci-lo ci-hi))))
+      (when silverman
+        (let [p-values (:p-values silverman)]
+          (println (format "%34s Silverman test p-values:" ""))
+          (doseq [k (sort (keys p-values))]
+            (println (format "%36s k=%d: p=%.4f" "" k (get p-values k)))))))
+    (println)))
+
+(defmethod view/kde* :print
+  [_ {:keys [kde-id modes-id] :as _view} data-map]
+  (let [kde-id (or kde-id :kde)
+        modes-id (or modes-id :modes)
+        kde-map (get data-map kde-id)
+        modes-map (get data-map modes-id)]
+    (when kde-map
+      (let [metrics-defs (-> (:metrics-defs kde-map)
+                             (metric/filter-metrics
+                              (metric/type-pred :quantitative)))
+            metric-configs (metric/all-metric-configs metrics-defs)
+            transforms (util/get-transforms data-map kde-id)
+            kdes (:kdes kde-map)
+            all-modes (when modes-map (:modes modes-map))]
+        (doseq [metric-config metric-configs]
+          (when-let [kde-data (get kdes (:path metric-config))]
+            (let [modes-data (when all-modes (get all-modes (:path metric-config)))]
+              (print-kde-metric metric-config kde-data modes-data transforms))))))))
+
 (defmethod view/quantiles* :print
   [_ {:keys [quantiles-id]} data-map]
   (let [quantiles-id (or quantiles-id :quantiles)

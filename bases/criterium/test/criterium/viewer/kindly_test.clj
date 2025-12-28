@@ -6,6 +6,7 @@
    [clojure.string :as str]
    [clojure.test :refer [deftest is testing]]
    [criterium.analyse :as analyse]
+   [criterium.collector.metrics :as metrics]
    [criterium.test-data :as test-data]
    [criterium.view :as view]
    [criterium.viewer.kindly :as kindly]))
@@ -1164,4 +1165,71 @@
       (view/allocation-treemap* :kindly {}
                                 {:allocation-treemap
                                  {:type :criterium/allocation-treemap}})
+      (is (nil? (kindly/flush))))))
+
+(deftest kde-view-test
+  ;; Tests the view/kde* multimethod for :kindly viewer.
+  ;; Verifies that KDE data is rendered as a heading and Vega-Lite chart
+  ;; with density curve, confidence bands, and optional mode markers.
+  (testing "view/kde* :kindly"
+    (testing "renders KDE as heading and Vega-Lite chart"
+      (reset! kindly/accumulated [])
+      (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])
+            kde-data {:type :criterium/kde
+                      :metrics-defs metrics-defs
+                      :transform {:sample-> identity :->sample identity}
+                      :kdes {[:elapsed-time]
+                             {:type :criterium/kde
+                              :bandwidth 0.5
+                              :grid [1.0 2.0 3.0]
+                              :density [0.1 0.3 0.1]
+                              :lower-band [0.08 0.25 0.08]
+                              :upper-band [0.12 0.35 0.12]
+                              :modes [{:location 2.0
+                                       :density 0.3
+                                       :ci-lower 1.8
+                                       :ci-upper 2.2}]
+                              :n 100}}}]
+        (view/kde* :kindly {} {:kde kde-data})
+        (let [result (kindly/flush)]
+          (is (= :kind/fragment (:kindly/kind (meta result))))
+          (is (= 2 (count result)) "Expected heading and chart")
+          (let [[heading chart] result]
+            (is (= :kind/md (:kindly/kind (meta heading))))
+            (is (= ["**Kernel Density Estimation**"] heading))
+            (is (= :kind/vega-lite (:kindly/kind (meta chart))))
+            (is (string? (:$schema chart)) "Expected Vega-Lite schema")
+            (is (contains? chart :vconcat))
+            (let [first-chart (first (:vconcat chart))
+                  layers (:layer first-chart)
+                  ;; KDE layers are nested in a group for independent Y-scale
+                  kde-group (first layers)
+                  kde-layers (:layer kde-group)]
+              (is (contains? first-chart :layer))
+              (is (>= (count kde-layers) 2)
+                  "Expected at least confidence band and density layers in nested group"))))))
+
+    (testing "uses custom kde-id"
+      (reset! kindly/accumulated [])
+      (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])
+            kde-data {:type :criterium/kde
+                      :metrics-defs metrics-defs
+                      :transform {:sample-> identity :->sample identity}
+                      :kdes {[:elapsed-time]
+                             {:type :criterium/kde
+                              :bandwidth 0.3
+                              :grid [1.0]
+                              :density [0.5]
+                              :lower-band [0.4]
+                              :upper-band [0.6]
+                              :modes []
+                              :n 25}}}]
+        (view/kde* :kindly {:kde-id :my-kde} {:my-kde kde-data})
+        (let [result (kindly/flush)
+              [heading _chart] result]
+          (is (= ["**Kernel Density Estimation**"] heading)))))
+
+    (testing "handles missing kde data gracefully"
+      (reset! kindly/accumulated [])
+      (view/kde* :kindly {} {})
       (is (nil? (kindly/flush))))))
