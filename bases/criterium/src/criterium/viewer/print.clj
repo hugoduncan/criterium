@@ -376,7 +376,7 @@
         bw (util/transform-sample-> bandwidth transforms)
         modes (when modes-data (:modes modes-data))
         n-modes (when modes-data (:n-modes modes-data))
-        silverman (when modes-data (:silverman modes-data))]
+        test-results (when modes-data (:test-results modes-data))]
     (println (format "%32s: KDE (n=%d)" label n))
     (println (format "%34s bandwidth: %s"
                      ""
@@ -390,9 +390,13 @@
         (let [[loc dens ci-lo ci-hi] (format-kde-mode mode metric-config transforms)]
           (println (format "%34s %12s %12s %12s %12s"
                            "" loc dens ci-lo ci-hi))))
-      (when silverman
-        (let [p-values (:p-values silverman)]
-          (println (format "%34s Silverman test p-values:" ""))
+      (when test-results
+        (let [{:keys [method p-values]} test-results
+              method-name (case method
+                            :acr "ACR"
+                            :silverman "Silverman"
+                            (name method))]
+          (println (format "%34s %s test p-values:" "" method-name))
           (doseq [k (sort (keys p-values))]
             (println (format "%36s k=%d: p=%.4f" "" k (get p-values k)))))))
     (println)))
