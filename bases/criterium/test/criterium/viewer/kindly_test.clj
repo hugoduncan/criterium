@@ -1233,3 +1233,162 @@
       (reset! kindly/accumulated [])
       (view/kde* :kindly {} {})
       (is (nil? (kindly/flush))))))
+
+(deftest kde-modes-rendering-test
+  ;; Tests mode markers, significance indicators, and CI lines in KDE visualization.
+  ;; Verifies that when modes data is provided via separate :modes key,
+  ;; the chart includes point markers and rule lines for confidence intervals.
+  (testing "view/kde* :kindly modes rendering"
+    (testing "includes mode markers and CI lines when modes data present"
+      (reset! kindly/accumulated [])
+      (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])
+            kde-data {:type :criterium/kde
+                      :metrics-defs metrics-defs
+                      :transform {:sample-> identity :->sample identity}
+                      :kdes {[:elapsed-time]
+                             {:type :criterium/kde
+                              :bandwidth 0.5
+                              :grid [1.0 2.0 3.0]
+                              :density [0.1 0.3 0.1]
+                              :lower-band [0.08 0.25 0.08]
+                              :upper-band [0.12 0.35 0.12]
+                              :n 100}}}
+            modes-data {:type :criterium/modes
+                        :transform {:sample-> identity :->sample identity}
+                        :modes {[:elapsed-time]
+                                {:modes [{:location 2.0
+                                          :density 0.3
+                                          :ci-lower 1.8
+                                          :ci-upper 2.2
+                                          :significant? true}]
+                                 :n-modes 1}}}]
+        (view/kde* :kindly {} {:kde kde-data :modes modes-data})
+        (let [result (kindly/flush)
+              [_heading chart] result
+              first-chart (first (:vconcat chart))
+              layers (:layer first-chart)
+              kde-group (first layers)
+              kde-layers (:layer kde-group)
+              point-layer (first (filter #(= "point" (get-in % [:mark :type]))
+                                         kde-layers))
+              rule-layer (first (filter #(= "rule" (get-in % [:mark :type]))
+                                        kde-layers))]
+          (is (some? point-layer) "Expected point layer for mode markers")
+          (is (some? rule-layer) "Expected rule layer for CI lines")
+          ;; Verify point layer has shape encoding for significance
+          (is (= "significant" (get-in point-layer [:encoding :shape :field]))
+              "Expected shape encoding by significance field")
+          (is (= ["yes" "no"]
+                 (get-in point-layer [:encoding :shape :scale :domain]))
+              "Expected significance domain")
+          (is (= ["circle" "triangle-up"]
+                 (get-in point-layer [:encoding :shape :scale :range]))
+              "Expected significance shape range")
+          ;; Verify rule layer encodes CI bounds
+          (is (= "ci-lower" (get-in rule-layer [:encoding :x :field]))
+              "Expected x encoding from ci-lower")
+          (is (= "ci-upper" (get-in rule-layer [:encoding :x2 :field]))
+              "Expected x2 encoding from ci-upper")
+          ;; Verify stroke dash encoding for significance
+          (is (= "significant" (get-in rule-layer [:encoding :strokeDash :field]))
+              "Expected strokeDash encoding by significance"))))
+
+    (testing "distinguishes significant vs non-significant modes via shape"
+      (reset! kindly/accumulated [])
+      (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])
+            kde-data {:type :criterium/kde
+                      :metrics-defs metrics-defs
+                      :transform {:sample-> identity :->sample identity}
+                      :kdes {[:elapsed-time]
+                             {:type :criterium/kde
+                              :bandwidth 0.5
+                              :grid [1.0 2.0 3.0 4.0]
+                              :density [0.1 0.3 0.2 0.15]
+                              :lower-band [0.08 0.25 0.15 0.10]
+                              :upper-band [0.12 0.35 0.25 0.20]
+                              :n 100}}}
+            modes-data {:type :criterium/modes
+                        :transform {:sample-> identity :->sample identity}
+                        :modes {[:elapsed-time]
+                                {:modes [{:location 2.0
+                                          :density 0.3
+                                          :ci-lower 1.8
+                                          :ci-upper 2.2
+                                          :significant? true}
+                                         {:location 3.5
+                                          :density 0.18
+                                          :ci-lower 3.2
+                                          :ci-upper 3.8
+                                          :significant? false}]
+                                 :n-modes 2}}}]
+        (view/kde* :kindly {} {:kde kde-data :modes modes-data})
+        (let [result (kindly/flush)
+              [_heading chart] result
+              first-chart (first (:vconcat chart))
+              kde-group (first (:layer first-chart))
+              kde-layers (:layer kde-group)
+              point-layer (first (filter #(= "point" (get-in % [:mark :type]))
+                                         kde-layers))
+              point-data (get-in point-layer [:data :values])]
+          (is (= 2 (count point-data)) "Expected 2 mode markers")
+          (is (= #{"yes" "no"} (set (map #(get % "significant") point-data)))
+              "Expected both significant and non-significant modes"))))
+
+    (testing "omits mode layers when modes data not present"
+      (reset! kindly/accumulated [])
+      (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])
+            kde-data {:type :criterium/kde
+                      :metrics-defs metrics-defs
+                      :transform {:sample-> identity :->sample identity}
+                      :kdes {[:elapsed-time]
+                             {:type :criterium/kde
+                              :bandwidth 0.5
+                              :grid [1.0 2.0 3.0]
+                              :density [0.1 0.3 0.1]
+                              :lower-band [0.08 0.25 0.08]
+                              :upper-band [0.12 0.35 0.12]
+                              :n 100}}}]
+        (view/kde* :kindly {} {:kde kde-data})
+        (let [result (kindly/flush)
+              [_heading chart] result
+              first-chart (first (:vconcat chart))
+              kde-group (first (:layer first-chart))
+              kde-layers (:layer kde-group)
+              point-layers (filter #(= "point" (get-in % [:mark :type]))
+                                   kde-layers)
+              rule-layers (filter #(= "rule" (get-in % [:mark :type]))
+                                  kde-layers)]
+          (is (empty? point-layers)
+              "Expected no point layers without modes data")
+          (is (empty? rule-layers)
+              "Expected no rule layers without modes data"))))
+
+    (testing "omits mode layers when modes list is empty"
+      (reset! kindly/accumulated [])
+      (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])
+            kde-data {:type :criterium/kde
+                      :metrics-defs metrics-defs
+                      :transform {:sample-> identity :->sample identity}
+                      :kdes {[:elapsed-time]
+                             {:type :criterium/kde
+                              :bandwidth 0.5
+                              :grid [1.0 2.0 3.0]
+                              :density [0.1 0.3 0.1]
+                              :lower-band [0.08 0.25 0.08]
+                              :upper-band [0.12 0.35 0.12]
+                              :n 100}}}
+            modes-data {:type :criterium/modes
+                        :transform {:sample-> identity :->sample identity}
+                        :modes {[:elapsed-time]
+                                {:modes []
+                                 :n-modes 0}}}]
+        (view/kde* :kindly {} {:kde kde-data :modes modes-data})
+        (let [result (kindly/flush)
+              [_heading chart] result
+              first-chart (first (:vconcat chart))
+              kde-group (first (:layer first-chart))
+              kde-layers (:layer kde-group)
+              point-layers (filter #(= "point" (get-in % [:mark :type]))
+                                   kde-layers)]
+          (is (empty? point-layers)
+              "Expected no point layers when modes list empty"))))))

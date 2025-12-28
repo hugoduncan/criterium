@@ -731,7 +731,7 @@
                                               :data [[{:n 100} 100.0]
                                                      [{:n 200} 200.0]
                                                      [{:n 300} 300.0]]}}}
-            models {:cubic {:transform (fn [n] (* n n n))
+            models {:cubic {:transform (fn [n] (let [n (double n)] (* n n n)))
                             :label "O(n³)"}}
             result (analysis/fit-complexity extract :n models)
             regression (get-in result [:regressions :elapsed-time])]

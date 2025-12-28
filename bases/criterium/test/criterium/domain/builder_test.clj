@@ -80,13 +80,13 @@
         (is (apply < result))))
     (testing "produces evenly spaced values in n*log(n) domain"
       (let [result (builder/n-log-n-range 10 10000 7)
-            f (fn [x] (* x (Math/log x)))
+            f (fn [x] (let [x (double x)] (* x (Math/log x))))
             y-values (map f result)
             diffs (map - (rest y-values) y-values)
-            mean-diff (/ (reduce + diffs) (count diffs))
+            mean-diff (/ (double (reduce + diffs)) (count diffs))
             ;; Allow 1% tolerance for rounding errors
-            tolerance (* 0.01 mean-diff)]
-        (is (every? #(< (Math/abs (- % mean-diff)) tolerance) diffs))))
+            tolerance (* 0.01 (double mean-diff))]
+        (is (every? #(< (Math/abs (- (double %) (double mean-diff))) tolerance) diffs))))
     (testing "handles 2-point range"
       (is (= [10 1000] (builder/n-log-n-range 10 1000 2))))
     (testing "handles single point"
@@ -179,6 +179,6 @@
         (is (= m1 ((:impl-a result) {})))
         (is (= m2 ((:impl-b result) {})))))
     (testing "passes through function values unchanged"
-      (let [impl-fn (fn [{:keys [n]}] (measured/expr (+ n 1)))
+      (let [impl-fn (fn [{n :n}] (let [n (long n)] (measured/expr (+ n 1))))
             result (#'builder/normalize-implementations {:impl-a impl-fn})]
         (is (= impl-fn (:impl-a result)))))))

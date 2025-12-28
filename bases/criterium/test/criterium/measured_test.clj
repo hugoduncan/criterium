@@ -47,7 +47,7 @@
     (testing "replaces args-fn while preserving measurement function"
       (let [original-m  (measured/measured
                          (fn [] [1])
-                         (fn [[x] _n] [0 (* x 10)])
+                         (fn [[x] _n] [0 (* (long x) 10)])
                          (fn [] ::original))
             new-args-fn (fn [] [5])
             modified-m  (measured/with-args-fn original-m new-args-fn)]
