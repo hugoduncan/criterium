@@ -163,6 +163,16 @@ Tests use Kaocha with the following structure:
 
 Skip slow tests with `:skip-meta [:very-slow]` in test metadata.
 
+**Agent Build Cache:**
+Agent build tests use a shared CMake build cache at `target/test-agent-build-cache` for faster incremental builds. This cache persists between test runs. Clear it when:
+- Switching between major CMake versions
+- After changes to `agent-cpp/CMakeLists.txt` that require a clean build
+- If you encounter stale build artifacts causing test failures
+
+```bash
+rm -rf target/test-agent-build-cache
+```
+
 ## Native Agent
 
 The C++ agent (`agent-cpp/`) provides enhanced allocation tracking and is bundled in the JAR for supported platforms (linux-x64, macos-x64, macos-arm64):
