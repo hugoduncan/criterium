@@ -144,10 +144,10 @@
                 se (/ (Math/sqrt (stats/variance data)) (Math/sqrt (count data)))
                 ;; Bootstrap mean should be within 2 SE of true mean
                 tolerance (* 2 se)]
-            (is (< (Math/abs (- clj-boot-mean true-mean)) tolerance)
+            (is (< (Math/abs (- ^double clj-boot-mean true-mean)) tolerance)
                 (format "Clojure bootstrap mean %.4f not within 2 SE of true mean %.4f (SE=%.4f)"
                         clj-boot-mean true-mean se))
-            (is (< (Math/abs (- r-boot-mean true-mean)) tolerance)
+            (is (< (Math/abs (- ^double r-boot-mean true-mean)) tolerance)
                 (format "R bootstrap mean %.4f not within 2 SE of true mean %.4f (SE=%.4f)"
                         r-boot-mean true-mean se))))
 
@@ -214,8 +214,8 @@
                 (format "R BCa CI [%.4f, %.4f] does not contain mean %.4f"
                         r-lower r-upper true-mean))
             ;; CI widths should be similar (within factor of 2)
-            (let [clj-width (- clj-upper clj-lower)
-                  r-width (- r-upper r-lower)]
+            (let [clj-width (- ^double clj-upper ^double clj-lower)
+                  r-width (- ^double r-upper ^double r-lower)]
               (is (within-factor? r-width clj-width 2.0)
                   (format "CI widths differ too much: clj=%.4f, R=%.4f"
                           clj-width r-width)))))
@@ -240,7 +240,7 @@
                                "c(ci$bca[4], ci$bca[5])"))
                 [r-lower r-upper] r-result]
             ;; For skewed data, z0 (bias) should be non-zero
-            (is (not (zero? clj-z0))
+            (is (not (zero? ^double clj-z0))
                 "BCa z0 should be non-zero for skewed data")
             ;; Both CIs should contain the true mean
             (is (ci-contains? [clj-lower clj-upper] true-mean)
@@ -313,6 +313,6 @@
                 point-est (:point-estimate result)
                 se (/ (Math/sqrt (stats/variance data)) (Math/sqrt (count data)))
                 tolerance (* 3 se)]
-            (is (< (Math/abs (- point-est true-mean)) tolerance)
+            (is (< (Math/abs (- ^double point-est true-mean)) tolerance)
                 (format "Point estimate %.4f not within 3 SE of true mean %.4f"
                         point-est true-mean))))))))

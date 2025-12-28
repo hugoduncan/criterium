@@ -48,13 +48,13 @@
 
         (testing "at symmetric probability pairs"
           ;; qnorm(p) = -qnorm(1-p) for any p
-          (doseq [p [0.1 0.25 0.05 0.01]]
-            (testing (str "p=" p " and p=" (- 1 p))
+          (doseq [^double p [0.1 0.25 0.05 0.01]]
+            (testing (str "p=" p " and p=" (- 1.0 p))
               (let [q-low (prob/normal-quantile p)
                     q-high (prob/normal-quantile (- 1.0 p))]
                 (is (approx= (- q-low) q-high 1e-10)
                     (format "symmetry mismatch: q(%.2f)=%.15f, q(%.2f)=%.15f"
-                            p q-low (- 1 p) q-high))))))
+                            p q-low (- 1.0 p) q-high))))))
 
         (testing "at extreme probabilities"
           (doseq [p [0.0001 0.00001 0.9999 0.99999]]
@@ -97,7 +97,7 @@
 
         (testing "symmetry around the mean"
           ;; pnorm(x) + pnorm(-x) = 1 for any x
-          (doseq [x [0.5 1.0 2.0 3.0]]
+          (doseq [^double x [0.5 1.0 2.0 3.0]]
             (testing (str "x=" x " and x=" (- x))
               (let [p-pos (prob/normal-cdf x)
                     p-neg (prob/normal-cdf (- x))]
