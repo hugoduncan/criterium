@@ -161,7 +161,17 @@ Tests use Kaocha with the following structure:
 - Performance regression tests
 - Test data in `bases/criterium/test/criterium/data/`
 
-Skip slow tests with `:skip-meta [:very-slow]` in test metadata.
+### Test Speed Optimizations
+
+The test suite uses several strategies to maintain fast execution:
+
+**Slow Test Marking:**
+Tests that take significant time (>30s) are marked with `^:slow` metadata and excluded from default runs via `:skip-meta [:slow]` in `tests.edn`. Run slow tests explicitly with `--focus-meta :slow`.
+
+**Minimal Iterations for API Tests:**
+Tests that validate API behavior (not benchmark accuracy) use reduced time limits:
+- `bench_test.clj`: `:limit-time-s 0.1` or `0.2` instead of full benchmark runs
+- Property tests in `well_test.clj`: 50 iterations (sufficient for correctness validation)
 
 **Agent Build Cache:**
 Agent build tests use a shared CMake build cache at `target/test-agent-build-cache` for faster incremental builds. This cache persists between test runs. Clear it when:
