@@ -80,16 +80,24 @@ cmake -B build -DCMAKE_OSX_ARCHITECTURES=x86_64
 ### REPL Development
 ```bash
 # Start development REPL (agent auto-loads when available)
-clojure -M:dev
+clojure -M:dev:test
 
 # For agent development: Use locally-built agent (macOS)
-clojure -M:dev:with-agent-mac
+clojure -M:dev:test:with-agent-mac
 
 # For agent development: Use locally-built agent (Linux)
-clojure -M:dev:with-agent-linux
+clojure -M:dev:test:with-agent-linux
 
-# For exploring with Portal viewer
-clojure -M:dev
+# For JDK 17+ compiler blackhole  (recommended)
+clojure -M:dev:test:blackhole
+```
+
+### NREPL server
+
+To start an NREPL server:
+
+``` bash
+clojure -M:nrepl:dev:test:with-agent-mac:blackhole
 ```
 
 ## Architecture
