@@ -350,8 +350,8 @@
     (testing "returns correct structure"
       (let [;; Bimodal: clusters around 100 and 200
             raw-data (concat
-                      (mapv #(+ 98 (* 4 %)) (range 30))
-                      (mapv #(+ 198 (* 4 %)) (range 30)))
+                      (mapv #(+ 98.0 (* 4.0 (double %))) (range 30))
+                      (mapv #(+ 198.0 (* 4.0 (double %))) (range 30)))
             samples (metrics-samples
                      {[:elapsed-time] (vec raw-data)}
                      1)
@@ -375,7 +375,7 @@
                 "modes should not be in KDE output (now separate)")))))
 
     (testing "uses custom samples-id"
-      (let [raw-data (mapv #(+ 10.0 (* 0.5 %)) (range 50))
+      (let [raw-data (mapv #(+ 10.0 (* 0.5 (double %))) (range 50))
             samples (metrics-samples
                      {[:elapsed-time] raw-data}
                      1)
@@ -393,7 +393,7 @@
         (is (not (contains? result :kde)))))
 
     (testing "uses custom output id"
-      (let [raw-data (mapv #(+ 10.0 (* 0.5 %)) (range 50))
+      (let [raw-data (mapv #(+ 10.0 (* 0.5 (double %))) (range 50))
             samples (metrics-samples
                      {[:elapsed-time] raw-data}
                      1)
@@ -407,7 +407,7 @@
 
     (testing "excludes outliers from KDE computation"
       (let [;; Normal samples around 100, with one extreme outlier at end
-            raw-data (conj (vec (mapv #(+ 100.0 (* 0.5 %)) (range 49)))
+            raw-data (conj (vec (mapv #(+ 100.0 (* 0.5 (double %))) (range 49)))
                            10000.0)
             samples (metrics-samples
                      {[:elapsed-time] raw-data}
@@ -437,7 +437,7 @@
   ;; and produce expected output structure.
   (testing "modes"
     (testing "uses ACR test by default"
-      (let [raw-data (mapv #(+ 100.0 (* 0.5 %)) (range 50))
+      (let [raw-data (mapv #(+ 100.0 (* 0.5 (double %))) (range 50))
             samples (metrics-samples {[:elapsed-time] raw-data} 1)
             data-map {:samples samples}
             with-log ((analyse/transform-log {:id :log-samples
@@ -454,7 +454,7 @@
               "ACR results should include excess-mass"))))
 
     (testing "supports Silverman method via :method option"
-      (let [raw-data (mapv #(+ 100.0 (* 0.5 %)) (range 50))
+      (let [raw-data (mapv #(+ 100.0 (* 0.5 (double %))) (range 50))
             samples (metrics-samples {[:elapsed-time] raw-data} 1)
             data-map {:samples samples}
             with-log ((analyse/transform-log {:id :log-samples
@@ -471,7 +471,7 @@
               "Silverman results should not include excess-mass"))))
 
     (testing "returns correct output structure"
-      (let [raw-data (mapv #(+ 100.0 (* 0.5 %)) (range 50))
+      (let [raw-data (mapv #(+ 100.0 (* 0.5 (double %))) (range 50))
             samples (metrics-samples {[:elapsed-time] raw-data} 1)
             data-map {:samples samples}
             with-log ((analyse/transform-log {:id :log-samples
@@ -491,7 +491,7 @@
 
     (testing "with :mode-method :critical"
       (testing "includes antimodes and mode-bandwidth"
-        (let [raw-data (mapv #(+ 100.0 (* 0.5 %)) (range 50))
+        (let [raw-data (mapv #(+ 100.0 (* 0.5 (double %))) (range 50))
               samples (metrics-samples {[:elapsed-time] raw-data} 1)
               data-map {:samples samples}
               with-log ((analyse/transform-log {:id :log-samples
@@ -513,8 +513,8 @@
         (let [;; Create well-separated bimodal data (log-transform will be applied)
               ;; Use exponential values so log-transform creates clearly separated modes
               raw-data (concat
-                        (mapv #(* (Math/exp 1.0) (+ 1.0 (* 0.01 %))) (range 30))
-                        (mapv #(* (Math/exp 5.0) (+ 1.0 (* 0.01 %))) (range 30)))
+                        (mapv #(* (Math/exp 1.0) (+ 1.0 (* 0.01 (double %)))) (range 30))
+                        (mapv #(* (Math/exp 5.0) (+ 1.0 (* 0.01 (double %)))) (range 30)))
               samples (metrics-samples {[:elapsed-time] (vec raw-data)} 1)
               data-map {:samples samples}
               with-log ((analyse/transform-log {:id :log-samples
@@ -528,12 +528,12 @@
           (is (vector? (:antimodes elapsed-modes))
               "antimodes should be a vector")
           ;; When we have multiple modes, there should be antimodes between them
-          (when (> (:n-modes elapsed-modes) 1)
+          (when (> (long (:n-modes elapsed-modes)) 1)
             (is (pos? (count (:antimodes elapsed-modes)))
                 "multiple modes should have at least one antimode"))))
 
       (testing "with :isj (default) does not include antimodes"
-        (let [raw-data (mapv #(+ 100.0 (* 0.5 %)) (range 50))
+        (let [raw-data (mapv #(+ 100.0 (* 0.5 (double %))) (range 50))
               samples (metrics-samples {[:elapsed-time] raw-data} 1)
               data-map {:samples samples}
               with-log ((analyse/transform-log {:id :log-samples
