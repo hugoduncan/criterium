@@ -143,3 +143,124 @@
         (compare-kde mixed-signs "with mixed positive and negative values")
         (compare-kde normal-like "with normal-like distribution")
         (compare-kde bimodal-data "with bimodal data")))))
+
+(deftest silverman-test-validation-test
+  ;; Validates criterium.util.kde/silverman-test against R's multimode::modetest.
+  ;; Both tests are bootstrap-based with random elements, so exact p-value
+  ;; matching is not possible. We validate:
+  ;; - Critical bandwidth (deterministic) should match closely
+  ;; - Test conclusions should agree for clear-cut cases
+  ;; - P-values should be in the same general range
+  (testing "silverman-test"
+    (if-not (r/r-available?)
+      (do
+        (println "Skipping silverman-test validation: R/Rserve not available")
+        (is true "Skipped - R unavailable"))
+      (do
+        (testing "with unimodal data"
+          ;; Normal-like data should have p-value > 0.05 (fail to reject unimodality)
+          (let [clj-result (kde/silverman-test normal-like 1
+                                               {:n-bootstrap 200
+                                                :n-points 512})
+                ;; R modetest with SI method
+                r-result (r/r-eval
+                          (str "library(multimode); set.seed(42); "
+                               "x <- " (vec->r-str normal-like) "; "
+                               "res <- modetest(x, mod0=1, method='SI', B=200); "
+                               "c(res$p.value, res$statistic)"))
+                [r-pvalue r-hcrit] r-result
+                clj-pvalue (:p-value clj-result)
+                clj-hcrit (:critical-bandwidth clj-result)]
+            ;; Critical bandwidths should be close (within 20%)
+            (is (approx= r-hcrit clj-hcrit 0.2)
+                (format "critical bandwidth mismatch: R=%.6f, clj=%.6f"
+                        r-hcrit clj-hcrit))
+            ;; Both should fail to reject unimodality (p > 0.05)
+            (is (> clj-pvalue 0.05)
+                (format "Clojure should not reject unimodality: p=%.4f" clj-pvalue))
+            (is (> r-pvalue 0.05)
+                (format "R should not reject unimodality: p=%.4f" r-pvalue))))
+
+        (testing "with bimodal data"
+          ;; Bimodal data should have p-value < 0.05 (reject unimodality)
+          (let [clj-result (kde/silverman-test bimodal-data 1
+                                               {:n-bootstrap 200
+                                                :n-points 512})
+                r-result (r/r-eval
+                          (str "library(multimode); set.seed(42); "
+                               "x <- " (vec->r-str bimodal-data) "; "
+                               "res <- modetest(x, mod0=1, method='SI', B=200); "
+                               "c(res$p.value, res$statistic)"))
+                [r-pvalue r-hcrit] r-result
+                clj-pvalue (:p-value clj-result)
+                clj-hcrit (:critical-bandwidth clj-result)]
+            ;; Critical bandwidths should be close (within 20%)
+            (is (approx= r-hcrit clj-hcrit 0.2)
+                (format "critical bandwidth mismatch: R=%.6f, clj=%.6f"
+                        r-hcrit clj-hcrit))
+            ;; Both should reject unimodality (p < 0.1)
+            ;; Using 0.1 threshold due to bootstrap variability
+            (is (< clj-pvalue 0.1)
+                (format "Clojure should reject unimodality: p=%.4f" clj-pvalue))
+            (is (< r-pvalue 0.1)
+                (format "R should reject unimodality: p=%.4f" r-pvalue))))))))
+
+(deftest acr-test-validation-test
+  ;; Validates criterium.util.kde/acr-test against R's multimode::modetest.
+  ;; The ACR test uses excess mass as the test statistic, which should be
+  ;; more stable than mode counting. We validate:
+  ;; - Excess mass statistic is in reasonable range
+  ;; - Test conclusions agree for clear-cut cases
+  (testing "acr-test"
+    (if-not (r/r-available?)
+      (do
+        (println "Skipping acr-test validation: R/Rserve not available")
+        (is true "Skipped - R unavailable"))
+      (do
+        (testing "with unimodal data"
+          ;; Normal-like data should have p-value > 0.05 (fail to reject unimodality)
+          (let [clj-result (kde/acr-test normal-like 1
+                                         {:n-bootstrap 200
+                                          :n-points 512})
+                ;; R modetest with ACR method
+                r-result (r/r-eval
+                          (str "library(multimode); set.seed(42); "
+                               "x <- " (vec->r-str normal-like) "; "
+                               "res <- modetest(x, mod0=1, method='ACR', B=200); "
+                               "c(res$p.value, res$statistic)"))
+                [r-pvalue r-em] r-result
+                clj-pvalue (:p-value clj-result)
+                clj-em (:excess-mass clj-result)]
+            ;; Both excess mass values should be small for unimodal data
+            (is (< clj-em 0.1)
+                (format "Clojure excess mass should be small: %.6f" clj-em))
+            (is (< r-em 0.1)
+                (format "R excess mass should be small: %.6f" r-em))
+            ;; Both should fail to reject unimodality (p > 0.05)
+            (is (> clj-pvalue 0.05)
+                (format "Clojure should not reject unimodality: p=%.4f" clj-pvalue))
+            (is (> r-pvalue 0.05)
+                (format "R should not reject unimodality: p=%.4f" r-pvalue))))
+
+        (testing "with bimodal data"
+          ;; Bimodal data should have larger excess mass and low p-value
+          (let [clj-result (kde/acr-test bimodal-data 1
+                                         {:n-bootstrap 200
+                                          :n-points 512})
+                r-result (r/r-eval
+                          (str "library(multimode); set.seed(42); "
+                               "x <- " (vec->r-str bimodal-data) "; "
+                               "res <- modetest(x, mod0=1, method='ACR', B=200); "
+                               "c(res$p.value, res$statistic)"))
+                [r-pvalue _r-em] r-result
+                clj-pvalue (:p-value clj-result)
+                clj-em (:excess-mass clj-result)]
+            ;; Excess mass should be larger for bimodal data
+            (is (> clj-em 0.01)
+                (format "Clojure excess mass should be positive: %.6f" clj-em))
+            ;; Both should reject unimodality (p < 0.1)
+            ;; Using 0.1 threshold due to bootstrap variability
+            (is (< clj-pvalue 0.1)
+                (format "Clojure should reject unimodality: p=%.4f" clj-pvalue))
+            (is (< r-pvalue 0.1)
+                (format "R should reject unimodality: p=%.4f" r-pvalue))))))))
