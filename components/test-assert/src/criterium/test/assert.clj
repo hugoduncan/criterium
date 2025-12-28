@@ -2,7 +2,9 @@
   "clojure.test assertion utilities for approximate numeric comparisons.
 
   Provides `approx=` for comparing floating point numbers with configurable
-  tolerance using both ULP (units in last place) and relative difference.")
+  tolerance using both ULP (units in last place) and relative difference."
+  (:require
+   [clojure.test]))
 
 ;;; Constants
 
