@@ -3,7 +3,7 @@
    [clojure.test :refer [deftest is testing]]
    [criterium.platform :as platform]))
 
-(deftest platform-point-estimates-test
+(deftest ^:slow platform-point-estimates-test
   ;; Verifies that platform-point-estimates returns timing characterisation data
   ;; for the platform with expected structure.
   (testing "platform-point-estimates"
