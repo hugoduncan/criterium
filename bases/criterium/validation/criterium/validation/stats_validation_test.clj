@@ -3,6 +3,7 @@
 
   Tests skip gracefully when R/Rserve is unavailable."
   (:require
+   [clojure.string :as str]
    [clojure.test :refer [deftest is testing]]
    [criterium.test.assert :refer [approx=]]
    [criterium.util.stats :as stats]
@@ -28,7 +29,7 @@
 (defn- vec->r-str
   "Convert Clojure vector to R c() syntax."
   [v]
-  (str "c(" (clojure.string/join ", " v) ")"))
+  (str "c(" (str/join ", " v) ")"))
 
 ;;; Tests
 
@@ -161,3 +162,155 @@
               (is (approx= r-var clj-var 1e-10)
                   (format "population variance mismatch: R=%.15f, clj=%.15f"
                           r-var clj-var)))))))))
+
+(deftest median-validation-test
+  ;; Validates criterium.util.stats/median against R's median() function.
+  ;; Note: criterium's median expects sorted data and returns [median lower upper].
+  (testing "median"
+    (if-not (r/r-available?)
+      (do
+        (println "Skipping median validation: R/Rserve not available")
+        (is true "Skipped - R unavailable"))
+      (do
+        (testing "with simple integers"
+          (let [sorted (vec (sort simple-integers))
+                r-med (first (r/r-eval (str "median(" (vec->r-str sorted) ")")))
+                clj-med (first (stats/median sorted))]
+            (is (approx= r-med clj-med 1e-10)
+                (format "median mismatch: R=%.15f, clj=%.15f" r-med clj-med))))
+
+        (testing "with simple doubles"
+          (let [sorted (vec (sort simple-doubles))
+                r-med (first (r/r-eval (str "median(" (vec->r-str sorted) ")")))
+                clj-med (first (stats/median sorted))]
+            (is (approx= r-med clj-med 1e-10)
+                (format "median mismatch: R=%.15f, clj=%.15f" r-med clj-med))))
+
+        (testing "with mixed positive and negative values"
+          (let [sorted (vec (sort mixed-signs))
+                r-med (first (r/r-eval (str "median(" (vec->r-str sorted) ")")))
+                clj-med (first (stats/median sorted))]
+            (is (approx= r-med clj-med 1e-10)
+                (format "median mismatch: R=%.15f, clj=%.15f" r-med clj-med))))
+
+        (testing "with a single value"
+          (let [sorted (vec (sort single-value))
+                r-med (first (r/r-eval (str "median(" (vec->r-str sorted) ")")))
+                clj-med (first (stats/median sorted))]
+            (is (approx= r-med clj-med 1e-10)
+                (format "median mismatch: R=%.15f, clj=%.15f" r-med clj-med))))
+
+        (testing "with two values"
+          (let [sorted (vec (sort two-values))
+                r-med (first (r/r-eval (str "median(" (vec->r-str sorted) ")")))
+                clj-med (first (stats/median sorted))]
+            (is (approx= r-med clj-med 1e-10)
+                (format "median mismatch: R=%.15f, clj=%.15f" r-med clj-med))))
+
+        (testing "with large range of values"
+          (let [sorted (vec (sort large-range))
+                r-med (first (r/r-eval (str "median(" (vec->r-str sorted) ")")))
+                clj-med (first (stats/median sorted))]
+            (is (approx= r-med clj-med 1e-10)
+                (format "median mismatch: R=%.15f, clj=%.15f" r-med clj-med))))
+
+        (testing "with odd number of elements"
+          (let [sorted [1 2 3 4 5]
+                r-med (first (r/r-eval (str "median(" (vec->r-str sorted) ")")))
+                clj-med (first (stats/median sorted))]
+            (is (approx= r-med clj-med 1e-10)
+                (format "median mismatch: R=%.15f, clj=%.15f" r-med clj-med))))
+
+        (testing "with even number of elements"
+          (let [sorted [1 2 3 4 5 6]
+                r-med (first (r/r-eval (str "median(" (vec->r-str sorted) ")")))
+                clj-med (first (stats/median sorted))]
+            (is (approx= r-med clj-med 1e-10)
+                (format "median mismatch: R=%.15f, clj=%.15f" r-med clj-med))))))))
+
+(deftest quantile-validation-test
+  ;; Validates criterium.util.stats/quantile against R's quantile() function.
+  ;; R's default type=7 uses linear interpolation matching criterium's implementation.
+  ;; Note: criterium's quantile expects sorted data.
+  (testing "quantile"
+    (if-not (r/r-available?)
+      (do
+        (println "Skipping quantile validation: R/Rserve not available")
+        (is true "Skipped - R unavailable"))
+      (do
+        (testing "with simple integers"
+          (let [sorted (vec (sort simple-integers))]
+            (doseq [q [0.0 0.25 0.5 0.75 1.0]]
+              (testing (str "at quantile " q)
+                (let [r-q (first (r/r-eval
+                                  (str "quantile(" (vec->r-str sorted) ", " q ", type=7)")))
+                      clj-q (stats/quantile q sorted)]
+                  (is (approx= r-q clj-q 1e-10)
+                      (format "quantile mismatch at q=%.2f: R=%.15f, clj=%.15f"
+                              q r-q clj-q)))))))
+
+        (testing "with simple doubles"
+          (let [sorted (vec (sort simple-doubles))]
+            (doseq [q [0.0 0.1 0.25 0.5 0.75 0.9 1.0]]
+              (testing (str "at quantile " q)
+                (let [r-q (first (r/r-eval
+                                  (str "quantile(" (vec->r-str sorted) ", " q ", type=7)")))
+                      clj-q (stats/quantile q sorted)]
+                  (is (approx= r-q clj-q 1e-10)
+                      (format "quantile mismatch at q=%.2f: R=%.15f, clj=%.15f"
+                              q r-q clj-q)))))))
+
+        (testing "with mixed positive and negative values"
+          (let [sorted (vec (sort mixed-signs))]
+            (doseq [q [0.0 0.25 0.5 0.75 1.0]]
+              (testing (str "at quantile " q)
+                (let [r-q (first (r/r-eval
+                                  (str "quantile(" (vec->r-str sorted) ", " q ", type=7)")))
+                      clj-q (stats/quantile q sorted)]
+                  (is (approx= r-q clj-q 1e-10)
+                      (format "quantile mismatch at q=%.2f: R=%.15f, clj=%.15f"
+                              q r-q clj-q)))))))
+
+        (testing "with single value"
+          (let [sorted (vec (sort single-value))]
+            (doseq [q [0.0 0.5 1.0]]
+              (testing (str "at quantile " q)
+                (let [r-q (first (r/r-eval
+                                  (str "quantile(" (vec->r-str sorted) ", " q ", type=7)")))
+                      clj-q (stats/quantile q sorted)]
+                  (is (approx= r-q clj-q 1e-10)
+                      (format "quantile mismatch at q=%.2f: R=%.15f, clj=%.15f"
+                              q r-q clj-q)))))))
+
+        (testing "with two values"
+          (let [sorted (vec (sort two-values))]
+            (doseq [q [0.0 0.25 0.5 0.75 1.0]]
+              (testing (str "at quantile " q)
+                (let [r-q (first (r/r-eval
+                                  (str "quantile(" (vec->r-str sorted) ", " q ", type=7)")))
+                      clj-q (stats/quantile q sorted)]
+                  (is (approx= r-q clj-q 1e-10)
+                      (format "quantile mismatch at q=%.2f: R=%.15f, clj=%.15f"
+                              q r-q clj-q)))))))
+
+        (testing "with large range of values"
+          (let [sorted (vec (sort large-range))]
+            (doseq [q [0.0 0.25 0.5 0.75 1.0]]
+              (testing (str "at quantile " q)
+                (let [r-q (first (r/r-eval
+                                  (str "quantile(" (vec->r-str sorted) ", " q ", type=7)")))
+                      clj-q (stats/quantile q sorted)]
+                  (is (approx= r-q clj-q 1e-10)
+                      (format "quantile mismatch at q=%.2f: R=%.15f, clj=%.15f"
+                              q r-q clj-q)))))))
+
+        (testing "with arbitrary quantiles"
+          (let [sorted (vec (sort simple-doubles))]
+            (doseq [q [0.05 0.33 0.67 0.95]]
+              (testing (str "at quantile " q)
+                (let [r-q (first (r/r-eval
+                                  (str "quantile(" (vec->r-str sorted) ", " q ", type=7)")))
+                      clj-q (stats/quantile q sorted)]
+                  (is (approx= r-q clj-q 1e-10)
+                      (format "quantile mismatch at q=%.2f: R=%.15f, clj=%.15f"
+                              q r-q clj-q)))))))))))
