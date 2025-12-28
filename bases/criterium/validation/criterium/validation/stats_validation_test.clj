@@ -4,6 +4,7 @@
   Tests skip gracefully when R/Rserve is unavailable."
   (:require
    [clojure.test :refer [deftest is testing]]
+   [criterium.test.assert :refer [approx=]]
    [criterium.util.stats :as stats]
    [criterium.validation.r :as r]))
 
@@ -23,15 +24,6 @@
 (def large-range [0.001 1000000.0 500000.0 250000.0 750000.0])
 
 ;;; Helper functions
-
-(defn- approx=
-  "Check if two numbers are approximately equal within relative tolerance."
-  [^double expected ^double actual ^double tolerance]
-  (let [diff (Math/abs (- expected actual))
-        denom (Math/abs expected)]
-    (if (zero? denom)
-      (< diff tolerance)
-      (< (/ diff denom) tolerance))))
 
 (defn- vec->r-str
   "Convert Clojure vector to R c() syntax."

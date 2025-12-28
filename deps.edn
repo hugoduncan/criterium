@@ -19,6 +19,7 @@
          :extra-deps
          {local/agent {:local/root "bases/agent"}
           local/arg-gen {:local/root "bases/arg-gen"}
+          local/test-assert {:local/root "components/test-assert"}
           org.clojure/test.check {:mvn/version "1.1.1"}}
          :jvm-opts ["-XX:-OmitStackTraceInFastThrow"
                     "-Dclojure.main.report=stderr"]}
@@ -83,6 +84,7 @@
                :extra-deps
                {poly/criterium {:local/root "bases/criterium"}
                 poly/r-validation {:local/root "components/r-validation"}
+                poly/test-assert {:local/root "components/test-assert"}
                 lambdaisland/kaocha {:mvn/version "1.91.1392"}
                 metosin/malli {:mvn/version "0.20.0"}}
                :main-opts ["-m" "kaocha.runner"
