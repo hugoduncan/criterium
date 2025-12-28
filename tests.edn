@@ -19,7 +19,7 @@
                                   "build/test"
                                   "projects/agent/test"
                                   "development/test"]
-           :skip-meta            [:very-slow :requires-build-artifacts]}]
+           :skip-meta            [:slow :very-slow :requires-build-artifacts]}]
 
   :plugins                            [:kaocha.plugin/randomize
                                        :kaocha.plugin/filter

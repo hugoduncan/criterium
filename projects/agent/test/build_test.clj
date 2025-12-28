@@ -102,6 +102,19 @@
   (doseq [^java.io.File f (reverse (file-seq dir))]
     (.delete f)))
 
+(def ^:private cached-build-dir
+  "Shared build directory for agent build tests.
+  CMake handles incremental builds, so we don't delete this between tests."
+  (io/file "target/test-agent-build-cache"))
+
+(defmacro with-cached-agent-build
+  "Executes body with agent built using a shared cached build directory.
+  Binds the library path to lib-path-sym. The build directory is NOT cleaned
+  up to enable fast incremental CMake builds on subsequent test runs."
+  [[lib-path-sym] & body]
+  `(let [~lib-path-sym (sut/build-agent-cpp! {:build-dir cached-build-dir})]
+     ~@body))
+
 ;; Tests for copy-agent-binary! function.
 ;; Contract: copy-agent-binary! copies source to target dir and creates hash file.
 (deftest copy-agent-binary-test
@@ -179,20 +192,16 @@
   (testing "build-agent-cpp!"
     (testing "builds agent library for current platform"
       (let [os (sut/detect-os)
-            arch (sut/detect-arch)
-            test-build-dir (io/file "target/test-agent-build")]
+            arch (sut/detect-arch)]
         (if (and (contains? #{:linux :macos} os)
                  (contains? #{:x64 :arm64} arch)
                  (not (and (= :linux os) (= :arm64 arch)))
                  (.isDirectory (io/file "agent-cpp")))
-          (try
-            (let [lib-path (sut/build-agent-cpp! {:build-dir test-build-dir})
-                  lib-file (io/file lib-path)]
+          (with-cached-agent-build [lib-path]
+            (let [lib-file (io/file lib-path)]
               (is (string? lib-path))
               (is (.exists lib-file))
-              (is (> (.length lib-file) 0)))
-            (finally
-              (delete-recursively test-build-dir)))
+              (is (> (.length lib-file) 0))))
           (is true "Skipping on unsupported platform or missing agent-cpp"))))
 
     (testing "throws when agent-cpp directory missing"
@@ -203,6 +212,8 @@
 
 ;; Integration test for build-and-copy-agent! function.
 ;; Contract: build-and-copy-agent! builds and copies agent to resources.
+;; Uses with-redefs to inject cached builds because we need to test
+;; build-and-copy-agent! itself, which internally calls build-agent-cpp!.
 (deftest ^:slow build-and-copy-agent-test
   (testing "build-and-copy-agent!"
     (testing "builds agent and copies to resources directory"
@@ -210,15 +221,14 @@
             arch (sut/detect-arch)
             platform (str (name os) "-" (name arch))
             resources-dir (io/file "target/test-build-resources")
-            test-build-dir (io/file "target/test-agent-build-copy")
             original-build-agent-cpp! sut/build-agent-cpp!]
         (if (and (contains? #{"linux-x64" "macos-x64" "macos-arm64"} platform)
                  (.isDirectory (io/file "agent-cpp")))
           (try
             (with-redefs [sut/resources-base-dir (constantly resources-dir)
                           sut/build-agent-cpp! (fn
-                                                 ([] (original-build-agent-cpp! {:build-dir test-build-dir}))
-                                                 ([opts] (original-build-agent-cpp! (assoc opts :build-dir test-build-dir))))]
+                                                 ([] (original-build-agent-cpp! {:build-dir cached-build-dir}))
+                                                 ([opts] (original-build-agent-cpp! (assoc opts :build-dir cached-build-dir))))]
               (let [result (sut/build-and-copy-agent!)
                     binary-file (io/file (:binary-path result))
                     hash-file (io/file (:hash-path result))]
@@ -228,6 +238,5 @@
                 (is (re-matches #"[0-9a-f]+\s+libcriterium\.(so|dylib)\n"
                                 (slurp hash-file)))))
             (finally
-              (delete-recursively resources-dir)
-              (delete-recursively test-build-dir)))
+              (delete-recursively resources-dir)))
           (is true "Skipping on unsupported platform or missing agent-cpp"))))))

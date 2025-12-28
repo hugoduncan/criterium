@@ -12,7 +12,7 @@
   (testing "bench"
     (bench-impl/last-bench! nil)
     (is (nil? (bench/last-bench)))
-    (let [out (with-out-str (bench/bench 1))]
+    (let [out (with-out-str (bench/bench 1 :limit-time-s 0.1))]
       (testing "outputs the estimated time on stdout"
         (is (re-find
              #"Elapsed Time: [0-9.]+ [mn]s  3σ \[[0-9.-]+ [0-9.]+]  min [0-9.]+"
@@ -27,7 +27,7 @@
         (is (not (re-find #"±" out))))))
   (testing "time returns expression-value"
     (with-out-str
-      (let [v (bench/bench 1)]
+      (let [v (bench/bench 1 :limit-time-s 0.1)]
         (is (= 1 v)))))
 
   (testing "all pipelines"
@@ -65,7 +65,7 @@
       (bench/bench (+ 1 1)
                    :viewer :kindly
                    :bench-plan bench-plans/log-histogram
-                   :limit-time-s 0.5)
+                   :limit-time-s 0.2)
       (is (empty? @kindly/accumulated)
           "accumulator is empty after flush - fragment was returned by flush-viewer"))
 
@@ -94,7 +94,7 @@
                                    (bench/bench (+ 1 1)
                                                 :viewer :print
                                                 :bench-plan bench-plans/log-histogram
-                                                :limit-time-s 0.5))
+                                                :limit-time-s 0.2))
                                  (bench/last-bench)))
                       :viewer)]
         ;; View with :kindly - bench/view returns the fragment
@@ -211,7 +211,7 @@
       (let [out (with-out-str
                   (bench/bench (str "allocate" "strings")
                                :with-allocation-trace true
-                               :limit-time-s 0.5))
+                               :limit-time-s 0.1))
             data (:data (bench/last-bench))]
         ;; If agent is attached, check allocation data is present
         (when (get-in data [:samples :allocation-trace])

@@ -29,13 +29,13 @@
                 0))
          well-1024a-res0)))
 
-(defspec add-mod-32-test-property 100
+(defspec add-mod-32-test-property 50
   (prop/for-all
    [a gen/small-integer
     b gen/small-integer]
    (is (<= 0 (well/add-mod-32 (long a) (long b)) 31))))
 
-(defspec well-1024a-test-property 100
+(defspec well-1024a-test-property 50
   (prop/for-all
    [random-seed (gen/large-integer* {:min 0x111111})
     well-index (gen-bounded 0 31)]

@@ -6,6 +6,7 @@
   {criterium.view/def-multi-view       hooks.impl/def-multi-view
    criterium.util.forms/cond*          hooks.impl/cond*}}
  :lint-as {babashka.fs/with-temp-dir                 clojure.core/with-open
+           build-test/with-cached-agent-build      clj-kondo.lint-as/def-catch-all
            clojure.test.check.clojure-test/defspec clojure.core/def
            clojure.test.check.properties/for-all   clojure.core/let
            criterium.util/optional-require         clojure.core/require
