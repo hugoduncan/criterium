@@ -6,7 +6,7 @@
    [criterium.util.helpers :as util]
    [criterium.util.probability :as probability]
    [criterium.util.stats :as stats]
-   [criterium.util.well :as well]))
+   [random.interface :as random]))
 
 (defn bootstrap-sample
   "Bootstrap sampling of a statistic, using resampling with replacement."
@@ -178,7 +178,7 @@
                    stats-fn
                    (:bootstrap-size opts (long (* (count vs) 0.8)))
                    (into [0.5] (:estimate-quantiles opts))
-                   well/well-rng-1024a)
+                   random/well-rng-1024a)
         scale-1   (fn [v] (util/transform-sample-> v transforms))
         scale-f   (partial scale-bootstrap-stat scale-1)
         ks        (keys stats-fn-map)]

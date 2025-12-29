@@ -5,12 +5,14 @@
            :source-paths         ["bases/criterium/src"
                                   "bases/agent/src"
                                   "bases/arg-gen/src"
+                                  "components/random/src"
                                   "components/utils/src"
                                   "build/src"
                                   "projects/agent"]
            :kaocha/source-paths  ["bases/criterium/src"
                                   "bases/agent/src"
                                   "bases/arg-gen/src"
+                                  "components/random/src"
                                   "components/utils/src"
                                   "build/src"
                                   "projects/agent"]
@@ -18,6 +20,7 @@
                                   "bases/blackhole/test"
                                   "bases/agent/test"
                                   "bases/arg-gen/test"
+                                  "components/random/test"
                                   "components/utils/test"
                                   "build/test"
                                   "projects/agent/test"

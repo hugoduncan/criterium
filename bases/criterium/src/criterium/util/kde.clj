@@ -5,7 +5,7 @@
   density estimation, bootstrap confidence bands, and mode finding."
   (:require
    [criterium.util.stats :as stats]
-   [criterium.util.well :as well]))
+   [random.interface :as random]))
 
 ;;; Excess Mass computation (Müller-Sawitzki 1991)
 
@@ -144,7 +144,7 @@
   and Tests for Multimodality' JASA 86, 738-746"
   ([data k] (excess-mass data k {}))
   ([data k {:keys [rng-factory]
-            :or {rng-factory #(well/well-rng-1024a)}}]
+            :or {rng-factory #(random/well-rng-1024a)}}]
    (let [data (vec data)
          n (long (count data))
          k (long k)]
@@ -476,7 +476,7 @@
   ([data bandwidth ^doubles grid {:keys [n-bootstrap alpha rng-factory]
                                   :or {n-bootstrap 200
                                        alpha 0.05
-                                       rng-factory #(well/well-rng-1024a)}}]
+                                       rng-factory #(random/well-rng-1024a)}}]
    (let [n-grid (alength grid)
          samples (vec (for [_ (range n-bootstrap)]
                         (kde-bootstrap-sample data bandwidth grid (rng-factory))))
@@ -513,7 +513,7 @@
     {:keys [n-bootstrap alpha rng-factory]
      :or {n-bootstrap 200
           alpha 0.05
-          rng-factory #(well/well-rng-1024a)}}]
+          rng-factory #(random/well-rng-1024a)}}]
    (let [density (gaussian-kde data bandwidth grid)
          orig-modes (vec (take n-modes (find-modes grid density)))
          boot-modes (vec (for [_ (range n-bootstrap)]
@@ -723,7 +723,7 @@
                       n-points 512
                       alpha 0.05
                       tol 1e-6
-                      rng-factory #(well/well-rng-1024a)}}]
+                      rng-factory #(random/well-rng-1024a)}}]
   (let [data (vec data)
         n-pts (long n-points)
         ;; Find critical bandwidth
@@ -784,7 +784,7 @@
                  :or {n-bootstrap 200
                       n-points 512
                       tol 1e-6
-                      rng-factory #(well/well-rng-1024a)}}]
+                      rng-factory #(random/well-rng-1024a)}}]
   (let [data (vec data)
         n-pts (long n-points)
         ;; Find critical bandwidth
@@ -839,7 +839,7 @@
           :or {n-points 512
                n-bootstrap 200
                alpha 0.05
-               rng-factory #(well/well-rng-1024a)}}]
+               rng-factory #(random/well-rng-1024a)}}]
    (when (empty? data)
      (throw (ex-info "Input data cannot be empty"
                      {:error :kde/no-data})))
