@@ -4,11 +4,15 @@
   Provides statistical functions including:
   - Core stats: min, max, mean, sum, variance, median, quartiles, quantile
   - Outlier detection: boxplot-outlier-thresholds
-  - Sampling: uniform-distribution, sample-uniform, sample, confidence-interval"
+  - Sampling: uniform-distribution, sample-uniform, sample, confidence-interval
+  - Probability: erf, normal-cdf, normal-pdf, normal-quantile
+  - Histogram: histogram (Freedman-Diaconis binning)"
   (:refer-clojure :exclude [min max])
   (:require
    [stats.core :as core]
+   [stats.histogram :as histogram]
    [stats.outliers :as outliers]
+   [stats.probability :as probability]
    [stats.sampling :as sampling]))
 
 ;;; Core statistics
@@ -97,3 +101,55 @@
   "Find the significance of outliers given bootstrapped mean and variance
    estimates."
   sampling/confidence-interval)
+
+;;; Probability
+
+(def polynomial-value
+  "Evaluate a polynomial at the given value x, for the coefficients given in
+  descending order (so the last element of coefficients is the constant term)."
+  probability/polynomial-value)
+
+(def erf
+  "erf polynomial approximation.  Maximum error is 1.5e-7.
+  Handbook of Mathematical Functions: with Formulas, Graphs, and Mathematical
+  Tables. Milton Abramowitz (Editor), Irene A. Stegun (Editor), 7.1.26"
+  probability/erf)
+
+(def normal-cdf
+  "Probability p(X<x), for a normal distrubtion.  Uses the polynomial erf
+  approximation above, and so is not super accurate."
+  probability/normal-cdf)
+
+(def normal-pdf
+  "Probability density function for the normal distribution."
+  probability/normal-pdf)
+
+(def normal-quantile
+  "Normal quantile function. Given a quantile in (0,1), return the normal value
+  for that quantile.
+
+  Wichura, MJ. 'Algorithm AS241' The Percentage Points of the Normal
+  Distribution. Applied Statistics, 37, 477-484 "
+  probability/normal-quantile)
+
+;;; Histogram
+
+(defn histogram
+  "Compute histogram from vector of numeric values using Freedman-Diaconis rule.
+   Optional pre-computed IQR can be provided.
+   Returns map containing:
+   - :counts - vector of bin counts
+   - :centers - vector of bin centers
+   - :width - bin width
+   - :density - vector of probability density values
+   - :n - total number of samples
+   - :min - minimum value
+   - :max - maximum value
+
+   Throws:
+   - ex-info {:error :histogram/no-values} for empty input
+   - ex-info {:error :histogram/same-values} when all values are the same"
+  ([values]
+   (histogram/histogram values))
+  ([values precomputed-iqr]
+   (histogram/histogram values precomputed-iqr)))
