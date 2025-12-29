@@ -4,6 +4,7 @@
    [clojure.test.check.clojure-test :refer [defspec]]
    [clojure.test.check.generators :as gen]
    [clojure.test.check.properties :as prop]
+   [criterium.data.r-validation.adjbox :as adjbox-data]
    [criterium.data.r-validation.medcouple :as mc-data]
    [criterium.test-utils :refer [test-max-error]]
    [criterium.util.stats :as stats]
@@ -141,3 +142,74 @@
        (let [sorted (vec (sort data))
              mc     (stats/medcouple sorted)]
          (and (<= -1.0 mc) (<= mc 1.0)))))))
+
+;;; Adjusted boxplot outlier threshold tests
+;; Tests the adjusted-boxplot-outlier-thresholds function which computes
+;; asymmetric outlier fences based on the medcouple skewness measure.
+;; Validates against values computed from the Hubert & Vandervieren (2008)
+;; formula with coefficients a=-4, b=3.
+
+(deftest adjusted-boxplot-outlier-thresholds-test
+  (testing "adjusted-boxplot-outlier-thresholds"
+    (testing "returns correct values for reference test cases"
+      (doseq [{:keys [q1 q3 mc expected description]} adjbox-data/test-cases]
+        (testing description
+          (let [result   (stats/adjusted-boxplot-outlier-thresholds q1 q3 mc)
+                max-diff 1e-10]
+            (is (= 4 (count result)) "should return 4 threshold values")
+            (doseq [[i exp act] (map vector (range) expected result)]
+              (is (< (Math/abs (- exp act)) max-diff)
+                  (format "Threshold %d: expected %s, got %s for %s"
+                          i exp act description)))))))
+
+    (testing "returns correct values for ozone data"
+      (let [{:keys [q1 q3 mc expected]} adjbox-data/ozone-data
+            result                      (stats/adjusted-boxplot-outlier-thresholds q1 q3 mc)
+            max-diff                    1e-10]
+        (doseq [[i exp act] (map vector (range) expected result)]
+          (is (< (Math/abs (- exp act)) max-diff)
+              (format "Ozone threshold %d: expected %s, got %s" i exp act)))))
+
+    (testing "equals standard boxplot when mc = 0"
+      (let [q1       2.0
+            q3       8.0
+            standard (stats/boxplot-outlier-thresholds q1 q3)
+            adjusted (stats/adjusted-boxplot-outlier-thresholds q1 q3 0.0)]
+        (is (= standard adjusted)
+            "Adjusted thresholds should equal standard when mc=0")))
+
+    (testing "widens upper fence for right-skewed data (mc > 0)"
+      (let [q1                2.0
+            q3                8.0
+            mc                0.3
+            [_ _ std-high _]  (stats/boxplot-outlier-thresholds q1 q3)
+            [_ _ adj-high _]  (stats/adjusted-boxplot-outlier-thresholds q1 q3 mc)]
+        (is (> adj-high std-high)
+            "Upper fence should be wider for right-skewed data")))
+
+    (testing "narrows lower fence for right-skewed data (mc > 0)"
+      (let [q1               2.0
+            q3               8.0
+            mc               0.3
+            [_ std-low _ _]  (stats/boxplot-outlier-thresholds q1 q3)
+            [_ adj-low _ _]  (stats/adjusted-boxplot-outlier-thresholds q1 q3 mc)]
+        (is (> adj-low std-low)
+            "Lower fence should be narrower (higher) for right-skewed data")))
+
+    (testing "widens lower fence for left-skewed data (mc < 0)"
+      (let [q1               2.0
+            q3               8.0
+            mc               -0.3
+            [_ std-low _ _]  (stats/boxplot-outlier-thresholds q1 q3)
+            [_ adj-low _ _]  (stats/adjusted-boxplot-outlier-thresholds q1 q3 mc)]
+        (is (< adj-low std-low)
+            "Lower fence should be wider (lower) for left-skewed data")))
+
+    (testing "narrows upper fence for left-skewed data (mc < 0)"
+      (let [q1                2.0
+            q3                8.0
+            mc                -0.3
+            [_ _ std-high _]  (stats/boxplot-outlier-thresholds q1 q3)
+            [_ _ adj-high _]  (stats/adjusted-boxplot-outlier-thresholds q1 q3 mc)]
+        (is (< adj-high std-high)
+            "Upper fence should be narrower for left-skewed data")))))

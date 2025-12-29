@@ -142,6 +142,31 @@
      (+ q3 mild)
      (+ q3 severe)]))
 
+(defn adjusted-boxplot-outlier-thresholds
+  "Outlier thresholds for given quartiles adjusted for skewness.
+  Returns [low-severe low-mild high-mild high-severe].
+
+  Uses the adjusted boxplot method from Hubert & Vandervieren (2008)
+  which accounts for skewness via the medcouple statistic.
+
+  When mc = 0 (symmetric), reduces to standard boxplot thresholds.
+  When mc > 0 (right-skewed), upper fence widens, lower fence narrows.
+  When mc < 0 (left-skewed), lower fence widens, upper fence narrows."
+  [^double q1 ^double q3 ^double mc]
+  {:pre [(number? q1) (number? q3) (number? mc)]}
+  (let [iqr (- q3 q1)
+        a   -4.0
+        b   3.0
+        [^double lower-exp ^double upper-exp]
+        (if (>= mc 0.0)
+          [(Math/exp (* a mc)) (Math/exp (* b mc))]
+          [(Math/exp (* (- b) mc)) (Math/exp (* (- a) mc))])
+        mild-lower   (- q1 (* 1.5 lower-exp iqr))
+        mild-upper   (+ q3 (* 1.5 upper-exp iqr))
+        severe-lower (- q1 (* 3.0 lower-exp iqr))
+        severe-upper (+ q3 (* 3.0 upper-exp iqr))]
+    [severe-lower mild-lower mild-upper severe-upper]))
+
 (defn uniform-distribution
   "Return uniformly distributed deviates on 0..max-val use the specified rng."
   [^double max-val rng]
