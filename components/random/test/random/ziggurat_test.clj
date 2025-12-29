@@ -1,4 +1,4 @@
-(ns criterium.util.ziggurat-test
+(ns random.ziggurat-test
   (:require
    [clojure.pprint :as pprint]
    [clojure.test :refer [deftest is testing]]
@@ -11,8 +11,11 @@
                                  variance-ratio
                                  xoshiro-available?]]
    [criterium.util.stats :as stats]
-   [criterium.util.well :as well]
-   [criterium.util.ziggurat :as ziggurat]))
+   [random.well :as well]
+   [random.ziggurat :as ziggurat]))
+
+;; Tests for ziggurat algorithm for generating normal random variates.
+;; Verifies correct distribution and independence of samples when using WELL RNG.
 
 (defspec random-normal-zig-test-property 10
   (prop/for-all
@@ -40,7 +43,7 @@
 
 (deftest ziggurat-well-rng-autocorrelation-test
   ;; Verify ziggurat produces independent normal samples when using WELL RNG.
-  ;; With n=100,000, SE ≈ 1/√n ≈ 0.003, so threshold of 0.02 is conservative.
+  ;; With n=100,000, SE approx 1/sqrt(n) approx 0.003, so threshold of 0.02 is conservative.
   (testing "random-normal-zig with WELL RNG"
     (let [seed    42
           n       100000
@@ -147,9 +150,9 @@
       results)
      (println)
      (println "Expected values for standard normal:")
-     (println "  - Mean ≈ 0, Variance ≈ 1")
-     (println "  - Autocorrelation ≈ 0 (threshold: |ac| < 0.02)")
-     (println "  - Variance ratio ≈ 1.0 (threshold: 0.9 to 1.1)"))))
+     (println "  - Mean approx 0, Variance approx 1")
+     (println "  - Autocorrelation approx 0 (threshold: |ac| < 0.02)")
+     (println "  - Variance ratio approx 1.0 (threshold: 0.9 to 1.1)"))))
 
 (comment
   (print-ziggurat-comparison-table)

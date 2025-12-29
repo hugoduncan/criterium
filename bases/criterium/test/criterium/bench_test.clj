@@ -15,7 +15,7 @@
     (let [out (with-out-str (bench/bench 1 :limit-time-s 0.1))]
       (testing "outputs the estimated time on stdout"
         (is (re-find
-             #"Elapsed Time: [0-9.]+ [mn]s  3σ \[[0-9.-]+ [0-9.]+]  min [0-9.]+"
+             #"Elapsed Time: [0-9.]+ [mn]s  3σ \[[0-9.e+-]+ [0-9.e+-]+]  min [0-9.]+"
              out)))))
   (testing "time with stats"
     (let [out (with-out-str (bench/bench 1 :limit-time-s 0.1))]

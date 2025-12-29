@@ -14,7 +14,9 @@
    [criterium.util.bootstrap :as bootstrap]
    [criterium.util.stats :as stats]
    [criterium.util.well :as well]
-   [criterium.validation.r :as r :refer [vec->r-str]]))
+   [criterium.validation.r :as r :refer [vec->r-str]])
+  (:import
+   [stats.bootstrap BcaEstimate]))
 
 ;;; Test data sets
 ;; Fixed datasets for reproducible validation
@@ -50,6 +52,14 @@
   "Check if a confidence interval [lower upper] contains a value."
   ^Boolean [[^double lower ^double upper] ^double value]
   (and (<= lower value) (<= value upper)))
+
+(defn- deterministic-rng-factory
+  "Create an RNG factory that produces deterministic but different sequences.
+  Each call to the returned factory uses a different seed based on a counter,
+  ensuring reproducible test results across platforms."
+  [base-seed]
+  (let [counter (atom 0)]
+    #(well/well-rng-1024a (+ base-seed (swap! counter inc)))))
 
 ;;; Jackknife validation (deterministic - exact match)
 
@@ -222,13 +232,15 @@
 
         (testing "handles skewed data appropriately"
           ;; BCa should adjust for skewness - CIs may be asymmetric
+          ;; Use deterministic RNG to ensure reproducible z0 calculation
           (let [data (vec (sort skewed-data))
                 true-mean (stats/mean data)
                 boot-size 1000
                 alpha [0.025 0.5 0.975]
-                ;; Clojure BCa
+                ;; Clojure BCa with deterministic RNG for reproducibility
                 clj-bca (bootstrap/bca-nonparametric
-                         data stats/mean boot-size alpha well/well-rng-1024a)
+                         data stats/mean boot-size alpha
+                         (deterministic-rng-factory 42))
                 [clj-ci clj-z0 _clj-acc _ _] clj-bca
                 [clj-lower _ clj-upper] clj-ci
                 ;; R BCa
@@ -293,7 +305,7 @@
                 alpha [0.5 0.025 0.975]
                 result (bootstrap/bootstrap-bca
                         data stats/mean boot-size alpha well/well-rng-1024a)]
-            (is (instance? criterium.util.bootstrap.BcaEstimate result)
+            (is (instance? BcaEstimate result)
                 "Result should be BcaEstimate record")
             (is (number? (:point-estimate result))
                 "point-estimate should be a number")
