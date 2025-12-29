@@ -67,8 +67,6 @@
   Doornik, 2005"
   ([] (ziggurat/random-normal-zig))
   ([rng-seq] (ziggurat/random-normal-zig rng-seq))
-  ([rng-seq-or-c arg2 arg3]
-   (if (number? rng-seq-or-c)
-     (ziggurat/random-normal-zig rng-seq-or-c arg2 arg3)
-     (ziggurat/random-normal-zig rng-seq-or-c arg2 arg3)))
+  ([c r v] (ziggurat/random-normal-zig c r v))
+  ([rng-seq c r v] (ziggurat/random-normal-zig rng-seq c r v))
   ([rng-seq tables] (ziggurat/random-normal-zig rng-seq tables)))
