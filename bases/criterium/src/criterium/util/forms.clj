@@ -1,4 +1,10 @@
-(ns criterium.util.forms)
+(ns criterium.util.forms
+  "Control flow macros.
+
+  This namespace delegates to utils.interface for the core implementation
+  and is retained for backward compatibility."
+  (:require
+   [utils.interface :as utils]))
 
 (defmacro cond*
   "A cond variant that allows :let bindings visible to subsequent clauses.
@@ -13,21 +19,4 @@
        :else (default-handler a b))"
   {:style/indent 1}
   [& clauses]
-  (letfn [(process [clauses]
-            (when (seq clauses)
-              (let [guard     (first clauses)
-                    remaining (next clauses)
-                    body      (first remaining)]
-                (when-not remaining
-                  (throw
-                   (IllegalArgumentException.
-                    "cond* requires an even number of forms")))
-                (if (= :let guard)
-                  (if (vector? body)
-                    `(let ~body
-                       ~(process (next remaining)))
-                    (throw
-                     (IllegalArgumentException.
-                      "cond* :let requires a binding vector")))
-                  `(if ~guard ~body ~(process (next remaining)))))))]
-    (process clauses)))
+  `(utils/cond* ~@clauses))
