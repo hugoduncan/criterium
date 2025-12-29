@@ -244,7 +244,7 @@
               (testing (str "at quantile " q)
                 (let [r-q (first (r/r-eval
                                   (str "quantile(" (vec->r-str sorted) ", " q ", type=7)")))
-                      clj-q (stats/quantile q sorted)]
+                      clj-q (double (stats/quantile q sorted))]
                   (is (approx= r-q clj-q 1e-10)
                       (format "quantile mismatch at q=%.2f: R=%.15f, clj=%.15f"
                               q r-q clj-q)))))))
@@ -255,7 +255,7 @@
               (testing (str "at quantile " q)
                 (let [r-q (first (r/r-eval
                                   (str "quantile(" (vec->r-str sorted) ", " q ", type=7)")))
-                      clj-q (stats/quantile q sorted)]
+                      clj-q (double (stats/quantile q sorted))]
                   (is (approx= r-q clj-q 1e-10)
                       (format "quantile mismatch at q=%.2f: R=%.15f, clj=%.15f"
                               q r-q clj-q)))))))
@@ -266,7 +266,7 @@
               (testing (str "at quantile " q)
                 (let [r-q (first (r/r-eval
                                   (str "quantile(" (vec->r-str sorted) ", " q ", type=7)")))
-                      clj-q (stats/quantile q sorted)]
+                      clj-q (double (stats/quantile q sorted))]
                   (is (approx= r-q clj-q 1e-10)
                       (format "quantile mismatch at q=%.2f: R=%.15f, clj=%.15f"
                               q r-q clj-q)))))))
@@ -277,7 +277,7 @@
               (testing (str "at quantile " q)
                 (let [r-q (first (r/r-eval
                                   (str "quantile(" (vec->r-str sorted) ", " q ", type=7)")))
-                      clj-q (stats/quantile q sorted)]
+                      clj-q (double (stats/quantile q sorted))]
                   (is (approx= r-q clj-q 1e-10)
                       (format "quantile mismatch at q=%.2f: R=%.15f, clj=%.15f"
                               q r-q clj-q)))))))
@@ -288,7 +288,7 @@
               (testing (str "at quantile " q)
                 (let [r-q (first (r/r-eval
                                   (str "quantile(" (vec->r-str sorted) ", " q ", type=7)")))
-                      clj-q (stats/quantile q sorted)]
+                      clj-q (double (stats/quantile q sorted))]
                   (is (approx= r-q clj-q 1e-10)
                       (format "quantile mismatch at q=%.2f: R=%.15f, clj=%.15f"
                               q r-q clj-q)))))))
@@ -299,7 +299,7 @@
               (testing (str "at quantile " q)
                 (let [r-q (first (r/r-eval
                                   (str "quantile(" (vec->r-str sorted) ", " q ", type=7)")))
-                      clj-q (stats/quantile q sorted)]
+                      clj-q (double (stats/quantile q sorted))]
                   (is (approx= r-q clj-q 1e-10)
                       (format "quantile mismatch at q=%.2f: R=%.15f, clj=%.15f"
                               q r-q clj-q)))))))
@@ -310,7 +310,7 @@
               (testing (str "at quantile " q)
                 (let [r-q (first (r/r-eval
                                   (str "quantile(" (vec->r-str sorted) ", " q ", type=7)")))
-                      clj-q (stats/quantile q sorted)]
+                      clj-q (double (stats/quantile q sorted))]
                   (is (approx= r-q clj-q 1e-10)
                       (format "quantile mismatch at q=%.2f: R=%.15f, clj=%.15f"
                               q r-q clj-q)))))))))))
@@ -351,8 +351,9 @@
                 [r-intercept r-slope r-var r-rsq] r-result
                 clj-result (stats/linear-regression linear-perfect-xs linear-perfect-ys)
                 [clj-intercept clj-slope] (:coeffs clj-result)]
-            (is (approx= r-intercept clj-intercept 1e-10)
-                (format "intercept mismatch: R=%.15f, clj=%.15f" r-intercept clj-intercept))
+            ;; For y = 2x, expected intercept is 0. Use near-zero= for floating-point artifacts.
+            (is (near-zero= r-intercept clj-intercept 1e-10)
+                (format "intercept mismatch: R=%.15e, clj=%.15e" r-intercept clj-intercept))
             (is (approx= r-slope clj-slope 1e-10)
                 (format "slope mismatch: R=%.15f, clj=%.15f" r-slope clj-slope))
             ;; For perfect fit, both variances should be essentially zero.
