@@ -19,7 +19,9 @@
          :extra-deps
          {local/agent {:local/root "bases/agent"}
           local/arg-gen {:local/root "bases/arg-gen"}
-          org.clojure/test.check {:mvn/version "1.1.1"}}
+          org.clojure/test.check {:mvn/version "1.1.1"}
+          luposlip/json-schema {:mvn/version "0.4.6"}
+          clj-http/clj-http {:mvn/version "3.13.0"}}
          :jvm-opts ["-XX:-OmitStackTraceInFastThrow"
                     "-Dclojure.main.report=stderr"]}
   :with-agent-mac {:jvm-opts ["-agentpath:agent-cpp/build/libcriterium.dylib"]}
