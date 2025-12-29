@@ -1,2 +1,2 @@
-{:paths ["src" "resources"]
+{:paths ["src"]
  :deps {poly/utils {:local/root "../../components/utils"}}}
