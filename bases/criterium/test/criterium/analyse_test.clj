@@ -145,6 +145,93 @@
                  :elapsed-time
                  :outlier-counts))))))
 
+;; Tests adjusted boxplot outlier detection using medcouple.
+;; Verifies that medcouple is computed and stored, and that the adjusted
+;; thresholds handle skewed data appropriately.
+
+(deftest adjusted-outliers-test
+  (testing "adjusted outlier detection"
+    (testing "computes and stores medcouple"
+      (let [raw-data [1 2 3 4 5 6 7 8 9]
+            samples (metrics-samples
+                     {[:elapsed-time] raw-data
+                      [:compilation :time-ms] [0 0 0]}
+                     1)
+            data-map {:samples samples}
+            quantiles (analyse/quantiles {:quantiles []})
+            outliers (analyse/outliers)
+            result (-> data-map quantiles outliers)]
+        (is (number? (-> result :outliers util/outliers :elapsed-time :medcouple))
+            "medcouple should be present in outliers output")))
+
+    (testing "returns positive medcouple for right-skewed data"
+      (let [;; Right-skewed: most values low, few high
+            raw-data [1 2 2 3 3 3 4 4 5 10 15 20]
+            samples (metrics-samples
+                     {[:elapsed-time] raw-data
+                      [:compilation :time-ms] (repeat 12 0)}
+                     1)
+            data-map {:samples samples}
+            quantiles (analyse/quantiles {:quantiles []})
+            outliers (analyse/outliers)
+            result (-> data-map quantiles outliers)
+            mc (-> result :outliers util/outliers :elapsed-time :medcouple)]
+        (is (pos? mc) "medcouple should be positive for right-skewed data")))
+
+    (testing "returns negative medcouple for left-skewed data"
+      (let [;; Left-skewed: most values high, few low
+            raw-data [-20 -15 -10 -5 -4 -4 -3 -3 -3 -2 -2 -1]
+            samples (metrics-samples
+                     {[:elapsed-time] raw-data
+                      [:compilation :time-ms] (repeat 12 0)}
+                     1)
+            data-map {:samples samples}
+            quantiles (analyse/quantiles {:quantiles []})
+            outliers (analyse/outliers)
+            result (-> data-map quantiles outliers)
+            mc (-> result :outliers util/outliers :elapsed-time :medcouple)]
+        (is (neg? mc) "medcouple should be negative for left-skewed data")))
+
+    (testing "returns near-zero medcouple for symmetric data"
+      (let [raw-data [1 2 3 4 5 6 7 8 9]
+            samples (metrics-samples
+                     {[:elapsed-time] raw-data
+                      [:compilation :time-ms] (repeat 9 0)}
+                     1)
+            data-map {:samples samples}
+            quantiles (analyse/quantiles {:quantiles []})
+            outliers (analyse/outliers)
+            result (-> data-map quantiles outliers)
+            mc (-> result :outliers util/outliers :elapsed-time :medcouple)]
+        (is (< (Math/abs mc) 0.1)
+            "medcouple should be near zero for symmetric data")))
+
+    (testing "uses asymmetric thresholds for skewed data"
+      (let [;; Right-skewed data
+            raw-data [1 2 2 3 3 3 4 4 5 10 15 20]
+            samples (metrics-samples
+                     {[:elapsed-time] raw-data
+                      [:compilation :time-ms] (repeat 12 0)}
+                     1)
+            data-map {:samples samples}
+            quantiles (analyse/quantiles {:quantiles []})
+            outliers (analyse/outliers)
+            result (-> data-map quantiles outliers)
+            [low-severe low-mild high-mild high-severe]
+            (-> result :outliers util/outliers :elapsed-time :thresholds)
+            q1 (-> result :quantiles util/quantiles :elapsed-time (get 0.25))
+            q3 (-> result :quantiles util/quantiles :elapsed-time (get 0.75))
+            iqr (- q3 q1)
+            ;; Standard thresholds would be symmetric
+            std-low-mild (- q1 (* 1.5 iqr))
+            std-high-mild (+ q3 (* 1.5 iqr))]
+        ;; For right-skewed data, upper fence should be wider than standard
+        (is (> high-mild std-high-mild)
+            "upper fence should be wider for right-skewed data")
+        ;; For right-skewed data, lower fence should be narrower than standard
+        (is (> low-mild std-low-mild)
+            "lower fence should be narrower for right-skewed data")))))
+
 (deftest stats-test
   (testing "stats"
     (let [raw-data [1 2 3]

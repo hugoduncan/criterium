@@ -68,20 +68,28 @@
            (> high-severe x high-mild) :high-mild
            (>= x high-severe) :high-severe)])))
 
-(defn samples-outliers [metric-configs all-quantiles samples]
+(defn samples-outliers
+  "Compute outliers for each metric using the adjusted boxplot method.
+  Returns a map with thresholds, outliers, outlier-counts, and medcouple
+  for each metric path."
+  [metric-configs all-quantiles samples]
   (reduce
    (fn sample-m [result metric-config]
      (let [path (:path metric-config)
            quantiles (have map? (get-in all-quantiles path)
                            {:all-quantiles all-quantiles})
-           thresholds (stats/boxplot-outlier-thresholds
+           sample-values (get samples path)
+           sorted-samples (vec (sort sample-values))
+           mc (stats/medcouple sorted-samples)
+           thresholds (stats/adjusted-boxplot-outlier-thresholds
                        (get quantiles 0.25)
-                       (get quantiles 0.75))
+                       (get quantiles 0.75)
+                       mc)
            classifier (classifier thresholds)
            outliers (when (apply not= thresholds)
                       (into {}
                             (mapv classifier
-                                  (get samples path)
+                                  sample-values
                                   (range))))
            outlier-counts (reduce-kv
                            (fn [counts _i v]
@@ -92,7 +100,8 @@
                   assoc
                   :thresholds thresholds
                   :outliers outliers
-                  :outlier-counts outlier-counts)))
+                  :outlier-counts outlier-counts
+                  :medcouple mc)))
    {}
    metric-configs))
 
