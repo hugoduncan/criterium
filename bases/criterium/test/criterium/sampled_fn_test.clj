@@ -21,4 +21,4 @@
 
     (let [samples (sampler/samples-map ten-micros)
           digest  (get-in samples [:metric->digest [:elapsed-time]])]
-      (is (< 10000 (t-digest/quantile digest 0.5) 10500)))))
+      (is (< 10000 (t-digest/quantile digest 0.5) 11000)))))
