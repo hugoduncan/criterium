@@ -4,6 +4,7 @@
    [clojure.test.check.clojure-test :refer [defspec]]
    [clojure.test.check.generators :as gen]
    [clojure.test.check.properties :as prop]
+   [criterium.data.r-validation.medcouple :as mc-data]
    [criterium.test-utils :refer [test-max-error]]
    [criterium.util.stats :as stats]
    [criterium.util.well :as well]))
@@ -82,3 +83,61 @@
     (test-max-error 2.0 (stats/quantile 0.75 [0 1 1.5 2 3]) max-error))
   (is (= 5 (stats/quantile 0.05 (range 0 101))))
   (is (= 95 (stats/quantile 0.95 (range 0 101)))))
+
+;;; Medcouple tests
+;; Tests the medcouple function, a robust measure of skewness.
+;; Validates against reference values computed from the algorithm definition
+;; in Brys, Hubert, and Struyf (2004).
+
+(deftest medcouple-test
+  (testing "medcouple"
+    (testing "returns correct values for reference test cases"
+      (doseq [{:keys [data expected description]} mc-data/test-cases]
+        (testing description
+          (let [result   (stats/medcouple data)
+                max-diff 1e-10]
+            (is (< (Math/abs (- result expected)) max-diff)
+                (format "Expected %s, got %s for %s"
+                        expected result description))))))
+
+    (testing "returns correct value for ozone data"
+      (let [{:keys [data expected]} mc-data/ozone-data
+            result                  (stats/medcouple data)
+            max-diff                1e-10]
+        (is (< (Math/abs (- result expected)) max-diff)
+            (format "Expected %s, got %s" expected result))))
+
+    (testing "returns value in range [-1, 1]"
+      (doseq [{:keys [data]} mc-data/test-cases]
+        (let [result (stats/medcouple data)]
+          (is (<= -1.0 result 1.0)
+              (format "Medcouple %s out of range [-1, 1]" result)))))
+
+    (testing "is symmetric under reflection"
+      (let [data     [1 2 3 4 5 10 15 20]
+            reflected (mapv #(- %) (reverse data))
+            mc-orig   (stats/medcouple (vec (sort data)))
+            mc-ref    (stats/medcouple (vec (sort reflected)))]
+        (is (< (Math/abs (+ mc-orig mc-ref)) 1e-10)
+            "mc(-x) should equal -mc(x)")))
+
+    (testing "is location and scale invariant"
+      (let [data       [1 2 3 4 5 10 15 20]
+            shifted    (mapv #(+ % 100) data)
+            scaled     (mapv #(* % 10) data)
+            mc-orig    (stats/medcouple (vec (sort data)))
+            mc-shifted (stats/medcouple (vec (sort shifted)))
+            mc-scaled  (stats/medcouple (vec (sort scaled)))]
+        (is (< (Math/abs (- mc-orig mc-shifted)) 1e-10)
+            "Medcouple should be location invariant")
+        (is (< (Math/abs (- mc-orig mc-scaled)) 1e-10)
+            "Medcouple should be scale invariant")))))
+
+(defspec medcouple-range-test 50
+  (testing "medcouple"
+    (testing "always returns value in [-1, 1]"
+      (prop/for-all
+       [data (gen/vector gen/small-integer 3 100)]
+       (let [sorted (vec (sort data))
+             mc     (stats/medcouple sorted)]
+         (and (<= -1.0 mc) (<= mc 1.0)))))))
