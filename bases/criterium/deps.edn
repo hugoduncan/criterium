@@ -1,6 +1,7 @@
 {:paths ["src" "resources"]
  :deps {poly/blackhole {:local/root "../blackhole"}
         poly/agent {:local/root "../agent"}
+        poly/optimisation {:local/root "../../components/optimisation"}
         poly/random {:local/root "../../components/random"}
         poly/utils {:local/root "../../components/utils"}}
  :aliases {:test

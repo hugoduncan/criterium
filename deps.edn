@@ -6,6 +6,7 @@
    {poly/agent {:local/root "bases/agent"}
     poly/criterium {:local/root "bases/criterium"}
     poly/notebooks {:local/root "bases/notebooks"}
+    poly/optimisation {:local/root "components/optimisation"}
     poly/random {:local/root "components/random"}
     poly/utils {:local/root "components/utils"}
     lambdaisland/kaocha {:mvn/version "1.87.1366"}
@@ -16,6 +17,7 @@
   :test {:extra-paths ["bases/criterium/test"
                        "bases/blackhole/test"
                        "bases/arg-gen/test"
+                       "components/optimisation/test"
                        "components/random/test"
                        "components/utils/test"
                        "projects/agent"
@@ -23,6 +25,7 @@
          :extra-deps
          {local/agent {:local/root "bases/agent"}
           local/arg-gen {:local/root "bases/arg-gen"}
+          local/optimisation {:local/root "components/optimisation"}
           local/random {:local/root "components/random"}
           local/test-assert {:local/root "components/test-assert"}
           local/utils {:local/root "components/utils"}

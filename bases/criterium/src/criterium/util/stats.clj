@@ -2,7 +2,8 @@
   "A collection of statistical methods used by criterium"
   (:refer-clojure :exclude [min max])
   (:require
-   [criterium.util.helpers :as util]))
+   [criterium.util.helpers :as util]
+   [optimisation.interface :as optimisation]))
 
 ;;; Utilities
 (defn transpose
@@ -207,37 +208,17 @@
               0.0 X)
      (* (long n) (double h))))
 
-(defn sum-square-delta ^double [vs ^double mv]
-  (reduce + (map (comp util/sqrd (fn [^double x] (- x mv))) vs)))
+;;; Linear regression (delegated to optimisation component)
 
-(defn- muld ^double [^double a ^double b] (* a b))
+(def sum-square-delta
+  "Sum of squared differences from a mean value."
+  optimisation/sum-square-delta)
 
-(defn linear-regression
-  [xs ys]
-  (let [n             (count xs)
-        mx            (/ ^double (reduce + xs) n)
-        my            (/ ^double (reduce + ys) n)
-        nmxmy         (* n mx my)
-        nmxmx         (* n mx mx)
-        s1            (- ^double (reduce + (map muld xs ys))
-                         nmxmy)
-        s2            (- ^double (reduce + (map util/sqrd xs))
-                         nmxmx)
-        a1            (/ s1 s2)
-        a0            (- my (* a1 mx))
-        f             (fn ^double [^double x] (+ a0 (* a1 x)))
-        pred-ys       (mapv f xs)
-        sqr-residuals (mapv (comp util/sqrd -) ys pred-ys)
-        ss-residuals  (double (reduce + sqr-residuals))
-        variance      (/ ss-residuals (- n 2))
-        ss-total      (sum-square-delta ys my)
-        r-sqr         (- 1 (/ ss-residuals ss-total))]
-    {:coeffs   [a0 a1]
-     :variance variance
-     :r-sqr    r-sqr}))
+(def linear-regression
+  "Perform simple linear regression: y = a0 + a1*x.
 
-;; (= (linear-regression (range 10) (range 10)) [0 1 0 1])
-;; (= (linear-regression (range 10) (range 1 11)) [1 1 0 1])
-
-;; (let [[a0 a1] (linear-regression (range 10) (range 1 11))]
-;;   (+ a0 (* a1 10)))
+  Returns a map with:
+  - :coeffs [a0 a1] - intercept and slope
+  - :variance - residual variance (MSE with n-2 degrees of freedom)
+  - :r-sqr - coefficient of determination (R-squared)"
+  optimisation/linear-regression)
