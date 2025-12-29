@@ -10,7 +10,8 @@
    [criterium.util.t-digest.merging-digest :as md]
    [criterium.util.t-digest.scale :as scale]
    [criterium.util.well :as well]
-   [criterium.util.ziggurat :as ziggurat]))
+   [criterium.util.ziggurat :as ziggurat]
+   [stats.t-digest.merging-digest :as stats-md]))
 
 #_(deftest merge-centroids-invariants
     (let [compression 100.0]
@@ -48,7 +49,7 @@
                  compression (gen-double {:min 1.0 :max 1000.0})]
                 (let [sorted       (sort-by :mean centroids)
                       total-weight (reduce + (map :weight sorted))
-                      merged       (#'md/merge-centroids
+                      merged       (#'stats-md/merge-centroids
                                     compression
                                     sorted
                                     total-weight
@@ -61,7 +62,7 @@
                  compression (gen-double {:min 1.0 :max 1000.0})]
                 (let [sorted       (sort-by :mean centroids)
                       total-weight (reduce + (map :weight sorted))
-                      merged       (#'md/merge-centroids
+                      merged       (#'stats-md/merge-centroids
                                     compression
                                     sorted
                                     total-weight
@@ -74,7 +75,7 @@
                  compression (gen-double {:min 1.0 :max 1000.0})]
                 (let [sorted       (sort-by :mean centroids)
                       total-weight (reduce + (map :weight sorted))
-                      merged       (#'md/merge-centroids
+                      merged       (#'stats-md/merge-centroids
                                     compression
                                     sorted
                                     total-weight
@@ -89,7 +90,7 @@
                    compression (gen-double {:min 1.0 :max 1000.0})]
                   (let [sorted       (sort-by :mean centroids)
                         total-weight (reduce + (map :weight sorted))
-                        merged       (#'md/merge-centroids
+                        merged       (#'stats-md/merge-centroids
                                       compression
                                       sorted
                                       total-weight

@@ -6,14 +6,16 @@
   - Outlier detection: boxplot-outlier-thresholds
   - Sampling: uniform-distribution, sample-uniform, sample, confidence-interval
   - Probability: erf, normal-cdf, normal-pdf, normal-quantile
-  - Histogram: histogram (Freedman-Diaconis binning)"
+  - Histogram: histogram (Freedman-Diaconis binning)
+  - T-digest: streaming quantile estimation"
   (:refer-clojure :exclude [min max])
   (:require
    [stats.core :as core]
    [stats.histogram :as histogram]
    [stats.outliers :as outliers]
    [stats.probability :as probability]
-   [stats.sampling :as sampling]))
+   [stats.sampling :as sampling]
+   [stats.t-digest :as t-digest]))
 
 ;;; Core statistics
 
@@ -153,3 +155,74 @@
    (histogram/histogram values))
   ([values precomputed-iqr]
    (histogram/histogram values precomputed-iqr)))
+
+;;; T-digest streaming quantile estimation
+
+(defn digest-new
+  "Creates a new t-digest with optional compression factor."
+  ([] (t-digest/new-digest))
+  ([compression] (t-digest/new-digest compression))
+  ([compression buffer-size] (t-digest/new-digest compression buffer-size)))
+
+(defn digest-add-point
+  "Add a single value into the digest."
+  ([digest value]
+   (t-digest/add-point digest value))
+  ([digest value weight]
+   (t-digest/add-point digest value weight)))
+
+(def digest-compress
+  "Merge any buffered points into the digest."
+  t-digest/compress)
+
+(def digest-quantile
+  "Return estimated value at given quantile [0,1].
+   Return NaN if digest is empty."
+  t-digest/quantile)
+
+(def digest-cdf
+  "Return the cumulative probability at x.
+   Return NaN if digest is empty."
+  t-digest/cdf)
+
+(def digest-sample-count
+  "Return the sample count in the digest."
+  t-digest/sample-count)
+
+(def digest-minimum
+  "Return the minimum value in the digest."
+  t-digest/minimum)
+
+(def digest-maximum
+  "Return the maximum value in the digest."
+  t-digest/maximum)
+
+(defn digest-mean
+  "Return the mean estimate.
+   Return NaN if digest is empty."
+  [digest]
+  (t-digest/mean digest))
+
+(defn digest-variance
+  "Return the variance estimate.
+   Return NaN if digest is empty."
+  ([digest]
+   (t-digest/variance digest))
+  ([digest mean]
+   (t-digest/variance digest mean)))
+
+(def digest-transform
+  "Transform digest values using the given function."
+  t-digest/transform)
+
+(def digest-centroid-means
+  "Return a vector of centroid means."
+  t-digest/centroid-means)
+
+(def digest-histogram
+  "Returns a histogram of the digest using centroid centers as bin locations."
+  t-digest/histogram)
+
+(def digest-filter-outliers
+  "Filter outliers from the digest."
+  t-digest/filter-outliers)
