@@ -175,56 +175,56 @@
         (testing "with simple integers"
           (let [sorted (vec (sort simple-integers))
                 r-med (first (r/r-eval (str "median(" (vec->r-str sorted) ")")))
-                clj-med (first (stats/median sorted))]
+                clj-med (double (first (stats/median sorted)))]
             (is (approx= r-med clj-med 1e-10)
                 (format "median mismatch: R=%.15f, clj=%.15f" r-med clj-med))))
 
         (testing "with simple doubles"
           (let [sorted (vec (sort simple-doubles))
                 r-med (first (r/r-eval (str "median(" (vec->r-str sorted) ")")))
-                clj-med (first (stats/median sorted))]
+                clj-med (double (first (stats/median sorted)))]
             (is (approx= r-med clj-med 1e-10)
                 (format "median mismatch: R=%.15f, clj=%.15f" r-med clj-med))))
 
         (testing "with mixed positive and negative values"
           (let [sorted (vec (sort mixed-signs))
                 r-med (first (r/r-eval (str "median(" (vec->r-str sorted) ")")))
-                clj-med (first (stats/median sorted))]
+                clj-med (double (first (stats/median sorted)))]
             (is (approx= r-med clj-med 1e-10)
                 (format "median mismatch: R=%.15f, clj=%.15f" r-med clj-med))))
 
         (testing "with a single value"
           (let [sorted (vec (sort single-value))
                 r-med (first (r/r-eval (str "median(" (vec->r-str sorted) ")")))
-                clj-med (first (stats/median sorted))]
+                clj-med (double (first (stats/median sorted)))]
             (is (approx= r-med clj-med 1e-10)
                 (format "median mismatch: R=%.15f, clj=%.15f" r-med clj-med))))
 
         (testing "with two values"
           (let [sorted (vec (sort two-values))
                 r-med (first (r/r-eval (str "median(" (vec->r-str sorted) ")")))
-                clj-med (first (stats/median sorted))]
+                clj-med (double (first (stats/median sorted)))]
             (is (approx= r-med clj-med 1e-10)
                 (format "median mismatch: R=%.15f, clj=%.15f" r-med clj-med))))
 
         (testing "with large range of values"
           (let [sorted (vec (sort large-range))
                 r-med (first (r/r-eval (str "median(" (vec->r-str sorted) ")")))
-                clj-med (first (stats/median sorted))]
+                clj-med (double (first (stats/median sorted)))]
             (is (approx= r-med clj-med 1e-10)
                 (format "median mismatch: R=%.15f, clj=%.15f" r-med clj-med))))
 
         (testing "with odd number of elements"
           (let [sorted [1 2 3 4 5]
                 r-med (first (r/r-eval (str "median(" (vec->r-str sorted) ")")))
-                clj-med (first (stats/median sorted))]
+                clj-med (double (first (stats/median sorted)))]
             (is (approx= r-med clj-med 1e-10)
                 (format "median mismatch: R=%.15f, clj=%.15f" r-med clj-med))))
 
         (testing "with even number of elements"
           (let [sorted [1 2 3 4 5 6]
                 r-med (first (r/r-eval (str "median(" (vec->r-str sorted) ")")))
-                clj-med (first (stats/median sorted))]
+                clj-med (double (first (stats/median sorted)))]
             (is (approx= r-med clj-med 1e-10)
                 (format "median mismatch: R=%.15f, clj=%.15f" r-med clj-med))))))))
 
