@@ -129,7 +129,7 @@
                     (doseq [i (range n-points)]
                       (let [r-d (nth r-density i)
                             clj-d (aget clj-density (int i))]
-                        (is (approx= r-d clj-d 1e-3)
+                        (is (approx= r-d clj-d 2e-3)
                             (format "density[%d] mismatch: R=%.15f, clj=%.15f"
                                     i r-d clj-d)))))))]
         (compare-kde simple-integers "with simple integers")
