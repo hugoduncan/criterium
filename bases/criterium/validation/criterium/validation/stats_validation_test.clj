@@ -8,6 +8,14 @@
    [criterium.util.stats :as stats]
    [criterium.validation.r :as r :refer [vec->r-str]]))
 
+(defn near-zero=
+  "Check if both values are essentially zero (within abs-tol of 0).
+  Useful for comparing residual variance in perfect-fit regressions where
+  floating-point artifacts may produce tiny non-zero values."
+  [^double a ^double b ^double abs-tol]
+  (and (< (Math/abs a) abs-tol)
+       (< (Math/abs b) abs-tol)))
+
 ;;; Test data sets
 ;; Fixed datasets for reproducible validation
 
@@ -347,8 +355,10 @@
                 (format "intercept mismatch: R=%.15f, clj=%.15f" r-intercept clj-intercept))
             (is (approx= r-slope clj-slope 1e-10)
                 (format "slope mismatch: R=%.15f, clj=%.15f" r-slope clj-slope))
-            (is (approx= r-var (:variance clj-result) 1e-10)
-                (format "variance mismatch: R=%.15f, clj=%.15f" r-var (:variance clj-result)))
+            ;; For perfect fit, both variances should be essentially zero.
+            ;; Use near-zero= since floating-point artifacts may produce tiny values.
+            (is (near-zero= r-var (:variance clj-result) 1e-20)
+                (format "variance mismatch: R=%.15e, clj=%.15e" r-var (:variance clj-result)))
             (is (approx= r-rsq (:r-sqr clj-result) 1e-10)
                 (format "r-squared mismatch: R=%.15f, clj=%.15f" r-rsq (:r-sqr clj-result)))))
 
@@ -365,8 +375,9 @@
                 (format "intercept mismatch: R=%.15f, clj=%.15f" r-intercept clj-intercept))
             (is (approx= r-slope clj-slope 1e-10)
                 (format "slope mismatch: R=%.15f, clj=%.15f" r-slope clj-slope))
-            (is (approx= r-var (:variance clj-result) 1e-10)
-                (format "variance mismatch: R=%.15f, clj=%.15f" r-var (:variance clj-result)))
+            ;; For perfect fit, both variances should be essentially zero.
+            (is (near-zero= r-var (:variance clj-result) 1e-20)
+                (format "variance mismatch: R=%.15e, clj=%.15e" r-var (:variance clj-result)))
             (is (approx= r-rsq (:r-sqr clj-result) 1e-10)
                 (format "r-squared mismatch: R=%.15f, clj=%.15f" r-rsq (:r-sqr clj-result)))))
 
@@ -389,6 +400,7 @@
                 (format "r-squared mismatch: R=%.15f, clj=%.15f" r-rsq (:r-sqr clj-result)))))
 
         (testing "with negative slope"
+          ;; y = 10 - x (perfect fit with negative slope)
           (let [r-result (r/r-eval
                           (str "m <- lm(" (vec->r-str linear-neg-slope-ys) " ~ "
                                (vec->r-str linear-neg-slope-xs) ");"
@@ -401,8 +413,9 @@
                 (format "intercept mismatch: R=%.15f, clj=%.15f" r-intercept clj-intercept))
             (is (approx= r-slope clj-slope 1e-10)
                 (format "slope mismatch: R=%.15f, clj=%.15f" r-slope clj-slope))
-            (is (approx= r-var (:variance clj-result) 1e-10)
-                (format "variance mismatch: R=%.15f, clj=%.15f" r-var (:variance clj-result)))
+            ;; Perfect fit, both variances should be essentially zero.
+            (is (near-zero= r-var (:variance clj-result) 1e-20)
+                (format "variance mismatch: R=%.15e, clj=%.15e" r-var (:variance clj-result)))
             (is (approx= r-rsq (:r-sqr clj-result) 1e-10)
                 (format "r-squared mismatch: R=%.15f, clj=%.15f" r-rsq (:r-sqr clj-result)))))
 
