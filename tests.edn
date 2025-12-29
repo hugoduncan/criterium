@@ -7,6 +7,7 @@
                                   "bases/arg-gen/src"
                                   "components/optimisation/src"
                                   "components/random/src"
+                                  "components/stats/src"
                                   "components/utils/src"
                                   "build/src"
                                   "projects/agent"]
@@ -15,6 +16,7 @@
                                   "bases/arg-gen/src"
                                   "components/optimisation/src"
                                   "components/random/src"
+                                  "components/stats/src"
                                   "components/utils/src"
                                   "build/src"
                                   "projects/agent"]
@@ -24,6 +26,7 @@
                                   "bases/arg-gen/test"
                                   "components/optimisation/test"
                                   "components/random/test"
+                                  "components/stats/test"
                                   "components/utils/test"
                                   "build/test"
                                   "projects/agent/test"

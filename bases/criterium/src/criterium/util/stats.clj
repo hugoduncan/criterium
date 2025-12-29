@@ -1,66 +1,50 @@
 (ns criterium.util.stats
-  "A collection of statistical methods used by criterium"
+  "A collection of statistical methods used by criterium.
+
+  Core stats, outliers, and sampling are delegated to stats component.
+  Kernel/modal estimation functions remain here pending KDE extraction."
   (:refer-clojure :exclude [min max])
   (:require
    [criterium.util.helpers :as util]
-   [optimisation.interface :as optimisation]))
+   [optimisation.interface :as optimisation]
+   [stats.interface :as stats]))
 
-;;; Utilities
-(defn transpose
+;;; Core statistics (delegated to stats component)
+
+(def transpose
   "Transpose a vector of vectors."
-  [data]
-  (if (vector? (first data))
-    (apply map vector data)
-    data))
-
-;;; Statistics
+  stats/transpose)
 
 (defn min
-  ([data]
-   (reduce clojure.core/min data))
-  ([data _count]
-   (reduce clojure.core/min data)))
+  "Minimum value in data."
+  ([data] (stats/min data))
+  ([data count] (stats/min data count)))
 
 (defn max
-  ([data]
-   (reduce clojure.core/max data))
-  ([data _count]
-   (reduce clojure.core/max data)))
+  "Maximum value in data."
+  ([data] (stats/max data))
+  ([data count] (stats/max data count)))
 
-(defn unchecked-add-d
-  ^double [^double a ^double b]
-  (unchecked-add a b))
+(def unchecked-add-d
+  "Unchecked double addition."
+  stats/unchecked-add-d)
 
 (defn mean
   "Arithmetic mean of data."
-  (^double [data]
-   (let [c (count data)]
-     (when (pos? c)
-       (/ (double (reduce unchecked-add-d 0.0 data)) c))))
-  (^double [data ^long count]
-   (/ (double (reduce unchecked-add-d 0.0 data)) count)))
+  ([data] (stats/mean data))
+  ([data count] (stats/mean data count)))
 
-(defn sum
+(def sum
   "Sum of each data point."
-  [data] (reduce + data))
+  stats/sum)
 
-(defn sum-of-squares
+(def sum-of-squares
   "Sum of the squares of each data point."
-  [data]
-  (reduce
-   (fn ^double [^double s ^double v]
-     (+ s (* v v))) 0.0 data))
+  stats/sum-of-squares)
 
-(defn variance*
-  "variance based on subtracting mean"
-  ^double [data ^double mean ^long df]
-  (/ (double
-      (reduce
-       (fn ^double [^double a ^double b]
-         (+ a (util/sqr (- b mean))))
-       0.0
-       data))
-     df))
+(def variance*
+  "Variance based on subtracting mean."
+  stats/variance*)
 
 (defn variance
   "Return the variance of data.
@@ -69,104 +53,47 @@
   of freedom.
 
   The population variance can be returned using (variance data 0), which uses
-  (count data) degrees of freedom.
+  (count data) degrees of freedom."
+  ([data] (stats/variance data))
+  ([data df] (stats/variance data df)))
 
-   Ref: Chan et al. Algorithms for computing the sample variance: analysis and
-        recommendations. American Statistician (1983)."
-  (^double [data] (variance data 1))
-  (^double [data ^long df]
-   ;; Uses a single pass, non-pairwise algorithm, without shifting.
-   (letfn [(update-estimates [[^double m ^double q ^long k] ^double x]
-             (let [kp1   (inc k)
-                   delta (- x m)]
-               [(+ m (/ delta kp1))
-                (+ q (/ (* k (util/sqr delta)) kp1))
-                kp1]))]
-     (let [[_ ^double q ^long k] (reduce update-estimates [0.0 0.0 0] data)]
-       (when (> k df)
-         ;; (throw (ex-info
-         ;;         "insufficient data to calculate variance"
-         ;;         {:data data}))
-
-         (/ q (- k df)))))))
-
-;; For the moment we take the easy option of sorting samples
-(defn median
+(def median
   "Calculate the median of a sorted data set.
-  Return [median, [vals less than median] [vals greater than median]]
-  References: http://en.wikipedia.org/wiki/Median"
-  [data]
-  (let [n (count data)
-        i (bit-shift-right n 1)]
-    (if (even? n)
-      [(/ (+ (double (nth data (dec i)))
-             (double (nth data i)))
-          2.0)
-       (take i data)
-       (drop i data)]
-      [(nth data (bit-shift-right n 1))
-       (take i data)
-       (drop (inc i) data)])))
+  Return [median, [vals less than median] [vals greater than median]]"
+  stats/median)
 
-(defn quartiles
-  "Calculate the quartiles of a sorted data set
-   References: http://en.wikipedia.org/wiki/Quartile"
-  [data]
-  (let [[m lower upper] (median data)]
-    [(first (median lower)) m (first (median upper))]))
+(def quartiles
+  "Calculate the quartiles of a sorted data set."
+  stats/quartiles)
 
-(defn quantile
-  "Calculate the quantile of a sorted data set
-   References: http://en.wikipedia.org/wiki/Quantile"
-  [^double quantile data]
-  (let [n      (dec (count data))
-        interp (fn [^double x]
-                 (let [f (Math/floor x)
-                       i (long f)
-                       p (- x f)]
-                   (cond
-                     (zero? p) (nth data i)
-                     (= 1.0 p) (nth data (inc i))
-                     :else     (+ (* p (double (nth data (inc i))))
-                                  (* (- 1.0 p) (double (nth data i)))))))]
-    (interp (* quantile n))))
+(def quantile
+  "Calculate the quantile of a sorted data set."
+  stats/quantile)
 
-(defn boxplot-outlier-thresholds
+;;; Outliers (delegated to stats component)
+
+(def boxplot-outlier-thresholds
   "Outlier thresholds for given quartiles."
-  [^double q1 ^double q3]
-  {:pre [(number? q1) (number? q3)]}
-  (let [iqr    (- q3 q1)
-        severe (* iqr 3.0)
-        mild   (* iqr 1.5)]
-    [(- q1 severe)
-     (- q1 mild)
-     (+ q3 mild)
-     (+ q3 severe)]))
+  stats/boxplot-outlier-thresholds)
 
-(defn uniform-distribution
-  "Return uniformly distributed deviates on 0..max-val use the specified rng."
-  [^double max-val rng]
-  (map (fn [^double x] (* x max-val)) rng))
+;;; Sampling (delegated to stats component)
 
-(defn sample-uniform
-  "Provide n samples from a uniform distribution on 0..max-val"
-  [n max-val rng]
-  (take n (uniform-distribution max-val rng)))
+(def uniform-distribution
+  "Return uniformly distributed deviates on 0..max-val using the specified rng."
+  stats/uniform-distribution)
 
-(defn sample
+(def sample-uniform
+  "Provide n samples from a uniform distribution on 0..max-val."
+  stats/sample-uniform)
+
+(def sample
   "Sample with replacement."
-  [x rng]
-  (let [n (count x)]
-    (map #(nth x %1) (sample-uniform n n rng))))
+  stats/sample)
 
-(defn confidence-interval
-  "Find the significance of outliers given boostrapped mean and variance
-   estimates. This uses the bootstrapped statistic's variance, but we should use
-   BCa of ABC."
-  [^double mean ^double variance]
-  (let [n-sigma 1.96 ; use 95% confidence interval
-        delta   (* n-sigma (Math/sqrt variance))]
-    [(- mean delta) (+ mean delta)]))
+(def confidence-interval
+  "Find the significance of outliers given bootstrapped mean and variance
+   estimates."
+  stats/confidence-interval)
 
 ;;; Nonparametric assessment of multimodality for univariate data.
 ;;; Salgado-Ugarte IH, Shimizu M. 1998

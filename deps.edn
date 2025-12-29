@@ -8,6 +8,7 @@
     poly/notebooks {:local/root "bases/notebooks"}
     poly/optimisation {:local/root "components/optimisation"}
     poly/random {:local/root "components/random"}
+    poly/stats {:local/root "components/stats"}
     poly/utils {:local/root "components/utils"}
     lambdaisland/kaocha {:mvn/version "1.87.1366"}
     lambdaisland/kaocha-cloverage {:mvn/version "1.1.89"}
@@ -19,6 +20,7 @@
                        "bases/arg-gen/test"
                        "components/optimisation/test"
                        "components/random/test"
+                       "components/stats/test"
                        "components/utils/test"
                        "projects/agent"
                        "projects/agent/test"]
@@ -27,6 +29,7 @@
           local/arg-gen {:local/root "bases/arg-gen"}
           local/optimisation {:local/root "components/optimisation"}
           local/random {:local/root "components/random"}
+          local/stats {:local/root "components/stats"}
           local/test-assert {:local/root "components/test-assert"}
           local/utils {:local/root "components/utils"}
           org.clojure/test.check {:mvn/version "1.1.1"}}
