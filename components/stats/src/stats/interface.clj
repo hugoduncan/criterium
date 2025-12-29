@@ -7,11 +7,15 @@
   - Sampling: uniform-distribution, sample-uniform, sample, confidence-interval
   - Probability: erf, normal-cdf, normal-pdf, normal-quantile
   - Histogram: histogram (Freedman-Diaconis binning)
-  - T-digest: streaming quantile estimation"
+  - T-digest: streaming quantile estimation
+  - Kernel: modal estimation, kernel density estimators
+  - KDE: bandwidth selection, Gaussian KDE, mode detection, multimodality tests"
   (:refer-clojure :exclude [min max])
   (:require
    [stats.core :as core]
    [stats.histogram :as histogram]
+   [stats.kde :as kde]
+   [stats.kernel :as kernel]
    [stats.outliers :as outliers]
    [stats.probability :as probability]
    [stats.sampling :as sampling]
@@ -226,3 +230,119 @@
 (def digest-filter-outliers
   "Filter outliers from the digest."
   t-digest/filter-outliers)
+
+;;; Kernel functions
+
+(def modal-estimation-constant
+  "Kernel function for estimation of multi-modality.
+  h-k is the critical bandwidth, sample-variance is the observed sample variance."
+  kernel/modal-estimation-constant)
+
+(def smoothed-sample
+  "Smoothed estimation function.
+  Generates a lazy sequence of smoothed values from data using kernel smoothing."
+  kernel/smoothed-sample)
+
+(def gaussian-weight
+  "Weight function for gaussian kernel.
+  K(t) = (1/sqrt(2*pi)) * exp(-t^2/2)"
+  kernel/gaussian-weight)
+
+(def kernel-density-estimator
+  "Kernel density estimator for x, given n samples X, weights K and width h.
+  Computes f(x) = (1/nh) * sum_i K((x - X_i)/h)"
+  kernel/kernel-density-estimator)
+
+;;; KDE - Kernel Density Estimation
+
+(def dct-ii
+  "Discrete Cosine Transform Type II.
+  Direct O(n²) implementation without FFT dependency."
+  kde/dct-ii)
+
+(def linear-bin
+  "Bin data onto a regular grid using linear interpolation.
+  Returns vector of bin weights that sum to 1.0."
+  kde/linear-bin)
+
+(def silverman-bandwidth
+  "Silverman's rule of thumb bandwidth selector.
+  h = 0.9 * min(σ, IQR/1.34) * n^(-1/5)"
+  kde/silverman-bandwidth)
+
+(def isj-bandwidth
+  "Improved Sheather-Jones bandwidth selector.
+  Uses DCT-based algorithm from Botev et al. for optimal bandwidth
+  selection that works well for multimodal distributions."
+  kde/isj-bandwidth)
+
+(def gaussian-kde
+  "Compute Gaussian kernel density estimate at grid points.
+  Returns vector of density values at each grid point."
+  kde/gaussian-kde)
+
+(def find-modes
+  "Find modes (local maxima) in a density estimate.
+  Returns vector of maps with :location and :density for each mode,
+  sorted by density (highest first)."
+  kde/find-modes)
+
+(def kde-bootstrap-sample
+  "Generate a bootstrap sample of KDE density at fixed grid points."
+  kde/kde-bootstrap-sample)
+
+(defn kde-confidence-bands
+  "Compute bootstrap confidence bands for KDE.
+  Returns map with :lower and :upper vectors."
+  ([data bandwidth grid]
+   (kde/kde-confidence-bands data bandwidth grid))
+  ([data bandwidth grid opts]
+   (kde/kde-confidence-bands data bandwidth grid opts)))
+
+(defn mode-confidence-intervals
+  "Compute bootstrap confidence intervals for mode locations.
+  Returns vector of mode CIs, each with :location, :ci-lower, :ci-upper."
+  ([data bandwidth grid n-modes]
+   (kde/mode-confidence-intervals data bandwidth grid n-modes))
+  ([data bandwidth grid n-modes opts]
+   (kde/mode-confidence-intervals data bandwidth grid n-modes opts)))
+
+(def count-modes
+  "Count number of modes in KDE with given bandwidth."
+  kde/count-modes)
+
+(def critical-bandwidth
+  "Find smallest bandwidth giving at most k modes via binary search.
+  Returns the critical bandwidth h_k."
+  kde/critical-bandwidth)
+
+(def locate-modes
+  "Find mode and antimode locations using critical bandwidth.
+  Returns {:modes [...] :antimodes [...] :critical-bandwidth h_k}"
+  kde/locate-modes)
+
+(def silverman-bootstrap-sample
+  "Generate a smoothed bootstrap sample for Silverman's test."
+  kde/silverman-bootstrap-sample)
+
+(def silverman-test
+  "Silverman's bootstrap test for H0: at most k modes.
+  Returns map with :k, :critical-bandwidth, :p-value, :corrected?"
+  kde/silverman-test)
+
+(def acr-test
+  "ACR test for H0: at most k modes.
+  Combines critical bandwidth and excess mass approaches.
+  Returns map with :k, :excess-mass, :critical-bandwidth, :p-value"
+  kde/acr-test)
+
+(def excess-mass
+  "Compute excess mass statistic for testing k modes.
+  Returns map with :statistic, :k, :n"
+  kde/excess-mass)
+
+(defn kde
+  "Compute KDE analysis on sample data.
+  Returns map with :type, :bandwidth, :grid, :density, :lower-band, :upper-band, :n"
+  ([data] (kde/kde data))
+  ([data opts] (kde/kde data opts)))

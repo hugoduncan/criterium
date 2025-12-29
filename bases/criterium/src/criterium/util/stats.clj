@@ -1,11 +1,9 @@
 (ns criterium.util.stats
   "A collection of statistical methods used by criterium.
 
-  Core stats, outliers, and sampling are delegated to stats component.
-  Kernel/modal estimation functions remain here pending KDE extraction."
+  All functions are delegated to stats and optimisation components."
   (:refer-clojure :exclude [min max])
   (:require
-   [criterium.util.helpers :as util]
    [optimisation.interface :as optimisation]
    [stats.interface :as stats]))
 
@@ -95,45 +93,24 @@
    estimates."
   stats/confidence-interval)
 
-;;; Nonparametric assessment of multimodality for univariate data.
-;;; Salgado-Ugarte IH, Shimizu M. 1998
+;;; Kernel functions (delegated to stats component)
 
-;;; Maximum likelihood kernel density estimation: On the potential of convolution sieves.
-;;; Jones and Henderson. Computational Statistics and Data Analysis (2009)
-
-(defn modal-estimation-constant
+(def modal-estimation-constant
   "Kernel function for estimation of multi-modality.
-  h-k is the critical bandwidth, sample-variance is the observed sample variance.
-  Equation 7, Nonparametric assessment of multimodality for univariate
-  data. Salgado-Ugarte IH, Shimizu M"
-  [^double h-k ^double sample-variance]
-  (Math/sqrt (+ 1 (/ (util/sqr h-k) sample-variance))))
+  h-k is the critical bandwidth, sample-variance is the observed sample variance."
+  stats/modal-estimation-constant)
 
-(defn smoothed-sample
+(def smoothed-sample
   "Smoothed estimation function."
-  [^double c-k ^double h-k data deviates]
-  (lazy-seq
-   (cons
-    (* c-k (+ ^double (first data)
-              (* h-k ^double (first deviates))))
-    (when-let [n (next data)]
-      (smoothed-sample c-k h-k n (next deviates))))))
+  stats/smoothed-sample)
 
-(defn gaussian-weight
+(def gaussian-weight
   "Weight function for gaussian kernel."
-  [^double t]
-  (let [k (Math/pow (* 2 Math/PI) -0.5)]
-    (* k (Math/exp (/ (* t t) -2)))))
+  stats/gaussian-weight)
 
-(defn kernel-density-estimator
+(def kernel-density-estimator
   "Kernel density estimator for x, given n samples X, weights K and width h."
-  [h K n X x]
-  (/ ^double (reduce
-              (fn ^double [^double a ^double b]
-                (+ a
-                   ^double (K (/ (- ^double x b) ^double h))))
-              0.0 X)
-     (* (long n) (double h))))
+  stats/kernel-density-estimator)
 
 ;;; Linear regression (delegated to optimisation component)
 
