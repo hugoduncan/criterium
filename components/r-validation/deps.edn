@@ -1,0 +1,2 @@
+{:paths ["src"]
+ :deps {scicloj/clojisr {:mvn/version "1.0.0"}}}
