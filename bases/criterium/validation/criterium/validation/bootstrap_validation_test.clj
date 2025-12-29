@@ -14,7 +14,9 @@
    [criterium.util.bootstrap :as bootstrap]
    [criterium.util.stats :as stats]
    [criterium.util.well :as well]
-   [criterium.validation.r :as r :refer [vec->r-str]]))
+   [criterium.validation.r :as r :refer [vec->r-str]])
+  (:import
+   [stats.bootstrap BcaEstimate]))
 
 ;;; Test data sets
 ;; Fixed datasets for reproducible validation
@@ -293,7 +295,7 @@
                 alpha [0.5 0.025 0.975]
                 result (bootstrap/bootstrap-bca
                         data stats/mean boot-size alpha well/well-rng-1024a)]
-            (is (instance? criterium.util.bootstrap.BcaEstimate result)
+            (is (instance? BcaEstimate result)
                 "Result should be BcaEstimate record")
             (is (number? (:point-estimate result))
                 "point-estimate should be a number")
