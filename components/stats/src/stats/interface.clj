@@ -9,9 +9,11 @@
   - Histogram: histogram (Freedman-Diaconis binning)
   - T-digest: streaming quantile estimation
   - Kernel: modal estimation, kernel density estimators
-  - KDE: bandwidth selection, Gaussian KDE, mode detection, multimodality tests"
+  - KDE: bandwidth selection, Gaussian KDE, mode detection, multimodality tests
+  - Bootstrap: resampling, BCa confidence intervals, jacknife"
   (:refer-clojure :exclude [min max])
   (:require
+   [stats.bootstrap :as bootstrap]
    [stats.core :as core]
    [stats.histogram :as histogram]
    [stats.kde :as kde]
@@ -346,3 +348,83 @@
   Returns map with :type, :bandwidth, :grid, :density, :lower-band, :upper-band, :n"
   ([data] (kde/kde data))
   ([data opts] (kde/kde data opts)))
+
+;;; Bootstrap resampling
+
+(def bootstrap-sample
+  "Bootstrap sampling of a statistic, using resampling with replacement.
+  Returns transposed results: if statistic returns a vector, returns a vector
+  of vectors where each inner vector contains all samples for that statistic."
+  bootstrap/bootstrap-sample)
+
+(def bootstrap-estimate
+  "Mean, variance and confidence interval from bootstrapped samples.
+  Returns [mean variance [lower upper]]."
+  bootstrap/bootstrap-estimate)
+
+(def drop-at
+  "Return coll with element at index n removed."
+  bootstrap/drop-at)
+
+(def jacknife
+  "Jacknife statistics on data.
+  Computes the statistic on each leave-one-out sample of the data."
+  bootstrap/jacknife)
+
+(def bca-nonparametric-eval
+  "Calculate bootstrap values for given estimate and samples."
+  bootstrap/bca-nonparametric-eval)
+
+(def bca-nonparametric
+  "Non-parametric BCa estimate of a statistic on data.
+  Size bootstrap samples are used. Confidence values are returned at the
+  alpha normal quantiles."
+  bootstrap/bca-nonparametric)
+
+(def ->BcaEstimate
+  "Constructor for BcaEstimate record."
+  bootstrap/->BcaEstimate)
+
+(def map->BcaEstimate
+  "Map constructor for BcaEstimate record."
+  bootstrap/map->BcaEstimate)
+
+(def bootstrap-bca
+  "Bootstrap a statistic with BCa confidence intervals.
+  Returns a BcaEstimate record with :point-estimate and :estimate-quantiles."
+  bootstrap/bootstrap-bca)
+
+(defn bootstrap
+  "Bootstrap a statistic.
+  Statistic can produce multiple statistics as a vector.
+  Returns [mean variance [lower upper]] for each statistic."
+  [data statistic size rng-factory]
+  (bootstrap/bootstrap data statistic size rng-factory))
+
+(def scale-bootstrap-estimate
+  "Scale a BcaEstimate by the given scale factor."
+  bootstrap/scale-bootstrap-estimate)
+
+(def scale-bootstrap-stat
+  "Scale a bootstrap stat using the given scale function."
+  bootstrap/scale-bootstrap-stat)
+
+(def assoc-bootstrap-mean-3-sigma
+  "Add :mean-plus-3sigma and :mean-minus-3sigma to stats map."
+  bootstrap/assoc-bootstrap-mean-3-sigma)
+
+(def scale-bootstrap-values
+  "Apply function f to all values in stats map."
+  bootstrap/scale-bootstrap-values)
+
+(def stats-fn-map
+  "Map of stat keywords to their corresponding functions."
+  bootstrap/stats-fn-map)
+
+(def stats-fns
+  "Build vector of stat functions including quantile functions for given quantiles."
+  bootstrap/stats-fns)
+
+(def stats-fn
+  "Combine multiple stat functions into one that returns a vector of results."
+  bootstrap/stats-fn)
