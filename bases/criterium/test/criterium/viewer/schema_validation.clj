@@ -115,10 +115,10 @@
   "Ensure vega-lite npm package is available. Installs if needed."
   []
   (let [result (shell/sh "npm" "list" "vega-lite" :dir ".")]
-    (when-not (zero? (:exit result))
+    (when-not (zero? (int (:exit result)))
       (println "Installing vega-lite npm package...")
       (let [install-result (shell/sh "npm" "install" "--save-dev" "vega-lite" :dir ".")]
-        (when-not (zero? (:exit install-result))
+        (when-not (zero? (int (:exit install-result)))
           (throw (ex-info "Failed to install vega-lite"
                           {:stderr (:err install-result)})))))))
 
@@ -139,7 +139,7 @@
         result (shell/sh "node" validator-script-path
                          :in spec-json
                          :dir ".")]
-    (if (zero? (:exit result))
+    (if (zero? (int (:exit result)))
       (let [output (json/read-str (:out result) :key-fn keyword)]
         (if (:valid output)
           (if (:warnings output)
