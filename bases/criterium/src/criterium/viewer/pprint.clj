@@ -420,3 +420,45 @@
     (when (and treemap-data (:root treemap-data))
       (println)
       (println (viewer-common/render-ascii-treemap treemap-data)))))
+
+;;; Modal Analysis Views
+
+(defn- modes-table
+  "Prepare modes data for pprint table display in warning output."
+  [modes metric-config transforms]
+  (let [{:keys [scale]} metric-config
+        scale (double scale)]
+    (mapv (fn [{:keys [location density]}]
+            {:location (format "%.4g"
+                               (* scale
+                                  (util/transform-sample-> location transforms)))
+             :density (format "%.4g" density)})
+          modes)))
+
+(defmethod view/multimodal-warning* :pprint
+  [_ {:keys [modes-id]} data-map]
+  (let [modes-id (or modes-id :modes)
+        modes-map (get data-map modes-id)]
+    (when modes-map
+      (let [transforms (util/get-transforms data-map modes-id)
+            metrics-defs (:metrics-defs modes-map)
+            metric-configs (when metrics-defs
+                             (metric/all-metric-configs metrics-defs))
+            all-modes (:modes modes-map)]
+        (doseq [metric-config metric-configs]
+          (when-let [modes-data (get all-modes (:path metric-config))]
+            (let [n-modes (:n-modes modes-data)
+                  modes (:modes modes-data)]
+              (when (and n-modes (> n-modes 1))
+                (println)
+                (println (format "WARNING: Multimodal distribution detected for %s"
+                                 (:label metric-config)))
+                (pprint/print-table
+                 [:metric :value]
+                 [{:metric "Mode count" :value n-modes}
+                  {:metric "Status" :value "Consider investigating the source of variation"}])
+                (when (seq modes)
+                  (println "\nMode locations:")
+                  (pprint/print-table
+                   [:location :density]
+                   (modes-table modes metric-config transforms)))))))))))

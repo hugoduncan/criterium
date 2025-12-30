@@ -448,3 +448,68 @@
       (let [output (with-out-str
                      (view/kde* :pprint {} {}))]
         (is (str/blank? output))))))
+
+;;; Modal Analysis Views
+
+(deftest multimodal-warning-pprint-test
+  ;; Tests the pprint viewer output for multimodal-warning results.
+  ;; Verifies warning display with tabular mode output when n-modes > 1.
+  (testing "multimodal-warning*"
+    (testing "displays warning with mode table when n-modes > 1"
+      (let [metrics-defs (select-keys (criterium.collector.metrics/metrics) [:elapsed-time])
+            modes-data {:type :criterium/modes
+                        :metrics-defs metrics-defs
+                        :transform {:sample-> identity :->sample identity}
+                        :modes {[:elapsed-time]
+                                {:modes [{:location 100.0
+                                          :density 0.3}
+                                         {:location 200.0
+                                          :density 0.25}]
+                                 :n-modes 2}}}
+            output (with-out-str
+                     (view/multimodal-warning* :pprint {} {:modes modes-data}))
+            lines (trimmed-lines output)]
+        (is (some #(str/includes? % "WARNING") lines))
+        (is (some #(str/includes? % "Multimodal distribution detected") lines))
+        (is (some #(str/includes? % "Elapsed Time") lines))
+        (is (some #(str/includes? % ":metric") lines))
+        (is (some #(str/includes? % "Mode count") lines))
+        (is (some #(str/includes? % "2") lines))
+        (is (some #(str/includes? % "Mode locations:") lines))
+        (is (some #(str/includes? % ":location") lines))
+        (is (some #(str/includes? % ":density") lines))))
+
+    (testing "does not display when n-modes = 1"
+      (let [metrics-defs (select-keys (criterium.collector.metrics/metrics) [:elapsed-time])
+            modes-data {:type :criterium/modes
+                        :metrics-defs metrics-defs
+                        :transform {:sample-> identity :->sample identity}
+                        :modes {[:elapsed-time]
+                                {:modes [{:location 100.0
+                                          :density 0.5}]
+                                 :n-modes 1}}}
+            output (with-out-str
+                     (view/multimodal-warning* :pprint {} {:modes modes-data}))]
+        (is (str/blank? output))))
+
+    (testing "does not display when modes data is missing"
+      (let [output (with-out-str
+                     (view/multimodal-warning* :pprint {} {}))]
+        (is (str/blank? output))))
+
+    (testing "uses custom modes-id"
+      (let [metrics-defs (select-keys (criterium.collector.metrics/metrics) [:elapsed-time])
+            modes-data {:type :criterium/modes
+                        :metrics-defs metrics-defs
+                        :transform {:sample-> identity :->sample identity}
+                        :modes {[:elapsed-time]
+                                {:modes [{:location 50.0
+                                          :density 0.4}
+                                         {:location 150.0
+                                          :density 0.35}]
+                                 :n-modes 2}}}
+            output (with-out-str
+                     (view/multimodal-warning* :pprint {:modes-id :my-modes}
+                                               {:my-modes modes-data}))]
+        (is (str/includes? output "Mode count"))
+        (is (str/includes? output "2"))))))
