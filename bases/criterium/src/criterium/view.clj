@@ -38,6 +38,10 @@
 (def-multi-view samples)
 (def-multi-view stats)
 
+;;; Modal Analysis Views
+
+(def-multi-view multimodal-warning)
+
 ;;; Allocation Views
 
 (def-multi-view allocation-summary)
@@ -75,6 +79,9 @@
 (defmethod collect-plan* :none [_ _ _])
 (defmethod samples* :none [_ _ _])
 (defmethod stats* :none [_ _ _])
+
+;; Modal Analysis Null Viewer
+(defmethod multimodal-warning* :none [_ _ _])
 
 ;; Allocation Null Viewer
 (defmethod allocation-summary* :none [_ _ _])
