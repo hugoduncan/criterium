@@ -1011,11 +1011,21 @@
                       (range)
                       filtered-children))))))
 
+;;; Modal Analysis View helpers
+
+(defn format-mode-location
+  "Format a mode location for display.
+  Applies metric scale and transforms, then formats with appropriate dimension."
+  [location metric-config transforms]
+  (let [{:keys [dimension scale]} metric-config
+        loc (util/transform-sample-> location transforms)]
+    (format/format-value dimension (* scale loc))))
+
 (defn render-ascii-treemap
   "Render an allocation treemap as an ASCII tree string.
-  
+
   treemap-data should be a :criterium/allocation-treemap map with :root, :group-by, :size-by.
-  
+
   Options:
     :bar-width   - max bar characters (default 20)
     :depth-limit - max nesting depth to display, nil = unlimited (default nil)

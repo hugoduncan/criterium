@@ -1048,13 +1048,6 @@
 
 ;;; Modal Analysis Views
 
-(defn- format-mode-location
-  "Format a mode location for display."
-  [location metric-config transforms]
-  (let [{:keys [dimension scale]} metric-config
-        loc (util/transform-sample-> location transforms)]
-    (format/format-value dimension (* scale loc))))
-
 (defmethod view/multimodal-warning* :print
   [_ {:keys [modes-id]} data-map]
   (let [modes-id (or modes-id :modes)
@@ -1075,7 +1068,7 @@
                                  (:label metric-config)))
                 (println (format "  Mode count: %d" n-modes))
                 (when (seq modes)
-                  (let [locations (map #(format-mode-location
+                  (let [locations (map #(viewer-common/format-mode-location
                                          (:location %)
                                          metric-config
                                          transforms)

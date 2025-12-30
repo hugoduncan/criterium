@@ -497,13 +497,6 @@
 
 ;;; Modal Analysis Views
 
-(defn- format-mode-location
-  "Format a mode location for display."
-  [location metric-config transforms]
-  (let [{:keys [dimension scale]} metric-config
-        loc (util/transform-sample-> location transforms)]
-    (format/format-value dimension (* scale loc))))
-
 (defmethod view/multimodal-warning* :kindly
   [_ {:keys [modes-id]} data-map]
   (let [modes-id (or modes-id :modes)
@@ -532,7 +525,7 @@
                      {:kindly/kind :kind/md}))
                   (kindly-table
                    (mapv (fn [{:keys [location density]}]
-                           {:location (format-mode-location
+                           {:location (viewer-common/format-mode-location
                                        location metric-config transforms)
                             :density (clojure.core/format "%.4g" density)})
                          modes)))))))))))
