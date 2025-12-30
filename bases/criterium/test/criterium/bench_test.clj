@@ -335,9 +335,9 @@
 
     (testing "produces KDE and modes analysis"
       (let [result (atom nil)
-            out (with-out-str
-                  (reset! result (bench/bench (+ 1 1) :limit-time-s 0.1)))
-            data (:data (bench/last-bench))]
+            _      (with-out-str
+                     (reset! result (bench/bench (+ 1 1) :limit-time-s 0.1)))
+            data   (:data (bench/last-bench))]
         (testing "returns expression value"
           (is (= 2 @result)))
         (testing "produces KDE analysis"
