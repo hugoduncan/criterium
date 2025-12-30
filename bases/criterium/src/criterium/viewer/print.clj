@@ -1052,17 +1052,15 @@
   [_ {:keys [modes-id]} data-map]
   (viewer-common/for-each-multimodal-metric
    data-map modes-id
-   (fn [{:keys [metric-config n-modes modes transforms]}]
-     (println)
-     (println (format "WARNING: Multimodal distribution detected for %s"
-                      (:label metric-config)))
-     (println (format "  Mode count: %d" n-modes))
+   (fn [{:keys [metric-config modes transforms]}]
+     (println
+      (format "%32s: Multimodal distribution detected"
+              (:label metric-config)))
      (when (seq modes)
        (let [locations (map #(viewer-common/format-mode-location
                               (:location %)
                               metric-config
                               transforms)
                             modes)]
-         (println (format "  Mode locations: %s"
-                          (str/join ", " locations)))))
-     (println "  Consider investigating the source of variation."))))
+         (println (format "%32s  Mode locations: %s" ""
+                          (str/join ", " locations))))))))

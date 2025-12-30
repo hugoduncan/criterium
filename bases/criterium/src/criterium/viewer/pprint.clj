@@ -437,8 +437,7 @@
                       (:label metric-config)))
      (pprint/print-table
       [:metric :value]
-      [{:metric "Mode count" :value n-modes}
-       {:metric "Status" :value "Consider investigating the source of variation"}])
+      [{:metric "Mode count" :value n-modes}])
      (when (seq modes)
        (println "\nMode locations:")
        (pprint/print-table

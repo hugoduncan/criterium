@@ -1014,7 +1014,7 @@
           (is (= :b (first heading)))
           (is (str/includes? (second heading) "WARNING"))
           (is (str/includes? (second heading) "Multimodal"))
-          (is (= 2 (count status-table)) "Expected 2 rows in status table")
+          (is (= 1 (count status-table)) "Expected 1 row in status table")
           (is (= "Mode count" (:metric (first status-table))))
           (is (= 2 (:value (first status-table))))
           (is (= :em (first loc-heading)))

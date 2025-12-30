@@ -1102,7 +1102,7 @@
 
 (deftest multimodal-warning-print-test
   ;; Tests the print viewer output for multimodal-warning results.
-  ;; Verifies warning display only when n-modes > 1, mode count and locations.
+  ;; Verifies warning display only when n-modes > 1, with aligned output format.
   (testing "multimodal-warning*"
     (testing "displays warning when n-modes > 1"
       (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])
@@ -1120,14 +1120,11 @@
             output (with-out-str
                      (view/multimodal-warning* :print {} {:modes modes-data}))
             lines (trimmed-lines output)]
-        (is (some #(str/includes? % "WARNING") lines))
-        (is (some #(str/includes? % "Multimodal distribution detected") lines))
-        (is (some #(str/includes? % "Elapsed Time") lines))
-        (is (some #(str/includes? % "Mode count: 2") lines))
-        (is (some #(str/includes? % "Mode locations:") lines))
-        (is (some #(str/includes? % "100 ns") lines))
-        (is (some #(str/includes? % "200 ns") lines))
-        (is (some #(str/includes? % "investigating") lines))))
+        (is (= ["Elapsed Time: Multimodal distribution detected"
+                "Mode locations: 100 ns, 200 ns"]
+               lines))
+        (is (str/includes? output "                                  Mode locations:")
+            "Mode locations should be indented to align with label")))
 
     (testing "does not display when n-modes = 1"
       (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])
@@ -1160,7 +1157,9 @@
                                  :n-modes 2}}}
             output (with-out-str
                      (view/multimodal-warning* :print {:modes-id :my-modes}
-                                               {:my-modes modes-data}))]
-        (is (str/includes? output "Mode count: 2"))
-        (is (str/includes? output "50.0 ns"))
-        (is (str/includes? output "150 ns"))))))
+                                               {:my-modes modes-data}))
+            lines (trimmed-lines output)]
+        (is (= ["Elapsed Time: Multimodal distribution detected"
+                "Mode locations: 50.0 ns, 150 ns"]
+               lines))
+        (is (str/includes? output "                                  Mode locations:"))))))
