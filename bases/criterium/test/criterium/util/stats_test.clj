@@ -158,7 +158,7 @@
                 max-diff 1e-10]
             (is (= 4 (count result)) "should return 4 threshold values")
             (doseq [[i exp act] (map vector (range) expected result)]
-              (is (< (Math/abs (- exp act)) max-diff)
+              (is (< (Math/abs ^double (- exp act)) max-diff)
                   (format "Threshold %d: expected %s, got %s for %s"
                           i exp act description)))))))
 
@@ -167,7 +167,7 @@
             result                      (stats/adjusted-boxplot-outlier-thresholds q1 q3 mc)
             max-diff                    1e-10]
         (doseq [[i exp act] (map vector (range) expected result)]
-          (is (< (Math/abs (- exp act)) max-diff)
+          (is (< (Math/abs ^double (- exp act)) max-diff)
               (format "Ozone threshold %d: expected %s, got %s" i exp act)))))
 
     (testing "equals standard boxplot when mc = 0"
