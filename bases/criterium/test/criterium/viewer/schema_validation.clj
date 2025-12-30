@@ -129,10 +129,10 @@
     (when-not (.exists target-script)
       (io/copy (io/file (resolve-source-validator-script)) target-script)))
   (let [result (shell/sh "npm" "list" "vega-lite" :dir npm-install-dir)]
-    (when-not (zero? (int (:exit result)))
+    (when-not (= 0 (:exit result))
       (println "Installing vega-lite npm package to target/npm...")
       (let [install-result (shell/sh "npm" "install" "vega-lite" :dir npm-install-dir)]
-        (when-not (zero? (int (:exit install-result)))
+        (when-not (= 0 (:exit install-result))
           (throw (ex-info "Failed to install vega-lite"
                           {:stderr (:err install-result)})))))))
 
@@ -152,7 +152,7 @@
   (let [spec-json (json/write-str spec)
         script-path (str npm-install-dir "/" validator-script-filename)
         result (shell/sh "node" script-path :in spec-json)]
-    (if (zero? (int (:exit result)))
+    (if (= 0 (:exit result))
       (let [output (json/read-str (:out result) :key-fn keyword)]
         (if (:valid output)
           (if (:warnings output)
