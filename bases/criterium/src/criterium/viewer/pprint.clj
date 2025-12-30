@@ -226,20 +226,15 @@
 (defn- kde-modes-table
   "Prepare modes data for pprint table display."
   [modes metric-config transforms]
-  (let [{:keys [_dimension scale]} metric-config
-        scale (double scale)]
-    (mapv (fn [{:keys [location density ci-lower ci-upper]}]
-            {:location (format "%.4g"
-                               (* scale
-                                  (util/transform-sample-> location transforms)))
-             :density (format "%.4g" density)
-             :ci-lower (format "%.4g"
-                               (* scale
-                                  (util/transform-sample-> ci-lower transforms)))
-             :ci-upper (format "%.4g"
-                               (* scale
-                                  (util/transform-sample-> ci-upper transforms)))})
-          modes)))
+  (mapv (fn [{:keys [location density ci-lower ci-upper]}]
+          {:location (viewer-common/format-mode-location
+                      location metric-config transforms)
+           :density (format "%.4g" density)
+           :ci-lower (viewer-common/format-mode-location
+                      ci-lower metric-config transforms)
+           :ci-upper (viewer-common/format-mode-location
+                      ci-upper metric-config transforms)})
+        modes))
 
 (defn- pprint-kde-metric
   "Pretty-print KDE summary for a single metric."
@@ -426,14 +421,11 @@
 (defn- modes-table
   "Prepare modes data for pprint table display in warning output."
   [modes metric-config transforms]
-  (let [{:keys [scale]} metric-config
-        scale (double scale)]
-    (mapv (fn [{:keys [location density]}]
-            {:location (format "%.4g"
-                               (* scale
-                                  (util/transform-sample-> location transforms)))
-             :density (format "%.4g" density)})
-          modes)))
+  (mapv (fn [{:keys [location density]}]
+          {:location (viewer-common/format-mode-location
+                      location metric-config transforms)
+           :density (format "%.4g" density)})
+        modes))
 
 (defmethod view/multimodal-warning* :pprint
   [_ {:keys [modes-id]} data-map]
