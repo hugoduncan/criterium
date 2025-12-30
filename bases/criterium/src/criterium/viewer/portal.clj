@@ -461,3 +461,23 @@
     (when (and treemap-data (:root treemap-data))
       (heading "Allocation Treemap")
       (portal-vega (charts/treemap-vega-spec treemap-data {})))))
+
+;;; Modal Analysis Views
+
+(defmethod view/multimodal-warning* :portal
+  [_ {:keys [modes-id]} data-map]
+  (viewer-common/for-each-multimodal-metric
+   data-map modes-id
+   (fn [{:keys [metric-config n-modes modes transforms]}]
+     (heading (str "WARNING: Multimodal distribution - "
+                   (:label metric-config)))
+     (portal-table
+      [{:metric "Mode count" :value n-modes}])
+     (when (seq modes)
+       (portal-heading [:em "Mode locations:"])
+       (portal-table
+        (mapv (fn [{:keys [location density]}]
+                {:location (viewer-common/format-mode-location
+                            location metric-config transforms)
+                 :density (format "%.4g" density)})
+              modes))))))

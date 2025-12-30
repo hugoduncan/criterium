@@ -498,9 +498,8 @@
            (:input-arguments runtime-details))))
 
 (defmethod view/sample-percentiles* :print
-  [_ _view _sampled]
+  [_ _view _sampled])
   ;; TODO
-  )
 
 ;;; Domain Views
 
@@ -1046,3 +1045,22 @@
     (when (and treemap-data (:root treemap-data))
       (println)
       (println (viewer-common/render-ascii-treemap treemap-data)))))
+
+;;; Modal Analysis Views
+
+(defmethod view/multimodal-warning* :print
+  [_ {:keys [modes-id]} data-map]
+  (viewer-common/for-each-multimodal-metric
+   data-map modes-id
+   (fn [{:keys [metric-config modes transforms]}]
+     (println
+      (format "%32s: Multimodal distribution detected"
+              (:label metric-config)))
+     (when (seq modes)
+       (let [locations (map #(viewer-common/format-mode-location
+                              (:location %)
+                              metric-config
+                              transforms)
+                            modes)]
+         (println (format "%32s  Mode locations: %s" ""
+                          (str/join ", " locations))))))))

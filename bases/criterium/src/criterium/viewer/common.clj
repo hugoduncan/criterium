@@ -1011,11 +1011,45 @@
                       (range)
                       filtered-children))))))
 
+;;; Modal Analysis View helpers
+
+(defn format-mode-location
+  "Format a mode location for display.
+  Applies metric scale and transforms, then formats with appropriate dimension."
+  [location metric-config transforms]
+  (let [{:keys [dimension scale]} metric-config
+        loc (util/transform-sample-> location transforms)]
+    (format/format-value dimension (* scale loc))))
+
+(defn for-each-multimodal-metric
+  "Iterate over metrics with multimodal distributions (n-modes > 1).
+  Calls (f {:metric-config mc :n-modes n :modes modes :transforms transforms})
+  for each metric where n-modes > 1.
+  Returns nil."
+  [data-map modes-id f]
+  (let [modes-id (or modes-id :modes)
+        modes-map (get data-map modes-id)]
+    (when modes-map
+      (let [transforms (util/get-transforms data-map modes-id)
+            metrics-defs (:metrics-defs modes-map)
+            metric-configs (when metrics-defs
+                             (metric/all-metric-configs metrics-defs))
+            all-modes (:modes modes-map)]
+        (doseq [metric-config metric-configs]
+          (when-let [modes-data (get all-modes (:path metric-config))]
+            (let [n-modes (:n-modes modes-data)
+                  modes (:modes modes-data)]
+              (when (and n-modes (> n-modes 1))
+                (f {:metric-config metric-config
+                    :n-modes n-modes
+                    :modes modes
+                    :transforms transforms})))))))))
+
 (defn render-ascii-treemap
   "Render an allocation treemap as an ASCII tree string.
-  
+
   treemap-data should be a :criterium/allocation-treemap map with :root, :group-by, :size-by.
-  
+
   Options:
     :bar-width   - max bar characters (default 20)
     :depth-limit - max nesting depth to display, nil = unlimited (default nil)

@@ -26,6 +26,8 @@
              :outliers
              [:stats {}]
              [:stats {:samples-id :log-samples :id :log-stats}]
+             :kde
+             :modes
              :event-stats
              :allocation-summary
              [:allocation-hotspots {:limit 10}]
@@ -33,6 +35,7 @@
              :allocation-treemap]
    :view [[:stats {:metric-ids [:memory]}]
           [:stats {:stats-id :log-stats}]
+          [:multimodal-warning {:modes-id :modes}]
           :event-stats
           :outlier-counts
           :collect-plan

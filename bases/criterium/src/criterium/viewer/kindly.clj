@@ -493,3 +493,26 @@
 (defmethod view/final-gc-warnings* :kindly [_ _ _])
 (defmethod view/os* :kindly [_ _ _])
 (defmethod view/runtime* :kindly [_ _ _])
+
+;;; Modal Analysis Views
+
+(defmethod view/multimodal-warning* :kindly
+  [_ {:keys [modes-id]} data-map]
+  (viewer-common/for-each-multimodal-metric
+   data-map modes-id
+   (fn [{:keys [metric-config n-modes modes transforms]}]
+     (kindly-heading (str "WARNING: Multimodal distribution - "
+                          (:label metric-config)))
+     (kindly-table
+      [{:metric "Mode count" :value n-modes}])
+     (when (seq modes)
+       (kindly-add
+        (with-meta
+          ["*Mode locations:*"]
+          {:kindly/kind :kind/md}))
+       (kindly-table
+        (mapv (fn [{:keys [location density]}]
+                {:location (viewer-common/format-mode-location
+                            location metric-config transforms)
+                 :density (format "%.4g" density)})
+              modes))))))

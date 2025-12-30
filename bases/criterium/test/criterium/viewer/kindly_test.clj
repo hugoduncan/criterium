@@ -1392,3 +1392,79 @@
                                    kde-layers)]
           (is (empty? point-layers)
               "Expected no point layers when modes list empty"))))))
+
+;;; Modal Analysis Views
+
+(deftest multimodal-warning-view-test
+  ;; Tests the view/multimodal-warning* multimethod for :kindly viewer.
+  ;; Verifies that multimodal warning is rendered as heading and tables
+  ;; when n-modes > 1, with correct Kindly metadata.
+  (testing "view/multimodal-warning* :kindly"
+    (testing "outputs warning with mode count and locations when n-modes > 1"
+      (reset! kindly/accumulated [])
+      (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])
+            modes-data {:type :criterium/modes
+                        :metrics-defs metrics-defs
+                        :transform {:sample-> identity :->sample identity}
+                        :modes {[:elapsed-time]
+                                {:modes [{:location 1e-9
+                                          :density 0.3}
+                                         {:location 2e-9
+                                          :density 0.25}]
+                                 :n-modes 2}}}]
+        (view/multimodal-warning* :kindly {} {:modes modes-data})
+        (let [result (kindly/flush)]
+          (is (= :kind/fragment (:kindly/kind (meta result))))
+          (is (= 4 (count result))
+              "Expected heading, status table, locations heading, locations table")
+          (let [[heading status-table loc-heading loc-table] result]
+            (is (= :kind/md (:kindly/kind (meta heading))))
+            (is (str/includes? (first heading) "WARNING"))
+            (is (str/includes? (first heading) "Multimodal"))
+            (is (= :kind/table (:kindly/kind (meta status-table))))
+            (is (= 1 (count status-table))
+                "Expected 1 row in status table")
+            (is (= "Mode count" (:metric (first status-table))))
+            (is (= 2 (:value (first status-table))))
+            (is (= :kind/md (:kindly/kind (meta loc-heading))))
+            (is (= :kind/table (:kindly/kind (meta loc-table))))
+            (is (= 2 (count loc-table))
+                "Expected 2 mode location rows")
+            (is (every? #(contains? % :location) loc-table))
+            (is (every? #(contains? % :density) loc-table))))))
+
+    (testing "outputs nothing when n-modes <= 1"
+      (reset! kindly/accumulated [])
+      (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])
+            modes-data {:type :criterium/modes
+                        :metrics-defs metrics-defs
+                        :transform {:sample-> identity :->sample identity}
+                        :modes {[:elapsed-time]
+                                {:modes [{:location 1e-9 :density 0.3}]
+                                 :n-modes 1}}}]
+        (view/multimodal-warning* :kindly {} {:modes modes-data})
+        (is (nil? (kindly/flush))
+            "Expected no output when only 1 mode")))
+
+    (testing "outputs nothing when modes-map is nil"
+      (reset! kindly/accumulated [])
+      (view/multimodal-warning* :kindly {} {:modes nil})
+      (is (nil? (kindly/flush))))
+
+    (testing "uses custom modes-id"
+      (reset! kindly/accumulated [])
+      (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])
+            modes-data {:type :criterium/modes
+                        :metrics-defs metrics-defs
+                        :transform {:sample-> identity :->sample identity}
+                        :modes {[:elapsed-time]
+                                {:modes [{:location 1e-9 :density 0.3}
+                                         {:location 2e-9 :density 0.25}]
+                                 :n-modes 2}}}]
+        (view/multimodal-warning*
+         :kindly
+         {:modes-id :my-modes}
+         {:my-modes modes-data})
+        (let [result (kindly/flush)]
+          (is (= 4 (count result))
+              "Expected output with custom modes-id"))))))
