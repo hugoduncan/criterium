@@ -1050,29 +1050,19 @@
 
 (defmethod view/multimodal-warning* :print
   [_ {:keys [modes-id]} data-map]
-  (let [modes-id (or modes-id :modes)
-        modes-map (get data-map modes-id)]
-    (when modes-map
-      (let [transforms (util/get-transforms data-map modes-id)
-            metrics-defs (:metrics-defs modes-map)
-            metric-configs (when metrics-defs
-                             (metric/all-metric-configs metrics-defs))
-            all-modes (:modes modes-map)]
-        (doseq [metric-config metric-configs]
-          (when-let [modes-data (get all-modes (:path metric-config))]
-            (let [n-modes (:n-modes modes-data)
-                  modes (:modes modes-data)]
-              (when (and n-modes (> n-modes 1))
-                (println)
-                (println (format "WARNING: Multimodal distribution detected for %s"
-                                 (:label metric-config)))
-                (println (format "  Mode count: %d" n-modes))
-                (when (seq modes)
-                  (let [locations (map #(viewer-common/format-mode-location
-                                         (:location %)
-                                         metric-config
-                                         transforms)
-                                       modes)]
-                    (println (format "  Mode locations: %s"
-                                     (str/join ", " locations)))))
-                (println "  Consider investigating the source of variation.")))))))))
+  (viewer-common/for-each-multimodal-metric
+   data-map modes-id
+   (fn [{:keys [metric-config n-modes modes transforms]}]
+     (println)
+     (println (format "WARNING: Multimodal distribution detected for %s"
+                      (:label metric-config)))
+     (println (format "  Mode count: %d" n-modes))
+     (when (seq modes)
+       (let [locations (map #(viewer-common/format-mode-location
+                              (:location %)
+                              metric-config
+                              transforms)
+                            modes)]
+         (println (format "  Mode locations: %s"
+                          (str/join ", " locations)))))
+     (println "  Consider investigating the source of variation."))))
