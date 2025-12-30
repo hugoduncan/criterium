@@ -2,6 +2,7 @@
   (:require
    [clojure.test :refer [deftest is testing]]
    [criterium.analyse :as analyse]
+   [criterium.analyse.methods]
    [criterium.benchmark :as benchmark]
    [criterium.collect-plan :as collect-plan]
    [criterium.collector.metrics :as metrics]
@@ -783,3 +784,203 @@
               elapsed-hist (get-in hist-data [:histograms [:elapsed-time]])]
           (is (<= (long (:optimal-bins elapsed-hist)) 10)
               "optimal-bins should respect max-bins limit"))))))
+
+;;; Tests for KDE-based stats computation
+;; Validates that defmethod methods/stats :criterium/kde produces correct
+;; statistics derived from density integration.
+
+(deftest kde-stats-test
+  (testing "methods/stats :criterium/kde"
+    (testing "returns stats with correct structure"
+      (let [;; Create a simple KDE data structure
+            kde-data {:type :criterium/kde
+                      :kdes {[:elapsed-time]
+                             {:grid [1.0 2.0 3.0 4.0 5.0]
+                              :density [0.1 0.2 0.4 0.2 0.1]
+                              :bandwidth 0.5
+                              :n 100}}
+                      :transform {:sample-> identity :->sample identity}}
+            metric-configs [{:path [:elapsed-time]}]
+            result (criterium.analyse.methods/stats kde-data nil metric-configs {})]
+        (is (= :criterium/stats (:type result))
+            "result type should be :criterium/stats")
+        (is (map? (:stats result))
+            "result should contain :stats map")
+        (is (contains? (:stats result) :elapsed-time)
+            "stats should contain elapsed-time metric")
+        (let [s (get-in result [:stats :elapsed-time])]
+          (is (number? (:mean s)) "should have :mean")
+          (is (number? (:variance s)) "should have :variance")
+          (is (number? (:min-val s)) "should have :min-val")
+          (is (number? (:max-val s)) "should have :max-val")
+          (is (number? (:mean-plus-3sigma s)) "should have :mean-plus-3sigma")
+          (is (number? (:mean-minus-3sigma s)) "should have :mean-minus-3sigma")
+          (is (= 100 (:n s)) "should have :n from KDE metadata"))))
+
+    (testing "computes correct mean for symmetric density"
+      ;; Symmetric density centered at 3.0 should have mean ≈ 3.0
+      ;; Using a uniform density simplifies verification
+      (let [grid [1.0 2.0 3.0 4.0 5.0]
+            ;; Uniform density: f(x) = 0.25 for x in [1,5]
+            ;; ∫f(x)dx from 1 to 5 = 0.25 * 4 = 1.0 (normalized)
+            ;; Mean = ∫x*f(x)dx = 0.25 * ∫x dx from 1 to 5
+            ;;      = 0.25 * [x²/2] from 1 to 5 = 0.25 * (12.5 - 0.5) = 3.0
+            density [0.25 0.25 0.25 0.25 0.25]
+            kde-data {:type :criterium/kde
+                      :kdes {[:elapsed-time]
+                             {:grid grid
+                              :density density
+                              :bandwidth 0.5
+                              :n 50}}
+                      :transform {:sample-> identity :->sample identity}}
+            metric-configs [{:path [:elapsed-time]}]
+            result (criterium.analyse.methods/stats kde-data nil metric-configs {})
+            mean (get-in result [:stats :elapsed-time :mean])]
+        (is (approx= 3.0 mean 0.01)
+            (str "mean of uniform density should be at center, got: " mean))))
+
+    (testing "computes correct min/max from grid bounds"
+      (let [grid [10.0 20.0 30.0 40.0 50.0]
+            kde-data {:type :criterium/kde
+                      :kdes {[:elapsed-time]
+                             {:grid grid
+                              :density [0.2 0.2 0.2 0.2 0.2]
+                              :bandwidth 1.0
+                              :n 25}}
+                      :transform {:sample-> identity :->sample identity}}
+            metric-configs [{:path [:elapsed-time]}]
+            result (criterium.analyse.methods/stats kde-data nil metric-configs {})
+            stats (get-in result [:stats :elapsed-time])]
+        (is (= 10.0 (:min-val stats))
+            "min-val should be first grid point")
+        (is (= 50.0 (:max-val stats))
+            "max-val should be last grid point")))
+
+    (testing "mean-plus/minus-3sigma derived from variance"
+      (let [kde-data {:type :criterium/kde
+                      :kdes {[:elapsed-time]
+                             {:grid [0.0 1.0 2.0 3.0 4.0]
+                              :density [0.1 0.2 0.4 0.2 0.1]
+                              :bandwidth 0.3
+                              :n 30}}
+                      :transform {:sample-> identity :->sample identity}}
+            metric-configs [{:path [:elapsed-time]}]
+            result (criterium.analyse.methods/stats kde-data nil metric-configs {})
+            stats (get-in result [:stats :elapsed-time])
+            ^double mean (:mean stats)
+            ^double variance (:variance stats)
+            expected-3sigma (* 3.0 (Math/sqrt variance))]
+        (is (approx= (+ mean expected-3sigma) (:mean-plus-3sigma stats))
+            "mean-plus-3sigma should be mean + 3*stddev")
+        (is (approx= (- mean expected-3sigma) (:mean-minus-3sigma stats))
+            "mean-minus-3sigma should be mean - 3*stddev")))
+
+    (testing "preserves transform from kde-map"
+      (let [custom-transform {:sample-> #(* ^double % 2.0) :->sample #(/ ^double % 2.0)}
+            kde-data {:type :criterium/kde
+                      :kdes {[:elapsed-time]
+                             {:grid [1.0 2.0 3.0]
+                              :density [0.25 0.5 0.25]
+                              :bandwidth 0.2
+                              :n 10}}
+                      :transform custom-transform}
+            metric-configs [{:path [:elapsed-time]}]
+            result (criterium.analyse.methods/stats kde-data nil metric-configs {})]
+        (is (= custom-transform (:transform result))
+            "transform should be preserved from kde-map")))
+
+    (testing "handles multiple metrics"
+      (let [kde-data {:type :criterium/kde
+                      :kdes {[:elapsed-time]
+                             {:grid [1.0 2.0 3.0]
+                              :density [0.25 0.5 0.25]
+                              :bandwidth 0.3
+                              :n 100}
+                             [:memory :used]
+                             {:grid [100.0 200.0 300.0]
+                              :density [0.25 0.5 0.25]
+                              :bandwidth 10.0
+                              :n 100}}
+                      :transform {:sample-> identity :->sample identity}}
+            metric-configs [{:path [:elapsed-time]}
+                            {:path [:memory :used]}]
+            result (criterium.analyse.methods/stats kde-data nil metric-configs {})]
+        (is (contains? (:stats result) :elapsed-time)
+            "should have elapsed-time stats")
+        (is (contains? (get-in result [:stats :memory]) :used)
+            "should have memory/used stats")))
+
+    (testing "skips metrics not in kde-map"
+      (let [kde-data {:type :criterium/kde
+                      :kdes {[:elapsed-time]
+                             {:grid [1.0 2.0 3.0]
+                              :density [0.25 0.5 0.25]
+                              :bandwidth 0.3
+                              :n 100}}
+                      :transform {:sample-> identity :->sample identity}}
+            ;; Request stats for a metric that doesn't exist in kdes
+            metric-configs [{:path [:elapsed-time]}
+                            {:path [:nonexistent :metric]}]
+            result (criterium.analyse.methods/stats kde-data nil metric-configs {})]
+        (is (contains? (:stats result) :elapsed-time)
+            "should have elapsed-time stats")
+        (is (not (contains? (:stats result) :nonexistent))
+            "should not have nonexistent metric")))))
+
+;;; Tests for kde-stats analysis function
+;; Validates the full analysis pipeline from samples through KDE to stats.
+
+(deftest kde-stats-analysis-test
+  ;; Tests the analyse/kde-stats function which provides a high-level
+  ;; interface for computing stats from KDE density estimates.
+  (testing "kde-stats"
+    (testing "computes stats from KDE data"
+      (let [raw-data (mapv #(+ 100.0 (* 0.5 (double %))) (range 50))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            with-log ((analyse/transform-log {:id :log-samples
+                                              :samples-id :samples})
+                      data-map)
+            with-kde ((analyse/kde {:n-bootstrap 10 :n-points 64}) with-log)
+            result ((analyse/kde-stats) with-kde)]
+        (is (contains? result :kde-stats) "result should have :kde-stats key")
+        (let [stats-data (:kde-stats result)]
+          (is (= :criterium/stats (:type stats-data)))
+          (is (= :kde (:source-id stats-data)))
+          (let [s (-> stats-data util/stats :elapsed-time)]
+            (is (number? (:mean s)) "should have :mean")
+            (is (number? (:variance s)) "should have :variance")
+            (is (number? (:min-val s)) "should have :min-val")
+            (is (number? (:max-val s)) "should have :max-val")))))
+
+    (testing "returns data-map unchanged when KDE unavailable"
+      (let [data-map {:other-data 123}
+            result ((analyse/kde-stats) data-map)]
+        (is (= data-map result))
+        (is (not (contains? result :kde-stats)))))
+
+    (testing "uses custom kde-id"
+      (let [raw-data (mapv #(+ 100.0 (* 0.5 (double %))) (range 50))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            with-log ((analyse/transform-log {:id :log-samples
+                                              :samples-id :samples})
+                      data-map)
+            with-kde ((analyse/kde {:id :my-kde
+                                    :n-bootstrap 10
+                                    :n-points 32})
+                      with-log)
+            result ((analyse/kde-stats {:kde-id :my-kde}) with-kde)]
+        (is (contains? result :kde-stats))))
+
+    (testing "uses custom output id"
+      (let [raw-data (mapv #(+ 100.0 (* 0.5 (double %))) (range 50))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            with-log ((analyse/transform-log {:id :log-samples
+                                              :samples-id :samples})
+                      data-map)
+            with-kde ((analyse/kde {:n-bootstrap 10 :n-points 32}) with-log)
+            result ((analyse/kde-stats {:id :my-kde-stats}) with-kde)]
+        (is (contains? result :my-kde-stats))
+        (is (not (contains? result :kde-stats)))))))

@@ -120,6 +120,7 @@
              [:stats {:samples-id :log-samples :id :log-stats}]
              :histogram
              :kde
+             :kde-stats
              :event-stats
              :allocation-summary
              [:allocation-hotspots {:limit 10}]
@@ -127,6 +128,7 @@
              :allocation-treemap]
    :view [[:stats {:metric-ids [:memory]}]
           [:stats {:stats-id :log-stats}]
+          [:stats {:stats-id :kde-stats}]
           :quantiles
           :event-stats
           :outlier-counts
@@ -156,6 +158,7 @@
              [:stats {:samples-id :log-samples :id :log-stats}]
              :histogram
              :kde
+             :kde-stats
              :modes
              :event-stats
              :allocation-summary
@@ -164,6 +167,7 @@
              :allocation-treemap]
    :view [[:stats {:metric-ids [:memory]}]
           [:stats {:stats-id :log-stats}]
+          [:stats {:stats-id :kde-stats}]
           :quantiles
           :event-stats
           :outlier-counts

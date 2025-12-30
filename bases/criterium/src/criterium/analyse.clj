@@ -506,6 +506,63 @@
                  (assoc data-map id modes-map))
                data-map))))))))
 
+(defn kde-stats
+  "Calculates descriptive statistics derived from KDE density estimates.
+
+  Returns a function that computes statistics by integrating over the KDE
+  density function. This provides a smoothed view of the underlying distribution
+  compared to sample-based statistics.
+
+  Parameters:
+    opts - Optional map with keys:
+      :id         - Key for stats in output (default: :kde-stats)
+      :kde-id     - Key for source KDE data (default: :kde)
+      :metric-ids - Set of metric ids to analyze (default: all quantitative)
+
+  The returned function:
+  - Takes a data map containing KDE analysis results
+  - Returns the map with statistics added under :id key
+  - Returns data-map unchanged if KDE data unavailable
+  - For each metric, calculates:
+    - mean: density-weighted mean ∫ x·f(x) dx
+    - variance: density-weighted variance ∫ (x-μ)²·f(x) dx
+    - min-val/max-val: grid bounds (effective support)
+    - mean ±3σ bounds
+    - n: sample count from KDE metadata
+
+  Example:
+  (let [analyze (kde-stats)
+        result (analyze {:kde {...}})]
+    (get-in result [:kde-stats :elapsed-time]))
+  ;; Returns {:mean 100.0 :variance 16.0 ...}"
+  ([] (kde-stats {}))
+  ([{:keys [id kde-id metric-ids]}]
+   (let [id (or id :kde-stats)
+         kde-id (or kde-id :kde)]
+     (fn [data-map]
+       (let [kde-map (get data-map kde-id)]
+         (if-not kde-map
+           data-map
+           (let [metrics-defs (-> (have (:metrics-defs kde-map))
+                                  (metric/select-metrics metric-ids)
+                                  (metric/filter-metrics
+                                   (metric/type-pred :quantitative)))
+                 metric-configs (metric/all-metric-configs metrics-defs)
+                 stats (methods/stats
+                        kde-map
+                        nil ; no outliers - already filtered in KDE
+                        metric-configs
+                        {})
+                 stats-map (util/->stats-map
+                            (merge
+                             {:type :criterium/stats
+                              :metrics-defs metrics-defs
+                              :source-id kde-id
+                              :outliers-id nil
+                              :batch-size (:batch-size kde-map)}
+                             stats))]
+             (assoc data-map id stats-map))))))))
+
 (defn- min-f
   ^double [f ^double q ^double r]
   (min ^double (f q) ^double (f r)))
