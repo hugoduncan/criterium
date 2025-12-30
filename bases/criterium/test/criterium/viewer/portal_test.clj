@@ -986,3 +986,86 @@
                                  kde-layers)]
         (is (empty? point-layers)
             "Expected no point layers when modes list empty")))))
+
+;;; Modal Analysis Views
+
+(deftest portal-multimodal-warning-test
+  ;; Tests the portal viewer output for multimodal-warning when multiple
+  ;; modes are detected. Verifies warning heading, mode count table,
+  ;; and mode locations table are produced.
+  (testing "multimodal-warning*"
+    (testing "outputs warning with mode count and locations when n-modes > 1"
+      (let [metrics-defs (select-keys (criterium.collector.metrics/metrics)
+                                      [:elapsed-time])
+            modes-data {:type :criterium/modes
+                        :metrics-defs metrics-defs
+                        :transform {:sample-> identity :->sample identity}
+                        :modes {[:elapsed-time]
+                                {:modes [{:location 1e-9
+                                          :density 0.3}
+                                         {:location 2e-9
+                                          :density 0.25}]
+                                 :n-modes 2}}}
+            outputs (with-tap-out
+                      (view/multimodal-warning* :portal {} {:modes modes-data}))]
+        (is (= 4 (count outputs))
+            "Expected heading, status table, locations heading, locations table")
+        (let [[heading status-table loc-heading loc-table] outputs]
+          (is (= :b (first heading)))
+          (is (str/includes? (second heading) "WARNING"))
+          (is (str/includes? (second heading) "Multimodal"))
+          (is (= 2 (count status-table)) "Expected 2 rows in status table")
+          (is (= "Mode count" (:metric (first status-table))))
+          (is (= 2 (:value (first status-table))))
+          (is (= :em (first loc-heading)))
+          (is (= 2 (count loc-table)) "Expected 2 mode location rows")
+          (is (every? #(contains? % :location) loc-table))
+          (is (every? #(contains? % :density) loc-table)))))
+
+    (testing "outputs nothing when n-modes <= 1"
+      (let [metrics-defs (select-keys (criterium.collector.metrics/metrics)
+                                      [:elapsed-time])
+            modes-data {:type :criterium/modes
+                        :metrics-defs metrics-defs
+                        :transform {:sample-> identity :->sample identity}
+                        :modes {[:elapsed-time]
+                                {:modes [{:location 1e-9 :density 0.3}]
+                                 :n-modes 1}}}
+            v (volatile! [])
+            f (fn [x] (when-not (= ::portal/_ x) (vswap! v conj x)))]
+        (try
+          (add-tap f)
+          (view/multimodal-warning* :portal {} {:modes modes-data})
+          (portal/flush)
+          (is (empty? @v) "Expected no output when only 1 mode")
+          (finally
+            (remove-tap f)))))
+
+    (testing "outputs nothing when modes-map is nil"
+      (let [v (volatile! [])
+            f (fn [x] (when-not (= ::portal/_ x) (vswap! v conj x)))]
+        (try
+          (add-tap f)
+          (view/multimodal-warning* :portal {} {:modes nil})
+          (portal/flush)
+          (is (empty? @v))
+          (finally
+            (remove-tap f)))))
+
+    (testing "uses custom modes-id"
+      (let [metrics-defs (select-keys (criterium.collector.metrics/metrics)
+                                      [:elapsed-time])
+            modes-data {:type :criterium/modes
+                        :metrics-defs metrics-defs
+                        :transform {:sample-> identity :->sample identity}
+                        :modes {[:elapsed-time]
+                                {:modes [{:location 1e-9 :density 0.3}
+                                         {:location 2e-9 :density 0.25}]
+                                 :n-modes 2}}}
+            outputs (with-tap-out
+                      (view/multimodal-warning*
+                       :portal
+                       {:modes-id :my-modes}
+                       {:my-modes modes-data}))]
+        (is (= 4 (count outputs))
+            "Expected output with custom modes-id")))))

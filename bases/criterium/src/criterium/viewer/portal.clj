@@ -3,6 +3,7 @@
   (:refer-clojure :exclude [flush])
   (:require
    [criterium.metric :as metric]
+   [criterium.util.format :as format]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have]]
    [criterium.view :as view]
@@ -461,3 +462,42 @@
     (when (and treemap-data (:root treemap-data))
       (heading "Allocation Treemap")
       (portal-vega (charts/treemap-vega-spec treemap-data {})))))
+
+;;; Modal Analysis Views
+
+(defn- format-mode-location
+  "Format a mode location for display."
+  [location metric-config transforms]
+  (let [{:keys [dimension scale]} metric-config
+        loc (util/transform-sample-> location transforms)]
+    (format/format-value dimension (* scale loc))))
+
+(defmethod view/multimodal-warning* :portal
+  [_ {:keys [modes-id]} data-map]
+  (let [modes-id (or modes-id :modes)
+        modes-map (get data-map modes-id)]
+    (when modes-map
+      (let [transforms (util/get-transforms data-map modes-id)
+            metrics-defs (:metrics-defs modes-map)
+            metric-configs (when metrics-defs
+                             (metric/all-metric-configs metrics-defs))
+            all-modes (:modes modes-map)]
+        (doseq [metric-config metric-configs]
+          (when-let [modes-data (get all-modes (:path metric-config))]
+            (let [n-modes (:n-modes modes-data)
+                  modes (:modes modes-data)]
+              (when (and n-modes (> n-modes 1))
+                (heading (str "WARNING: Multimodal distribution - "
+                              (:label metric-config)))
+                (portal-table
+                 [{:metric "Mode count" :value n-modes}
+                  {:metric "Status"
+                   :value "Consider investigating the source of variation"}])
+                (when (seq modes)
+                  (portal-heading [:em "Mode locations:"])
+                  (portal-table
+                   (mapv (fn [{:keys [location density]}]
+                           {:location (format-mode-location
+                                       location metric-config transforms)
+                            :density (format "%.4g" density)})
+                         modes)))))))))))
