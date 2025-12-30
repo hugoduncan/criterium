@@ -10,6 +10,7 @@
   (:refer-clojure :exclude [flush])
   (:require
    [criterium.metric :as metric]
+   [criterium.util.format :as format]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have]]
    [criterium.view :as view]
@@ -493,3 +494,45 @@
 (defmethod view/final-gc-warnings* :kindly [_ _ _])
 (defmethod view/os* :kindly [_ _ _])
 (defmethod view/runtime* :kindly [_ _ _])
+
+;;; Modal Analysis Views
+
+(defn- format-mode-location
+  "Format a mode location for display."
+  [location metric-config transforms]
+  (let [{:keys [dimension scale]} metric-config
+        loc (util/transform-sample-> location transforms)]
+    (format/format-value dimension (* scale loc))))
+
+(defmethod view/multimodal-warning* :kindly
+  [_ {:keys [modes-id]} data-map]
+  (let [modes-id (or modes-id :modes)
+        modes-map (get data-map modes-id)]
+    (when modes-map
+      (let [transforms (util/get-transforms data-map modes-id)
+            metrics-defs (:metrics-defs modes-map)
+            metric-configs (when metrics-defs
+                             (metric/all-metric-configs metrics-defs))
+            all-modes (:modes modes-map)]
+        (doseq [metric-config metric-configs]
+          (when-let [modes-data (get all-modes (:path metric-config))]
+            (let [n-modes (:n-modes modes-data)
+                  modes (:modes modes-data)]
+              (when (and n-modes (> n-modes 1))
+                (kindly-heading (str "WARNING: Multimodal distribution - "
+                                     (:label metric-config)))
+                (kindly-table
+                 [{:metric "Mode count" :value n-modes}
+                  {:metric "Status"
+                   :value "Consider investigating the source of variation"}])
+                (when (seq modes)
+                  (kindly-add
+                   (with-meta
+                     ["*Mode locations:*"]
+                     {:kindly/kind :kind/md}))
+                  (kindly-table
+                   (mapv (fn [{:keys [location density]}]
+                           {:location (format-mode-location
+                                       location metric-config transforms)
+                            :density (clojure.core/format "%.4g" density)})
+                         modes)))))))))))
