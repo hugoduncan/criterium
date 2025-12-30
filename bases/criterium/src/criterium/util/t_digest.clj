@@ -1,69 +1,56 @@
 (ns criterium.util.t-digest
+  "Re-exports t-digest functionality from stats component for backward compatibility."
   (:require
-   [criterium.util.t-digest.merging-digest :as md]))
+   [stats.t-digest :as t-digest]))
 
-(defn new-digest []
-  (md/new-digest))
+(def new-digest
+  "Creates a new t-digest with optional compression factor."
+  t-digest/new-digest)
 
 (defn add-point
   "Add a single value into the digest"
-  [digest value]
-  (md/add-point digest value))
+  ([digest value]
+   (t-digest/add-point digest value))
+  ([digest value weight]
+   (t-digest/add-point digest value weight)))
 
-(defn compress
+(def compress
   "Merge any buffered points into the digest."
-  [digest]
-  (md/compress digest))
+  t-digest/compress)
 
-(defn quantile
+(def quantile
   "Return estimated value at given quantile [0,1].
    Return nil if digest is empty."
-  ^double [digest ^double x]
-  (md/quantile digest x))
+  t-digest/quantile)
 
-(defn cdf
+(def cdf
   "Return the cumulative probability at x.
    Return NaN if digest is empty."
-  ^double [digest ^double x]
-  (md/cdf digest x))
+  t-digest/cdf)
 
-(defn sample-count
-  ^double [digest]
-  (md/sample-count digest))
+(def sample-count t-digest/sample-count)
 
-(defn minimum
-  ^double [digest]
-  (md/minimum digest))
+(def minimum t-digest/minimum)
 
-(defn maximum
-  ^double [digest]
-  (md/maximum digest))
+(def maximum t-digest/maximum)
 
-(defn mean
+(def mean
   "Return the mean estimate.
    Return NaN if digest is empty."
-  ^double [digest]
-  (md/mean digest))
+  t-digest/mean)
 
 (defn variance
-  "Return the mean estimate.
+  "Return the variance estimate.
    Return NaN if digest is empty."
-  (^double [digest]
-   (md/variance digest))
-  (^double [digest ^double mean]
-   (md/variance digest mean)))
+  ([digest]
+   (t-digest/variance digest))
+  ([digest mean]
+   (t-digest/variance digest mean)))
 
-(defn transform
-  [digest f]
-  (md/transform digest f))
+(def transform t-digest/transform)
 
-(defn centroid-means
-  [digest]
-  (md/centroid-means digest))
+(def centroid-means t-digest/centroid-means)
 
-(defn histogram [digest iqr]
-  (md/histogram digest iqr))
+(def histogram t-digest/histogram)
 
-(defn filter-outliers
-  [digest outliers]
-  (md/filter-outliers digest outliers))
+(def filter-outliers t-digest/filter-outliers)

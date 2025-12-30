@@ -114,6 +114,42 @@ jobs:
           clojure -M:kaocha:dev:test --reporter dots
         fi
 
+    - name: Install R (Ubuntu)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y r-base
+
+    - name: Install R (macOS)
+      if: matrix.os == 'macOS-latest'
+      run: |
+        brew install r
+
+    - name: Install R packages (Ubuntu)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo Rscript -e 'install.packages("Rserve", repos="http://rforge.net")'
+        sudo Rscript -e 'install.packages("multimode", repos="https://cloud.r-project.org")'
+
+    - name: Install R packages (macOS)
+      if: matrix.os == 'macOS-latest'
+      run: |
+        Rscript -e 'install.packages("Rserve", repos="http://rforge.net")'
+        Rscript -e 'install.packages("multimode", repos="https://cloud.r-project.org")'
+
+    - name: Start Rserve
+      run: |
+        R -e "library(Rserve); Rserve(args='--no-save')"
+
+    - name: Prep validation deps
+      run: |
+        clojure -P -M:validation
+
+    - name: Validation tests
+      run: |
+        set -x
+        clojure -M:validation --reporter dots
+
     - name: cache clj-kondo configs
       run: |
         set -x

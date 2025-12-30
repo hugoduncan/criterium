@@ -1,65 +1,48 @@
 (ns criterium.util.stats
-  "A collection of statistical methods used by criterium"
+  "A collection of statistical methods used by criterium.
+
+  All functions are delegated to stats and optimisation components."
   (:refer-clojure :exclude [min max])
   (:require
-   [criterium.util.helpers :as util]))
+   [optimisation.interface :as optimisation]
+   [stats.interface :as stats]))
 
-;;; Utilities
-(defn transpose
+;;; Core statistics (delegated to stats component)
+
+(def transpose
   "Transpose a vector of vectors."
-  [data]
-  (if (vector? (first data))
-    (apply map vector data)
-    data))
-
-;;; Statistics
+  stats/transpose)
 
 (defn min
-  ([data]
-   (reduce clojure.core/min data))
-  ([data _count]
-   (reduce clojure.core/min data)))
+  "Minimum value in data."
+  ([data] (stats/min data))
+  ([data count] (stats/min data count)))
 
 (defn max
-  ([data]
-   (reduce clojure.core/max data))
-  ([data _count]
-   (reduce clojure.core/max data)))
+  "Maximum value in data."
+  ([data] (stats/max data))
+  ([data count] (stats/max data count)))
 
-(defn unchecked-add-d
-  ^double [^double a ^double b]
-  (unchecked-add a b))
+(def unchecked-add-d
+  "Unchecked double addition."
+  stats/unchecked-add-d)
 
 (defn mean
   "Arithmetic mean of data."
-  (^double [data]
-   (let [c (count data)]
-     (when (pos? c)
-       (/ (double (reduce unchecked-add-d 0.0 data)) c))))
-  (^double [data ^long count]
-   (/ (double (reduce unchecked-add-d 0.0 data)) count)))
+  ([data] (stats/mean data))
+  ([data count] (stats/mean data count)))
 
-(defn sum
+(def sum
   "Sum of each data point."
-  [data] (reduce + data))
+  stats/sum)
 
-(defn sum-of-squares
+(def sum-of-squares
   "Sum of the squares of each data point."
-  [data]
-  (reduce
-   (fn ^double [^double s ^double v]
-     (+ s (* v v))) 0.0 data))
+  stats/sum-of-squares)
 
-(defn variance*
-  "variance based on subtracting mean"
-  ^double [data ^double mean ^long df]
-  (/ (double
-      (reduce
-       (fn ^double [^double a ^double b]
-         (+ a (util/sqr (- b mean))))
-       0.0
-       data))
-     df))
+(def variance*
+  "Variance based on subtracting mean."
+  stats/variance*)
 
 (defn variance
   "Return the variance of data.
@@ -68,248 +51,93 @@
   of freedom.
 
   The population variance can be returned using (variance data 0), which uses
-  (count data) degrees of freedom.
+  (count data) degrees of freedom."
+  ([data] (stats/variance data))
+  ([data df] (stats/variance data df)))
 
-   Ref: Chan et al. Algorithms for computing the sample variance: analysis and
-        recommendations. American Statistician (1983)."
-  (^double [data] (variance data 1))
-  (^double [data ^long df]
-   ;; Uses a single pass, non-pairwise algorithm, without shifting.
-   (letfn [(update-estimates [[^double m ^double q ^long k] ^double x]
-             (let [kp1   (inc k)
-                   delta (- x m)]
-               [(+ m (/ delta kp1))
-                (+ q (/ (* k (util/sqr delta)) kp1))
-                kp1]))]
-     (let [[_ ^double q ^long k] (reduce update-estimates [0.0 0.0 0] data)]
-       (when (> k df)
-         ;; (throw (ex-info
-         ;;         "insufficient data to calculate variance"
-         ;;         {:data data}))
-
-         (/ q (- k df)))))))
-
-;; For the moment we take the easy option of sorting samples
-(defn median
+(def median
   "Calculate the median of a sorted data set.
-  Return [median, [vals less than median] [vals greater than median]]
-  References: http://en.wikipedia.org/wiki/Median"
-  [data]
-  (let [n (count data)
-        i (bit-shift-right n 1)]
-    (if (even? n)
-      [(/ (+ (double (nth data (dec i)))
-             (double (nth data i)))
-          2.0)
-       (take i data)
-       (drop i data)]
-      [(nth data (bit-shift-right n 1))
-       (take i data)
-       (drop (inc i) data)])))
+  Return [median, [vals less than median] [vals greater than median]]"
+  stats/median)
 
-(defn quartiles
-  "Calculate the quartiles of a sorted data set
-   References: http://en.wikipedia.org/wiki/Quartile"
-  [data]
-  (let [[m lower upper] (median data)]
-    [(first (median lower)) m (first (median upper))]))
+(def quartiles
+  "Calculate the quartiles of a sorted data set."
+  stats/quartiles)
 
-(defn quantile
-  "Calculate the quantile of a sorted data set
-   References: http://en.wikipedia.org/wiki/Quantile"
-  [^double quantile data]
-  (let [n      (dec (count data))
-        interp (fn [^double x]
-                 (let [f (Math/floor x)
-                       i (long f)
-                       p (- x f)]
-                   (cond
-                     (zero? p) (nth data i)
-                     (= 1.0 p) (nth data (inc i))
-                     :else     (+ (* p (double (nth data (inc i))))
-                                  (* (- 1.0 p) (double (nth data i)))))))]
-    (interp (* quantile n))))
+(def quantile
+  "Calculate the quantile of a sorted data set."
+  stats/quantile)
 
-(defn boxplot-outlier-thresholds
+;;; Outliers (delegated to stats component)
+
+(def boxplot-outlier-thresholds
   "Outlier thresholds for given quartiles."
-  [^double q1 ^double q3]
-  {:pre [(number? q1) (number? q3)]}
-  (let [iqr    (- q3 q1)
-        severe (* iqr 3.0)
-        mild   (* iqr 1.5)]
-    [(- q1 severe)
-     (- q1 mild)
-     (+ q3 mild)
-     (+ q3 severe)]))
+  stats/boxplot-outlier-thresholds)
 
-(defn adjusted-boxplot-outlier-thresholds
+(def adjusted-boxplot-outlier-thresholds
   "Outlier thresholds for given quartiles adjusted for skewness.
-  Returns [low-severe low-mild high-mild high-severe].
+  Uses the adjusted boxplot method from Hubert & Vandervieren (2008)."
+  stats/adjusted-boxplot-outlier-thresholds)
 
-  Uses the adjusted boxplot method from Hubert & Vandervieren (2008)
-  which accounts for skewness via the medcouple statistic.
+(def medcouple-kernel
+  "Compute the medcouple kernel h(x_i, x_j)."
+  stats/medcouple-kernel)
 
-  When mc = 0 (symmetric), reduces to standard boxplot thresholds.
-  When mc > 0 (right-skewed), upper fence widens, lower fence narrows.
-  When mc < 0 (left-skewed), lower fence widens, upper fence narrows."
-  [^double q1 ^double q3 ^double mc]
-  {:pre [(number? q1) (number? q3) (number? mc)]}
-  (let [iqr (- q3 q1)
-        a   -4.0
-        b   3.0
-        [^double lower-exp ^double upper-exp]
-        (if (>= mc 0.0)
-          [(Math/exp (* a mc)) (Math/exp (* b mc))]
-          [(Math/exp (* (- b) mc)) (Math/exp (* (- a) mc))])
-        mild-lower   (- q1 (* 1.5 lower-exp iqr))
-        mild-upper   (+ q3 (* 1.5 upper-exp iqr))
-        severe-lower (- q1 (* 3.0 lower-exp iqr))
-        severe-upper (+ q3 (* 3.0 upper-exp iqr))]
-    [severe-lower mild-lower mild-upper severe-upper]))
-
-(defn uniform-distribution
-  "Return uniformly distributed deviates on 0..max-val use the specified rng."
-  [^double max-val rng]
-  (map (fn [^double x] (* x max-val)) rng))
-
-(defn sample-uniform
-  "Provide n samples from a uniform distribution on 0..max-val"
-  [n max-val rng]
-  (take n (uniform-distribution max-val rng)))
-
-(defn sample
-  "Sample with replacement."
-  [x rng]
-  (let [n (count x)]
-    (map #(nth x %1) (sample-uniform n n rng))))
-
-(defn confidence-interval
-  "Find the significance of outliers given boostrapped mean and variance
-   estimates. This uses the bootstrapped statistic's variance, but we should use
-   BCa of ABC."
-  [^double mean ^double variance]
-  (let [n-sigma 1.96 ; use 95% confidence interval
-        delta   (* n-sigma (Math/sqrt variance))]
-    [(- mean delta) (+ mean delta)]))
-
-;;; Nonparametric assessment of multimodality for univariate data.
-;;; Salgado-Ugarte IH, Shimizu M. 1998
-
-;;; Maximum likelihood kernel density estimation: On the potential of convolution sieves.
-;;; Jones and Henderson. Computational Statistics and Data Analysis (2009)
-
-(defn modal-estimation-constant
-  "Kernel function for estimation of multi-modality.
-  h-k is the critical bandwidth, sample-variance is the observed sample variance.
-  Equation 7, Nonparametric assessment of multimodality for univariate
-  data. Salgado-Ugarte IH, Shimizu M"
-  [^double h-k ^double sample-variance]
-  (Math/sqrt (+ 1 (/ (util/sqr h-k) sample-variance))))
-
-(defn smoothed-sample
-  "Smoothed estimation function."
-  [^double c-k ^double h-k data deviates]
-  (lazy-seq
-   (cons
-    (* c-k (+ ^double (first data)
-              (* h-k ^double (first deviates))))
-    (when-let [n (next data)]
-      (smoothed-sample c-k h-k n (next deviates))))))
-
-(defn gaussian-weight
-  "Weight function for gaussian kernel."
-  [^double t]
-  (let [k (Math/pow (* 2 Math/PI) -0.5)]
-    (* k (Math/exp (/ (* t t) -2)))))
-
-(defn kernel-density-estimator
-  "Kernel density estimator for x, given n samples X, weights K and width h."
-  [h K n X x]
-  (/ ^double (reduce
-              (fn ^double [^double a ^double b]
-                (+ a
-                   ^double (K (/ (- ^double x b) ^double h))))
-              0.0 X)
-     (* (long n) (double h))))
-
-(defn sum-square-delta ^double [vs ^double mv]
-  (reduce + (map (comp util/sqrd (fn [^double x] (- x mv))) vs)))
-
-(defn- muld ^double [^double a ^double b] (* a b))
-
-(defn linear-regression
-  [xs ys]
-  (let [n             (count xs)
-        mx            (/ ^double (reduce + xs) n)
-        my            (/ ^double (reduce + ys) n)
-        nmxmy         (* n mx my)
-        nmxmx         (* n mx mx)
-        s1            (- ^double (reduce + (map muld xs ys))
-                         nmxmy)
-        s2            (- ^double (reduce + (map util/sqrd xs))
-                         nmxmx)
-        a1            (/ s1 s2)
-        a0            (- my (* a1 mx))
-        f             (fn ^double [^double x] (+ a0 (* a1 x)))
-        pred-ys       (mapv f xs)
-        sqr-residuals (mapv (comp util/sqrd -) ys pred-ys)
-        ss-residuals  (double (reduce + sqr-residuals))
-        variance      (/ ss-residuals (- n 2))
-        ss-total      (sum-square-delta ys my)
-        r-sqr         (- 1 (/ ss-residuals ss-total))]
-    {:coeffs   [a0 a1]
-     :variance variance
-     :r-sqr    r-sqr}))
-
-;; (= (linear-regression (range 10) (range 10)) [0 1 0 1])
-;; (= (linear-regression (range 10) (range 1 11)) [1 1 0 1])
-
-;; (let [[a0 a1] (linear-regression (range 10) (range 1 11))]
-;;   (+ a0 (* a1 10)))
-
-(defn medcouple-kernel
-  "Compute the medcouple kernel h(x_i, x_j).
-  For values not both at the median:
-    h = ((x_j - median) - (median - x_i)) / (x_j - x_i)
-  For values both at the median, returns 0."
-  ^double [^double xi ^double xj ^double med]
-  (let [diff (- xj xi)]
-    (if (< (Math/abs diff) 1e-15)
-      0.0
-      (/ (- (- xj med) (- med xi)) diff))))
-
-(defn medcouple
+(def medcouple
   "Compute the medcouple, a robust measure of skewness.
   Returns a value in [-1, 1] where positive indicates right-skew
-  and negative indicates left-skew.
+  and negative indicates left-skew."
+  stats/medcouple)
 
-  The medcouple is the median of the kernel function h(x_i, x_j) evaluated
-  over all pairs where x_i ≤ median ≤ x_j.
+;;; Sampling (delegated to stats component)
 
-  Uses the naive O(n²) algorithm. For criterium's typical sample sizes
-  (hundreds to low thousands), this is acceptable.
+(def uniform-distribution
+  "Return uniformly distributed deviates on 0..max-val using the specified rng."
+  stats/uniform-distribution)
 
-  Takes sorted data as input. Returns 0.0 for constant data or n < 3."
-  ^double [sorted-data]
-  (let [n (count sorted-data)]
-    (if (< n 3)
-      0.0
-      (let [[med _ _] (median sorted-data)
-            med       (double med)
-            first-val (double (first sorted-data))
-            last-val  (double (nth sorted-data (dec n)))]
-        (if (== first-val last-val)
-          0.0
-          (let [h-values (java.util.ArrayList.)]
-            (dotimes [i n]
-              (let [xi (double (nth sorted-data i))]
-                (when (<= xi med)
-                  (loop [j i]
-                    (when (< j n)
-                      (let [xj (double (nth sorted-data j))]
-                        (when (>= xj med)
-                          (.add h-values (medcouple-kernel xi xj med)))
-                        (recur (inc j))))))))
-            (let [h-vec (vec h-values)
-                  h-sorted (sort h-vec)]
-              (first (median h-sorted)))))))))
+(def sample-uniform
+  "Provide n samples from a uniform distribution on 0..max-val."
+  stats/sample-uniform)
+
+(def sample
+  "Sample with replacement."
+  stats/sample)
+
+(def confidence-interval
+  "Find the significance of outliers given bootstrapped mean and variance
+   estimates."
+  stats/confidence-interval)
+
+;;; Kernel functions (delegated to stats component)
+
+(def modal-estimation-constant
+  "Kernel function for estimation of multi-modality.
+  h-k is the critical bandwidth, sample-variance is the observed sample variance."
+  stats/modal-estimation-constant)
+
+(def smoothed-sample
+  "Smoothed estimation function."
+  stats/smoothed-sample)
+
+(def gaussian-weight
+  "Weight function for gaussian kernel."
+  stats/gaussian-weight)
+
+(def kernel-density-estimator
+  "Kernel density estimator for x, given n samples X, weights K and width h."
+  stats/kernel-density-estimator)
+
+;;; Linear regression (delegated to optimisation component)
+
+(def sum-square-delta
+  "Sum of squared differences from a mean value."
+  optimisation/sum-square-delta)
+
+(def linear-regression
+  "Perform simple linear regression: y = a0 + a1*x.
+
+  Returns a map with:
+  - :coeffs [a0 a1] - intercept and slope
+  - :variance - residual variance (MSE with n-2 degrees of freedom)
+  - :r-sqr - coefficient of determination (R-squared)"
+  optimisation/linear-regression)

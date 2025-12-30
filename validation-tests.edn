@@ -1,0 +1,28 @@
+#kaocha/v1
+ {:tests [{:kaocha.testable/type :kaocha.type/clojure.test
+           :id                   :validation
+           :ns-patterns          ["-validation-test$"]
+           :source-paths         ["bases/criterium/src"
+                                  "components/r-validation/src"]
+           :kaocha/source-paths  ["bases/criterium/src"
+                                  "components/r-validation/src"]
+           :test-paths           ["bases/criterium/validation"]}]
+
+  :plugins                            [:kaocha.plugin/randomize
+                                       :kaocha.plugin/filter
+                                       :kaocha.plugin/capture-output
+                                       :kaocha.plugin/profiling
+                                       :kaocha.plugin/hooks]
+  :kaocha.hooks/pre-run               [criterium.kaocha-hooks/instrument-pre-run]
+  :kaocha.hooks/post-run              [criterium.kaocha-hooks/unstrument-post-run]
+  :capture-output?                    #profile {:default true
+                                                :dots    true
+                                                :debug   false}
+  :reporter                           #profile {:dots     kaocha.report/dots
+                                                :default  kaocha.report/documentation
+                                                :progress kaocha.report.progress/report
+                                                :debug    kaocha.report/debug}
+  :kaocha.plugin.randomize/randomize? true
+  :kaocha.plugin.profiling/count      10
+  :kaocha.plugin.profiling/profiling? #profile {:default false
+                                                :profile true}}

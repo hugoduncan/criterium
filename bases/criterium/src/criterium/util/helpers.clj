@@ -1,15 +1,36 @@
 (ns criterium.util.helpers
+  "Criterium domain helpers and backward-compatible re-exports from utils."
   (:refer-clojure :exclude [update-vals])
   (:require
-   [criterium.util.invariant :as invariant :refer [have have?]]))
+   [utils.interface :as utils :refer [have have?]]))
 
-(defn assoc-tag [sym t]
-  (vary-meta sym assoc :tag t))
+;;; Re-exports from utils component for backward compatibility
 
-(defn spy
-  [msg x]
-  (prn msg x)
-  x)
+(def assoc-tag utils/assoc-tag)
+(def spy utils/spy)
+
+(defmacro sqr
+  "Square of argument"
+  [x] `(utils/sqr ~x))
+
+(def sqrd utils/sqrd)
+(def cubed utils/cubed)
+(def trunc utils/trunc)
+(def update-vals-impl utils/update-vals-impl)
+
+(defmacro provide-update-vals
+  []
+  `(utils/provide-update-vals))
+
+(def update-vals utils/update-vals)
+(def filter-map utils/filter-map)
+(def reduce-double-vector utils/reduce-double-vector)
+(def walk utils/walk)
+(def postwalk utils/postwalk)
+(def deep-merge utils/deep-merge)
+(def report utils/report)
+
+;;; Domain-specific helpers
 
 (defn- safe-keys
   [m]
@@ -32,130 +53,6 @@
     (merge-fn +)
     (safe-keys a)
     (safe-keys b))))
-
-(defmacro sqr
-  "Square of argument"
-  [x] `(let [x# ~x] (* x# x#)))
-
-(defn sqrd
-  "Square of argument"
-  ^double [^double x] (* x x))
-
-(defn cubed
-  "Cube of argument"
-  ^double [^double x]
-  (* x x x))
-
-(defn trunc
-  "Round towards zero to an integeral value."
-  [^double x]
-  (if (pos? x)
-    (Math/floor x)
-    (Math/ceil x)))
-
-;; from clojure 1.11-aplha-2
-(def update-vals-impl
-  '(with-meta
-     (persistent!
-      (reduce-kv (fn [acc k v] (assoc! acc k (f v)))
-                 (if (instance? clojure.lang.IEditableCollection m)
-                   (transient m)
-                   (transient {}))
-                 m))
-     (meta m)))
-
-(defmacro provide-update-vals
-  []
-  (if (resolve 'clojure.core/update-vals)
-    '(clojure.core/update-vals m f)
-    update-vals-impl))
-
-#_{:clj-kondo/ignore [:redefined-var :unused-binding]}
-(defn update-vals
-  "m f => {k (f v) ...}
-
-  Given a map m and a function f of 1-argument, returns a new map where
-  the keys of m are mapped to result of applying f to the corresponding
-  values of m."
-  [m f]
-  (provide-update-vals))
-
-(defn filter-map
-  "Internal helper to filter map entries based on a predicate applied to values.
-
-  Return a new map containing only the entries where (pred value)
-  returns true.  Used internally for filtering metrics by their
-  configuration values."
-  [pred m]
-  (into {} (filter (comp pred val)) m))
-
-(defn reduce-double-vector
-  "Reduce a double primitive value over a vector."
-  ^double [^clojure.lang.IFn$DOD f
-           ^double init
-           ^clojure.lang.APersistentVector v]
-  (let [n (.count v)]
-    (loop [acc init
-           i 0]
-      (if (< i n)
-        (recur (.invokePrim f acc (.nth v i)) (unchecked-inc i))
-        acc))))
-
-;; Modified version of clojure.walk to preserve metadata
-(defn walk
-  "Traverses form, an arbitrary data structure.  inner and outer are
-  functions.  Applies inner to each element of form, building up a
-  data structure of the same type, then applies outer to the result.
-  Recognizes all Clojure data structures. Consumes seqs as with doall."
-
-  {:added "1.1"}
-  [inner outer form]
-  (cond
-    (list? form)
-    (outer (with-meta
-             (apply list (map inner form))
-             (meta form)))
-
-    (instance? clojure.lang.IMapEntry form)
-    (outer
-     (clojure.lang.MapEntry/create
-      (inner (key form)) (inner (val form))))
-
-    (seq? form)
-    (outer (with-meta
-             (doall (map inner form))
-             (meta form)))
-
-    (instance? clojure.lang.IRecord form)
-    (outer (reduce (fn [r x] (conj r (inner x))) form form))
-
-    (coll? form)
-    (outer (with-meta
-             (into (empty form) (map inner form))
-             (meta form)))
-    :else (outer form)))
-
-(defn postwalk
-  "Performs a depth-first, post-order traversal of form.  Calls f on
-  each sub-form, uses f's return value in place of the original.
-  Recognizes all Clojure data structures. Consumes seqs as with doall."
-  {:added "1.1"}
-  [f form]
-  (walk (partial postwalk f) f form))
-
-(defn deep-merge
-  "Merge maps recursively."
-  [& ms]
-  (letfn [(merge* [& xs]
-            (if (some #(and (map? %) (not (record? %))) xs)
-              (apply merge-with merge* xs)
-              (last xs)))]
-    (reduce merge* ms)))
-
-(defn report
-  "Print format output"
-  [format-string & values]
-  (print (apply format format-string values)))
 
 ;;; Accessors
 
@@ -213,9 +110,6 @@
 
 ;;; Value transforms
 
-;; These allow sample values to be transformed to mesurements, and vice versa.
-;; This enables, using a log-normal transform of the samples.
-
 (defn add-transform-paths
   [v sample-> ->sample]
   (-> v
@@ -250,11 +144,11 @@
 
 (defn stats-value
   "Extract a transformed stats value from a benchmark data map.
-  
+
   Takes a data map (from bench/last-bench :data), a stats-id
   (e.g. :stats or :log-stats), a metric-id (e.g. :elapsed-time),
   and a value-key (e.g. :mean, :std-dev).
-  
+
   Returns the value with all transforms applied."
   [data-map stats-id metric-id value-key]
   {:pre [(have? keyword? stats-id)
@@ -265,6 +159,7 @@
       (transform-sample-> raw-value transforms))))
 
 ;;; Thread
+
 (defn valid-thread-priority
   [p]
   (when p
@@ -318,8 +213,6 @@
                        :id id}))))
 
 ;;; Typed entry accessors
-;; These are simple lookup functions that can be instrumented via malli
-;; for return type validation during development.
 
 (defn get-generic-data-entry
   "Look up a generic data entry by id from a result map.
@@ -336,8 +229,6 @@
   (result-map id))
 
 ;;; Type constructors
-;; Identity functions that can be instrumented via malli to validate
-;; constructed data types during development.
 
 (defn ->collected-metrics-map
   "Identity wrapper for collected-metrics-map construction.
