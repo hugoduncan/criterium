@@ -5,8 +5,9 @@
   - Core stats: min, max, mean, sum, variance, median, quartiles, quantile
   - Outlier detection: boxplot-outlier-thresholds
   - Sampling: uniform-distribution, sample-uniform, sample, confidence-interval
-  - Probability: erf, normal-cdf, normal-pdf, normal-quantile
-  - Histogram: histogram (Freedman-Diaconis binning)
+  - Probability: log-gamma, erf, normal-cdf, normal-pdf, normal-quantile
+  - Histogram: histogram (Freedman-Diaconis or Knuth Bayesian binning)
+  - Knuth: optimal-bins, log-posterior (Bayesian histogram binning)
   - T-digest: streaming quantile estimation
   - Kernel: modal estimation, kernel density estimators
   - KDE: bandwidth selection, Gaussian KDE, mode detection, multimodality tests
@@ -18,6 +19,7 @@
    [stats.histogram :as histogram]
    [stats.kde :as kde]
    [stats.kernel :as kernel]
+   [stats.knuth :as knuth]
    [stats.outliers :as outliers]
    [stats.probability :as probability]
    [stats.sampling :as sampling]
@@ -155,27 +157,84 @@
   Distribution. Applied Statistics, 37, 477-484 "
   probability/normal-quantile)
 
+(def log-gamma
+  "Compute the natural logarithm of the gamma function using Lanczos approximation.
+  Returns ln(Γ(x)) for x > 0.
+
+  Uses the Lanczos approximation with g=7 and 9 coefficients, providing
+  approximately 15 digits of precision. Matches R's lgamma() behavior."
+  probability/log-gamma)
+
+;;; Knuth Bayesian histogram binning
+
+(def knuth-log-posterior
+  "Compute Knuth's log-posterior for M bins given sample count and bin counts.
+
+  F(M|x,I) = n·log(M) + logΓ(M/2) - M·logΓ(1/2) - logΓ((2n+M)/2) + Σₖ₌₁ᴹ logΓ(nₖ + 1/2)
+
+  Parameters:
+    n - total sample count
+    bin-counts - sequence of counts per bin
+
+  Returns the log-posterior value (higher is better)."
+  knuth/log-posterior)
+
+(defn knuth-optimal-bins
+  "Find optimal number of bins using Knuth's Bayesian method.
+
+  Searches M ∈ [1, max-bins] for the value that maximizes the log-posterior.
+
+  Parameters:
+    samples - sequence of numeric values
+    opts - optional map with:
+      :max-bins - maximum M to search (default: 50)
+      :min - pre-computed minimum value (avoids redundant scan)
+      :max - pre-computed maximum value (avoids redundant scan)
+
+  Returns map with:
+    :optimal-bins - the optimal number of bins M
+    :log-posterior - the log-posterior value at optimal M"
+  ([samples] (knuth/optimal-bins samples))
+  ([samples opts] (knuth/optimal-bins samples opts)))
+
 ;;; Histogram
 
 (defn histogram
-  "Compute histogram from vector of numeric values using Freedman-Diaconis rule.
-   Optional pre-computed IQR can be provided.
-   Returns map containing:
-   - :counts - vector of bin counts
-   - :centers - vector of bin centers
-   - :width - bin width
-   - :density - vector of probability density values
-   - :n - total number of samples
-   - :min - minimum value
-   - :max - maximum value
+  "Compute histogram from vector of numeric values.
 
-   Throws:
-   - ex-info {:error :histogram/no-values} for empty input
-   - ex-info {:error :histogram/same-values} when all values are the same"
+  Supports multiple binning methods via the :method option:
+  - :freedman-diaconis (default) - Uses IQR-based bin width calculation
+  - :knuth - Bayesian optimal bin count selection
+
+  Options:
+    :method   - Binning method (:freedman-diaconis or :knuth)
+    :iqr      - Pre-computed IQR (only for :freedman-diaconis)
+    :max-bins - Maximum bins to search (only for :knuth, default 50)
+
+  Returns map containing:
+    :type     - :criterium/histogram-fixed-width or :criterium/histogram-knuth
+    :counts   - vector of bin counts
+    :centers  - vector of bin centers
+    :width    - bin width
+    :density  - vector of probability density values
+    :n        - total number of samples
+    :num-bins - number of bins
+    :min      - minimum value
+    :max      - maximum value
+
+  Additional keys for :knuth method:
+    :optimal-bins  - optimal bin count M
+    :log-posterior - log-posterior value at optimal M
+
+  For backward compatibility, second argument can be a number (pre-computed IQR).
+
+  Throws:
+    ex-info {:error :histogram/no-values} for empty input
+    ex-info {:error :histogram/same-values} when all values are the same"
   ([values]
    (histogram/histogram values))
-  ([values precomputed-iqr]
-   (histogram/histogram values precomputed-iqr)))
+  ([values opts-or-iqr]
+   (histogram/histogram values opts-or-iqr)))
 
 ;;; T-digest streaming quantile estimation
 

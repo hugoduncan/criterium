@@ -85,6 +85,24 @@ bench-plans/log-histogram
 (bench-display
  (bench/bench (reduce + (range 1000)) :bench-plan bench-plans/log-histogram))
 
+;; ### knuth-histogram
+;;
+;; Histogram analysis with Knuth's Bayesian optimal binning. Instead of using
+;; the rule-based Freedman-Diaconis method, Knuth's algorithm finds the optimal
+;; number of bins by maximizing a log-posterior over possible bin counts. This
+;; provides data-driven bin selection that adapts to the structure of your data.
+
+bench-plans/knuth-histogram
+
+;; The knuth-histogram plan includes additional output:
+;; - `:optimal-bins` — the number of bins selected by Knuth's algorithm
+;; - `:log-posterior` — the log-posterior value for the selected bin count
+;; - Standard histogram visualization with the optimal binning
+
+^:kindly/hide-code
+(bench-display
+ (bench/bench (reduce + (range 1000)) :bench-plan bench-plans/knuth-histogram))
+
 ;; ## Viewer Options
 ;;
 ;; The `:viewer` option controls how benchmark results are displayed.

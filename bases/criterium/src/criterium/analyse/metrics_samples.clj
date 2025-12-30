@@ -160,7 +160,7 @@
         samples))
 
 (defn histogram
-  [metric->values quantiles outliers metric-config]
+  [metric->values quantiles outliers metric-config options]
   (try
     (let [p (:path metric-config)
           iqr (when-let [qs (get-in quantiles p)]
@@ -169,8 +169,15 @@
           outliers (get-in outliers p)
           samples (if-let [ols (:outliers outliers)]
                     (remove-outliers samples ols)
-                    samples)]
-      (histogram/histogram samples iqr))
+                    samples)
+          ;; Build histogram options from analysis options
+          hist-opts (cond-> {}
+                      (:method options)   (assoc :method (:method options))
+                      (:max-bins options) (assoc :max-bins (:max-bins options))
+                      ;; For freedman-diaconis, pass IQR if available
+                      (and (not= :knuth (:method options)) iqr)
+                      (assoc :iqr iqr))]
+      (histogram/histogram samples hist-opts))
     (catch clojure.lang.ExceptionInfo e
       (let [data (ex-data e)]
         (when-not (#{:histogram/no-values :histogram/same-values}
@@ -178,7 +185,7 @@
           (throw e))))))
 
 (defmethod methods/histogram :criterium/metrics-samples
-  [metrics-samples quantiles outliers metric-configs _options]
+  [metrics-samples quantiles outliers metric-configs options]
   (let [histograms (->> metric-configs
                         (mapv
                          (juxt :path
@@ -186,7 +193,8 @@
                                  (util/metric->values metrics-samples)
                                  (util/quantiles quantiles)
                                  (util/outliers outliers)
-                                 %)))
+                                 %
+                                 options)))
                         (filterv (comp some? second))
                         (into {}))]
     {:type :criterium/histogram

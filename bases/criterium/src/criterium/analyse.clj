@@ -295,20 +295,31 @@
 
   Parameters:
     opts - Optional map with keys:
-      :id          - Key for stats in output (default: :stats)
-      :samples-id  - Key for source samples (default: :samples)
-      :outliers-id - Key for outlier analysis if available
-      :metric-ids  - Set of metric ids to analyze (default: all quantitative)
+      :id           - Key for histograms in output (default: :histograms)
+      :samples-id   - Key for source samples (default: :samples)
+      :quantiles-id - Key for quantile analysis (default: :quantiles)
+      :outliers-id  - Key for outlier analysis if available (default: :outliers)
+      :metric-ids   - Set of metric ids to analyze (default: all quantitative)
+      :method       - Binning method:
+                      - :freedman-diaconis (default) - IQR-based bin width
+                      - :knuth - Bayesian optimal bin count selection
+      :max-bins     - Maximum bins to search (only for :knuth, default: 50)
 
   The returned function:
   - Takes a sampled data map containing samples
   - Returns the map with histograms added under :id key
   - Preserves data transforms for correct scaling
+  - For :knuth method, histogram includes :optimal-bins and :log-posterior
 
   Example:
   (let [analyze (histogram)
         result (analyze {:samples {...} :outliers {...}})]
-    (get-in result [:histogram :elapsed-time]))"
+    (get-in result [:histograms :elapsed-time]))
+
+  Example with Knuth binning:
+  (let [analyze (histogram {:method :knuth})
+        result (analyze {:samples {...} :outliers {...}})]
+    (:optimal-bins (get-in result [:histograms :elapsed-time])))"
   ([] (histogram {}))
   ([{:keys [id samples-id quantiles-id outliers-id metric-ids]
      :as analysis}]

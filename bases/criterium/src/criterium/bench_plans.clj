@@ -72,6 +72,41 @@
           :allocation-treemap]
    :viewer :print})
 
+(def knuth-histogram
+  "Benchmark plan using Knuth's Bayesian optimal histogram binning.
+
+  Uses Knuth's method to automatically determine the optimal number of
+  histogram bins by maximizing a log-posterior. Better than Freedman-Diaconis
+  for distributions with complex structure.
+
+  The histogram includes :optimal-bins and :log-posterior keys."
+  {:collector-config default-collector-config
+   :analyse [:transform-log
+             [:quantiles {:quantiles [0.9 0.99 0.99]}]
+             :outliers
+             [:stats {}]
+             [:stats {:samples-id :log-samples :id :log-stats}]
+             [:histogram {:method :knuth}]
+             :event-stats
+             :allocation-summary
+             [:allocation-hotspots {:limit 10}]
+             :allocation-by-type
+             :allocation-treemap]
+   :view [[:stats {:metric-ids [:memory]}]
+          [:stats {:stats-id :log-stats}]
+          :quantiles
+          :event-stats
+          :outlier-counts
+          :collect-plan
+          [:histogram {:stats-id :log-stats}]
+          :sample-percentiles
+          :samples
+          :allocation-summary
+          :allocation-hotspots
+          :allocation-by-type
+          :allocation-treemap]
+   :viewer :print})
+
 (def kde-histogram
   "Benchmark plan with KDE analysis for density estimation and mode detection.
 

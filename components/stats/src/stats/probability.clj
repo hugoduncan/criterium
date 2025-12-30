@@ -1,5 +1,5 @@
 (ns stats.probability
-  "Probability functions: error function, normal distribution CDF/PDF/quantile.")
+  "Probability functions: log-gamma, error function, normal distribution.")
 
 (defn polynomial-value
   "Evaluate a polynomial at the given value x, for the coefficients given in
@@ -9,6 +9,70 @@
    #(+ (* x ^double %1) ^double %2)
    (first coefficients)
    (rest coefficients)))
+
+;;; Log-gamma (Lanczos approximation)
+
+(def ^:private ^:const log-sqrt-2pi
+  "Precomputed log(sqrt(2*pi)) for Lanczos approximation."
+  (Math/log (Math/sqrt (* 2.0 Math/PI))))
+
+(def ^:private ^"[D" lanczos-g7-coefficients
+  "Lanczos coefficients for g=7, n=9.
+  Source: Numerical Recipes 3rd edition, section 6.1.
+  These provide ~15 significant digits for the gamma function."
+  (double-array
+   [0.99999999999980993
+    676.5203681218851
+    -1259.1392167224028
+    771.32342877765313
+    -176.61502916214059
+    12.507343278686905
+    -0.13857109526572012
+    9.9843695780195716e-6
+    1.5056327351493116e-7]))
+
+(defn log-gamma
+  "Compute the natural logarithm of the gamma function using Lanczos approximation.
+  Returns ln(Γ(x)) for x > 0.
+
+  Uses the Lanczos approximation with g=7 and 9 coefficients, providing
+  approximately 15 digits of precision. Matches R's lgamma() behavior.
+
+  Special cases:
+  - x ≤ 0: throws IllegalArgumentException
+  - x = 1 or x = 2: returns 0.0 (since Γ(1) = Γ(2) = 1)
+
+  Reference: Numerical Recipes 3rd ed., section 6.1"
+  ^double [^double x]
+  (when (<= x 0.0)
+    (throw (IllegalArgumentException.
+            (str "log-gamma requires positive argument, got: " x))))
+  ;; Use reflection formula for x < 0.5 to improve accuracy
+  (if (< x 0.5)
+    ;; Reflection formula: Γ(x)Γ(1-x) = π/sin(πx)
+    ;; So: log(Γ(x)) = log(π) - log(sin(πx)) - log(Γ(1-x))
+    (- (Math/log Math/PI)
+       (Math/log (Math/sin (* Math/PI x)))
+       (log-gamma (- 1.0 x)))
+    ;; Standard Lanczos for x >= 0.5
+    (let [z  (- x 1.0)
+          g  7.0
+          ;; Compute the sum: c0 + c1/(z+1) + c2/(z+2) + ... + c8/(z+8)
+          ag (loop [i   8
+                    sum (aget lanczos-g7-coefficients 0)]
+               (if (< i 1)
+                 sum
+                 (recur (dec i)
+                        (+ sum (/ (aget lanczos-g7-coefficients i)
+                                  (+ z (double i)))))))
+          t  (+ z g 0.5)]
+      ;; log(Γ(z+1)) = log(sqrt(2π)) + (z+0.5)*log(t) - t + log(ag)
+      (+ (double log-sqrt-2pi)
+         (* (+ z 0.5) (Math/log t))
+         (- t)
+         (Math/log ag)))))
+
+;;; Error function
 
 (def ^:private a-coeffs
   [1.061405429 -1.453152027 1.421413741 -0.284496736 0.254829592 0.0])
