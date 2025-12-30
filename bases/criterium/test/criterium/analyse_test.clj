@@ -6,7 +6,9 @@
    [criterium.collect-plan :as collect-plan]
    [criterium.collector.metrics :as metrics]
    [criterium.test-utils :refer [approx=]]
-   [criterium.util.helpers :as util]))
+   [criterium.util.helpers :as util])
+  (:import
+   [java.lang Math]))
 
 (deftest outlier-significance-impl--test
   ;; http://www.ellipticgroup.com/misc/article_supplement.pdf, p22
@@ -202,7 +204,7 @@
             quantiles (analyse/quantiles {:quantiles []})
             outliers (analyse/outliers)
             result (-> data-map quantiles outliers)
-            mc (-> result :outliers util/outliers :elapsed-time :medcouple)]
+            ^double mc (-> result :outliers util/outliers :elapsed-time :medcouple)]
         (is (< (Math/abs mc) 0.1)
             "medcouple should be near zero for symmetric data")))
 
@@ -219,8 +221,8 @@
             result (-> data-map quantiles outliers)
             [low-severe low-mild high-mild high-severe]
             (-> result :outliers util/outliers :elapsed-time :thresholds)
-            q1 (-> result :quantiles util/quantiles :elapsed-time (get 0.25))
-            q3 (-> result :quantiles util/quantiles :elapsed-time (get 0.75))
+            ^double q1 (-> result :quantiles util/quantiles :elapsed-time (get 0.25))
+            ^double q3 (-> result :quantiles util/quantiles :elapsed-time (get 0.75))
             iqr (- q3 q1)
             ;; Standard thresholds would be symmetric
             std-low-mild (- q1 (* 1.5 iqr))
@@ -250,8 +252,8 @@
             result (-> data-map quantiles outliers-standard)
             outlier-data (-> result :outliers util/outliers :elapsed-time)
             [low-severe low-mild high-mild high-severe] (:thresholds outlier-data)
-            q1 (-> result :quantiles util/quantiles :elapsed-time (get 0.25))
-            q3 (-> result :quantiles util/quantiles :elapsed-time (get 0.75))
+            ^double q1 (-> result :quantiles util/quantiles :elapsed-time (get 0.25))
+            ^double q3 (-> result :quantiles util/quantiles :elapsed-time (get 0.75))
             iqr (- q3 q1)]
         ;; With :standard, thresholds should be symmetric
         (is (approx= (- q1 (* 1.5 iqr)) low-mild)
@@ -278,8 +280,8 @@
             result (-> data-map quantiles outliers-adjusted)
             outlier-data (-> result :outliers util/outliers :elapsed-time)
             [_low-severe low-mild high-mild _high-severe] (:thresholds outlier-data)
-            q1 (-> result :quantiles util/quantiles :elapsed-time (get 0.25))
-            q3 (-> result :quantiles util/quantiles :elapsed-time (get 0.75))
+            ^double q1 (-> result :quantiles util/quantiles :elapsed-time (get 0.25))
+            ^double q3 (-> result :quantiles util/quantiles :elapsed-time (get 0.75))
             iqr (- q3 q1)
             std-low-mild (- q1 (* 1.5 iqr))
             std-high-mild (+ q3 (* 1.5 iqr))]

@@ -8,7 +8,9 @@
    [criterium.data.r-validation.medcouple :as mc-data]
    [criterium.test-utils :refer [test-max-error]]
    [criterium.util.stats :as stats]
-   [criterium.util.well :as well]))
+   [criterium.util.well :as well])
+  (:import
+   [java.lang Math]))
 
 (deftest mean-test
   (is (= 1.0 (stats/mean (repeat 20 1))))
@@ -97,7 +99,7 @@
         (testing description
           (let [result   (stats/medcouple data)
                 max-diff 1e-10]
-            (is (< (Math/abs (- result expected)) max-diff)
+            (is (< (Math/abs (- ^double result ^double expected)) max-diff)
                 (format "Expected %s, got %s for %s"
                         expected result description))))))
 
@@ -105,7 +107,7 @@
       (let [{:keys [data expected]} mc-data/ozone-data
             result                  (stats/medcouple data)
             max-diff                1e-10]
-        (is (< (Math/abs (- result expected)) max-diff)
+        (is (< (Math/abs (- ^double result ^double expected)) max-diff)
             (format "Expected %s, got %s" expected result))))
 
     (testing "returns value in range [-1, 1]"
@@ -116,19 +118,19 @@
 
     (testing "is symmetric under reflection"
       (let [data     [1 2 3 4 5 10 15 20]
-            reflected (mapv #(- %) (reverse data))
-            mc-orig   (stats/medcouple (vec (sort data)))
-            mc-ref    (stats/medcouple (vec (sort reflected)))]
+            reflected (mapv (fn [^long x] (- x)) (reverse data))
+            mc-orig (stats/medcouple (vec (sort data)))
+            mc-ref (stats/medcouple (vec (sort reflected)))]
         (is (< (Math/abs (+ mc-orig mc-ref)) 1e-10)
             "mc(-x) should equal -mc(x)")))
 
     (testing "is location and scale invariant"
       (let [data       [1 2 3 4 5 10 15 20]
-            shifted    (mapv #(+ % 100) data)
-            scaled     (mapv #(* % 10) data)
-            mc-orig    (stats/medcouple (vec (sort data)))
+            shifted    (mapv (fn [^long x] (+ x 100)) data)
+            scaled     (mapv (fn [^long x] (* x 10)) data)
+            mc-orig (stats/medcouple (vec (sort data)))
             mc-shifted (stats/medcouple (vec (sort shifted)))
-            mc-scaled  (stats/medcouple (vec (sort scaled)))]
+            mc-scaled (stats/medcouple (vec (sort scaled)))]
         (is (< (Math/abs (- mc-orig mc-shifted)) 1e-10)
             "Medcouple should be location invariant")
         (is (< (Math/abs (- mc-orig mc-scaled)) 1e-10)
@@ -158,7 +160,7 @@
                 max-diff 1e-10]
             (is (= 4 (count result)) "should return 4 threshold values")
             (doseq [[i exp act] (map vector (range) expected result)]
-              (is (< (Math/abs ^double (- exp act)) max-diff)
+              (is (< (Math/abs (- ^double exp ^double act)) max-diff)
                   (format "Threshold %d: expected %s, got %s for %s"
                           i exp act description)))))))
 
@@ -167,7 +169,7 @@
             result                      (stats/adjusted-boxplot-outlier-thresholds q1 q3 mc)
             max-diff                    1e-10]
         (doseq [[i exp act] (map vector (range) expected result)]
-          (is (< (Math/abs ^double (- exp act)) max-diff)
+          (is (< (Math/abs (- ^double exp ^double act)) max-diff)
               (format "Ozone threshold %d: expected %s, got %s" i exp act)))))
 
     (testing "equals standard boxplot when mc = 0"
