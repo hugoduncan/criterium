@@ -261,15 +261,15 @@
                     {:outlier-method :standard
                      :analyse [:transform-log
                                [:outliers {:samples-id :log-samples}]
-                               :stats]})]
-        (let [outlier-step (some
-                            (fn [step]
-                              (when (and (vector? step)
-                                         (= :outliers (first step)))
-                                step))
-                            (:analyse config))]
-          (is (= :standard (:outlier-method (second outlier-step))))
-          (is (= :log-samples (:samples-id (second outlier-step)))))))
+                               :stats]})
+            outlier-step (some
+                          (fn [step]
+                            (when (and (vector? step)
+                                       (= :outliers (first step)))
+                              step))
+                          (:analyse config))]
+        (is (= :standard (:outlier-method (second outlier-step))))
+        (is (= :log-samples (:samples-id (second outlier-step))))))
 
     (testing "nil :outlier-method does not modify analyse plan"
       (let [default-config (bench-config/config-map {})

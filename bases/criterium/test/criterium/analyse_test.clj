@@ -219,7 +219,7 @@
             quantiles (analyse/quantiles {:quantiles []})
             outliers (analyse/outliers)
             result (-> data-map quantiles outliers)
-            [low-severe low-mild high-mild high-severe]
+            [_low-severe low-mild high-mild _high-severe]
             (-> result :outliers util/outliers :elapsed-time :thresholds)
             ^double q1 (-> result :quantiles util/quantiles :elapsed-time (get 0.25))
             ^double q3 (-> result :quantiles util/quantiles :elapsed-time (get 0.75))
