@@ -1074,5 +1074,5 @@
                                          transforms)
                                        modes)]
                     (println (format "  Mode locations: %s"
-                                     (clojure.string/join ", " locations)))))
+                                     (str/join ", " locations)))))
                 (println "  Consider investigating the source of variation.")))))))))
