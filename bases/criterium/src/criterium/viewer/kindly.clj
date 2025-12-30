@@ -527,5 +527,5 @@
                    (mapv (fn [{:keys [location density]}]
                            {:location (viewer-common/format-mode-location
                                        location metric-config transforms)
-                            :density (clojure.core/format "%.4g" density)})
+                            :density (format "%.4g" density)})
                          modes)))))))))))
