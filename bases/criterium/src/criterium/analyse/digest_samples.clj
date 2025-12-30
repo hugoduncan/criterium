@@ -1,4 +1,12 @@
 (ns criterium.analyse.digest-samples
+  "Analysis methods for t-digest compressed sample data.
+
+  Unlike metrics-samples which stores raw sample values, digest-samples uses
+  t-digest compression, which preserves quantile accuracy but loses individual
+  sample identity. This affects outlier detection: medcouple cannot be computed
+  from digest centroids, so this module uses standard symmetric boxplot thresholds
+  instead of the adjusted boxplot method. For skewed distributions, consider
+  using full sample collection if accurate outlier classification is important."
   (:require
    [criterium.analyse.methods :as methods]
    [criterium.collect-plan :as collect-plan]
@@ -75,6 +83,14 @@
            (>= x high-severe) :high-severe)])))
 
 (defn digest-outliers
+  "Compute outliers for a digest using standard boxplot thresholds.
+
+  Uses symmetric 1.5×IQR whiskers rather than the adjusted boxplot method
+  used by metrics-samples. The adjusted boxplot requires computing the
+  medcouple (a robust skewness measure) from individual sample values,
+  which are not available in a t-digest structure—only weighted centroids
+  are preserved. This may result in more false-positive outlier detection
+  for skewed distributions when using digest collection."
   [digest quantiles]
   (let [thresholds (stats/boxplot-outlier-thresholds
                     (get quantiles 0.25)
@@ -96,6 +112,9 @@
 
 (defmethod methods/outliers :criterium/digest
   [digest-samples all-quantiles metric-configs _options]
+  ;; Note: :outlier-method option is ignored for digest samples.
+  ;; Always uses standard boxplot (symmetric 1.5×IQR) because medcouple
+  ;; requires individual sample values which t-digest does not preserve.
   (let [metric->digest (util/metric->digest digest-samples)
         quantiles (util/quantiles all-quantiles)
         outliers (reduce

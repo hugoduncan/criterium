@@ -74,6 +74,21 @@
   "Outlier thresholds for given quartiles."
   stats/boxplot-outlier-thresholds)
 
+(def adjusted-boxplot-outlier-thresholds
+  "Outlier thresholds for given quartiles adjusted for skewness.
+  Uses the adjusted boxplot method from Hubert & Vandervieren (2008)."
+  stats/adjusted-boxplot-outlier-thresholds)
+
+(def medcouple-kernel
+  "Compute the medcouple kernel h(x_i, x_j)."
+  stats/medcouple-kernel)
+
+(def medcouple
+  "Compute the medcouple, a robust measure of skewness.
+  Returns a value in [-1, 1] where positive indicates right-skew
+  and negative indicates left-skew."
+  stats/medcouple)
+
 ;;; Sampling (delegated to stats component)
 
 (def uniform-distribution

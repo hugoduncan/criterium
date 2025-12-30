@@ -91,6 +91,21 @@
   Returns [severe-low mild-low mild-high severe-high]."
   outliers/boxplot-outlier-thresholds)
 
+(def adjusted-boxplot-outlier-thresholds
+  "Outlier thresholds for given quartiles adjusted for skewness.
+  Uses the adjusted boxplot method from Hubert & Vandervieren (2008)."
+  outliers/adjusted-boxplot-outlier-thresholds)
+
+(def medcouple-kernel
+  "Compute the medcouple kernel h(x_i, x_j)."
+  outliers/medcouple-kernel)
+
+(def medcouple
+  "Compute the medcouple, a robust measure of skewness.
+  Returns a value in [-1, 1] where positive indicates right-skew
+  and negative indicates left-skew."
+  outliers/medcouple)
+
 ;;; Sampling
 
 (def uniform-distribution

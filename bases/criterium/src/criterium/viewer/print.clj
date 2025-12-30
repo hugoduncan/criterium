@@ -192,10 +192,39 @@
   [_ view data-map]
   (print-final-gc-warnings view data-map))
 
+(defn- skewness-classification
+  "Classify skewness based on medcouple value.
+  Returns a keyword indicating the type and degree of skewness."
+  [^double mc]
+  (cond
+    (< mc -0.6) :strongly-left-skewed
+    (< mc -0.2) :moderately-left-skewed
+    (< mc -0.05) :slightly-left-skewed
+    (<= mc 0.05) :symmetric
+    (<= mc 0.2) :slightly-right-skewed
+    (<= mc 0.6) :moderately-right-skewed
+    :else :strongly-right-skewed))
+
+(defn- format-skewness
+  "Format skewness classification for display."
+  [classification]
+  (case classification
+    :strongly-left-skewed "strongly left-skewed"
+    :moderately-left-skewed "moderately left-skewed"
+    :slightly-left-skewed "slightly left-skewed"
+    :symmetric "symmetric"
+    :slightly-right-skewed "slightly right-skewed"
+    :moderately-right-skewed "moderately right-skewed"
+    :strongly-right-skewed "strongly right-skewed"))
+
 (defn print-outlier-count
-  [metric-config num-samples outliers]
+  "Print outlier counts for a metric.
+  When show-medcouple? is true, also displays the medcouple value and skewness
+  classification if available."
+  [metric-config num-samples outliers show-medcouple?]
   (let [outlier-counts (:outlier-counts outliers)
-        sum (reduce + (vals outlier-counts))]
+        sum (reduce + (vals outlier-counts))
+        mc (:medcouple outliers)]
     (when (pos? sum)
       (util/report "%32s: Found %d outliers in %d samples (%.3g %%)\n"
                    (:label metric-config)
@@ -206,10 +235,20 @@
                          (filter #(pos? (val %))))]
         (util/report
          "                                 %12s\t %d (%2.4f %%)\n"
-         (name c) v (* 100.0 (/ v num-samples)))))))
+         (name c) v (* 100.0 (/ v num-samples)))))
+    (when (and show-medcouple? mc)
+      (let [classification (skewness-classification mc)]
+        (util/report "%32s: medcouple %.4f (%s)\n"
+                     (:label metric-config)
+                     mc
+                     (format-skewness classification))))))
 
 (defn print-outlier-counts
-  [{:keys [outliers-id] :as _view} data-map]
+  "Print outlier counts for all metrics.
+  Options:
+    :outliers-id - key for outliers in data-map (default :outliers)
+    :show-medcouple - if true, display medcouple and skewness classification"
+  [{:keys [outliers-id show-medcouple] :as _view} data-map]
   (let [outliers-id (or outliers-id :outliers)
         outliers-map (data-map outliers-id)
         metrics-defs (:metrics-defs outliers-map)
@@ -217,7 +256,7 @@
         num-samples (have (:num-samples outliers-map))
         outliers (util/outliers outliers-map)]
     (doseq [m metric-configs]
-      (print-outlier-count m num-samples (get-in outliers (:path m))))))
+      (print-outlier-count m num-samples (get-in outliers (:path m)) show-medcouple))))
 
 (defmethod view/outlier-counts* :print
   [_ view data-map]
