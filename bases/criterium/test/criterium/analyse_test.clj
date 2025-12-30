@@ -926,3 +926,61 @@
             "should have elapsed-time stats")
         (is (not (contains? (:stats result) :nonexistent))
             "should not have nonexistent metric")))))
+
+;;; Tests for kde-stats analysis function
+;; Validates the full analysis pipeline from samples through KDE to stats.
+
+(deftest kde-stats-analysis-test
+  ;; Tests the analyse/kde-stats function which provides a high-level
+  ;; interface for computing stats from KDE density estimates.
+  (testing "kde-stats"
+    (testing "computes stats from KDE data"
+      (let [raw-data (mapv #(+ 100.0 (* 0.5 (double %))) (range 50))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            with-log ((analyse/transform-log {:id :log-samples
+                                              :samples-id :samples})
+                      data-map)
+            with-kde ((analyse/kde {:n-bootstrap 10 :n-points 64}) with-log)
+            result ((analyse/kde-stats) with-kde)]
+        (is (contains? result :kde-stats) "result should have :kde-stats key")
+        (let [stats-data (:kde-stats result)]
+          (is (= :criterium/stats (:type stats-data)))
+          (is (= :kde (:source-id stats-data)))
+          (let [s (-> stats-data util/stats :elapsed-time)]
+            (is (number? (:mean s)) "should have :mean")
+            (is (number? (:variance s)) "should have :variance")
+            (is (number? (:min-val s)) "should have :min-val")
+            (is (number? (:max-val s)) "should have :max-val")))))
+
+    (testing "returns data-map unchanged when KDE unavailable"
+      (let [data-map {:other-data 123}
+            result ((analyse/kde-stats) data-map)]
+        (is (= data-map result))
+        (is (not (contains? result :kde-stats)))))
+
+    (testing "uses custom kde-id"
+      (let [raw-data (mapv #(+ 100.0 (* 0.5 (double %))) (range 50))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            with-log ((analyse/transform-log {:id :log-samples
+                                              :samples-id :samples})
+                      data-map)
+            with-kde ((analyse/kde {:id :my-kde
+                                    :n-bootstrap 10
+                                    :n-points 32})
+                      with-log)
+            result ((analyse/kde-stats {:kde-id :my-kde}) with-kde)]
+        (is (contains? result :kde-stats))))
+
+    (testing "uses custom output id"
+      (let [raw-data (mapv #(+ 100.0 (* 0.5 (double %))) (range 50))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            with-log ((analyse/transform-log {:id :log-samples
+                                              :samples-id :samples})
+                      data-map)
+            with-kde ((analyse/kde {:n-bootstrap 10 :n-points 32}) with-log)
+            result ((analyse/kde-stats {:id :my-kde-stats}) with-kde)]
+        (is (contains? result :my-kde-stats))
+        (is (not (contains? result :kde-stats)))))))
