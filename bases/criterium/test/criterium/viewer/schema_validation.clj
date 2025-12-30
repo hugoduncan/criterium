@@ -95,21 +95,21 @@
 
 ;;; Vega-Lite validation via Node.js
 
+(defn- resolve-validator-script-path
+  "Resolve the path to the Vega-Lite validation script.
+
+  Uses io/resource to find the script on the classpath. For file: URLs,
+  extracts the filesystem path. Falls back to relative path from project root."
+  []
+  (if-let [resource-url (io/resource "criterium/viewer/validate-vega-lite.mjs")]
+    (if (= "file" (.getProtocol resource-url))
+      (.getPath resource-url)
+      "bases/criterium/test/criterium/viewer/validate-vega-lite.mjs")
+    "bases/criterium/test/criterium/viewer/validate-vega-lite.mjs"))
+
 (def ^:private validator-script-path
   "Path to the Vega-Lite validation script."
-  (let [src-path (io/resource "criterium/viewer/validate-vega-lite.mjs")]
-    (if src-path
-      (.getPath (io/file src-path))
-      ;; Fall back to path relative to this source file for dev
-      (let [this-ns-path (-> (ns-publics *ns*)
-                             first val meta :file)
-            base-dir (when this-ns-path
-                       (-> (io/file this-ns-path)
-                           (.getParentFile)))]
-        (if (and base-dir (.exists (io/file base-dir "validate-vega-lite.mjs")))
-          (.getPath (io/file base-dir "validate-vega-lite.mjs"))
-          ;; Final fallback - use test directory path
-          "bases/criterium/test/criterium/viewer/validate-vega-lite.mjs")))))
+  (resolve-validator-script-path))
 
 (defn- ensure-vega-lite-installed
   "Ensure vega-lite npm package is available. Installs if needed."
