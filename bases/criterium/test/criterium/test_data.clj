@@ -1,5 +1,6 @@
 (ns criterium.test-data
   (:require
+   [criterium.analyse :as analyse]
    [criterium.analyse.metrics-samples :as metrics-samples]
    [criterium.collect-plan :as collect-plan]
    [criterium.collector.metrics :as metrics]
@@ -212,4 +213,50 @@
                  :num-samples  50}
     :estimation {:batch-size   1
                  :num-samples  10}}})
+
+;;; Chart test data factories
+
+(defn samples-data-map
+  "Create a data-map suitable for samples-vega-spec testing."
+  []
+  (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])]
+    {:samples
+     {:type           :criterium/metrics-samples
+      :metrics-defs   metrics-defs
+      :metric->values {[:elapsed-time] [100 105 98 102 101]}
+      :transform      collect-plan/identity-transforms
+      :batch-size     1
+      :eval-count     5
+      :num-samples    5}}))
+
+(defn histogram-data-map
+  "Create a data-map suitable for histogram-vega-spec testing."
+  []
+  (let [base-map (:data (samples-with-outliers-values-map))
+        quantiles (analyse/quantiles {:quantiles [0.9 0.99 0.99]})
+        outliers (analyse/outliers)
+        stats (analyse/stats)
+        histogram (analyse/histogram)]
+    (->> base-map
+         quantiles
+         outliers
+         stats
+         histogram)))
+
+(defn kde-data-map
+  "Create a data-map suitable for kde-vega-spec testing."
+  []
+  (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])]
+    {:kde {:type :criterium/kde
+           :metrics-defs metrics-defs
+           :transform {:sample-> identity :->sample identity}
+           :kdes {[:elapsed-time]
+                  {:type :criterium/kde
+                   :bandwidth 0.5
+                   :grid [1.0 2.0 3.0 4.0 5.0]
+                   :density [0.1 0.25 0.3 0.25 0.1]
+                   :lower-band [0.08 0.20 0.25 0.20 0.08]
+                   :upper-band [0.12 0.30 0.35 0.30 0.12]
+                   :n 100}}}}))
+
 

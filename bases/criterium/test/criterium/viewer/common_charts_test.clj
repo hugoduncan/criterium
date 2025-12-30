@@ -1,9 +1,6 @@
 (ns criterium.viewer.common-charts-test
   (:require
    [clojure.test :refer [deftest is testing]]
-   [criterium.analyse :as analyse]
-   [criterium.collect-plan :as collect-plan]
-   [criterium.collector.metrics :as metrics]
    [criterium.test-data :as test-data]
    [criterium.viewer.common-charts :as charts]
    [criterium.viewer.schema-validation :as schema]))
@@ -120,55 +117,12 @@
 ;;; Schema validation tests for all chart spec functions.
 ;;; Validates that generated specs conform to official Vega/Vega-Lite JSON schemas.
 
-(defn- make-samples-data-map
-  "Create a data-map suitable for samples-vega-spec testing."
-  []
-  (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])]
-    {:samples
-     {:type           :criterium/metrics-samples
-      :metrics-defs   metrics-defs
-      :metric->values {[:elapsed-time] [100 105 98 102 101]}
-      :transform      collect-plan/identity-transforms
-      :batch-size     1
-      :eval-count     5
-      :num-samples    5}}))
-
-(defn- make-histogram-data-map
-  "Create a data-map suitable for histogram-vega-spec testing."
-  []
-  (let [base-map (:data (test-data/samples-with-outliers-values-map))
-        quantiles (analyse/quantiles {:quantiles [0.9 0.99 0.99]})
-        outliers (analyse/outliers)
-        stats (analyse/stats)
-        histogram (analyse/histogram)]
-    (->> base-map
-         quantiles
-         outliers
-         stats
-         histogram)))
-
-(defn- make-kde-data-map
-  "Create a data-map suitable for kde-vega-spec testing."
-  []
-  (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])]
-    {:kde {:type :criterium/kde
-           :metrics-defs metrics-defs
-           :transform {:sample-> identity :->sample identity}
-           :kdes {[:elapsed-time]
-                  {:type :criterium/kde
-                   :bandwidth 0.5
-                   :grid [1.0 2.0 3.0 4.0 5.0]
-                   :density [0.1 0.25 0.3 0.25 0.1]
-                   :lower-band [0.08 0.20 0.25 0.20 0.08]
-                   :upper-band [0.12 0.30 0.35 0.30 0.12]
-                   :n 100}}}}))
-
 (deftest samples-vega-spec-schema-validation-test
   ;; Validates samples-vega-spec output against Vega-Lite v6 schema.
   ;; Tests the scatter plot visualization of benchmark samples.
   (testing "samples-vega-spec"
     (testing "produces valid Vega-Lite spec"
-      (let [data-map (make-samples-data-map)
+      (let [data-map (test-data/samples-data-map)
             view {}
             chart-options {:width 400 :height 300}
             spec (charts/samples-vega-spec data-map view chart-options)
@@ -182,7 +136,7 @@
   ;; Tests histogram visualization with density bars.
   (testing "histogram-vega-spec"
     (testing "produces valid Vega-Lite spec"
-      (let [data-map (make-histogram-data-map)
+      (let [data-map (test-data/histogram-data-map)
             view {}
             chart-options {:width 400 :height 300}
             spec (charts/histogram-vega-spec data-map view chart-options)
@@ -196,7 +150,7 @@
   ;; Tests KDE density curve visualization.
   (testing "kde-vega-spec"
     (testing "produces valid Vega-Lite spec"
-      (let [data-map (make-kde-data-map)
+      (let [data-map (test-data/kde-data-map)
             view {}
             chart-options {:width 400 :height 300}
             spec (charts/kde-vega-spec data-map view chart-options)
