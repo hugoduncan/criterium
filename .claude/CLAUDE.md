@@ -183,6 +183,15 @@ Agent build tests use a shared CMake build cache at `target/test-agent-build-cac
 rm -rf target/test-agent-build-cache
 ```
 
+**Vega Chart Schema Validation:**
+Tests in `criterium.viewer.schema-validation-test` validate generated Vega and Vega-Lite chart specs against official JSON schemas. Vega-Lite validation requires Node.js with the vega-lite npm package (auto-installed on first test run if not present):
+- **Node.js:** Required for Vega-Lite spec validation via the vega-lite compiler
+- **npm:** Used to install vega-lite package if not already available
+- **Vega (v5):** Validated via networknt/json-schema-validator (Java, no Node.js needed)
+- **Vega-Lite (v6):** Validated via Node.js vega-lite compiler
+
+If you don't have Node.js installed, Vega-Lite schema validation tests will fail. Install Node.js from https://nodejs.org/ or via your package manager.
+
 ## Native Agent
 
 The C++ agent (`agent-cpp/`) provides enhanced allocation tracking and is bundled in the JAR for supported platforms (linux-x64, macos-x64, macos-arm64):
