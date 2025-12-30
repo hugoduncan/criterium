@@ -95,8 +95,17 @@
 
 ;;; Vega-Lite validation via Node.js
 
-(defn- resolve-validator-script-path
-  "Resolve the path to the Vega-Lite validation script.
+(def ^:private npm-install-dir
+  "Directory for npm package installations. Uses target/npm to avoid
+  modifying project package.json."
+  "target/npm")
+
+(def ^:private validator-script-filename
+  "Filename of the validator script."
+  "validate-vega-lite.mjs")
+
+(defn- resolve-source-validator-script
+  "Resolve the source path to the Vega-Lite validation script.
 
   Uses io/resource to find the script on the classpath. For file: URLs,
   extracts the filesystem path. Falls back to relative path from project root."
@@ -107,17 +116,22 @@
       "bases/criterium/test/criterium/viewer/validate-vega-lite.mjs")
     "bases/criterium/test/criterium/viewer/validate-vega-lite.mjs"))
 
-(def ^:private validator-script-path
-  "Path to the Vega-Lite validation script."
-  (resolve-validator-script-path))
-
 (defn- ensure-vega-lite-installed
-  "Ensure vega-lite npm package is available. Installs if needed."
+  "Ensure vega-lite npm package is available in target/npm. Installs if needed.
+
+  Copies the validator script to target/npm so Node.js can resolve the
+  vega-lite module. Uses target/npm to isolate test dependencies from
+  project package.json."
   []
-  (let [result (shell/sh "npm" "list" "vega-lite" :dir ".")]
+  (.mkdirs (io/file npm-install-dir))
+  ;; Copy validator script to npm directory so ESM module resolution works
+  (let [target-script (io/file npm-install-dir validator-script-filename)]
+    (when-not (.exists target-script)
+      (io/copy (io/file (resolve-source-validator-script)) target-script)))
+  (let [result (shell/sh "npm" "list" "vega-lite" :dir npm-install-dir)]
     (when-not (zero? (int (:exit result)))
-      (println "Installing vega-lite npm package...")
-      (let [install-result (shell/sh "npm" "install" "--save-dev" "vega-lite" :dir ".")]
+      (println "Installing vega-lite npm package to target/npm...")
+      (let [install-result (shell/sh "npm" "install" "vega-lite" :dir npm-install-dir)]
         (when-not (zero? (int (:exit install-result)))
           (throw (ex-info "Failed to install vega-lite"
                           {:stderr (:err install-result)})))))))
@@ -136,9 +150,8 @@
     (ensure-vega-lite-installed)
     (reset! vega-lite-installed? true))
   (let [spec-json (json/write-str spec)
-        result (shell/sh "node" validator-script-path
-                         :in spec-json
-                         :dir ".")]
+        script-path (str npm-install-dir "/" validator-script-filename)
+        result (shell/sh "node" script-path :in spec-json)]
     (if (zero? (int (:exit result)))
       (let [output (json/read-str (:out result) :key-fn keyword)]
         (if (:valid output)

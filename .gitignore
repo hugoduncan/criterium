@@ -23,6 +23,7 @@ version.edn
 .clj-kondo/*/
 .aider*
 agent-cpp/build/
+node_modules/
 # Native agent binaries (downloaded from CI before JAR builds)
 bases/agent/resources/native/**/*.so
 bases/agent/resources/native/**/*.dylib

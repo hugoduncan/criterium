@@ -184,9 +184,9 @@ rm -rf target/test-agent-build-cache
 ```
 
 **Vega Chart Schema Validation:**
-Tests in `criterium.viewer.schema-validation-test` validate generated Vega and Vega-Lite chart specs against official JSON schemas. Vega-Lite validation requires Node.js with the vega-lite npm package (auto-installed on first test run if not present):
+Tests in `criterium.viewer.schema-validation-test` validate generated Vega and Vega-Lite chart specs against official JSON schemas. Vega-Lite validation requires Node.js with the vega-lite npm package (auto-installed to `target/npm` on first test run if not present):
 - **Node.js:** Required for Vega-Lite spec validation via the vega-lite compiler
-- **npm:** Used to install vega-lite package if not already available
+- **npm:** Used to install vega-lite package to `target/npm/` (isolated from project package.json)
 - **Vega (v5):** Validated via networknt/json-schema-validator (Java, no Node.js needed)
 - **Vega-Lite (v6):** Validated via Node.js vega-lite compiler
 
