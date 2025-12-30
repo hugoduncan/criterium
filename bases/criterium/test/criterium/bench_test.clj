@@ -281,3 +281,38 @@
         (let [v (bench/bench 1 :limit-time-s 0.1 :outlier-method :standard)]
           (is (= 1 v)))
         (is (some? (bench/last-bench)))))))
+
+(deftest knuth-histogram-bench-plan-test
+  ;; Integration test verifying the knuth-histogram bench plan produces
+  ;; correct histogram output with Bayesian optimal binning.
+  (testing "knuth-histogram bench plan"
+    (testing "produces histogram with Knuth binning"
+      (let [result (atom nil)
+            out (with-out-str
+                  (reset! result
+                          (bench/bench (+ 1 1)
+                                       :bench-plan bench-plans/knuth-histogram
+                                       :limit-time-s 0.1)))
+            data (:data (bench/last-bench))
+            histogram-data (:histograms data)
+            ;; Histogram key is a vector path like [:elapsed-time]
+            elapsed-histogram (get-in histogram-data [:histograms [:elapsed-time]])]
+        (testing "returns expression value"
+          (is (= 2 @result)))
+        (testing "produces histogram analysis"
+          (is (some? histogram-data)
+              "histogram analysis should be present")
+          (is (= :criterium/histogram (:type histogram-data))
+              "histograms container should have correct type"))
+        (testing "histogram has Knuth type"
+          (is (= :criterium/histogram-knuth (:type elapsed-histogram))
+              "elapsed-time histogram should use Knuth method"))
+        (testing "histogram includes optimal-bins"
+          (is (pos-int? (:optimal-bins elapsed-histogram))
+              "optimal-bins should be a positive integer"))
+        (testing "histogram includes log-posterior"
+          (is (number? (:log-posterior elapsed-histogram))
+              "log-posterior should be a number"))
+        (testing "outputs histogram view"
+          (is (re-find #"Histogram" out)
+              "stdout should contain histogram output"))))))

@@ -1,5 +1,5 @@
 (ns criterium.util.probability
-  "Probability functions.
+  "Probability functions including log-gamma and error function approximations.
 
   Re-exports from stats.interface for backward compatibility."
   (:require
@@ -9,6 +9,14 @@
   "Evaluate a polynomial at the given value x, for the coefficients given in
   descending order (so the last element of coefficients is the constant term)."
   stats/polynomial-value)
+
+(def log-gamma
+  "Compute the natural logarithm of the gamma function using Lanczos approximation.
+  Returns ln(Γ(x)) for x > 0.
+
+  Uses the Lanczos approximation with g=7 and 9 coefficients, providing
+  approximately 15 digits of precision. Matches R's lgamma() behavior."
+  stats/log-gamma)
 
 (def erf
   "erf polynomial approximation.  Maximum error is 1.5e-7.
