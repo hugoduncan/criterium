@@ -140,6 +140,79 @@
      :stats stats
      :transform collect-plan/identity-transforms}))
 
+;;; KDE-based statistics
+
+(defn- trapezoidal-integrate
+  "Numerical integration using the trapezoidal rule.
+  f-values is a sequence of function values at evenly spaced grid points.
+  grid is the x-coordinates of those points.
+  Returns the integral estimate."
+  ^double [grid f-values]
+  (let [n (count grid)]
+    (if (< n 2)
+      0.0
+      (loop [i 1
+             sum 0.0]
+        (if (< i n)
+          (let [x0 (double (nth grid (dec i)))
+                x1 (double (nth grid i))
+                f0 (double (nth f-values (dec i)))
+                f1 (double (nth f-values i))
+                dx (- x1 x0)]
+            (recur (inc i) (+ sum (* 0.5 dx (+ f0 f1)))))
+          sum)))))
+
+(defn- kde-mean
+  "Compute density-weighted mean: ∫ x·f(x) dx.
+  Assumes density is normalized (integrates to 1)."
+  ^double [grid density]
+  (let [xf (mapv * grid density)]
+    (trapezoidal-integrate grid xf)))
+
+(defn- kde-variance
+  "Compute density-weighted variance: ∫ (x-μ)²·f(x) dx.
+  Requires mean to be pre-computed."
+  ^double [grid density ^double mean]
+  (let [sq-dev (mapv (fn [^double x ^double f]
+                       (let [d (- x mean)]
+                         (* d d f)))
+                     grid density)]
+    (trapezoidal-integrate grid sq-dev)))
+
+(defn- kde-stats-for-metric
+  "Compute standard statistics from a KDE density estimate for a single metric.
+  Returns the same structure as sample-based stats."
+  [kde-data]
+  (let [{:keys [grid density n]} kde-data
+        mean (kde-mean grid density)
+        variance (kde-variance grid density mean)
+        min-val (double (first grid))
+        max-val (double (last grid))
+        three-sigma (* 3.0 (Math/sqrt variance))]
+    {:mean mean
+     :variance variance
+     :min-val min-val
+     :max-val max-val
+     :mean-plus-3sigma (+ mean three-sigma)
+     :mean-minus-3sigma (- mean three-sigma)
+     :n n}))
+
+(defmethod methods/stats :criterium/kde
+  [kde-map _outliers metric-configs _options]
+  (let [kdes (:kdes kde-map)
+        stats (reduce
+               (fn [result metric-config]
+                 (let [p (:path metric-config)
+                       kde-data (get kdes p)]
+                   (if kde-data
+                     (assoc-in result p (kde-stats-for-metric kde-data))
+                     result)))
+               {}
+               metric-configs)]
+    {:type :criterium/stats
+     :stats stats
+     :transform (:transform kde-map)}))
+
 (defmethod methods/event-stats :criterium/metrics-samples
   [metrics-samples metrics-defs _options]
   (let [metric->values (util/metric->values metrics-samples)
