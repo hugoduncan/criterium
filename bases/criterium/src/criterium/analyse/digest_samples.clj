@@ -112,6 +112,9 @@
 
 (defmethod methods/outliers :criterium/digest
   [digest-samples all-quantiles metric-configs _options]
+  ;; Note: :outlier-method option is ignored for digest samples.
+  ;; Always uses standard boxplot (symmetric 1.5×IQR) because medcouple
+  ;; requires individual sample values which t-digest does not preserve.
   (let [metric->digest (util/metric->digest digest-samples)
         quantiles (util/quantiles all-quantiles)
         outliers (reduce

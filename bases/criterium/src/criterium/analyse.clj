@@ -123,6 +123,13 @@
       :samples-id   - Key for source samples (default: :samples)
       :quantiles-id - Key for required quantile analysis (default: :quantiles)
       :metric-ids   - Set of metric ids to analyze (default: all quantitative)
+      :outlier-method - Method for computing outlier thresholds:
+                        :adjusted (default) - adjusted boxplot for skewed data
+                        :standard - symmetric 1.5×IQR whiskers
+                        :auto - uses :adjusted for metrics-samples,
+                                :standard for digest (same as default)
+                        Note: digest-based samples always use :standard
+                        regardless of this setting.
 
   The returned function:
   - Takes a sampled data map containing samples, metrics config and quantiles
@@ -145,7 +152,7 @@
     (get-in result [:outliers :elapsed-time]))
   ;; Returns {:thresholds [...] :outliers {...} :outlier-counts {...}}"
   ([] (outliers {}))
-  ([{:keys [id samples-id quantiles-id metric-ids]}]
+  ([{:keys [id samples-id quantiles-id metric-ids outlier-method]}]
    (fn [data-map]
      (let [id (or id :outliers)
            quantiles-id (or quantiles-id :quantiles)
@@ -164,7 +171,7 @@
                        metrics-samples
                        all-quantiles
                        metric-configs
-                       {})
+                       {:outlier-method outlier-method})
              outliers-map (util/->outliers-map
                            (merge
                             {:type :criterium/outliers

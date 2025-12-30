@@ -69,48 +69,60 @@
            (>= x high-severe) :high-severe)])))
 
 (defn samples-outliers
-  "Compute outliers for each metric using the adjusted boxplot method.
-  Returns a map with thresholds, outliers, outlier-counts, and medcouple
-  for each metric path."
-  [metric-configs all-quantiles samples]
-  (reduce
-   (fn sample-m [result metric-config]
-     (let [path (:path metric-config)
-           quantiles (have map? (get-in all-quantiles path)
-                           {:all-quantiles all-quantiles})
-           sample-values (get samples path)
-           sorted-samples (vec (sort sample-values))
-           mc (stats/medcouple sorted-samples)
-           thresholds (stats/adjusted-boxplot-outlier-thresholds
-                       (get quantiles 0.25)
-                       (get quantiles 0.75)
-                       mc)
-           classifier (classifier thresholds)
-           outliers (when (apply not= thresholds)
-                      (into {}
-                            (mapv classifier
-                                  sample-values
-                                  (range))))
-           outlier-counts (reduce-kv
-                           (fn [counts _i v]
-                             (update counts v inc))
-                           (outlier-count 0 0 0 0)
-                           outliers)]
-       (update-in result path
-                  assoc
-                  :thresholds thresholds
-                  :outliers outliers
-                  :outlier-counts outlier-counts
-                  :medcouple mc)))
-   {}
-   metric-configs))
+  "Compute outliers for each metric.
+  Returns a map with thresholds, outliers, outlier-counts, and (for adjusted
+  method) medcouple for each metric path.
+
+  Options:
+    :outlier-method - :adjusted (default), :standard, or :auto
+                      :adjusted uses the adjusted boxplot method accounting for
+                      skewness via medcouple
+                      :standard uses symmetric 1.5×IQR whiskers
+                      :auto is equivalent to :adjusted for metrics-samples"
+  [metric-configs all-quantiles samples options]
+  (let [outlier-method (get options :outlier-method)
+        use-adjusted? (not= outlier-method :standard)]
+    (reduce
+     (fn sample-m [result metric-config]
+       (let [path (:path metric-config)
+             quantiles (have map? (get-in all-quantiles path)
+                             {:all-quantiles all-quantiles})
+             q1 (get quantiles 0.25)
+             q3 (get quantiles 0.75)
+             sample-values (get samples path)
+             sorted-samples (vec (sort sample-values))
+             mc (when use-adjusted?
+                  (stats/medcouple sorted-samples))
+             thresholds (if use-adjusted?
+                          (stats/adjusted-boxplot-outlier-thresholds q1 q3 mc)
+                          (stats/boxplot-outlier-thresholds q1 q3))
+             classifier (classifier thresholds)
+             outliers (when (apply not= thresholds)
+                        (into {}
+                              (mapv classifier
+                                    sample-values
+                                    (range))))
+             outlier-counts (reduce-kv
+                             (fn [counts _i v]
+                               (update counts v inc))
+                             (outlier-count 0 0 0 0)
+                             outliers)]
+         (update-in result path
+                    assoc
+                    :thresholds thresholds
+                    :outliers outliers
+                    :outlier-counts outlier-counts
+                    :medcouple mc)))
+     {}
+     metric-configs)))
 
 (defmethod methods/outliers :criterium/metrics-samples
-  [metrics-samples all-quantiles metric-configs _options]
+  [metrics-samples all-quantiles metric-configs options]
   (let [outliers (samples-outliers
                   metric-configs
                   (util/quantiles all-quantiles)
-                  (util/metric->values metrics-samples))]
+                  (util/metric->values metrics-samples)
+                  options)]
     {:type :criterium/outliers
      :outliers outliers
      :num-samples (:num-samples metrics-samples)
