@@ -20,7 +20,8 @@
          {local/agent {:local/root "bases/agent"}
           local/arg-gen {:local/root "bases/arg-gen"}
           org.clojure/test.check {:mvn/version "1.1.1"}
-          luposlip/json-schema {:mvn/version "0.4.6"}
+          org.clojure/data.json {:mvn/version "2.5.1"}
+          com.networknt/json-schema-validator {:mvn/version "1.5.4"}
           clj-http/clj-http {:mvn/version "3.13.0"}}
          :jvm-opts ["-XX:-OmitStackTraceInFastThrow"
                     "-Dclojure.main.report=stderr"]}
