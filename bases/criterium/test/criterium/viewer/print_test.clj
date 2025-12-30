@@ -179,6 +179,8 @@
                        (view :print))))))))))
 
 (deftest print-outlier-count-test
+  ;; Tests print-outlier-count function and view/outlier-counts* multimethod.
+  ;; Covers: outlier counts display, medcouple display with skewness classification.
   (testing "print-outlier-count"
     (testing "prints all outliers when all present"
       (is (= ["M: Found 10 outliers in 100 samples (10.0 %)"
@@ -191,7 +193,8 @@
                              {:label "M"}
                              100
                              {:outlier-counts
-                              (metrics-samples/outlier-count 1 2 3 4)}))))))
+                              (metrics-samples/outlier-count 1 2 3 4)}
+                             false))))))
     (testing "prints only present outliers"
       (is (= ["M: Found 5 outliers in 100 samples (5.00 %)"
               "low-mild\t 2 (2.0000 %)"
@@ -203,7 +206,8 @@
                  100
                  {:outlier-counts
                   (metrics-samples/outlier-count
-                   0 2 3 0)}))))))
+                   0 2 3 0)}
+                 false))))))
     (testing "prints via view"
       (is (= ["Elapsed Time: Found 5 outliers in 1 samples (500 %)"
               "low-mild\t 2 (200.0000 %)"
@@ -213,7 +217,65 @@
                 (let [data-map
                       (:data (test-data/outlier-count-map))
                       view (view/outlier-counts)]
-                  (view :print data-map)))))))))
+                  (view :print data-map)))))))
+    (testing "displays medcouple when show-medcouple is true"
+      (testing "with symmetric distribution (mc ≈ 0)"
+        (is (= ["M: Found 1 outliers in 100 samples (1.00 %)"
+                "high-severe\t 1 (1.0000 %)"
+                "M: medcouple 0.0000 (symmetric)"]
+               (trimmed-lines
+                (with-out-str
+                  (print/print-outlier-count
+                   {:label "M"}
+                   100
+                   {:outlier-counts (metrics-samples/outlier-count 0 0 0 1)
+                    :medcouple 0.0}
+                   true))))))
+      (testing "with right-skewed distribution (mc > 0)"
+        (is (= ["M: Found 1 outliers in 100 samples (1.00 %)"
+                "high-severe\t 1 (1.0000 %)"
+                "M: medcouple 0.3500 (moderately right-skewed)"]
+               (trimmed-lines
+                (with-out-str
+                  (print/print-outlier-count
+                   {:label "M"}
+                   100
+                   {:outlier-counts (metrics-samples/outlier-count 0 0 0 1)
+                    :medcouple 0.35}
+                   true))))))
+      (testing "with left-skewed distribution (mc < 0)"
+        (is (= ["M: Found 1 outliers in 100 samples (1.00 %)"
+                "low-severe\t 1 (1.0000 %)"
+                "M: medcouple -0.7500 (strongly left-skewed)"]
+               (trimmed-lines
+                (with-out-str
+                  (print/print-outlier-count
+                   {:label "M"}
+                   100
+                   {:outlier-counts (metrics-samples/outlier-count 1 0 0 0)
+                    :medcouple -0.75}
+                   true))))))
+      (testing "without medcouple (e.g., digest samples)"
+        (is (= ["M: Found 1 outliers in 100 samples (1.00 %)"
+                "high-severe\t 1 (1.0000 %)"]
+               (trimmed-lines
+                (with-out-str
+                  (print/print-outlier-count
+                   {:label "M"}
+                   100
+                   {:outlier-counts (metrics-samples/outlier-count 0 0 0 1)
+                    :medcouple nil}
+                   true))))))
+      (testing "displays medcouple even without outliers"
+        (is (= ["M: medcouple 0.1500 (slightly right-skewed)"]
+               (trimmed-lines
+                (with-out-str
+                  (print/print-outlier-count
+                   {:label "M"}
+                   100
+                   {:outlier-counts (metrics-samples/outlier-count 0 0 0 0)
+                    :medcouple 0.15}
+                   true)))))))))
 
 (deftest print-outlier-significance-test
   (testing "print-outlier-significance"

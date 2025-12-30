@@ -3,111 +3,23 @@
    [clojure.string :as str]
    [clojure.test :refer [deftest is testing]]
    [clojure.test.check.generators :as gen]
+   [criterium.test.assert :as assert]
    [criterium.util.stats :as stats]
    [criterium.util.well :as well]
    [criterium.util.ziggurat :as ziggurat]))
 
-(defn abs-error
-  ^double [^double expected ^double actual]
-  (Math/abs (- expected actual)))
+;;; Re-exports from criterium.test.assert
+;; Requiring the assert namespace registers the approx= assert-expr
 
-(defn rel-error
-  ^double [^double expected ^double actual]
-  (let [e (abs-error expected actual)]
-    (if (zero? expected)
-      actual
-      (/ e  (Math/abs expected)))))
-
-(def ^:private ^:const default-ulps 2)
-(def ^:private ^:const default-rel-tolerance 1e-8)
-
-(defn ulp ^double [x]
-  (Math/ulp (double x)))
-
-(defn compare-doubles
-  "Compare expected and actual doubles.
-
-  Uses both ULP and relative difference.  Numbers are considered equal
-  if either criterion matches.  Relative difference is calculated
-  relative to expected value.
-
-  Parameters:
-    expected - Expected value
-    actual   - Actual value to compare against expected
-    ulps - Max units in last place difference (default: 2)
-    rel-tolerance - Maximum relative difference (default: 1e-8)"
-  ([expected actual]
-   (compare-doubles expected actual default-rel-tolerance default-ulps))
-  ([^double expected ^double actual ^double rel-tolerance ^long ulps]
-   (let [expected      (double expected)
-         actual        (double actual)
-         abs-expected  (Math/abs expected)
-         diff          (- actual expected)
-         abs-diff      (Math/abs diff)
-         rel-diff      (if (zero? expected)
-                         diff
-                         (/ diff abs-expected))
-         abs-rel-diff  (Math/abs rel-diff)
-         ulp-tolerance (* ulps (Math/ulp abs-expected))]
-     (when-not
-      (or (<= abs-diff ulp-tolerance)
-          (<= abs-rel-diff rel-tolerance))
-       {:diff          diff
-        :abs-diff      abs-diff
-        :abs-rel-diff  abs-rel-diff
-        :ulp-limit     ulp-tolerance
-        :rel-tolerance rel-tolerance}))))
-
-(defn element-diffs [expected actual rel-tolerance ulps]
-  (let [element-diffs#
-        (mapv #(compare-doubles
-                %1
-                %2
-                (or rel-tolerance default-rel-tolerance)
-                (or ulps default-ulps))
-              expected
-              actual)]
-    (->> element-diffs#
-         (map-indexed
-          (fn [i diff]
-            (when diff (assoc diff :i i))))
-         (filterv some?)
-         not-empty)))
-
-(defmethod clojure.test/assert-expr 'approx=
-  [msg [_ expected actual & [rel-tolerance ulps]]]
-  `(let [diff# (if (sequential? ~expected)
-                 (cond
-                   (not (sequential? ~actual))
-                   {:type (type ~actual)}
-                   (not= (count ~expected) (count ~actual))
-                   {:count-expected (count ~expected)
-                    :count-actual   (count ~actual)}
-                   :else
-                   (element-diffs ~expected ~actual ~rel-tolerance ~ulps))
-                 (compare-doubles
-                  ~expected
-                  ~actual
-                  ~(if rel-tolerance rel-tolerance default-rel-tolerance)
-                  ~(if ulps ulps default-ulps)))]
-     (clojure.test/do-report
-      {:type     (if diff# :fail :pass)
-       :message  ~msg
-       :expected ~expected
-       :actual   ~actual
-       :diff     diff#})))
-
-(defn approx= [a b & [rel-tolerance ulps]]
-  (let [comp (compare-doubles
-              a
-              b
-              (or rel-tolerance default-rel-tolerance)
-              (or ulps default-ulps))]
-    (when comp
-      (prn :a a :b b comp))
-    (nil? comp)))
+(def abs-error assert/abs-error)
+(def rel-error assert/rel-error)
+(def ulp assert/ulp)
+(def compare-doubles assert/compare-doubles)
+(def element-diffs assert/element-diffs)
+(def approx= assert/approx=)
 
 (defmacro test-max-error
+  "Assert that absolute error is less than max-error."
   ([expected actual max-error]
    `(is (< (abs-error ~expected ~actual) ~max-error)))
   ([expected actual max-error msg]

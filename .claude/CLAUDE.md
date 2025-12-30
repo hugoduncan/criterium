@@ -23,6 +23,9 @@ clojure -M:kaocha:dev:test:with-agent-mac --reporter dots
 
 # For agent development: Test with locally-built agent (Linux)
 clojure -M:kaocha:dev:test:with-agent-linux --reporter dots
+
+# Run validation tests against R (requires R + Rserve installed)
+clojure -M:validation
 ```
 
 ### Building and Packaging
@@ -108,6 +111,7 @@ clojure -M:nrepl:dev:test:with-agent-mac:blackhole
 - `bases/blackhole/` - JMH-style Blackhole for preventing dead code elimination
 - `bases/arg-gen/` - Argument generation using test.check generators
 - `bases/notebooks/` - Computational notebooks and examples
+- `components/r-validation/` - R connection helper for validation tests
 - `projects/criterium/` - Main criterium JAR (criterium/criterium)
 - `projects/arg-gen/` - Argument generation JAR (criterium/arg-gen)
 - `development/` - Development environment setup
@@ -191,6 +195,29 @@ Tests in `criterium.viewer.schema-validation-test` validate generated Vega and V
 - **Vega-Lite (v6):** Validated via Node.js vega-lite compiler
 
 If you don't have Node.js installed, Vega-Lite schema validation tests will fail. Install Node.js from https://nodejs.org/ or via your package manager.
+
+### Validation Tests
+
+Validation tests compare criterium's statistics implementations against GNU R as a reference. These tests are in `bases/criterium/validation/` and run separately from the main test suite.
+
+**Running validation tests:**
+```bash
+clojure -M:validation
+```
+
+**Requirements:**
+- R installed locally
+- Rserve R package: `install.packages("Rserve",,"http://rforge.net")`
+
+Tests skip gracefully when R/Rserve is unavailable - no test failures occur.
+
+**Writing validation tests:**
+- Test files go in `bases/criterium/validation/criterium/validation/`
+- Use `*_validation_test.clj` naming pattern
+- Use `criterium.validation.r` namespace for R interop:
+  - `r-available?` - check if R is available
+  - `r-eval` - evaluate R expression, return Clojure data
+  - `with-r` - execute body only if R available, skip otherwise
 
 ## Native Agent
 

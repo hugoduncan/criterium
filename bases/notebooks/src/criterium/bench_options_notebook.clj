@@ -213,6 +213,62 @@ bench-plans/log-histogram
 (bench-display
  (bench/bench (vec (range 1000)) :metric-ids [:elapsed-time :memory]))
 
+;; ## Outlier Detection Method
+;;
+;; The `:outlier-method` option controls how outliers are detected.
+;; Criterium supports three methods:
+;;
+;; - `:adjusted` - Adjusted boxplot using medcouple for skewed data (default)
+;; - `:standard` - Standard symmetric boxplot (1.5×IQR whiskers)
+;; - `:auto` - Currently same as `:adjusted`
+;;
+;; Benchmark timing data is typically right-skewed (occasional slow samples from
+;; GC, OS scheduling, etc.). The adjusted boxplot method uses the medcouple
+;; statistic to create asymmetric whiskers that better fit skewed distributions,
+;; reducing false-positive outlier detection.
+
+;; ### :adjusted (Default)
+;;
+;; The adjusted boxplot widens the upper fence for right-skewed data:
+
+^:kindly/hide-code
+(bench-display
+ (bench/bench (reduce + (range 1000))
+              :outlier-method :adjusted
+              :bench-plan bench-plans/log-histogram))
+
+;; ### :standard
+;;
+;; The standard boxplot uses symmetric 1.5×IQR whiskers:
+
+^:kindly/hide-code
+(bench-display
+ (bench/bench (reduce + (range 1000))
+              :outlier-method :standard
+              :bench-plan bench-plans/log-histogram))
+
+;; ### Viewing Medcouple Values
+;;
+;; The print viewer can display medcouple values and skewness classification
+;; using the `:show-medcouple` option:
+
+^:kindly/hide-code
+(bench-display
+ (bench/bench (reduce + (range 1000))
+              :viewer [:print {:show-medcouple true}]
+              :bench-plan bench-plans/log-histogram))
+
+;; Medcouple interpretation:
+;; - MC ≈ 0: Symmetric distribution
+;; - MC > 0: Right-skewed (positive skewness)
+;; - MC < 0: Left-skewed (negative skewness)
+;;
+;; Classification thresholds:
+;; - |MC| < 0.1: Symmetric
+;; - 0.1 ≤ |MC| < 0.2: Slightly skewed
+;; - 0.2 ≤ |MC| < 0.3: Moderately skewed
+;; - |MC| ≥ 0.3: Strongly skewed
+
 ;; ## Combining Options
 ;;
 ;; Options can be combined for tailored benchmarking:

@@ -15,7 +15,7 @@
     (let [out (with-out-str (bench/bench 1 :limit-time-s 0.1))]
       (testing "outputs the estimated time on stdout"
         (is (re-find
-             #"Elapsed Time: [0-9.]+ [mn]s  3σ \[[0-9.-]+ [0-9.]+]  min [0-9.]+"
+             #"Elapsed Time: [0-9.]+ [mn]s  3σ \[[0-9.e+-]+ [0-9.e+-]+]  min [0-9.]+"
              out)))))
   (testing "time with stats"
     (let [out (with-out-str (bench/bench 1 :limit-time-s 0.1))]
@@ -236,3 +236,48 @@
   (testing "config-map accepts :with-allocation-trace"
     (let [config (bench-config/config-map {:with-allocation-trace true})]
       (is (true? (:with-allocation-trace config))))))
+
+(deftest outlier-method-option-test
+  ;; Tests for :outlier-method option.
+  ;; Verifies that the option is accepted and injected into the analyse plan.
+  (testing ":outlier-method option"
+    (testing "config-map accepts :outlier-method"
+      (is (some? (bench-config/config-map {:outlier-method :standard})))
+      (is (some? (bench-config/config-map {:outlier-method :adjusted})))
+      (is (some? (bench-config/config-map {:outlier-method :auto}))))
+
+    (testing "injects :outlier-method into :outliers step in analyse plan"
+      (let [config (bench-config/config-map {:outlier-method :standard})]
+        (is (some
+             (fn [step]
+               (and (vector? step)
+                    (= :outliers (first step))
+                    (= :standard (:outlier-method (second step)))))
+             (:analyse config))
+            "analyse plan contains [:outliers {:outlier-method :standard}]")))
+
+    (testing "preserves existing outliers options"
+      (let [config (bench-config/config-map
+                    {:outlier-method :standard
+                     :analyse [:transform-log
+                               [:outliers {:samples-id :log-samples}]
+                               :stats]})
+            outlier-step (some
+                          (fn [step]
+                            (when (and (vector? step)
+                                       (= :outliers (first step)))
+                              step))
+                          (:analyse config))]
+        (is (= :standard (:outlier-method (second outlier-step))))
+        (is (= :log-samples (:samples-id (second outlier-step))))))
+
+    (testing "nil :outlier-method does not modify analyse plan"
+      (let [default-config (bench-config/config-map {})
+            nil-config (bench-config/config-map {:outlier-method nil})]
+        (is (= (:analyse default-config) (:analyse nil-config)))))
+
+    (testing "bench accepts :outlier-method option"
+      (with-out-str
+        (let [v (bench/bench 1 :limit-time-s 0.1 :outlier-method :standard)]
+          (is (= 1 v)))
+        (is (some? (bench/last-bench)))))))
