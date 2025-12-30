@@ -1,7 +1,9 @@
 (ns criterium.viewer.common-charts-test
   (:require
    [clojure.test :refer [deftest is testing]]
-   [criterium.viewer.common-charts :as charts]))
+   [criterium.test-data :as test-data]
+   [criterium.viewer.common-charts :as charts]
+   [criterium.viewer.schema-validation :as schema]))
 
 ;; Tests for treemap-vega-spec function.
 ;; Verifies Vega spec generation for treemap visualizations of allocation data.
@@ -111,3 +113,100 @@
         (is (= 2 (count marks)))
         (is (= "rect" (:type (first marks))))
         (is (= "rect" (:type (second marks))))))))
+
+;;; Schema validation tests for all chart spec functions.
+;;; Validates that generated specs conform to official Vega/Vega-Lite JSON schemas.
+
+(deftest samples-vega-spec-schema-validation-test
+  ;; Validates samples-vega-spec output against Vega-Lite v6 schema.
+  ;; Tests the scatter plot visualization of benchmark samples.
+  (testing "samples-vega-spec"
+    (testing "produces valid Vega-Lite spec"
+      (let [data-map (test-data/samples-data-map)
+            view {}
+            chart-options {:width 400 :height 300}
+            spec (charts/samples-vega-spec data-map view chart-options)
+            result (schema/validate-vega-lite-spec spec)]
+        (is (:valid? result)
+            (str "samples-vega-spec validation failed: "
+                 (pr-str (:errors result))))))))
+
+(deftest histogram-vega-spec-schema-validation-test
+  ;; Validates histogram-vega-spec output against Vega-Lite v6 schema.
+  ;; Tests histogram visualization with density bars.
+  (testing "histogram-vega-spec"
+    (testing "produces valid Vega-Lite spec"
+      (let [data-map (test-data/histogram-data-map)
+            view {}
+            chart-options {:width 400 :height 300}
+            spec (charts/histogram-vega-spec data-map view chart-options)
+            result (schema/validate-vega-lite-spec spec)]
+        (is (:valid? result)
+            (str "histogram-vega-spec validation failed: "
+                 (pr-str (:errors result))))))))
+
+(deftest kde-vega-spec-schema-validation-test
+  ;; Validates kde-vega-spec output against Vega-Lite v6 schema.
+  ;; Tests KDE density curve visualization.
+  (testing "kde-vega-spec"
+    (testing "produces valid Vega-Lite spec"
+      (let [data-map (test-data/kde-data-map)
+            view {}
+            chart-options {:width 400 :height 300}
+            spec (charts/kde-vega-spec data-map view chart-options)
+            result (schema/validate-vega-lite-spec spec)]
+        (is (:valid? result)
+            (str "kde-vega-spec validation failed: "
+                 (pr-str (:errors result))))))))
+
+(deftest regression-chart-spec-schema-validation-test
+  ;; Validates regression-chart-spec output against Vega-Lite v6 schema.
+  ;; Tests regression scatter plot with fit lines.
+  (testing "regression-chart-spec"
+    (testing "produces valid Vega-Lite spec"
+      (let [points [{:x 100 :y 1e6}
+                    {:x 200 :y 2e6}
+                    {:x 400 :y 4e6}]
+            line-pts (mapv (fn [{:keys [x]}]
+                             {:x x :y (* 10000.0 (double x)) :model "O(n)"})
+                           points)
+            opts {:width 600
+                  :height 400
+                  :axis-name "n"
+                  :y-title "Time (ns)"
+                  :color-field "model"}
+            spec (charts/regression-chart-spec points line-pts opts)
+            result (schema/validate-vega-lite-spec spec)]
+        (is (:valid? result)
+            (str "regression-chart-spec validation failed: "
+                 (pr-str (:errors result))))))))
+
+(deftest regression-residual-spec-schema-validation-test
+  ;; Validates regression-residual-spec output against Vega-Lite v6 schema.
+  ;; Tests residual plot with loess smoothing.
+  (testing "regression-residual-spec"
+    (testing "produces valid Vega-Lite spec"
+      (let [residual-pts [{:x 100 :residual 0.05 :model "O(n)"}
+                          {:x 200 :residual -0.02 :model "O(n)"}
+                          {:x 400 :residual 0.01 :model "O(n)"}]
+            opts {:width 600
+                  :height 200
+                  :axis-name "n"
+                  :residual-title "Residual"
+                  :color-field "model"}
+            spec (charts/regression-residual-spec residual-pts opts)
+            result (schema/validate-vega-lite-spec spec)]
+        (is (:valid? result)
+            (str "regression-residual-spec validation failed: "
+                 (pr-str (:errors result))))))))
+
+(deftest treemap-vega-spec-schema-validation-test
+  ;; Validates treemap-vega-spec output against Vega v5 schema.
+  ;; Tests treemap visualization for allocation data.
+  (testing "treemap-vega-spec"
+    (testing "produces valid Vega spec"
+      (let [spec (charts/treemap-vega-spec sample-treemap {})
+            result (schema/validate-vega-spec spec)]
+        (is (:valid? result)
+            (str "treemap-vega-spec validation failed: "
+                 (pr-str (:errors result))))))))

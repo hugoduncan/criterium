@@ -32,7 +32,10 @@
           local/stats {:local/root "components/stats"}
           local/test-assert {:local/root "components/test-assert"}
           local/utils {:local/root "components/utils"}
-          org.clojure/test.check {:mvn/version "1.1.1"}}
+          org.clojure/test.check {:mvn/version "1.1.1"}
+          org.clojure/data.json {:mvn/version "2.5.1"}
+          com.networknt/json-schema-validator {:mvn/version "1.5.4"}
+          clj-http/clj-http {:mvn/version "3.13.0"}}
          :jvm-opts ["-XX:-OmitStackTraceInFastThrow"
                     "-Dclojure.main.report=stderr"]}
   :with-agent-mac {:jvm-opts ["-agentpath:agent-cpp/build/libcriterium.dylib"]}
