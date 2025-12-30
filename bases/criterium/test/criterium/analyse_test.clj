@@ -867,8 +867,8 @@
             metric-configs [{:path [:elapsed-time]}]
             result (criterium.analyse.methods/stats kde-data nil metric-configs {})
             stats (get-in result [:stats :elapsed-time])
-            mean (:mean stats)
-            variance (:variance stats)
+            ^double mean (:mean stats)
+            ^double variance (:variance stats)
             expected-3sigma (* 3.0 (Math/sqrt variance))]
         (is (approx= (+ mean expected-3sigma) (:mean-plus-3sigma stats))
             "mean-plus-3sigma should be mean + 3*stddev")
@@ -876,7 +876,7 @@
             "mean-minus-3sigma should be mean - 3*stddev")))
 
     (testing "preserves transform from kde-map"
-      (let [custom-transform {:sample-> #(* % 2.0) :->sample #(/ % 2.0)}
+      (let [custom-transform {:sample-> #(* ^double % 2.0) :->sample #(/ ^double % 2.0)}
             kde-data {:type :criterium/kde
                       :kdes {[:elapsed-time]
                              {:grid [1.0 2.0 3.0]
