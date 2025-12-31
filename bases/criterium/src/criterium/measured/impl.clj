@@ -77,27 +77,37 @@
       (:metamap x))))
 
 (defn ^:no-doc factor-form
-  "Factor form, extracting constant expressions."
-  [form]
+  "Factor form, extracting constant expressions.
+  env is the macro's &env, used to identify local bindings."
+  [form env]
   (let [subj (first form)
         tform (fn [x]
                 (if (and (s-expression? x) (= subj (first x)))
-                  (reduce
-                   (fn [res arg]
-                     (if (fn-call-expr? arg)
-                       (-> res
-                           (update :arg-syms conj arg)
-                           (update :arg-vals merge (:arg-vals arg)))
-                       (let [arg-sym (gen-arg-sym)]
+                  (let [op (first x)
+                        ;; Check if operator is a local binding
+                        op-is-local? (and (symbol? op)
+                                          (contains? env op))
+                        ;; If local, generate arg-sym for operator
+                        [op-sym op-arg-vals] (if op-is-local?
+                                               (let [sym (gen-arg-sym)]
+                                                 [sym {sym op}])
+                                               [op {}])]
+                    (reduce
+                     (fn [res arg]
+                       (if (fn-call-expr? arg)
                          (-> res
-                             (update :arg-syms conj arg-sym)
-                             (update :arg-vals assoc arg-sym arg)))))
-                   (->FnCallExpr
-                    (first x)
-                    []
-                    {}
-                    (meta x))
-                   (rest x))
+                             (update :arg-syms conj arg)
+                             (update :arg-vals merge (:arg-vals arg)))
+                         (let [arg-sym (gen-arg-sym)]
+                           (-> res
+                               (update :arg-syms conj arg-sym)
+                               (update :arg-vals assoc arg-sym arg)))))
+                     (->FnCallExpr
+                      op-sym
+                      []
+                      op-arg-vals
+                      (meta x))
+                     (rest x)))
                   x))
         res (util/postwalk
              tform
@@ -110,9 +120,12 @@
     {:expr arg-sym
      :arg-vals {arg-sym expr}}))
 
-(defn ^:no-doc factor-expr [expr]
+(defn ^:no-doc factor-expr
+  "Factor an expression, extracting constant expressions and local bindings.
+  env is the macro's &env, used to identify local bindings."
+  [expr env]
   (if (s-expression? expr)
-    (factor-form expr)
+    (factor-form expr env)
     (factor-const expr)))
 
 (defn ^:no-doc cast-fn
@@ -280,7 +293,7 @@
   Local bindings are captured at the call-site and passed through the
   measurement pipeline alongside hoisted constants."
   [expr options env]
-  (let [{:keys [expr arg-vals] :as _f} (factor-expr expr)
+  (let [{:keys [expr arg-vals] :as _f} (factor-expr expr env)
         arg-syms (keys arg-vals)
         local-arg-syms (identify-local-args arg-vals env)
         arg-metas (capture-arg-types

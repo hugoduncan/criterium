@@ -91,11 +91,14 @@
       (let [fncall-m (measured/expr (identity ::value))]
         (is (= [::value] (measured/args fncall-m)))
         (is (= ::value (second (invoke fncall-m))))))
-    (testing "with recursive function call lifts innermost value"
+    (testing "with recursive function call lifts innermost value and local fn"
       (let [call-count         (volatile! 0)
             f                  (fn [v] (vswap! call-count inc-long) v)
-            recursive-fncall-m (measured/expr (f (f ::value)))]
-        (is (= [::value] (measured/args recursive-fncall-m)))
+            recursive-fncall-m (measured/expr (f (f ::value)))
+            args               (measured/args recursive-fncall-m)]
+        ;; Local function f is now captured twice (for both calls) plus ::value
+        (is (= 3 (count args)))
+        (is (= #{f ::value} (set args)))
         (is (= ::value (second (invoke recursive-fncall-m))))
         (is (= 2 @call-count))))
     (testing "with const expression lifts the evaluated value"
@@ -224,6 +227,54 @@
         (is (= #{'arg1 'arg3 'arg5} (impl/identify-local-args arg-vals env))))
       (testing "returns empty set when no arg-vals are locals"
         (is (= #{} (impl/identify-local-args {'a '(+ 1 2)} env)))))))
+
+;;; factor-form tests for local operator handling
+;; Tests verifying that local functions in operator position are factored out.
+
+(deftest factor-form-local-operator-test
+  ;; Tests that factor-form handles local operators correctly.
+  ;; When the operator is a local binding, it should be factored into arg-vals.
+  (let [env {'f 'local-binding-f}]
+    (testing "factor-form"
+      (testing "with local operator factors it into arg-vals"
+        (let [{:keys [expr arg-vals]} (impl/factor-form '(f x) env)]
+          ;; expr should have a gensym in operator position
+          (is (seq? expr))
+          (is (symbol? (first expr)))
+          (is (not= 'f (first expr)) "operator should be replaced with gensym")
+          ;; arg-vals should contain mapping for both operator and argument
+          (is (= 2 (count arg-vals)))
+          (is (contains? (set (vals arg-vals)) 'f) "f should be in arg-vals")
+          (is (contains? (set (vals arg-vals)) 'x) "x should be in arg-vals")))
+      (testing "with global operator keeps it unchanged"
+        (let [{:keys [expr arg-vals]} (impl/factor-form '(+ x y) nil)]
+          ;; expr should have + in operator position (global var)
+          (is (= '+ (first expr)))
+          ;; arg-vals should only contain x and y, not +
+          (is (= 2 (count arg-vals)))
+          (is (= #{'x 'y} (set (vals arg-vals))))))
+      (testing "with recursive local operator factors at each level"
+        ;; factor-form only factors expressions with the SAME operator as top-level
+        ;; So (f (f x)) factors both f's, but (f (g x)) only factors outer f
+        (let [{:keys [expr arg-vals]} (impl/factor-form '(f (f x)) {'f 'lb-f})]
+          ;; f should be factored twice, x once
+          (is (= 3 (count arg-vals)))
+          ;; f appears twice in vals (for both calls)
+          (is (= 2 (count (filter #(= 'f %) (vals arg-vals)))))
+          (is (contains? (set (vals arg-vals)) 'x))))
+      (testing "with different nested operator only factors outer"
+        ;; (f (g x)) - only f is factored since inner has different op
+        (let [{:keys [expr arg-vals]} (impl/factor-form '(f (g x)) {'f 'lb-f 'g 'lb-g})]
+          ;; Only f is factored, (g x) is stored as a single value
+          (is (= 2 (count arg-vals)))
+          (is (contains? (set (vals arg-vals)) 'f))
+          (is (contains? (set (vals arg-vals)) '(g x)))))
+      (testing "with method call operator keeps it unchanged"
+        (let [{:keys [expr arg-vals]} (impl/factor-form '(.toString x) nil)]
+          ;; .toString is a method, not a local - should stay unchanged
+          (is (= '.toString (first expr)))
+          (is (= 1 (count arg-vals)))
+          (is (= #{'x} (set (vals arg-vals)))))))))
 
 ;;; Local capture integration tests
 ;; Tests verifying that locals are correctly captured and passed through
