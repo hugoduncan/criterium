@@ -408,3 +408,151 @@
                 res (second (invoke m))]
             (swap! results conj res)))
         (is (= [2 3 4] @results))))))
+
+;;; Local Operator Acceptance Tests
+;; Tests verifying that local functions in operator position are dynamically
+;; dispatched, not constant-folded. Each test proves dynamic dispatch by
+;; substituting a different function via with-args-fn and verifying the
+;; result changes.
+
+(deftest local-operator-ac1-test
+  ;; AC1: Local function in operator position - verify function is used dynamically.
+  ;; Proves the function is not constant-folded by substituting a different
+  ;; function via with-args-fn and verifying the result changes.
+  (testing "local function in operator position"
+    (testing "captures function in args"
+      (let [f +
+            m (measured/expr (f 1 2))
+            args (measured/args m)]
+        ;; The local function f should be captured in args
+        (is (some #(= + %) args) "function + should be in args")))
+    (testing "uses function dynamically (not constant-folded)"
+      (let [f +
+            m (measured/expr (f 10 5))
+            ;; Original invocation with +
+            original-result (second (invoke m))
+            ;; Create new measured with different function (-)
+            args (measured/args m)
+            ;; Find position of function in args and replace it
+            new-args-fn (fn []
+                          (mapv #(if (= + %) - %) args))
+            m-with-minus (measured/with-args-fn m new-args-fn)
+            new-result (second (invoke m-with-minus))]
+        (is (= 15 original-result) "original should use +: 10 + 5 = 15")
+        (is (= 5 new-result) "substituted should use -: 10 - 5 = 5")
+        (is (not= original-result new-result)
+            "results must differ to prove dynamic dispatch")))))
+
+(deftest local-operator-ac2-test
+  ;; AC2: Local function with local arguments.
+  ;; The function and all arguments should be in args.
+  (testing "local function with local arguments"
+    (testing "captures function and arguments in args"
+      (let [f +
+            x 1
+            y 2
+            m (measured/expr (f x y))
+            args (measured/args m)]
+        ;; All three locals should be captured
+        (is (= 3 (count args)))
+        (is (some #(= + %) args) "function + should be in args")
+        (is (some #(= 1 %) args) "x=1 should be in args")
+        (is (some #(= 2 %) args) "y=2 should be in args")))
+    (testing "produces correct result"
+      (let [f +
+            x 10
+            y 20
+            m (measured/expr (f x y))]
+        (is (= 30 (second (invoke m))))))))
+
+(deftest local-operator-ac3-test
+  ;; AC3: Higher-order function pattern using partial.
+  ;; The partially applied function should be passed through args-fn.
+  (testing "higher-order function pattern"
+    (testing "partial function is captured in args"
+      (let [f (partial + 10)
+            m (measured/expr (f 5))
+            args (measured/args m)]
+        ;; The partial function and 5 should be in args
+        (is (= 2 (count args)))
+        (is (some #(= 5 %) args) "argument 5 should be in args")
+        (is (some fn? args) "partial function should be in args")))
+    (testing "uses partial function dynamically"
+      (let [f (partial + 10)
+            m (measured/expr (f 5))
+            original-result (second (invoke m))
+            ;; Substitute with a different partial function
+            args (measured/args m)
+            new-args-fn (fn []
+                          (mapv #(if (fn? %) (partial * 10) %) args))
+            m-with-mult (measured/with-args-fn m new-args-fn)
+            new-result (second (invoke m-with-mult))]
+        (is (= 15 original-result) "original: (+ 10 5) = 15")
+        (is (= 50 new-result) "substituted: (* 10 5) = 50")))))
+
+(defn- double-it ^long [^long x] (* x 2))
+(defn- triple-it ^long [^long x] (* x 3))
+
+(deftest local-operator-ac4-test
+  ;; AC4: Nested local function calls.
+  ;; Current implementation: only factors expressions with SAME operator recursively.
+  ;; For different nested operators, only the outer is captured; inner is evaluated.
+  (testing "nested local function calls"
+    (testing "same operator used recursively - both captured"
+      ;; (f (f x)) - same operator, so both calls are factored
+      (let [f inc
+            m (measured/expr (f (f 5)))
+            args (measured/args m)]
+        ;; f is captured twice, plus the value 5
+        (is (= 3 (count args)))
+        (is (= 2 (count (filter #(= inc %) args))) "inc should appear twice")
+        (is (some #(= 5 %) args) "5 should be in args")))
+    (testing "same operator - produces correct result"
+      (let [f inc
+            m (measured/expr (f (f 5)))]
+        ;; inc(inc(5)) = 7
+        (is (= 7 (second (invoke m))))))
+    (testing "same operator - function is used dynamically"
+      (let [f double-it
+            m (measured/expr (f (f 2)))
+            original-result (second (invoke m))
+            ;; Replace double-it with triple-it
+            args (measured/args m)
+            new-args-fn (fn []
+                          (mapv #(if (= double-it %) triple-it %) args))
+            m-with-triple (measured/with-args-fn m new-args-fn)
+            new-result (second (invoke m-with-triple))]
+        ;; Original: double-it(double-it(2)) = double-it(4) = 8
+        (is (= 8 original-result))
+        ;; Substituted: triple-it(triple-it(2)) = triple-it(6) = 18
+        (is (= 18 new-result))
+        (is (not= original-result new-result)
+            "results must differ to prove function is dynamic")))
+    (testing "different operators - outer captured, inner evaluated"
+      ;; (f (g x)) - different operators, only f is factored
+      ;; Inner (g x) is evaluated at macro expansion time
+      (let [f double-it
+            g inc
+            m (measured/expr (f (g 5)))
+            args (measured/args m)]
+        ;; Only f (double-it) and the result of (g 5) = 6 are captured
+        (is (= 2 (count args)))
+        (is (some #(= double-it %) args) "outer function should be in args")
+        (is (some #(= 6 %) args) "evaluated inner result (6) should be in args")))
+    (testing "different operators - outer function is dynamic"
+      (let [f double-it
+            g inc
+            m (measured/expr (f (g 5)))
+            original-result (second (invoke m))
+            ;; Replace outer function
+            args (measured/args m)
+            new-args-fn (fn []
+                          (mapv #(if (= double-it %) triple-it %) args))
+            m-with-triple (measured/with-args-fn m new-args-fn)
+            new-result (second (invoke m-with-triple))]
+        ;; Original: double-it((inc 5)) = double-it(6) = 12
+        (is (= 12 original-result))
+        ;; Substituted: triple-it(6) = 18
+        (is (= 18 new-result))
+        (is (not= original-result new-result)
+            "results must differ to prove outer function is dynamic")))))
