@@ -635,6 +635,115 @@
         (is (= 2 (count args)))
         (is (= :default (second (invoke m))))))))
 
+;;; Java Method Call Tests with Local Arguments
+;; Tests verifying that Java interop calls correctly handle local bindings
+;; as receiver and/or arguments. Method names (.methodName) are operators,
+;; not locals, while the receiver and arguments should be factored.
+
+(deftest java-interop-local-receiver-test
+  ;; Verifies: (let [s "hello"] (measured/expr (.toUpperCase s)))
+  ;; - .toUpperCase stays as operator
+  ;; - s is factored into arg-vals
+  (testing "Java method call with local receiver"
+    (testing "receiver is captured in args"
+      (let [s "hello"
+            m (measured/expr (.toUpperCase s))
+            args (measured/args m)]
+        (is (= 1 (count args)))
+        (is (= "hello" (first args)))))
+    (testing "produces correct result"
+      (let [s "hello"
+            m (measured/expr (.toUpperCase s))]
+        (is (= "HELLO" (second (invoke m))))))
+    (testing "receiver is used dynamically"
+      (let [s "abc"
+            m (measured/expr (.toUpperCase s))
+            original-result (second (invoke m))
+            new-args-fn (fn [] ["xyz"])
+            m-with-different (measured/with-args-fn m new-args-fn)
+            new-result (second (invoke m-with-different))]
+        (is (= "ABC" original-result))
+        (is (= "XYZ" new-result))
+        (is (not= original-result new-result)
+            "results must differ to prove receiver is dynamic")))))
+
+(deftest java-interop-local-argument-test
+  ;; Verifies: (let [idx 1] (measured/expr (.nth [0 1 2] idx)))
+  ;; - .nth stays as operator
+  ;; - Both [0 1 2] and idx are factored
+  (testing "Java method call with local argument"
+    (testing "receiver and argument are captured in args"
+      (let [idx 1
+            m (measured/expr (.nth [0 1 2] idx))
+            args (measured/args m)]
+        (is (= 2 (count args)))
+        (is (some #(= [0 1 2] %) args) "vector should be in args")
+        (is (some #(= 1 %) args) "idx should be in args")))
+    (testing "produces correct result"
+      (let [idx 1
+            m (measured/expr (.nth [0 1 2] idx))]
+        (is (= 1 (second (invoke m))))))
+    (testing "argument is used dynamically"
+      (let [idx 1
+            m (measured/expr (.nth [0 1 2] idx))
+            original-result (second (invoke m))
+            ;; Replace the index with 2
+            args (measured/args m)
+            new-args-fn (fn [] (mapv #(if (= 1 %) 2 %) args))
+            m-with-different (measured/with-args-fn m new-args-fn)
+            new-result (second (invoke m-with-different))]
+        (is (= 1 original-result) "original: vec.nth(1) = 1")
+        (is (= 2 new-result) "substituted: vec.nth(2) = 2")
+        (is (not= original-result new-result)
+            "results must differ to prove argument is dynamic")))))
+
+(deftest java-interop-both-local-test
+  ;; Verifies: (let [s "hello" n 3] (measured/expr (.substring s n)))
+  ;; - .substring stays as operator
+  ;; - Both s and n are factored
+  (testing "Java method call with both local receiver and argument"
+    (testing "both receiver and argument are captured in args"
+      (let [s "hello"
+            n 3
+            m (measured/expr (.substring s n))
+            args (measured/args m)]
+        (is (= 2 (count args)))
+        (is (some #(= "hello" %) args) "string should be in args")
+        (is (some #(= 3 %) args) "n should be in args")))
+    (testing "produces correct result"
+      (let [s "hello"
+            n 3
+            m (measured/expr (.substring s n))]
+        (is (= "lo" (second (invoke m))))))
+    (testing "receiver is used dynamically"
+      (let [s "hello"
+            n 3
+            m (measured/expr (.substring s n))
+            original-result (second (invoke m))
+            ;; Replace the string
+            args (measured/args m)
+            new-args-fn (fn [] (mapv #(if (= "hello" %) "world!" %) args))
+            m-with-different (measured/with-args-fn m new-args-fn)
+            new-result (second (invoke m-with-different))]
+        (is (= "lo" original-result))
+        (is (= "ld!" new-result) "world!.substring(3) = ld!")
+        (is (not= original-result new-result)
+            "results must differ to prove receiver is dynamic")))
+    (testing "argument is used dynamically"
+      (let [s "hello"
+            n 3
+            m (measured/expr (.substring s n))
+            original-result (second (invoke m))
+            ;; Replace the index
+            args (measured/args m)
+            new-args-fn (fn [] (mapv #(if (= 3 %) 1 %) args))
+            m-with-different (measured/with-args-fn m new-args-fn)
+            new-result (second (invoke m-with-different))]
+        (is (= "lo" original-result))
+        (is (= "ello" new-result) "hello.substring(1) = ello")
+        (is (not= original-result new-result)
+            "results must differ to prove argument is dynamic")))))
+
 (deftest edge-case-tc3-qualified-symbol-test
   ;; TC3: Qualified symbols (ns/fn) remain global var references.
   ;; Qualified symbols like clojure.core/+ or criterium.measured-test/public-add
