@@ -282,7 +282,7 @@
       (testing "with recursive local operator factors at each level"
         ;; factor-form only factors expressions with the SAME operator as top-level
         ;; So (f (f x)) factors both f's, but (f (g x)) only factors outer f
-        (let [{:keys [expr arg-vals]} (impl/factor-form '(f (f x)) {'f 'lb-f})]
+        (let [{:keys [_expr arg-vals]} (impl/factor-form '(f (f x)) {'f 'lb-f})]
           ;; f should be factored twice, x once
           (is (= 3 (count arg-vals)))
           ;; f appears twice in vals (for both calls)
@@ -290,7 +290,7 @@
           (is (contains? (set (vals arg-vals)) 'x))))
       (testing "with different nested operator only factors outer"
         ;; (f (g x)) - only f is factored since inner has different op
-        (let [{:keys [expr arg-vals]} (impl/factor-form '(f (g x)) {'f 'lb-f 'g 'lb-g})]
+        (let [{:keys [_expr arg-vals]} (impl/factor-form '(f (g x)) {'f 'lb-f 'g 'lb-g})]
           ;; Only f is factored, (g x) is stored as a single value
           (is (= 2 (count arg-vals)))
           (is (contains? (set (vals arg-vals)) 'f))
