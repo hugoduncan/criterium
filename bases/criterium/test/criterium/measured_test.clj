@@ -492,6 +492,7 @@
 
 (defn- double-it ^long [^long x] (* x 2))
 (defn- triple-it ^long [^long x] (* x 3))
+(defn public-add "A public function for qualified symbol testing." [a b] (+ a b))
 
 (deftest local-operator-ac4-test
   ;; AC4: Nested local function calls.
@@ -556,3 +557,122 @@
         (is (= 18 new-result))
         (is (not= original-result new-result)
             "results must differ to prove outer function is dynamic")))))
+
+;;; Edge Case Tests for Operator Handling
+;; Tests verifying that interop calls, keywords in function position,
+;; and qualified symbols are handled correctly and not treated as local operators.
+
+(deftest edge-case-tc1-interop-test
+  ;; TC1: Interop calls - receiver is argument, not operator.
+  ;; Method calls like (.methodName obj) should work correctly.
+  ;; The receiver (obj) should be captured in args, not the method name.
+  (testing "interop calls"
+    (testing "string method call works correctly"
+      (let [s "hello"
+            m (measured/expr (.toUpperCase s))
+            args (measured/args m)]
+        ;; The string should be captured as an argument
+        (is (= 1 (count args)))
+        (is (= "hello" (first args)))
+        ;; Result should be the uppercased string
+        (is (= "HELLO" (second (invoke m))))))
+    (testing "string method with argument works"
+      (let [s "hello world"
+            m (measured/expr (.substring s 0 5))
+            args (measured/args m)]
+        ;; String and indices should be captured
+        (is (= 3 (count args)))
+        (is (some #(= "hello world" %) args))
+        (is (= "hello" (second (invoke m))))))
+    (testing "local receiver is dynamically used"
+      ;; Prove the receiver is not constant-folded by substitution
+      (let [s "abc"
+            m (measured/expr (.length s))
+            original-result (second (invoke m))
+            ;; Substitute with different string
+            new-args-fn (fn [] ["longer string"])
+            m-with-longer (measured/with-args-fn m new-args-fn)
+            new-result (second (invoke m-with-longer))]
+        (is (= 3 original-result) "original: \"abc\".length() = 3")
+        (is (= 13 new-result) "substituted: \"longer string\".length() = 13")
+        (is (not= original-result new-result)
+            "results must differ to prove receiver is dynamic")))))
+
+(deftest edge-case-tc2-keyword-operator-test
+  ;; TC2: Keywords in function position.
+  ;; Keywords can be used as functions to look up values in maps.
+  ;; The keyword should stay in operator position (not treated as local).
+  (testing "keywords in function position"
+    (testing "keyword lookup with literal keyword"
+      (let [m (measured/expr (:key {:key 42}))]
+        (is (= 42 (second (invoke m))))))
+    (testing "keyword lookup with local map"
+      (let [data {:key 99 :other 1}
+            m (measured/expr (:key data))
+            args (measured/args m)]
+        ;; The map should be captured as an argument
+        (is (= 1 (count args)))
+        (is (= data (first args)))
+        (is (= 99 (second (invoke m))))))
+    (testing "local map is dynamically used"
+      ;; Prove the map is not constant-folded by substitution
+      (let [data {:key 100}
+            m (measured/expr (:key data))
+            original-result (second (invoke m))
+            ;; Substitute with different map
+            new-args-fn (fn [] [{:key 200}])
+            m-with-different (measured/with-args-fn m new-args-fn)
+            new-result (second (invoke m-with-different))]
+        (is (= 100 original-result))
+        (is (= 200 new-result))
+        (is (not= original-result new-result)
+            "results must differ to prove map is dynamic")))
+    (testing "keyword with default value"
+      (let [data {:other 1}
+            m (measured/expr (:missing data :default))
+            args (measured/args m)]
+        ;; Map and default should be captured
+        (is (= 2 (count args)))
+        (is (= :default (second (invoke m))))))))
+
+(deftest edge-case-tc3-qualified-symbol-test
+  ;; TC3: Qualified symbols (ns/fn) remain global var references.
+  ;; Qualified symbols like clojure.core/+ or criterium.measured-test/public-add
+  ;; should not be treated as locals - they reference global vars.
+  (testing "qualified symbols as operators"
+    (testing "clojure.core qualified symbol"
+      (let [m (measured/expr (clojure.core/+ 1 2))
+            args (measured/args m)]
+        ;; Only the arguments should be captured, not the qualified function
+        (is (= 2 (count args)))
+        (is (= #{1 2} (set args)))
+        (is (= 3 (second (invoke m))))))
+    (testing "current namespace qualified symbol"
+      (let [m (measured/expr (criterium.measured-test/public-add 10 20))
+            args (measured/args m)]
+        ;; Only the arguments should be captured
+        (is (= 2 (count args)))
+        (is (= #{10 20} (set args)))
+        (is (= 30 (second (invoke m))))))
+    (testing "qualified symbols are not captured in args"
+      ;; Unlike local operators, qualified symbols should NOT appear in args
+      (let [m (measured/expr (clojure.core/+ 5 5))
+            args (measured/args m)]
+        ;; clojure.core/+ should not be in args
+        (is (not (some #(= clojure.core/+ %) args))
+            "qualified function should not be captured in args")
+        (is (= 10 (second (invoke m))))))
+    (testing "arguments to qualified functions are dynamic"
+      ;; The arguments should still be dynamically passed
+      (let [x 3
+            y 4
+            m (measured/expr (clojure.core/+ x y))
+            original-result (second (invoke m))
+            ;; Substitute with different values
+            new-args-fn (fn [] [10 20])
+            m-with-different (measured/with-args-fn m new-args-fn)
+            new-result (second (invoke m-with-different))]
+        (is (= 7 original-result))
+        (is (= 30 new-result))
+        (is (not= original-result new-result)
+            "results must differ to prove arguments are dynamic")))))
