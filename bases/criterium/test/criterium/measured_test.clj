@@ -228,6 +228,32 @@
       (testing "returns empty set when no arg-vals are locals"
         (is (= #{} (impl/identify-local-args {'a '(+ 1 2)} env)))))))
 
+;;; form-print tests
+;; Tests verifying form-print handles both regular symbols and gensyms.
+
+(deftest form-print-test
+  ;; Tests that form-print correctly handles gensym operators.
+  ;; When factor-form captures a local operator, the :op becomes a gensym.
+  ;; form-print must use the gensym as-is in the output expression.
+  (testing "form-print"
+    (testing "returns symbol unchanged"
+      (is (= 'x (impl/form-print 'x)))
+      (is (= 'my-fn (impl/form-print 'my-fn))))
+    (testing "handles FnCallExpr with regular operator"
+      (let [fn-call (impl/->FnCallExpr '+ ['a 'b] {'a 1 'b 2} nil)]
+        (is (= '(+ a b) (impl/form-print fn-call)))))
+    (testing "handles FnCallExpr with gensym operator"
+      ;; This is the key test - when operator is a local, it becomes a gensym
+      (let [op-sym (gensym "arg")
+            fn-call (impl/->FnCallExpr op-sym ['x 'y] {op-sym 'f 'x 1 'y 2} nil)
+            result (impl/form-print fn-call)]
+        ;; The gensym should appear in operator position
+        (is (= op-sym (first result)))
+        (is (= '(x y) (rest result)))))
+    (testing "preserves metadata on expression"
+      (let [fn-call (impl/->FnCallExpr '+ ['a] {'a 1} {:custom :meta})]
+        (is (= {:custom :meta} (meta (impl/form-print fn-call))))))))
+
 ;;; factor-form tests for local operator handling
 ;; Tests verifying that local functions in operator position are factored out.
 
