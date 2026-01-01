@@ -309,8 +309,8 @@
         options)
       (fn ~'measured-expr []
         ~(list 'quote
-               `(let [~@(reduce into [] arg-vals)]
-                  (time ~expr)))))))
+               `(~'let [~@(reduce into [] arg-vals)]
+                       (~'time ~expr)))))))
 
 (defn measured-callable
   ([f]
