@@ -756,20 +756,21 @@
         axis-key (first non-impl-keys)]
     (mapv
      (fn [[metric-id {:keys [metric data]}]]
-       (let [;; Get all raw values for SI scaling
-             all-values (keep (fn [[_coord value]]
-                                (if (and (map? value) (contains? value :value))
-                                  (:value value)
-                                  value))
-                              data)
+       (let [;; Get all raw values for error detection and SI scaling
+             all-raw-values (keep (fn [[_coord value]] value) data)
+             has-error-bounds (some error-bound-value? all-raw-values)
+             all-values (map get-numeric-value all-raw-values)
              {:keys [^double total-scale unit]}
              (compute-si-scaling metric all-values)
              ;; Build axis titles
              x-title (name axis-key)
              metric-name (name metric-id)
+             base-title (if has-error-bounds
+                          (str "mean " metric-name)
+                          metric-name)
              y-title (if (seq unit)
-                       (str metric-name " (" unit ")")
-                       metric-name)
+                       (str base-title " (" unit ")")
+                       base-title)
              ;; Build chart data points
              chart-data (mapv
                          (fn [[coord value]]

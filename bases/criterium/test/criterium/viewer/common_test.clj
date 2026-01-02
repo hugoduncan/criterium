@@ -425,7 +425,38 @@
         ;; Should have SI unit in y-title
         (is (or (str/includes? y-title "(")
                 (str/includes? y-title "μ")
-                (str/includes? y-title "m")))))))
+                (str/includes? y-title "m")))))
+
+    (testing "handles error-bound values"
+      (let [extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations [:foo :bar]
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100 :impl :foo} {:value 1.0e-6 :error 0.1e-6}]
+                                       [{:n 100 :impl :bar} {:value 2.0e-6 :error 0.2e-6}]
+                                       [{:n 200 :impl :foo} {:value 1.5e-6 :error 0.1e-6}]
+                                       [{:n 200 :impl :bar} {:value 2.5e-6 :error 0.2e-6}]]}}}
+            result (common/prepare-line-chart-data extract)
+            {:keys [y-title data]} (first result)]
+        (is (= 4 (count data)))
+        (is (every? #(number? (get % "y")) data))
+        (testing "includes 'mean' in y-title for error-bound values"
+          (is (str/starts-with? y-title "mean ")))))
+
+    (testing "does not prefix y-title with 'mean' for plain values"
+      (let [extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations [:foo :bar]
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100 :impl :foo} 1.0e-6]
+                                       [{:n 100 :impl :bar} 2.0e-6]
+                                       [{:n 200 :impl :foo} 1.5e-6]
+                                       [{:n 200 :impl :bar} 2.5e-6]]}}}
+            result (common/prepare-line-chart-data extract)
+            {:keys [y-title]} (first result)]
+        (is (not (str/starts-with? y-title "mean ")))))))
 
 ;;; Tests for prepare-comparison-line-data helper.
 ;;; Verifies line chart data preparation from domain-comparison data.
