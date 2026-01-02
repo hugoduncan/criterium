@@ -47,17 +47,20 @@
   [x]
   `(helpers/sqr ~x))
 
-(def sqrd
+(defn sqrd
   "Square of argument (function)"
-  helpers/sqrd)
+  ^double [^double x]
+  (helpers/sqrd x))
 
-(def cubed
+(defn cubed
   "Cube of argument"
-  helpers/cubed)
+  ^double [^double x]
+  (helpers/cubed x))
 
-(def trunc
+(defn trunc
   "Round towards zero to an integral value"
-  helpers/trunc)
+  ^double [^double x]
+  (helpers/trunc x))
 
 ;;; Helpers - collections
 
@@ -80,9 +83,12 @@
   "Filter map entries based on a predicate applied to values."
   helpers/filter-map)
 
-(def reduce-double-vector
+(defn reduce-double-vector
   "Reduce a double primitive value over a vector."
-  helpers/reduce-double-vector)
+  ^double [^clojure.lang.IFn$DOD f
+           ^double init
+           ^clojure.lang.APersistentVector v]
+  (helpers/reduce-double-vector f init v))
 
 (def deep-merge
   "Merge maps recursively."

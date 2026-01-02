@@ -18,33 +18,42 @@
   "Merge any buffered points into the digest."
   t-digest/compress)
 
-(def quantile
+(defn quantile
   "Return estimated value at given quantile [0,1].
    Return nil if digest is empty."
-  t-digest/quantile)
+  ^double [digest ^double q]
+  (t-digest/quantile digest q))
 
-(def cdf
+(defn cdf
   "Return the cumulative probability at x.
    Return NaN if digest is empty."
-  t-digest/cdf)
+  ^double [digest ^double x]
+  (t-digest/cdf digest x))
 
-(def sample-count t-digest/sample-count)
+(defn sample-count
+  ^double [digest]
+  (t-digest/sample-count digest))
 
-(def minimum t-digest/minimum)
+(defn minimum
+  ^double [digest]
+  (t-digest/minimum digest))
 
-(def maximum t-digest/maximum)
+(defn maximum
+  ^double [digest]
+  (t-digest/maximum digest))
 
-(def mean
+(defn mean
   "Return the mean estimate.
    Return NaN if digest is empty."
-  t-digest/mean)
+  ^double [digest]
+  (t-digest/mean digest))
 
 (defn variance
   "Return the variance estimate.
    Return NaN if digest is empty."
-  ([digest]
+  (^double [digest]
    (t-digest/variance digest))
-  ([digest mean]
+  (^double [digest ^double mean]
    (t-digest/variance digest mean)))
 
 (def transform t-digest/transform)

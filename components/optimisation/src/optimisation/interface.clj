@@ -15,6 +15,7 @@
   - :r-sqr - coefficient of determination (R-squared)"
   regression/linear-regression)
 
-(def sum-square-delta
+(defn sum-square-delta
   "Sum of squared differences from a mean value."
-  regression/sum-square-delta)
+  ^double [vs ^double mv]
+  (regression/sum-square-delta vs mv))
