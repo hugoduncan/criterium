@@ -56,9 +56,9 @@
   "Create an RNG factory that produces deterministic but different sequences.
   Each call to the returned factory uses a different seed based on a counter,
   ensuring reproducible test results across platforms."
-  [base-seed]
+  [^long base-seed]
   (let [counter (atom 0)]
-    #(random/well-rng-1024a (+ base-seed (swap! counter inc)))))
+    #(random/well-rng-1024a (+ base-seed ^long (swap! counter inc)))))
 
 ;;; Jackknife validation (deterministic - exact match)
 
@@ -137,7 +137,7 @@
         (testing "mean estimate converges to sample mean"
           ;; Both R and Clojure bootstrap means should be close to the original sample mean
           (let [data (vec (sort normal-data))
-                true-mean (stats/mean data)
+                true-mean (double (stats/mean data))
                 boot-size 1000
                 ;; Clojure bootstrap
                 clj-samples (stats/bootstrap-sample
@@ -163,10 +163,10 @@
         (testing "variance estimate is reasonable"
           ;; Bootstrap variance of the mean should approximate SE²
           (let [data (vec (sort normal-data))
-                n (count data)
+                n (double (count data))
                 boot-size 1000
                 ;; Analytical SE² = var(data) / n
-                analytical-var (/ (stats/variance data) n)
+                analytical-var (/ (double (stats/variance data)) n)
                 ;; Clojure bootstrap variance
                 clj-samples (stats/bootstrap-sample
                              data stats/mean boot-size random/well-rng-1024a)
@@ -315,7 +315,7 @@
 
         (testing "point estimate matches sample statistic"
           (let [data (vec (sort normal-data))
-                true-mean (stats/mean data)
+                true-mean (double (stats/mean data))
                 boot-size 500
                 alpha [0.5 0.025 0.975]
                 result (stats/bootstrap-bca
