@@ -1,4 +1,4 @@
-.PHONY: test test-watch docs eastwood cljfmt cloverage release deploy clean
+.PHONY: dev test test-watch docs eastwood cljfmt cloverage release deploy clean
 
 VERSION ?= 0.4.6-SNAPSHOT
 
@@ -6,6 +6,10 @@ TEST_PROFILES := :test
 
 FULL_PROFILES := :test.check:clj-xchart
 
+
+dev:
+	cd agent-cpp && cmake -B build && cmake --build build
+	cd bases/criterium && clojure -T:deps prep
 
 kondo:
 	clj-kondo --lint src
