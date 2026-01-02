@@ -590,31 +590,41 @@
           :data chart-data}))
      (sort-by key metrics))))
 
+(defn- chart-layer
+  "Build a chart layer by merging chart-options with mark and encoding.
+  Common structure for bar and line chart layers."
+  [data chart-options mark encoding]
+  (merge
+   chart-options
+   {:data {:values data}
+    :mark mark
+    :encoding encoding}))
+
 (defn- bar-chart-layer
   "Build a single bar chart layer from prepared bar data.
   Used by both single-point-bar-chart-spec and comparison-bar-chart-spec."
   [{:keys [y-title data]} chart-options]
-  (merge
+  (chart-layer
+   data
    chart-options
-   {:data {:values data}
-    :mark {:type "bar"}
-    :encoding {:x {:field "impl"
-                   :type "nominal"
-                   :title "Implementation"
-                   :axis {:labelAngle 0}}
-               :y {:field "value"
-                   :type "quantitative"
-                   :title y-title}
-               :color {:field "impl"
-                       :type "nominal"
-                       :legend nil}
-               :tooltip [{:field "impl"
-                          :type "nominal"
-                          :title "Implementation"}
-                         {:field "value"
-                          :type "quantitative"
-                          :title y-title
-                          :format ".3g"}]}}))
+   {:type "bar"}
+   {:x {:field "impl"
+        :type "nominal"
+        :title "Implementation"
+        :axis {:labelAngle 0}}
+    :y {:field "value"
+        :type "quantitative"
+        :title y-title}
+    :color {:field "impl"
+            :type "nominal"
+            :legend nil}
+    :tooltip [{:field "impl"
+               :type "nominal"
+               :title "Implementation"}
+              {:field "value"
+               :type "quantitative"
+               :title y-title
+               :format ".3g"}]}))
 
 (defn single-point-bar-chart-spec
   "Build a Vega-Lite bar chart spec for single-point multi-impl comparison.
@@ -654,30 +664,30 @@
   "Build a single line chart layer from prepared line data.
   Used by both domain-line-chart-spec and comparison-line-chart-spec."
   [{:keys [x-title y-title data]} chart-options]
-  (merge
+  (chart-layer
+   data
    chart-options
-   {:data {:values data}
-    :mark {:type "line" :point true}
-    :encoding {:x {:field "x"
-                   :type "quantitative"
-                   :title x-title
-                   :scale {:zero false}}
-               :y {:field "y"
-                   :type "quantitative"
-                   :title y-title}
-               :color {:field "impl"
-                       :type "nominal"
-                       :title "Implementation"}
-               :tooltip [{:field "impl"
-                          :type "nominal"
-                          :title "Implementation"}
-                         {:field "x"
-                          :type "quantitative"
-                          :title x-title}
-                         {:field "y"
-                          :type "quantitative"
-                          :title y-title
-                          :format ".3g"}]}}))
+   {:type "line" :point true}
+   {:x {:field "x"
+        :type "quantitative"
+        :title x-title
+        :scale {:zero false}}
+    :y {:field "y"
+        :type "quantitative"
+        :title y-title}
+    :color {:field "impl"
+            :type "nominal"
+            :title "Implementation"}
+    :tooltip [{:field "impl"
+               :type "nominal"
+               :title "Implementation"}
+              {:field "x"
+               :type "quantitative"
+               :title x-title}
+              {:field "y"
+               :type "quantitative"
+               :title y-title
+               :format ".3g"}]}))
 
 (defn domain-line-chart-spec
   "Build a Vega-Lite line chart spec for single-axis multi-point domain extract.
