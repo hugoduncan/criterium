@@ -247,9 +247,8 @@
   [_ {:keys [extract-id]} data-map]
   (let [extract-id (or extract-id :extract)
         extract (data-map extract-id)]
-    (cond
-      ;; Single-point comparison: transposed table + bar chart
-      (viewer-common/single-point-multi-impl? extract)
+    (case (viewer-common/visualization-strategy extract)
+      :single-point-bar
       (when-let [{:keys [heading col-headers rows]}
                  (viewer-common/prepare-domain-extract-table-transposed extract)]
         (kindly-heading heading)
@@ -258,8 +257,7 @@
          (charts/single-point-bar-chart-spec extract {:width chart-width
                                                       :height chart-height})))
 
-      ;; Multi-point comparison: regular table + line chart
-      (viewer-common/single-axis-multi-point? extract)
+      :multi-point-line
       (when-let [{:keys [heading coord-header col-headers rows]}
                  (viewer-common/prepare-domain-extract-table
                   extract {:header-sep "\n"})]
@@ -269,8 +267,7 @@
          (charts/domain-line-chart-spec extract {:width chart-width
                                                  :height chart-height})))
 
-      ;; Regular table format (no chart)
-      :else
+      :default-table
       (when-let [{:keys [heading coord-header col-headers rows]}
                  (viewer-common/prepare-domain-extract-table
                   extract {:header-sep "\n"})]
@@ -295,18 +292,16 @@
       (doseq [{:keys [heading coord-header col-headers rows]} tables]
         (kindly-heading heading)
         (kindly-table rows {:column-names (into [coord-header] col-headers)}))
-      ;; Add chart based on data shape
-      (cond
-        ;; Single-point: bar chart
-        (viewer-common/single-point-multi-impl-comparison? comparison)
+      (case (viewer-common/comparison-visualization-strategy comparison)
+        :single-point-bar
         (kindly-vega-lite
          (charts/comparison-bar-chart-spec comparison {:width chart-width
                                                        :height chart-height}))
-        ;; Multi-point: line chart
-        (viewer-common/single-axis-multi-point-comparison? comparison)
+        :multi-point-line
         (kindly-vega-lite
          (charts/comparison-line-chart-spec comparison {:width chart-width
-                                                        :height chart-height}))))))
+                                                        :height chart-height}))
+        :default-table nil))))
 
 (defmethod view/domain-regression* :kindly
   [_ {:keys [regression-id extract-id tolerance]} data-map]

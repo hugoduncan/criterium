@@ -122,6 +122,56 @@
     (testing "returns nil for nil extract"
       (is (nil? (common/single-axis-multi-point? nil))))))
 
+;;; Tests for visualization-strategy helper.
+;;; Verifies the helper returns correct strategy keywords based on extract shape.
+
+(deftest visualization-strategy-test
+  ;; Tests visualization strategy selection for domain-extract
+  (testing "visualization-strategy"
+    (testing "returns :single-point-bar for single-point multi-impl"
+      (let [extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations [:foo :bar]
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100 :impl :foo} 1.0e-6]
+                                       [{:n 100 :impl :bar} 2.0e-6]]}}}]
+        (is (= :single-point-bar (common/visualization-strategy extract)))))
+
+    (testing "returns :multi-point-line for multi-point single-axis"
+      (let [extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations [:foo :bar]
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100 :impl :foo} 1.0e-6]
+                                       [{:n 100 :impl :bar} 2.0e-6]
+                                       [{:n 200 :impl :foo} 1.5e-6]
+                                       [{:n 200 :impl :bar} 2.5e-6]]}}}]
+        (is (= :multi-point-line (common/visualization-strategy extract)))))
+
+    (testing "returns :default-table for single implementation"
+      (let [extract {:type :criterium/domain-extract
+                     :implementations [:default]
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100} 1.0e-6]
+                                       [{:n 200} 2.0e-6]]}}}]
+        (is (= :default-table (common/visualization-strategy extract)))))
+
+    (testing "returns :default-table for multiple non-impl axes"
+      (let [extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations [:foo :bar]
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100 :m 10 :impl :foo} 1.0e-6]
+                                       [{:n 100 :m 10 :impl :bar} 2.0e-6]]}}}]
+        (is (= :default-table (common/visualization-strategy extract)))))
+
+    (testing "returns :default-table for nil extract"
+      (is (= :default-table (common/visualization-strategy nil))))))
+
 ;;; Tests for prepare-domain-extract-table-transposed helper.
 ;;; Verifies transposed table generation for single-point multi-impl scenarios
 ;;; where each row is an implementation with value and factor columns.
@@ -252,15 +302,27 @@
                                           :bar [{:coord {:n 100} :value 2.0e-6}]}}}}]
         (is (true? (common/single-point-multi-impl-comparison? comparison)))))
 
-    (testing "returns false when axis is impl-axis (multiple axis values)"
-      ;; When :axis :impl, each implementation contributes its own axis value,
-      ;; so there are multiple axis values (one per impl), not a single point.
+    (testing "returns true when axis is impl-axis with single n value"
+      ;; When :axis :impl with same n value across all impls, it's single-point
+      ;; (bar chart scenario) because there's only one parameter point.
       (let [comparison {:type :criterium/domain-comparison
                         :axis :impl
                         :implementations [:foo :bar]
                         :metric [:stats :elapsed-time :mean]
                         :data {:foo [{:coord {:impl :foo :n 100} :value 1.0e-6}]
                                :bar [{:coord {:impl :bar :n 100} :value 2.0e-6}]}}]
+        (is (true? (common/single-point-multi-impl-comparison? comparison)))))
+
+    (testing "returns false when axis is impl-axis with multiple n values"
+      ;; When :axis :impl with varying n values, it's multi-point (line chart).
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :impl
+                        :implementations [:foo :bar]
+                        :metric [:stats :elapsed-time :mean]
+                        :data {:foo [{:coord {:impl :foo :n 100} :value 1.0e-6}
+                                     {:coord {:impl :foo :n 200} :value 1.5e-6}]
+                               :bar [{:coord {:impl :bar :n 100} :value 2.0e-6}
+                                     {:coord {:impl :bar :n 200} :value 2.5e-6}]}}]
         (is (not (common/single-point-multi-impl-comparison? comparison)))))))
 
 ;;; Tests for prepare-comparison-bar-data helper.
@@ -357,14 +419,73 @@
                                                 {:coord {:n 200} :value 2.5e-6}]}}}}]
         (is (true? (common/single-axis-multi-point-comparison? comparison)))))
 
-    (testing "returns false when axis is impl-axis (axis values match implementations)"
+    (testing "returns false when axis is impl-axis with single n value"
+      ;; Single n value means single-point (bar chart), not multi-point (line chart).
       (let [comparison {:type :criterium/domain-comparison
                         :axis :impl
                         :implementations [:foo :bar]
                         :metric [:stats :elapsed-time :mean]
                         :data {:foo [{:coord {:impl :foo :n 100} :value 1.0e-6}]
                                :bar [{:coord {:impl :bar :n 100} :value 2.0e-6}]}}]
-        (is (not (common/single-axis-multi-point-comparison? comparison)))))))
+        (is (not (common/single-axis-multi-point-comparison? comparison)))))
+
+    (testing "returns true when axis is impl-axis with multiple n values"
+      ;; Multiple n values means line chart with n on x-axis, impl as color.
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :impl
+                        :implementations [:foo :bar]
+                        :metric [:stats :elapsed-time :mean]
+                        :data {:foo [{:coord {:impl :foo :n 100} :value 1.0e-6}
+                                     {:coord {:impl :foo :n 200} :value 1.5e-6}]
+                               :bar [{:coord {:impl :bar :n 100} :value 2.0e-6}
+                                     {:coord {:impl :bar :n 200} :value 2.5e-6}]}}]
+        (is (true? (common/single-axis-multi-point-comparison? comparison)))))))
+
+;;; Tests for comparison-visualization-strategy helper.
+;;; Verifies the helper returns correct strategy keywords based on comparison shape.
+
+(deftest comparison-visualization-strategy-test
+  ;; Tests visualization strategy selection for domain-comparison
+  (testing "comparison-visualization-strategy"
+    (testing "returns :single-point-bar for single-point multi-impl"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo :bar]
+                        :data {:foo [{:coord {:n 100} :value 1.0e-6}]
+                               :bar [{:coord {:n 100} :value 2.0e-6}]}}]
+        (is (= :single-point-bar
+               (common/comparison-visualization-strategy comparison)))))
+
+    (testing "returns :multi-point-line for multi-point single-axis"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo :bar]
+                        :data {:foo [{:coord {:n 100} :value 1.0e-6}
+                                     {:coord {:n 200} :value 1.5e-6}]
+                               :bar [{:coord {:n 100} :value 2.0e-6}
+                                     {:coord {:n 200} :value 2.5e-6}]}}]
+        (is (= :multi-point-line
+               (common/comparison-visualization-strategy comparison)))))
+
+    (testing "returns :default-table for single implementation"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo]
+                        :data {:foo [{:coord {:n 100} :value 1.0e-6}
+                                     {:coord {:n 200} :value 1.5e-6}]}}]
+        (is (= :default-table
+               (common/comparison-visualization-strategy comparison)))))
+
+    (testing "returns :default-table when no implementations key"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :mean]
+                        :data {:foo [{:coord {:n 100} :value 1.0e-6}]}}]
+        (is (= :default-table
+               (common/comparison-visualization-strategy comparison)))))))
 
 ;;; Tests for prepare-line-chart-data helper.
 ;;; Verifies line chart data preparation from domain-extract data.
