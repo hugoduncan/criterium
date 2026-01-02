@@ -255,6 +255,17 @@
     (single-axis-multi-point? extract) :multi-point-line
     :else :default-table))
 
+(defn- comparison-all-entries
+  "Iterate over all entries in a comparison, handling both single and multi-metric modes.
+  Returns a lazy sequence of entry maps (each containing :coord, :value)."
+  [{:keys [data metrics]}]
+  (if metrics
+    (->> metrics
+         vals
+         (mapcat (fn [{:keys [data]}]
+                   (mapcat val data))))
+    (mapcat val data)))
+
 (defn- comparison-point-count
   "Count unique parameter points in a comparison.
 
@@ -265,29 +276,10 @@
   axis values since non-axis would be empty.
 
   Returns {:count N :has-non-axis-key? bool :single-non-axis-key? bool}"
-  [{:keys [axis data metrics]}]
-  (let [extract-info
-        (fn [entries]
-          (map (fn [entry]
-                 (let [coord (:coord entry)]
-                   {:non-axis (dissoc coord axis)
-                    :axis-val (get coord axis)}))
-               entries))
-        all-info
-        (if metrics
-          ;; Multi-metric mode
-          (->> metrics
-               vals
-               (mapcat (fn [{:keys [data]}]
-                         (mapcat (fn [[_impl entries]]
-                                   (extract-info entries))
-                                 data))))
-          ;; Single-metric mode
-          (->> data
-               vals
-               (mapcat extract-info)))
-        non-axis-coords (into #{} (map :non-axis) all-info)
-        axis-values (into #{} (map :axis-val) all-info)
+  [{:keys [axis] :as comparison}]
+  (let [all-coords (into #{} (map :coord) (comparison-all-entries comparison))
+        non-axis-coords (into #{} (map #(dissoc % axis)) all-coords)
+        axis-values (into #{} (map #(get % axis)) all-coords)
         first-non-axis (first non-axis-coords)
         has-non-axis-key? (and (map? first-non-axis) (seq first-non-axis))
         single-non-axis-key? (and has-non-axis-key?
