@@ -358,16 +358,18 @@
   Returns vector of bin weights that sum to 1.0."
   kde/linear-bin)
 
-(def silverman-bandwidth
+(defn silverman-bandwidth
   "Silverman's rule of thumb bandwidth selector.
   h = 0.9 * min(σ, IQR/1.34) * n^(-1/5)"
-  kde/silverman-bandwidth)
+  ^double [data]
+  (kde/silverman-bandwidth data))
 
-(def isj-bandwidth
+(defn isj-bandwidth
   "Improved Sheather-Jones bandwidth selector.
   Uses DCT-based algorithm from Botev et al. for optimal bandwidth
   selection that works well for multimodal distributions."
-  kde/isj-bandwidth)
+  ^double [data]
+  (kde/isj-bandwidth data))
 
 (def gaussian-kde
   "Compute Gaussian kernel density estimate at grid points.
@@ -400,14 +402,16 @@
   ([data bandwidth grid n-modes opts]
    (kde/mode-confidence-intervals data bandwidth grid n-modes opts)))
 
-(def count-modes
+(defn count-modes
   "Count number of modes in KDE with given bandwidth."
-  kde/count-modes)
+  ^long [data ^double bandwidth ^long n-points]
+  (kde/count-modes data bandwidth n-points))
 
-(def critical-bandwidth
+(defn critical-bandwidth
   "Find smallest bandwidth giving at most k modes via binary search.
   Returns the critical bandwidth h_k."
-  kde/critical-bandwidth)
+  ^double [data ^long k opts]
+  (kde/critical-bandwidth data k opts))
 
 (def locate-modes
   "Find mode and antimode locations using critical bandwidth.
