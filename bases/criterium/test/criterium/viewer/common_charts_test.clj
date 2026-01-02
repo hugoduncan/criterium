@@ -381,6 +381,171 @@
             (str "comparison-bar-chart-spec validation failed: "
                  (pr-str (:errors result))))))))
 
+;;; Multi-point line chart tests.
+;;; Verifies line chart generation for single-axis multi-point comparison scenarios.
+
+(def multi-point-extract
+  "Sample multi-point multi-impl extract for line chart testing."
+  {:type :criterium/domain-extract
+   :impl-axis :impl
+   :implementations [:foo :bar]
+   :metrics {:elapsed-time
+             {:metric [:stats :elapsed-time :mean]
+              :data [[{:n 100 :impl :foo} 1.0e-6]
+                     [{:n 100 :impl :bar} 2.0e-6]
+                     [{:n 200 :impl :foo} 1.5e-6]
+                     [{:n 200 :impl :bar} 2.5e-6]
+                     [{:n 400 :impl :foo} 2.0e-6]
+                     [{:n 400 :impl :bar} 3.5e-6]]}}})
+
+(deftest domain-line-chart-spec-test
+  ;; Tests line chart spec generation for single-axis multi-point comparisons.
+  ;; Verifies correct Vega-Lite structure with lines per implementation.
+  (testing "domain-line-chart-spec"
+    (testing "produces valid structure"
+      (let [spec (charts/domain-line-chart-spec
+                  multi-point-extract
+                  {:width 400 :height 300})]
+        (is (map? spec))
+        (is (contains? spec :vconcat))
+        (is (vector? (:vconcat spec)))
+        (is (= 1 (count (:vconcat spec))))))
+
+    (testing "includes line mark with points"
+      (let [spec (charts/domain-line-chart-spec
+                  multi-point-extract
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))]
+        (is (= {:type "line" :point true} (:mark chart)))))
+
+    (testing "encodes axis value on x-axis"
+      (let [spec (charts/domain-line-chart-spec
+                  multi-point-extract
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            x-encoding (get-in chart [:encoding :x])]
+        (is (= "x" (:field x-encoding)))
+        (is (= "quantitative" (:type x-encoding)))
+        (is (= "n" (:title x-encoding)))))
+
+    (testing "encodes value on y-axis"
+      (let [spec (charts/domain-line-chart-spec
+                  multi-point-extract
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            y-encoding (get-in chart [:encoding :y])]
+        (is (= "y" (:field y-encoding)))
+        (is (= "quantitative" (:type y-encoding)))))
+
+    (testing "encodes implementation as color"
+      (let [spec (charts/domain-line-chart-spec
+                  multi-point-extract
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            color-encoding (get-in chart [:encoding :color])]
+        (is (= "impl" (:field color-encoding)))
+        (is (= "nominal" (:type color-encoding)))
+        (is (= "Implementation" (:title color-encoding)))))
+
+    (testing "respects chart dimensions"
+      (let [spec (charts/domain-line-chart-spec
+                  multi-point-extract
+                  {:width 500 :height 250})
+            chart (first (:vconcat spec))]
+        (is (= 500 (:width chart)))
+        (is (= 250 (:height chart)))))
+
+    (testing "includes tooltip"
+      (let [spec (charts/domain-line-chart-spec
+                  multi-point-extract
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            tooltip (get-in chart [:encoding :tooltip])]
+        (is (vector? tooltip))
+        (is (= 3 (count tooltip)))))))
+
+(deftest domain-line-chart-spec-schema-validation-test
+  ;; Validates domain-line-chart-spec output against Vega-Lite v6 schema.
+  ;; Tests line chart visualization for implementation comparison.
+  (testing "domain-line-chart-spec"
+    (testing "produces valid Vega-Lite spec"
+      (let [spec (charts/domain-line-chart-spec
+                  multi-point-extract
+                  {:width 400 :height 300})
+            result (schema/validate-vega-lite-spec spec)]
+        (is (:valid? result)
+            (str "domain-line-chart-spec validation failed: "
+                 (pr-str (:errors result))))))))
+
+;;; Comparison line chart tests.
+;;; Verifies line chart generation from domain-comparison data.
+
+(def multi-point-comparison
+  "Sample multi-point multi-impl comparison for line chart testing."
+  {:type :criterium/domain-comparison
+   :axis :n
+   :metric [:stats :elapsed-time :mean]
+   :implementations [:foo :bar]
+   :data {:foo [{:coord {:n 100} :value 1.0e-6}
+                {:coord {:n 200} :value 1.5e-6}
+                {:coord {:n 400} :value 2.0e-6}]
+          :bar [{:coord {:n 100} :value 2.0e-6}
+                {:coord {:n 200} :value 2.5e-6}
+                {:coord {:n 400} :value 3.5e-6}]}})
+
+(deftest comparison-line-chart-spec-test
+  ;; Tests line chart spec generation from domain-comparison data.
+  ;; Verifies correct Vega-Lite structure with lines per implementation.
+  (testing "comparison-line-chart-spec"
+    (testing "produces valid structure"
+      (let [spec (charts/comparison-line-chart-spec
+                  multi-point-comparison
+                  {:width 400 :height 300})]
+        (is (map? spec))
+        (is (contains? spec :vconcat))
+        (is (vector? (:vconcat spec)))
+        (is (= 1 (count (:vconcat spec))))))
+
+    (testing "includes line mark with points"
+      (let [spec (charts/comparison-line-chart-spec
+                  multi-point-comparison
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))]
+        (is (= {:type "line" :point true} (:mark chart)))))
+
+    (testing "encodes axis value on x-axis"
+      (let [spec (charts/comparison-line-chart-spec
+                  multi-point-comparison
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            x-encoding (get-in chart [:encoding :x])]
+        (is (= "x" (:field x-encoding)))
+        (is (= "quantitative" (:type x-encoding)))
+        (is (= "n" (:title x-encoding)))))
+
+    (testing "encodes implementation as color"
+      (let [spec (charts/comparison-line-chart-spec
+                  multi-point-comparison
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            color-encoding (get-in chart [:encoding :color])]
+        (is (= "impl" (:field color-encoding)))
+        (is (= "nominal" (:type color-encoding)))
+        (is (= "Implementation" (:title color-encoding)))))))
+
+(deftest comparison-line-chart-spec-schema-validation-test
+  ;; Validates comparison-line-chart-spec output against Vega-Lite v6 schema.
+  ;; Tests line chart visualization from domain-comparison data.
+  (testing "comparison-line-chart-spec"
+    (testing "produces valid Vega-Lite spec"
+      (let [spec (charts/comparison-line-chart-spec
+                  multi-point-comparison
+                  {:width 400 :height 300})
+            result (schema/validate-vega-lite-spec spec)]
+        (is (:valid? result)
+            (str "comparison-line-chart-spec validation failed: "
+                 (pr-str (:errors result))))))))
+
 (deftest treemap-vega-spec-schema-validation-test
   ;; Validates treemap-vega-spec output against Vega v5 schema.
   ;; Tests treemap visualization for allocation data.

@@ -228,15 +228,27 @@
   [_ {:keys [extract-id]} data-map]
   (let [extract-id (or extract-id :extract)
         extract (data-map extract-id)]
-    (if (viewer-common/single-point-multi-impl? extract)
+    (cond
       ;; Single-point comparison: transposed table + bar chart
+      (viewer-common/single-point-multi-impl? extract)
       (when-let [{:keys [rows] heading-text :heading}
                  (viewer-common/prepare-domain-extract-table-transposed extract)]
         (heading heading-text)
         (portal-table rows)
         (portal-vega-lite
          (charts/single-point-bar-chart-spec extract {:height 400})))
-      ;; Regular table format
+
+      ;; Multi-point comparison: regular table + line chart
+      (viewer-common/single-axis-multi-point? extract)
+      (when-let [table-data (viewer-common/prepare-domain-extract-table
+                             extract {:header-sep " "})]
+        (heading (:heading table-data))
+        (portal-table (:rows table-data))
+        (portal-vega-lite
+         (charts/domain-line-chart-spec extract {:height 400})))
+
+      ;; Regular table format (no chart)
+      :else
       (when-let [table-data (viewer-common/prepare-domain-extract-table
                              extract {:header-sep " "})]
         (heading (:heading table-data))
@@ -260,10 +272,16 @@
       (doseq [{:keys [rows] heading-text :heading} tables]
         (heading heading-text)
         (portal-table rows))
-      ;; Add bar chart for single-point multi-impl comparison
-      (when (viewer-common/single-point-multi-impl-comparison? comparison)
+      ;; Add chart based on data shape
+      (cond
+        ;; Single-point: bar chart
+        (viewer-common/single-point-multi-impl-comparison? comparison)
         (portal-vega-lite
-         (charts/comparison-bar-chart-spec comparison {:height 400}))))))
+         (charts/comparison-bar-chart-spec comparison {:height 400}))
+        ;; Multi-point: line chart
+        (viewer-common/single-axis-multi-point-comparison? comparison)
+        (portal-vega-lite
+         (charts/comparison-line-chart-spec comparison {:height 400}))))))
 
 (defmethod view/domain-regression* :portal
   [_ {:keys [regression-id extract-id tolerance]} data-map]

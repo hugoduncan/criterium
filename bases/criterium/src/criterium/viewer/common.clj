@@ -268,6 +268,34 @@
                    (into #{})))]
         (= 1 (count all-axis-values))))))
 
+(defn single-axis-multi-point-comparison?
+  "Return true when comparison has multiple implementations and multiple axis values.
+
+  This detects the 'line chart' scenario for domain-comparison views where we're
+  comparing multiple implementations across a range of parameter values."
+  [comparison]
+  (let [{:keys [axis implementations data metrics]} comparison
+        multi-impl? (and implementations (> (count implementations) 1))]
+    (when multi-impl?
+      ;; Get all axis values from the data
+      (let [all-axis-values
+            (if metrics
+              ;; Multi-metric mode: data is under each metric
+              (->> metrics
+                   vals
+                   (mapcat (fn [{:keys [data]}]
+                             (mapcat (fn [[_impl entries]]
+                                       (map #(get (:coord %) axis) entries))
+                                     data)))
+                   (into #{}))
+              ;; Single-metric mode: data is directly keyed by impl
+              (->> data
+                   vals
+                   (mapcat (fn [entries]
+                             (map #(get (:coord %) axis) entries)))
+                   (into #{})))]
+        (> (count all-axis-values) 1)))))
+
 ;;; Domain view helpers
 
 (defn format-coord
@@ -706,6 +734,148 @@
                         implementations)]
         [{:metric-id nil
           :metric-path metric
+          :y-title y-title
+          :data chart-data}]))))
+
+(defn prepare-line-chart-data
+  "Prepare data for line chart from domain extract.
+  Returns a vector of maps, one per metric, each containing:
+    :metric-id - the metric keyword
+    :metric-path - the metric path vector
+    :x-title - x-axis title (the axis name)
+    :y-title - y-axis title with SI unit
+    :data - vector of {\"x\" number \"y\" number \"impl\" string} maps"
+  [extract]
+  (let [impl-axis-key (:impl-axis extract)
+        implementations (:implementations extract)
+        metrics (:metrics extract)
+        ;; Find the non-impl axis key
+        first-metric-data (:data (val (first metrics)))
+        first-coord (first (first first-metric-data))
+        non-impl-keys (when (map? first-coord)
+                        (disj (set (keys first-coord)) impl-axis-key))
+        axis-key (first non-impl-keys)]
+    (mapv
+     (fn [[metric-id {:keys [metric data]}]]
+       (let [;; Get all raw values for SI scaling
+             all-values (keep (fn [[_coord value]]
+                                (if (and (map? value) (contains? value :value))
+                                  (:value value)
+                                  value))
+                              data)
+             {:keys [^double total-scale unit]}
+             (compute-si-scaling metric all-values)
+             ;; Build axis titles
+             x-title (name axis-key)
+             metric-name (name metric-id)
+             y-title (if (seq unit)
+                       (str metric-name " (" unit ")")
+                       metric-name)
+             ;; Build chart data points
+             chart-data (mapv
+                         (fn [[coord value]]
+                           (let [raw-value (if (and (map? value)
+                                                    (contains? value :value))
+                                             (:value value)
+                                             value)
+                                 x-val (get coord axis-key)
+                                 impl-val (get coord impl-axis-key)]
+                             {"x" x-val
+                              "y" (when raw-value
+                                    (* (double raw-value) total-scale))
+                              "impl" (name impl-val)}))
+                         data)]
+         {:metric-id metric-id
+          :metric-path metric
+          :x-title x-title
+          :y-title y-title
+          :data chart-data}))
+     (sort-by key metrics))))
+
+(defn prepare-comparison-line-data
+  "Prepare data for line chart from domain comparison.
+  Returns a vector of maps, one per metric, each containing:
+    :metric-id - the metric keyword (or nil for single-metric mode)
+    :metric-path - the metric path vector
+    :x-title - x-axis title (the axis name)
+    :y-title - y-axis title with SI unit
+    :data - vector of {\"x\" number \"y\" number \"impl\" string} maps"
+  [comparison]
+  (let [{:keys [axis metric metrics implementations data]} comparison
+        x-title (name axis)]
+    (if metrics
+      ;; Multi-metric mode
+      (mapv
+       (fn [[metric-id {:keys [metric data]}]]
+         (let [;; Collect all values for SI scaling
+               all-values (->> data
+                               vals
+                               (mapcat (fn [entries]
+                                         (keep (fn [{:keys [value]}]
+                                                 (if (and (map? value)
+                                                          (contains? value :value))
+                                                   (:value value)
+                                                   value))
+                                               entries))))
+               {:keys [^double total-scale unit]}
+               (compute-si-scaling metric all-values)
+               ;; Build y-axis title
+               metric-name (name metric-id)
+               y-title (if (seq unit)
+                         (str metric-name " (" unit ")")
+                         metric-name)
+               ;; Build chart data points
+               chart-data (vec
+                           (for [[impl-val entries] data
+                                 {:keys [coord value]} entries
+                                 :let [raw-value (if (and (map? value)
+                                                          (contains? value :value))
+                                                   (:value value)
+                                                   value)
+                                       x-val (get coord axis)]
+                                 :when (some? raw-value)]
+                             {"x" x-val
+                              "y" (* (double raw-value) total-scale)
+                              "impl" (name impl-val)}))]
+           {:metric-id metric-id
+            :metric-path metric
+            :x-title x-title
+            :y-title y-title
+            :data chart-data}))
+       (sort-by key metrics))
+      ;; Single-metric mode
+      (let [;; Collect all values for SI scaling
+            all-values (->> data
+                            vals
+                            (mapcat (fn [entries]
+                                      (keep (fn [{:keys [value]}]
+                                              (if (and (map? value)
+                                                       (contains? value :value))
+                                                (:value value)
+                                                value))
+                                            entries))))
+            {:keys [^double total-scale unit]}
+            (compute-si-scaling metric all-values)
+            ;; Build y-axis title
+            y-title (if (seq unit)
+                      (str (pr-str metric) " (" unit ")")
+                      (pr-str metric))
+            ;; Build chart data points
+            chart-data (vec
+                        (for [[impl-val entries] data
+                              {:keys [coord value]} entries
+                              :let [raw-value (if (and (map? value)
+                                                       (contains? value :value))
+                                                (:value value)
+                                                value)
+                                    x-val (get coord axis)]
+                              :when (some? raw-value)]
+                          {"x" x-val
+                           "y" (* (double raw-value) total-scale)
+                           "impl" (name impl-val)}))]
+        [{:metric-id nil
+          :metric-path metric
+          :x-title x-title
           :y-title y-title
           :data chart-data}]))))
 

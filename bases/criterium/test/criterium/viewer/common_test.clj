@@ -290,6 +290,189 @@
         (is (= #{:elapsed-time :thread-allocation}
                (set (map :metric-id result))))))))
 
+;;; Tests for single-axis-multi-point-comparison? helper.
+;;; Verifies detection of multi-point line chart scenarios in domain-comparison data.
+
+(deftest single-axis-multi-point-comparison?-test
+  ;; Tests detection of line chart scenarios in domain-comparison
+  ;; (multiple axis values, multiple implementations)
+  (testing "single-axis-multi-point-comparison?"
+    (testing "returns true for single-metric multi-point with multiple impls"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo :bar]
+                        :data {:foo [{:coord {:n 100} :value 1.0e-6}
+                                     {:coord {:n 200} :value 1.5e-6}]
+                               :bar [{:coord {:n 100} :value 2.0e-6}
+                                     {:coord {:n 200} :value 2.5e-6}]}}]
+        (is (true? (common/single-axis-multi-point-comparison? comparison)))))
+
+    (testing "returns false for single-point comparison"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo :bar]
+                        :data {:foo [{:coord {:n 100} :value 1.0e-6}]
+                               :bar [{:coord {:n 100} :value 2.0e-6}]}}]
+        (is (not (common/single-axis-multi-point-comparison? comparison)))))
+
+    (testing "returns false for single implementation"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo]
+                        :data {:foo [{:coord {:n 100} :value 1.0e-6}
+                                     {:coord {:n 200} :value 1.5e-6}]}}]
+        (is (not (common/single-axis-multi-point-comparison? comparison)))))
+
+    (testing "returns false when no implementations key"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :mean]
+                        :data {:foo [{:coord {:n 100} :value 1.0e-6}
+                                     {:coord {:n 200} :value 1.5e-6}]}}]
+        (is (not (common/single-axis-multi-point-comparison? comparison)))))
+
+    (testing "returns true for multi-metric multi-point with multiple impls"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :implementations [:foo :bar]
+                        :metrics {:elapsed-time
+                                  {:metric [:stats :elapsed-time :mean]
+                                   :data {:foo [{:coord {:n 100} :value 1.0e-6}
+                                                {:coord {:n 200} :value 1.5e-6}]
+                                          :bar [{:coord {:n 100} :value 2.0e-6}
+                                                {:coord {:n 200} :value 2.5e-6}]}}}}]
+        (is (true? (common/single-axis-multi-point-comparison? comparison)))))))
+
+;;; Tests for prepare-line-chart-data helper.
+;;; Verifies line chart data preparation from domain-extract data.
+
+(deftest prepare-line-chart-data-test
+  ;; Tests line chart data preparation for domain-extract
+  (testing "prepare-line-chart-data"
+    (testing "prepares data with x, y, impl fields"
+      (let [extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations [:foo :bar]
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100 :impl :foo} 1.0e-6]
+                                       [{:n 100 :impl :bar} 2.0e-6]
+                                       [{:n 200 :impl :foo} 1.5e-6]
+                                       [{:n 200 :impl :bar} 2.5e-6]]}}}
+            result (common/prepare-line-chart-data extract)]
+        (is (vector? result))
+        (is (= 1 (count result)))
+        (is (= :elapsed-time (:metric-id (first result))))
+        (is (= "n" (:x-title (first result))))
+        (is (string? (:y-title (first result))))
+        (let [data (:data (first result))]
+          (is (= 4 (count data)))
+          (is (every? #(contains? % "x") data))
+          (is (every? #(contains? % "y") data))
+          (is (every? #(contains? % "impl") data))
+          (is (= #{100 200} (set (map #(get % "x") data))))
+          (is (= #{"foo" "bar"} (set (map #(get % "impl") data)))))))
+
+    (testing "handles multiple metrics"
+      (let [extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations [:foo :bar]
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100 :impl :foo} 1.0e-6]
+                                       [{:n 100 :impl :bar} 2.0e-6]]}
+                               :thread-allocation
+                               {:metric [:stats :thread-allocation :mean]
+                                :data [[{:n 100 :impl :foo} 1000]
+                                       [{:n 100 :impl :bar} 2000]]}}}
+            result (common/prepare-line-chart-data extract)]
+        (is (= 2 (count result)))
+        (is (= #{:elapsed-time :thread-allocation}
+               (set (map :metric-id result))))))
+
+    (testing "applies SI scaling to y values"
+      (let [extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations [:foo]
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100 :impl :foo} 1.0e-6]]}}}
+            result (common/prepare-line-chart-data extract)
+            y-title (:y-title (first result))]
+        ;; Should have SI unit in y-title
+        (is (or (str/includes? y-title "(")
+                (str/includes? y-title "μ")
+                (str/includes? y-title "m")))))))
+
+;;; Tests for prepare-comparison-line-data helper.
+;;; Verifies line chart data preparation from domain-comparison data.
+
+(deftest prepare-comparison-line-data-test
+  ;; Tests line chart data preparation for domain-comparison
+  (testing "prepare-comparison-line-data"
+    (testing "prepares data for single-metric comparison"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo :bar]
+                        :data {:foo [{:coord {:n 100} :value 1.0e-6}
+                                     {:coord {:n 200} :value 1.5e-6}]
+                               :bar [{:coord {:n 100} :value 2.0e-6}
+                                     {:coord {:n 200} :value 2.5e-6}]}}
+            result (common/prepare-comparison-line-data comparison)]
+        (is (vector? result))
+        (is (= 1 (count result)))
+        (is (nil? (:metric-id (first result))))
+        (is (= "n" (:x-title (first result))))
+        (let [data (:data (first result))]
+          (is (= 4 (count data)))
+          (is (every? #(contains? % "x") data))
+          (is (every? #(contains? % "y") data))
+          (is (every? #(contains? % "impl") data))
+          (is (= #{100 200} (set (map #(get % "x") data))))
+          (is (= #{"foo" "bar"} (set (map #(get % "impl") data)))))))
+
+    (testing "prepares data for multi-metric comparison"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :implementations [:foo :bar]
+                        :metrics {:elapsed-time
+                                  {:metric [:stats :elapsed-time :mean]
+                                   :data {:foo [{:coord {:n 100} :value 1.0e-6}
+                                                {:coord {:n 200} :value 1.5e-6}]
+                                          :bar [{:coord {:n 100} :value 2.0e-6}
+                                                {:coord {:n 200} :value 2.5e-6}]}}
+                                  :thread-allocation
+                                  {:metric [:stats :thread-allocation :mean]
+                                   :data {:foo [{:coord {:n 100} :value 1000}
+                                                {:coord {:n 200} :value 1500}]
+                                          :bar [{:coord {:n 100} :value 2000}
+                                                {:coord {:n 200} :value 2500}]}}}}
+            result (common/prepare-comparison-line-data comparison)]
+        (is (= 2 (count result)))
+        (is (= #{:elapsed-time :thread-allocation}
+               (set (map :metric-id result))))
+        (doseq [metric-result result]
+          (is (= 4 (count (:data metric-result))))
+          (is (= "n" (:x-title metric-result))))))
+
+    (testing "handles error-bound values"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo :bar]
+                        :data {:foo [{:coord {:n 100} :value {:value 1.0e-6 :error 0.1e-6}}
+                                     {:coord {:n 200} :value {:value 1.5e-6 :error 0.1e-6}}]
+                               :bar [{:coord {:n 100} :value {:value 2.0e-6 :error 0.2e-6}}
+                                     {:coord {:n 200} :value {:value 2.5e-6 :error 0.2e-6}}]}}
+            result (common/prepare-comparison-line-data comparison)
+            data (:data (first result))]
+        (is (= 4 (count data)))
+        (is (every? #(number? (get % "y")) data))))))
+
 ;; Tests for ASCII treemap rendering functions.
 ;; Verifies ascii-bar generates proportional bars and render-ascii-treemap
 ;; produces correct tree structure with proper formatting, filtering, and depth limits.

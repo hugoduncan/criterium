@@ -648,6 +648,71 @@
     {:data {:values []}
      :vconcat (mapv #(bar-chart-layer % chart-options) bar-data)}))
 
+;;; Multi-point line charts
+
+(defn- line-chart-layer
+  "Build a single line chart layer from prepared line data.
+  Used by both domain-line-chart-spec and comparison-line-chart-spec."
+  [{:keys [x-title y-title data]} chart-options]
+  (merge
+   chart-options
+   {:data {:values data}
+    :mark {:type "line" :point true}
+    :encoding {:x {:field "x"
+                   :type "quantitative"
+                   :title x-title
+                   :scale {:zero false}}
+               :y {:field "y"
+                   :type "quantitative"
+                   :title y-title}
+               :color {:field "impl"
+                       :type "nominal"
+                       :title "Implementation"}
+               :tooltip [{:field "impl"
+                          :type "nominal"
+                          :title "Implementation"}
+                         {:field "x"
+                          :type "quantitative"
+                          :title x-title}
+                         {:field "y"
+                          :type "quantitative"
+                          :title y-title
+                          :format ".3g"}]}}))
+
+(defn domain-line-chart-spec
+  "Build a Vega-Lite line chart spec for single-axis multi-point domain extract.
+
+  Shows axis values on x-axis and measured values on y-axis, with one line
+  per implementation differentiated by color.
+  One chart is generated per metric in the extract.
+
+  Parameters:
+    extract - Domain extract with single-axis multi-point multi-impl data
+    chart-options - Map with :width and/or :height for chart dimensions
+
+  Returns a Vega-Lite spec with vconcat of line charts (one per metric)."
+  [extract chart-options]
+  (let [line-data (viewer-common/prepare-line-chart-data extract)]
+    {:data {:values []}
+     :vconcat (mapv #(line-chart-layer % chart-options) line-data)}))
+
+(defn comparison-line-chart-spec
+  "Build a Vega-Lite line chart spec for single-axis multi-point comparison data.
+
+  Shows axis values on x-axis and measured values on y-axis, with one line
+  per implementation differentiated by color.
+  One chart is generated per metric in the comparison.
+
+  Parameters:
+    comparison - Domain comparison with single-axis multi-point multi-impl data
+    chart-options - Map with :width and/or :height for chart dimensions
+
+  Returns a Vega-Lite spec with vconcat of line charts (one per metric)."
+  [comparison chart-options]
+  (let [line-data (viewer-common/prepare-comparison-line-data comparison)]
+    {:data {:values []}
+     :vconcat (mapv #(line-chart-layer % chart-options) line-data)}))
+
 ;;; Treemap charts
 
 (defn- flatten-treemap-node
