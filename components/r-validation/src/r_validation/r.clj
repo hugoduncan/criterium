@@ -1,4 +1,4 @@
-(ns criterium.validation.r
+(ns r-validation.r
   "R connection helper for validation tests.
 
   Provides functions to connect to R via Rserve and gracefully skip tests

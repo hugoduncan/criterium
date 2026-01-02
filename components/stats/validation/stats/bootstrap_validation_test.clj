@@ -1,5 +1,5 @@
-(ns criterium.validation.bootstrap-validation-test
-  "Validation tests for criterium.util.bootstrap against R's boot package.
+(ns stats.bootstrap-validation-test
+  "Validation tests for stats.interface bootstrap functions against R's boot package.
 
   Bootstrap methods involve random sampling, so exact matching is not possible.
   Instead, we validate:
@@ -11,10 +11,9 @@
   (:require
    [clojure.test :refer [deftest is testing]]
    [criterium.test.assert :refer [approx=]]
-   [criterium.util.bootstrap :as bootstrap]
-   [criterium.util.stats :as stats]
-   [criterium.util.well :as well]
-   [criterium.validation.r :as r :refer [vec->r-str]])
+   [r-validation.r :as r :refer [vec->r-str]]
+   [random.interface :as random]
+   [stats.interface :as stats])
   (:import
    [stats.bootstrap BcaEstimate]))
 
@@ -59,12 +58,12 @@
   ensuring reproducible test results across platforms."
   [base-seed]
   (let [counter (atom 0)]
-    #(well/well-rng-1024a (+ base-seed (swap! counter inc)))))
+    #(random/well-rng-1024a (+ base-seed (swap! counter inc)))))
 
 ;;; Jackknife validation (deterministic - exact match)
 
 (deftest jackknife-validation-test
-  ;; Validates criterium.util.bootstrap/jacknife against R's leave-one-out implementation.
+  ;; Validates stats.interface/jacknife against R's leave-one-out implementation.
   ;; Jackknife is deterministic, so results should match exactly.
   (testing "jacknife"
     (if-not (r/r-available?)
@@ -75,7 +74,7 @@
         (testing "computes leave-one-out means"
           ;; Jackknife mean: for each i, compute mean of data without element i
           (let [data (vec (sort simple-data))
-                clj-jack (bootstrap/jacknife data stats/mean)
+                clj-jack (stats/jacknife data stats/mean)
                 ;; R: sapply(1:length(x), function(i) mean(x[-i]))
                 r-jack (r/r-eval
                         (str "x <- " (vec->r-str data) "; "
@@ -90,7 +89,7 @@
 
         (testing "computes leave-one-out variances"
           (let [data (vec (sort simple-data))
-                clj-jack (bootstrap/jacknife data stats/variance)
+                clj-jack (stats/jacknife data stats/variance)
                 r-jack (r/r-eval
                         (str "x <- " (vec->r-str data) "; "
                              "sapply(1:length(x), function(i) var(x[-i]))"))]
@@ -104,7 +103,7 @@
 
         (testing "with normal-like data"
           (let [data (vec (sort normal-data))
-                clj-jack (bootstrap/jacknife data stats/mean)
+                clj-jack (stats/jacknife data stats/mean)
                 r-jack (r/r-eval
                         (str "x <- " (vec->r-str data) "; "
                              "sapply(1:length(x), function(i) mean(x[-i]))"))]
@@ -115,7 +114,7 @@
 
         (testing "with skewed data"
           (let [data (vec (sort skewed-data))
-                clj-jack (bootstrap/jacknife data stats/mean)
+                clj-jack (stats/jacknife data stats/mean)
                 r-jack (r/r-eval
                         (str "x <- " (vec->r-str data) "; "
                              "sapply(1:length(x), function(i) mean(x[-i]))"))]
@@ -141,8 +140,8 @@
                 true-mean (stats/mean data)
                 boot-size 1000
                 ;; Clojure bootstrap
-                clj-samples (bootstrap/bootstrap-sample
-                             data stats/mean boot-size well/well-rng-1024a)
+                clj-samples (stats/bootstrap-sample
+                             data stats/mean boot-size random/well-rng-1024a)
                 clj-boot-mean (stats/mean clj-samples)
                 ;; R bootstrap
                 r-boot-mean (first (r/r-eval
@@ -169,8 +168,8 @@
                 ;; Analytical SE² = var(data) / n
                 analytical-var (/ (stats/variance data) n)
                 ;; Clojure bootstrap variance
-                clj-samples (bootstrap/bootstrap-sample
-                             data stats/mean boot-size well/well-rng-1024a)
+                clj-samples (stats/bootstrap-sample
+                             data stats/mean boot-size random/well-rng-1024a)
                 clj-boot-var (stats/variance clj-samples)
                 ;; R bootstrap variance
                 r-boot-var (first (r/r-eval
@@ -204,8 +203,8 @@
                 boot-size 1000
                 alpha [0.025 0.5 0.975]
                 ;; Clojure BCa
-                clj-bca (bootstrap/bca-nonparametric
-                         data stats/mean boot-size alpha well/well-rng-1024a)
+                clj-bca (stats/bca-nonparametric
+                         data stats/mean boot-size alpha random/well-rng-1024a)
                 [clj-ci _ _ _ _] clj-bca
                 [clj-lower _clj-median clj-upper] clj-ci
                 ;; R BCa using boot package
@@ -238,7 +237,7 @@
                 boot-size 1000
                 alpha [0.025 0.5 0.975]
                 ;; Clojure BCa with deterministic RNG for reproducibility
-                clj-bca (bootstrap/bca-nonparametric
+                clj-bca (stats/bca-nonparametric
                          data stats/mean boot-size alpha
                          (deterministic-rng-factory 42))
                 [clj-ci clj-z0 _clj-acc _ _] clj-bca
@@ -269,8 +268,8 @@
                 boot-size 1000
                 alpha [0.025 0.5 0.975]
                 ;; Clojure BCa
-                clj-bca (bootstrap/bca-nonparametric
-                         data stats/mean boot-size alpha well/well-rng-1024a)
+                clj-bca (stats/bca-nonparametric
+                         data stats/mean boot-size alpha random/well-rng-1024a)
                 [clj-ci _ _ _ _] clj-bca
                 [clj-lower _ clj-upper] clj-ci
                 ;; R BCa
@@ -303,8 +302,8 @@
           (let [data (vec (sort normal-data))
                 boot-size 500
                 alpha [0.5 0.025 0.975]
-                result (bootstrap/bootstrap-bca
-                        data stats/mean boot-size alpha well/well-rng-1024a)]
+                result (stats/bootstrap-bca
+                        data stats/mean boot-size alpha random/well-rng-1024a)]
             (is (instance? BcaEstimate result)
                 "Result should be BcaEstimate record")
             (is (number? (:point-estimate result))
@@ -319,8 +318,8 @@
                 true-mean (stats/mean data)
                 boot-size 500
                 alpha [0.5 0.025 0.975]
-                result (bootstrap/bootstrap-bca
-                        data stats/mean boot-size alpha well/well-rng-1024a)
+                result (stats/bootstrap-bca
+                        data stats/mean boot-size alpha random/well-rng-1024a)
                 ;; Point estimate (at alpha=0.5) should be close to true mean
                 point-est (:point-estimate result)
                 se (/ (Math/sqrt (stats/variance data)) (Math/sqrt (count data)))
