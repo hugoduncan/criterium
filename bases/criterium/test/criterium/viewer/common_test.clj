@@ -344,7 +344,16 @@
                                                 {:coord {:n 200} :value 1.5e-6}]
                                           :bar [{:coord {:n 100} :value 2.0e-6}
                                                 {:coord {:n 200} :value 2.5e-6}]}}}}]
-        (is (true? (common/single-axis-multi-point-comparison? comparison)))))))
+        (is (true? (common/single-axis-multi-point-comparison? comparison)))))
+
+    (testing "returns false when axis is impl-axis (axis values match implementations)"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :impl
+                        :implementations [:foo :bar]
+                        :metric [:stats :elapsed-time :mean]
+                        :data {:foo [{:coord {:impl :foo :n 100} :value 1.0e-6}]
+                               :bar [{:coord {:impl :bar :n 100} :value 2.0e-6}]}}]
+        (is (not (common/single-axis-multi-point-comparison? comparison)))))))
 
 ;;; Tests for prepare-line-chart-data helper.
 ;;; Verifies line chart data preparation from domain-extract data.

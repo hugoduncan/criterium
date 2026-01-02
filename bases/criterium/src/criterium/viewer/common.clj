@@ -272,7 +272,10 @@
   "Return true when comparison has multiple implementations and multiple axis values.
 
   This detects the 'line chart' scenario for domain-comparison views where we're
-  comparing multiple implementations across a range of parameter values."
+  comparing multiple implementations across a range of parameter values.
+
+  Returns false when the axis is the implementation axis itself (axis values
+  match the implementations), since line charts require a quantitative axis."
   [comparison]
   (let [{:keys [axis implementations data metrics]} comparison
         multi-impl? (and implementations (> (count implementations) 1))]
@@ -293,8 +296,11 @@
                    vals
                    (mapcat (fn [entries]
                              (map #(get (:coord %) axis) entries)))
-                   (into #{})))]
-        (> (count all-axis-values) 1)))))
+                   (into #{})))
+            ;; Check if axis values are just the implementations themselves
+            impl-set (set implementations)]
+        (and (> (count all-axis-values) 1)
+             (not= all-axis-values impl-set))))))
 
 ;;; Domain view helpers
 
