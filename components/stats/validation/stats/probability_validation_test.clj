@@ -97,7 +97,7 @@
             (testing (str "at x=" x)
               (let [^double r-p (first (r/r-eval (str "pnorm(" x ")")))
                     ^double clj-p (stats/normal-cdf x)
-                    abs-diff (Math/abs (- r-p clj-p))]
+                    abs-diff (Math/abs ^double (- r-p clj-p))]
                 ;; Absolute error should be < 1e-6 (well within erf max error)
                 (is (< abs-diff 1e-6)
                     (format "normal-cdf mismatch at x=%.1f: R=%.15f, clj=%.15f, diff=%.2e"
@@ -129,7 +129,7 @@
             (testing (str "at x=" x)
               (let [^double r-p (first (r/r-eval (str "pnorm(" x ")")))
                     ^double clj-p (stats/normal-cdf x)
-                    abs-diff (Math/abs (- r-p clj-p))]
+                    abs-diff (Math/abs ^double (- r-p clj-p))]
                 ;; Absolute error should be < 1e-6
                 (is (< abs-diff 1e-6)
                     (format "normal-cdf mismatch at x=%.1f: R=%.15f, clj=%.15f, diff=%.2e"
