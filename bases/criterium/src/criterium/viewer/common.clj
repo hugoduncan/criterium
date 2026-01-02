@@ -511,6 +511,93 @@
        :col-headers col-headers
        :rows table-rows})))
 
+(defn prepare-domain-extract-table-transposed
+  "Prepare transposed domain-extract table for single-point multi-impl scenarios.
+  Returns {:heading :col-headers :rows} where each row is one implementation.
+
+  Columns include implementation name, then for each metric: value and factor.
+  Factor is relative to baseline (first implementation)."
+  [extract]
+  (when extract
+    (let [impl-axis-key (:impl-axis extract)
+          implementations (:implementations extract)
+          baseline-impl (first implementations)
+          metrics (:metrics extract)
+          metric-ids (sort (keys metrics))
+
+          ;; Build lookup: {[impl metric-id] -> raw-value}
+          lookup
+          (reduce
+           (fn [acc [metric-id {:keys [data]}]]
+             (reduce
+              (fn [acc2 [coord value]]
+                (let [impl-val (get coord impl-axis-key)
+                      raw-value (if (and (map? value) (contains? value :value))
+                                  (:value value)
+                                  value)]
+                  (assoc acc2 [impl-val metric-id] raw-value)))
+              acc
+              data))
+           {}
+           metrics)
+
+          ;; Compute SI scaling per metric (using all values for that metric)
+          metric-scales
+          (into {}
+                (map (fn [metric-id]
+                       (let [metric-path (get-in metrics [metric-id :metric])
+                             all-values (keep (fn [impl]
+                                                (get lookup [impl metric-id]))
+                                              implementations)]
+                         [metric-id (compute-si-scaling metric-path all-values)])))
+                metric-ids)
+
+          ;; Build column headers: Implementation, then for each metric: value and ×
+          col-headers
+          (into ["Implementation"]
+                (mapcat (fn [metric-id]
+                          (let [{:keys [unit]} (get metric-scales metric-id)
+                                metric-name (name metric-id)
+                                value-header (if (seq unit)
+                                               (str metric-name " (" unit ")")
+                                               metric-name)]
+                            [value-header (str metric-name " ×")]))
+                        metric-ids))
+
+          ;; Build table rows: one per implementation
+          table-rows
+          (mapv
+           (fn [impl]
+             (into {"Implementation" (name impl)}
+                   (mapcat
+                    (fn [metric-id]
+                      (let [{:keys [unit ^double total-scale]}
+                            (get metric-scales metric-id)
+                            metric-name (name metric-id)
+                            value-header (if (seq unit)
+                                           (str metric-name " (" unit ")")
+                                           metric-name)
+                            factor-header (str metric-name " ×")
+                            raw-value (get lookup [impl metric-id])
+                            baseline-value (get lookup [baseline-impl metric-id])
+                            formatted-value (when raw-value
+                                              (format "%.3g"
+                                                      (* (double raw-value)
+                                                         total-scale)))
+                            factor (when (and raw-value baseline-value
+                                              (not (zero? (double baseline-value))))
+                                     (format "%.2f"
+                                             (/ (double raw-value)
+                                                (double baseline-value))))]
+                        [[value-header formatted-value]
+                         [factor-header factor]]))
+                    metric-ids)))
+           implementations)]
+
+      {:heading "Domain Extract"
+       :col-headers col-headers
+       :rows table-rows})))
+
 (defn- extract-row-key
   "Extract row key from coord, removing axis key for map coords."
   [coord axis]
