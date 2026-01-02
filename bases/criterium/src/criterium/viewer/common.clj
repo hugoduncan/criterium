@@ -1195,6 +1195,99 @@
           (when-let [table (build-absolute-value-table axis metric data)]
             [table]))))))
 
+(defn prepare-domain-comparison-table-transposed
+  "Prepare transposed domain-comparison table for single-point multi-impl scenarios.
+  Returns {:heading :col-headers :rows} where each row is one implementation.
+
+  Columns include implementation name, then for each metric: value and factor.
+  Factor is relative to baseline (first implementation)."
+  [comparison]
+  (when comparison
+    (let [{:keys [axis metric metrics implementations data]} comparison
+          baseline-impl (first implementations)
+          ;; Normalize to multi-metric structure
+          ;; For single-metric mode, derive a meaningful key from metric path
+          metrics-map (or metrics
+                          (let [metric-id (or (second metric) :value)]
+                            {metric-id {:metric metric :data data}}))
+          metric-ids (sort (keys metrics-map))
+
+          ;; Build lookup: {[impl metric-id] -> raw-value}
+          lookup
+          (reduce
+           (fn [acc [metric-id {:keys [data]}]]
+             (reduce
+              (fn [acc2 [impl-val entries]]
+                (reduce
+                 (fn [acc3 {:keys [value]}]
+                   (let [raw-value (if (and (map? value) (contains? value :value))
+                                     (:value value)
+                                     value)]
+                     (assoc acc3 [impl-val metric-id] raw-value)))
+                 acc2
+                 entries))
+              acc
+              data))
+           {}
+           metrics-map)
+
+          ;; Compute SI scaling per metric (using all values for that metric)
+          metric-scales
+          (into {}
+                (map (fn [metric-id]
+                       (let [metric-path (get-in metrics-map [metric-id :metric])
+                             all-values (keep (fn [impl]
+                                                (get lookup [impl metric-id]))
+                                              implementations)]
+                         [metric-id (compute-si-scaling metric-path all-values)])))
+                metric-ids)
+
+          ;; Build column headers: Implementation, then for each metric: value and ×
+          col-headers
+          (into ["Implementation"]
+                (mapcat (fn [metric-id]
+                          (let [{:keys [unit]} (get metric-scales metric-id)
+                                metric-name (name metric-id)
+                                value-header (if (seq unit)
+                                               (str metric-name " (" unit ")")
+                                               metric-name)]
+                            [value-header (str metric-name " ×")]))
+                        metric-ids))
+
+          ;; Build table rows: one per implementation
+          table-rows
+          (mapv
+           (fn [impl]
+             (into {"Implementation" (name impl)}
+                   (mapcat
+                    (fn [metric-id]
+                      (let [{:keys [unit ^double total-scale]}
+                            (get metric-scales metric-id)
+                            metric-name (name metric-id)
+                            value-header (if (seq unit)
+                                           (str metric-name " (" unit ")")
+                                           metric-name)
+                            factor-header (str metric-name " ×")
+                            raw-value (get lookup [impl metric-id])
+                            baseline-value (get lookup [baseline-impl metric-id])
+                            formatted-value (when raw-value
+                                              (format "%.3g"
+                                                      (* (double raw-value)
+                                                         total-scale)))
+                            factor (when (and raw-value baseline-value
+                                              (not (zero? (double baseline-value))))
+                                     (format "%.2f"
+                                             (/ (double raw-value)
+                                                (double baseline-value))))]
+                        [[value-header formatted-value]
+                         [factor-header factor]]))
+                    metric-ids)))
+           implementations)]
+
+      {:heading (str "Domain Comparison by " (name axis))
+       :col-headers col-headers
+       :rows table-rows})))
+
 ;;; Domain grouped view helpers
 
 (defn prepare-domain-grouped-table
