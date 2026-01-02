@@ -186,6 +186,34 @@
                        :unit unit))]
     histogram))
 
+;;; Domain shape detection
+
+(defn single-point-multi-impl?
+  "Return true when extract has exactly one non-impl axis with one value
+  and multiple implementations.
+
+  This detects the 'single-point comparison' scenario where we're comparing
+  multiple implementations at a single parameter point."
+  [extract]
+  (let [impl-axis-key (:impl-axis extract)
+        impls (:implementations extract)
+        multi-impl? (and impls (> (count impls) 1))]
+    (when multi-impl?
+      (let [metrics (:metrics extract)
+            ;; Get all coordinates from first metric
+            first-metric-data (:data (val (first metrics)))
+            all-coords (map first first-metric-data)
+            ;; Get the non-impl axis keys from first coordinate
+            first-coord (first all-coords)
+            non-impl-keys (when (map? first-coord)
+                            (disj (set (keys first-coord)) impl-axis-key))
+            ;; Single axis with single unique value?
+            single-axis? (= 1 (count non-impl-keys))]
+        (when single-axis?
+          (let [axis-key (first non-impl-keys)
+                axis-values (into #{} (map #(get % axis-key)) all-coords)]
+            (= 1 (count axis-values))))))))
+
 ;;; Domain view helpers
 
 (defn format-coord

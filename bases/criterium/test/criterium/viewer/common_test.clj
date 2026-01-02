@@ -4,6 +4,64 @@
    [clojure.test :refer [deftest is testing]]
    [criterium.viewer.common :as common]))
 
+;;; Domain shape detection tests.
+;;; Verifies single-point-multi-impl? correctly identifies the scenario where
+;;; we have multiple implementations at a single parameter point.
+
+(deftest single-point-multi-impl?-test
+  ;; Tests the detection of single-point comparison scenarios
+  ;; (one axis value, multiple implementations)
+  (testing "single-point-multi-impl?"
+    (testing "returns true when one axis with one value and multiple impls"
+      (let [extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations [:foo :bar]
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100 :impl :foo} 1.0e-6]
+                                       [{:n 100 :impl :bar} 2.0e-6]]}}}]
+        (is (true? (common/single-point-multi-impl? extract)))))
+
+    (testing "returns false when one axis with multiple values"
+      (let [extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations [:foo :bar]
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100 :impl :foo} 1.0e-6]
+                                       [{:n 100 :impl :bar} 2.0e-6]
+                                       [{:n 200 :impl :foo} 1.5e-6]
+                                       [{:n 200 :impl :bar} 2.5e-6]]}}}]
+        (is (not (common/single-point-multi-impl? extract)))))
+
+    (testing "returns false when single implementation"
+      (let [extract {:type :criterium/domain-extract
+                     :implementations [:default]
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100} 1.0e-6]]}}}]
+        (is (not (common/single-point-multi-impl? extract)))))
+
+    (testing "returns false when no implementations key"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100} 1.0e-6]]}}}]
+        (is (not (common/single-point-multi-impl? extract)))))
+
+    (testing "returns false when multiple non-impl axes"
+      (let [extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations [:foo :bar]
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100 :m 10 :impl :foo} 1.0e-6]
+                                       [{:n 100 :m 10 :impl :bar} 2.0e-6]]}}}]
+        (is (not (common/single-point-multi-impl? extract)))))
+
+    (testing "returns nil for nil extract"
+      (is (nil? (common/single-point-multi-impl? nil))))))
+
 ;; Tests for ASCII treemap rendering functions.
 ;; Verifies ascii-bar generates proportional bars and render-ascii-treemap
 ;; produces correct tree structure with proper formatting, filtering, and depth limits.
