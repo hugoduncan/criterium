@@ -202,6 +202,94 @@
     (testing "returns nil for nil extract"
       (is (nil? (common/prepare-domain-extract-table-transposed nil))))))
 
+;;; Tests for single-point-multi-impl-comparison? helper.
+;;; Verifies detection of single-point scenarios in domain-comparison data.
+
+(deftest single-point-multi-impl-comparison?-test
+  (testing "single-point-multi-impl-comparison?"
+    (testing "returns true for single-metric single-point with multiple impls"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo :bar]
+                        :data {:foo [{:coord {:n 100} :value 1.0e-6}]
+                               :bar [{:coord {:n 100} :value 2.0e-6}]}}]
+        (is (true? (common/single-point-multi-impl-comparison? comparison)))))
+
+    (testing "returns false for multi-point comparison"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo :bar]
+                        :data {:foo [{:coord {:n 100} :value 1.0e-6}
+                                     {:coord {:n 200} :value 1.5e-6}]
+                               :bar [{:coord {:n 100} :value 2.0e-6}
+                                     {:coord {:n 200} :value 2.5e-6}]}}]
+        (is (not (common/single-point-multi-impl-comparison? comparison)))))
+
+    (testing "returns false for single implementation"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo]
+                        :data {:foo [{:coord {:n 100} :value 1.0e-6}]}}]
+        (is (not (common/single-point-multi-impl-comparison? comparison)))))
+
+    (testing "returns false when no implementations key"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :mean]
+                        :data {:foo [{:coord {:n 100} :value 1.0e-6}]}}]
+        (is (not (common/single-point-multi-impl-comparison? comparison)))))
+
+    (testing "returns true for multi-metric single-point with multiple impls"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :implementations [:foo :bar]
+                        :metrics {:elapsed-time
+                                  {:metric [:stats :elapsed-time :mean]
+                                   :data {:foo [{:coord {:n 100} :value 1.0e-6}]
+                                          :bar [{:coord {:n 100} :value 2.0e-6}]}}}}]
+        (is (true? (common/single-point-multi-impl-comparison? comparison)))))))
+
+;;; Tests for prepare-comparison-bar-data helper.
+;;; Verifies bar chart data preparation from domain-comparison data.
+
+(deftest prepare-comparison-bar-data-test
+  (testing "prepare-comparison-bar-data"
+    (testing "prepares data for single-metric comparison"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo :bar :baz]
+                        :data {:foo [{:coord {:n 100} :value 1.0e-6}]
+                               :bar [{:coord {:n 100} :value 2.0e-6}]
+                               :baz [{:coord {:n 100} :value 1.5e-6}]}}
+            result (common/prepare-comparison-bar-data comparison)]
+        (is (vector? result))
+        (is (= 1 (count result)))
+        (is (nil? (:metric-id (first result))))
+        (is (= 3 (count (:data (first result)))))
+        (is (= #{"foo" "bar" "baz"}
+               (set (map #(get % "impl") (:data (first result))))))))
+
+    (testing "prepares data for multi-metric comparison"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :implementations [:foo :bar]
+                        :metrics {:elapsed-time
+                                  {:metric [:stats :elapsed-time :mean]
+                                   :data {:foo [{:coord {:n 100} :value 1.0e-6}]
+                                          :bar [{:coord {:n 100} :value 2.0e-6}]}}
+                                  :thread-allocation
+                                  {:metric [:stats :thread-allocation :mean]
+                                   :data {:foo [{:coord {:n 100} :value 1000}]
+                                          :bar [{:coord {:n 100} :value 2000}]}}}}
+            result (common/prepare-comparison-bar-data comparison)]
+        (is (= 2 (count result)))
+        (is (= #{:elapsed-time :thread-allocation}
+               (set (map :metric-id result))))))))
+
 ;; Tests for ASCII treemap rendering functions.
 ;; Verifies ascii-bar generates proportional bars and render-ascii-treemap
 ;; produces correct tree structure with proper formatting, filtering, and depth limits.

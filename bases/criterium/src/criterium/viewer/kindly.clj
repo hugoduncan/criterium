@@ -247,11 +247,21 @@
   [_ {:keys [extract-id]} data-map]
   (let [extract-id (or extract-id :extract)
         extract (data-map extract-id)]
-    (when-let [{:keys [heading coord-header col-headers rows]}
-               (viewer-common/prepare-domain-extract-table
-                extract {:header-sep "\n"})]
-      (kindly-heading heading)
-      (kindly-table rows {:column-names (into [coord-header] col-headers)}))))
+    (if (viewer-common/single-point-multi-impl? extract)
+      ;; Single-point comparison: transposed table + bar chart
+      (when-let [{:keys [heading col-headers rows]}
+                 (viewer-common/prepare-domain-extract-table-transposed extract)]
+        (kindly-heading heading)
+        (kindly-table rows {:column-names col-headers})
+        (kindly-vega-lite
+         (charts/single-point-bar-chart-spec extract {:width chart-width
+                                                      :height chart-height})))
+      ;; Regular table format
+      (when-let [{:keys [heading coord-header col-headers rows]}
+                 (viewer-common/prepare-domain-extract-table
+                  extract {:header-sep "\n"})]
+        (kindly-heading heading)
+        (kindly-table rows {:column-names (into [coord-header] col-headers)})))))
 
 (defmethod view/domain-grouped* :kindly
   [_ {:keys [grouped-id]} data-map]
@@ -270,7 +280,12 @@
                        comparison)]
       (doseq [{:keys [heading coord-header col-headers rows]} tables]
         (kindly-heading heading)
-        (kindly-table rows {:column-names (into [coord-header] col-headers)})))))
+        (kindly-table rows {:column-names (into [coord-header] col-headers)}))
+      ;; Add bar chart for single-point multi-impl comparison
+      (when (viewer-common/single-point-multi-impl-comparison? comparison)
+        (kindly-vega-lite
+         (charts/comparison-bar-chart-spec comparison {:width chart-width
+                                                       :height chart-height}))))))
 
 (defmethod view/domain-regression* :kindly
   [_ {:keys [regression-id extract-id tolerance]} data-map]

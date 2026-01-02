@@ -240,6 +240,34 @@
                 axis-values (into #{} (map #(get % axis-key)) all-coords)]
             (> (count axis-values) 1)))))))
 
+(defn single-point-multi-impl-comparison?
+  "Return true when comparison has multiple implementations and a single axis value.
+
+  This detects the 'single-point comparison' scenario for domain-comparison views
+  where we're comparing multiple implementations at a single parameter point."
+  [comparison]
+  (let [{:keys [axis implementations data metrics]} comparison
+        multi-impl? (and implementations (> (count implementations) 1))]
+    (when multi-impl?
+      ;; Get all axis values from the data
+      (let [all-axis-values
+            (if metrics
+              ;; Multi-metric mode: data is under each metric
+              (->> metrics
+                   vals
+                   (mapcat (fn [{:keys [data]}]
+                             (mapcat (fn [[_impl entries]]
+                                       (map #(get (:coord %) axis) entries))
+                                     data)))
+                   (into #{}))
+              ;; Single-metric mode: data is directly keyed by impl
+              (->> data
+                   vals
+                   (mapcat (fn [entries]
+                             (map #(get (:coord %) axis) entries)))
+                   (into #{})))]
+        (= 1 (count all-axis-values))))))
+
 ;;; Domain view helpers
 
 (defn format-coord
@@ -597,6 +625,89 @@
       {:heading "Domain Extract"
        :col-headers col-headers
        :rows table-rows})))
+
+(defn prepare-comparison-bar-data
+  "Prepare data for single-point bar chart from domain comparison.
+  Returns a vector of maps, one per metric, each containing:
+    :metric-id - the metric keyword (or nil for single-metric mode)
+    :metric-path - the metric path vector
+    :y-title - y-axis title with SI unit
+    :data - vector of {:impl string :value number} maps"
+  [comparison]
+  (let [{:keys [metric metrics implementations data]} comparison]
+    (if metrics
+      ;; Multi-metric mode
+      (mapv
+       (fn [[metric-id {:keys [metric data]}]]
+         (let [;; Build lookup: impl -> raw value
+               lookup (reduce
+                       (fn [acc [impl-val entries]]
+                         (reduce
+                          (fn [acc2 {:keys [value]}]
+                            (assoc acc2 impl-val
+                                   (if (and (map? value) (contains? value :value))
+                                     (:value value)
+                                     value)))
+                          acc
+                          entries))
+                       {}
+                       data)
+               ;; Get all values for SI scaling
+               all-values (keep #(get lookup %) implementations)
+               {:keys [^double total-scale unit]}
+               (compute-si-scaling metric all-values)
+               ;; Build y-axis title with unit
+               metric-name (name metric-id)
+               y-title (if (seq unit)
+                         (str metric-name " (" unit ")")
+                         metric-name)
+               ;; Build chart data
+               chart-data (mapv
+                           (fn [impl]
+                             (let [raw-value (get lookup impl)]
+                               {"impl" (name impl)
+                                "value" (when raw-value
+                                          (* (double raw-value) total-scale))}))
+                           implementations)]
+           {:metric-id metric-id
+            :metric-path metric
+            :y-title y-title
+            :data chart-data}))
+       (sort-by key metrics))
+      ;; Single-metric mode
+      (let [;; Build lookup: impl -> raw value
+            lookup (reduce
+                    (fn [acc [impl-val entries]]
+                      (reduce
+                       (fn [acc2 {:keys [value]}]
+                         (assoc acc2 impl-val
+                                (if (and (map? value) (contains? value :value))
+                                  (:value value)
+                                  value)))
+                       acc
+                       entries))
+                    {}
+                    data)
+            ;; Get all values for SI scaling
+            all-values (keep #(get lookup %) implementations)
+            {:keys [^double total-scale unit]}
+            (compute-si-scaling metric all-values)
+            ;; Build y-axis title with unit
+            y-title (if (seq unit)
+                      (str (pr-str metric) " (" unit ")")
+                      (pr-str metric))
+            ;; Build chart data
+            chart-data (mapv
+                        (fn [impl]
+                          (let [raw-value (get lookup impl)]
+                            {"impl" (name impl)
+                             "value" (when raw-value
+                                       (* (double raw-value) total-scale))}))
+                        implementations)]
+        [{:metric-id nil
+          :metric-path metric
+          :y-title y-title
+          :data chart-data}]))))
 
 (defn- extract-row-key
   "Extract row key from coord, removing axis key for map coords."

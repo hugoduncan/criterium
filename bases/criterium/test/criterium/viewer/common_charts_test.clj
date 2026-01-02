@@ -200,6 +200,187 @@
             (str "regression-residual-spec validation failed: "
                  (pr-str (:errors result))))))))
 
+;;; Single-point bar chart tests.
+;;; Verifies bar chart generation for single-point multi-impl comparison scenarios.
+
+(def single-point-extract
+  "Sample single-point multi-impl extract for bar chart testing."
+  {:type :criterium/domain-extract
+   :impl-axis :impl
+   :implementations [:foo :bar :baz]
+   :metrics {:elapsed-time
+             {:metric [:stats :elapsed-time :mean]
+              :data [[{:n 100 :impl :foo} 1.0e-6]
+                     [{:n 100 :impl :bar} 2.0e-6]
+                     [{:n 100 :impl :baz} 1.5e-6]]}}})
+
+(deftest prepare-single-point-bar-data-test
+  ;; Tests data preparation for single-point bar charts.
+  ;; Verifies correct extraction and SI scaling of implementation values.
+  (testing "prepare-single-point-bar-data"
+    (testing "extracts data for each metric"
+      (let [result (charts/prepare-single-point-bar-data single-point-extract)]
+        (is (vector? result))
+        (is (= 1 (count result)))
+        (is (= :elapsed-time (:metric-id (first result))))))
+
+    (testing "includes all implementations in data"
+      (let [result (charts/prepare-single-point-bar-data single-point-extract)
+            data (:data (first result))]
+        (is (= 3 (count data)))
+        (is (= #{"foo" "bar" "baz"}
+               (set (map #(get % "impl") data))))))
+
+    (testing "applies SI scaling to values"
+      (let [result (charts/prepare-single-point-bar-data single-point-extract)
+            first-metric (first result)]
+        ;; y-title should contain SI unit
+        (is (string? (:y-title first-metric)))
+        ;; values should be scaled (not raw nanoseconds)
+        (let [data (:data first-metric)
+              values (keep #(get % "value") data)]
+          (is (seq values))
+          ;; All values should be positive numbers
+          (is (every? pos? values)))))
+
+    (testing "handles multiple metrics"
+      (let [multi-metric-extract
+            (assoc-in single-point-extract
+                      [:metrics :thread-allocation]
+                      {:metric [:stats :thread-allocation :mean]
+                       :data [[{:n 100 :impl :foo} 1000]
+                              [{:n 100 :impl :bar} 2000]
+                              [{:n 100 :impl :baz} 1500]]})
+            result (charts/prepare-single-point-bar-data multi-metric-extract)]
+        (is (= 2 (count result)))
+        (is (= #{:elapsed-time :thread-allocation}
+               (set (map :metric-id result))))))))
+
+(deftest single-point-bar-chart-spec-test
+  ;; Tests bar chart spec generation for single-point multi-impl comparisons.
+  ;; Verifies correct Vega-Lite structure with implementation bars.
+  (testing "single-point-bar-chart-spec"
+    (testing "produces valid structure"
+      (let [spec (charts/single-point-bar-chart-spec
+                  single-point-extract
+                  {:width 400 :height 300})]
+        (is (map? spec))
+        (is (contains? spec :vconcat))
+        (is (vector? (:vconcat spec)))
+        (is (= 1 (count (:vconcat spec))))))
+
+    (testing "includes bar mark"
+      (let [spec (charts/single-point-bar-chart-spec
+                  single-point-extract
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))]
+        (is (= {:type "bar"} (:mark chart)))))
+
+    (testing "encodes implementation on x-axis"
+      (let [spec (charts/single-point-bar-chart-spec
+                  single-point-extract
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            x-encoding (get-in chart [:encoding :x])]
+        (is (= "impl" (:field x-encoding)))
+        (is (= "nominal" (:type x-encoding)))
+        (is (= "Implementation" (:title x-encoding)))))
+
+    (testing "encodes value on y-axis"
+      (let [spec (charts/single-point-bar-chart-spec
+                  single-point-extract
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            y-encoding (get-in chart [:encoding :y])]
+        (is (= "value" (:field y-encoding)))
+        (is (= "quantitative" (:type y-encoding)))))
+
+    (testing "respects chart dimensions"
+      (let [spec (charts/single-point-bar-chart-spec
+                  single-point-extract
+                  {:width 500 :height 250})
+            chart (first (:vconcat spec))]
+        (is (= 500 (:width chart)))
+        (is (= 250 (:height chart)))))
+
+    (testing "includes tooltip"
+      (let [spec (charts/single-point-bar-chart-spec
+                  single-point-extract
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            tooltip (get-in chart [:encoding :tooltip])]
+        (is (vector? tooltip))
+        (is (= 2 (count tooltip)))))))
+
+(deftest single-point-bar-chart-spec-schema-validation-test
+  ;; Validates single-point-bar-chart-spec output against Vega-Lite v6 schema.
+  ;; Tests bar chart visualization for implementation comparison.
+  (testing "single-point-bar-chart-spec"
+    (testing "produces valid Vega-Lite spec"
+      (let [spec (charts/single-point-bar-chart-spec
+                  single-point-extract
+                  {:width 400 :height 300})
+            result (schema/validate-vega-lite-spec spec)]
+        (is (:valid? result)
+            (str "single-point-bar-chart-spec validation failed: "
+                 (pr-str (:errors result))))))))
+
+;;; Comparison bar chart tests.
+;;; Verifies bar chart generation from domain-comparison data.
+
+(def single-point-comparison
+  "Sample single-point multi-impl comparison for bar chart testing."
+  {:type :criterium/domain-comparison
+   :axis :n
+   :metric [:stats :elapsed-time :mean]
+   :implementations [:foo :bar :baz]
+   :data {:foo [{:coord {:n 100} :value 1.0e-6}]
+          :bar [{:coord {:n 100} :value 2.0e-6}]
+          :baz [{:coord {:n 100} :value 1.5e-6}]}})
+
+(deftest comparison-bar-chart-spec-test
+  ;; Tests bar chart spec generation from domain-comparison data.
+  ;; Verifies correct Vega-Lite structure with implementation bars.
+  (testing "comparison-bar-chart-spec"
+    (testing "produces valid structure"
+      (let [spec (charts/comparison-bar-chart-spec
+                  single-point-comparison
+                  {:width 400 :height 300})]
+        (is (map? spec))
+        (is (contains? spec :vconcat))
+        (is (vector? (:vconcat spec)))
+        (is (= 1 (count (:vconcat spec))))))
+
+    (testing "includes bar mark"
+      (let [spec (charts/comparison-bar-chart-spec
+                  single-point-comparison
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))]
+        (is (= {:type "bar"} (:mark chart)))))
+
+    (testing "encodes implementation on x-axis"
+      (let [spec (charts/comparison-bar-chart-spec
+                  single-point-comparison
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            x-encoding (get-in chart [:encoding :x])]
+        (is (= "impl" (:field x-encoding)))
+        (is (= "nominal" (:type x-encoding)))
+        (is (= "Implementation" (:title x-encoding)))))))
+
+(deftest comparison-bar-chart-spec-schema-validation-test
+  ;; Validates comparison-bar-chart-spec output against Vega-Lite v6 schema.
+  ;; Tests bar chart visualization from domain-comparison data.
+  (testing "comparison-bar-chart-spec"
+    (testing "produces valid Vega-Lite spec"
+      (let [spec (charts/comparison-bar-chart-spec
+                  single-point-comparison
+                  {:width 400 :height 300})
+            result (schema/validate-vega-lite-spec spec)]
+        (is (:valid? result)
+            (str "comparison-bar-chart-spec validation failed: "
+                 (pr-str (:errors result))))))))
+
 (deftest treemap-vega-spec-schema-validation-test
   ;; Validates treemap-vega-spec output against Vega v5 schema.
   ;; Tests treemap visualization for allocation data.

@@ -228,10 +228,19 @@
   [_ {:keys [extract-id]} data-map]
   (let [extract-id (or extract-id :extract)
         extract (data-map extract-id)]
-    (when-let [table-data (viewer-common/prepare-domain-extract-table
-                           extract {:header-sep " "})]
-      (heading (:heading table-data))
-      (portal-table (:rows table-data)))))
+    (if (viewer-common/single-point-multi-impl? extract)
+      ;; Single-point comparison: transposed table + bar chart
+      (when-let [{:keys [rows] heading-text :heading}
+                 (viewer-common/prepare-domain-extract-table-transposed extract)]
+        (heading heading-text)
+        (portal-table rows)
+        (portal-vega-lite
+         (charts/single-point-bar-chart-spec extract {:height 400})))
+      ;; Regular table format
+      (when-let [table-data (viewer-common/prepare-domain-extract-table
+                             extract {:header-sep " "})]
+        (heading (:heading table-data))
+        (portal-table (:rows table-data))))))
 
 (defmethod view/domain-grouped* :portal
   [_ {:keys [grouped-id]} data-map]
@@ -250,7 +259,11 @@
                        comparison)]
       (doseq [{:keys [rows] heading-text :heading} tables]
         (heading heading-text)
-        (portal-table rows)))))
+        (portal-table rows))
+      ;; Add bar chart for single-point multi-impl comparison
+      (when (viewer-common/single-point-multi-impl-comparison? comparison)
+        (portal-vega-lite
+         (charts/comparison-bar-chart-spec comparison {:height 400}))))))
 
 (defmethod view/domain-regression* :portal
   [_ {:keys [regression-id extract-id tolerance]} data-map]
