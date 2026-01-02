@@ -13,7 +13,7 @@
    [criterium.analyse.metrics-samples :as metrics-samples]
    [criterium.test.assert :refer [approx=]]
    [criterium.util.kde :as kde]
-   [criterium.validation.r :as r :refer [vec->r-str]]))
+   [r-validation.r :as r :refer [vec->r-str]]))
 
 ;;; Test data sets
 ;; Reuse datasets from kde_validation_test for consistency

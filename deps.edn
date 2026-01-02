@@ -95,6 +95,9 @@
                 :jvm-opts ["-Djdk.attach.allowAttachSelf"]
                 :main-opts ["-m" "criterium.notebook.render"]}
   :validation {:extra-paths ["bases/criterium/validation"
+                             "components/stats/validation"
+                             "components/optimisation/validation"
+                             "components/r-validation/test"
                              "development/src"]
                :extra-deps
                {poly/criterium {:local/root "bases/criterium"}

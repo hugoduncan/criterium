@@ -3,10 +3,18 @@
            :id                   :validation
            :ns-patterns          ["-validation-test$"]
            :source-paths         ["bases/criterium/src"
+                                  "components/stats/src"
+                                  "components/optimisation/src"
+                                  "components/random/src"
                                   "components/r-validation/src"]
            :kaocha/source-paths  ["bases/criterium/src"
+                                  "components/stats/src"
+                                  "components/optimisation/src"
+                                  "components/random/src"
                                   "components/r-validation/src"]
-           :test-paths           ["bases/criterium/validation"]}]
+           :test-paths           ["components/stats/validation"
+                                  "components/optimisation/validation"
+                                  "components/r-validation/test"]}]
 
   :plugins                            [:kaocha.plugin/randomize
                                        :kaocha.plugin/filter

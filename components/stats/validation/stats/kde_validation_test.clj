@@ -1,12 +1,12 @@
-(ns criterium.validation.kde-validation-test
-  "Validation tests for criterium.util.kde against R reference implementations.
+(ns stats.kde-validation-test
+  "Validation tests for stats.interface KDE functions against R reference.
 
   Tests skip gracefully when R/Rserve is unavailable."
   (:require
    [clojure.test :refer [deftest is testing]]
    [criterium.test.assert :refer [approx=]]
-   [criterium.util.kde :as kde]
-   [criterium.validation.r :as r :refer [vec->r-str]]))
+   [r-validation.r :as r :refer [vec->r-str]]
+   [stats.interface :as stats]))
 
 ;;; Test data sets
 ;; Fixed datasets for reproducible validation
@@ -33,10 +33,10 @@
 ;;; Tests
 
 (deftest silverman-bandwidth-validation-test
-  ;; Validates criterium.util.kde/silverman-bandwidth against R's bw.nrd0().
+  ;; Validates stats.interface/silverman-bandwidth against R's bw.nrd0().
   ;; R's bw.nrd0() implements Silverman's rule of thumb:
   ;; h = 0.9 * min(sd(x), IQR(x)/1.34) * n^(-0.2)
-  ;; This matches criterium's implementation.
+  ;; This matches our implementation.
   (testing "silverman-bandwidth"
     (if-not (r/r-available?)
       (do
@@ -45,48 +45,48 @@
       (do
         (testing "with simple integers"
           (let [r-bw (first (r/r-eval (str "bw.nrd0(" (vec->r-str simple-integers) ")")))
-                clj-bw (kde/silverman-bandwidth simple-integers)]
+                clj-bw (stats/silverman-bandwidth simple-integers)]
             (is (approx= r-bw clj-bw 1e-10)
                 (format "bandwidth mismatch: R=%.15f, clj=%.15f" r-bw clj-bw))))
 
         (testing "with simple doubles"
           (let [r-bw (first (r/r-eval (str "bw.nrd0(" (vec->r-str simple-doubles) ")")))
-                clj-bw (kde/silverman-bandwidth simple-doubles)]
+                clj-bw (stats/silverman-bandwidth simple-doubles)]
             (is (approx= r-bw clj-bw 1e-10)
                 (format "bandwidth mismatch: R=%.15f, clj=%.15f" r-bw clj-bw))))
 
         (testing "with mixed positive and negative values"
           (let [r-bw (first (r/r-eval (str "bw.nrd0(" (vec->r-str mixed-signs) ")")))
-                clj-bw (kde/silverman-bandwidth mixed-signs)]
+                clj-bw (stats/silverman-bandwidth mixed-signs)]
             (is (approx= r-bw clj-bw 1e-10)
                 (format "bandwidth mismatch: R=%.15f, clj=%.15f" r-bw clj-bw))))
 
         (testing "with two values"
           (let [r-bw (first (r/r-eval (str "bw.nrd0(" (vec->r-str two-values) ")")))
-                clj-bw (kde/silverman-bandwidth two-values)]
+                clj-bw (stats/silverman-bandwidth two-values)]
             (is (approx= r-bw clj-bw 1e-10)
                 (format "bandwidth mismatch: R=%.15f, clj=%.15f" r-bw clj-bw))))
 
         (testing "with large range of values"
           (let [r-bw (first (r/r-eval (str "bw.nrd0(" (vec->r-str large-range) ")")))
-                clj-bw (kde/silverman-bandwidth large-range)]
+                clj-bw (stats/silverman-bandwidth large-range)]
             (is (approx= r-bw clj-bw 1e-10)
                 (format "bandwidth mismatch: R=%.15f, clj=%.15f" r-bw clj-bw))))
 
         (testing "with normal-like distribution"
           (let [r-bw (first (r/r-eval (str "bw.nrd0(" (vec->r-str normal-like) ")")))
-                clj-bw (kde/silverman-bandwidth normal-like)]
+                clj-bw (stats/silverman-bandwidth normal-like)]
             (is (approx= r-bw clj-bw 1e-10)
                 (format "bandwidth mismatch: R=%.15f, clj=%.15f" r-bw clj-bw))))
 
         (testing "with bimodal data"
           (let [r-bw (first (r/r-eval (str "bw.nrd0(" (vec->r-str bimodal-data) ")")))
-                clj-bw (kde/silverman-bandwidth bimodal-data)]
+                clj-bw (stats/silverman-bandwidth bimodal-data)]
             (is (approx= r-bw clj-bw 1e-10)
                 (format "bandwidth mismatch: R=%.15f, clj=%.15f" r-bw clj-bw))))))))
 
 (deftest gaussian-kde-validation-test
-  ;; Validates criterium.util.kde/gaussian-kde against R's density().
+  ;; Validates stats.interface/gaussian-kde against R's density().
   ;; R's density() with kernel="gaussian" uses the same Gaussian kernel:
   ;; K(u) = (1/√2π) * exp(-u²/2)
   ;; We compare density values at the same grid points using the same bandwidth.
@@ -96,7 +96,7 @@
         (println "Skipping gaussian-kde validation: R/Rserve not available")
         (is true "Skipped - R unavailable"))
       (letfn [(make-grid ^doubles [data ^long n-points]
-                ;; Match the grid construction from criterium.util.kde/kde
+                ;; Match the grid construction from stats.kde/kde
                 (let [x-min (double (reduce min data))
                       x-max (double (reduce max data))
                       margin (/ (- x-max x-min) 10.0)
@@ -112,9 +112,9 @@
               (compare-kde [data description]
                 (testing description
                   (let [n-points (int 64)
-                        bw (kde/silverman-bandwidth data)
+                        bw (stats/silverman-bandwidth data)
                         ^doubles grid (make-grid data n-points)
-                        ^doubles clj-density (kde/gaussian-kde data bw grid)
+                        ^doubles clj-density (stats/gaussian-kde data bw grid)
                         ;; R's density with matching parameters
                         r-cmd (str "density(" (vec->r-str data)
                                    ", bw=" bw
@@ -141,7 +141,7 @@
         (compare-kde bimodal-data "with bimodal data")))))
 
 (deftest silverman-test-validation-test
-  ;; Validates criterium.util.kde/silverman-test against R's multimode::modetest.
+  ;; Validates stats.interface/silverman-test against R's multimode::modetest.
   ;; Both tests are bootstrap-based with random elements, so exact p-value
   ;; matching is not possible. We validate:
   ;; - Critical bandwidth (deterministic) should match closely
@@ -155,9 +155,9 @@
       (do
         (testing "with unimodal data"
           ;; Normal-like data should have p-value > 0.05 (fail to reject unimodality)
-          (let [clj-result (kde/silverman-test normal-like 1
-                                               {:n-bootstrap 200
-                                                :n-points 512})
+          (let [clj-result (stats/silverman-test normal-like 1
+                                                 {:n-bootstrap 200
+                                                  :n-points 512})
                 ;; R modetest with SI method
                 r-result (r/r-eval
                           (str "library(multimode); set.seed(42); "
@@ -179,9 +179,9 @@
 
         (testing "with bimodal data"
           ;; Bimodal data should have p-value < 0.05 (reject unimodality)
-          (let [clj-result (kde/silverman-test bimodal-data 1
-                                               {:n-bootstrap 200
-                                                :n-points 512})
+          (let [clj-result (stats/silverman-test bimodal-data 1
+                                                 {:n-bootstrap 200
+                                                  :n-points 512})
                 r-result (r/r-eval
                           (str "library(multimode); set.seed(42); "
                                "x <- " (vec->r-str bimodal-data) "; "
@@ -202,7 +202,7 @@
                 (format "R p-value should be valid: p=%.4f" r-pvalue))))))))
 
 (deftest acr-test-validation-test
-  ;; Validates criterium.util.kde/acr-test against R's multimode::modetest.
+  ;; Validates stats.interface/acr-test against R's multimode::modetest.
   ;; The ACR test uses excess mass as the test statistic, which should be
   ;; more stable than mode counting. We validate:
   ;; - Excess mass statistic is in reasonable range
@@ -215,9 +215,9 @@
       (do
         (testing "with unimodal data"
           ;; Normal-like data should have p-value > 0.05 (fail to reject unimodality)
-          (let [clj-result (kde/acr-test normal-like 1
-                                         {:n-bootstrap 200
-                                          :n-points 512})
+          (let [clj-result (stats/acr-test normal-like 1
+                                           {:n-bootstrap 200
+                                            :n-points 512})
                 ;; R modetest with ACR method
                 r-result (r/r-eval
                           (str "library(multimode); set.seed(42); "
@@ -240,9 +240,9 @@
 
         (testing "with bimodal data"
           ;; Bimodal data should have larger excess mass and low p-value
-          (let [clj-result (kde/acr-test bimodal-data 1
-                                         {:n-bootstrap 200
-                                          :n-points 512})
+          (let [clj-result (stats/acr-test bimodal-data 1
+                                           {:n-bootstrap 200
+                                            :n-points 512})
                 r-result (r/r-eval
                           (str "library(multimode); set.seed(42); "
                                "x <- " (vec->r-str bimodal-data) "; "

@@ -1,12 +1,12 @@
-(ns criterium.validation.probability-validation-test
-  "Validation tests for criterium.util.probability against R reference implementations.
+(ns stats.probability-validation-test
+  "Validation tests for stats.interface probability functions against R reference.
 
   Tests skip gracefully when R/Rserve is unavailable."
   (:require
    [clojure.test :refer [deftest is testing]]
    [criterium.test.assert :refer [approx=]]
-   [criterium.util.probability :as prob]
-   [criterium.validation.r :as r]))
+   [r-validation.r :as r]
+   [stats.interface :as stats]))
 
 ;;; Test quantiles
 ;; Standard quantile points to test across the distribution
@@ -21,7 +21,7 @@
 ;;; Tests
 
 (deftest normal-quantile-validation-test
-  ;; Validates criterium.util.probability/normal-quantile against R's qnorm() function.
+  ;; Validates stats.interface/normal-quantile against R's qnorm() function.
   ;; R's qnorm(p) returns the quantile of the standard normal distribution at probability p.
   ;; The Wichura AS241 algorithm is highly accurate (machine precision for central values).
   (testing "normal-quantile"
@@ -34,14 +34,14 @@
           (doseq [p standard-quantiles]
             (testing (str "at p=" p)
               (let [r-q (first (r/r-eval (str "qnorm(" p ")")))
-                    clj-q (prob/normal-quantile p)]
+                    clj-q (stats/normal-quantile p)]
                 (is (approx= r-q clj-q 1e-10)
                     (format "normal-quantile mismatch at p=%.3f: R=%.15f, clj=%.15f"
                             p r-q clj-q))))))
 
         (testing "at the median (p=0.5)"
           (let [r-q (first (r/r-eval "qnorm(0.5)"))
-                clj-q (prob/normal-quantile 0.5)]
+                clj-q (stats/normal-quantile 0.5)]
             ;; Median of standard normal should be exactly 0
             (is (approx= r-q clj-q 1e-14)
                 (format "median mismatch: R=%.15f, clj=%.15f" r-q clj-q))
@@ -50,10 +50,10 @@
 
         (testing "at symmetric probability pairs"
           ;; qnorm(p) = -qnorm(1-p) for any p
-          (doseq [^double p [0.1 0.25 0.05 0.01]]
+          (doseq [p [0.1 0.25 0.05 0.01]]
             (testing (str "p=" p " and p=" (- 1.0 p))
-              (let [q-low (prob/normal-quantile p)
-                    q-high (prob/normal-quantile (- 1.0 p))]
+              (let [q-low (stats/normal-quantile p)
+                    q-high (stats/normal-quantile (- 1.0 p))]
                 (is (approx= (- q-low) q-high 1e-10)
                     (format "symmetry mismatch: q(%.2f)=%.15f, q(%.2f)=%.15f"
                             p q-low (- 1.0 p) q-high))))))
@@ -62,14 +62,14 @@
           (doseq [p [0.0001 0.00001 0.9999 0.99999]]
             (testing (str "at p=" p)
               (let [r-q (first (r/r-eval (str "qnorm(" p ")")))
-                    clj-q (prob/normal-quantile p)]
+                    clj-q (stats/normal-quantile p)]
                 ;; Slightly larger tolerance for extreme values
                 (is (approx= r-q clj-q 1e-8)
                     (format "normal-quantile mismatch at p=%.5f: R=%.15f, clj=%.15f"
                             p r-q clj-q))))))))))
 
 (deftest normal-cdf-validation-test
-  ;; Validates criterium.util.probability/normal-cdf against R's pnorm() function.
+  ;; Validates stats.interface/normal-cdf against R's pnorm() function.
   ;; R's pnorm(x) returns the cumulative probability P(X < x) for standard normal.
   ;; Note: The implementation uses polynomial erf approximation with max error 1.5e-7.
   (testing "normal-cdf"
@@ -84,7 +84,7 @@
           (doseq [x central-x-values]
             (testing (str "at x=" x)
               (let [r-p (first (r/r-eval (str "pnorm(" x ")")))
-                    clj-p (prob/normal-cdf x)]
+                    clj-p (stats/normal-cdf x)]
                 ;; 1e-5 tolerance accounts for erf approximation propagation
                 (is (approx= r-p clj-p 1e-5)
                     (format "normal-cdf mismatch at x=%.1f: R=%.15f, clj=%.15f"
@@ -95,8 +95,8 @@
           ;; Use absolute tolerance since relative error is misleading.
           (doseq [x tail-x-values]
             (testing (str "at x=" x)
-              (let [r-p (first (r/r-eval (str "pnorm(" x ")")))
-                    clj-p (prob/normal-cdf x)
+              (let [r-p (double (first (r/r-eval (str "pnorm(" x ")"))))
+                    clj-p (stats/normal-cdf x)
                     abs-diff (Math/abs (- r-p clj-p))]
                 ;; Absolute error should be < 1e-6 (well within erf max error)
                 (is (< abs-diff 1e-6)
@@ -105,7 +105,7 @@
 
         (testing "at x=0 (the median)"
           (let [r-p (first (r/r-eval "pnorm(0)"))
-                clj-p (prob/normal-cdf 0.0)]
+                clj-p (stats/normal-cdf 0.0)]
             ;; CDF at 0 should be exactly 0.5
             (is (approx= r-p clj-p 1e-10)
                 (format "median CDF mismatch: R=%.15f, clj=%.15f" r-p clj-p))
@@ -114,10 +114,10 @@
 
         (testing "symmetry around the mean"
           ;; pnorm(x) + pnorm(-x) = 1 for any x
-          (doseq [^double x [0.5 1.0 2.0 3.0]]
+          (doseq [x [0.5 1.0 2.0 3.0]]
             (testing (str "x=" x " and x=" (- x))
-              (let [p-pos (prob/normal-cdf x)
-                    p-neg (prob/normal-cdf (- x))]
+              (let [p-pos (stats/normal-cdf x)
+                    p-neg (stats/normal-cdf (- x))]
                 (is (approx= 1.0 (+ p-pos p-neg) 1e-10)
                     (format "symmetry mismatch: pnorm(%.1f)=%.15f, pnorm(%.1f)=%.15f, sum=%.15f"
                             x p-pos (- x) p-neg (+ p-pos p-neg)))))))
@@ -127,8 +127,8 @@
           ;; Use absolute tolerance since these are edge cases.
           (doseq [x [-5.0 -6.0 5.0 6.0]]
             (testing (str "at x=" x)
-              (let [r-p (first (r/r-eval (str "pnorm(" x ")")))
-                    clj-p (prob/normal-cdf x)
+              (let [r-p (double (first (r/r-eval (str "pnorm(" x ")"))))
+                    clj-p (stats/normal-cdf x)
                     abs-diff (Math/abs (- r-p clj-p))]
                 ;; Absolute error should be < 1e-6
                 (is (< abs-diff 1e-6)
@@ -143,8 +143,8 @@
       (testing "pnorm(qnorm(p)) = p"
         (doseq [p [0.1 0.25 0.5 0.75 0.9 0.95 0.99]]
           (testing (str "at p=" p)
-            (let [x (prob/normal-quantile p)
-                  p-back (prob/normal-cdf x)]
+            (let [x (stats/normal-quantile p)
+                  p-back (stats/normal-cdf x)]
               ;; Due to erf approximation, use 1e-6 tolerance
               (is (approx= p p-back 1e-6)
                   (format "inverse mismatch: p=%.2f, qnorm(p)=%.15f, pnorm(qnorm(p))=%.15f"
@@ -153,9 +153,9 @@
       (testing "qnorm(pnorm(x)) = x"
         (doseq [x [-2.0 -1.0 0.0 1.0 2.0]]
           (testing (str "at x=" x)
-            (let [p (prob/normal-cdf x)
-                  x-back (prob/normal-quantile p)]
-              ;; Due to erf approximation, use 1e-6 tolerance
+            (let [p (stats/normal-cdf x)
+                  x-back (stats/normal-quantile p)]
+              ;; Due to erf approximation, use 1e-5 tolerance
               (is (approx= x x-back 1e-5)
                   (format "inverse mismatch: x=%.1f, pnorm(x)=%.15f, qnorm(pnorm(x))=%.15f"
                           x p x-back)))))))))
