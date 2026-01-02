@@ -141,8 +141,8 @@
      :mean mean
      :variance variance
      :sigma sigma
-     :mean-plus-3sigma (+ (double mean) three-sigma)
-     :mean-minus-3sigma (- (double mean) three-sigma)
+     :mean-plus-3sigma (+ mean three-sigma)
+     :mean-minus-3sigma (- mean three-sigma)
      :min-val (t-digest/minimum digest)
      :max-val (t-digest/maximum digest)}))
 

@@ -419,12 +419,11 @@
 (defn mean
   ^double [{:keys [centroids] :as ^TDigest digest}]
   (let [sum-weights  (.total-weight digest)
-        weighted-sum (double
-                      (reduce-double-vector
-                       (fn ^double [^double acc ^Centroid centroid]
-                         (+ acc (* (.mean centroid) (.weight centroid))))
-                       0.0
-                       centroids))]
+        weighted-sum (reduce-double-vector
+                      (fn ^double [^double acc ^Centroid centroid]
+                        (+ acc (* (.mean centroid) (.weight centroid))))
+                      0.0
+                      centroids)]
     (/ weighted-sum sum-weights)))
 
 (defn variance
@@ -435,15 +434,14 @@
   (^double [{:keys [centroids] :as ^TDigest digest} ^double mean]
    (let [sum-weights (.total-weight digest)
          n-1         (dec sum-weights)
-         sum-squares (double
-                      (reduce-double-vector
-                       (fn ^double [^double acc ^Centroid centroid]
-                         (+ acc
-                            (* (.mean centroid)
-                               (.mean centroid)
-                               (.weight centroid))))
-                       0.0
-                       centroids))
+         sum-squares (reduce-double-vector
+                      (fn ^double [^double acc ^Centroid centroid]
+                        (+ acc
+                           (* (.mean centroid)
+                              (.mean centroid)
+                              (.weight centroid))))
+                      0.0
+                      centroids)
          e-x-squared (/ sum-squares sum-weights)]
      (* (/ sum-weights n-1)  ; Bessel's correction factor
         (- e-x-squared (* mean mean))))))

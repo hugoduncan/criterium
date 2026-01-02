@@ -41,9 +41,10 @@
   ([data] (core/max data))
   ([data count] (core/max data count)))
 
-(def unchecked-add-d
+(defn unchecked-add-d
   "Unchecked double addition."
-  core/unchecked-add-d)
+  ^double [^double a ^double b]
+  (core/unchecked-add-d a b))
 
 (defn mean
   "Arithmetic mean of data."
@@ -58,9 +59,10 @@
   "Sum of the squares of each data point."
   core/sum-of-squares)
 
-(def variance*
+(defn variance*
   "Variance based on subtracting mean."
-  core/variance*)
+  ^double [data ^double mean ^long df]
+  (core/variance* data mean df))
 
 (defn variance
   "Return the variance of data.
@@ -98,15 +100,17 @@
   Uses the adjusted boxplot method from Hubert & Vandervieren (2008)."
   outliers/adjusted-boxplot-outlier-thresholds)
 
-(def medcouple-kernel
+(defn medcouple-kernel
   "Compute the medcouple kernel h(x_i, x_j)."
-  outliers/medcouple-kernel)
+  ^double [^double xi ^double xj ^double med]
+  (outliers/medcouple-kernel xi xj med))
 
-(def medcouple
+(defn medcouple
   "Compute the medcouple, a robust measure of skewness.
   Returns a value in [-1, 1] where positive indicates right-skew
   and negative indicates left-skew."
-  outliers/medcouple)
+  ^double [sorted-data]
+  (outliers/medcouple sorted-data))
 
 ;;; Sampling
 
@@ -129,45 +133,50 @@
 
 ;;; Probability
 
-(def polynomial-value
+(defn polynomial-value
   "Evaluate a polynomial at the given value x, for the coefficients given in
   descending order (so the last element of coefficients is the constant term)."
-  probability/polynomial-value)
+  ^double [^double x ^doubles coefficients]
+  (probability/polynomial-value x coefficients))
 
-(def erf
+(defn erf
   "erf polynomial approximation.  Maximum error is 1.5e-7.
   Handbook of Mathematical Functions: with Formulas, Graphs, and Mathematical
   Tables. Milton Abramowitz (Editor), Irene A. Stegun (Editor), 7.1.26"
-  probability/erf)
+  ^double [^double x]
+  (probability/erf x))
 
-(def normal-cdf
+(defn normal-cdf
   "Probability p(X<x), for a normal distrubtion.  Uses the polynomial erf
   approximation above, and so is not super accurate."
-  probability/normal-cdf)
+  ^double [^double x]
+  (probability/normal-cdf x))
 
 (def normal-pdf
   "Probability density function for the normal distribution."
   probability/normal-pdf)
 
-(def normal-quantile
+(defn normal-quantile
   "Normal quantile function. Given a quantile in (0,1), return the normal value
   for that quantile.
 
   Wichura, MJ. 'Algorithm AS241' The Percentage Points of the Normal
   Distribution. Applied Statistics, 37, 477-484 "
-  probability/normal-quantile)
+  ^double [^double x]
+  (probability/normal-quantile x))
 
-(def log-gamma
+(defn log-gamma
   "Compute the natural logarithm of the gamma function using Lanczos approximation.
   Returns ln(Γ(x)) for x > 0.
 
   Uses the Lanczos approximation with g=7 and 9 coefficients, providing
   approximately 15 digits of precision. Matches R's lgamma() behavior."
-  probability/log-gamma)
+  ^double [^double x]
+  (probability/log-gamma x))
 
 ;;; Knuth Bayesian histogram binning
 
-(def knuth-log-posterior
+(defn knuth-log-posterior
   "Compute Knuth's log-posterior for M bins given sample count and bin counts.
 
   F(M|x,I) = n·log(M) + logΓ(M/2) - M·logΓ(1/2) - logΓ((2n+M)/2) + Σₖ₌₁ᴹ logΓ(nₖ + 1/2)
@@ -177,7 +186,8 @@
     bin-counts - sequence of counts per bin
 
   Returns the log-posterior value (higher is better)."
-  knuth/log-posterior)
+  ^double [^long n bin-counts]
+  (knuth/log-posterior n bin-counts))
 
 (defn knuth-optimal-bins
   "Find optimal number of bins using Knuth's Bayesian method.
@@ -255,40 +265,45 @@
   "Merge any buffered points into the digest."
   t-digest/compress)
 
-(def digest-quantile
+(defn digest-quantile
   "Return estimated value at given quantile [0,1].
    Return NaN if digest is empty."
-  t-digest/quantile)
+  ^double [digest ^double q]
+  (t-digest/quantile digest q))
 
-(def digest-cdf
+(defn digest-cdf
   "Return the cumulative probability at x.
    Return NaN if digest is empty."
-  t-digest/cdf)
+  ^double [digest ^double x]
+  (t-digest/cdf digest x))
 
-(def digest-sample-count
+(defn digest-sample-count
   "Return the sample count in the digest."
-  t-digest/sample-count)
+  ^double [digest]
+  (t-digest/sample-count digest))
 
-(def digest-minimum
+(defn digest-minimum
   "Return the minimum value in the digest."
-  t-digest/minimum)
+  ^double [digest]
+  (t-digest/minimum digest))
 
-(def digest-maximum
+(defn digest-maximum
   "Return the maximum value in the digest."
-  t-digest/maximum)
+  ^double [digest]
+  (t-digest/maximum digest))
 
 (defn digest-mean
   "Return the mean estimate.
    Return NaN if digest is empty."
-  [digest]
+  ^double [digest]
   (t-digest/mean digest))
 
 (defn digest-variance
   "Return the variance estimate.
    Return NaN if digest is empty."
-  ([digest]
+  (^double [digest]
    (t-digest/variance digest))
-  ([digest mean]
+  (^double [digest ^double mean]
    (t-digest/variance digest mean)))
 
 (def digest-transform
@@ -309,20 +324,22 @@
 
 ;;; Kernel functions
 
-(def modal-estimation-constant
+(defn modal-estimation-constant
   "Kernel function for estimation of multi-modality.
   h-k is the critical bandwidth, sample-variance is the observed sample variance."
-  kernel/modal-estimation-constant)
+  ^double [^double h-k ^double sample-variance]
+  (kernel/modal-estimation-constant h-k sample-variance))
 
 (def smoothed-sample
   "Smoothed estimation function.
   Generates a lazy sequence of smoothed values from data using kernel smoothing."
   kernel/smoothed-sample)
 
-(def gaussian-weight
+(defn gaussian-weight
   "Weight function for gaussian kernel.
   K(t) = (1/sqrt(2*pi)) * exp(-t^2/2)"
-  kernel/gaussian-weight)
+  ^double [^double t]
+  (kernel/gaussian-weight t))
 
 (def kernel-density-estimator
   "Kernel density estimator for x, given n samples X, weights K and width h.
