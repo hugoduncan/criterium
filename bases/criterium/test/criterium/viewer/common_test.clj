@@ -579,6 +579,168 @@
             {:keys [y-title]} (first result)]
         (is (not (str/starts-with? y-title "mean ")))))))
 
+;;; Edge case tests for empty data and degenerate inputs.
+;;; Verifies that detection helpers and preparation functions handle edge cases
+;;; gracefully without throwing exceptions.
+
+(deftest edge-cases-empty-metrics-test
+  ;; Tests handling of empty or missing metrics data structures
+  (testing "empty metrics map"
+    (testing "single-point-multi-impl? returns nil for empty metrics"
+      (let [extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations [:foo :bar]
+                     :metrics {}}]
+        (is (nil? (common/single-point-multi-impl? extract)))))
+
+    (testing "single-axis-multi-point? returns nil for empty metrics"
+      (let [extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations [:foo :bar]
+                     :metrics {}}]
+        (is (nil? (common/single-axis-multi-point? extract)))))
+
+    (testing "visualization-strategy returns :default-table for empty metrics"
+      (let [extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations [:foo :bar]
+                     :metrics {}}]
+        (is (= :default-table (common/visualization-strategy extract))))))
+
+  (testing "metric with empty data"
+    (testing "single-point-multi-impl? returns nil for metric with empty data"
+      (let [extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations [:foo :bar]
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data []}}}]
+        (is (nil? (common/single-point-multi-impl? extract)))))
+
+    (testing "visualization-strategy returns :default-table for empty data"
+      (let [extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations [:foo :bar]
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data []}}}]
+        (is (= :default-table (common/visualization-strategy extract)))))))
+
+(deftest edge-cases-nil-values-test
+  ;; Tests handling of nil values in metric data vectors
+  (testing "nil values in metric data"
+    (testing "single-point-multi-impl? handles nil values in data"
+      (let [extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations [:foo :bar]
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100 :impl :foo} nil]
+                                       [{:n 100 :impl :bar} 2.0e-6]]}}}]
+        ;; Should still detect single-point structure despite nil value
+        (is (true? (common/single-point-multi-impl? extract)))))
+
+    (testing "prepare-line-chart-data handles nil values in data"
+      (let [extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations [:foo :bar]
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100 :impl :foo} nil]
+                                       [{:n 100 :impl :bar} 2.0e-6]
+                                       [{:n 200 :impl :foo} 1.5e-6]
+                                       [{:n 200 :impl :bar} nil]]}}}
+            result (common/prepare-line-chart-data extract)
+            data (:data (first result))]
+        ;; Should include points with non-nil y values
+        (is (= 4 (count data)))
+        ;; nil values should result in nil y values
+        (is (some #(nil? (get % "y")) data))))))
+
+(deftest edge-cases-mixed-value-formats-test
+  ;; Tests handling of mixed error-bound and plain values in the same extract
+  (testing "mixed error-bound and plain values"
+    (testing "prepare-line-chart-data handles mixed value formats"
+      (let [extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations [:foo :bar]
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100 :impl :foo} {:value 1.0e-6 :error 0.1e-6}]
+                                       [{:n 100 :impl :bar} 2.0e-6] ; plain value
+                                       [{:n 200 :impl :foo} 1.5e-6] ; plain value
+                                       [{:n 200 :impl :bar} {:value 2.5e-6 :error 0.2e-6}]]}}}
+            result (common/prepare-line-chart-data extract)
+            {:keys [y-title data]} (first result)]
+        (is (= 4 (count data)))
+        (is (every? #(number? (get % "y")) data))
+        ;; When any value has error bounds, y-title should have "mean " prefix
+        (is (str/starts-with? y-title "mean "))))
+
+    (testing "prepare-comparison-line-data handles mixed value formats"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo :bar]
+                        :data {:foo [{:coord {:n 100} :value {:value 1.0e-6 :error 0.1e-6}}
+                                     {:coord {:n 200} :value 1.5e-6}] ; plain value
+                               :bar [{:coord {:n 100} :value 2.0e-6} ; plain value
+                                     {:coord {:n 200} :value {:value 2.5e-6 :error 0.2e-6}}]}}
+            result (common/prepare-comparison-line-data comparison)
+            {:keys [y-title data]} (first result)]
+        (is (= 4 (count data)))
+        (is (every? #(number? (get % "y")) data))
+        ;; When any value has error bounds, y-title should have "mean " prefix
+        (is (str/starts-with? y-title "mean "))))))
+
+(deftest edge-cases-empty-implementations-test
+  ;; Tests handling of empty implementations vector
+  (testing "empty implementations vector"
+    (testing "single-point-multi-impl? returns nil for empty implementations"
+      (let [extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations []
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100 :impl :foo} 1.0e-6]]}}}]
+        (is (not (common/single-point-multi-impl? extract)))))
+
+    (testing "single-axis-multi-point? returns nil for empty implementations"
+      (let [extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations []
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100 :impl :foo} 1.0e-6]
+                                       [{:n 200 :impl :foo} 2.0e-6]]}}}]
+        (is (not (common/single-axis-multi-point? extract)))))
+
+    (testing "visualization-strategy returns :default-table for empty implementations"
+      (let [extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations []
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100 :impl :foo} 1.0e-6]]}}}]
+        (is (= :default-table (common/visualization-strategy extract))))))
+
+  (testing "comparison with empty implementations"
+    (testing "single-point-multi-impl-comparison? returns nil for empty impls"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations []
+                        :data {:foo [{:coord {:n 100} :value 1.0e-6}]}}]
+        (is (not (common/single-point-multi-impl-comparison? comparison)))))
+
+    (testing "comparison-visualization-strategy returns :default-table for empty impls"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations []
+                        :data {:foo [{:coord {:n 100} :value 1.0e-6}]}}]
+        (is (= :default-table (common/comparison-visualization-strategy comparison)))))))
+
 ;;; Tests for prepare-comparison-line-data helper.
 ;;; Verifies line chart data preparation from domain-comparison data.
 

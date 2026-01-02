@@ -199,20 +199,21 @@
         impls (:implementations extract)
         multi-impl? (and impls (> (count impls) 1))]
     (when multi-impl?
-      (let [metrics (:metrics extract)
-            ;; Get all coordinates from first metric
-            first-metric-data (:data (val (first metrics)))
-            all-coords (map first first-metric-data)
-            ;; Get the non-impl axis keys from first coordinate
-            first-coord (first all-coords)
-            non-impl-keys (when (map? first-coord)
-                            (disj (set (keys first-coord)) impl-axis-key))
-            ;; Single axis with single unique value?
-            single-axis? (= 1 (count non-impl-keys))]
-        (when single-axis?
-          (let [axis-key (first non-impl-keys)
-                axis-values (into #{} (map #(get % axis-key)) all-coords)]
-            (= 1 (count axis-values))))))))
+      (let [metrics (:metrics extract)]
+        (when (seq metrics)
+          (let [;; Get all coordinates from first metric
+                first-metric-data (:data (val (first metrics)))
+                all-coords (map first first-metric-data)
+                ;; Get the non-impl axis keys from first coordinate
+                first-coord (first all-coords)
+                non-impl-keys (when (map? first-coord)
+                                (disj (set (keys first-coord)) impl-axis-key))
+                ;; Single axis with single unique value?
+                single-axis? (= 1 (count non-impl-keys))]
+            (when single-axis?
+              (let [axis-key (first non-impl-keys)
+                    axis-values (into #{} (map #(get % axis-key)) all-coords)]
+                (= 1 (count axis-values))))))))))
 
 (defn single-axis-multi-point?
   "Return true when extract has exactly one non-impl axis with multiple values
@@ -225,20 +226,21 @@
         impls (:implementations extract)
         multi-impl? (and impls (> (count impls) 1))]
     (when multi-impl?
-      (let [metrics (:metrics extract)
-            ;; Get all coordinates from first metric
-            first-metric-data (:data (val (first metrics)))
-            all-coords (map first first-metric-data)
-            ;; Get the non-impl axis keys from first coordinate
-            first-coord (first all-coords)
-            non-impl-keys (when (map? first-coord)
-                            (disj (set (keys first-coord)) impl-axis-key))
-            ;; Single axis?
-            single-axis? (= 1 (count non-impl-keys))]
-        (when single-axis?
-          (let [axis-key (first non-impl-keys)
-                axis-values (into #{} (map #(get % axis-key)) all-coords)]
-            (> (count axis-values) 1)))))))
+      (let [metrics (:metrics extract)]
+        (when (seq metrics)
+          (let [;; Get all coordinates from first metric
+                first-metric-data (:data (val (first metrics)))
+                all-coords (map first first-metric-data)
+                ;; Get the non-impl axis keys from first coordinate
+                first-coord (first all-coords)
+                non-impl-keys (when (map? first-coord)
+                                (disj (set (keys first-coord)) impl-axis-key))
+                ;; Single axis?
+                single-axis? (= 1 (count non-impl-keys))]
+            (when single-axis?
+              (let [axis-key (first non-impl-keys)
+                    axis-values (into #{} (map #(get % axis-key)) all-coords)]
+                (> (count axis-values) 1)))))))))
 
 (defn visualization-strategy
   "Determine the visualization strategy for domain extract data.
