@@ -47,10 +47,16 @@
      {:kindly/kind :kind/md})))
 
 (defn kindly-table
-  "Add a table to the accumulator."
-  [data]
-  (kindly-add
-   (with-meta data {:kindly/kind :kind/table})))
+  "Add a table to the accumulator.
+  Optionally accepts :column-names in opts for explicit column ordering."
+  ([data] (kindly-table data nil))
+  ([data {:keys [column-names]}]
+   (kindly-add
+    (with-meta
+      (if column-names
+        {:row-maps data :column-names column-names}
+        data)
+      {:kindly/kind :kind/table}))))
 
 (defn kindly-vega-lite
   "Add a Vega-Lite chart to the accumulator."
@@ -241,10 +247,11 @@
   [_ {:keys [extract-id]} data-map]
   (let [extract-id (or extract-id :extract)
         extract (data-map extract-id)]
-    (when-let [table-data (viewer-common/prepare-domain-extract-table
-                           extract {:header-sep "\n"})]
-      (kindly-heading (:heading table-data))
-      (kindly-table (:rows table-data)))))
+    (when-let [{:keys [heading coord-header col-headers rows]}
+               (viewer-common/prepare-domain-extract-table
+                extract {:header-sep "\n"})]
+      (kindly-heading heading)
+      (kindly-table rows {:column-names (into [coord-header] col-headers)}))))
 
 (defmethod view/domain-grouped* :kindly
   [_ {:keys [grouped-id]} data-map]
@@ -261,9 +268,9 @@
         comparison (data-map comparison-id)]
     (when-let [tables (viewer-common/prepare-domain-comparison-tables
                        comparison)]
-      (doseq [{:keys [heading rows]} tables]
+      (doseq [{:keys [heading coord-header col-headers rows]} tables]
         (kindly-heading heading)
-        (kindly-table rows)))))
+        (kindly-table rows {:column-names (into [coord-header] col-headers)})))))
 
 (defmethod view/domain-regression* :kindly
   [_ {:keys [regression-id extract-id tolerance]} data-map]

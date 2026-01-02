@@ -11,6 +11,15 @@
    [criterium.view :as view]
    [criterium.viewer.kindly :as kindly]))
 
+(defn table-rows
+  "Extract row-maps from a kindly table structure.
+  Handles both old structure (plain vector of maps) and new structure
+  ({:row-maps [...] :column-names [...]}) used when column ordering is specified."
+  [table]
+  (if (and (map? table) (contains? table :row-maps))
+    (:row-maps table)
+    table))
+
 (deftest kindly-add-test
   (testing "kindly-add"
     (testing "appends values to the accumulator"
@@ -44,6 +53,15 @@
         (kindly/kindly-table table-data)
         (let [result (first @kindly/accumulated)]
           (is (= table-data result))
+          (is (= :kind/table (:kindly/kind (meta result)))))))
+
+    (testing "with column-names wraps data in :row-maps structure"
+      (reset! kindly/accumulated [])
+      (let [table-data [{:col1 "a" :col2 1}]
+            column-names [:col1 :col2]]
+        (kindly/kindly-table table-data {:column-names column-names})
+        (let [result (first @kindly/accumulated)]
+          (is (= {:row-maps table-data :column-names column-names} result))
           (is (= :kind/table (:kindly/kind (meta result)))))))
 
     (testing "returns nil"
@@ -500,6 +518,7 @@
   ;; Verifies that domain extract data is rendered as a single consolidated
   ;; table with metrics as columns. Values use SI scaling with unit in header.
   ;; Single-key coords use the key name as column header and display raw values.
+  ;; Tables include :column-names metadata for explicit column ordering.
   (testing "view/domain-extract* :kindly"
     (testing
      "renders single-impl extract as consolidated table with single-key coords"
@@ -515,24 +534,30 @@
           (is (= :kind/fragment (:kindly/kind (meta result))))
           (is (= 2 (count result))
               "Expected heading and table")
-          (let [[heading table] result]
+          (let [[heading table-data] result
+                rows (table-rows table-data)]
             (is (= :kind/md (:kindly/kind (meta heading))))
             (is (= ["**Domain Extract**"] heading))
-            (is (= :kind/table (:kindly/kind (meta table))))
-            (is (= 3 (count table))
+            (is (= :kind/table (:kindly/kind (meta table-data))))
+            ;; Verify column-names are present
+            (is (contains? table-data :column-names)
+                "Expected :column-names in table structure")
+            (is (= "n" (first (:column-names table-data)))
+                "Expected coord column first in column-names")
+            (is (= 3 (count rows))
                 "Expected 3 rows for 3 data points")
-            ;; Single-key coords use key name as column header
-            (is (every? #(contains? % :n) table)
+            ;; Single-key coords use key name as column header (keyword key)
+            (is (every? #(contains? % :n) rows)
                 "Expected :n column for single-key coords")
             ;; Rows should be sorted numerically
-            (is (= [100 1000 10000] (mapv :n table))
+            (is (= [100 1000 10000] (mapv :n rows))
                 "Expected rows sorted numerically by coord value")
             ;; Column header is metric-name with SI unit
-            (let [col-key (first (filter #(clojure.string/starts-with?
+            (let [col-key (first (filter #(str/starts-with?
                                            (str %) "elapsed-time")
-                                         (keys (first table))))]
+                                         (keys (first rows))))]
               (is col-key "Expected elapsed-time column")
-              (is (clojure.string/includes? (str col-key) "(")
+              (is (str/includes? (str col-key) "(")
                   "Expected unit in parentheses"))))))
 
     (testing "renders multi-key coords with :coordinate column"
@@ -544,8 +569,9 @@
                                                   [{:n 1000 :m 2} 1e7]]}}}}]
         (view/domain-extract* :kindly {} data-map)
         (let [result (kindly/flush)
-              [_ table] result]
-          (is (every? #(contains? % :coordinate) table)
+              [_ table-data] result
+              rows (table-rows table-data)]
+          (is (every? #(contains? % :coordinate) rows)
               "Expected :coordinate column for multi-key coords"))))
 
     (testing "renders multi-metric extract as consolidated table"
@@ -562,16 +588,17 @@
                                          [{:n 1000} 2048]]}}}}]
         (view/domain-extract* :kindly {} data-map)
         (let [result (kindly/flush)
-              [_ table] result
-              col-keys (keys (first table))]
-          (is (= 2 (count table))
+              [_ table-data] result
+              rows (table-rows table-data)
+              col-keys (keys (first rows))]
+          (is (= 2 (count rows))
               "Expected 2 rows")
           (is (some
-               #(clojure.string/starts-with? (str %) "elapsed-time")
+               #(str/starts-with? (str %) "elapsed-time")
                col-keys)
               "Expected elapsed-time column")
           (is (some
-               #(clojure.string/starts-with? (str %) "thread-allocation")
+               #(str/starts-with? (str %) "thread-allocation")
                col-keys)
               "Expected thread-allocation column"))))
 
@@ -590,17 +617,18 @@
                                 [{:n 1000 :impl :bar} 2e7]]}}}}]
         (view/domain-extract* :kindly {} data-map)
         (let [result (kindly/flush)
-              [_ table] result
-              col-keys (set (map str (keys (first table))))]
-          (is (= 2 (count table))
+              [_ table-data] result
+              rows (table-rows table-data)
+              col-keys (set (map str (keys (first rows))))]
+          (is (= 2 (count rows))
               "Expected 2 rows (one per n value)")
           ;; Column headers include impl name with newline
-          (is (some #(and (clojure.string/includes? % "foo")
-                          (clojure.string/includes? % "elapsed-time"))
+          (is (some #(and (str/includes? % "foo")
+                          (str/includes? % "elapsed-time"))
                     col-keys)
               "Expected foo elapsed-time column")
-          (is (some #(and (clojure.string/includes? % "bar")
-                          (clojure.string/includes? % "elapsed-time"))
+          (is (some #(and (str/includes? % "bar")
+                          (str/includes? % "elapsed-time"))
                     col-keys)
               "Expected bar elapsed-time column"))))
 
@@ -618,14 +646,15 @@
                                                   [{:n 1000} 1e7]]}}}}]
         (view/domain-extract* :kindly {} data-map)
         (let [result (kindly/flush)
-              [_ table] result
-              col-key (first (filter #(clojure.string/starts-with?
+              [_ table-data] result
+              rows (table-rows table-data)
+              col-key (first (filter #(str/starts-with?
                                        (str %) "elapsed-time")
-                                     (keys (first table))))
-              ;; Find the row with n=100 (has nil value) - single-key so :n
-              ;; column
-              row-with-nil (first (filter #(= 100 (:n %)) table))]
-          (is (= 2 (count table)))
+                                     (keys (first rows))))
+              ;; Find the row with n=100 (has nil value) - single-key uses "n"
+              ;; string column
+              row-with-nil (first (filter #(= 100 (get % "n")) rows))]
+          (is (= 2 (count rows)))
           (is (nil? (get row-with-nil col-key))
               "Row with n=100 should have nil value"))))))
 
@@ -669,7 +698,8 @@
 (deftest domain-comparison-view-test
   ;; Tests the view/domain-comparison* multimethod for :kindly viewer.
   ;; Verifies that domain comparison data is rendered as heading and comparison
-  ;; table with axis values as columns.
+  ;; table with axis values as columns. Tables include :column-names metadata
+  ;; for explicit column ordering.
   (testing "view/domain-comparison* :kindly"
     (testing "renders comparison as heading and table"
       (reset! kindly/accumulated [])
@@ -687,17 +717,21 @@
           (is (= :kind/fragment (:kindly/kind (meta result))))
           (is (= 2 (count result))
               "Expected heading and table")
-          (let [[heading table] result]
+          (let [[heading table-data] result
+                rows (table-rows table-data)]
             (is (= :kind/md (:kindly/kind (meta heading))))
-            (is (clojure.string/includes? (first heading) "Domain Comparison"))
-            (is (= :kind/table (:kindly/kind (meta table))))
-            (is (= 2 (count table))
+            (is (str/includes? (first heading) "Domain Comparison"))
+            (is (= :kind/table (:kindly/kind (meta table-data))))
+            ;; Verify column-names are present
+            (is (contains? table-data :column-names)
+                "Expected :column-names in table structure")
+            (is (= 2 (count rows))
                 "Expected 2 rows for 2 n values")
             ;; With single-key coord simplification, column header is "n"
             ;; not :coordinate
-            (is (every? #(or (contains? % "n") (contains? % :coordinate)) table)
+            (is (every? #(or (contains? % "n") (contains? % :coordinate)) rows)
                 "Expected coordinate column ('n' for single-key coords)")
-            (is (every? #(or (contains? % ":foo") (contains? % "foo")) table)
+            (is (every? #(or (contains? % ":foo") (contains? % "foo")) rows)
                 "Expected axis value columns")))))
 
     (testing "with :implementations shows factors for non-baseline"
@@ -716,13 +750,14 @@
         (let [result (kindly/flush)]
           (is (= :kind/fragment (:kindly/kind (meta result))))
           (is (= 2 (count result)) "Expected heading and table")
-          (let [[heading table] result]
+          (let [[heading table-data] result
+                rows (table-rows table-data)]
             (is (= :kind/md (:kindly/kind (meta heading))))
             (is (str/includes? (first heading) "Domain Comparison"))
-            (is (= :kind/table (:kindly/kind (meta table))))
-            (is (= 2 (count table)) "Expected 2 rows")
+            (is (= :kind/table (:kindly/kind (meta table-data))))
+            (is (= 2 (count rows)) "Expected 2 rows")
             ;; Check that baseline impl is a column and factor impl has ×
-            (let [first-row (first table)]
+            (let [first-row (first rows)]
               (is (contains? first-row "foo")
                   "Expected baseline impl column")
               (is (contains? first-row "bar ×")
