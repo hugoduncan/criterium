@@ -50,10 +50,10 @@
 
         (testing "at symmetric probability pairs"
           ;; qnorm(p) = -qnorm(1-p) for any p
-          (doseq [^double p [0.1 0.25 0.05 0.01]]
+          (doseq [p [0.1 0.25 0.05 0.01]]
             (testing (str "p=" p " and p=" (- 1.0 p))
-              (let [^double q-low (stats/normal-quantile p)
-                    ^double q-high (stats/normal-quantile (- 1.0 p))]
+              (let [q-low (stats/normal-quantile p)
+                    q-high (stats/normal-quantile (- 1.0 p))]
                 (is (approx= (- q-low) q-high 1e-10)
                     (format "symmetry mismatch: q(%.2f)=%.15f, q(%.2f)=%.15f"
                             p q-low (- 1.0 p) q-high))))))
@@ -95,9 +95,9 @@
           ;; Use absolute tolerance since relative error is misleading.
           (doseq [x tail-x-values]
             (testing (str "at x=" x)
-              (let [^double r-p (first (r/r-eval (str "pnorm(" x ")")))
-                    ^double clj-p (stats/normal-cdf x)
-                    abs-diff (Math/abs ^double (- r-p clj-p))]
+              (let [r-p (double (first (r/r-eval (str "pnorm(" x ")"))))
+                    clj-p (stats/normal-cdf x)
+                    abs-diff (Math/abs (- r-p clj-p))]
                 ;; Absolute error should be < 1e-6 (well within erf max error)
                 (is (< abs-diff 1e-6)
                     (format "normal-cdf mismatch at x=%.1f: R=%.15f, clj=%.15f, diff=%.2e"
@@ -114,10 +114,10 @@
 
         (testing "symmetry around the mean"
           ;; pnorm(x) + pnorm(-x) = 1 for any x
-          (doseq [^double x [0.5 1.0 2.0 3.0]]
+          (doseq [x [0.5 1.0 2.0 3.0]]
             (testing (str "x=" x " and x=" (- x))
-              (let [^double p-pos (stats/normal-cdf x)
-                    ^double p-neg (stats/normal-cdf (- x))]
+              (let [p-pos (stats/normal-cdf x)
+                    p-neg (stats/normal-cdf (- x))]
                 (is (approx= 1.0 (+ p-pos p-neg) 1e-10)
                     (format "symmetry mismatch: pnorm(%.1f)=%.15f, pnorm(%.1f)=%.15f, sum=%.15f"
                             x p-pos (- x) p-neg (+ p-pos p-neg)))))))
@@ -127,9 +127,9 @@
           ;; Use absolute tolerance since these are edge cases.
           (doseq [x [-5.0 -6.0 5.0 6.0]]
             (testing (str "at x=" x)
-              (let [^double r-p (first (r/r-eval (str "pnorm(" x ")")))
-                    ^double clj-p (stats/normal-cdf x)
-                    abs-diff (Math/abs ^double (- r-p clj-p))]
+              (let [r-p (double (first (r/r-eval (str "pnorm(" x ")"))))
+                    clj-p (stats/normal-cdf x)
+                    abs-diff (Math/abs (- r-p clj-p))]
                 ;; Absolute error should be < 1e-6
                 (is (< abs-diff 1e-6)
                     (format "normal-cdf mismatch at x=%.1f: R=%.15f, clj=%.15f, diff=%.2e"
