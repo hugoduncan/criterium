@@ -746,7 +746,6 @@
     :data - vector of {\"x\" number \"y\" number \"impl\" string} maps"
   [extract]
   (let [impl-axis-key (:impl-axis extract)
-        implementations (:implementations extract)
         metrics (:metrics extract)
         ;; Find the non-impl axis key
         first-metric-data (:data (val (first metrics)))
@@ -801,7 +800,7 @@
     :y-title - y-axis title with SI unit
     :data - vector of {\"x\" number \"y\" number \"impl\" string} maps"
   [comparison]
-  (let [{:keys [axis metric metrics implementations data]} comparison
+  (let [{:keys [axis metric metrics data]} comparison
         x-title (name axis)]
     (if metrics
       ;; Multi-metric mode
