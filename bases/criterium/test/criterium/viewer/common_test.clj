@@ -62,6 +62,66 @@
     (testing "returns nil for nil extract"
       (is (nil? (common/single-point-multi-impl? nil))))))
 
+;;; Tests for single-axis-multi-point? helper.
+;;; Verifies detection of the line chart scenario where we have multiple
+;;; implementations across a range of values on a single axis.
+
+(deftest single-axis-multi-point?-test
+  (testing "single-axis-multi-point?"
+    (testing "returns true when one axis with multiple values and multiple impls"
+      (let [extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations [:foo :bar]
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100 :impl :foo} 1.0e-6]
+                                       [{:n 100 :impl :bar} 2.0e-6]
+                                       [{:n 200 :impl :foo} 1.5e-6]
+                                       [{:n 200 :impl :bar} 2.5e-6]]}}}]
+        (is (true? (common/single-axis-multi-point? extract)))))
+
+    (testing "returns false when one axis with single value"
+      (let [extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations [:foo :bar]
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100 :impl :foo} 1.0e-6]
+                                       [{:n 100 :impl :bar} 2.0e-6]]}}}]
+        (is (not (common/single-axis-multi-point? extract)))))
+
+    (testing "returns false when single implementation"
+      (let [extract {:type :criterium/domain-extract
+                     :implementations [:default]
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100} 1.0e-6]
+                                       [{:n 200} 2.0e-6]]}}}]
+        (is (not (common/single-axis-multi-point? extract)))))
+
+    (testing "returns false when no implementations key"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100} 1.0e-6]
+                                       [{:n 200} 2.0e-6]]}}}]
+        (is (not (common/single-axis-multi-point? extract)))))
+
+    (testing "returns false when multiple non-impl axes"
+      (let [extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations [:foo :bar]
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100 :m 10 :impl :foo} 1.0e-6]
+                                       [{:n 100 :m 10 :impl :bar} 2.0e-6]
+                                       [{:n 200 :m 20 :impl :foo} 1.5e-6]
+                                       [{:n 200 :m 20 :impl :bar} 2.5e-6]]}}}]
+        (is (not (common/single-axis-multi-point? extract)))))
+
+    (testing "returns nil for nil extract"
+      (is (nil? (common/single-axis-multi-point? nil))))))
+
 ;; Tests for ASCII treemap rendering functions.
 ;; Verifies ascii-bar generates proportional bars and render-ascii-treemap
 ;; produces correct tree structure with proper formatting, filtering, and depth limits.

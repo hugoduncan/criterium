@@ -214,6 +214,32 @@
                 axis-values (into #{} (map #(get % axis-key)) all-coords)]
             (= 1 (count axis-values))))))))
 
+(defn single-axis-multi-point?
+  "Return true when extract has exactly one non-impl axis with multiple values
+  and multiple implementations.
+
+  This detects the 'line chart' scenario where we're comparing multiple
+  implementations across a range of parameter values on a single axis."
+  [extract]
+  (let [impl-axis-key (:impl-axis extract)
+        impls (:implementations extract)
+        multi-impl? (and impls (> (count impls) 1))]
+    (when multi-impl?
+      (let [metrics (:metrics extract)
+            ;; Get all coordinates from first metric
+            first-metric-data (:data (val (first metrics)))
+            all-coords (map first first-metric-data)
+            ;; Get the non-impl axis keys from first coordinate
+            first-coord (first all-coords)
+            non-impl-keys (when (map? first-coord)
+                            (disj (set (keys first-coord)) impl-axis-key))
+            ;; Single axis?
+            single-axis? (= 1 (count non-impl-keys))]
+        (when single-axis?
+          (let [axis-key (first non-impl-keys)
+                axis-values (into #{} (map #(get % axis-key)) all-coords)]
+            (> (count axis-values) 1)))))))
+
 ;;; Domain view helpers
 
 (defn format-coord
