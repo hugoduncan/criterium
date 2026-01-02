@@ -1447,7 +1447,7 @@
   [location metric-config transforms]
   (let [{:keys [dimension scale]} metric-config
         loc (util/transform-sample-> location transforms)]
-    (format/format-value dimension (* scale loc))))
+    (format/format-value dimension (* (double scale) loc))))
 
 (defn for-each-multimodal-metric
   "Iterate over metrics with multimodal distributions (n-modes > 1).
@@ -1467,7 +1467,7 @@
           (when-let [modes-data (get all-modes (:path metric-config))]
             (let [n-modes (:n-modes modes-data)
                   modes (:modes modes-data)]
-              (when (and n-modes (> n-modes 1))
+              (when (and n-modes (> (long n-modes) 1))
                 (f {:metric-config metric-config
                     :n-modes n-modes
                     :modes modes
