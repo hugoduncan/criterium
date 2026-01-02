@@ -240,33 +240,38 @@
                 axis-values (into #{} (map #(get % axis-key)) all-coords)]
             (> (count axis-values) 1)))))))
 
+(defn- comparison-axis-values
+  "Extract the set of axis values from a comparison.
+
+  Handles both single-metric mode (data keyed by impl) and multi-metric mode
+  (data under each metric key)."
+  [{:keys [axis data metrics]}]
+  (if metrics
+    ;; Multi-metric mode: data is under each metric
+    (->> metrics
+         vals
+         (mapcat (fn [{:keys [data]}]
+                   (mapcat (fn [[_impl entries]]
+                             (map #(get (:coord %) axis) entries))
+                           data)))
+         (into #{}))
+    ;; Single-metric mode: data is directly keyed by impl
+    (->> data
+         vals
+         (mapcat (fn [entries]
+                   (map #(get (:coord %) axis) entries)))
+         (into #{}))))
+
 (defn single-point-multi-impl-comparison?
   "Return true when comparison has multiple implementations and a single axis value.
 
   This detects the 'single-point comparison' scenario for domain-comparison views
   where we're comparing multiple implementations at a single parameter point."
   [comparison]
-  (let [{:keys [axis implementations data metrics]} comparison
+  (let [{:keys [implementations]} comparison
         multi-impl? (and implementations (> (count implementations) 1))]
     (when multi-impl?
-      ;; Get all axis values from the data
-      (let [all-axis-values
-            (if metrics
-              ;; Multi-metric mode: data is under each metric
-              (->> metrics
-                   vals
-                   (mapcat (fn [{:keys [data]}]
-                             (mapcat (fn [[_impl entries]]
-                                       (map #(get (:coord %) axis) entries))
-                                     data)))
-                   (into #{}))
-              ;; Single-metric mode: data is directly keyed by impl
-              (->> data
-                   vals
-                   (mapcat (fn [entries]
-                             (map #(get (:coord %) axis) entries)))
-                   (into #{})))]
-        (= 1 (count all-axis-values))))))
+      (= 1 (count (comparison-axis-values comparison))))))
 
 (defn single-axis-multi-point-comparison?
   "Return true when comparison has multiple implementations and multiple axis values.
@@ -277,27 +282,10 @@
   Returns false when the axis is the implementation axis itself (axis values
   match the implementations), since line charts require a quantitative axis."
   [comparison]
-  (let [{:keys [axis implementations data metrics]} comparison
+  (let [{:keys [implementations]} comparison
         multi-impl? (and implementations (> (count implementations) 1))]
     (when multi-impl?
-      ;; Get all axis values from the data
-      (let [all-axis-values
-            (if metrics
-              ;; Multi-metric mode: data is under each metric
-              (->> metrics
-                   vals
-                   (mapcat (fn [{:keys [data]}]
-                             (mapcat (fn [[_impl entries]]
-                                       (map #(get (:coord %) axis) entries))
-                                     data)))
-                   (into #{}))
-              ;; Single-metric mode: data is directly keyed by impl
-              (->> data
-                   vals
-                   (mapcat (fn [entries]
-                             (map #(get (:coord %) axis) entries)))
-                   (into #{})))
-            ;; Check if axis values are just the implementations themselves
+      (let [all-axis-values (comparison-axis-values comparison)
             impl-set (set implementations)]
         (and (> (count all-axis-values) 1)
              (not= all-axis-values impl-set))))))
