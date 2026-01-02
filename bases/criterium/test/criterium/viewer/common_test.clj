@@ -489,9 +489,24 @@
                                :bar [{:coord {:n 100} :value {:value 2.0e-6 :error 0.2e-6}}
                                      {:coord {:n 200} :value {:value 2.5e-6 :error 0.2e-6}}]}}
             result (common/prepare-comparison-line-data comparison)
-            data (:data (first result))]
+            {:keys [y-title data]} (first result)]
         (is (= 4 (count data)))
-        (is (every? #(number? (get % "y")) data))))))
+        (is (every? #(number? (get % "y")) data))
+        (testing "includes 'mean' in y-title for error-bound values"
+          (is (str/starts-with? y-title "mean ")))))
+
+    (testing "does not prefix y-title with 'mean' for plain values"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo :bar]
+                        :data {:foo [{:coord {:n 100} :value 1.0e-6}
+                                     {:coord {:n 200} :value 1.5e-6}]
+                               :bar [{:coord {:n 100} :value 2.0e-6}
+                                     {:coord {:n 200} :value 2.5e-6}]}}
+            result (common/prepare-comparison-line-data comparison)
+            {:keys [y-title]} (first result)]
+        (is (not (str/starts-with? y-title "mean ")))))))
 
 ;; Tests for ASCII treemap rendering functions.
 ;; Verifies ascii-bar generates proportional bars and render-ascii-treemap

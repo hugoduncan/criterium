@@ -402,6 +402,11 @@
     (:value v)
     v))
 
+(defn- error-bound-value?
+  "Returns true if v is an error-bound value map {:value X :error E}."
+  [v]
+  (and (map? v) (contains? v :value)))
+
 (defn detect-uniform-axes
   "Find coordinate axes where all values are identical.
   Returns a set of keys that have uniform values across all coords."
@@ -801,23 +806,23 @@
       ;; Multi-metric mode
       (mapv
        (fn [[metric-id {:keys [metric data]}]]
-         (let [;; Collect all values for SI scaling
-               all-values (->> data
-                               vals
-                               (mapcat (fn [entries]
-                                         (keep (fn [{:keys [value]}]
-                                                 (if (and (map? value)
-                                                          (contains? value :value))
-                                                   (:value value)
-                                                   value))
-                                               entries))))
+         (let [;; Get all raw values for error detection and SI scaling
+               all-raw-values (->> data
+                                   vals
+                                   (mapcat (fn [entries]
+                                             (keep :value entries))))
+               has-error-bounds (some error-bound-value? all-raw-values)
+               all-values (map get-numeric-value all-raw-values)
                {:keys [^double total-scale unit]}
                (compute-si-scaling metric all-values)
                ;; Build y-axis title
                metric-name (name metric-id)
+               base-title (if has-error-bounds
+                            (str "mean " metric-name)
+                            metric-name)
                y-title (if (seq unit)
-                         (str metric-name " (" unit ")")
-                         metric-name)
+                         (str base-title " (" unit ")")
+                         base-title)
                ;; Build chart data points
                chart-data (vec
                            (for [[impl-val entries] data
@@ -838,22 +843,22 @@
             :data chart-data}))
        (sort-by key metrics))
       ;; Single-metric mode
-      (let [;; Collect all values for SI scaling
-            all-values (->> data
-                            vals
-                            (mapcat (fn [entries]
-                                      (keep (fn [{:keys [value]}]
-                                              (if (and (map? value)
-                                                       (contains? value :value))
-                                                (:value value)
-                                                value))
-                                            entries))))
+      (let [;; Get all raw values for error detection and SI scaling
+            all-raw-values (->> data
+                                vals
+                                (mapcat (fn [entries]
+                                          (keep :value entries))))
+            has-error-bounds (some error-bound-value? all-raw-values)
+            all-values (map get-numeric-value all-raw-values)
             {:keys [^double total-scale unit]}
             (compute-si-scaling metric all-values)
             ;; Build y-axis title
+            base-title (if has-error-bounds
+                         (str "mean " (pr-str metric))
+                         (pr-str metric))
             y-title (if (seq unit)
-                      (str (pr-str metric) " (" unit ")")
-                      (pr-str metric))
+                      (str base-title " (" unit ")")
+                      base-title)
             ;; Build chart data points
             chart-data (vec
                         (for [[impl-val entries] data
