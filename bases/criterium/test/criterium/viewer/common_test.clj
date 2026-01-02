@@ -250,7 +250,18 @@
                                   {:metric [:stats :elapsed-time :mean]
                                    :data {:foo [{:coord {:n 100} :value 1.0e-6}]
                                           :bar [{:coord {:n 100} :value 2.0e-6}]}}}}]
-        (is (true? (common/single-point-multi-impl-comparison? comparison)))))))
+        (is (true? (common/single-point-multi-impl-comparison? comparison)))))
+
+    (testing "returns false when axis is impl-axis (multiple axis values)"
+      ;; When :axis :impl, each implementation contributes its own axis value,
+      ;; so there are multiple axis values (one per impl), not a single point.
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :impl
+                        :implementations [:foo :bar]
+                        :metric [:stats :elapsed-time :mean]
+                        :data {:foo [{:coord {:impl :foo :n 100} :value 1.0e-6}]
+                               :bar [{:coord {:impl :bar :n 100} :value 2.0e-6}]}}]
+        (is (not (common/single-point-multi-impl-comparison? comparison)))))))
 
 ;;; Tests for prepare-comparison-bar-data helper.
 ;;; Verifies bar chart data preparation from domain-comparison data.
