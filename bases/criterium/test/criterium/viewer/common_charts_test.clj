@@ -392,6 +392,112 @@
             (str "single-point-bar-chart-spec validation failed: "
                  (pr-str (:errors result))))))))
 
+;;; Bar chart error bars tests.
+;;; Verifies error bar generation for bar charts with error bounds.
+
+(def single-point-extract-with-bounds
+  "Sample single-point extract with error bounds for testing."
+  {:type :criterium/domain-extract
+   :impl-axis :impl
+   :implementations [:foo :bar :baz]
+   :metrics {:elapsed-time
+             {:metric [:stats :elapsed-time :mean]
+              :data [[{:n 100 :impl :foo}
+                      {:value 1.0e-6 :lower 0.9e-6 :upper 1.1e-6}]
+                     [{:n 100 :impl :bar}
+                      {:value 2.0e-6 :lower 1.8e-6 :upper 2.2e-6}]
+                     [{:n 100 :impl :baz}
+                      {:value 1.5e-6 :lower 1.3e-6 :upper 1.7e-6}]]}}})
+
+(deftest single-point-bar-chart-with-error-bars-test
+  ;; Tests bar chart spec generation when error bounds are present.
+  ;; Verifies layered spec structure with bar layer + error layer.
+  (testing "single-point-bar-chart-spec with error bounds"
+    (testing "produces layered structure"
+      (let [spec (charts/single-point-bar-chart-spec
+                  single-point-extract-with-bounds
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))]
+        (is (contains? chart :layer))
+        (is (= 2 (count (:layer chart))))))
+
+    (testing "includes bar layer with bar mark"
+      (let [spec (charts/single-point-bar-chart-spec
+                  single-point-extract-with-bounds
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            bar-layer (first (:layer chart))]
+        (is (= {:type "bar"} (:mark bar-layer)))))
+
+    (testing "includes error layer with rule mark"
+      (let [spec (charts/single-point-bar-chart-spec
+                  single-point-extract-with-bounds
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            error-layer (second (:layer chart))]
+        (is (= "rule" (get-in error-layer [:mark :type])))
+        (is (= 1.5 (get-in error-layer [:mark :strokeWidth])))))
+
+    (testing "error layer encodes y/y2 for bounds"
+      (let [spec (charts/single-point-bar-chart-spec
+                  single-point-extract-with-bounds
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            error-layer (second (:layer chart))
+            encoding (:encoding error-layer)]
+        (is (= "valueLower" (get-in encoding [:y :field])))
+        (is (= "valueUpper" (get-in encoding [:y2 :field])))))
+
+    (testing "error layer data includes bounds"
+      (let [spec (charts/single-point-bar-chart-spec
+                  single-point-extract-with-bounds
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            error-layer (second (:layer chart))
+            data (get-in error-layer [:data :values])]
+        (is (every? #(contains? % "valueLower") data))
+        (is (every? #(contains? % "valueUpper") data))))
+
+    (testing "respects chart dimensions"
+      (let [spec (charts/single-point-bar-chart-spec
+                  single-point-extract-with-bounds
+                  {:width 500 :height 250})
+            chart (first (:vconcat spec))]
+        (is (= 500 (:width chart)))
+        (is (= 250 (:height chart)))))))
+
+(deftest single-point-bar-chart-graceful-degradation-test
+  ;; Tests that bar charts without error bounds render normally.
+  ;; Verifies graceful degradation - no layered structure when no bounds.
+  (testing "single-point-bar-chart-spec without error bounds"
+    (testing "produces simple structure without layer"
+      (let [spec (charts/single-point-bar-chart-spec
+                  single-point-extract
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))]
+        (is (not (contains? chart :layer)))
+        (is (= {:type "bar"} (:mark chart)))))
+
+    (testing "still includes bar mark and encodings"
+      (let [spec (charts/single-point-bar-chart-spec
+                  single-point-extract
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))]
+        (is (= "impl" (get-in chart [:encoding :x :field])))
+        (is (= "value" (get-in chart [:encoding :y :field])))))))
+
+(deftest single-point-bar-chart-with-error-bars-schema-validation-test
+  ;; Validates bar chart with error bars against Vega-Lite v6 schema.
+  (testing "single-point-bar-chart-spec with error bounds"
+    (testing "produces valid Vega-Lite spec"
+      (let [spec (charts/single-point-bar-chart-spec
+                  single-point-extract-with-bounds
+                  {:width 400 :height 300})
+            result (schema/validate-vega-lite-spec spec)]
+        (is (:valid? result)
+            (str "bar chart with error bars validation failed: "
+                 (pr-str (:errors result))))))))
+
 ;;; Comparison bar chart tests.
 ;;; Verifies bar chart generation from domain-comparison data.
 
@@ -455,6 +561,64 @@
             result (schema/validate-vega-lite-spec spec)]
         (is (:valid? result)
             (str "comparison-bar-chart-spec validation failed: "
+                 (pr-str (:errors result))))))))
+
+;;; Comparison bar chart error bars tests.
+
+(def single-point-comparison-with-bounds
+  "Sample comparison with error bounds for testing."
+  {:type :criterium/domain-comparison
+   :axis :n
+   :metric [:stats :elapsed-time :mean]
+   :implementations [:foo :bar :baz]
+   :data {:foo [{:coord {:n 100}
+                 :value {:value 1.0e-6 :lower 0.9e-6 :upper 1.1e-6}}]
+          :bar [{:coord {:n 100}
+                 :value {:value 2.0e-6 :lower 1.8e-6 :upper 2.2e-6}}]
+          :baz [{:coord {:n 100}
+                 :value {:value 1.5e-6 :lower 1.3e-6 :upper 1.7e-6}}]}})
+
+(deftest comparison-bar-chart-with-error-bars-test
+  ;; Tests comparison bar chart spec when error bounds are present.
+  ;; Verifies layered spec structure with bar layer + error layer.
+  (testing "comparison-bar-chart-spec with error bounds"
+    (testing "produces layered structure"
+      (let [spec (charts/comparison-bar-chart-spec
+                  single-point-comparison-with-bounds
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))]
+        (is (contains? chart :layer))
+        (is (= 2 (count (:layer chart))))))
+
+    (testing "includes error layer with rule mark"
+      (let [spec (charts/comparison-bar-chart-spec
+                  single-point-comparison-with-bounds
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            error-layer (second (:layer chart))]
+        (is (= "rule" (get-in error-layer [:mark :type])))))))
+
+(deftest comparison-bar-chart-graceful-degradation-test
+  ;; Tests that comparison bar charts without error bounds render normally.
+  (testing "comparison-bar-chart-spec without error bounds"
+    (testing "produces simple structure without layer"
+      (let [spec (charts/comparison-bar-chart-spec
+                  single-point-comparison
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))]
+        (is (not (contains? chart :layer)))
+        (is (= {:type "bar"} (:mark chart)))))))
+
+(deftest comparison-bar-chart-with-error-bars-schema-validation-test
+  ;; Validates comparison bar chart with error bars against Vega-Lite schema.
+  (testing "comparison-bar-chart-spec with error bounds"
+    (testing "produces valid Vega-Lite spec"
+      (let [spec (charts/comparison-bar-chart-spec
+                  single-point-comparison-with-bounds
+                  {:width 400 :height 300})
+            result (schema/validate-vega-lite-spec spec)]
+        (is (:valid? result)
+            (str "comparison bar chart with error bars failed: "
                  (pr-str (:errors result))))))))
 
 ;;; Multi-point line chart tests.

@@ -623,32 +623,50 @@
     :mark mark
     :encoding encoding}))
 
+(defn- bar-error-layer
+  "Build error bar layer for bar charts with error bounds.
+  Uses rule marks positioned at bar centers with y/y2 for bounds."
+  [data]
+  {:data {:values data}
+   :mark {:type "rule" :strokeWidth 1.5}
+   :encoding {:x {:field "impl" :type "nominal"}
+              :y {:field "valueLower" :type "quantitative"}
+              :y2 {:field "valueUpper"}
+              :color {:field "impl" :type "nominal" :legend nil}
+              :opacity {:value 0.5}}})
+
 (defn- bar-chart-layer
-  "Build a single bar chart layer from prepared bar data.
+  "Build a bar chart from prepared bar data.
+  Returns a layered spec with error bars when has-error-bounds? is true,
+  otherwise returns a simple bar chart spec.
   Used by both single-point-bar-chart-spec and comparison-bar-chart-spec."
-  [{:keys [y-title data]} chart-options]
-  (chart-layer
-   data
-   chart-options
-   {:type "bar"}
-   {:x {:field "impl"
-        :type "nominal"
-        :title "Implementation"
-        :sort nil
-        :axis {:labelAngle 0}}
-    :y {:field "value"
-        :type "quantitative"
-        :title y-title}
-    :color {:field "impl"
-            :type "nominal"
-            :legend nil}
-    :tooltip [{:field "impl"
-               :type "nominal"
-               :title "Implementation"}
-              {:field "value"
-               :type "quantitative"
-               :title y-title
-               :format ".3g"}]}))
+  [{:keys [y-title has-error-bounds? data]} chart-options]
+  (let [bar-layer (chart-layer
+                   data
+                   {}
+                   {:type "bar"}
+                   {:x {:field "impl"
+                        :type "nominal"
+                        :title "Implementation"
+                        :sort nil
+                        :axis {:labelAngle 0}}
+                    :y {:field "value"
+                        :type "quantitative"
+                        :title y-title}
+                    :color {:field "impl"
+                            :type "nominal"
+                            :legend nil}
+                    :tooltip [{:field "impl"
+                               :type "nominal"
+                               :title "Implementation"}
+                              {:field "value"
+                               :type "quantitative"
+                               :title y-title
+                               :format ".3g"}]})]
+    (if has-error-bounds?
+      (merge chart-options
+             {:layer [bar-layer (bar-error-layer data)]})
+      (merge chart-options bar-layer))))
 
 (defn single-point-bar-chart-spec
   "Build a Vega-Lite bar chart spec for single-point multi-impl comparison.
