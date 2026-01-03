@@ -118,3 +118,26 @@
                     d)]
         (is (map? result))
         (is (= :criterium/domain-extract (:type (:extract result))))))))
+
+;; Tests for viewer option override behavior.
+;; Validates that :viewer option properly overrides domain-plan's viewer.
+
+(deftest viewer-option-override-test
+  (testing "options->domain-plan"
+    (testing "overrides existing :viewer in domain-plan"
+      (let [plan-with-viewer (assoc domain-plans/extract-metrics :viewer :print)
+            updated-plan (analysis/options->domain-plan
+                          plan-with-viewer
+                          :viewer :kindly)]
+        (is (= :kindly (:viewer updated-plan)))))
+    (testing "adds :viewer when domain-plan has none"
+      (let [plan-without-viewer (dissoc domain-plans/extract-metrics :viewer)
+            updated-plan (analysis/options->domain-plan
+                          plan-without-viewer
+                          :viewer :portal)]
+        (is (= :portal (:viewer updated-plan)))))
+    (testing "preserves other domain-plan keys"
+      (let [original-plan domain-plans/extract-metrics
+            updated-plan (analysis/options->domain-plan original-plan :viewer :none)]
+        (is (= (:analyse original-plan) (:analyse updated-plan)))
+        (is (= (:view original-plan) (:view updated-plan)))))))

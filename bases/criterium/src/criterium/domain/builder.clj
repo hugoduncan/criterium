@@ -316,9 +316,10 @@
         ;; Helper to run a single benchmark
         run-bench (fn [coord-measured limit-time-s]
                     (let [bench-plan (bench/options->bench-plan
-                                      (merge bench-options
-                                             {:limit-time-s limit-time-s
-                                              :viewer :none}))]
+                                      (merge
+                                       {:limit-time-s limit-time-s
+                                        :viewer       :none}
+                                       bench-options))]
                       (bench/bench-measured bench-plan coord-measured)
                       (:data (bench/last-bench))))
         ;; Helper to check if re-run is needed (>5% difference)

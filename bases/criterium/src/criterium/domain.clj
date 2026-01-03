@@ -131,10 +131,12 @@
     domain-spec - Map with :axes and :implementations (as returned by domain-expr)
 
   Options:
-    :domain-plan  - Analysis plan (default: domain-plans/extract-metrics)
-    :reporter     - Progress reporter (default: dot-reporter, nil for silent)
+    :domain-plan   - Analysis plan (default: domain-plans/extract-metrics)
+    :viewer        - Output format (:print, :pprint, :kindly, :portal, :none).
+                     Overrides any :viewer in the domain-plan.
+    :reporter      - Progress reporter (default: dot-reporter, nil for silent)
     :bench-options - Options passed to bench-measured
-    :time-axis    - Axis key for time estimation (default: first axis)
+    :time-axis     - Axis key for time estimation (default: first axis)
 
   Returns the analysis data-map (same as analyse-domain).
 
@@ -143,7 +145,7 @@
                         {:sort (sort (random-seq n))
                          :sort-by (sort-by identity (random-seq n))})
            :domain-plan domain-plans/implementation-comparison)"
-  [domain-spec & {:keys [domain-plan reporter bench-options time-axis]
+  [domain-spec & {:keys [domain-plan viewer reporter bench-options time-axis]
                   :or   {domain-plan domain-plans/extract-metrics}}]
   (let [builder-opts (cond-> {}
                        (some? reporter)                  (assoc :reporter reporter)
@@ -153,5 +155,7 @@
         domain       (apply builder/domain-builder
                             (:axes domain-spec)
                             (:implementations domain-spec)
-                            (mapcat identity builder-opts))]
+                            (mapcat identity builder-opts))
+        domain-plan  (cond-> domain-plan
+                       viewer (analysis/options->domain-plan :viewer viewer))]
     (analysis/analyse-domain domain-plan domain)))

@@ -245,9 +245,9 @@
                                                  [{:n 400} 4e-7]]}}}}))]
         (is (= [:b "Domain Extract"] title))
         (is (= 3 (count table)) "Expected 3 rows")
-        (is (every? #(contains? % :n) table)
-            "Expected :n column for single-key coords")
-        (is (= [100 200 400] (mapv :n table))
+        (is (every? #(contains? % "n") table)
+            "Expected \"n\" column for single-key coords")
+        (is (= [100 200 400] (mapv #(get % "n") table))
             "Expected rows sorted by n")))
 
     (testing "strips uniform axes leaving single-key coords"
@@ -265,9 +265,9 @@
                                                  [{:n 100 :m 2} 2e-7]]}}}}))]
         (is (= [:b "Domain Extract"] title))
         (is (= 2 (count table)))
-        (is (every? #(contains? % :m) table)
-            "Expected :m column after stripping uniform :n axis")
-        (is (= [1 2] (mapv :m table))
+        (is (every? #(contains? % "m") table)
+            "Expected \"m\" column after stripping uniform :n axis")
+        (is (= [1 2] (mapv #(get % "m") table))
             "Expected rows with stripped :m values")))
 
     (testing "produces table with multi-key coords when multiple axes vary"
@@ -283,8 +283,8 @@
                                                  [{:n 200 :m 2} 2e-7]]}}}}))]
         (is (= [:b "Domain Extract"] title))
         (is (= 2 (count table)))
-        (is (every? #(contains? % :coordinate) table)
-            "Expected :coordinate column when multiple axes vary")))
+        (is (every? #(contains? % "coordinate") table)
+            "Expected \"coordinate\" column when multiple axes vary")))
 
     (testing "handles nil values"
       (let [[_title table] (with-tap-out

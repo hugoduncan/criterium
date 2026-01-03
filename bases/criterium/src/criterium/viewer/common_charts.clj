@@ -541,6 +541,189 @@
            (regression-loess-layer residual-pts {:color-field color-field})
            (regression-zero-line-layer)]})
 
+;;; Single-point comparison bar charts
+
+(defn prepare-single-point-bar-data
+  "Prepare data for single-point bar chart from domain extract.
+  Returns a vector of maps, one per metric, each containing:
+    :metric-id - the metric keyword
+    :metric-path - the metric path vector
+    :y-title - y-axis title with SI unit
+    :data - vector of {:impl string :value number} maps"
+  [extract]
+  (let [impl-axis-key (:impl-axis extract)
+        implementations (:implementations extract)
+        metrics (:metrics extract)]
+    (mapv
+     (fn [[metric-id {:keys [metric data]}]]
+       (let [;; Build lookup: impl -> raw value
+             lookup (reduce
+                     (fn [acc [coord value]]
+                       (let [impl-val (get coord impl-axis-key)
+                             raw-value (if (and (map? value)
+                                                (contains? value :value))
+                                         (:value value)
+                                         value)]
+                         (assoc acc impl-val raw-value)))
+                     {}
+                     data)
+             ;; Get all values for SI scaling
+             all-values (keep #(get lookup %) implementations)
+             {:keys [^double total-scale unit]}
+             (viewer-common/compute-si-scaling metric all-values)
+             ;; Build y-axis title with unit
+             metric-name (name metric-id)
+             y-title (if (seq unit)
+                       (str metric-name " (" unit ")")
+                       metric-name)
+             ;; Build chart data
+             chart-data (mapv
+                         (fn [impl]
+                           (let [raw-value (get lookup impl)]
+                             {"impl" (name impl)
+                              "value" (when raw-value
+                                        (* (double raw-value) total-scale))}))
+                         implementations)]
+         {:metric-id metric-id
+          :metric-path metric
+          :y-title y-title
+          :data chart-data}))
+     (sort-by key metrics))))
+
+(defn- chart-layer
+  "Build a chart layer by merging chart-options with mark and encoding.
+  Common structure for bar and line chart layers."
+  [data chart-options mark encoding]
+  (merge
+   chart-options
+   {:data {:values data}
+    :mark mark
+    :encoding encoding}))
+
+(defn- bar-chart-layer
+  "Build a single bar chart layer from prepared bar data.
+  Used by both single-point-bar-chart-spec and comparison-bar-chart-spec."
+  [{:keys [y-title data]} chart-options]
+  (chart-layer
+   data
+   chart-options
+   {:type "bar"}
+   {:x {:field "impl"
+        :type "nominal"
+        :title "Implementation"
+        :sort nil
+        :axis {:labelAngle 0}}
+    :y {:field "value"
+        :type "quantitative"
+        :title y-title}
+    :color {:field "impl"
+            :type "nominal"
+            :legend nil}
+    :tooltip [{:field "impl"
+               :type "nominal"
+               :title "Implementation"}
+              {:field "value"
+               :type "quantitative"
+               :title y-title
+               :format ".3g"}]}))
+
+(defn single-point-bar-chart-spec
+  "Build a Vega-Lite bar chart spec for single-point multi-impl comparison.
+
+  Shows implementations on x-axis and measured values on y-axis.
+  One chart is generated per metric in the extract.
+
+  Parameters:
+    extract - Domain extract with single-point multi-impl data
+    chart-options - Map with :width and/or :height for chart dimensions
+
+  Returns a Vega-Lite spec with vconcat of bar charts (one per metric)."
+  [extract chart-options]
+  (let [bar-data (prepare-single-point-bar-data extract)]
+    {:data {:values []}
+     :vconcat (mapv #(bar-chart-layer % chart-options) bar-data)}))
+
+(defn comparison-bar-chart-spec
+  "Build a Vega-Lite bar chart spec for single-point comparison data.
+
+  Shows implementations on x-axis and measured values on y-axis.
+  One chart is generated per metric in the comparison.
+
+  Parameters:
+    comparison - Domain comparison with single-point multi-impl data
+    chart-options - Map with :width and/or :height for chart dimensions
+
+  Returns a Vega-Lite spec with vconcat of bar charts (one per metric)."
+  [comparison chart-options]
+  (let [bar-data (viewer-common/prepare-comparison-bar-data comparison)]
+    {:data {:values []}
+     :vconcat (mapv #(bar-chart-layer % chart-options) bar-data)}))
+
+;;; Multi-point line charts
+
+(defn- line-chart-layer
+  "Build a single line chart layer from prepared line data.
+  Used by both domain-line-chart-spec and comparison-line-chart-spec."
+  [{:keys [x-title y-title data]} chart-options]
+  (chart-layer
+   data
+   chart-options
+   {:type "line" :point true}
+   {:x {:field "x"
+        :type "quantitative"
+        :title x-title
+        :scale {:zero false}}
+    :y {:field "y"
+        :type "quantitative"
+        :title y-title}
+    :color {:field "impl"
+            :type "nominal"
+            :title "Implementation"}
+    :tooltip [{:field "impl"
+               :type "nominal"
+               :title "Implementation"}
+              {:field "x"
+               :type "quantitative"
+               :title x-title}
+              {:field "y"
+               :type "quantitative"
+               :title y-title
+               :format ".3g"}]}))
+
+(defn domain-line-chart-spec
+  "Build a Vega-Lite line chart spec for single-axis multi-point domain extract.
+
+  Shows axis values on x-axis and measured values on y-axis, with one line
+  per implementation differentiated by color.
+  One chart is generated per metric in the extract.
+
+  Parameters:
+    extract - Domain extract with single-axis multi-point multi-impl data
+    chart-options - Map with :width and/or :height for chart dimensions
+
+  Returns a Vega-Lite spec with vconcat of line charts (one per metric)."
+  [extract chart-options]
+  (let [line-data (viewer-common/prepare-line-chart-data extract)]
+    {:data {:values []}
+     :vconcat (mapv #(line-chart-layer % chart-options) line-data)}))
+
+(defn comparison-line-chart-spec
+  "Build a Vega-Lite line chart spec for single-axis multi-point comparison data.
+
+  Shows axis values on x-axis and measured values on y-axis, with one line
+  per implementation differentiated by color.
+  One chart is generated per metric in the comparison.
+
+  Parameters:
+    comparison - Domain comparison with single-axis multi-point multi-impl data
+    chart-options - Map with :width and/or :height for chart dimensions
+
+  Returns a Vega-Lite spec with vconcat of line charts (one per metric)."
+  [comparison chart-options]
+  (let [line-data (viewer-common/prepare-comparison-line-data comparison)]
+    {:data {:values []}
+     :vconcat (mapv #(line-chart-layer % chart-options) line-data)}))
+
 ;;; Treemap charts
 
 (defn- flatten-treemap-node

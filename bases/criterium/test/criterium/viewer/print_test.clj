@@ -31,6 +31,11 @@
 (defn identity-transform [samples]
   (with-meta samples {:transform {:sample-> identity :->sample identity}}))
 
+(defn char-positions
+  "Return indices where char c appears in string s."
+  [c s]
+  (keep-indexed (fn [i ch] (when (= ch c) i)) s))
+
 (deftest print-stats-test
   (testing "print-stats"
     (testing "prints via output-view"
@@ -466,7 +471,47 @@
                               :data [[{:n 100} 100]]}
                              :thread-allocation
                              {:metric [:stats :thread-allocation :mean]
-                              :data [[{:n 100} 1024]]}}}}))))))))
+                              :data [[{:n 100} 1024]]}}}}))))))
+    (testing "single-point multi-impl uses transposed table"
+      ;; When there's exactly one non-impl axis value and multiple implementations,
+      ;; the table is transposed: each row is an implementation with value and factor
+      (is (= ["Domain Extract"
+              "Implementation │ elapsed-time (ns) │ elapsed-time ×"
+              "───────────────┼───────────────────┼───────────────"
+              "foo │               100 │           1.00"
+              "bar │               200 │           2.00"]
+             (trimmed-lines
+              (with-out-str
+                (view/domain-extract*
+                 :print
+                 {}
+                 {:extract
+                  {:type :criterium/domain-extract
+                   :impl-axis :impl
+                   :implementations [:foo :bar]
+                   :metrics {:elapsed-time
+                             {:metric [:stats :elapsed-time :mean]
+                              :data [[{:impl :foo :n 100} 100]
+                                     [{:impl :bar :n 100} 200]]}}}}))))))
+    (testing "multi-point uses standard format"
+      ;; When there are multiple axis values, the standard format is used
+      ;; The uniform :impl axis is stripped, showing only the :n value
+      (is (= ["Domain Extract: [:stats :elapsed-time :mean]"
+              "100: 100 ns"
+              "200: 200 ns"]
+             (trimmed-lines
+              (with-out-str
+                (view/domain-extract*
+                 :print
+                 {}
+                 {:extract
+                  {:type :criterium/domain-extract
+                   :impl-axis :impl
+                   :implementations [:foo]
+                   :metrics {:elapsed-time
+                             {:metric [:stats :elapsed-time :mean]
+                              :data [[{:impl :foo :n 100} 100]
+                                     [{:impl :foo :n 200} 200]]}}}}))))))))
 
 (deftest domain-grouped-print-test
   ;; Tests the print viewer output for domain-grouped results.
@@ -540,11 +585,35 @@
                    :axis :impl
                    :metric [:stats :elapsed-time :mean]
                    :data {nil [{:coord :baseline :value 50}]}}}))))))
-    (testing "with :implementations shows factors for non-baseline"
-      (is (= ["Domain Comparison by impl: [:stats :elapsed-time :mean]"
-              "│    foo │ bar ×"
-              "─────────┼────────┼──────"
-              "n=100 │ 100 ns │  2.00"]
+    (testing "separator ┼ aligns with header │"
+      ;; Check alignment on untrimmed output - the "  " prefix is part of the
+      ;; actual output and affects visual alignment
+      (let [lines (str/split-lines
+                   (with-out-str
+                     (view/domain-comparison*
+                      :print
+                      {}
+                      {:comparison
+                       {:type :criterium/domain-comparison
+                        :axis :impl
+                        :metric [:stats :elapsed-time :mean]
+                        :data {:foo [{:coord {:impl :foo :n 100} :value 100}]
+                               :bar [{:coord {:impl :bar :n 100} :value 200}]}}})))
+            header (nth lines 1)
+            separator (nth lines 2)]
+        (is (= (vec (char-positions \│ header))
+               (vec (char-positions \┼ separator)))
+            (str "Header │ positions should match separator ┼ positions\n"
+                 "  header:    " (pr-str header) "\n"
+                 "  separator: " (pr-str separator)))))
+    (testing "with :implementations and single point uses transposed table"
+      ;; Single-point multi-impl scenarios use transposed format where
+      ;; each row is an implementation with value and factor columns
+      (is (= ["Domain Comparison by impl"
+              "Implementation │ elapsed-time (ns) │ elapsed-time ×"
+              "───────────────┼───────────────────┼───────────────"
+              "foo │               100 │           1.00"
+              "bar │               200 │           2.00"]
              (trimmed-lines
               (with-out-str
                 (view/domain-comparison*
@@ -557,6 +626,27 @@
                    :implementations [:foo :bar]
                    :data {:foo [{:coord {:impl :foo :n 100} :value 100}]
                           :bar [{:coord {:impl :bar :n 100} :value 200}]}}}))))))
+    (testing "with multi-point uses standard table format"
+      ;; When there are multiple axis values, the standard factor table is used
+      (is (= ["Domain Comparison by impl: [:stats :elapsed-time :mean]"
+              "│    foo │    bar │ bar ×"
+              "─────────┼────────┼────────┼──────"
+              "n=100 │ 100 ns │ 200 ns │  2.00"
+              "n=200 │ 150 ns │ 300 ns │  2.00"]
+             (trimmed-lines
+              (with-out-str
+                (view/domain-comparison*
+                 :print
+                 {}
+                 {:comparison
+                  {:type :criterium/domain-comparison
+                   :axis :impl
+                   :metric [:stats :elapsed-time :mean]
+                   :implementations [:foo :bar]
+                   :data {:foo [{:coord {:impl :foo :n 100} :value 100}
+                                {:coord {:impl :foo :n 200} :value 150}]
+                          :bar [{:coord {:impl :bar :n 100} :value 200}
+                                {:coord {:impl :bar :n 200} :value 300}]}}}))))))
     (testing "with mismatched :implementations throws error"
       ;; When :implementations doesn't match data keys, throw an error
       ;; to help catch domain construction bugs

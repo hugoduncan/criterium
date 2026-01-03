@@ -571,25 +571,64 @@
         (mapv #(apply dissoc % uniform-axes) coords)
         coords))))
 
+(defn- print-transposed-table
+  "Print a transposed table with implementation rows and metric columns.
+  Takes {:heading :col-headers :rows} from prepare-*-table-transposed functions."
+  [{:keys [heading col-headers rows]}]
+  (println heading)
+  (let [;; Calculate column widths
+        col-widths (mapv
+                    (fn [col-idx]
+                      (let [header (nth col-headers col-idx)
+                            values (map #(str (get % header "")) rows)]
+                        (apply max (count header) (map count values))))
+                    (range (count col-headers)))]
+    ;; Print header row
+    (print "  ")
+    (doseq [[i header] (map-indexed vector col-headers)]
+      (when (pos? i) (print " │ "))
+      (print (format (str "%" (nth col-widths i) "s") header)))
+    (println)
+    ;; Print separator
+    (print "  ")
+    (doseq [[i w] (map-indexed vector col-widths)]
+      (when (pos? i) (print "─┼─"))
+      (print (apply str (repeat w "─"))))
+    (println)
+    ;; Print data rows
+    (doseq [row rows]
+      (print "  ")
+      (doseq [[i header] (map-indexed vector col-headers)]
+        (when (pos? i) (print " │ "))
+        (print (format (str "%" (nth col-widths i) "s") (or (get row header) "-"))))
+      (println))))
+
 (defmethod view/domain-extract* :print
   [_ {:keys [extract-id]} data-map]
   (let [extract-id (or extract-id :extract)
         extract (data-map extract-id)]
-    (when extract
-      (doseq [[_metric-id {:keys [metric data]}] (:metrics extract)]
-        (let [raw-coords (map first data)
-              ;; Strip uniform axes (e.g., :impl :default for single-impl scenarios)
-              stripped-coords (strip-uniform-axes raw-coords)
-              coord-map (zipmap raw-coords stripped-coords)
-              single-key-info (viewer-common/single-key-coord-info stripped-coords)
-              sorted-data (sort-coords data single-key-info)]
-          (println (format "Domain Extract: %s" (pr-str metric)))
-          (doseq [[coord value] sorted-data]
-            (let [display-coord (get coord-map coord coord)]
-              (println (format "  %24s: %s"
-                               (format-coord-value display-coord single-key-info)
-                               (format-extract-value value metric)))))
-          (println))))))
+    (case (viewer-common/visualization-strategy extract)
+      :single-point-bar
+      (when-let [table (viewer-common/prepare-domain-extract-table-transposed
+                        extract)]
+        (print-transposed-table table))
+
+      ;; :multi-point-line and :default-table both use the standard format
+      (when extract
+        (doseq [[_metric-id {:keys [metric data]}] (:metrics extract)]
+          (let [raw-coords (map first data)
+                ;; Strip uniform axes (e.g., :impl :default for single-impl scenarios)
+                stripped-coords (strip-uniform-axes raw-coords)
+                coord-map (zipmap raw-coords stripped-coords)
+                single-key-info (viewer-common/single-key-coord-info stripped-coords)
+                sorted-data (sort-coords data single-key-info)]
+            (println (format "Domain Extract: %s" (pr-str metric)))
+            (doseq [[coord value] sorted-data]
+              (let [display-coord (get coord-map coord coord)]
+                (println (format "  %24s: %s"
+                                 (format-coord-value display-coord single-key-info)
+                                 (format-extract-value value metric)))))
+            (println)))))))
 
 (defmethod view/domain-grouped* :print
   [_ {:keys [grouped-id]} data-map]
@@ -702,26 +741,30 @@
                                  entries))
                        {}
                        data)
-        ;; Build columns: baseline (with unit), other impls (factors)
+        ;; Build columns: baseline (with unit), other impls (value + factor)
         col-specs (vec (cons {:type :baseline :impl baseline-impl}
-                             (map (fn [impl] {:type :factor :impl impl})
-                                  other-impls)))
+                             (mapcat (fn [impl]
+                                       [{:type :value :impl impl}
+                                        {:type :factor :impl impl}])
+                                     other-impls)))
         col-headers (mapv (fn [{:keys [type impl]}]
-                            (if (= type :baseline)
-                              (str (name impl))
-                              (str (name impl) " ×")))
+                            (case type
+                              :baseline (str (name impl))
+                              :value (str (name impl))
+                              :factor (str (name impl) " ×")))
                           col-specs)
         ;; Format cell values
         format-cell (fn [{:keys [type impl]} row-key]
                       (let [value (get-in lookup [impl row-key])
                             baseline-value (get-in lookup [baseline-impl row-key])]
-                        (if (= type :baseline)
-                          (or (format-extract-value-with-unit value metric) "-")
-                          (cond
-                            (nil? value) "-"
-                            (nil? baseline-value) "-"
-                            (zero? baseline-value) "-"
-                            :else (format "%.2f" (double (/ value baseline-value)))))))
+                        (case type
+                          :baseline (or (format-extract-value-with-unit value metric) "-")
+                          :value (or (format-extract-value-with-unit value metric) "-")
+                          :factor (cond
+                                    (nil? value) "-"
+                                    (nil? baseline-value) "-"
+                                    (zero? baseline-value) "-"
+                                    :else (format "%.2f" (double (/ value baseline-value)))))))
         formatted-rows (mapv (fn [row-key]
                                (mapv #(format-cell % row-key) col-specs))
                              all-row-keys)
@@ -837,35 +880,42 @@
   [_ {:keys [comparison-id]} data-map]
   (let [comparison-id (or comparison-id :comparison)
         comparison (data-map comparison-id)]
-    (when comparison
-      (let [{:keys [axis metric metrics implementations data]} comparison]
-        (if metrics
-          ;; Multi-metric mode with factor display
-          (if implementations
-            (print-multi-metric-comparison-table axis implementations metrics)
-            ;; Multi-metric mode without implementations - show all values
-            (doseq [[_metric-id {:keys [metric data]}] metrics]
-              (when (and (seq data) (some #(seq (second %)) data))
-                (print-comparison-table axis metric data))))
-          ;; Single-metric mode
-          (if (and (seq data) (some #(seq (second %)) data))
+    (case (viewer-common/comparison-visualization-strategy comparison)
+      :single-point-bar
+      (when-let [table (viewer-common/prepare-domain-comparison-table-transposed
+                        comparison)]
+        (print-transposed-table table))
+
+      ;; :multi-point-line and :default-table both use the standard format
+      (when comparison
+        (let [{:keys [axis metric metrics implementations data]} comparison]
+          (if metrics
+            ;; Multi-metric mode with factor display
             (if implementations
-              (let [data-keys (set (keys data))
-                    missing (remove data-keys implementations)]
-                (when (seq missing)
-                  (throw
-                   (ex-info
-                    "Domain :implementations do not match comparison data keys"
-                    {:implementations implementations
-                     :data-keys (keys data)
-                     :missing missing})))
-                (print-single-metric-factor-table
-                 axis
-                 metric
-                 implementations data))
-              (print-comparison-table axis metric data))
-            (println (format "Domain Comparison by %s: %s (no data)"
-                             (name axis) (pr-str metric)))))))))
+              (print-multi-metric-comparison-table axis implementations metrics)
+              ;; Multi-metric mode without implementations - show all values
+              (doseq [[_metric-id {:keys [metric data]}] metrics]
+                (when (and (seq data) (some #(seq (second %)) data))
+                  (print-comparison-table axis metric data))))
+            ;; Single-metric mode
+            (if (and (seq data) (some #(seq (second %)) data))
+              (if implementations
+                (let [data-keys (set (keys data))
+                      missing (remove data-keys implementations)]
+                  (when (seq missing)
+                    (throw
+                     (ex-info
+                      "Domain :implementations do not match comparison data keys"
+                      {:implementations implementations
+                       :data-keys (keys data)
+                       :missing missing})))
+                  (print-single-metric-factor-table
+                   axis
+                   metric
+                   implementations data))
+                (print-comparison-table axis metric data))
+              (println (format "Domain Comparison by %s: %s (no data)"
+                               (name axis) (pr-str metric))))))))))
 
 (defmethod view/domain-regression* :print
   [_ {:keys [regression-id tolerance]} data-map]
