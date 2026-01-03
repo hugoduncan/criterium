@@ -571,11 +571,7 @@
              has-error-bounds? (viewer-common/values-have-error-bounds?
                                 all-raw-values)
              ;; Get numeric values for SI scaling
-             get-numeric (fn [v]
-                           (if (and (map? v) (contains? v :value))
-                             (:value v)
-                             v))
-             all-values (map get-numeric all-raw-values)
+             all-values (map viewer-common/get-numeric-value all-raw-values)
              {:keys [^double total-scale unit]}
              (viewer-common/compute-si-scaling metric all-values)
              ;; Build y-axis title with unit
@@ -590,7 +586,7 @@
              chart-data (mapv
                          (fn [impl]
                            (let [v (get lookup impl)
-                                 raw-value (get-numeric v)]
+                                 raw-value (viewer-common/get-numeric-value v)]
                              (cond-> {"impl" (name impl)
                                       "value" (when raw-value
                                                 (* (double raw-value) total-scale))}

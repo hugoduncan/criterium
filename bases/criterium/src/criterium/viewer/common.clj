@@ -449,7 +449,7 @@
     (name (:key single-key-info))
     "coordinate"))
 
-(defn- get-numeric-value
+(defn get-numeric-value
   "Extract numeric value from plain value or error-bound format {:value v}."
   [v]
   (if (and (map? v) (contains? v :value))
