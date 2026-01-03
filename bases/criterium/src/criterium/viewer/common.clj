@@ -461,6 +461,16 @@
   [v]
   (and (map? v) (contains? v :value)))
 
+(defn values-have-error-bounds?
+  "Returns true if any value in coll has :lower and :upper keys for error bounds."
+  [coll]
+  (boolean
+   (some (fn [v]
+           (and (map? v)
+                (contains? v :lower)
+                (contains? v :upper)))
+         coll)))
+
 (defn detect-uniform-axes
   "Find coordinate axes where all values are identical.
   Returns a set of keys that have uniform values across all coords."
@@ -732,20 +742,16 @@
                           entries))
                        {}
                        data)
+               ;; Get all values from lookup for error bounds check and SI scaling
+               all-raw-values (keep #(get lookup %) implementations)
                ;; Check if any values have error bounds
-               has-error-bounds? (boolean
-                                  (some (fn [impl]
-                                          (let [v (get lookup impl)]
-                                            (and (map? v)
-                                                 (contains? v :lower)
-                                                 (contains? v :upper))))
-                                        implementations))
+               has-error-bounds? (values-have-error-bounds? all-raw-values)
                ;; Get numeric values for SI scaling
                get-numeric (fn [v]
                              (if (and (map? v) (contains? v :value))
                                (:value v)
                                v))
-               all-values (keep #(get-numeric (get lookup %)) implementations)
+               all-values (map get-numeric all-raw-values)
                {:keys [^double total-scale unit]}
                (compute-si-scaling metric all-values)
                ;; Build y-axis title with unit
@@ -790,20 +796,16 @@
                        entries))
                     {}
                     data)
+            ;; Get all values from lookup for error bounds check and SI scaling
+            all-raw-values (keep #(get lookup %) implementations)
             ;; Check if any values have error bounds
-            has-error-bounds? (boolean
-                               (some (fn [impl]
-                                       (let [v (get lookup impl)]
-                                         (and (map? v)
-                                              (contains? v :lower)
-                                              (contains? v :upper))))
-                                     implementations))
+            has-error-bounds? (values-have-error-bounds? all-raw-values)
             ;; Get numeric values for SI scaling
             get-numeric (fn [v]
                           (if (and (map? v) (contains? v :value))
                             (:value v)
                             v))
-            all-values (keep #(get-numeric (get lookup %)) implementations)
+            all-values (map get-numeric all-raw-values)
             {:keys [^double total-scale unit]}
             (compute-si-scaling metric all-values)
             ;; Build y-axis title with unit
@@ -860,12 +862,7 @@
        (let [;; Get all raw values for error detection and SI scaling
              all-raw-values (keep (fn [[_coord value]] value) data)
              ;; Check if any values have error bounds (with :lower/:upper)
-             has-error-bounds? (boolean
-                                (some (fn [v]
-                                        (and (map? v)
-                                             (contains? v :lower)
-                                             (contains? v :upper)))
-                                      all-raw-values))
+             has-error-bounds? (values-have-error-bounds? all-raw-values)
              ;; Also check for error-bound-value? (with :value key) for y-title
              has-error-bound-format (some error-bound-value? all-raw-values)
              all-values (map get-numeric-value all-raw-values)
@@ -950,12 +947,7 @@
                                    (mapcat (fn [entries]
                                              (keep :value entries))))
                ;; Check if any values have error bounds (with :lower/:upper)
-               has-error-bounds? (boolean
-                                  (some (fn [v]
-                                          (and (map? v)
-                                               (contains? v :lower)
-                                               (contains? v :upper)))
-                                        all-raw-values))
+               has-error-bounds? (values-have-error-bounds? all-raw-values)
                ;; Also check for error-bound-value? (with :value key) for y-title
                has-error-bound-format (some error-bound-value? all-raw-values)
                all-values (map get-numeric-value all-raw-values)
@@ -1001,12 +993,7 @@
                                 (mapcat (fn [entries]
                                           (keep :value entries))))
             ;; Check if any values have error bounds (with :lower/:upper)
-            has-error-bounds? (boolean
-                               (some (fn [v]
-                                       (and (map? v)
-                                            (contains? v :lower)
-                                            (contains? v :upper)))
-                                     all-raw-values))
+            has-error-bounds? (values-have-error-bounds? all-raw-values)
             ;; Also check for error-bound-value? (with :value key) for y-title
             has-error-bound-format (some error-bound-value? all-raw-values)
             all-values (map get-numeric-value all-raw-values)

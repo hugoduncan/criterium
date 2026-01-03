@@ -565,20 +565,17 @@
                          (assoc acc impl-val value)))
                      {}
                      data)
+             ;; Get all values from lookup for error bounds check and SI scaling
+             all-raw-values (keep #(get lookup %) implementations)
              ;; Check if any values have error bounds
-             has-error-bounds? (boolean
-                                (some (fn [impl]
-                                        (let [v (get lookup impl)]
-                                          (and (map? v)
-                                               (contains? v :lower)
-                                               (contains? v :upper))))
-                                      implementations))
+             has-error-bounds? (viewer-common/values-have-error-bounds?
+                                all-raw-values)
              ;; Get numeric values for SI scaling
              get-numeric (fn [v]
                            (if (and (map? v) (contains? v :value))
                              (:value v)
                              v))
-             all-values (keep #(get-numeric (get lookup %)) implementations)
+             all-values (map get-numeric all-raw-values)
              {:keys [^double total-scale unit]}
              (viewer-common/compute-si-scaling metric all-values)
              ;; Build y-axis title with unit
