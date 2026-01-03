@@ -29,8 +29,16 @@
   [x & args]
   `(invariant/have? ~x ~@args))
 
-(def truthy? invariant/truthy?)
-(def assertion-error invariant/assertion-error)
+(defn truthy?
+  "Return true if x is neither nil nor false."
+  [x]
+  (invariant/truthy? x))
+
+(defn assertion-error
+  "Create an AssertionError with message and data, with stack trace adjusted
+  to appear at assertion site."
+  [msg data]
+  (invariant/assertion-error msg data))
 
 ;;; Forms macros
 
@@ -48,17 +56,17 @@
   `(helpers/sqr ~x))
 
 (defn sqrd
-  "Square of argument (function)"
+  "Square of argument (function)."
   ^double [^double x]
   (helpers/sqrd x))
 
 (defn cubed
-  "Cube of argument"
+  "Cube of argument."
   ^double [^double x]
   (helpers/cubed x))
 
 (defn trunc
-  "Round towards zero to an integral value"
+  "Round towards zero to an integral value."
   ^double [^double x]
   (helpers/trunc x))
 
@@ -71,17 +79,20 @@
   []
   `(helpers/provide-update-vals))
 
-(def update-vals
+(defn update-vals
   "m f => {k (f v) ...}
 
   Given a map m and a function f of 1-argument, returns a new map where
   the keys of m are mapped to result of applying f to the corresponding
   values of m."
-  helpers/update-vals)
+  [m f]
+  (helpers/update-vals m f))
 
-(def filter-map
-  "Filter map entries based on a predicate applied to values."
-  helpers/filter-map)
+(defn filter-map
+  "Filter map entries based on a predicate applied to values.
+  Return a new map containing only entries where (pred value) returns true."
+  [pred m]
+  (helpers/filter-map pred m))
 
 (defn reduce-double-vector
   "Reduce a double primitive value over a vector."
@@ -90,30 +101,39 @@
            ^clojure.lang.APersistentVector v]
   (helpers/reduce-double-vector f init v))
 
-(def deep-merge
+(defn deep-merge
   "Merge maps recursively."
-  helpers/deep-merge)
+  [& ms]
+  (apply helpers/deep-merge ms))
 
 ;;; Helpers - tree walking
 
-(def walk
-  "Traverses form, an arbitrary data structure (preserves metadata)."
-  helpers/walk)
+(defn walk
+  "Traverses form, an arbitrary data structure (preserves metadata).
+  Applies inner to each element, building up a data structure of the same type,
+  then applies outer to the result."
+  [inner outer form]
+  (helpers/walk inner outer form))
 
-(def postwalk
-  "Performs a depth-first, post-order traversal of form."
-  helpers/postwalk)
+(defn postwalk
+  "Performs a depth-first, post-order traversal of form.
+  Calls f on each sub-form, uses f's return value in place of the original."
+  [f form]
+  (helpers/postwalk f form))
 
 ;;; Helpers - misc
 
-(def assoc-tag
+(defn assoc-tag
   "Associate a type tag to a symbol's metadata."
-  helpers/assoc-tag)
+  [sym t]
+  (helpers/assoc-tag sym t))
 
-(def spy
+(defn spy
   "Debug helper: print message and value, return value."
-  helpers/spy)
+  [msg x]
+  (helpers/spy msg x))
 
-(def report
-  "Print format output"
-  helpers/report)
+(defn report
+  "Print format output."
+  [format-string & values]
+  (apply helpers/report format-string values))
