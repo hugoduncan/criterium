@@ -254,7 +254,65 @@
             result (charts/prepare-single-point-bar-data multi-metric-extract)]
         (is (= 2 (count result)))
         (is (= #{:elapsed-time :thread-allocation}
-               (set (map :metric-id result))))))))
+               (set (map :metric-id result))))))
+
+    (testing "returns has-error-bounds? false for plain values"
+      (let [result (charts/prepare-single-point-bar-data single-point-extract)
+            first-metric (first result)]
+        (is (false? (:has-error-bounds? first-metric)))
+        ;; Data should not have valueLower/valueUpper
+        (is (every? #(not (contains? % "valueLower")) (:data first-metric)))
+        (is (every? #(not (contains? % "valueUpper")) (:data first-metric)))))
+
+    (testing "extracts error bounds when present"
+      (let [extract-with-bounds
+            {:type :criterium/domain-extract
+             :impl-axis :impl
+             :implementations [:foo :bar]
+             :metrics {:elapsed-time
+                       {:metric [:stats :elapsed-time :mean]
+                        :data [[{:n 100 :impl :foo}
+                                {:value 1.0e-6 :lower 0.9e-6 :upper 1.1e-6}]
+                               [{:n 100 :impl :bar}
+                                {:value 2.0e-6 :lower 1.8e-6 :upper 2.2e-6}]]}}}
+            result (charts/prepare-single-point-bar-data extract-with-bounds)
+            first-metric (first result)]
+        ;; Check has-error-bounds? flag
+        (is (true? (:has-error-bounds? first-metric)))
+        ;; Check that y-title includes "mean" prefix
+        (is (re-find #"mean" (:y-title first-metric)))
+        ;; Check that data includes error bound fields
+        (let [data (:data first-metric)]
+          (is (every? #(contains? % "valueLower") data))
+          (is (every? #(contains? % "valueUpper") data))
+          ;; Verify order: lower < value < upper
+          (doseq [d data]
+            (is (< (get d "valueLower") (get d "value")))
+            (is (< (get d "value") (get d "valueUpper")))))))
+
+    (testing "graceful degradation for mixed values"
+      ;; When some values have bounds and some don't
+      (let [extract-mixed
+            {:type :criterium/domain-extract
+             :impl-axis :impl
+             :implementations [:foo :bar]
+             :metrics {:elapsed-time
+                       {:metric [:stats :elapsed-time :mean]
+                        :data [[{:n 100 :impl :foo}
+                                {:value 1.0e-6 :lower 0.9e-6 :upper 1.1e-6}]
+                               [{:n 100 :impl :bar} 2.0e-6]]}}}
+            result (charts/prepare-single-point-bar-data extract-mixed)
+            first-metric (first result)
+            data (:data first-metric)]
+        ;; has-error-bounds? true because some have bounds
+        (is (true? (:has-error-bounds? first-metric)))
+        ;; foo has bounds, bar does not
+        (let [foo-data (first (filter #(= "foo" (get % "impl")) data))
+              bar-data (first (filter #(= "bar" (get % "impl")) data))]
+          (is (contains? foo-data "valueLower"))
+          (is (contains? foo-data "valueUpper"))
+          (is (not (contains? bar-data "valueLower")))
+          (is (not (contains? bar-data "valueUpper"))))))))
 
 (deftest single-point-bar-chart-spec-test
   ;; Tests bar chart spec generation for single-point multi-impl comparisons.

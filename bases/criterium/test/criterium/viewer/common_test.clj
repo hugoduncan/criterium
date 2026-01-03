@@ -408,7 +408,87 @@
             result (common/prepare-comparison-bar-data comparison)]
         (is (= 2 (count result)))
         (is (= #{:elapsed-time :thread-allocation}
-               (set (map :metric-id result))))))))
+               (set (map :metric-id result))))))
+
+    (testing "returns has-error-bounds? false for plain values"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo :bar]
+                        :data {:foo [{:coord {:n 100} :value 1.0e-6}]
+                               :bar [{:coord {:n 100} :value 2.0e-6}]}}
+            result (common/prepare-comparison-bar-data comparison)
+            first-metric (first result)]
+        (is (false? (:has-error-bounds? first-metric)))
+        (is (every? #(not (contains? % "valueLower")) (:data first-metric)))
+        (is (every? #(not (contains? % "valueUpper")) (:data first-metric)))))
+
+    (testing "extracts error bounds for single-metric comparison"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo :bar]
+                        :data {:foo [{:coord {:n 100}
+                                      :value {:value 1.0e-6
+                                              :lower 0.9e-6
+                                              :upper 1.1e-6}}]
+                               :bar [{:coord {:n 100}
+                                      :value {:value 2.0e-6
+                                              :lower 1.8e-6
+                                              :upper 2.2e-6}}]}}
+            result (common/prepare-comparison-bar-data comparison)
+            first-metric (first result)]
+        (is (true? (:has-error-bounds? first-metric)))
+        (is (re-find #"mean" (:y-title first-metric)))
+        (let [data (:data first-metric)]
+          (is (every? #(contains? % "valueLower") data))
+          (is (every? #(contains? % "valueUpper") data))
+          (doseq [d data]
+            (is (< (get d "valueLower") (get d "value")))
+            (is (< (get d "value") (get d "valueUpper")))))))
+
+    (testing "extracts error bounds for multi-metric comparison"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :implementations [:foo :bar]
+                        :metrics {:elapsed-time
+                                  {:metric [:stats :elapsed-time :mean]
+                                   :data {:foo [{:coord {:n 100}
+                                                 :value {:value 1.0e-6
+                                                         :lower 0.9e-6
+                                                         :upper 1.1e-6}}]
+                                          :bar [{:coord {:n 100}
+                                                 :value {:value 2.0e-6
+                                                         :lower 1.8e-6
+                                                         :upper 2.2e-6}}]}}}}
+            result (common/prepare-comparison-bar-data comparison)
+            first-metric (first result)]
+        (is (true? (:has-error-bounds? first-metric)))
+        (is (re-find #"mean" (:y-title first-metric)))
+        (let [data (:data first-metric)]
+          (is (every? #(contains? % "valueLower") data))
+          (is (every? #(contains? % "valueUpper") data)))))
+
+    (testing "graceful degradation for mixed values"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo :bar]
+                        :data {:foo [{:coord {:n 100}
+                                      :value {:value 1.0e-6
+                                              :lower 0.9e-6
+                                              :upper 1.1e-6}}]
+                               :bar [{:coord {:n 100} :value 2.0e-6}]}}
+            result (common/prepare-comparison-bar-data comparison)
+            first-metric (first result)
+            data (:data first-metric)]
+        (is (true? (:has-error-bounds? first-metric)))
+        (let [foo-data (first (filter #(= "foo" (get % "impl")) data))
+              bar-data (first (filter #(= "bar" (get % "impl")) data))]
+          (is (contains? foo-data "valueLower"))
+          (is (contains? foo-data "valueUpper"))
+          (is (not (contains? bar-data "valueLower")))
+          (is (not (contains? bar-data "valueUpper"))))))))
 
 ;;; Tests for single-axis-multi-point-comparison? helper.
 ;;; Verifies detection of multi-point line chart scenarios in domain-comparison data.
