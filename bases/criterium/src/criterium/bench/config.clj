@@ -92,9 +92,7 @@
                        (collect-plan-config/collect-plan-config
                         collect-plan
                         options-map)
-                       (collect-plan-config/collect-plan-config
-                        (:scheme-type collect-plan)
-                        options-map))
+                       collect-plan)
         scheme-type (have (:scheme-type collect-plan))
         collector-config (->>
                           (or (when-let [metric-ids (:metric-ids options-map)]
