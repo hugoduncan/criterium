@@ -546,11 +546,11 @@
                 "Expected coord column first in column-names")
             (is (= 3 (count rows))
                 "Expected 3 rows for 3 data points")
-            ;; Single-key coords use key name as column header (keyword key)
-            (is (every? #(contains? % :n) rows)
-                "Expected :n column for single-key coords")
+            ;; Single-key coords use key name as column header (string key)
+            (is (every? #(contains? % "n") rows)
+                "Expected \"n\" column for single-key coords")
             ;; Rows should be sorted numerically
-            (is (= [100 1000 10000] (mapv :n rows))
+            (is (= [100 1000 10000] (mapv #(get % "n") rows))
                 "Expected rows sorted numerically by coord value")
             ;; Column header is metric-name with SI unit
             (let [col-key (first (filter #(str/starts-with?
@@ -571,8 +571,8 @@
         (let [result (kindly/flush)
               [_ table-data] result
               rows (table-rows table-data)]
-          (is (every? #(contains? % :coordinate) rows)
-              "Expected :coordinate column for multi-key coords"))))
+          (is (every? #(contains? % "coordinate") rows)
+              "Expected \"coordinate\" column for multi-key coords"))))
 
     (testing "renders multi-metric extract as consolidated table"
       (reset! kindly/accumulated [])
@@ -728,8 +728,8 @@
             (is (= 2 (count rows))
                 "Expected 2 rows for 2 n values")
             ;; With single-key coord simplification, column header is "n"
-            ;; not :coordinate
-            (is (every? #(or (contains? % "n") (contains? % :coordinate)) rows)
+            ;; not "coordinate"
+            (is (every? #(or (contains? % "n") (contains? % "coordinate")) rows)
                 "Expected coordinate column ('n' for single-key coords)")
             (is (every? #(or (contains? % ":foo") (contains? % "foo")) rows)
                 "Expected axis value columns")))))
@@ -749,8 +749,9 @@
         (view/domain-comparison* :kindly {} data-map)
         (let [result (kindly/flush)]
           (is (= :kind/fragment (:kindly/kind (meta result))))
-          (is (= 2 (count result)) "Expected heading and table")
-          (let [[heading table-data] result
+          ;; Expect heading, table, and line chart (multi-point with multiple n values)
+          (is (= 3 (count result)) "Expected heading, table, and chart")
+          (let [[heading table-data chart] result
                 rows (table-rows table-data)]
             (is (= :kind/md (:kindly/kind (meta heading))))
             (is (str/includes? (first heading) "Domain Comparison"))
@@ -761,7 +762,10 @@
               (is (contains? first-row "foo")
                   "Expected baseline impl column")
               (is (contains? first-row "bar ×")
-                  "Expected factor impl column with ×"))))))
+                  "Expected factor impl column with ×"))
+            ;; Verify chart is present
+            (is (= :kind/vega-lite (:kindly/kind (meta chart)))
+                "Expected Vega-Lite chart")))))
 
     (testing "handles empty data gracefully"
       (reset! kindly/accumulated [])

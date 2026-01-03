@@ -595,7 +595,7 @@
           ;; Build table rows
           table-rows
           (mapv (fn [row-key]
-                  (into {(keyword coord-header)
+                  (into {coord-header
                          (format-row-key-value row-key single-key-info)}
                         (map-indexed
                          (fn [idx col-spec]

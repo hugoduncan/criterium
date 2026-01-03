@@ -172,6 +172,53 @@
     (testing "returns :default-table for nil extract"
       (is (= :default-table (common/visualization-strategy nil))))))
 
+;;; Tests for prepare-domain-extract-table helper.
+;;; Verifies table generation with correct column key/header matching.
+
+(deftest prepare-domain-extract-table-test
+  ;; Tests prepare-domain-extract-table for various scenarios
+  (testing "prepare-domain-extract-table"
+    (testing "single-impl multi-point uses string key matching column-name"
+      ;; This test verifies the fix for issue where axis values were blank
+      ;; because coord-header was used as keyword key but column-names are strings
+      (let [extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations [:default]
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 10 :impl :default} 1.0e-6]
+                                       [{:n 50 :impl :default} 2.0e-6]
+                                       [{:n 100 :impl :default} 3.0e-6]]}}}
+            result (common/prepare-domain-extract-table extract {})]
+        (is (= "Domain Extract" (:heading result)))
+        (is (= "n" (:coord-header result)))
+        ;; Key point: row map keys must match column-names (strings, not keywords)
+        (is (= 3 (count (:rows result))))
+        (let [first-row (first (:rows result))]
+          ;; The coord column key should be the string "n", not :n
+          (is (contains? first-row "n"))
+          (is (= 10 (get first-row "n"))))))
+
+    (testing "multi-impl uses string key for coord column"
+      (let [extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations [:foo :bar]
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 10 :impl :foo} 1.0e-6]
+                                       [{:n 10 :impl :bar} 2.0e-6]
+                                       [{:n 50 :impl :foo} 1.5e-6]
+                                       [{:n 50 :impl :bar} 2.5e-6]]}}}
+            result (common/prepare-domain-extract-table extract {})]
+        (is (= "n" (:coord-header result)))
+        (is (= 2 (count (:rows result))))
+        (let [first-row (first (:rows result))]
+          (is (contains? first-row "n"))
+          (is (= 10 (get first-row "n"))))))
+
+    (testing "returns nil for nil extract"
+      (is (nil? (common/prepare-domain-extract-table nil {}))))))
+
 ;;; Tests for prepare-domain-extract-table-transposed helper.
 ;;; Verifies transposed table generation for single-point multi-impl scenarios
 ;;; where each row is an implementation with value and factor columns.

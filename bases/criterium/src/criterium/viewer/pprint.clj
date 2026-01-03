@@ -276,14 +276,8 @@
     (when-let [{:keys [heading coord-header col-headers rows]}
                (viewer-common/prepare-domain-extract-table extract {:header-sep " "})]
       (println heading)
-      ;; pprint/print-table needs string keys for column headers to display
-      ;; without colon prefix; transform the coord key from keyword to string
-      (let [coord-key (keyword coord-header)
-            pprint-rows (mapv #(-> %
-                                   (assoc coord-header (get % coord-key))
-                                   (dissoc coord-key))
-                              rows)]
-        (pprint/print-table (into [coord-header] col-headers) pprint-rows)))))
+      ;; Rows already use string keys matching column headers
+      (pprint/print-table (into [coord-header] col-headers) rows))))
 
 (defmethod view/domain-grouped* :pprint
   [_ {:keys [grouped-id]} data-map]

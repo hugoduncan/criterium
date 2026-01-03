@@ -228,9 +228,9 @@
     (testing "with :implementations shows factors for non-baseline"
       (is (= ["Domain Comparison by impl: [:stats :elapsed-time :mean]"
               ""
-              "|   n |    foo | bar × |"
-              "|-----+--------+-------|"
-              "| 100 | 100 ns |  2.00 |"]
+              "|   n |    foo |    bar | bar × |"
+              "|-----+--------+--------+-------|"
+              "| 100 | 100 ns | 200 ns |  2.00 |"]
              (trimmed-lines
               (with-out-str
                 (view/domain-comparison*
