@@ -704,7 +704,75 @@
                                        [{:n 200 :impl :bar} 2.5e-6]]}}}
             result (common/prepare-line-chart-data extract)
             {:keys [y-title]} (first result)]
-        (is (not (str/starts-with? y-title "mean ")))))))
+        (is (not (str/starts-with? y-title "mean ")))))
+
+    (testing "returns has-error-bounds? false for plain values"
+      (let [extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations [:foo :bar]
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100 :impl :foo} 1.0e-6]
+                                       [{:n 100 :impl :bar} 2.0e-6]
+                                       [{:n 200 :impl :foo} 1.5e-6]
+                                       [{:n 200 :impl :bar} 2.5e-6]]}}}
+            result (common/prepare-line-chart-data extract)
+            first-metric (first result)]
+        (is (false? (:has-error-bounds? first-metric)))
+        (is (every? #(not (contains? % "yLower")) (:data first-metric)))
+        (is (every? #(not (contains? % "yUpper")) (:data first-metric)))))
+
+    (testing "extracts error bounds when :lower/:upper present"
+      (let [extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations [:foo :bar]
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100 :impl :foo}
+                                        {:value 1.0e-6 :lower 0.9e-6 :upper 1.1e-6}]
+                                       [{:n 100 :impl :bar}
+                                        {:value 2.0e-6 :lower 1.8e-6 :upper 2.2e-6}]
+                                       [{:n 200 :impl :foo}
+                                        {:value 1.5e-6 :lower 1.4e-6 :upper 1.6e-6}]
+                                       [{:n 200 :impl :bar}
+                                        {:value 2.5e-6 :lower 2.3e-6 :upper 2.7e-6}]]}}}
+            result (common/prepare-line-chart-data extract)
+            first-metric (first result)]
+        (is (true? (:has-error-bounds? first-metric)))
+        (is (re-find #"mean" (:y-title first-metric)))
+        (let [data (:data first-metric)]
+          (is (every? #(contains? % "yLower") data))
+          (is (every? #(contains? % "yUpper") data))
+          (doseq [d data]
+            (is (< (get d "yLower") (get d "y")))
+            (is (< (get d "y") (get d "yUpper")))))))
+
+    (testing "graceful degradation for mixed values with bounds"
+      (let [extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations [:foo :bar]
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100 :impl :foo}
+                                        {:value 1.0e-6 :lower 0.9e-6 :upper 1.1e-6}]
+                                       [{:n 100 :impl :bar} 2.0e-6]
+                                       [{:n 200 :impl :foo} 1.5e-6]
+                                       [{:n 200 :impl :bar}
+                                        {:value 2.5e-6 :lower 2.3e-6 :upper 2.7e-6}]]}}}
+            result (common/prepare-line-chart-data extract)
+            first-metric (first result)
+            data (:data first-metric)]
+        (is (true? (:has-error-bounds? first-metric)))
+        (let [foo-100 (first (filter #(and (= "foo" (get % "impl"))
+                                           (= 100 (get % "x")))
+                                     data))
+              bar-100 (first (filter #(and (= "bar" (get % "impl"))
+                                           (= 100 (get % "x")))
+                                     data))]
+          (is (contains? foo-100 "yLower"))
+          (is (contains? foo-100 "yUpper"))
+          (is (not (contains? bar-100 "yLower")))
+          (is (not (contains? bar-100 "yUpper"))))))))
 
 ;;; Edge case tests for empty data and degenerate inputs.
 ;;; Verifies that detection helpers and preparation functions handle edge cases
@@ -947,7 +1015,114 @@
                                      {:coord {:n 200} :value 2.5e-6}]}}
             result (common/prepare-comparison-line-data comparison)
             {:keys [y-title]} (first result)]
-        (is (not (str/starts-with? y-title "mean ")))))))
+        (is (not (str/starts-with? y-title "mean ")))))
+
+    (testing "returns has-error-bounds? false for plain values"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo :bar]
+                        :data {:foo [{:coord {:n 100} :value 1.0e-6}
+                                     {:coord {:n 200} :value 1.5e-6}]
+                               :bar [{:coord {:n 100} :value 2.0e-6}
+                                     {:coord {:n 200} :value 2.5e-6}]}}
+            result (common/prepare-comparison-line-data comparison)
+            first-metric (first result)]
+        (is (false? (:has-error-bounds? first-metric)))
+        (is (every? #(not (contains? % "yLower")) (:data first-metric)))
+        (is (every? #(not (contains? % "yUpper")) (:data first-metric)))))
+
+    (testing "extracts error bounds for single-metric comparison"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo :bar]
+                        :data {:foo [{:coord {:n 100}
+                                      :value {:value 1.0e-6
+                                              :lower 0.9e-6
+                                              :upper 1.1e-6}}
+                                     {:coord {:n 200}
+                                      :value {:value 1.5e-6
+                                              :lower 1.4e-6
+                                              :upper 1.6e-6}}]
+                               :bar [{:coord {:n 100}
+                                      :value {:value 2.0e-6
+                                              :lower 1.8e-6
+                                              :upper 2.2e-6}}
+                                     {:coord {:n 200}
+                                      :value {:value 2.5e-6
+                                              :lower 2.3e-6
+                                              :upper 2.7e-6}}]}}
+            result (common/prepare-comparison-line-data comparison)
+            first-metric (first result)]
+        (is (true? (:has-error-bounds? first-metric)))
+        (is (re-find #"mean" (:y-title first-metric)))
+        (let [data (:data first-metric)]
+          (is (every? #(contains? % "yLower") data))
+          (is (every? #(contains? % "yUpper") data))
+          (doseq [d data]
+            (is (< (get d "yLower") (get d "y")))
+            (is (< (get d "y") (get d "yUpper")))))))
+
+    (testing "extracts error bounds for multi-metric comparison"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :implementations [:foo :bar]
+                        :metrics {:elapsed-time
+                                  {:metric [:stats :elapsed-time :mean]
+                                   :data {:foo [{:coord {:n 100}
+                                                 :value {:value 1.0e-6
+                                                         :lower 0.9e-6
+                                                         :upper 1.1e-6}}
+                                                {:coord {:n 200}
+                                                 :value {:value 1.5e-6
+                                                         :lower 1.4e-6
+                                                         :upper 1.6e-6}}]
+                                          :bar [{:coord {:n 100}
+                                                 :value {:value 2.0e-6
+                                                         :lower 1.8e-6
+                                                         :upper 2.2e-6}}
+                                                {:coord {:n 200}
+                                                 :value {:value 2.5e-6
+                                                         :lower 2.3e-6
+                                                         :upper 2.7e-6}}]}}}}
+            result (common/prepare-comparison-line-data comparison)
+            first-metric (first result)]
+        (is (true? (:has-error-bounds? first-metric)))
+        (is (re-find #"mean" (:y-title first-metric)))
+        (let [data (:data first-metric)]
+          (is (every? #(contains? % "yLower") data))
+          (is (every? #(contains? % "yUpper") data)))))
+
+    (testing "graceful degradation for mixed values"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo :bar]
+                        :data {:foo [{:coord {:n 100}
+                                      :value {:value 1.0e-6
+                                              :lower 0.9e-6
+                                              :upper 1.1e-6}}
+                                     {:coord {:n 200} :value 1.5e-6}]
+                               :bar [{:coord {:n 100} :value 2.0e-6}
+                                     {:coord {:n 200}
+                                      :value {:value 2.5e-6
+                                              :lower 2.3e-6
+                                              :upper 2.7e-6}}]}}
+            result (common/prepare-comparison-line-data comparison)
+            first-metric (first result)
+            data (:data first-metric)]
+        (is (true? (:has-error-bounds? first-metric)))
+        (let [foo-100 (first (filter #(and (= "foo" (get % "impl"))
+                                           (= 100 (get % "x")))
+                                     data))
+              foo-200 (first (filter #(and (= "foo" (get % "impl"))
+                                           (= 200 (get % "x")))
+                                     data))]
+          (is (contains? foo-100 "yLower"))
+          (is (contains? foo-100 "yUpper"))
+          (is (not (contains? foo-200 "yLower")))
+          (is (not (contains? foo-200 "yUpper"))))))))
 
 ;; Tests for ASCII treemap rendering functions.
 ;; Verifies ascii-bar generates proportional bars and render-ascii-treemap
