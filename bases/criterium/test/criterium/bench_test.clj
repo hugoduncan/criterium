@@ -237,51 +237,6 @@
     (let [config (bench-config/config-map {:with-allocation-trace true})]
       (is (true? (:with-allocation-trace config))))))
 
-(deftest outlier-method-option-test
-  ;; Tests for :outlier-method option.
-  ;; Verifies that the option is accepted and injected into the analyse plan.
-  (testing ":outlier-method option"
-    (testing "config-map accepts :outlier-method"
-      (is (some? (bench-config/config-map {:outlier-method :standard})))
-      (is (some? (bench-config/config-map {:outlier-method :adjusted})))
-      (is (some? (bench-config/config-map {:outlier-method :auto}))))
-
-    (testing "injects :outlier-method into :outliers step in analyse plan"
-      (let [config (bench-config/config-map {:outlier-method :standard})]
-        (is (some
-             (fn [step]
-               (and (vector? step)
-                    (= :outliers (first step))
-                    (= :standard (:outlier-method (second step)))))
-             (:analyse config))
-            "analyse plan contains [:outliers {:outlier-method :standard}]")))
-
-    (testing "preserves existing outliers options"
-      (let [config (bench-config/config-map
-                    {:outlier-method :standard
-                     :analyse [:transform-log
-                               [:outliers {:samples-id :log-samples}]
-                               :stats]})
-            outlier-step (some
-                          (fn [step]
-                            (when (and (vector? step)
-                                       (= :outliers (first step)))
-                              step))
-                          (:analyse config))]
-        (is (= :standard (:outlier-method (second outlier-step))))
-        (is (= :log-samples (:samples-id (second outlier-step))))))
-
-    (testing "nil :outlier-method does not modify analyse plan"
-      (let [default-config (bench-config/config-map {})
-            nil-config (bench-config/config-map {:outlier-method nil})]
-        (is (= (:analyse default-config) (:analyse nil-config)))))
-
-    (testing "bench accepts :outlier-method option"
-      (with-out-str
-        (let [v (bench/bench 1 :limit-time-s 0.1 :outlier-method :standard)]
-          (is (= 1 v)))
-        (is (some? (bench/last-bench)))))))
-
 (deftest knuth-histogram-bench-plan-test
   ;; Integration test verifying the knuth-histogram bench plan produces
   ;; correct histogram output with Bayesian optimal binning.

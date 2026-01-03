@@ -220,12 +220,6 @@
       :with-allocation-trace - When true, collect allocation trace and display
                      allocation analysis (summary, hotspots, by-type). Requires
                      the native agent to be attached. (optional)
-      :outlier-method - Method for computing outlier thresholds (optional):
-                     :adjusted (default) - uses adjusted boxplot with medcouple
-                                          to account for skewness
-                     :standard - uses symmetric 1.5×IQR whiskers
-                     :auto - uses :adjusted for sample data, :standard for digest
-                     Note: digest-based collection always uses :standard.
 
   Returns:
   The value from evaluating the expression.
