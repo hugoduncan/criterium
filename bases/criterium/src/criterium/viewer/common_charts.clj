@@ -702,34 +702,52 @@
 
 ;;; Multi-point line charts
 
+(defn- line-confidence-band-layer
+  "Build confidence band layer for line charts with error bounds.
+  Uses area marks with y/y2 encoding for yLower/yUpper bounds.
+  Color matches line color per implementation."
+  [data]
+  {:data {:values data}
+   :mark {:type "area" :opacity 0.2}
+   :encoding {:x {:field "x" :type "quantitative"}
+              :y {:field "yLower" :type "quantitative"}
+              :y2 {:field "yUpper"}
+              :color {:field "impl" :type "nominal" :legend nil}}})
+
 (defn- line-chart-layer
   "Build a single line chart layer from prepared line data.
+  Returns a layered spec with confidence bands when has-error-bounds? is true,
+  otherwise returns a simple line chart spec.
   Used by both domain-line-chart-spec and comparison-line-chart-spec."
-  [{:keys [x-title y-title data]} chart-options]
-  (chart-layer
-   data
-   chart-options
-   {:type "line" :point true}
-   {:x {:field "x"
-        :type "quantitative"
-        :title x-title
-        :scale {:zero false}}
-    :y {:field "y"
-        :type "quantitative"
-        :title y-title}
-    :color {:field "impl"
-            :type "nominal"
-            :title "Implementation"}
-    :tooltip [{:field "impl"
-               :type "nominal"
-               :title "Implementation"}
-              {:field "x"
-               :type "quantitative"
-               :title x-title}
-              {:field "y"
-               :type "quantitative"
-               :title y-title
-               :format ".3g"}]}))
+  [{:keys [x-title y-title has-error-bounds? data]} chart-options]
+  (let [line-layer (chart-layer
+                    data
+                    {}
+                    {:type "line" :point true}
+                    {:x {:field "x"
+                         :type "quantitative"
+                         :title x-title
+                         :scale {:zero false}}
+                     :y {:field "y"
+                         :type "quantitative"
+                         :title y-title}
+                     :color {:field "impl"
+                             :type "nominal"
+                             :title "Implementation"}
+                     :tooltip [{:field "impl"
+                                :type "nominal"
+                                :title "Implementation"}
+                               {:field "x"
+                                :type "quantitative"
+                                :title x-title}
+                               {:field "y"
+                                :type "quantitative"
+                                :title y-title
+                                :format ".3g"}]})]
+    (if has-error-bounds?
+      (merge chart-options
+             {:layer [(line-confidence-band-layer data) line-layer]})
+      (merge chart-options line-layer))))
 
 (defn domain-line-chart-spec
   "Build a Vega-Lite line chart spec for single-axis multi-point domain extract.

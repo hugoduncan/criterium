@@ -786,6 +786,185 @@
             (str "comparison-line-chart-spec validation failed: "
                  (pr-str (:errors result))))))))
 
+;;; Line chart confidence band tests.
+;;; Verifies confidence band generation for line charts with error bounds.
+
+(def multi-point-extract-with-bounds
+  "Sample multi-point extract with error bounds for line chart testing."
+  {:type :criterium/domain-extract
+   :impl-axis :impl
+   :implementations [:foo :bar]
+   :metrics {:elapsed-time
+             {:metric [:stats :elapsed-time :mean]
+              :data [[{:n 100 :impl :foo}
+                      {:value 1.0e-6 :lower 0.9e-6 :upper 1.1e-6}]
+                     [{:n 100 :impl :bar}
+                      {:value 2.0e-6 :lower 1.8e-6 :upper 2.2e-6}]
+                     [{:n 200 :impl :foo}
+                      {:value 1.5e-6 :lower 1.3e-6 :upper 1.7e-6}]
+                     [{:n 200 :impl :bar}
+                      {:value 2.5e-6 :lower 2.3e-6 :upper 2.7e-6}]
+                     [{:n 400 :impl :foo}
+                      {:value 2.0e-6 :lower 1.8e-6 :upper 2.2e-6}]
+                     [{:n 400 :impl :bar}
+                      {:value 3.5e-6 :lower 3.2e-6 :upper 3.8e-6}]]}}})
+
+(deftest domain-line-chart-with-confidence-bands-test
+  ;; Tests line chart spec generation when error bounds are present.
+  ;; Verifies layered spec structure with confidence band layer + line layer.
+  (testing "domain-line-chart-spec with error bounds"
+    (testing "produces layered structure"
+      (let [spec (charts/domain-line-chart-spec
+                  multi-point-extract-with-bounds
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))]
+        (is (contains? chart :layer))
+        (is (= 2 (count (:layer chart))))))
+
+    (testing "includes confidence band layer with area mark"
+      (let [spec (charts/domain-line-chart-spec
+                  multi-point-extract-with-bounds
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            band-layer (first (:layer chart))]
+        (is (= "area" (get-in band-layer [:mark :type])))
+        (is (= 0.2 (get-in band-layer [:mark :opacity])))))
+
+    (testing "confidence band layer encodes y/y2 for bounds"
+      (let [spec (charts/domain-line-chart-spec
+                  multi-point-extract-with-bounds
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            band-layer (first (:layer chart))
+            encoding (:encoding band-layer)]
+        (is (= "yLower" (get-in encoding [:y :field])))
+        (is (= "yUpper" (get-in encoding [:y2 :field])))))
+
+    (testing "includes line layer with line mark"
+      (let [spec (charts/domain-line-chart-spec
+                  multi-point-extract-with-bounds
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            line-layer (second (:layer chart))]
+        (is (= "line" (get-in line-layer [:mark :type])))
+        (is (true? (get-in line-layer [:mark :point])))))
+
+    (testing "confidence band data includes bounds"
+      (let [spec (charts/domain-line-chart-spec
+                  multi-point-extract-with-bounds
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            band-layer (first (:layer chart))
+            data (get-in band-layer [:data :values])]
+        (is (every? #(contains? % "yLower") data))
+        (is (every? #(contains? % "yUpper") data))))
+
+    (testing "respects chart dimensions"
+      (let [spec (charts/domain-line-chart-spec
+                  multi-point-extract-with-bounds
+                  {:width 500 :height 250})
+            chart (first (:vconcat spec))]
+        (is (= 500 (:width chart)))
+        (is (= 250 (:height chart)))))))
+
+(deftest domain-line-chart-graceful-degradation-test
+  ;; Tests that line charts without error bounds render normally.
+  ;; Verifies graceful degradation - no layered structure when no bounds.
+  (testing "domain-line-chart-spec without error bounds"
+    (testing "produces simple structure without layer"
+      (let [spec (charts/domain-line-chart-spec
+                  multi-point-extract
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))]
+        (is (not (contains? chart :layer)))
+        (is (= {:type "line" :point true} (:mark chart)))))
+
+    (testing "still includes line mark and encodings"
+      (let [spec (charts/domain-line-chart-spec
+                  multi-point-extract
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))]
+        (is (= "x" (get-in chart [:encoding :x :field])))
+        (is (= "y" (get-in chart [:encoding :y :field])))
+        (is (= "impl" (get-in chart [:encoding :color :field])))))))
+
+(deftest domain-line-chart-with-confidence-bands-schema-validation-test
+  ;; Validates line chart with confidence bands against Vega-Lite v6 schema.
+  (testing "domain-line-chart-spec with error bounds"
+    (testing "produces valid Vega-Lite spec"
+      (let [spec (charts/domain-line-chart-spec
+                  multi-point-extract-with-bounds
+                  {:width 400 :height 300})
+            result (schema/validate-vega-lite-spec spec)]
+        (is (:valid? result)
+            (str "line chart with confidence bands failed: "
+                 (pr-str (:errors result))))))))
+
+;;; Comparison line chart confidence band tests.
+
+(def multi-point-comparison-with-bounds
+  "Sample comparison with error bounds for line chart testing."
+  {:type :criterium/domain-comparison
+   :axis :n
+   :metric [:stats :elapsed-time :mean]
+   :implementations [:foo :bar]
+   :data {:foo [{:coord {:n 100}
+                 :value {:value 1.0e-6 :lower 0.9e-6 :upper 1.1e-6}}
+                {:coord {:n 200}
+                 :value {:value 1.5e-6 :lower 1.3e-6 :upper 1.7e-6}}
+                {:coord {:n 400}
+                 :value {:value 2.0e-6 :lower 1.8e-6 :upper 2.2e-6}}]
+          :bar [{:coord {:n 100}
+                 :value {:value 2.0e-6 :lower 1.8e-6 :upper 2.2e-6}}
+                {:coord {:n 200}
+                 :value {:value 2.5e-6 :lower 2.3e-6 :upper 2.7e-6}}
+                {:coord {:n 400}
+                 :value {:value 3.5e-6 :lower 3.2e-6 :upper 3.8e-6}}]}})
+
+(deftest comparison-line-chart-with-confidence-bands-test
+  ;; Tests comparison line chart spec when error bounds are present.
+  ;; Verifies layered spec structure with confidence band layer + line layer.
+  (testing "comparison-line-chart-spec with error bounds"
+    (testing "produces layered structure"
+      (let [spec (charts/comparison-line-chart-spec
+                  multi-point-comparison-with-bounds
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))]
+        (is (contains? chart :layer))
+        (is (= 2 (count (:layer chart))))))
+
+    (testing "includes confidence band layer with area mark"
+      (let [spec (charts/comparison-line-chart-spec
+                  multi-point-comparison-with-bounds
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            band-layer (first (:layer chart))]
+        (is (= "area" (get-in band-layer [:mark :type])))
+        (is (= 0.2 (get-in band-layer [:mark :opacity])))))))
+
+(deftest comparison-line-chart-graceful-degradation-test
+  ;; Tests that comparison line charts without error bounds render normally.
+  (testing "comparison-line-chart-spec without error bounds"
+    (testing "produces simple structure without layer"
+      (let [spec (charts/comparison-line-chart-spec
+                  multi-point-comparison
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))]
+        (is (not (contains? chart :layer)))
+        (is (= {:type "line" :point true} (:mark chart)))))))
+
+(deftest comparison-line-chart-with-confidence-bands-schema-validation-test
+  ;; Validates comparison line chart with confidence bands against Vega-Lite schema.
+  (testing "comparison-line-chart-spec with error bounds"
+    (testing "produces valid Vega-Lite spec"
+      (let [spec (charts/comparison-line-chart-spec
+                  multi-point-comparison-with-bounds
+                  {:width 400 :height 300})
+            result (schema/validate-vega-lite-spec spec)]
+        (is (:valid? result)
+            (str "comparison line chart with confidence bands failed: "
+                 (pr-str (:errors result))))))))
+
 (deftest treemap-vega-spec-schema-validation-test
   ;; Validates treemap-vega-spec output against Vega v5 schema.
   ;; Tests treemap visualization for allocation data.
