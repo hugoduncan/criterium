@@ -286,6 +286,15 @@
         (is (= "nominal" (:type x-encoding)))
         (is (= "Implementation" (:title x-encoding)))))
 
+    (testing "preserves implementation order from data"
+      (let [spec (charts/single-point-bar-chart-spec
+                  single-point-extract
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            x-encoding (get-in chart [:encoding :x])]
+        (is (nil? (:sort x-encoding))
+            "x-axis sort should be nil to preserve data order")))
+
     (testing "encodes value on y-axis"
       (let [spec (charts/single-point-bar-chart-spec
                   single-point-extract
@@ -366,7 +375,16 @@
             x-encoding (get-in chart [:encoding :x])]
         (is (= "impl" (:field x-encoding)))
         (is (= "nominal" (:type x-encoding)))
-        (is (= "Implementation" (:title x-encoding)))))))
+        (is (= "Implementation" (:title x-encoding)))))
+
+    (testing "preserves implementation order from data"
+      (let [spec (charts/comparison-bar-chart-spec
+                  single-point-comparison
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            x-encoding (get-in chart [:encoding :x])]
+        (is (nil? (:sort x-encoding))
+            "x-axis sort should be nil to preserve data order")))))
 
 (deftest comparison-bar-chart-spec-schema-validation-test
   ;; Validates comparison-bar-chart-spec output against Vega-Lite v6 schema.

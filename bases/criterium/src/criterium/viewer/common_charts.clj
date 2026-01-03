@@ -611,6 +611,7 @@
    {:x {:field "impl"
         :type "nominal"
         :title "Implementation"
+        :sort nil
         :axis {:labelAngle 0}}
     :y {:field "value"
         :type "quantitative"
