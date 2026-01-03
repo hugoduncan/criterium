@@ -47,9 +47,11 @@
   Discovers available metrics automatically (elapsed-time, thread-allocation, etc.)
   and extracts mean values for each.
 
+  Includes error bounds (±3σ) for each data point when viewed with portal or kindly.
+
   Example:
     (analyse-domain extract-metrics my-domain)"
-  {:analyse [[:domain-extract-fn {}]]
+  {:analyse [[:domain-extract-fn {:with-error-bounds true}]]
    :view [[:domain-extract {}]]})
 
 (def extract-elapsed-time

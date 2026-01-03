@@ -69,4 +69,33 @@
                   :viewer :none)
             result (analysis/analyse-domain plan d)]
         (is (contains? result :extract))
-        (is (= :criterium/domain-extract (:type (:extract result))))))))
+        (is (= :criterium/domain-extract (:type (:extract result))))))
+    (testing "extract-metrics includes error bounds"
+      (let [d (domain/domain
+               {:coord {:n 100}
+                :data (mock-bench-result-with-defs
+                       {:elapsed-time {:mean 1.0
+                                       :mean-plus-3sigma 1.2
+                                       :mean-minus-3sigma 0.8}})}
+               {:coord {:n 200}
+                :data (mock-bench-result-with-defs
+                       {:elapsed-time {:mean 2.0
+                                       :mean-plus-3sigma 2.5
+                                       :mean-minus-3sigma 1.5}})})
+            plan (analysis/options->domain-plan
+                  domain-plans/extract-metrics
+                  :viewer :none)
+            result (analysis/analyse-domain plan d)
+            extract (:extract result)
+            et-data (get-in extract [:metrics :elapsed-time])]
+        (is (contains? result :extract))
+        (is (= :criterium/domain-extract (:type extract)))
+        ;; Verify error bounds flag is set
+        (is (true? (:with-error-bounds et-data))
+            "extract-metrics plan should enable :with-error-bounds")
+        ;; Verify data includes error bounds
+        (let [[_coord value] (first (:data et-data))]
+          (is (map? value))
+          (is (contains? value :value))
+          (is (contains? value :lower))
+          (is (contains? value :upper)))))))
