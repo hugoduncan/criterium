@@ -233,8 +233,8 @@ bench-plans/knuth-histogram
 
 ;; ## Outlier Detection Method
 ;;
-;; The `:outlier-method` option controls how outliers are detected.
-;; Criterium supports three methods:
+;; Outlier detection method is configured via the `:outliers` step in the
+;; `:analyse` plan. Criterium supports three methods:
 ;;
 ;; - `:adjusted` - Adjusted boxplot using medcouple for skewed data (default)
 ;; - `:standard` - Standard symmetric boxplot (1.5×IQR whiskers)
@@ -252,8 +252,12 @@ bench-plans/knuth-histogram
 ^:kindly/hide-code
 (bench-display
  (bench/bench (reduce + (range 1000))
-              :outlier-method :adjusted
-              :bench-plan bench-plans/log-histogram))
+              :analyse [:transform-log
+                        :quantiles
+                        [:outliers {:outlier-method :adjusted}]
+                        [:stats {}]
+                        [:stats {:samples-id :log-samples :id :log-stats}]
+                        :histogram]))
 
 ;; ### :standard
 ;;
@@ -262,8 +266,12 @@ bench-plans/knuth-histogram
 ^:kindly/hide-code
 (bench-display
  (bench/bench (reduce + (range 1000))
-              :outlier-method :standard
-              :bench-plan bench-plans/log-histogram))
+              :analyse [:transform-log
+                        :quantiles
+                        [:outliers {:outlier-method :standard}]
+                        [:stats {}]
+                        [:stats {:samples-id :log-samples :id :log-stats}]
+                        :histogram]))
 
 ;; ### Viewing Medcouple Values
 ;;

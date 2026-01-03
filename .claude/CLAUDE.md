@@ -24,6 +24,9 @@ clojure -M:kaocha:dev:test:with-agent-mac --reporter dots
 # For agent development: Test with locally-built agent (Linux)
 clojure -M:kaocha:dev:test:with-agent-linux --reporter dots
 
+# Run tests for a namespace with Kaocha
+clojure -M:kaocha:dev:test --reporter dots --focus the.namespace.name
+
 # Run validation tests against R (requires R + Rserve installed)
 clojure -M:validation
 ```

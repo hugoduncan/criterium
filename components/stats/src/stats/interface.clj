@@ -27,9 +27,10 @@
 
 ;;; Core statistics
 
-(def transpose
+(defn transpose
   "Transpose a vector of vectors."
-  core/transpose)
+  [data]
+  (core/transpose data))
 
 (defn min
   "Minimum value in data."
@@ -51,13 +52,15 @@
   ([data] (core/mean data))
   ([data count] (core/mean data count)))
 
-(def sum
+(defn sum
   "Sum of each data point."
-  core/sum)
+  [data]
+  (core/sum data))
 
-(def sum-of-squares
+(defn sum-of-squares
   "Sum of the squares of each data point."
-  core/sum-of-squares)
+  [data]
+  (core/sum-of-squares data))
 
 (defn variance*
   "Variance based on subtracting mean."
@@ -75,30 +78,35 @@
   ([data] (core/variance data))
   ([data df] (core/variance data df)))
 
-(def median
+(defn median
   "Calculate the median of a sorted data set.
   Return [median, [vals less than median] [vals greater than median]]"
-  core/median)
+  [data]
+  (core/median data))
 
-(def quartiles
+(defn quartiles
   "Calculate the quartiles of a sorted data set."
-  core/quartiles)
+  [data]
+  (core/quartiles data))
 
-(def quantile
+(defn quantile
   "Calculate the quantile of a sorted data set."
-  core/quantile)
+  [^double quantile data]
+  (core/quantile quantile data))
 
 ;;; Outliers
 
-(def boxplot-outlier-thresholds
+(defn boxplot-outlier-thresholds
   "Outlier thresholds for given quartiles.
   Returns [severe-low mild-low mild-high severe-high]."
-  outliers/boxplot-outlier-thresholds)
+  [^double q1 ^double q3]
+  (outliers/boxplot-outlier-thresholds q1 q3))
 
-(def adjusted-boxplot-outlier-thresholds
+(defn adjusted-boxplot-outlier-thresholds
   "Outlier thresholds for given quartiles adjusted for skewness.
   Uses the adjusted boxplot method from Hubert & Vandervieren (2008)."
-  outliers/adjusted-boxplot-outlier-thresholds)
+  [^double q1 ^double q3 ^double mc]
+  (outliers/adjusted-boxplot-outlier-thresholds q1 q3 mc))
 
 (defn medcouple-kernel
   "Compute the medcouple kernel h(x_i, x_j)."
@@ -114,22 +122,26 @@
 
 ;;; Sampling
 
-(def uniform-distribution
+(defn uniform-distribution
   "Return uniformly distributed deviates on 0..max-val using the specified rng."
-  sampling/uniform-distribution)
+  [^double max-val rng]
+  (sampling/uniform-distribution max-val rng))
 
-(def sample-uniform
+(defn sample-uniform
   "Provide n samples from a uniform distribution on 0..max-val."
-  sampling/sample-uniform)
+  [n max-val rng]
+  (sampling/sample-uniform n max-val rng))
 
-(def sample
+(defn sample
   "Sample with replacement."
-  sampling/sample)
+  [x rng]
+  (sampling/sample x rng))
 
-(def confidence-interval
+(defn confidence-interval
   "Find the significance of outliers given bootstrapped mean and variance
    estimates."
-  sampling/confidence-interval)
+  [^double mean ^double variance]
+  (sampling/confidence-interval mean variance))
 
 ;;; Probability
 
@@ -152,9 +164,10 @@
   ^double [^double x]
   (probability/normal-cdf x))
 
-(def normal-pdf
+(defn normal-pdf
   "Probability density function for the normal distribution."
-  probability/normal-pdf)
+  [^double mu ^double sigma]
+  (probability/normal-pdf mu sigma))
 
 (defn normal-quantile
   "Normal quantile function. Given a quantile in (0,1), return the normal value
@@ -261,9 +274,10 @@
   ([digest value weight]
    (t-digest/add-point digest value weight)))
 
-(def digest-compress
+(defn digest-compress
   "Merge any buffered points into the digest."
-  t-digest/compress)
+  [digest]
+  (t-digest/compress digest))
 
 (defn digest-quantile
   "Return estimated value at given quantile [0,1].
@@ -306,21 +320,25 @@
   (^double [digest ^double mean]
    (t-digest/variance digest mean)))
 
-(def digest-transform
+(defn digest-transform
   "Transform digest values using the given function."
-  t-digest/transform)
+  [digest f]
+  (t-digest/transform digest f))
 
-(def digest-centroid-means
+(defn digest-centroid-means
   "Return a vector of centroid means."
-  t-digest/centroid-means)
+  [digest]
+  (t-digest/centroid-means digest))
 
-(def digest-histogram
+(defn digest-histogram
   "Returns a histogram of the digest using centroid centers as bin locations."
-  t-digest/histogram)
+  [digest iqr]
+  (t-digest/histogram digest iqr))
 
-(def digest-filter-outliers
+(defn digest-filter-outliers
   "Filter outliers from the digest."
-  t-digest/filter-outliers)
+  [digest outliers]
+  (t-digest/filter-outliers digest outliers))
 
 ;;; Kernel functions
 
@@ -330,10 +348,11 @@
   ^double [^double h-k ^double sample-variance]
   (kernel/modal-estimation-constant h-k sample-variance))
 
-(def smoothed-sample
+(defn smoothed-sample
   "Smoothed estimation function.
   Generates a lazy sequence of smoothed values from data using kernel smoothing."
-  kernel/smoothed-sample)
+  [^double c-k ^double h-k data deviates]
+  (kernel/smoothed-sample c-k h-k data deviates))
 
 (defn gaussian-weight
   "Weight function for gaussian kernel.
@@ -341,22 +360,25 @@
   ^double [^double t]
   (kernel/gaussian-weight t))
 
-(def kernel-density-estimator
+(defn kernel-density-estimator
   "Kernel density estimator for x, given n samples X, weights K and width h.
   Computes f(x) = (1/nh) * sum_i K((x - X_i)/h)"
-  kernel/kernel-density-estimator)
+  [h K n X x]
+  (kernel/kernel-density-estimator h K n X x))
 
 ;;; KDE - Kernel Density Estimation
 
-(def dct-ii
+(defn dct-ii
   "Discrete Cosine Transform Type II.
   Direct O(n²) implementation without FFT dependency."
-  kde/dct-ii)
+  ^doubles [^doubles data]
+  (kde/dct-ii data))
 
-(def linear-bin
+(defn linear-bin
   "Bin data onto a regular grid using linear interpolation.
   Returns vector of bin weights that sum to 1.0."
-  kde/linear-bin)
+  ^doubles [data ^doubles grid]
+  (kde/linear-bin data grid))
 
 (defn silverman-bandwidth
   "Silverman's rule of thumb bandwidth selector.
@@ -371,20 +393,23 @@
   ^double [data]
   (kde/isj-bandwidth data))
 
-(def gaussian-kde
+(defn gaussian-kde
   "Compute Gaussian kernel density estimate at grid points.
   Returns vector of density values at each grid point."
-  kde/gaussian-kde)
+  ^doubles [data ^double bandwidth ^doubles grid]
+  (kde/gaussian-kde data bandwidth grid))
 
-(def find-modes
+(defn find-modes
   "Find modes (local maxima) in a density estimate.
   Returns vector of maps with :location and :density for each mode,
   sorted by density (highest first)."
-  kde/find-modes)
+  [^doubles grid ^doubles density]
+  (kde/find-modes grid density))
 
-(def kde-bootstrap-sample
+(defn kde-bootstrap-sample
   "Generate a bootstrap sample of KDE density at fixed grid points."
-  kde/kde-bootstrap-sample)
+  [data ^double bandwidth ^doubles grid rng]
+  (kde/kde-bootstrap-sample data bandwidth grid rng))
 
 (defn kde-confidence-bands
   "Compute bootstrap confidence bands for KDE.
@@ -413,30 +438,35 @@
   ^double [data ^long k opts]
   (kde/critical-bandwidth data k opts))
 
-(def locate-modes
+(defn locate-modes
   "Find mode and antimode locations using critical bandwidth.
   Returns {:modes [...] :antimodes [...] :critical-bandwidth h_k}"
-  kde/locate-modes)
+  [data ^long k opts]
+  (kde/locate-modes data k opts))
 
-(def silverman-bootstrap-sample
+(defn silverman-bootstrap-sample
   "Generate a smoothed bootstrap sample for Silverman's test."
-  kde/silverman-bootstrap-sample)
+  [data ^double bandwidth rng]
+  (kde/silverman-bootstrap-sample data bandwidth rng))
 
-(def silverman-test
+(defn silverman-test
   "Silverman's bootstrap test for H0: at most k modes.
   Returns map with :k, :critical-bandwidth, :p-value, :corrected?"
-  kde/silverman-test)
+  [data ^long k opts]
+  (kde/silverman-test data k opts))
 
-(def acr-test
+(defn acr-test
   "ACR test for H0: at most k modes.
   Combines critical bandwidth and excess mass approaches.
   Returns map with :k, :excess-mass, :critical-bandwidth, :p-value"
-  kde/acr-test)
+  [data ^long k opts]
+  (kde/acr-test data k opts))
 
-(def excess-mass
+(defn excess-mass
   "Compute excess mass statistic for testing k modes.
   Returns map with :statistic, :k, :n"
-  kde/excess-mass)
+  ([data k] (kde/excess-mass data k))
+  ([data k opts] (kde/excess-mass data k opts)))
 
 (defn kde
   "Compute KDE analysis on sample data.
@@ -446,35 +476,41 @@
 
 ;;; Bootstrap resampling
 
-(def bootstrap-sample
+(defn bootstrap-sample
   "Bootstrap sampling of a statistic, using resampling with replacement.
   Returns transposed results: if statistic returns a vector, returns a vector
   of vectors where each inner vector contains all samples for that statistic."
-  bootstrap/bootstrap-sample)
+  [data statistic size rng-factory]
+  (bootstrap/bootstrap-sample data statistic size rng-factory))
 
-(def bootstrap-estimate
+(defn bootstrap-estimate
   "Mean, variance and confidence interval from bootstrapped samples.
   Returns [mean variance [lower upper]]."
-  bootstrap/bootstrap-estimate)
+  [sampled-stat]
+  (bootstrap/bootstrap-estimate sampled-stat))
 
-(def drop-at
+(defn drop-at
   "Return coll with element at index n removed."
-  bootstrap/drop-at)
+  [n coll]
+  (bootstrap/drop-at n coll))
 
-(def jacknife
+(defn jacknife
   "Jacknife statistics on data.
   Computes the statistic on each leave-one-out sample of the data."
-  bootstrap/jacknife)
+  [data statistic]
+  (bootstrap/jacknife data statistic))
 
-(def bca-nonparametric-eval
+(defn bca-nonparametric-eval
   "Calculate bootstrap values for given estimate and samples."
-  bootstrap/bca-nonparametric-eval)
+  [size z-alpha estimate samples jack-samples]
+  (bootstrap/bca-nonparametric-eval size z-alpha estimate samples jack-samples))
 
-(def bca-nonparametric
+(defn bca-nonparametric
   "Non-parametric BCa estimate of a statistic on data.
   Size bootstrap samples are used. Confidence values are returned at the
   alpha normal quantiles."
-  bootstrap/bca-nonparametric)
+  [data statistic size alpha rng-factory]
+  (bootstrap/bca-nonparametric data statistic size alpha rng-factory))
 
 (def ->BcaEstimate
   "Constructor for BcaEstimate record."
@@ -484,10 +520,11 @@
   "Map constructor for BcaEstimate record."
   bootstrap/map->BcaEstimate)
 
-(def bootstrap-bca
+(defn bootstrap-bca
   "Bootstrap a statistic with BCa confidence intervals.
   Returns a BcaEstimate record with :point-estimate and :estimate-quantiles."
-  bootstrap/bootstrap-bca)
+  [data statistic size alpha rng-factory]
+  (bootstrap/bootstrap-bca data statistic size alpha rng-factory))
 
 (defn bootstrap
   "Bootstrap a statistic.
@@ -496,30 +533,36 @@
   [data statistic size rng-factory]
   (bootstrap/bootstrap data statistic size rng-factory))
 
-(def scale-bootstrap-estimate
+(defn scale-bootstrap-estimate
   "Scale a BcaEstimate by the given scale factor."
-  bootstrap/scale-bootstrap-estimate)
+  [estimate ^double scale]
+  (bootstrap/scale-bootstrap-estimate estimate scale))
 
-(def scale-bootstrap-stat
+(defn scale-bootstrap-stat
   "Scale a bootstrap stat using the given scale function."
-  bootstrap/scale-bootstrap-stat)
+  [scale-f stat]
+  (bootstrap/scale-bootstrap-stat scale-f stat))
 
-(def assoc-bootstrap-mean-3-sigma
+(defn assoc-bootstrap-mean-3-sigma
   "Add :mean-plus-3sigma and :mean-minus-3sigma to stats map."
-  bootstrap/assoc-bootstrap-mean-3-sigma)
+  [stats]
+  (bootstrap/assoc-bootstrap-mean-3-sigma stats))
 
-(def scale-bootstrap-values
+(defn scale-bootstrap-values
   "Apply function f to all values in stats map."
-  bootstrap/scale-bootstrap-values)
+  [stats f]
+  (bootstrap/scale-bootstrap-values stats f))
 
 (def stats-fn-map
   "Map of stat keywords to their corresponding functions."
   bootstrap/stats-fn-map)
 
-(def stats-fns
+(defn stats-fns
   "Build vector of stat functions including quantile functions for given quantiles."
-  bootstrap/stats-fns)
+  [quantiles]
+  (bootstrap/stats-fns quantiles))
 
-(def stats-fn
+(defn stats-fn
   "Combine multiple stat functions into one that returns a vector of results."
-  bootstrap/stats-fn)
+  [fs]
+  (bootstrap/stats-fn fs))

@@ -38,24 +38,6 @@
   [viewer]
   (alter-var-root #'*default-viewer* (constantly viewer)))
 
-(defn- inject-outlier-method
-  "Inject :outlier-method option into the :outliers step of an analyse plan."
-  [analyse-plan outlier-method]
-  (if outlier-method
-    (mapv (fn [step]
-            (cond
-              (= :outliers step)
-              [:outliers {:outlier-method outlier-method}]
-
-              (and (vector? step)
-                   (= :outliers (first step)))
-              (let [opts (if (>= (count step) 2) (second step) {})]
-                [:outliers (assoc opts :outlier-method outlier-method)])
-
-              :else step))
-          analyse-plan)
-    analyse-plan))
-
 (defn metric-ids->collector-config
   [metric-ids]
   (let [metrics (zipmap
@@ -92,8 +74,7 @@
                         :bench-plan
                         :verbose
                         :viewer
-                        :with-allocation-trace
-                        :outlier-method})
+                        :with-allocation-trace})
         limit-time-s (:limit-time-s options-map)
         analyse (:analyse options-map)
         view (:view options-map)
@@ -111,9 +92,7 @@
                        (collect-plan-config/collect-plan-config
                         collect-plan
                         options-map)
-                       (collect-plan-config/collect-plan-config
-                        (:scheme-type collect-plan)
-                        options-map))
+                       collect-plan)
         scheme-type (have (:scheme-type collect-plan))
         collector-config (->>
                           (or (when-let [metric-ids (:metric-ids options-map)]
@@ -128,31 +107,26 @@
 
     (when (seq unknown-keys)
       (throw (ex-info "Unknown options" {:options unknown-keys})))
-    (let [outlier-method (:outlier-method options-map)]
-      (cond-> (assoc (select-keys
-                      options-map
-                      [:return-value :verbose :with-allocation-trace])
-                     :collect-plan collect-plan
-                     :collector-config collector-config
-                     :viewer viewer
-                     :return-value (:return-value options-map default-return))
+    (cond-> (assoc (select-keys
+                    options-map
+                    [:return-value :verbose :with-allocation-trace])
+                   :collect-plan collect-plan
+                   :collector-config collector-config
+                   :viewer viewer
+                   :return-value (:return-value options-map default-return))
 
-        (= scheme-type :with-jit-warmup)
-        (assoc :analyse (inject-outlier-method
-                         (or analyse
-                             (:analyse bench-plan)
-                             (:analyse bench-plans/default-with-warmup))
-                         outlier-method)
-               :view (or view
-                         (:view bench-plan)
-                         (:view bench-plans/default-with-warmup)))
+      (= scheme-type :with-jit-warmup)
+      (assoc :analyse (or analyse
+                          (:analyse bench-plan)
+                          (:analyse bench-plans/default-with-warmup))
+             :view (or view
+                       (:view bench-plan)
+                       (:view bench-plans/default-with-warmup)))
 
-        (= scheme-type :one-shot)
-        (assoc :analyse (inject-outlier-method
-                         (or analyse
-                             (:analyse bench-plan)
-                             (:analyse bench-plans/default-one-shot))
-                         outlier-method)
-               :view (or view
-                         (:view bench-plan)
-                         (:view bench-plans/default-one-shot)))))))
+      (= scheme-type :one-shot)
+      (assoc :analyse (or analyse
+                          (:analyse bench-plan)
+                          (:analyse bench-plans/default-one-shot))
+             :view (or view
+                       (:view bench-plan)
+                       (:view bench-plans/default-one-shot))))))
