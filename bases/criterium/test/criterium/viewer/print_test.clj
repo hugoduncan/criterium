@@ -31,6 +31,11 @@
 (defn identity-transform [samples]
   (with-meta samples {:transform {:sample-> identity :->sample identity}}))
 
+(defn char-positions
+  "Return indices where char c appears in string s."
+  [c s]
+  (keep-indexed (fn [i ch] (when (= ch c) i)) s))
+
 (deftest print-stats-test
   (testing "print-stats"
     (testing "prints via output-view"
@@ -580,6 +585,27 @@
                    :axis :impl
                    :metric [:stats :elapsed-time :mean]
                    :data {nil [{:coord :baseline :value 50}]}}}))))))
+    (testing "separator ┼ aligns with header │"
+      ;; Check alignment on untrimmed output - the "  " prefix is part of the
+      ;; actual output and affects visual alignment
+      (let [lines (str/split-lines
+                   (with-out-str
+                     (view/domain-comparison*
+                      :print
+                      {}
+                      {:comparison
+                       {:type :criterium/domain-comparison
+                        :axis :impl
+                        :metric [:stats :elapsed-time :mean]
+                        :data {:foo [{:coord {:impl :foo :n 100} :value 100}]
+                               :bar [{:coord {:impl :bar :n 100} :value 200}]}}})))
+            header (nth lines 1)
+            separator (nth lines 2)]
+        (is (= (vec (char-positions \│ header))
+               (vec (char-positions \┼ separator)))
+            (str "Header │ positions should match separator ┼ positions\n"
+                 "  header:    " (pr-str header) "\n"
+                 "  separator: " (pr-str separator)))))
     (testing "with :implementations and single point uses transposed table"
       ;; Single-point multi-impl scenarios use transposed format where
       ;; each row is an implementation with value and factor columns

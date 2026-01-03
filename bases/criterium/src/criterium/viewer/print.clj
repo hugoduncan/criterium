@@ -709,8 +709,8 @@
       (print (format " │ %s" (format (str "%" (nth col-widths i) "s") header))))
     (println)
     (print (format "  %s" (apply str (repeat row-key-width "─"))))
-    (doseq [^long w col-widths]
-      (print (format "─┼─%s" (apply str (repeat (- w 2) "─")))))
+    (doseq [w col-widths]
+      (print (format "─┼─%s" (apply str (repeat w "─")))))
     (println)
     (doseq [[row-key vals] (map vector row-keys formatted-vals)]
       (print (format "  %s" (format (str "%" row-key-width "s") row-key)))
