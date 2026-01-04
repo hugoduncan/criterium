@@ -22,6 +22,7 @@
     {:type         :criterium/stats
      :stats        {:elapsed-time
                     {:mean              100.0
+                     :median            100.0
                      :variance          16.0
                      :mean-plus-3sigma  112.0
                      :mean-minus-3sigma 88.0
