@@ -151,7 +151,7 @@
                (-> median-ci first :alpha)
                (-> median-ci second :alpha))))
     (println
-     (format "%36s: [%.3g %.3g] %s "
+     (format "%36s: [%.3g %.3g] %s"
              (str label " 3σ")
              (* scale (:point-estimate mean-minus-3sigma))
              (* scale (:point-estimate mean-plus-3sigma))
