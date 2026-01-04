@@ -1434,7 +1434,7 @@
         (is (vector? result))
         (is (> (count result) 2))
         ;; Check that y = x (slope 1, intercept 0)
-        (is (every? #(< (Math/abs (- (get % "y") (get % "x"))) 0.01) result))))
+        (is (every? #(< (Math/abs (- (double (get % "y")) (double (get % "x")))) 0.01) result))))
     (testing "returns nil for missing data"
       (is (nil? (common/prepare-log-log-fit-line nil {:axis :n})))
       (is (nil? (common/prepare-log-log-fit-line {} {:axis :n}))))

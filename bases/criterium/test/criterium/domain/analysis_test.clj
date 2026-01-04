@@ -1313,21 +1313,21 @@
       (let [xs [10.0 20.0 40.0 80.0]
             ys [10.0 20.0 40.0 80.0]
             result (analysis/log-log-regression xs ys)]
-        (is (< (Math/abs (- (:slope result) 1.0)) 0.01))
+        (is (< (Math/abs (- (double (:slope result)) 1.0)) 0.01))
         (is (> (:r-squared result) 0.99))))
     (testing "identifies O(n²) complexity with slope ≈ 2"
       ;; y = c * n^2 → log(y) = log(c) + 2 * log(n)
       (let [xs [10.0 20.0 40.0 80.0]
             ys [100.0 400.0 1600.0 6400.0]
             result (analysis/log-log-regression xs ys)]
-        (is (< (Math/abs (- (:slope result) 2.0)) 0.01))
+        (is (< (Math/abs (- (double (:slope result)) 2.0)) 0.01))
         (is (> (:r-squared result) 0.99))))
     (testing "identifies O(1) complexity with slope ≈ 0"
       ;; y = c → log(y) = log(c) + 0 * log(n)
       (let [xs [10.0 20.0 40.0 80.0]
             ys [100.0 100.0 100.0 100.0]
             result (analysis/log-log-regression xs ys)]
-        (is (< (Math/abs (:slope result)) 0.01))))
+        (is (< (Math/abs (double (:slope result))) 0.01))))
     (testing "returns log-transformed xs and ys"
       (let [xs [10.0 100.0]
             ys [20.0 200.0]
@@ -1335,8 +1335,8 @@
         (is (= 2 (count (:log-xs result))))
         (is (= 2 (count (:log-ys result))))
         ;; log(10) ≈ 2.303, log(100) ≈ 4.605
-        (is (< (Math/abs (- (first (:log-xs result)) (Math/log 10))) 0.001))
-        (is (< (Math/abs (- (second (:log-xs result)) (Math/log 100))) 0.001))))
+        (is (< (Math/abs (- (double (first (:log-xs result))) (Math/log 10))) 0.001))
+        (is (< (Math/abs (- (double (second (:log-xs result))) (Math/log 100))) 0.001))))
     (testing "returns residuals in log space"
       (let [xs [10.0 20.0 40.0 80.0]
             ys [10.0 20.0 40.0 80.0]
@@ -1350,7 +1350,7 @@
             result (analysis/log-log-regression xs ys)
             predict (:predict-fn result)]
         ;; Should predict y = 10 * n for this linear data
-        (is (< (Math/abs (- (predict 30.0) 300.0)) 5.0))))
+        (is (< (Math/abs (- (double (predict 30.0)) 300.0)) 5.0))))
     (testing "requires positive x and y values"
       (is (thrown? AssertionError
                    (analysis/log-log-regression [0.0 1.0 2.0] [1.0 2.0 3.0])))
@@ -1382,7 +1382,7 @@
             result (analysis/fit-log-log extract :n)
             reg (get-in result [:regressions :elapsed-time])]
         ;; Slope should be ≈ 1 for O(n)
-        (is (< (Math/abs (- (:slope reg) 1.0)) 0.01))
+        (is (< (Math/abs (- (double (:slope reg)) 1.0)) 0.01))
         (is (> (:r-squared reg) 0.99))))
     (testing "identifies quadratic complexity"
       (let [extract {:type :criterium/domain-extract
@@ -1394,7 +1394,7 @@
             result (analysis/fit-log-log extract :n)
             reg (get-in result [:regressions :elapsed-time])]
         ;; Slope should be ≈ 2 for O(n²)
-        (is (< (Math/abs (- (:slope reg) 2.0)) 0.01))))
+        (is (< (Math/abs (- (double (:slope reg)) 2.0)) 0.01))))
     (testing "includes log-transformed data"
       (let [extract {:type :criterium/domain-extract
                      :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
@@ -1493,9 +1493,9 @@
             result (analysis/fit-log-log extract :n)
             by-impl (get-in result [:regressions :elapsed-time :by-impl])]
         ;; vec slope ≈ 1
-        (is (< (Math/abs (- (get-in by-impl [:vec :slope]) 1.0)) 0.01))
+        (is (< (Math/abs (- (double (get-in by-impl [:vec :slope])) 1.0)) 0.01))
         ;; list slope ≈ 2
-        (is (< (Math/abs (- (get-in by-impl [:list :slope]) 2.0)) 0.01))))))
+        (is (< (Math/abs (- (double (get-in by-impl [:list :slope])) 2.0)) 0.01))))))
 
 (deftest domain-log-log-fn-test
   ;; Tests the factory function that creates log-log regression pipelines.
