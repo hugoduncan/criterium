@@ -408,6 +408,35 @@
 ;; Enables quantitative determination of algorithmic complexity from
 ;; benchmark measurements across varying input sizes.
 
+(defn compute-aic
+  "Compute AICc (Akaike Information Criterion with small-sample correction).
+
+  AICc = n*ln(RSS/n) + 2k + (2k(k+1))/(n-k-1)
+
+  Where n = sample size, k = number of parameters, RSS = residual sum of squares.
+
+  Returns nil if n <= k+1 (insufficient data for the correction term)."
+  [^double rss ^long n ^long k]
+  (when (> n (inc k))
+    (let [base-aic (+ (* n (Math/log (/ rss n)))
+                      (* 2.0 k))
+          correction (/ (* 2.0 k (inc k))
+                        (- n k 1))]
+      (+ base-aic correction))))
+
+(defn compute-bic
+  "Compute BIC (Bayesian Information Criterion).
+
+  BIC = n*ln(RSS/n) + k*ln(n)
+
+  Where n = sample size, k = number of parameters, RSS = residual sum of squares.
+
+  Returns nil if n = 0."
+  [^double rss ^long n ^long k]
+  (when (pos? n)
+    (+ (* n (Math/log (/ rss n)))
+       (* k (Math/log n)))))
+
 (def default-complexity-models
   "Default complexity models for regression fitting.
 

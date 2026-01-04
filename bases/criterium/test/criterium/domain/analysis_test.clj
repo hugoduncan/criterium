@@ -7,6 +7,73 @@
                                        mock-bench-result
                                        mock-bench-result-with-defs]]))
 
+;; Tests for AIC/BIC computation functions.
+;; Validates information criterion formulas for model selection.
+
+(deftest compute-aic-test
+  ;; Tests compute-aic (AICc with small-sample correction).
+  ;; Formula: AICc = n*ln(RSS/n) + 2k + (2k(k+1))/(n-k-1)
+  ;; Contracts: returns correct value, handles edge cases.
+  (testing "compute-aic"
+    (testing "computes AICc with small-sample correction"
+      ;; Known values: n=10, k=2, RSS=5.0
+      ;; base-aic = 10*ln(5/10) + 2*2 = 10*(-0.693147) + 4 = -2.931
+      ;; correction = (2*2*(2+1))/(10-2-1) = 12/7 = 1.714
+      ;; AICc = -2.931 + 1.714 = -1.217
+      (let [result (double (analysis/compute-aic 5.0 10 2))]
+        (is (< (Math/abs (- result -1.217)) 0.01))))
+    (testing "returns nil when n <= k+1"
+      ;; Correction term has division by (n-k-1), undefined when n <= k+1
+      (is (nil? (analysis/compute-aic 5.0 3 2)))
+      (is (nil? (analysis/compute-aic 5.0 2 2))))
+    (testing "works with minimum valid sample size"
+      ;; n=4, k=2 gives n-k-1=1, minimum valid
+      (is (some? (analysis/compute-aic 5.0 4 2))))
+    (testing "handles k=1 (simple regression)"
+      ;; n=5, k=1, RSS=2.0
+      ;; base-aic = 5*ln(2/5) + 2*1 = 5*(-0.916) + 2 = -2.581
+      ;; correction = (2*1*2)/(5-1-1) = 4/3 = 1.333
+      ;; AICc = -2.581 + 1.333 = -1.248
+      (let [result (double (analysis/compute-aic 2.0 5 1))]
+        (is (< (Math/abs (- result -1.248)) 0.01))))
+    (testing "lower AICc indicates better fit"
+      ;; With same n and k, lower RSS gives lower AICc
+      (let [aic-low-rss (analysis/compute-aic 1.0 10 2)
+            aic-high-rss (analysis/compute-aic 5.0 10 2)]
+        (is (< aic-low-rss aic-high-rss))))))
+
+(deftest compute-bic-test
+  ;; Tests compute-bic (Bayesian Information Criterion).
+  ;; Formula: BIC = n*ln(RSS/n) + k*ln(n)
+  ;; Contracts: returns correct value, handles edge cases.
+  (testing "compute-bic"
+    (testing "computes BIC correctly"
+      ;; Known values: n=10, k=2, RSS=5.0
+      ;; BIC = 10*ln(5/10) + 2*ln(10) = 10*(-0.693) + 2*2.303 = -2.325
+      (let [result (double (analysis/compute-bic 5.0 10 2))]
+        (is (< (Math/abs (- result -2.325)) 0.01))))
+    (testing "returns nil when n = 0"
+      (is (nil? (analysis/compute-bic 5.0 0 2))))
+    (testing "handles k=1 (simple regression)"
+      ;; n=5, k=1, RSS=2.0
+      ;; BIC = 5*ln(2/5) + 1*ln(5) = 5*(-0.916) + 1.609 = -2.972
+      (let [result (double (analysis/compute-bic 2.0 5 1))]
+        (is (< (Math/abs (- result -2.972)) 0.01))))
+    (testing "penalizes complexity more than AIC for large n"
+      ;; BIC penalty is k*ln(n), AIC penalty is 2k
+      ;; For n > e^2 ≈ 7.4, BIC penalizes complexity more
+      (let [;; For n=20, k=3: BIC penalty = 3*ln(20) = 8.99
+            ;; AIC base penalty = 2*3 = 6
+            bic (analysis/compute-bic 10.0 20 3)
+            aic (analysis/compute-aic 10.0 20 3)]
+        ;; For large n, BIC is larger (more penalized) than AICc
+        (is (> bic aic))))
+    (testing "lower BIC indicates better fit"
+      ;; With same n and k, lower RSS gives lower BIC
+      (let [bic-low-rss (analysis/compute-bic 1.0 10 2)
+            bic-high-rss (analysis/compute-bic 5.0 10 2)]
+        (is (< bic-low-rss bic-high-rss))))))
+
 ;; Tests for domain analysis function extract.
 ;; Validates extracting metric values across runs with coordinate-value pairs,
 ;; handling missing metrics, preserving order, and applying transforms.
