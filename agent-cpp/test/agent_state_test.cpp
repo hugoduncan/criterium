@@ -124,6 +124,16 @@ public:
     }
   }
 
+  /// Returns allocation record for a given tag, or nullptr if not found.
+  /// Used by tests to verify marker flags are set correctly.
+  const AllocRec* get_alloc_by_tag(jlong tag) const {
+    auto it = allocs_by_tag_.find(tag);
+    return it != allocs_by_tag_.end() ? it->second : nullptr;
+  }
+
+  /// Returns count of tracked allocations.
+  size_t get_alloc_count() const { return allocs_.size(); }
+
 private:
   void enable_allocation_tracing() {
     state_ = allocation_tracing_starting;
@@ -583,4 +593,256 @@ TEST_F(AgentStateTest, FullStateTransitionCycle) {
 
   state_machine->process_command(Command{report_allocation_tracing});
   EXPECT_EQ(state_machine->get_state(), allocation_tracing_reported);
+}
+
+/// Marker Detection Tests
+///
+/// These tests focus specifically on the detection of start and finish markers,
+/// verifying that marker flags are set correctly and that markers are only
+/// recognized in the appropriate states.
+
+TEST_F(AgentStateTest, StartMarkerSetsStartMarkerFlag) {
+  state_machine->process_command(Command{start_allocation_tracing});
+  state_machine->process_allocation_event(START_MARKER, 100);
+
+  const auto* rec = state_machine->get_alloc_by_tag(100);
+  ASSERT_NE(rec, nullptr);
+  EXPECT_TRUE(rec->start_marker)
+      << "start_marker flag should be true for start marker allocation";
+  EXPECT_FALSE(rec->disable_marker)
+      << "disable_marker flag should be false for start marker";
+}
+
+TEST_F(AgentStateTest, FinishMarkerSetsDisableMarkerFlag) {
+  // Reach stopping state
+  state_machine->process_command(Command{start_allocation_tracing});
+  state_machine->process_allocation_event(START_MARKER, 1);
+  state_machine->process_object_free_event(1);
+  state_machine->process_command(Command{stop_allocation_tracing});
+
+  state_machine->process_allocation_event(FINISH_MARKER, 100);
+
+  const auto* rec = state_machine->get_alloc_by_tag(100);
+  ASSERT_NE(rec, nullptr);
+  EXPECT_TRUE(rec->disable_marker)
+      << "disable_marker flag should be true for finish marker allocation";
+  EXPECT_FALSE(rec->start_marker)
+      << "start_marker flag should be false for finish marker";
+}
+
+TEST_F(AgentStateTest, RegularAllocationHasNoMarkerFlags) {
+  state_machine->process_command(Command{start_allocation_tracing});
+  state_machine->process_allocation_event(START_MARKER, 1);
+  state_machine->process_object_free_event(1);
+
+  state_machine->process_allocation_event(REGULAR_CLASS, 100);
+
+  const auto* rec = state_machine->get_alloc_by_tag(100);
+  ASSERT_NE(rec, nullptr);
+  EXPECT_FALSE(rec->start_marker)
+      << "start_marker flag should be false for regular allocation";
+  EXPECT_FALSE(rec->disable_marker)
+      << "disable_marker flag should be false for regular allocation";
+}
+
+TEST_F(AgentStateTest, StartMarkerInActiveStateNoFlag) {
+  // Reach active state
+  state_machine->process_command(Command{start_allocation_tracing});
+  state_machine->process_allocation_event(START_MARKER, 1);
+  state_machine->process_object_free_event(1);
+  ASSERT_EQ(state_machine->get_state(), allocation_tracing_active);
+
+  // Another start marker allocation in active state should not set flag
+  state_machine->process_allocation_event(START_MARKER, 100);
+
+  const auto* rec = state_machine->get_alloc_by_tag(100);
+  ASSERT_NE(rec, nullptr);
+  EXPECT_FALSE(rec->start_marker)
+      << "start_marker flag should not be set when in active state";
+  EXPECT_EQ(state_machine->get_state(), allocation_tracing_active)
+      << "State should remain active";
+}
+
+TEST_F(AgentStateTest, FinishMarkerInActiveStateNoFlag) {
+  // Reach active state
+  state_machine->process_command(Command{start_allocation_tracing});
+  state_machine->process_allocation_event(START_MARKER, 1);
+  state_machine->process_object_free_event(1);
+  ASSERT_EQ(state_machine->get_state(), allocation_tracing_active);
+
+  // Finish marker in active state should not set disable flag
+  state_machine->process_allocation_event(FINISH_MARKER, 100);
+
+  const auto* rec = state_machine->get_alloc_by_tag(100);
+  ASSERT_NE(rec, nullptr);
+  EXPECT_FALSE(rec->disable_marker)
+      << "disable_marker flag should not be set when in active state";
+  EXPECT_EQ(state_machine->get_state(), allocation_tracing_active)
+      << "State should remain active";
+}
+
+TEST_F(AgentStateTest, StartMarkerInStoppingStateNoFlag) {
+  // Reach stopping state
+  state_machine->process_command(Command{start_allocation_tracing});
+  state_machine->process_allocation_event(START_MARKER, 1);
+  state_machine->process_object_free_event(1);
+  state_machine->process_command(Command{stop_allocation_tracing});
+  ASSERT_EQ(state_machine->get_state(), allocation_tracing_stopping);
+
+  // Start marker in stopping state should not set start flag
+  state_machine->process_allocation_event(START_MARKER, 100);
+
+  const auto* rec = state_machine->get_alloc_by_tag(100);
+  ASSERT_NE(rec, nullptr);
+  EXPECT_FALSE(rec->start_marker)
+      << "start_marker flag should not be set when in stopping state";
+  EXPECT_EQ(state_machine->get_state(), allocation_tracing_stopping)
+      << "State should remain stopping (not triggered by start marker)";
+}
+
+TEST_F(AgentStateTest, FinishMarkerInStartingStateNoFlag) {
+  state_machine->process_command(Command{start_allocation_tracing});
+  ASSERT_EQ(state_machine->get_state(), allocation_tracing_starting);
+
+  // Finish marker in starting state should not set disable flag
+  state_machine->process_allocation_event(FINISH_MARKER, 100);
+
+  const auto* rec = state_machine->get_alloc_by_tag(100);
+  ASSERT_NE(rec, nullptr);
+  EXPECT_FALSE(rec->disable_marker)
+      << "disable_marker flag should not be set when in starting state";
+  EXPECT_EQ(state_machine->get_state(), allocation_tracing_starting)
+      << "State should remain starting";
+}
+
+TEST_F(AgentStateTest, MultipleStartMarkersOnlyFirstSetsFlag) {
+  state_machine->process_command(Command{start_allocation_tracing});
+
+  // First start marker sets flag
+  state_machine->process_allocation_event(START_MARKER, 100);
+  const auto* rec1 = state_machine->get_alloc_by_tag(100);
+  ASSERT_NE(rec1, nullptr);
+  EXPECT_TRUE(rec1->start_marker);
+
+  // Free the first marker to transition to active
+  state_machine->process_object_free_event(100);
+  ASSERT_EQ(state_machine->get_state(), allocation_tracing_active);
+
+  // Second start marker should not set flag (now in active state)
+  state_machine->process_allocation_event(START_MARKER, 101);
+  const auto* rec2 = state_machine->get_alloc_by_tag(101);
+  ASSERT_NE(rec2, nullptr);
+  EXPECT_FALSE(rec2->start_marker)
+      << "Second start marker should not set flag after transition";
+}
+
+TEST_F(AgentStateTest, MultipleFinishMarkersOnlyFirstSetsFlag) {
+  // Reach stopping state
+  state_machine->process_command(Command{start_allocation_tracing});
+  state_machine->process_allocation_event(START_MARKER, 1);
+  state_machine->process_object_free_event(1);
+  state_machine->process_command(Command{stop_allocation_tracing});
+
+  // First finish marker sets flag and transitions to flushing
+  state_machine->process_allocation_event(FINISH_MARKER, 100);
+  const auto* rec1 = state_machine->get_alloc_by_tag(100);
+  ASSERT_NE(rec1, nullptr);
+  EXPECT_TRUE(rec1->disable_marker);
+  ASSERT_EQ(state_machine->get_state(), allocation_tracing_flushing);
+
+  // Second finish marker should not set flag (now in flushing state)
+  state_machine->process_allocation_event(FINISH_MARKER, 101);
+  const auto* rec2 = state_machine->get_alloc_by_tag(101);
+  ASSERT_NE(rec2, nullptr);
+  EXPECT_FALSE(rec2->disable_marker)
+      << "Second finish marker should not set flag after transition";
+}
+
+TEST_F(AgentStateTest, StartMarkerFreedButNotInStartingState) {
+  // Allocate start marker before entering starting state
+  // This is an edge case - in practice the marker is allocated after
+  // the start command, but tests the robustness of state checks
+
+  state_machine->process_command(Command{start_allocation_tracing});
+  state_machine->process_allocation_event(START_MARKER, 1);
+  state_machine->process_object_free_event(1);
+  ASSERT_EQ(state_machine->get_state(), allocation_tracing_active);
+
+  // Now allocate another start marker
+  state_machine->process_allocation_event(START_MARKER, 100);
+  const auto* rec = state_machine->get_alloc_by_tag(100);
+  ASSERT_NE(rec, nullptr);
+  // Flag not set because not in starting state
+  EXPECT_FALSE(rec->start_marker);
+
+  // Freeing it should not cause transition
+  state_machine->process_object_free_event(100);
+  EXPECT_EQ(state_machine->get_state(), allocation_tracing_active)
+      << "Freeing start marker in active state should not cause transition";
+}
+
+TEST_F(AgentStateTest, FinishMarkerFreedButNotInFlushingState) {
+  // Reach stopping state
+  state_machine->process_command(Command{start_allocation_tracing});
+  state_machine->process_allocation_event(START_MARKER, 1);
+  state_machine->process_object_free_event(1);
+  state_machine->process_command(Command{stop_allocation_tracing});
+  ASSERT_EQ(state_machine->get_state(), allocation_tracing_stopping);
+
+  // Allocate finish marker but don't process free yet
+  state_machine->process_allocation_event(FINISH_MARKER, 100);
+  ASSERT_EQ(state_machine->get_state(), allocation_tracing_flushing);
+
+  // Allocate another finish marker (without disable flag)
+  state_machine->process_allocation_event(FINISH_MARKER, 101);
+  const auto* rec = state_machine->get_alloc_by_tag(101);
+  ASSERT_NE(rec, nullptr);
+  EXPECT_FALSE(rec->disable_marker)
+      << "Second finish marker should not have disable flag";
+
+  // Freeing the second one should not cause flushed transition
+  state_machine->process_object_free_event(101);
+  EXPECT_EQ(state_machine->get_state(), allocation_tracing_flushing)
+      << "Freeing non-disable marker should not cause flushed transition";
+
+  // Freeing the first (with disable flag) should cause transition
+  state_machine->process_object_free_event(100);
+  EXPECT_EQ(state_machine->get_state(), allocation_tracing_flushed);
+}
+
+TEST_F(AgentStateTest, MarkerClassSignatureMustMatchExactly) {
+  state_machine->process_command(Command{start_allocation_tracing});
+
+  // Similar but not exact class signature
+  state_machine->process_allocation_event(
+      "Lcriterium/agent/Agent$AllocationStartMarkerFake;", 100);
+
+  const auto* rec = state_machine->get_alloc_by_tag(100);
+  ASSERT_NE(rec, nullptr);
+  EXPECT_FALSE(rec->start_marker)
+      << "Non-matching class signature should not set marker flag";
+
+  EXPECT_EQ(state_machine->get_state(), allocation_tracing_starting)
+      << "State should remain starting";
+}
+
+TEST_F(AgentStateTest, MarkerRecordsAreTrackedLikeRegularAllocations) {
+  state_machine->process_command(Command{start_allocation_tracing});
+
+  // Start marker is tracked
+  state_machine->process_allocation_event(START_MARKER, 1);
+  EXPECT_EQ(state_machine->get_alloc_count(), 1u);
+
+  state_machine->process_object_free_event(1);
+
+  // Regular allocations
+  state_machine->process_allocation_event(REGULAR_CLASS, 10);
+  state_machine->process_allocation_event(REGULAR_CLASS, 11);
+  EXPECT_EQ(state_machine->get_alloc_count(), 3u);
+
+  state_machine->process_command(Command{stop_allocation_tracing});
+
+  // Finish marker is tracked
+  state_machine->process_allocation_event(FINISH_MARKER, 2);
+  EXPECT_EQ(state_machine->get_alloc_count(), 4u);
 }
