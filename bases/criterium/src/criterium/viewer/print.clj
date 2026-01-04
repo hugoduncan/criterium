@@ -140,7 +140,7 @@
              (* scale (-> mean-ci second :value))
              (-> mean-ci first :alpha)
              (-> mean-ci second :alpha)))
-    (when median-est
+    (when (and median-est (seq median-ci))
       (println
        (format "%36s: %.3g %s CI [%.3g %.3g] (%.3f %.3f)"
                (str label " median")
