@@ -1496,3 +1496,117 @@
     (testing "formats fractional slopes with decimals"
       (is (str/includes? (common/format-log-log-slope 1.5) "1.50"))
       (is (str/includes? (common/format-log-log-slope 0.5) "0.50")))))
+
+;;; Regression model table tests.
+;;; Verifies prepare-regression-model-table and prepare-regression-model-table-multi-impl
+;;; correctly format model data for table rendering, including AIC and BIC columns.
+
+(deftest prepare-regression-model-table-test
+  ;; Tests prepare-regression-model-table which formats model data for table rendering.
+  ;; Contracts: returns vector of row maps with :model :r-squared :aic :bic :equation :best-fit keys.
+  (testing "prepare-regression-model-table"
+    (testing "includes AIC and BIC columns"
+      (let [models [{:id :linear
+                     :label "O(n)"
+                     :equation-str "y = 2.5x + 1"
+                     :r-squared 0.95
+                     :aic 10.5
+                     :bic 12.3}
+                    {:id :quadratic
+                     :label "O(n²)"
+                     :equation-str "y = 0.1x² + 0.5"
+                     :r-squared 0.98
+                     :aic 8.2
+                     :bic 10.1}]
+            result (common/prepare-regression-model-table
+                    {:models models :best-fit :quadratic}
+                    {})]
+        (is (vector? result))
+        (is (= 2 (count result)))
+        (let [best-row (first (filter #(= "✓" (:best-fit %)) result))
+              other-row (first (filter #(= "" (:best-fit %)) result))]
+          (is (= "O(n²)" (:model best-row)))
+          (is (= "0.9800" (:r-squared best-row)))
+          (is (= "8.2" (:aic best-row)))
+          (is (= "10.1" (:bic best-row)))
+          (is (= "10.5" (:aic other-row)))
+          (is (= "12.3" (:bic other-row))))))
+
+    (testing "handles nil AIC/BIC values"
+      (let [models [{:id :linear
+                     :label "O(n)"
+                     :equation-str "y = 2.5x + 1"
+                     :r-squared 0.95
+                     :aic nil
+                     :bic nil}]
+            result (common/prepare-regression-model-table
+                    {:models models :best-fit :linear}
+                    {})]
+        (is (= 1 (count result)))
+        (is (nil? (:aic (first result))))
+        (is (nil? (:bic (first result))))))
+
+    (testing "handles missing AIC/BIC keys"
+      (let [models [{:id :linear
+                     :label "O(n)"
+                     :equation-str "y = 2.5x + 1"
+                     :r-squared 0.95}]
+            result (common/prepare-regression-model-table
+                    {:models models :best-fit :linear}
+                    {})]
+        (is (= 1 (count result)))
+        (is (nil? (:aic (first result))))
+        (is (nil? (:bic (first result))))))
+
+    (testing "formats negative AIC/BIC values"
+      (let [models [{:id :linear
+                     :label "O(n)"
+                     :equation-str "y = 2.5x + 1"
+                     :r-squared 0.95
+                     :aic -15.7
+                     :bic -12.3}]
+            result (common/prepare-regression-model-table
+                    {:models models :best-fit :linear}
+                    {})]
+        (is (= "-15.7" (:aic (first result))))
+        (is (= "-12.3" (:bic (first result))))))
+
+    (testing "returns nil for empty models"
+      (is (nil? (common/prepare-regression-model-table {:models [] :best-fit nil} {}))))
+
+    (testing "sorts models by r-squared descending"
+      (let [models [{:id :linear :label "O(n)" :r-squared 0.8 :aic 10.0 :bic 12.0}
+                    {:id :quadratic :label "O(n²)" :r-squared 0.95 :aic 8.0 :bic 10.0}
+                    {:id :log :label "O(log n)" :r-squared 0.7 :aic 15.0 :bic 17.0}]
+            result (common/prepare-regression-model-table
+                    {:models models :best-fit :quadratic}
+                    {})]
+        (is (= ["O(n²)" "O(n)" "O(log n)"]
+               (mapv :model result)))))))
+
+(deftest prepare-regression-model-table-multi-impl-test
+  ;; Tests prepare-regression-model-table-multi-impl which formats multi-impl model data.
+  ;; Contracts: returns vector with :implementation :model :r-squared :aic :bic :equation :best-fit.
+  (testing "prepare-regression-model-table-multi-impl"
+    (testing "includes implementation and AIC/BIC columns"
+      (let [by-impl {:vec {:models [{:id :linear :label "O(n)" :r-squared 0.95 :aic 10.5 :bic 12.3}]
+                           :best-fit :linear}
+                     :list {:models [{:id :linear :label "O(n)" :r-squared 0.85 :aic 15.2 :bic 17.0}]
+                            :best-fit :linear}}
+            impl-keys [:vec :list]
+            result (common/prepare-regression-model-table-multi-impl by-impl impl-keys {})]
+        (is (vector? result))
+        (is (= 2 (count result)))
+        (let [vec-row (first (filter #(= "vec" (:implementation %)) result))
+              list-row (first (filter #(= "list" (:implementation %)) result))]
+          (is (= "10.5" (:aic vec-row)))
+          (is (= "12.3" (:bic vec-row)))
+          (is (= "15.2" (:aic list-row)))
+          (is (= "17.0" (:bic list-row))))))
+
+    (testing "handles nil AIC/BIC in multi-impl"
+      (let [by-impl {:vec {:models [{:id :linear :label "O(n)" :r-squared 0.95}]
+                           :best-fit :linear}}
+            result (common/prepare-regression-model-table-multi-impl by-impl [:vec] {})]
+        (is (nil? (:aic (first result))))
+        (is (nil? (:bic (first result))))))))

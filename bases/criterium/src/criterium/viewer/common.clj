@@ -1387,7 +1387,8 @@
 
 (defn prepare-regression-model-table
   "Prepare model table rows for single-impl regression display.
-  Returns vector of row maps with :model :r-squared :equation :best-fit keys.
+  Returns vector of row maps with :model :r-squared :aic :bic :equation :best-fit keys.
+  AIC and BIC values may be nil when insufficient data points.
   Options:
     :best-fit-marker - string to show for best fit (default \"✓\")
     :plotted-marker - string to show for plotted but not best (default \"\")
@@ -1408,10 +1409,12 @@
                              (map :id)
                              set))
           sorted-models (sort-by :r-squared > models)]
-      (mapv (fn [{:keys [id label equation-str r-squared]}]
+      (mapv (fn [{:keys [id label equation-str r-squared aic bic]}]
               (let [plotted? (and plotted-ids (plotted-ids id))]
                 {:model label
                  :r-squared (format "%.4f" r-squared)
+                 :aic (when aic (format "%.1f" aic))
+                 :bic (when bic (format "%.1f" bic))
                  :equation (or equation-str "")
                  :best-fit (cond
                              (= id best-fit) best-fit-marker
@@ -1421,7 +1424,7 @@
 
 (defn prepare-regression-model-table-multi-impl
   "Prepare model table rows for multi-impl regression display.
-  Returns vector of row maps with :implementation :model :r-squared :equation :best-fit.
+  Returns vector of row maps with :implementation :model :r-squared :aic :bic :equation :best-fit.
   Options same as prepare-regression-model-table."
   [by-impl impl-keys options]
   (vec
