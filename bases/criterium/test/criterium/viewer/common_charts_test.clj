@@ -973,6 +973,131 @@
             (str "comparison line chart with confidence bands failed: "
                  (pr-str (:errors result))))))))
 
+;;; Boxplot layer tests.
+;;; Verifies boxplot layer generation for histogram median/spread overlays.
+
+(def identity-transforms
+  "Identity transforms for testing - `:sample->` must be a list of functions."
+  {:sample-> (list identity)
+   :->sample [identity]})
+
+(def sample-bootstrap-stats
+  "Sample bootstrap stats with median (0.5) and spread (0.1, 0.9) quantiles."
+  {:quantiles
+   {0.1 {:point-estimate 90.0
+         :estimate-quantiles []}
+    0.5 {:point-estimate 100.0
+         :estimate-quantiles [{:quantile 0.025 :value 95.0}
+                              {:quantile 0.975 :value 105.0}]}
+    0.9 {:point-estimate 110.0
+         :estimate-quantiles []}}})
+
+(def sample-metric-config
+  "Sample metric config for elapsed-time."
+  {:path [:elapsed-time]
+   :label "Elapsed Time"
+   :type :quantitative})
+
+(deftest metric-bootstrap-boxplot-layer-test
+  ;; Tests boxplot layer generation for histogram overlays showing
+  ;; median CI and 10th/90th percentile spread.
+  (testing "metric-bootstrap-boxplot-layer"
+    (testing "returns vector of layers when quantiles present"
+      (let [result (charts/metric-bootstrap-boxplot-layer
+                    identity-transforms sample-bootstrap-stats sample-metric-config)]
+        (is (vector? result))
+        (is (= 1 (count result)))
+        (is (map? (first result)))
+        (is (contains? (first result) :layer))))
+
+    (testing "contains whisker, CI box, and median line layers"
+      (let [result (charts/metric-bootstrap-boxplot-layer
+                    identity-transforms sample-bootstrap-stats sample-metric-config)
+            inner-layers (get-in result [0 :layer])]
+        (is (= 3 (count inner-layers)))
+        ;; Whisker layer (p10 to p90)
+        (let [whisker (first inner-layers)]
+          (is (= "rule" (get-in whisker [:mark :type])))
+          (is (= 1 (get-in whisker [:mark :strokeWidth]))))
+        ;; CI box layer
+        (let [ci-box (second inner-layers)]
+          (is (= "rect" (get-in ci-box [:mark :type])))
+          (is (= 0.6 (get-in ci-box [:mark :opacity]))))
+        ;; Median line layer
+        (let [median-line (nth inner-layers 2)]
+          (is (= "rule" (get-in median-line [:mark :type])))
+          (is (= 2 (get-in median-line [:mark :strokeWidth]))))))
+
+    (testing "whisker spans from p10 to p90"
+      (let [result (charts/metric-bootstrap-boxplot-layer
+                    identity-transforms sample-bootstrap-stats sample-metric-config)
+            whisker (get-in result [0 :layer 0])
+            data (get-in whisker [:data :values 0])]
+        ;; Vega-Lite data uses string keys
+        (is (= 90.0 (get data "elapsed-time")))
+        (is (= 110.0 (get data :end)))))
+
+    (testing "CI box spans median confidence interval"
+      (let [result (charts/metric-bootstrap-boxplot-layer
+                    identity-transforms sample-bootstrap-stats sample-metric-config)
+            ci-box (get-in result [0 :layer 1])
+            data (get-in ci-box [:data :values 0])]
+        ;; Vega-Lite data uses string keys for field names
+        (is (= 95.0 (get data "elapsed-time")))
+        (is (= 105.0 (get data :end)))))
+
+    (testing "median line at point estimate"
+      (let [result (charts/metric-bootstrap-boxplot-layer
+                    identity-transforms sample-bootstrap-stats sample-metric-config)
+            median-line (get-in result [0 :layer 2])
+            data (get-in median-line [:data :values 0])]
+        ;; Vega-Lite data uses string keys for field names
+        (is (= 100.0 (get data "elapsed-time")))))
+
+    (testing "applies transforms to values"
+      (let [scale-transforms {:sample-> (list (fn [^double v] (/ v 1e9)))
+                              :->sample [identity]}
+            result (charts/metric-bootstrap-boxplot-layer
+                    scale-transforms sample-bootstrap-stats sample-metric-config)
+            whisker (get-in result [0 :layer 0])
+            whisker-data (get-in whisker [:data :values 0])]
+        ;; Values should be scaled by 1e-9
+        (is (< (double (get whisker-data "elapsed-time")) 1e-6))))
+
+    (testing "returns nil when quantiles missing"
+      (let [missing-quantiles {:quantiles {}}
+            result (charts/metric-bootstrap-boxplot-layer
+                    identity-transforms missing-quantiles sample-metric-config)]
+        (is (nil? result))))
+
+    (testing "returns nil when p50 missing"
+      (let [missing-p50 {:quantiles {0.1 {:point-estimate 90.0}
+                                     0.9 {:point-estimate 110.0}}}
+            result (charts/metric-bootstrap-boxplot-layer
+                    identity-transforms missing-p50 sample-metric-config)]
+        (is (nil? result))))
+
+    (testing "omits CI box when median CI empty"
+      (let [no-ci {:quantiles
+                   {0.1 {:point-estimate 90.0}
+                    0.5 {:point-estimate 100.0
+                         :estimate-quantiles []}
+                    0.9 {:point-estimate 110.0}}}
+            result (charts/metric-bootstrap-boxplot-layer
+                    identity-transforms no-ci sample-metric-config)
+            inner-layers (get-in result [0 :layer])]
+        ;; Only whisker and median line (no CI box)
+        (is (= 2 (count inner-layers)))
+        (is (= "rule" (get-in (first inner-layers) [:mark :type])))
+        (is (= "rule" (get-in (second inner-layers) [:mark :type])))))
+
+    (testing "includes layer transforms for legend"
+      (let [result (charts/metric-bootstrap-boxplot-layer
+                    identity-transforms sample-bootstrap-stats sample-metric-config)
+            whisker (get-in result [0 :layer 0])]
+        (is (some? (get-in whisker [:transform])))
+        (is (some #(contains? % :calculate) (get-in whisker [:transform])))))))
+
 (deftest treemap-vega-spec-schema-validation-test
   ;; Validates treemap-vega-spec output against Vega v5 schema.
   ;; Tests treemap visualization for allocation data.
