@@ -1,4 +1,5 @@
 #include "jni.h"
+#include "include/agent_types.h"
 #include "include/alloc_rec.h"
 #include "include/jni_operations.h"
 #include "include/jvmti_operations.h"
@@ -30,7 +31,24 @@
 #define DEBUG_PRINTLN(...)
 #endif
 
-const jint MAX_FRAMES = 1024;
+using criterium::MAX_FRAMES;
+
+// State enum values
+using criterium::passive;
+using criterium::allocation_tracing_starting;
+using criterium::allocation_tracing_active;
+using criterium::allocation_tracing_stopping;
+using criterium::allocation_tracing_flushing;
+using criterium::allocation_tracing_flushed;
+using criterium::allocation_tracing_reporting;
+using criterium::allocation_tracing_reported;
+
+// Command enum values
+using criterium::ping;
+using criterium::sync_state;
+using criterium::start_allocation_tracing;
+using criterium::stop_allocation_tracing;
+using criterium::report_allocation_tracing;
 
 // NOLINTNEXTLINE(bugprone-branch-clone)
 void debug_print_jvmti_err([[maybe_unused]] jvmtiError err) {
@@ -158,27 +176,7 @@ jmethodID class_invoke_method_id(JNIEnv* env, jclass klass) {
   return invoke;
 }
 
-// NOLINTBEGIN(performance-enum-size)
-// Using unscoped enums for implicit conversion to jlong
-enum States : jlong {  // NOLINT(cppcoreguidelines-use-enum-class)
-  passive = 0,
-  allocation_tracing_starting = 10,
-  allocation_tracing_active = 11,
-  allocation_tracing_stopping = 15,
-  allocation_tracing_flushing = 16,
-  allocation_tracing_flushed = 17,
-  allocation_tracing_reporting = 18,
-  allocation_tracing_reported = 19,
-};
-
-enum Commands : jlong {  // NOLINT(cppcoreguidelines-use-enum-class)
-  ping = 0,
-  sync_state = 1,
-  start_allocation_tracing = 10,
-  stop_allocation_tracing = 11,
-  report_allocation_tracing = 12
-};
-// NOLINTEND(performance-enum-size)
+// States and Commands enums are defined in include/agent_types.h
 
 // Event/Command structures
 struct AllocationEvent {
@@ -376,6 +374,18 @@ private:
 public:
   criterium::IJvmtiOperations& jvmti_ops() { return *jvmti_ops_; }
   criterium::IJniOperations& jni_ops() { return *jni_ops_; }
+
+  /// Set JVMTI operations for testing. Takes ownership of the pointer.
+  static void set_jvmti_ops_for_testing(
+      std::unique_ptr<criterium::IJvmtiOperations> ops) {
+    getInstance().jvmti_ops_ = std::move(ops);
+  }
+
+  /// Set JNI operations for testing. Takes ownership of the pointer.
+  static void set_jni_ops_for_testing(
+      std::unique_ptr<criterium::IJniOperations> ops) {
+    getInstance().jni_ops_ = std::move(ops);
+  }
 
   template <typename T>
   class allocated  {
@@ -988,6 +998,9 @@ public:
       std::cout << "Invalid command: " << cmd.cmd << '\n';
     }
   }
+
+  /// Returns the current agent state. Used for testing.
+  jlong get_state() const { return agent_state; }
 };
 
 auto AgentState::calling_frame(JNIEnv* env, jvmtiFrameInfo* frames,
