@@ -184,11 +184,8 @@
                        (tform (:value (first median-ci))))
             ci-upper (when (seq median-ci)
                        (tform (:value (second median-ci))))
-            ;; Position boxplot at y=0 (histogram baseline) extending slightly
-            ;; below into negative density space. The -0.02 height creates a thin
-            ;; overlay that doesn't obscure histogram bars while remaining visible.
-            box-y 0
-            box-height -0.02]
+            ;; Position boxplot at y=0 (histogram baseline)
+            box-y 0]
         [{:layer
           (cond-> []
             ;; Whisker from p10 to p90
@@ -209,25 +206,28 @@
                    :mark {:type "rule"
                           :strokeWidth 1}})
 
-            ;; Box for median CI
+            ;; Box for median CI - extends slightly below into negative density
+            ;; space. The -0.02 height creates a thin overlay that doesn't
+            ;; obscure histogram bars while remaining visible.
             (and ci-lower ci-upper)
-            (conj {:data {:values [{field-name ci-lower
-                                    :end ci-upper
-                                    :y box-y
-                                    :y2 box-height
-                                    :type "ci-box"}]}
-                   :transform [{:calculate "'Median CI'" :as "layer"}]
-                   :encoding {:x {:field field-name
-                                  :type "quantitative"
-                                  :scale {:zero false}}
-                              :x2 {:field "end"
-                                   :type "quantitative"}
-                              :y {:datum box-y}
-                              :y2 {:datum box-height}
-                              :color {:field "layer" :type "nominal"
-                                      :legend {:orient "top-left" :offset 10}}}
-                   :mark {:type "rect"
-                          :opacity 0.6}})
+            (conj (let [box-height -0.02]
+                    {:data {:values [{field-name ci-lower
+                                      :end ci-upper
+                                      :y box-y
+                                      :y2 box-height
+                                      :type "ci-box"}]}
+                     :transform [{:calculate "'Median CI'" :as "layer"}]
+                     :encoding {:x {:field field-name
+                                    :type "quantitative"
+                                    :scale {:zero false}}
+                                :x2 {:field "end"
+                                     :type "quantitative"}
+                                :y {:datum box-y}
+                                :y2 {:datum box-height}
+                                :color {:field "layer" :type "nominal"
+                                        :legend {:orient "top-left" :offset 10}}}
+                     :mark {:type "rect"
+                            :opacity 0.6}}))
 
             ;; Median line
             true
