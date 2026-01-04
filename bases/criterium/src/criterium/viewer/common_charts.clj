@@ -618,15 +618,28 @@
 
 (defn- bar-error-layer
   "Build error bar layer for bar charts with error bounds.
-  Uses rule marks positioned at bar centers with y/y2 for bounds."
+  Returns a layered spec with vertical rule and horizontal tick caps."
   [data]
-  {:data {:values data}
-   :mark {:type "rule" :strokeWidth 1.5}
-   :encoding {:x {:field "impl" :type "nominal"}
-              :y {:field "valueLower" :type "quantitative"}
-              :y2 {:field "valueUpper"}
-              :color {:field "impl" :type "nominal" :legend nil}
-              :opacity {:value 0.5}}})
+  {:layer
+   [;; Vertical rule (error bar stem)
+    {:data {:values data}
+     :mark {:type "rule" :strokeWidth 1.5}
+     :encoding {:x {:field "impl" :type "nominal"}
+                :y {:field "valueLower" :type "quantitative"}
+                :y2 {:field "valueUpper"}
+                :color {:value "#333"}}}
+    ;; Lower tick cap
+    {:data {:values data}
+     :mark {:type "tick" :thickness 1.5 :size 8}
+     :encoding {:x {:field "impl" :type "nominal"}
+                :y {:field "valueLower" :type "quantitative"}
+                :color {:value "#333"}}}
+    ;; Upper tick cap
+    {:data {:values data}
+     :mark {:type "tick" :thickness 1.5 :size 8}
+     :encoding {:x {:field "impl" :type "nominal"}
+                :y {:field "valueUpper" :type "quantitative"}
+                :color {:value "#333"}}}]})
 
 (defn- bar-chart-layer
   "Build a bar chart from prepared bar data.

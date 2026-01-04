@@ -429,22 +429,26 @@
             bar-layer (first (:layer chart))]
         (is (= {:type "bar"} (:mark bar-layer)))))
 
-    (testing "includes error layer with rule mark"
+    (testing "includes error layer with rule and tick marks"
       (let [spec (charts/single-point-bar-chart-spec
                   single-point-extract-with-bounds
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
-            error-layer (second (:layer chart))]
-        (is (= "rule" (get-in error-layer [:mark :type])))
-        (is (= 1.5 (get-in error-layer [:mark :strokeWidth])))))
+            error-composite (second (:layer chart))
+            rule-layer (first (:layer error-composite))]
+        (is (contains? error-composite :layer) "error layer is a composite")
+        (is (= 3 (count (:layer error-composite))) "rule + 2 tick caps")
+        (is (= "rule" (get-in rule-layer [:mark :type])))
+        (is (= 1.5 (get-in rule-layer [:mark :strokeWidth])))))
 
-    (testing "error layer encodes y/y2 for bounds"
+    (testing "error rule layer encodes y/y2 for bounds"
       (let [spec (charts/single-point-bar-chart-spec
                   single-point-extract-with-bounds
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
-            error-layer (second (:layer chart))
-            encoding (:encoding error-layer)]
+            error-composite (second (:layer chart))
+            rule-layer (first (:layer error-composite))
+            encoding (:encoding rule-layer)]
         (is (= "valueLower" (get-in encoding [:y :field])))
         (is (= "valueUpper" (get-in encoding [:y2 :field])))))
 
@@ -453,8 +457,9 @@
                   single-point-extract-with-bounds
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
-            error-layer (second (:layer chart))
-            data (get-in error-layer [:data :values])]
+            error-composite (second (:layer chart))
+            rule-layer (first (:layer error-composite))
+            data (get-in rule-layer [:data :values])]
         (is (every? #(contains? % "valueLower") data))
         (is (every? #(contains? % "valueUpper") data))))
 
@@ -590,13 +595,16 @@
         (is (contains? chart :layer))
         (is (= 2 (count (:layer chart))))))
 
-    (testing "includes error layer with rule mark"
+    (testing "includes error layer with rule and tick marks"
       (let [spec (charts/comparison-bar-chart-spec
                   single-point-comparison-with-bounds
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
-            error-layer (second (:layer chart))]
-        (is (= "rule" (get-in error-layer [:mark :type])))))))
+            error-composite (second (:layer chart))
+            rule-layer (first (:layer error-composite))]
+        (is (contains? error-composite :layer) "error layer is a composite")
+        (is (= 3 (count (:layer error-composite))) "rule + 2 tick caps")
+        (is (= "rule" (get-in rule-layer [:mark :type])))))))
 
 (deftest comparison-bar-chart-graceful-degradation-test
   ;; Tests that comparison bar charts without error bounds render normally.
