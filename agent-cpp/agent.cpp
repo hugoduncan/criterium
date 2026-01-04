@@ -1,5 +1,6 @@
 #include "jni.h"
 #include "include/alloc_rec.h"
+#include "include/jni_operations.h"
 #include "include/jvmti_operations.h"
 #include "include/message_queue.h"
 #include "include/utils.h"
@@ -189,10 +190,10 @@ struct AllocationEvent {
   std::array<jvmtiFrameInfo, MAX_FRAMES> frames;
   jint frame_count;
 
-  void delete_global_refs(JNIEnv* env) const {
-    env->DeleteGlobalRef(object_klass);
-    env->DeleteGlobalRef(object);
-    env->DeleteGlobalRef(thread);
+  void delete_global_refs(JNIEnv* env, criterium::IJniOperations& jni_ops) const {
+    jni_ops.delete_global_ref(env, object_klass);
+    jni_ops.delete_global_ref(env, object);
+    jni_ops.delete_global_ref(env, thread);
   }
 };
 
@@ -365,6 +366,7 @@ class AgentContext {
 private:
   jvmtiEnv* jvmti = nullptr;
   std::unique_ptr<criterium::IJvmtiOperations> jvmti_ops_;
+  std::unique_ptr<criterium::IJniOperations> jni_ops_;
 
   static jvmtiEnv* get_jvmti() { return getInstance().jvmti; }
   static criterium::IJvmtiOperations& get_jvmti_ops() {
@@ -373,6 +375,7 @@ private:
 
 public:
   criterium::IJvmtiOperations& jvmti_ops() { return *jvmti_ops_; }
+  criterium::IJniOperations& jni_ops() { return *jni_ops_; }
 
   template <typename T>
   class allocated  {
@@ -453,6 +456,7 @@ public:
     jvm->GetEnv(reinterpret_cast<void **>(&jvmti), JVMTI_VERSION_1_0);
 
     jvmti_ops_ = std::make_unique<criterium::JvmtiOperations>(jvmti);
+    jni_ops_ = std::make_unique<criterium::JniOperations>();
 
     jvmti->CreateRawMonitor("tag_lock", &tag_lock);
 
@@ -536,15 +540,14 @@ public:
     }
 
     message_queue.push(AllocationEvent{
-	env->NewGlobalRef(object),
-	// NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-	reinterpret_cast<jclass>(env->NewGlobalRef(object_klass)),
-	static_cast<jthread>(env->NewGlobalRef(thread)),
-	size,
-	tag,
-	frames,
-	frame_count
-      });
+        jni_ops_->new_global_ref(env, object),
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+        reinterpret_cast<jclass>(jni_ops_->new_global_ref(env, object_klass)),
+        static_cast<jthread>(jni_ops_->new_global_ref(env, thread)),
+        size,
+        tag,
+        frames,
+        frame_count});
   }
 
   void object_free([[maybe_unused]] jvmtiEnv* jvmti_env, jlong tag) {
@@ -561,8 +564,7 @@ public:
   }
 
   jlong thread_id(JNIEnv *env, jthread thread) {
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
-    return env->CallLongMethod(thread, thread_getId_method);
+    return jni_ops_->call_long_method(env, thread, thread_getId_method);
   }
 
   bool get_class_signature(jclass klass, char** class_sig) {
@@ -600,17 +602,14 @@ public:
                                              tags);
   }
 
-  static void call_static_void_method(JNIEnv *env, jclass klass,
-                                      jmethodID method, jobject arg) {
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
-    env->CallStaticVoidMethod(klass, method, arg);
+  void call_static_void_method(JNIEnv *env, jclass klass,
+                               jmethodID method, jobject arg) {
+    jni_ops_->call_static_void_method(env, klass, method, arg);
   }
 
-  template <typename... Args>
-  static jobject new_object(JNIEnv *env, jclass klass, jmethodID method,
-			    Args... args) {
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
-    return env->NewObject(klass, method, args...);
+  jobject new_object_a(JNIEnv *env, jclass klass, jmethodID ctor,
+                       const jvalue* args) {
+    return jni_ops_->new_object_a(env, klass, ctor, args);
   }
 
   void set_sampling_interval(jint n) {
@@ -694,11 +693,13 @@ void AgentContext::set_callbacks(jvmtiEventCallbacks& callbacks) {
 
 namespace java {
   VMContext::local_ref<jstring> string(JNIEnv* env, const char* str) {
-    return VMContext::getInstance().mk_local_ref(env, (env)->NewStringUTF(str));
+    return VMContext::getInstance().mk_local_ref(
+        env, AgentContext::getInstance().jni_ops().new_string_utf(env, str));
   }
   VMContext::local_ref<jstring> string(JNIEnv* env, const std::string& str) {
-    return VMContext::getInstance()
-        .mk_local_ref(env, (env)->NewStringUTF(str.c_str()));
+    return VMContext::getInstance().mk_local_ref(
+        env,
+        AgentContext::getInstance().jni_ops().new_string_utf(env, str.c_str()));
   }
 }
 
@@ -741,7 +742,8 @@ private:
 
   void set_state(JNIEnv* env, jlong state) {
     if (agent_class) {
-      env->SetStaticLongField(*agent_class, agent_state_field, state);
+      agent_context.jni_ops().set_static_long_field(env, *agent_class,
+                                                    agent_state_field, state);
     }
     set_state(state);
   }
@@ -960,10 +962,9 @@ public:
       break;
     case ping:
       if (agent_class) {
-        AgentContext::call_static_void_method(env,
-                                              *agent_class,
-                                              agent_data1_method,
-                                              env->NewStringUTF("Alive"));
+        agent_context.call_static_void_method(
+            env, *agent_class, agent_data1_method,
+            agent_context.jni_ops().new_string_utf(env, "Alive"));
       }
       break;
     case sync_state:
@@ -1130,26 +1131,34 @@ void AgentState::allocation_tracing_report(JNIEnv *env, allocs_t &allocs,
       auto call_method_jstr = java::string(env, alloc->call_method);
       auto call_file_jstr = java::string(env, alloc->call_file);
 
-      auto rec = VMContext::local_ref<jobject>
-        (env, AgentContext::new_object
-         (env,
-          *agent_allocation_class,
-          agent_allocation_ctor,
-          (jstring)class_jstr,
-          alloc->obj_size,
-          (jstring)call_class_jstr,
-          (jstring)call_method_jstr,
-          (jstring)call_file_jstr,
-          alloc->call_line,
-          (jstring)alloc_class_jstr,
-          (jstring)alloc_method_jstr,
-          (jstring)alloc_file_jstr,
-          alloc->alloc_line,
-          alloc->thread_id,
-          alloc->freed));
+      // Build jvalue array for NewObjectA
+      // Signature: (String,long,String,String,String,long,String,String,String,long,long,long)V
+      static constexpr size_t ALLOCATION_CTOR_ARG_COUNT = 12;
+      // NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
+      std::array<jvalue, ALLOCATION_CTOR_ARG_COUNT> args = {};
+      args[0].l = static_cast<jstring>(class_jstr);
+      args[1].j = alloc->obj_size;
+      args[2].l = static_cast<jstring>(call_class_jstr);
+      args[3].l = static_cast<jstring>(call_method_jstr);
+      args[4].l = static_cast<jstring>(call_file_jstr);
+      args[5].j = alloc->call_line;
+      args[6].l = static_cast<jstring>(alloc_class_jstr);
+      args[7].l = static_cast<jstring>(alloc_method_jstr);
+      args[8].l = static_cast<jstring>(alloc_file_jstr);
+      args[9].j = alloc->alloc_line;
+      args[10].j = alloc->thread_id;
+      args[11].j = alloc->freed;
+      // NOLINTEND(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
 
-      AgentContext::call_static_void_method(env, *agent_class, agent_data1_method,
-                                            (jobject&)rec);
+      auto rec = VMContext::local_ref<jobject>
+        (env, agent_context.new_object_a(env,
+                                         *agent_allocation_class,
+                                         agent_allocation_ctor,
+                                         args.data()));
+
+      agent_context.call_static_void_method(env, *agent_class,
+                                            agent_data1_method,
+                                            static_cast<jobject&>(rec));
     }
   }
 
@@ -1173,9 +1182,9 @@ void queue_consumer_thread() {
     std::visit([&](auto&& arg) {
       using T = std::decay_t<decltype(arg)>;
       if constexpr (std::is_same_v<T, AllocationEvent>) {
-	// DEBUG_PRINT("Process AllocationEvent\n");
-	state.process_allocation_event(env, arg);
-	arg.delete_global_refs(env);
+        // DEBUG_PRINT("Process AllocationEvent\n");
+        state.process_allocation_event(env, arg);
+        arg.delete_global_refs(env, agent_context.jni_ops());
       }
       else if constexpr (std::is_same_v<T, ObjectFreeEvent>) {
 	// DEBUG_PRINT("Process ObjectFreeEvent\n");
