@@ -629,7 +629,9 @@
   models (two :transforms).
 
   Returns map with :id, :label, :coefficients, :r-squared, :residuals,
-  and optionally :predict-fn (instantiated) and :equation-str."
+  :aic, :bic, and optionally :predict-fn (instantiated) and :equation-str.
+
+  AIC/BIC may be nil if there is insufficient data for the correction term."
   [model-id {:keys [transform transforms label predict-fn equation-fn]} xs ys]
   (if transforms
     ;; Composite model: y = a*f1(x) + b*f2(x) + c
@@ -641,12 +643,20 @@
           coefficients {:a a :b b :c c}
           residuals (mapv (fn [^double x1 ^double x2 ^double y]
                             (- y (+ (* a x1) (* b x2) c)))
-                          x1s x2s ys)]
+                          x1s x2s ys)
+          n (count ys)
+          k 3  ; 3 parameters for composite model
+          rss (double (reduce (fn [^double acc ^double r] (+ acc (* r r)))
+                              0.0 residuals))
+          aic (compute-aic rss n k)
+          bic (compute-bic rss n k)]
       (cond-> {:id model-id
                :label label
                :coefficients coefficients
                :r-squared r-squared
-               :residuals residuals}
+               :residuals residuals
+               :aic aic
+               :bic bic}
         predict-fn (assoc :predict-fn (predict-fn coefficients))
         equation-fn (assoc :equation-str (equation-fn coefficients))))
     ;; Simple model: y = a*f(x) + b
@@ -656,14 +666,103 @@
           coefficients {:a a :b b}
           residuals (mapv (fn [^double tx ^double y]
                             (- y (+ (* a tx) b)))
-                          transformed-xs ys)]
+                          transformed-xs ys)
+          n (count ys)
+          k 2  ; 2 parameters for simple model
+          rss (double (reduce (fn [^double acc ^double r] (+ acc (* r r)))
+                              0.0 residuals))
+          aic (compute-aic rss n k)
+          bic (compute-bic rss n k)]
       (cond-> {:id model-id
                :label label
                :coefficients coefficients
                :r-squared r-squared
-               :residuals residuals}
+               :residuals residuals
+               :aic aic
+               :bic bic}
         predict-fn (assoc :predict-fn (predict-fn coefficients))
         equation-fn (assoc :equation-str (equation-fn coefficients))))))
+
+(defn- within-threshold?
+  "Check if diff is within threshold, handling -Infinity values.
+  When both values are -Infinity (perfect fit), they are considered equal."
+  [^double best-val ^double val ^double threshold]
+  (let [diff (- val best-val)]
+    (or (Double/isNaN diff)  ; Both -Infinity → NaN diff → treat as equal
+        (< diff threshold))))
+
+(defn- select-by-r-squared
+  "Select best model by highest R², preferring simpler when close."
+  [fitted threshold]
+  (let [sorted (sort-by (juxt #(- (double (:r-squared %)))
+                              :param-count)
+                        fitted)
+        best (first sorted)
+        best-val (double (:r-squared best))
+        within-threshold (filterv #(within-threshold?
+                                    (- best-val)
+                                    (- (double (:r-squared %)))
+                                    threshold)
+                                  sorted)]
+    (:id (first (sort-by :param-count within-threshold)))))
+
+(defn- select-best-model
+  "Select best model based on selection method.
+
+  selection-method can be:
+    :aic       - select model with lowest AICc (default)
+    :bic       - select model with lowest BIC
+    :r-squared - select model with highest R²
+
+  In all cases, prefers simpler models (fewer parameters) when values
+  are essentially equal (within threshold).
+
+  When using :aic or :bic, falls back to :r-squared selection if no
+  models have valid AIC/BIC values (insufficient data for information
+  criterion computation)."
+  [fitted selection-method]
+  (when (seq fitted)
+    (let [threshold 1e-6]
+      (case selection-method
+        :r-squared
+        (select-by-r-squared fitted threshold)
+
+        :bic
+        ;; Lowest BIC, prefer simpler when close
+        ;; Filter out models with nil BIC, fall back to R² if none
+        (let [with-bic (filterv #(some? (:bic %)) fitted)]
+          (if (seq with-bic)
+            (let [sorted (sort-by (juxt #(double (:bic %))
+                                        :param-count)
+                                  with-bic)
+                  best (first sorted)
+                  best-val (double (:bic best))
+                  within-threshold (filterv #(within-threshold?
+                                              best-val
+                                              (double (:bic %))
+                                              threshold)
+                                            sorted)]
+              (:id (first (sort-by :param-count within-threshold))))
+            ;; Fall back to R² selection when no BIC values
+            (select-by-r-squared fitted threshold)))
+
+        ;; Default: :aic - lowest AICc, prefer simpler when close
+        ;; Filter out models with nil AIC, fall back to R² if none
+        (let [with-aic (filterv #(some? (:aic %)) fitted)]
+          (if (seq with-aic)
+            (let [sorted (sort-by (juxt #(double (:aic %))
+                                        :param-count)
+                                  with-aic)
+                  best (first sorted)
+                  best-val (double (:aic best))
+                  within-threshold (filterv #(within-threshold?
+                                              best-val
+                                              (double (:aic %))
+                                              threshold)
+                                            sorted)]
+              (:id (first (sort-by :param-count within-threshold))))
+            ;; Fall back to R² selection when no AIC values
+            (select-by-r-squared fitted threshold)))))))
 
 (defn fit-complexity
   "Fit complexity models to domain extract data.
@@ -673,12 +772,19 @@
 
   extract is a domain-extract result (with :metrics map).
   axis is the coordinate key to use for x-values (e.g., :n for input size).
-  models is a map of model-id to {:transform fn :label string}, or nil
-  for defaults.
+
+  Options (third argument can be a models map for backward compatibility,
+  or an options map):
+    :models           - Map of model-id to {:transform fn :label string},
+                        or nil for defaults
+    :selection-method - Method for selecting best model:
+                        :aic (default) - lowest AICc
+                        :bic           - lowest BIC
+                        :r-squared     - highest R²
 
   Filters out data points with nil values before fitting.
-  Selects best-fit model by highest R² value, preferring simpler models when
-  R² values are essentially equal (within 0.0001).
+  Selects best-fit model using the specified selection method,
+  preferring simpler models when values are essentially equal.
 
   When the extract has multiple implementations (count of :implementations > 1),
   data is grouped by implementation and models are fit separately for each.
@@ -692,6 +798,9 @@
   ;;                                  :models [{:id :linear :r-squared 0.98 ...}]
   ;;                                  :best-fit :linear}}}
 
+  Example - with selection method:
+  (fit-complexity extract :n {:selection-method :bic})
+
   Example - multiple implementations:
   (fit-complexity extract-with-impls :n)
   ;; => {:type :criterium/domain-regression
@@ -701,9 +810,20 @@
   ;;     :regressions {:elapsed-time {:metric [:stats :elapsed-time :mean]
   ;;                                  :by-impl {:vec {:models [...] :best-fit :linear}
   ;;                                            :list {:models [...] :best-fit :quadratic}}}}}"
-  ([extract axis] (fit-complexity extract axis nil))
-  ([extract axis models]
-   (let [models (or models default-complexity-models)
+  ([extract axis] (fit-complexity extract axis {}))
+  ([extract axis opts]
+   ;; Support backward compatibility: if opts looks like a models map
+   ;; (has :transform or :transforms in values), treat it as models
+   (let [is-options-map? (or (nil? opts)
+                             (empty? opts)
+                             (contains? opts :models)
+                             (contains? opts :selection-method))
+         {:keys [models selection-method]}
+         (if is-options-map?
+           opts
+           {:models opts})
+         models (or models default-complexity-models)
+         selection-method (or selection-method :aic)
          impl-axis-key (:impl-axis extract)
          impls (:implementations extract)
          multi-impl? (> (count impls) 1)
@@ -742,30 +862,7 @@
                                      :param-count
                                      param-count)))
                                 models))
-                 ;; Find best fit by R², preferring simpler models when R² is
-                 ;; close
-                 best-fit (when (seq fitted)
-                            (let [r-sq-threshold 1e-6
-                                  sorted (sort-by
-                                          (juxt
-                                           #(- (double
-                                                (:r-squared %)))
-                                           :param-count)
-                                          fitted)
-                                  best (first sorted)
-                                  within-threshold (filterv
-                                                    #(<
-                                                      (-
-                                                       (double
-                                                        (:r-squared best))
-                                                       (double
-                                                        (:r-squared %)))
-                                                      r-sq-threshold)
-                                                    sorted)]
-                              (:id (first
-                                    (sort-by
-                                     :param-count
-                                     within-threshold)))))]
+                 best-fit (select-best-model fitted selection-method)]
              {:models (or fitted [])
               :best-fit best-fit}))
 
@@ -826,10 +923,14 @@
 
   Parameters:
     opts - Map with keys:
-      :id         - Key for result in output (default: :regression)
-      :extract-id - Key for source domain-extract in input (default: :extract)
-      :axis       - Coordinate key to use for x-values (required, e.g., :n)
-      :models     - Map of model definitions, or nil for defaults
+      :id               - Key for result in output (default: :regression)
+      :extract-id       - Key for source domain-extract in input (default: :extract)
+      :axis             - Coordinate key to use for x-values (required, e.g., :n)
+      :models           - Map of model definitions, or nil for defaults
+      :selection-method - Method for selecting best model:
+                          :aic (default) - lowest AICc
+                          :bic           - lowest BIC
+                          :r-squared     - highest R²
 
   The returned function:
   - Takes a data-map containing a domain-extract under :extract-id
@@ -844,12 +945,13 @@
   ;;     :extract {:type :criterium/domain-extract ...}
   ;;     :scaling {:type :criterium/domain-regression ...}}"
   ([] (domain-regression-fn {}))
-  ([{:keys [id extract-id axis models]}]
+  ([{:keys [id extract-id axis models selection-method]}]
    (fn [data-map]
      (let [extract-id (or extract-id :extract)
            id (or id :regression)
            extract (data-map extract-id)
-           result (fit-complexity extract axis models)]
+           result (fit-complexity extract axis {:models models
+                                                :selection-method selection-method})]
        (assoc data-map id result)))))
 
 ;;; Log-Log Regression Analysis

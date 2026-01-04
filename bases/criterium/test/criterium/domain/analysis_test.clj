@@ -932,6 +932,129 @@
         (is (not (contains? regression :by-impl)))
         (is (contains? regression :models))))))
 
+;; Tests for AIC/BIC computation and model selection in fit-complexity.
+;; Validates that information criteria are computed and used for model selection.
+
+(deftest fit-complexity-aic-bic-test
+  ;; Tests that fit-complexity computes and returns AIC/BIC values for models.
+  ;; Contracts: models include :aic and :bic, values are correct.
+  (testing "fit-complexity returns AIC/BIC values"
+    (testing "models include :aic and :bic keys"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100} 100.0]
+                                                     [{:n 200} 200.0]
+                                                     [{:n 300} 300.0]
+                                                     [{:n 400} 400.0]
+                                                     [{:n 500} 500.0]]}}}
+            result (analysis/fit-complexity extract :n)
+            models (get-in result [:regressions :elapsed-time :models])]
+        (is (every? #(contains? % :aic) models))
+        (is (every? #(contains? % :bic) models))))
+    (testing "AIC/BIC values are numbers for sufficient data"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100} 100.0]
+                                                     [{:n 200} 200.0]
+                                                     [{:n 300} 300.0]
+                                                     [{:n 400} 400.0]
+                                                     [{:n 500} 500.0]]}}}
+            result (analysis/fit-complexity extract :n)
+            linear (first (filter #(= :linear (:id %))
+                                  (get-in result [:regressions :elapsed-time :models])))]
+        (is (number? (:aic linear)))
+        (is (number? (:bic linear)))))
+    (testing "AIC/BIC can be nil for insufficient data"
+      ;; With only 3 data points and k=2, AICc correction term may still work
+      ;; but with k=3 (composite model), we need n > k+1 = 4
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100} 100.0]
+                                                     [{:n 200} 200.0]
+                                                     [{:n 300} 300.0]]}}}
+            result (analysis/fit-complexity extract :n)
+            ;; nlogn-linear has 3 parameters, needs n > 4 for AICc
+            composite (first (filter #(= :nlogn-linear (:id %))
+                                     (get-in result [:regressions :elapsed-time :models])))]
+        ;; With n=3 and k=3, AICc correction is undefined (n <= k+1)
+        (is (nil? (:aic composite)))))))
+
+(deftest fit-complexity-selection-method-test
+  ;; Tests model selection using different methods.
+  ;; Contracts: :aic, :bic, :r-squared methods work correctly.
+  (testing "fit-complexity with :selection-method"
+    (testing "defaults to :aic selection"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100} 100.0]
+                                                     [{:n 200} 200.0]
+                                                     [{:n 300} 300.0]
+                                                     [{:n 400} 400.0]
+                                                     [{:n 500} 500.0]]}}}
+            result (analysis/fit-complexity extract :n)]
+        ;; Linear data should select linear model
+        (is (= :linear (get-in result [:regressions :elapsed-time :best-fit])))))
+    (testing ":r-squared selection uses highest R²"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100} 100.0]
+                                                     [{:n 200} 200.0]
+                                                     [{:n 300} 300.0]
+                                                     [{:n 400} 400.0]
+                                                     [{:n 500} 500.0]]}}}
+            result (analysis/fit-complexity extract :n {:selection-method :r-squared})]
+        (is (= :linear (get-in result [:regressions :elapsed-time :best-fit])))))
+    (testing ":bic selection uses lowest BIC"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100} 100.0]
+                                                     [{:n 200} 200.0]
+                                                     [{:n 300} 300.0]
+                                                     [{:n 400} 400.0]
+                                                     [{:n 500} 500.0]]}}}
+            result (analysis/fit-complexity extract :n {:selection-method :bic})]
+        (is (= :linear (get-in result [:regressions :elapsed-time :best-fit])))))
+    (testing "backward compatible with models map as third arg"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100} 100.0]
+                                                     [{:n 200} 200.0]
+                                                     [{:n 300} 300.0]]}}}
+            models {:linear {:transform identity
+                             :label "O(n)"}}
+            result (analysis/fit-complexity extract :n models)
+            regression (get-in result [:regressions :elapsed-time])]
+        (is (= 1 (count (:models regression))))
+        (is (= :linear (:id (first (:models regression)))))))
+    (testing "options map with :models and :selection-method"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100} 100.0]
+                                                     [{:n 200} 200.0]
+                                                     [{:n 300} 300.0]
+                                                     [{:n 400} 400.0]
+                                                     [{:n 500} 500.0]]}}}
+            result (analysis/fit-complexity extract :n {:models nil
+                                                        :selection-method :bic})]
+        (is (= :linear (get-in result [:regressions :elapsed-time :best-fit]))))))
+  (testing "selection method prefers simpler models when values are equal"
+    ;; With perfect linear data, multiple models may have near-perfect fit
+    ;; Selection should prefer simpler (fewer param) models
+    (testing "AIC selection prefers simpler model"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100} 100.0]
+                                                     [{:n 200} 200.0]
+                                                     [{:n 300} 300.0]
+                                                     [{:n 400} 400.0]
+                                                     [{:n 500} 500.0]]}}}
+            result (analysis/fit-complexity extract :n {:selection-method :aic})
+            models (get-in result [:regressions :elapsed-time :models])
+            linear (first (filter #(= :linear (:id %)) models))]
+        ;; Linear should be selected as it fits perfectly and has fewer params
+        (is (= :linear (get-in result [:regressions :elapsed-time :best-fit])))
+        (is (> (:r-squared linear) 0.99))))))
+
 (deftest domain-regression-fn-test
   ;; Tests the factory function that creates regression pipelines.
   ;; Contracts: returns function, fits regression from data-map, supports options.
@@ -976,6 +1099,19 @@
             f (analysis/domain-regression-fn {:id :scaling :axis :n})
             result (f {:extract extract :other-key "value"})]
         (is (= "value" (:other-key result)))))
+    (testing "passes :selection-method to fit-complexity"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100} 100.0]
+                                                     [{:n 200} 200.0]
+                                                     [{:n 300} 300.0]
+                                                     [{:n 400} 400.0]
+                                                     [{:n 500} 500.0]]}}}
+            f (analysis/domain-regression-fn {:id :scaling
+                                              :axis :n
+                                              :selection-method :bic})
+            result (f {:extract extract})]
+        (is (= :linear (get-in result [:scaling :regressions :elapsed-time :best-fit])))))
     (testing "composes with domain-extract-fn"
       (let [d (domain/domain
                {:coord {:n 100}
