@@ -50,7 +50,7 @@
          (have? map? samples)]}
   (have :quantiles config)
   (have (comp not :tail-quantile) config)
-  (let [qs (into [0.1 0.25 0.5 0.75 0.9] (:quantiles config))
+  (let [qs (vec (sort (into #{0.1 0.25 0.5 0.75 0.9} (:quantiles config))))
         vs (sort (samples-for-path samples path))]
     (sample-quantiles qs vs)))
 
