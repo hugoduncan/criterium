@@ -423,6 +423,137 @@ TEST_F(AgentStateTest, UnknownTagFreeIsIgnored) {
   EXPECT_EQ(state_machine->get_state(), allocation_tracing_starting);
 }
 
+/// Command Processing Tests
+///
+/// These tests focus on the behavior of individual commands beyond just
+/// state transitions. They verify that commands trigger the correct
+/// JVMTI/JNI operations and handle edge cases properly.
+
+TEST_F(AgentStateTest, StopCommandOnlyChangesState) {
+  // Set up: reach active state
+  state_machine->process_command(Command{start_allocation_tracing});
+  state_machine->process_allocation_event(START_MARKER, 1);
+  state_machine->process_object_free_event(1);
+  ASSERT_EQ(state_machine->get_state(), allocation_tracing_active);
+
+  // Stop command should NOT make any JVMTI calls - it just changes state.
+  // The actual disabling happens when the finish marker is seen.
+  EXPECT_CALL(mock_jvmti, set_heap_sampling_interval(_)).Times(0);
+  EXPECT_CALL(mock_jvmti, set_event_notification_mode(_, _, _)).Times(0);
+
+  state_machine->process_command(Command{stop_allocation_tracing});
+
+  EXPECT_EQ(state_machine->get_state(), allocation_tracing_stopping);
+}
+
+TEST_F(AgentStateTest, ReportCommandTransitionsThroughReportingState) {
+  // Set up: reach flushed state
+  state_machine->process_command(Command{start_allocation_tracing});
+  state_machine->process_allocation_event(START_MARKER, 1);
+  state_machine->process_object_free_event(1);
+  state_machine->process_command(Command{stop_allocation_tracing});
+  state_machine->process_allocation_event(FINISH_MARKER, 2);
+  state_machine->process_object_free_event(2);
+
+  ASSERT_EQ(state_machine->get_state(), allocation_tracing_flushed);
+
+  // Report command should end in reported state
+  state_machine->process_command(Command{report_allocation_tracing});
+
+  EXPECT_EQ(state_machine->get_state(), allocation_tracing_reported);
+}
+
+TEST_F(AgentStateTest, SyncStateDoesNotChangeState) {
+  // Test sync_state in various states
+  EXPECT_EQ(state_machine->get_state(), passive);
+  state_machine->process_command(Command{sync_state});
+  EXPECT_EQ(state_machine->get_state(), passive);
+
+  state_machine->process_command(Command{start_allocation_tracing});
+  EXPECT_EQ(state_machine->get_state(), allocation_tracing_starting);
+  state_machine->process_command(Command{sync_state});
+  EXPECT_EQ(state_machine->get_state(), allocation_tracing_starting);
+
+  state_machine->process_allocation_event(START_MARKER, 1);
+  state_machine->process_object_free_event(1);
+  EXPECT_EQ(state_machine->get_state(), allocation_tracing_active);
+  state_machine->process_command(Command{sync_state});
+  EXPECT_EQ(state_machine->get_state(), allocation_tracing_active);
+}
+
+TEST_F(AgentStateTest, PingCommandDoesNotChangeState) {
+  EXPECT_EQ(state_machine->get_state(), passive);
+  state_machine->process_command(Command{ping});
+  EXPECT_EQ(state_machine->get_state(), passive);
+
+  state_machine->process_command(Command{start_allocation_tracing});
+  state_machine->process_command(Command{ping});
+  EXPECT_EQ(state_machine->get_state(), allocation_tracing_starting);
+}
+
+TEST_F(AgentStateTest, InvalidCommandDoesNotChangeState) {
+  // Invalid command values should not crash and should not change state
+  const jlong INVALID_COMMAND = 99999;
+
+  EXPECT_EQ(state_machine->get_state(), passive);
+  state_machine->process_command(Command{INVALID_COMMAND});
+  EXPECT_EQ(state_machine->get_state(), passive);
+
+  state_machine->process_command(Command{start_allocation_tracing});
+  state_machine->process_command(Command{INVALID_COMMAND});
+  EXPECT_EQ(state_machine->get_state(), allocation_tracing_starting);
+}
+
+TEST_F(AgentStateTest, MultipleStartCommandsResetAllocations) {
+  // First start
+  state_machine->process_command(Command{start_allocation_tracing});
+  state_machine->process_allocation_event(START_MARKER, 1);
+  state_machine->process_object_free_event(1);
+
+  // Record some allocations
+  state_machine->process_allocation_event(REGULAR_CLASS, 10);
+  state_machine->process_allocation_event(REGULAR_CLASS, 11);
+  state_machine->process_allocation_event(REGULAR_CLASS, 12);
+
+  // Second start should reset - expect fresh JVMTI calls
+  EXPECT_CALL(mock_jvmti, set_heap_sampling_interval(0)).Times(1);
+  EXPECT_CALL(mock_jvmti, set_event_notification_mode(
+                              JVMTI_ENABLE, JVMTI_EVENT_SAMPLED_OBJECT_ALLOC, _))
+      .Times(1);
+  EXPECT_CALL(mock_jvmti, set_event_notification_mode(
+                              JVMTI_ENABLE, JVMTI_EVENT_OBJECT_FREE, _))
+      .Times(1);
+
+  state_machine->process_command(Command{start_allocation_tracing});
+
+  EXPECT_EQ(state_machine->get_state(), allocation_tracing_starting);
+
+  // Old tags should be forgotten - freeing them should have no effect
+  state_machine->process_object_free_event(10);
+  state_machine->process_object_free_event(11);
+  state_machine->process_object_free_event(12);
+
+  // State should still be starting (not active, since we haven't processed
+  // a new start marker)
+  EXPECT_EQ(state_machine->get_state(), allocation_tracing_starting);
+}
+
+TEST_F(AgentStateTest, CommandsInWrongStateAreHandled) {
+  // Stop command from passive state - should still change state
+  // (real implementation may handle this differently, but state machine
+  // doesn't prevent it)
+  EXPECT_EQ(state_machine->get_state(), passive);
+  state_machine->process_command(Command{stop_allocation_tracing});
+  EXPECT_EQ(state_machine->get_state(), allocation_tracing_stopping);
+}
+
+TEST_F(AgentStateTest, ReportCommandFromWrongStateStillTransitions) {
+  // Report from passive - state machine allows this transition
+  EXPECT_EQ(state_machine->get_state(), passive);
+  state_machine->process_command(Command{report_allocation_tracing});
+  EXPECT_EQ(state_machine->get_state(), allocation_tracing_reported);
+}
+
 TEST_F(AgentStateTest, FullStateTransitionCycle) {
   // Test complete state machine cycle
   EXPECT_EQ(state_machine->get_state(), passive);
