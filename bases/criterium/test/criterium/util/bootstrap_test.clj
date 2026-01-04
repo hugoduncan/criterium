@@ -8,7 +8,8 @@
    [criterium.util.invariant :refer [have]]
    [criterium.util.sampled-stats-test :as sampled-stats-test]
    [criterium.util.stats :as stats]
-   [criterium.util.well :as well]))
+   [criterium.util.well :as well]
+   [stats.interface :as stats-interface]))
 
 (deftest bootstrap-estimate-test
   (is (= [1.0 0.0 [1.0 1.0]]
@@ -187,3 +188,42 @@
                             :point-estimate))]
     (is (test-max-error 10.0 point 0.1 "mean")
         (str "Value: " point))))
+
+;; Verifies that all quantiles computed by bootstrap-stats-for share the same
+;; bootstrap resamples. This is critical for statistical validity - if quantiles
+;; were bootstrapped separately, they would use different resamples and lose
+;; the correlation structure of the data.
+(deftest bootstrap-quantiles-share-resamples-test
+  (testing "bootstrap-stats-for"
+    (testing "computes all quantiles from the same resamples"
+      ;; Track how many times stats-fn is invoked during bootstrap-sample.
+      ;; If all quantiles share resamples, the combined stats-fn should be
+      ;; called exactly bootstrap-size times (once per resample).
+      (let [invocation-count  (atom 0)
+            bootstrap-size    50
+            samples           (mapv double (range 101))
+            ;; Wrap stats-fn to track invocations
+            original-stats-fn stats-interface/stats-fn
+            tracking-stats-fn (fn [fs]
+                                (let [combined (original-stats-fn fs)]
+                                  (fn [vs]
+                                    (swap! invocation-count inc)
+                                    (combined vs))))]
+        (with-redefs [stats-interface/stats-fn tracking-stats-fn]
+          (bootstrap/bootstrap-stats-for
+           samples
+           {:estimate-quantiles [0.025 0.975]
+            :quantiles          [0.99]
+            :bootstrap-size     bootstrap-size}
+           sampled-stats-test/identity-transforms))
+        ;; The combined stats-fn should be called:
+        ;; - Once for the original estimate
+        ;; - Once per bootstrap resample (bootstrap-size times)
+        ;; - Once per jackknife sample (n times, where n = sample count)
+        ;; Total = 1 + bootstrap-size + n
+        (let [expected-calls (+ 1 bootstrap-size (count samples))]
+          (is (= expected-calls @invocation-count)
+              (str "Expected " expected-calls " stats-fn calls "
+                   "(1 estimate + " bootstrap-size " bootstrap + "
+                   (count samples) " jackknife), got " @invocation-count
+                   ". If higher, quantiles may be bootstrapped separately.")))))))
