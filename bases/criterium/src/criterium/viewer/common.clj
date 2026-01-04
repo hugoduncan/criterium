@@ -1149,11 +1149,12 @@
                                :factor (cond
                                          (nil? value) "-"
                                          (nil? baseline-value) "-"
-                                         (zero? baseline-value) "-"
+                                         (zero? ^double baseline-value) "-"
                                          :else
                                          (format
                                           "%.2f"
-                                          (double (/ value baseline-value)))))]))
+                                          (/ ^double value
+                                             ^double baseline-value))))]))
                         col-specs col-headers)))
            row-keys)]
       {:heading (str "Domain Comparison by " (name axis) ": " (pr-str metric))
@@ -1233,8 +1234,10 @@
                     :factor (cond
                               (nil? value) "-"
                               (nil? baseline-value) "-"
-                              (zero? baseline-value) "-"
-                              :else (format "%.2f" (/ value baseline-value))))]))
+                              (zero? ^double baseline-value) "-"
+                              :else (format "%.2f"
+                                            (/ ^double value
+                                               ^double baseline-value))))]))
              col-specs col-headers)))
          row-keys)]
     {:heading (str "Domain Comparison by " (name axis))
@@ -1645,10 +1648,10 @@
            (mapcat
             (fn [[impl-key {:keys [slope intercept log-xs]}]]
               (when (and slope intercept log-xs (seq log-xs))
-                (let [x-min (reduce min log-xs)
-                      x-max (reduce max log-xs)
+                (let [x-min (double (reduce min log-xs))
+                      x-max (double (reduce max log-xs))
                       x-range (range x-min (+ x-max 0.1) (/ (- x-max x-min) 50))]
-                  (mapv (fn [x]
+                  (mapv (fn [^double x]
                           {"x" x
                            "y" (+ (* (double slope) x) (double intercept))
                            "impl" (name impl-key)})
@@ -1657,11 +1660,11 @@
         ;; Single implementation mode
         (let [{:keys [slope intercept log-xs]} log-log-data]
           (when (and slope intercept log-xs (seq log-xs))
-            (let [x-min (reduce min log-xs)
-                  x-max (reduce max log-xs)
+            (let [x-min (double (reduce min log-xs))
+                  x-max (double (reduce max log-xs))
                   x-range (range x-min (+ x-max 0.1) (/ (- x-max x-min) 50))]
               (vec
-               (mapv (fn [x]
+               (mapv (fn [^double x]
                        {"x" x
                         "y" (+ (* (double slope) x) (double intercept))})
                      x-range)))))))))
