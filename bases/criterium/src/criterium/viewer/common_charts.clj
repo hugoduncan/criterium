@@ -191,9 +191,7 @@
             ;; Whisker from p10 to p90
             true
             (conj {:data {:values [{field-name p10-val
-                                    :end p90-val
-                                    :y box-y
-                                    :type "whisker"}]}
+                                    :end p90-val}]}
                    :transform [{:calculate "'Spread (10th-90th)'" :as "layer"}]
                    :encoding {:x {:field field-name
                                   :type "quantitative"
@@ -212,10 +210,7 @@
             (and ci-lower ci-upper)
             (conj (let [box-height -0.02]
                     {:data {:values [{field-name ci-lower
-                                      :end ci-upper
-                                      :y box-y
-                                      :y2 box-height
-                                      :type "ci-box"}]}
+                                      :end ci-upper}]}
                      :transform [{:calculate "'Median CI'" :as "layer"}]
                      :encoding {:x {:field field-name
                                     :type "quantitative"
