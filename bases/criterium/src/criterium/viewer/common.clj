@@ -1133,12 +1133,15 @@
            (fn [row-key]
              (into {coord-header (format-row-key-value row-key single-key-info)}
                    (map (fn [{:keys [type impl]} header]
-                          (let [value (double
-                                       (get-in lookup [impl row-key]))
-                                baseline-value (double
-                                                (get-in
-                                                 lookup
-                                                 [baseline-impl row-key]))]
+                          (let [raw-value (get-numeric-value
+                                           (get-in lookup [impl row-key]))
+                                value (when raw-value (double raw-value))
+                                raw-baseline (get-numeric-value
+                                              (get-in
+                                               lookup
+                                               [baseline-impl row-key]))
+                                baseline-value (when raw-baseline
+                                                 (double raw-baseline))]
                             [header
                              (case type
                                :baseline (format-value-with-unit value metric)
@@ -1215,12 +1218,14 @@
             {coord-header (format-row-key-value row-key single-key-info)}
             (map
              (fn [{:keys [type metric-id metric-path impl]} header]
-               (let [value (double
-                            (get-in lookup [metric-id impl row-key]))
-                     baseline-value (double
-                                     (get-in
-                                      lookup
-                                      [metric-id baseline-impl row-key]))]
+               (let [raw-value (get-numeric-value
+                                (get-in lookup [metric-id impl row-key]))
+                     value (when raw-value (double raw-value))
+                     raw-baseline (get-numeric-value
+                                   (get-in
+                                    lookup
+                                    [metric-id baseline-impl row-key]))
+                     baseline-value (when raw-baseline (double raw-baseline))]
                  [header
                   (case type
                     :baseline (format-value-with-unit value metric-path)
