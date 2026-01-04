@@ -1,5 +1,6 @@
 #include "jni.h"
 #include "include/alloc_rec.h"
+#include "include/jvmti_operations.h"
 #include "include/message_queue.h"
 #include "include/utils.h"
 #include <algorithm>
@@ -363,10 +364,16 @@ class AgentContext {
 
 private:
   jvmtiEnv* jvmti = nullptr;
+  std::unique_ptr<criterium::IJvmtiOperations> jvmti_ops_;
 
   static jvmtiEnv* get_jvmti() { return getInstance().jvmti; }
+  static criterium::IJvmtiOperations& get_jvmti_ops() {
+    return *getInstance().jvmti_ops_;
+  }
 
 public:
+  criterium::IJvmtiOperations& jvmti_ops() { return *jvmti_ops_; }
+
   template <typename T>
   class allocated  {
     T _ptr;
@@ -377,7 +384,10 @@ public:
     allocated &operator=(allocated &&) = delete;
     allocated(allocated<T> &&other) noexcept
         : _ptr(std::exchange(other._ptr, static_cast<T>(0))) {}
-    ~allocated() { get_jvmti()->Deallocate((unsigned char*)_ptr);}
+    ~allocated() {
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+      get_jvmti_ops().deallocate(reinterpret_cast<unsigned char*>(_ptr));
+    }
     operator T& () { return _ptr; }
     T* operator & () { return &_ptr; }
   };
@@ -441,6 +451,8 @@ public:
 
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
     jvm->GetEnv(reinterpret_cast<void **>(&jvmti), JVMTI_VERSION_1_0);
+
+    jvmti_ops_ = std::make_unique<criterium::JvmtiOperations>(jvmti);
 
     jvmti->CreateRawMonitor("tag_lock", &tag_lock);
 
@@ -509,24 +521,17 @@ public:
     message_queue.push(Command{sync_state});
   }
 
-  void sampled_object_alloc(jvmtiEnv* jvmti, JNIEnv* env,
-			    jthread thread, jobject object,
-			    jclass object_klass, jlong size) {
+  void sampled_object_alloc([[maybe_unused]] jvmtiEnv* jvmti_env, JNIEnv* env,
+                            jthread thread, jobject object,
+                            jclass object_klass, jlong size) {
     auto tag = next_tag();
-    auto err = jvmti->SetTag(object, tag);
-    if (err != JVMTI_ERROR_NONE) {
-      std::cout << "Failed to tag object: " << err << '\n';
-      debug_print_jvmti_err(err);
-    }
+    jvmti_ops_->set_tag(object, tag);
 
     // Capture stack trace synchronously while still on the allocating thread
     std::array<jvmtiFrameInfo, MAX_FRAMES> frames = {};
     jint frame_count = 0;
-    auto stack_err = jvmti->GetStackTrace(thread, 0, MAX_FRAMES,
-                                          frames.data(), &frame_count);
-    if (stack_err != JVMTI_ERROR_NONE) {
-      DEBUG_PRINTLN("Failed to get stack trace: " << stack_err);
-      debug_print_jvmti_err(stack_err);
+    if (!jvmti_ops_->get_stack_trace(thread, 0, MAX_FRAMES,
+                                     frames.data(), &frame_count)) {
       frame_count = 0;
     }
 
@@ -561,89 +566,38 @@ public:
   }
 
   bool get_class_signature(jclass klass, char** class_sig) {
-    auto err = jvmti->GetClassSignature(klass, class_sig, NULL);
-    if ( err != 0) {
-      std::cout << "Failed to get class name\n";
-      debug_print_jvmti_err(err);
-      return false;
-    }
-    return true;
+    return jvmti_ops_->get_class_signature(klass, class_sig);
   }
 
   bool get_source_file_name(jclass klass, char** source_name) {
-    auto err = jvmti->GetSourceFileName(klass, source_name);
-    if (err != 0) {
-      std::cout << "Failed to get source file name\n";
-      debug_print_jvmti_err(err);
-      return false;
-    }
-    return true;
+    return jvmti_ops_->get_source_file_name(klass, source_name);
   }
 
-  bool get_method_declaring_class(jmethodID method,
-                                         jclass* declaring_class) {
-    auto err = jvmti->GetMethodDeclaringClass(method, declaring_class);
-    if (err != 0) {
-      std::cout << "Failed to get method declaring class\n";
-      debug_print_jvmti_err(err);
-      return false;
-    }
-    return true;
+  bool get_method_declaring_class(jmethodID method, jclass* declaring_class) {
+    return jvmti_ops_->get_method_declaring_class(method, declaring_class);
   }
 
   bool get_method_name(jmethodID method, char** method_name) {
-    auto err = (jvmti)->GetMethodName(method, method_name, NULL, NULL);
-    if (err != 0) {
-      std::cout << "Failed to get method name\n";
-      debug_print_jvmti_err(err);
-      return false;
-    }
-    return true;
+    return jvmti_ops_->get_method_name(method, method_name);
   }
 
-  bool get_stack_trace(jthread thread, jvmtiFrameInfo *frames,
-                              jint* count) {
-    auto err = jvmti->GetStackTrace(thread, 0, MAX_FRAMES, frames, count);
-    if (err != 0) {
-      std::cout << "Failed to get stack\n";
-      debug_print_jvmti_err(err);
-      return false;
-    }
-    return true;
+  bool get_stack_trace(jthread thread, jvmtiFrameInfo *frames, jint* count) {
+    return jvmti_ops_->get_stack_trace(thread, 0, MAX_FRAMES, frames, count);
   }
 
   bool get_line_number_table(jmethodID method, jint *entry_count,
-                                    jvmtiLineNumberEntry** line_table) {
-    auto err = jvmti->GetLineNumberTable(method, entry_count, line_table);
-    if (err != 0) {
-      if (err != JVMTI_ERROR_NATIVE_METHOD) {
-	std::cout << "Failed to get line number table\n";
-	debug_print_jvmti_err(err);
-      }
-      return false;
-    }
-    return true;
+                             jvmtiLineNumberEntry** line_table) {
+    return jvmti_ops_->get_line_number_table(method, entry_count, line_table);
   }
 
-  bool set_tag(jobject object, [[maybe_unused]] jlong tag) {
-    auto err = jvmti->SetTag(object, 0);
-    if (err != 0) {
-      std::cout << "Failed to set tag\n";
-      debug_print_jvmti_err(err);
-      return false;
-    }
-    return true;
+  bool set_tag(jobject object, jlong tag) {
+    return jvmti_ops_->set_tag(object, tag);
   }
 
   bool get_objects_with_tags(jint ntags, jlong *tag_data, jint *count,
-                                    jobject** objects, jlong** tags) {
-    auto err = jvmti->GetObjectsWithTags(ntags, tag_data, count, objects, tags);
-    if (err != 0) {
-      std::cout << "Failed to get objects with tags\n";
-      debug_print_jvmti_err(err);
-      return false;
-    }
-    return true;
+                             jobject** objects, jlong** tags) {
+    return jvmti_ops_->get_objects_with_tags(ntags, tag_data, count, objects,
+                                             tags);
   }
 
   static void call_static_void_method(JNIEnv *env, jclass klass,
@@ -660,62 +614,35 @@ public:
   }
 
   void set_sampling_interval(jint n) {
-    // NOLINTNEXTLINE(clang-analyzer-core.CallAndMessage)
-    auto err = jvmti->SetHeapSamplingInterval(n);
-    if (err != JVMTI_ERROR_NONE) {
-      std::cout << "Failed to set the sampling interval: " << err << '\n';
-      debug_print_jvmti_err(err);
-    }
+    jvmti_ops_->set_heap_sampling_interval(n);
   }
 
   void enable_sampled_object_alloc() {
     DEBUG_PRINT("Enabling JVMTI_EVENT_SAMPLED_OBJECT_ALLOC\n");
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
-    auto err = jvmti->SetEventNotificationMode(JVMTI_ENABLE,
-					       JVMTI_EVENT_SAMPLED_OBJECT_ALLOC,
-					       nullptr);
-    if (err != JVMTI_ERROR_NONE) {
-      std::cout << "Failed to enable allocation sampling " << err << '\n';
-      debug_print_jvmti_err(err);
-    }
+    jvmti_ops_->set_event_notification_mode(JVMTI_ENABLE,
+                                            JVMTI_EVENT_SAMPLED_OBJECT_ALLOC,
+                                            nullptr);
   }
 
   void enable_object_free() {
     DEBUG_PRINT("Enabling JVMTI_EVENT_OBJECT_FREE\n");
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
-    auto err = jvmti->SetEventNotificationMode(JVMTI_ENABLE,
-					  JVMTI_EVENT_OBJECT_FREE,
-					  nullptr);
-    if (err != JVMTI_ERROR_NONE) {
-      std::cout << "Failed to enable object free notifications " << err << '\n';
-      debug_print_jvmti_err(err);
-    }
+    jvmti_ops_->set_event_notification_mode(JVMTI_ENABLE,
+                                            JVMTI_EVENT_OBJECT_FREE,
+                                            nullptr);
   }
 
   void disable_sampled_object_alloc() {
-    DEBUG_PRINT("Enabling JVMTI_EVENT_SAMPLED_OBJECT_ALLOC\n");
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
-    auto err = jvmti->SetEventNotificationMode(JVMTI_DISABLE,
-					       JVMTI_EVENT_SAMPLED_OBJECT_ALLOC,
-					       nullptr);
-    if (err != JVMTI_ERROR_NONE) {
-      std::cout << "Failed to disable allocation sampling " << err << '\n';
-      debug_print_jvmti_err(err);
-    }
+    DEBUG_PRINT("Disabling JVMTI_EVENT_SAMPLED_OBJECT_ALLOC\n");
+    jvmti_ops_->set_event_notification_mode(JVMTI_DISABLE,
+                                            JVMTI_EVENT_SAMPLED_OBJECT_ALLOC,
+                                            nullptr);
   }
 
   void disable_object_free() {
-    DEBUG_PRINT("Enabling JVMTI_EVENT_OBJECT_FREE\n");
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
-    auto err = jvmti->SetEventNotificationMode(JVMTI_DISABLE,
-					  JVMTI_EVENT_OBJECT_FREE,
-					  nullptr);
-    if (err != JVMTI_ERROR_NONE) {
-      std::cout << "Failed to disable object free notifications "
-                << err
-		<< '\n';
-      debug_print_jvmti_err(err);
-    }
+    DEBUG_PRINT("Disabling JVMTI_EVENT_OBJECT_FREE\n");
+    jvmti_ops_->set_event_notification_mode(JVMTI_DISABLE,
+                                            JVMTI_EVENT_OBJECT_FREE,
+                                            nullptr);
   }
 
 };
