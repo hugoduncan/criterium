@@ -549,44 +549,60 @@
     :metric-id - the metric keyword
     :metric-path - the metric path vector
     :y-title - y-axis title with SI unit
-    :data - vector of {:impl string :value number} maps"
+    :has-error-bounds? - true if error bounds data is present
+    :data - vector of {:impl string :value number :valueLower number :valueUpper number} maps
+            (valueLower/valueUpper only present when error bounds exist)"
   [extract]
   (let [impl-axis-key (:impl-axis extract)
         implementations (:implementations extract)
         metrics (:metrics extract)]
     (mapv
      (fn [[metric-id {:keys [metric data]}]]
-       (let [;; Build lookup: impl -> raw value
+       (let [;; Build lookup: impl -> full value (may be map with :value/:lower/:upper)
              lookup (reduce
                      (fn [acc [coord value]]
-                       (let [impl-val (get coord impl-axis-key)
-                             raw-value (if (and (map? value)
-                                                (contains? value :value))
-                                         (:value value)
-                                         value)]
-                         (assoc acc impl-val raw-value)))
+                       (let [impl-val (get coord impl-axis-key)]
+                         (assoc acc impl-val value)))
                      {}
                      data)
-             ;; Get all values for SI scaling
-             all-values (keep #(get lookup %) implementations)
+             ;; Get all values from lookup for error bounds check and SI scaling
+             all-raw-values (keep #(get lookup %) implementations)
+             ;; Check if any values have error bounds
+             has-error-bounds? (viewer-common/values-have-error-bounds?
+                                all-raw-values)
+             ;; Get numeric values for SI scaling
+             all-values (map viewer-common/get-numeric-value all-raw-values)
              {:keys [^double total-scale unit]}
              (viewer-common/compute-si-scaling metric all-values)
              ;; Build y-axis title with unit
              metric-name (name metric-id)
+             base-title (if has-error-bounds?
+                          (str "mean " metric-name)
+                          metric-name)
              y-title (if (seq unit)
-                       (str metric-name " (" unit ")")
-                       metric-name)
+                       (str base-title " (" unit ")")
+                       base-title)
              ;; Build chart data
              chart-data (mapv
                          (fn [impl]
-                           (let [raw-value (get lookup impl)]
-                             {"impl" (name impl)
-                              "value" (when raw-value
-                                        (* (double raw-value) total-scale))}))
+                           (let [v (get lookup impl)
+                                 raw-value (viewer-common/get-numeric-value v)]
+                             (cond-> {"impl" (name impl)
+                                      "value" (when raw-value
+                                                (* (double raw-value) total-scale))}
+                               (and has-error-bounds?
+                                    (map? v)
+                                    (contains? v :lower))
+                               (assoc "valueLower" (* (double (:lower v)) total-scale))
+                               (and has-error-bounds?
+                                    (map? v)
+                                    (contains? v :upper))
+                               (assoc "valueUpper" (* (double (:upper v)) total-scale)))))
                          implementations)]
          {:metric-id metric-id
           :metric-path metric
           :y-title y-title
+          :has-error-bounds? has-error-bounds?
           :data chart-data}))
      (sort-by key metrics))))
 
@@ -600,32 +616,75 @@
     :mark mark
     :encoding encoding}))
 
+(defn- bar-error-layer
+  "Build error bar layer for bar charts with error bounds.
+  Returns a layered spec with vertical rule and horizontal tick caps."
+  [data]
+  {:layer
+   [;; Vertical rule (error bar stem)
+    {:data {:values data}
+     :mark {:type "rule" :strokeWidth 1.5}
+     :encoding {:x {:field "impl" :type "nominal"}
+                :y {:field "valueLower" :type "quantitative"}
+                :y2 {:field "valueUpper"}
+                :color {:value "#333"}}}
+    ;; Lower tick cap
+    {:data {:values data}
+     :mark {:type "tick" :thickness 1.5 :size 8}
+     :encoding {:x {:field "impl" :type "nominal"}
+                :y {:field "valueLower" :type "quantitative"}
+                :color {:value "#333"}}}
+    ;; Upper tick cap
+    {:data {:values data}
+     :mark {:type "tick" :thickness 1.5 :size 8}
+     :encoding {:x {:field "impl" :type "nominal"}
+                :y {:field "valueUpper" :type "quantitative"}
+                :color {:value "#333"}}}]})
+
 (defn- bar-chart-layer
-  "Build a single bar chart layer from prepared bar data.
+  "Build a bar chart from prepared bar data.
+  Returns a layered spec with error bars when has-error-bounds? is true,
+  otherwise returns a simple bar chart spec.
   Used by both single-point-bar-chart-spec and comparison-bar-chart-spec."
-  [{:keys [y-title data]} chart-options]
-  (chart-layer
-   data
-   chart-options
-   {:type "bar"}
-   {:x {:field "impl"
-        :type "nominal"
-        :title "Implementation"
-        :sort nil
-        :axis {:labelAngle 0}}
-    :y {:field "value"
-        :type "quantitative"
-        :title y-title}
-    :color {:field "impl"
-            :type "nominal"
-            :legend nil}
-    :tooltip [{:field "impl"
-               :type "nominal"
-               :title "Implementation"}
-              {:field "value"
-               :type "quantitative"
-               :title y-title
-               :format ".3g"}]}))
+  [{:keys [y-title has-error-bounds? data]} chart-options]
+  (let [base-tooltip [{:field "impl"
+                       :type "nominal"
+                       :title "Implementation"}
+                      {:field "value"
+                       :type "quantitative"
+                       :title y-title
+                       :format ".3g"}]
+        tooltip (if has-error-bounds?
+                  (into base-tooltip
+                        [{:field "valueLower"
+                          :type "quantitative"
+                          :title "Lower bound"
+                          :format ".3g"}
+                         {:field "valueUpper"
+                          :type "quantitative"
+                          :title "Upper bound"
+                          :format ".3g"}])
+                  base-tooltip)
+        bar-layer (chart-layer
+                   data
+                   {}
+                   {:type "bar"}
+                   {:x {:field "impl"
+                        :type "nominal"
+                        :title "Implementation"
+                        :sort nil
+                        :axis {:labelAngle 0}}
+                    :y {:field "value"
+                        :type "quantitative"
+                        :title y-title}
+                    :color {:field "impl"
+                            :type "nominal"
+                            :legend nil}
+                    :tooltip tooltip})]
+    (if has-error-bounds?
+      (merge chart-options
+             {:layer [bar-layer (bar-error-layer data)]})
+      (merge chart-options bar-layer))))
 
 (defn single-point-bar-chart-spec
   "Build a Vega-Lite bar chart spec for single-point multi-impl comparison.
@@ -661,34 +720,52 @@
 
 ;;; Multi-point line charts
 
+(defn- line-confidence-band-layer
+  "Build confidence band layer for line charts with error bounds.
+  Uses area marks with y/y2 encoding for yLower/yUpper bounds.
+  Color matches line color per implementation."
+  [data]
+  {:data {:values data}
+   :mark {:type "area" :opacity 0.2}
+   :encoding {:x {:field "x" :type "quantitative"}
+              :y {:field "yLower" :type "quantitative"}
+              :y2 {:field "yUpper"}
+              :color {:field "impl" :type "nominal" :legend nil}}})
+
 (defn- line-chart-layer
   "Build a single line chart layer from prepared line data.
+  Returns a layered spec with confidence bands when has-error-bounds? is true,
+  otherwise returns a simple line chart spec.
   Used by both domain-line-chart-spec and comparison-line-chart-spec."
-  [{:keys [x-title y-title data]} chart-options]
-  (chart-layer
-   data
-   chart-options
-   {:type "line" :point true}
-   {:x {:field "x"
-        :type "quantitative"
-        :title x-title
-        :scale {:zero false}}
-    :y {:field "y"
-        :type "quantitative"
-        :title y-title}
-    :color {:field "impl"
-            :type "nominal"
-            :title "Implementation"}
-    :tooltip [{:field "impl"
-               :type "nominal"
-               :title "Implementation"}
-              {:field "x"
-               :type "quantitative"
-               :title x-title}
-              {:field "y"
-               :type "quantitative"
-               :title y-title
-               :format ".3g"}]}))
+  [{:keys [x-title y-title has-error-bounds? data]} chart-options]
+  (let [line-layer (chart-layer
+                    data
+                    {}
+                    {:type "line" :point true}
+                    {:x {:field "x"
+                         :type "quantitative"
+                         :title x-title
+                         :scale {:zero false}}
+                     :y {:field "y"
+                         :type "quantitative"
+                         :title y-title}
+                     :color {:field "impl"
+                             :type "nominal"
+                             :title "Implementation"}
+                     :tooltip [{:field "impl"
+                                :type "nominal"
+                                :title "Implementation"}
+                               {:field "x"
+                                :type "quantitative"
+                                :title x-title}
+                               {:field "y"
+                                :type "quantitative"
+                                :title y-title
+                                :format ".3g"}]})]
+    (if has-error-bounds?
+      (merge chart-options
+             {:layer [(line-confidence-band-layer data) line-layer]})
+      (merge chart-options line-layer))))
 
 (defn domain-line-chart-spec
   "Build a Vega-Lite line chart spec for single-axis multi-point domain extract.

@@ -449,7 +449,7 @@
     (name (:key single-key-info))
     "coordinate"))
 
-(defn- get-numeric-value
+(defn get-numeric-value
   "Extract numeric value from plain value or error-bound format {:value v}."
   [v]
   (if (and (map? v) (contains? v :value))
@@ -460,6 +460,16 @@
   "Returns true if v is an error-bound value map {:value X :error E}."
   [v]
   (and (map? v) (contains? v :value)))
+
+(defn values-have-error-bounds?
+  "Returns true if any value in coll has :lower and :upper keys for error bounds."
+  [coll]
+  (boolean
+   (some (fn [v]
+           (and (map? v)
+                (contains? v :lower)
+                (contains? v :upper)))
+         coll)))
 
 (defn detect-uniform-axes
   "Find coordinate axes where all values are identical.
@@ -713,81 +723,119 @@
     :metric-id - the metric keyword (or nil for single-metric mode)
     :metric-path - the metric path vector
     :y-title - y-axis title with SI unit
-    :data - vector of {:impl string :value number} maps"
+    :has-error-bounds? - true if error bounds data is present
+    :data - vector of {:impl string :value number :valueLower number :valueUpper number} maps
+            (valueLower/valueUpper only present when error bounds exist)"
   [comparison]
   (let [{:keys [metric metrics implementations data]} comparison]
     (if metrics
       ;; Multi-metric mode
       (mapv
        (fn [[metric-id {:keys [metric data]}]]
-         (let [;; Build lookup: impl -> raw value
+         (let [;; Build lookup: impl -> full value (may be map with :value/:lower/:upper)
                lookup (reduce
                        (fn [acc [impl-val entries]]
                          (reduce
                           (fn [acc2 {:keys [value]}]
-                            (assoc acc2 impl-val
-                                   (if (and (map? value) (contains? value :value))
-                                     (:value value)
-                                     value)))
+                            (assoc acc2 impl-val value))
                           acc
                           entries))
                        {}
                        data)
-               ;; Get all values for SI scaling
-               all-values (keep #(get lookup %) implementations)
+               ;; Get all values from lookup for error bounds check and SI scaling
+               all-raw-values (keep #(get lookup %) implementations)
+               ;; Check if any values have error bounds
+               has-error-bounds? (values-have-error-bounds? all-raw-values)
+               ;; Get numeric values for SI scaling
+               get-numeric (fn [v]
+                             (if (and (map? v) (contains? v :value))
+                               (:value v)
+                               v))
+               all-values (map get-numeric all-raw-values)
                {:keys [^double total-scale unit]}
                (compute-si-scaling metric all-values)
                ;; Build y-axis title with unit
                metric-name (name metric-id)
+               base-title (if has-error-bounds?
+                            (str "mean " metric-name)
+                            metric-name)
                y-title (if (seq unit)
-                         (str metric-name " (" unit ")")
-                         metric-name)
+                         (str base-title " (" unit ")")
+                         base-title)
                ;; Build chart data
                chart-data (mapv
                            (fn [impl]
-                             (let [raw-value (get lookup impl)]
-                               {"impl" (name impl)
-                                "value" (when raw-value
-                                          (* (double raw-value) total-scale))}))
+                             (let [v (get lookup impl)
+                                   raw-value (get-numeric v)]
+                               (cond-> {"impl" (name impl)
+                                        "value" (when raw-value
+                                                  (* (double raw-value) total-scale))}
+                                 (and has-error-bounds?
+                                      (map? v)
+                                      (contains? v :lower))
+                                 (assoc "valueLower" (* (double (:lower v)) total-scale))
+                                 (and has-error-bounds?
+                                      (map? v)
+                                      (contains? v :upper))
+                                 (assoc "valueUpper" (* (double (:upper v)) total-scale)))))
                            implementations)]
            {:metric-id metric-id
             :metric-path metric
             :y-title y-title
+            :has-error-bounds? has-error-bounds?
             :data chart-data}))
        (sort-by key metrics))
       ;; Single-metric mode
-      (let [;; Build lookup: impl -> raw value
+      (let [;; Build lookup: impl -> full value (may be map with :value/:lower/:upper)
             lookup (reduce
                     (fn [acc [impl-val entries]]
                       (reduce
                        (fn [acc2 {:keys [value]}]
-                         (assoc acc2 impl-val
-                                (if (and (map? value) (contains? value :value))
-                                  (:value value)
-                                  value)))
+                         (assoc acc2 impl-val value))
                        acc
                        entries))
                     {}
                     data)
-            ;; Get all values for SI scaling
-            all-values (keep #(get lookup %) implementations)
+            ;; Get all values from lookup for error bounds check and SI scaling
+            all-raw-values (keep #(get lookup %) implementations)
+            ;; Check if any values have error bounds
+            has-error-bounds? (values-have-error-bounds? all-raw-values)
+            ;; Get numeric values for SI scaling
+            get-numeric (fn [v]
+                          (if (and (map? v) (contains? v :value))
+                            (:value v)
+                            v))
+            all-values (map get-numeric all-raw-values)
             {:keys [^double total-scale unit]}
             (compute-si-scaling metric all-values)
             ;; Build y-axis title with unit
+            base-title (if has-error-bounds?
+                         (str "mean " (pr-str metric))
+                         (pr-str metric))
             y-title (if (seq unit)
-                      (str (pr-str metric) " (" unit ")")
-                      (pr-str metric))
+                      (str base-title " (" unit ")")
+                      base-title)
             ;; Build chart data
             chart-data (mapv
                         (fn [impl]
-                          (let [raw-value (get lookup impl)]
-                            {"impl" (name impl)
-                             "value" (when raw-value
-                                       (* (double raw-value) total-scale))}))
+                          (let [v (get lookup impl)
+                                raw-value (get-numeric v)]
+                            (cond-> {"impl" (name impl)
+                                     "value" (when raw-value
+                                               (* (double raw-value) total-scale))}
+                              (and has-error-bounds?
+                                   (map? v)
+                                   (contains? v :lower))
+                              (assoc "valueLower" (* (double (:lower v)) total-scale))
+                              (and has-error-bounds?
+                                   (map? v)
+                                   (contains? v :upper))
+                              (assoc "valueUpper" (* (double (:upper v)) total-scale)))))
                         implementations)]
         [{:metric-id nil
           :metric-path metric
           :y-title y-title
+          :has-error-bounds? has-error-bounds?
           :data chart-data}]))))
 
 (defn prepare-line-chart-data
@@ -797,7 +845,9 @@
     :metric-path - the metric path vector
     :x-title - x-axis title (the axis name)
     :y-title - y-axis title with SI unit
-    :data - vector of {\"x\" number \"y\" number \"impl\" string} maps"
+    :has-error-bounds? - true if error bounds data is present
+    :data - vector of {\"x\" number \"y\" number \"impl\" string} maps
+            (yLower/yUpper only present when error bounds exist)"
   [extract]
   (let [impl-axis-key (:impl-axis extract)
         metrics (:metrics extract)
@@ -811,14 +861,17 @@
      (fn [[metric-id {:keys [metric data]}]]
        (let [;; Get all raw values for error detection and SI scaling
              all-raw-values (keep (fn [[_coord value]] value) data)
-             has-error-bounds (some error-bound-value? all-raw-values)
+             ;; Check if any values have error bounds (with :lower/:upper)
+             has-error-bounds? (values-have-error-bounds? all-raw-values)
+             ;; Also check for error-bound-value? (with :value key) for y-title
+             has-error-bound-format (some error-bound-value? all-raw-values)
              all-values (map get-numeric-value all-raw-values)
              {:keys [^double total-scale unit]}
              (compute-si-scaling metric all-values)
              ;; Build axis titles
              x-title (name axis-key)
              metric-name (name metric-id)
-             base-title (if has-error-bounds
+             base-title (if (or has-error-bounds? has-error-bound-format)
                           (str "mean " metric-name)
                           metric-name)
              y-title (if (seq unit)
@@ -827,21 +880,27 @@
              ;; Build chart data points
              chart-data (mapv
                          (fn [[coord value]]
-                           (let [raw-value (if (and (map? value)
-                                                    (contains? value :value))
-                                             (:value value)
-                                             value)
+                           (let [raw-value (get-numeric-value value)
                                  x-val (get coord axis-key)
                                  impl-val (get coord impl-axis-key)]
-                             {"x" x-val
-                              "y" (when raw-value
-                                    (* (double raw-value) total-scale))
-                              "impl" (name impl-val)}))
+                             (cond-> {"x" x-val
+                                      "y" (when raw-value
+                                            (* (double raw-value) total-scale))
+                                      "impl" (name impl-val)}
+                               (and has-error-bounds?
+                                    (map? value)
+                                    (contains? value :lower))
+                               (assoc "yLower" (* (double (:lower value)) total-scale))
+                               (and has-error-bounds?
+                                    (map? value)
+                                    (contains? value :upper))
+                               (assoc "yUpper" (* (double (:upper value)) total-scale)))))
                          data)]
          {:metric-id metric-id
           :metric-path metric
           :x-title x-title
           :y-title y-title
+          :has-error-bounds? has-error-bounds?
           :data chart-data}))
      (sort-by key metrics))))
 
@@ -865,7 +924,9 @@
     :metric-path - the metric path vector
     :x-title - x-axis title (the non-axis coordinate name)
     :y-title - y-axis title with SI unit
+    :has-error-bounds? - true if error bounds data is present
     :data - vector of {\"x\" number \"y\" number \"impl\" string} maps
+            (yLower/yUpper only present when error bounds exist)
 
   When the comparison axis is the implementation axis (i.e., implementations
   are present), uses the non-axis coordinate key for the x-axis."
@@ -885,13 +946,16 @@
                                    vals
                                    (mapcat (fn [entries]
                                              (keep :value entries))))
-               has-error-bounds (some error-bound-value? all-raw-values)
+               ;; Check if any values have error bounds (with :lower/:upper)
+               has-error-bounds? (values-have-error-bounds? all-raw-values)
+               ;; Also check for error-bound-value? (with :value key) for y-title
+               has-error-bound-format (some error-bound-value? all-raw-values)
                all-values (map get-numeric-value all-raw-values)
                {:keys [^double total-scale unit]}
                (compute-si-scaling metric all-values)
                ;; Build y-axis title
                metric-name (name metric-id)
-               base-title (if has-error-bounds
+               base-title (if (or has-error-bounds? has-error-bound-format)
                             (str "mean " metric-name)
                             metric-name)
                y-title (if (seq unit)
@@ -901,19 +965,25 @@
                chart-data (vec
                            (for [[impl-val entries] data
                                  {:keys [coord value]} entries
-                                 :let [raw-value (if (and (map? value)
-                                                          (contains? value :value))
-                                                   (:value value)
-                                                   value)
+                                 :let [raw-value (get-numeric-value value)
                                        x-val (get coord x-key)]
                                  :when (some? raw-value)]
-                             {"x" x-val
-                              "y" (* (double raw-value) total-scale)
-                              "impl" (name impl-val)}))]
+                             (cond-> {"x" x-val
+                                      "y" (* (double raw-value) total-scale)
+                                      "impl" (name impl-val)}
+                               (and has-error-bounds?
+                                    (map? value)
+                                    (contains? value :lower))
+                               (assoc "yLower" (* (double (:lower value)) total-scale))
+                               (and has-error-bounds?
+                                    (map? value)
+                                    (contains? value :upper))
+                               (assoc "yUpper" (* (double (:upper value)) total-scale)))))]
            {:metric-id metric-id
             :metric-path metric
             :x-title x-title
             :y-title y-title
+            :has-error-bounds? has-error-bounds?
             :data chart-data}))
        (sort-by key metrics))
       ;; Single-metric mode
@@ -922,12 +992,15 @@
                                 vals
                                 (mapcat (fn [entries]
                                           (keep :value entries))))
-            has-error-bounds (some error-bound-value? all-raw-values)
+            ;; Check if any values have error bounds (with :lower/:upper)
+            has-error-bounds? (values-have-error-bounds? all-raw-values)
+            ;; Also check for error-bound-value? (with :value key) for y-title
+            has-error-bound-format (some error-bound-value? all-raw-values)
             all-values (map get-numeric-value all-raw-values)
             {:keys [^double total-scale unit]}
             (compute-si-scaling metric all-values)
             ;; Build y-axis title
-            base-title (if has-error-bounds
+            base-title (if (or has-error-bounds? has-error-bound-format)
                          (str "mean " (pr-str metric))
                          (pr-str metric))
             y-title (if (seq unit)
@@ -937,19 +1010,25 @@
             chart-data (vec
                         (for [[impl-val entries] data
                               {:keys [coord value]} entries
-                              :let [raw-value (if (and (map? value)
-                                                       (contains? value :value))
-                                                (:value value)
-                                                value)
+                              :let [raw-value (get-numeric-value value)
                                     x-val (get coord x-key)]
                               :when (some? raw-value)]
-                          {"x" x-val
-                           "y" (* (double raw-value) total-scale)
-                           "impl" (name impl-val)}))]
+                          (cond-> {"x" x-val
+                                   "y" (* (double raw-value) total-scale)
+                                   "impl" (name impl-val)}
+                            (and has-error-bounds?
+                                 (map? value)
+                                 (contains? value :lower))
+                            (assoc "yLower" (* (double (:lower value)) total-scale))
+                            (and has-error-bounds?
+                                 (map? value)
+                                 (contains? value :upper))
+                            (assoc "yUpper" (* (double (:upper value)) total-scale)))))]
         [{:metric-id nil
           :metric-path metric
           :x-title x-title
           :y-title y-title
+          :has-error-bounds? has-error-bounds?
           :data chart-data}]))))
 
 (defn- extract-row-key
@@ -1054,12 +1133,15 @@
            (fn [row-key]
              (into {coord-header (format-row-key-value row-key single-key-info)}
                    (map (fn [{:keys [type impl]} header]
-                          (let [value (double
-                                       (get-in lookup [impl row-key]))
-                                baseline-value (double
-                                                (get-in
-                                                 lookup
-                                                 [baseline-impl row-key]))]
+                          (let [raw-value (get-numeric-value
+                                           (get-in lookup [impl row-key]))
+                                value (when raw-value (double raw-value))
+                                raw-baseline (get-numeric-value
+                                              (get-in
+                                               lookup
+                                               [baseline-impl row-key]))
+                                baseline-value (when raw-baseline
+                                                 (double raw-baseline))]
                             [header
                              (case type
                                :baseline (format-value-with-unit value metric)
@@ -1136,12 +1218,14 @@
             {coord-header (format-row-key-value row-key single-key-info)}
             (map
              (fn [{:keys [type metric-id metric-path impl]} header]
-               (let [value (double
-                            (get-in lookup [metric-id impl row-key]))
-                     baseline-value (double
-                                     (get-in
-                                      lookup
-                                      [metric-id baseline-impl row-key]))]
+               (let [raw-value (get-numeric-value
+                                (get-in lookup [metric-id impl row-key]))
+                     value (when raw-value (double raw-value))
+                     raw-baseline (get-numeric-value
+                                   (get-in
+                                    lookup
+                                    [metric-id baseline-impl row-key]))
+                     baseline-value (when raw-baseline (double raw-baseline))]
                  [header
                   (case type
                     :baseline (format-value-with-unit value metric-path)
