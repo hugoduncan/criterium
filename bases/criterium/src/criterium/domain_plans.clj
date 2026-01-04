@@ -32,13 +32,15 @@
   Groups runs by :impl axis and compares all quantitative metrics.
   Requires map coordinates with an :impl key distinguishing implementations.
 
+  Includes error bounds (±3σ) for each data point when viewed with portal or kindly.
+
   In the output, the baseline implementation (first in :implementations) shows
   absolute values with SI units, while other implementations show factors
   relative to the baseline.
 
   Example:
     (analyse-domain implementation-comparison my-domain)"
-  {:analyse [[:domain-compare-fn {:axis-key :impl}]]
+  {:analyse [[:domain-compare-fn {:axis-key :impl :with-error-bounds true}]]
    :view [[:domain-comparison {}]]})
 
 (def extract-metrics
