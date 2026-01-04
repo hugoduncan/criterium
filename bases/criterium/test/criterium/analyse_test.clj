@@ -339,6 +339,7 @@
         (is (= {:min-val 1.0,
                 :max-val 3.0,
                 :mean 2.0,
+                :median 2.0,
                 :mean-plus-3sigma 5.0,
                 :variance 1.0,
                 :mean-minus-3sigma -1.0

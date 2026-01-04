@@ -91,6 +91,53 @@
   [_ view data-map]
   (print-outlier-significances view data-map))
 
+(defn- format-bootstrap-estimate
+  "Format a BcaEstimate for display, returning a map with :value and :ci keys."
+  [estimate]
+  (when estimate
+    (let [quantiles (:estimate-quantiles estimate)
+          ci-lower (when (seq quantiles) (-> quantiles first :value))
+          ci-upper (when (seq quantiles) (-> quantiles second :value))]
+      {:value (:point-estimate estimate)
+       :ci-lower ci-lower
+       :ci-upper ci-upper})))
+
+(defn- bootstrap-stat-row
+  "Create a row for the bootstrap stats table."
+  [metric-config stat]
+  (let [{:keys [mean quantiles]} stat
+        mean-fmt (format-bootstrap-estimate mean)
+        p10 (format-bootstrap-estimate (get quantiles 0.1))
+        p50 (format-bootstrap-estimate (get quantiles 0.5))
+        p90 (format-bootstrap-estimate (get quantiles 0.9))]
+    {:metric (:label metric-config)
+     :mean (:value mean-fmt)
+     :mean-ci-lower (:ci-lower mean-fmt)
+     :mean-ci-upper (:ci-upper mean-fmt)
+     :median (:value p50)
+     :median-ci-lower (:ci-lower p50)
+     :median-ci-upper (:ci-upper p50)
+     :p10 (:value p10)
+     :p90 (:value p90)}))
+
+(defmethod view/bootstrap-stats* :pprint
+  [_ {:keys [bootstrap-stats-id]} data-map]
+  (let [bootstrap-stats-id (or bootstrap-stats-id :bootstrap-stats)
+        bootstrap-map (data-map bootstrap-stats-id)
+        metrics-defs (:metrics-defs bootstrap-map)
+        metric-configs (metric/all-metric-configs metrics-defs)
+        bootstrap (util/bootstrap bootstrap-map)]
+    (when (seq metric-configs)
+      (println "\nBootstrap Statistics:")
+      (pprint/print-table
+       [:metric :mean :mean-ci-lower :mean-ci-upper
+        :median :median-ci-lower :median-ci-upper
+        :p10 :p90]
+       (for [m metric-configs
+             :let [stat (get-in bootstrap (:path m))]
+             :when stat]
+         (bootstrap-stat-row m stat))))))
+
 (defn- flatten-events [sample metrics-defs index]
   (reduce-kv
    (fn [res k metric-group]

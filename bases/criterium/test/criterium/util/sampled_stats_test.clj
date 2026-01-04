@@ -18,7 +18,7 @@
          (sampled-stats/sample-quantiles [0.01 0.99] (range 101)))))
 
 (deftest stats-fns-test
-  (is (= [[:mean 50.0] [:variance 858.5] [:min-val 0] [:max-val 100]]
+  (is (= [[:mean 50.0] [:median 50] [:variance 858.5] [:min-val 0] [:max-val 100]]
          (sampled-stats/stats-fns (range 101)))))
 
 (defn batch-transforms [^long batch-size]
@@ -34,6 +34,7 @@
         stats (sampled-stats/stats-for
                samples {:quantiles [0.05 0.95]})]
     (is (= 1.0 (-> stats :mean)))
+    (is (= 1.0 (-> stats :median)))
     (is (= 0.0 (-> stats :variance))))
 
   (testing "stats on [0..100]"
@@ -41,6 +42,7 @@
           stats (sampled-stats/stats-for
                  samples {:quantiles [0.05 0.95]})]
       (is (= 50.0 (-> stats :mean)))
+      (is (= 50.0 (-> stats :median)))
       (is (= 858.5 (-> stats :variance)))
       (is (= 0.0 (-> stats :min-val)))
       (is (= 100.0 (-> stats :max-val)))))
@@ -50,6 +52,7 @@
           stats (sampled-stats/stats-for
                  samples {:quantiles [0.05 0.95]})]
       (is (= 50.0 (-> stats :mean)))
+      (is (= 50.0 (-> stats :median)))
       (is (= 858.5 (-> stats :variance)))
       (is (= 0.0 (-> stats :min-val)))
       (is (= 100.0 (-> stats :max-val)))))
@@ -59,6 +62,7 @@
           stats (sampled-stats/stats-for
                  samples {:quantiles [0.05 0.95]})]
       (is (= 9.5 (-> stats :mean)))
+      (is (= 9.5 (-> stats :median)))
       (test-max-error 0.3 (-> stats :variance) 1e-5)
       (is (= 9.0 (-> stats :min-val)))
       (is (= 10.0 (-> stats :max-val))))))
@@ -67,19 +71,23 @@
   (let [samples {[:v] (repeat 100 1)}
         quantiles (sampled-stats/quantiles-for
                    [:v] samples {:quantiles [0.05 0.95]})]
-    (is (= {0.25 1.0, 0.5 1.0, 0.75 1.0, 0.05 1.0, 0.95 1.0} quantiles)))
+    (is (= {0.1 1.0, 0.25 1.0, 0.5 1.0, 0.75 1.0, 0.9 1.0, 0.05 1.0, 0.95 1.0}
+           quantiles)))
 
   (testing "quantiles on [0..100]"
     (let [samples {[:v] (range 101)}
           quantiles (sampled-stats/quantiles-for
                      [:v] samples {:quantiles [0.05 0.95]})]
-      (is (= {0.25 25.0, 0.5 50.0, 0.75 75.0, 0.05 5.0, 0.95 95.0} quantiles))))
+      (is (= {0.1 10.0, 0.25 25.0, 0.5 50.0, 0.75 75.0, 0.9 90.0,
+              0.05 5.0, 0.95 95.0}
+             quantiles))))
 
   (testing "quantiles on (reverse [0..100])"
     (let [samples {[:v] (range 101)}
           quantiles (sampled-stats/quantiles-for
                      [:v] samples {:quantiles [0.05 0.95]})]
-      (is (= {0.25 25.0, 0.5 50.0, 0.75 75.0, 0.05 5.0, 0.95 95.0}
+      (is (= {0.1 10.0, 0.25 25.0, 0.5 50.0, 0.75 75.0, 0.9 90.0,
+              0.05 5.0, 0.95 95.0}
              quantiles)))))
 
 (deftest stats-for-test-property-1

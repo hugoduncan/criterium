@@ -141,7 +141,9 @@
                                      {:value 25.0 :alpha 0.95}]}})))))
     (is (= ["Elapsed Time min: 1.00 ns CI [1.00 1.00] (0.025 0.975)"
             "Elapsed Time mean: 1.00 ns CI [1.00 1.00] (0.025 0.975)"
-            "Elapsed Time 3σ: [1.00 1.00] ns"]
+            "Elapsed Time median: 1.00 ns CI [1.00 1.00] (0.025 0.975)"
+            "Elapsed Time 3σ: [1.00 1.00] ns"
+            "Elapsed Time spread: [1.00 1.00] ns (10th-90th percentile)"]
            (let [data-map
                  {:samples
                   {:type :criterium/collected-metrics-samples
