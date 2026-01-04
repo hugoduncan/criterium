@@ -2,6 +2,7 @@
 add_executable(criterium_tests
     test_main.cpp
     is_system_class_test.cpp
+    message_queue_test.cpp
 )
 
 target_include_directories(criterium_tests PRIVATE

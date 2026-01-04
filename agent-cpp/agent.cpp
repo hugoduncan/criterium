@@ -1,4 +1,5 @@
 #include "jni.h"
+#include "include/message_queue.h"
 #include "include/utils.h"
 #include <algorithm>
 #include <array>
@@ -203,40 +204,7 @@ struct Command {
 
 // Queue message type
 using Message = std::variant<AllocationEvent, ObjectFreeEvent, Command>;
-
-// Thread-safe queue
-class MessageQueue {
-    std::queue<Message> queue;
-    std::mutex mutex;
-    std::condition_variable cond;
-    bool stopped = false;
-
-public:
-    void push(Message msg) {
-        std::lock_guard<std::mutex> lock(mutex);
-        queue.push(msg);
-        cond.notify_one();
-    }
-
-    bool pop(Message& msg) {
-        std::unique_lock<std::mutex> lock(mutex);
-        while (queue.empty() && !stopped) {
-            cond.wait(lock);
-        }
-        if (stopped && queue.empty()) {
-            return false;
-        }
-        msg = queue.front();
-        queue.pop();
-        return true;
-    }
-
-    void stop() {
-        std::lock_guard<std::mutex> lock(mutex);
-        stopped = true;
-        cond.notify_all();
-    }
-};
+using MessageQueue = criterium::MessageQueue<Message>;
 
 // Structure used to record allocations
 struct alloc_rec {
