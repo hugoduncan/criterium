@@ -647,7 +647,25 @@
   otherwise returns a simple bar chart spec.
   Used by both single-point-bar-chart-spec and comparison-bar-chart-spec."
   [{:keys [y-title has-error-bounds? data]} chart-options]
-  (let [bar-layer (chart-layer
+  (let [base-tooltip [{:field "impl"
+                       :type "nominal"
+                       :title "Implementation"}
+                      {:field "value"
+                       :type "quantitative"
+                       :title y-title
+                       :format ".3g"}]
+        tooltip (if has-error-bounds?
+                  (into base-tooltip
+                        [{:field "valueLower"
+                          :type "quantitative"
+                          :title "Lower bound"
+                          :format ".3g"}
+                         {:field "valueUpper"
+                          :type "quantitative"
+                          :title "Upper bound"
+                          :format ".3g"}])
+                  base-tooltip)
+        bar-layer (chart-layer
                    data
                    {}
                    {:type "bar"}
@@ -662,13 +680,7 @@
                     :color {:field "impl"
                             :type "nominal"
                             :legend nil}
-                    :tooltip [{:field "impl"
-                               :type "nominal"
-                               :title "Implementation"}
-                              {:field "value"
-                               :type "quantitative"
-                               :title y-title
-                               :format ".3g"}]})]
+                    :tooltip tooltip})]
     (if has-error-bounds?
       (merge chart-options
              {:layer [bar-layer (bar-error-layer data)]})
