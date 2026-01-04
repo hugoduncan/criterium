@@ -1,6 +1,11 @@
 # Test executable
 add_executable(criterium_tests
     test_main.cpp
+    is_system_class_test.cpp
+)
+
+target_include_directories(criterium_tests PRIVATE
+    ${CMAKE_SOURCE_DIR}
 )
 
 target_link_libraries(criterium_tests
