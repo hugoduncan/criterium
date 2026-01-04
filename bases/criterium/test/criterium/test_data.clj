@@ -244,6 +244,36 @@
          stats
          histogram)))
 
+(defn histogram-with-bootstrap-data-map
+  "Create a data-map suitable for histogram-vega-spec with boxplot overlay.
+
+  Includes bootstrap-stats with median (0.5) and spread (0.1, 0.9) quantiles
+  to exercise the boxplot overlay code path."
+  []
+  (let [base-map (histogram-data-map)
+        metrics-defs (select-keys (metrics/metrics) [:elapsed-time])]
+    (assoc base-map
+           :bootstrap-stats
+           {:type :criterium/bootstrap
+            :bootstrap
+            {:elapsed-time
+             {:quantiles
+              {0.1 {:point-estimate 9.2
+                    :estimate-quantiles []}
+               0.25 {:point-estimate 9.5
+                     :estimate-quantiles []}
+               0.5 {:point-estimate 9.75
+                    :estimate-quantiles [{:quantile 0.025 :value 9.3}
+                                         {:quantile 0.975 :value 10.2}]}
+               0.75 {:point-estimate 10.0
+                     :estimate-quantiles []}
+               0.9 {:point-estimate 10.5
+                    :estimate-quantiles []}}}}
+            :metrics-defs metrics-defs
+            :transform collect-plan/identity-transforms
+            :batch-size 1
+            :source-id :samples})))
+
 (defn kde-data-map
   "Create a data-map suitable for kde-vega-spec testing."
   []

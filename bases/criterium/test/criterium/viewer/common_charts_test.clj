@@ -145,6 +145,20 @@
             (str "histogram-vega-spec validation failed: "
                  (pr-str (:errors result))))))))
 
+(deftest histogram-with-boxplot-schema-validation-test
+  ;; Validates histogram-vega-spec with boxplot overlay against Vega-Lite v6 schema.
+  ;; Tests histogram with bootstrap-stats for median CI and spread percentiles.
+  (testing "histogram-vega-spec"
+    (testing "produces valid Vega-Lite spec with boxplot overlay"
+      (let [data-map (test-data/histogram-with-bootstrap-data-map)
+            view {}
+            chart-options {:width 400 :height 300}
+            spec (charts/histogram-vega-spec data-map view chart-options)
+            result (schema/validate-vega-lite-spec spec)]
+        (is (:valid? result)
+            (str "histogram-vega-spec with boxplot validation failed: "
+                 (pr-str (:errors result))))))))
+
 (deftest kde-vega-spec-schema-validation-test
   ;; Validates kde-vega-spec output against Vega-Lite v6 schema.
   ;; Tests KDE density curve visualization.
