@@ -917,10 +917,34 @@
               (println (format "Domain Comparison by %s: %s (no data)"
                                (name axis) (pr-str metric))))))))))
 
+(defn- format-aic-bic
+  "Format AIC/BIC values for display. Returns empty string if both nil."
+  [aic bic]
+  (cond
+    (and aic bic) (format "  AIC=%.1f BIC=%.1f" aic bic)
+    aic (format "  AIC=%.1f" aic)
+    bic (format "  BIC=%.1f" bic)
+    :else ""))
+
+(defn- print-log-log-info
+  "Print log-log regression summary for a metric."
+  [log-log-data axis metric impl-key]
+  (when log-log-data
+    (let [{:keys [slope r-squared]} log-log-data]
+      (when (and slope r-squared)
+        (let [complexity (viewer-common/format-log-log-slope slope)]
+          (if impl-key
+            (println (format "  Log-log: slope=%.3f ≈ %s (R²=%.4f)"
+                             slope complexity r-squared))
+            (println (format "  Log-log diagnostic: slope=%.3f ≈ %s (R²=%.4f)"
+                             slope complexity r-squared))))))))
+
 (defmethod view/domain-regression* :print
-  [_ {:keys [regression-id tolerance]} data-map]
+  [_ {:keys [regression-id log-log-id tolerance]} data-map]
   (let [regression-id (or regression-id :regression)
         regression (data-map regression-id)
+        log-log-id (or log-log-id :log-log)
+        log-log (data-map log-log-id)
         tolerance (or tolerance 0.01)]
     (when regression
       (let [{:keys [axis regressions impl-axis implementations]}
@@ -928,51 +952,57 @@
             multi-impl? (> (count implementations) 1)]
         (if multi-impl?
           ;; Multi-implementation mode
-          (doseq [[_metric-id {:keys [metric by-impl]}] regressions]
-            (println (format "Domain Regression (axis: %s, metric: %s, by: %s)"
-                             (name axis) (pr-str metric) (name impl-axis)))
-            (if (seq by-impl)
-              (doseq [impl-key (sort (keys by-impl))]
-                (let [{:keys [models best-fit]} (get by-impl impl-key)
-                      best-r-squared
-                      (when best-fit
-                        (->> models
-                             (filter #(= (:id %) best-fit))
-                             first
-                             :r-squared))
-                      plotted-ids
-                      (when best-r-squared
-                        (->> models
-                             (filter #(>= (:r-squared %)
-                                          (* best-r-squared (- 1 tolerance))))
-                             (map :id)
-                             set))]
-                  (println (format "  [%s]" (name impl-key)))
-                  (if (seq models)
-                    (let [sorted-models (sort-by :r-squared > models)
-                          label-width (reduce
-                                       max
-                                       (map #(count (:label %)) models))]
-                      (doseq [{:keys [id label equation-str r-squared]}
-                              sorted-models]
-                        (let [plotted? (and plotted-ids (plotted-ids id))]
-                          (println
-                           (format
-                            "    %s  R²=%.4f%s%s%s"
-                            (format (str "%-" label-width "s") label)
-                            r-squared
-                            (if equation-str (str "  " equation-str) "")
-                            (if (= id best-fit) "  <- best fit" "")
-                            (if (and plotted? (not= id best-fit))
-                              "  [plotted]"
-                              ""))))))
-                    (println "    (insufficient data)"))))
-              (println "  (no implementations)"))
-            (println))
+          (doseq [[metric-id {:keys [metric by-impl]}] regressions]
+            (let [log-log-data (get-in log-log [:regressions metric-id])]
+              (println (format "Domain Regression (axis: %s, metric: %s, by: %s)"
+                               (name axis) (pr-str metric) (name impl-axis)))
+              (if (seq by-impl)
+                (doseq [impl-key (sort (keys by-impl))]
+                  (let [{:keys [models best-fit]} (get by-impl impl-key)
+                        impl-log-log (get-in log-log-data [:by-impl impl-key])
+                        best-r-squared
+                        (when best-fit
+                          (->> models
+                               (filter #(= (:id %) best-fit))
+                               first
+                               :r-squared))
+                        plotted-ids
+                        (when best-r-squared
+                          (->> models
+                               (filter #(>= (:r-squared %)
+                                            (* best-r-squared (- 1 tolerance))))
+                               (map :id)
+                               set))]
+                    (println (format "  [%s]" (name impl-key)))
+                    ;; Print log-log info for this impl
+                    (print-log-log-info impl-log-log axis metric impl-key)
+                    (if (seq models)
+                      (let [sorted-models (sort-by :r-squared > models)
+                            label-width (reduce
+                                         max
+                                         (map #(count (:label %)) models))]
+                        (doseq [{:keys [id label equation-str r-squared aic bic]}
+                                sorted-models]
+                          (let [plotted? (and plotted-ids (plotted-ids id))]
+                            (println
+                             (format
+                              "    %s  R²=%.4f%s%s%s%s"
+                              (format (str "%-" label-width "s") label)
+                              r-squared
+                              (format-aic-bic aic bic)
+                              (if equation-str (str "  " equation-str) "")
+                              (if (= id best-fit) "  <- best fit" "")
+                              (if (and plotted? (not= id best-fit))
+                                "  [plotted]"
+                                ""))))))
+                      (println "    (insufficient data)"))))
+                (println "  (no implementations)"))
+              (println)))
 
           ;; Single-implementation mode (original behavior)
-          (doseq [[_metric-id {:keys [metric models best-fit]}] regressions]
-            (let [best-r-squared (when best-fit
+          (doseq [[metric-id {:keys [metric models best-fit]}] regressions]
+            (let [log-log-data (get-in log-log [:regressions metric-id])
+                  best-r-squared (when best-fit
                                    (->> models
                                         (filter #(= (:id %) best-fit))
                                         first
@@ -987,19 +1017,22 @@
                                      set))]
               (println (format "Domain Regression (axis: %s, metric: %s)"
                                (name axis) (pr-str metric)))
+              ;; Print log-log diagnostic info
+              (print-log-log-info log-log-data axis metric nil)
               (if (seq models)
                 (let [sorted-models (sort-by :r-squared > models)
                       label-width (reduce
                                    max
                                    (map #(count (:label %)) models))]
-                  (doseq [{:keys [id label equation-str r-squared]}
+                  (doseq [{:keys [id label equation-str r-squared aic bic]}
                           sorted-models]
                     (let [plotted? (and plotted-ids (plotted-ids id))]
                       (println
                        (format
-                        "  %s  R²=%.4f%s%s%s"
+                        "  %s  R²=%.4f%s%s%s%s"
                         (format (str "%-" label-width "s") label)
                         r-squared
+                        (format-aic-bic aic bic)
                         (if equation-str (str "  " equation-str) "")
                         (if (= id best-fit) "  <- best fit" "")
                         (if (and plotted? (not= id best-fit))

@@ -304,9 +304,11 @@
         :default-table nil))))
 
 (defmethod view/domain-regression* :kindly
-  [_ {:keys [regression-id extract-id tolerance]} data-map]
+  [_ {:keys [regression-id extract-id log-log-id tolerance]} data-map]
   (let [regression-id (or regression-id :regression)
         regression (data-map regression-id)
+        log-log-id (or log-log-id :log-log)
+        log-log (data-map log-log-id)
         tolerance (double (or tolerance 0.01))
         table-options {:best-fit-marker "✓"
                        :plotted-marker ""
@@ -325,7 +327,44 @@
           (doseq [[metric-id {:keys [metric by-impl with-error-bounds]}]
                   regressions]
             (let [metric-extract-data (get-in extract [:metrics metric-id])
-                  impl-keys (sort (keys by-impl))]
+                  impl-keys (sort (keys by-impl))
+                  log-log-data (get-in log-log [:regressions metric-id])]
+              ;; Log-log diagnostic chart (before model fit chart)
+              (when log-log-data
+                (kindly-heading (str "Log-Log Diagnostic (axis: " (name axis)
+                                     ", metric: " (pr-str metric)
+                                     ", by: " (name impl-axis) ")"))
+                (when-let [point-data (viewer-common/prepare-log-log-points
+                                       log-log-data
+                                       {:axis axis :impl-axis impl-axis})]
+                  (let [{:keys [points has-error-bounds?]} point-data
+                        line-pts (viewer-common/prepare-log-log-fit-line
+                                  log-log-data {:axis axis :impl-axis impl-axis})]
+                    (when (seq points)
+                      (kindly-vega-lite
+                       (charts/log-log-chart-spec
+                        points line-pts
+                        {:width chart-width
+                         :height chart-height
+                         :axis-name (name axis)
+                         :color-field "impl"
+                         :legend-options legend-options
+                         :has-error-bounds? has-error-bounds?}))
+                      ;; Log-log residual plot
+                      (let [residual-pts (viewer-common/prepare-log-log-residuals
+                                          log-log-data
+                                          {:axis axis :impl-axis impl-axis})]
+                        (when (seq residual-pts)
+                          (kindly-heading "Log-Log Residual Plot")
+                          (kindly-vega-lite
+                           (charts/log-log-residual-spec
+                            residual-pts
+                            {:width chart-width
+                             :height (long (/ (long chart-height) 2))
+                             :axis-name (name axis)
+                             :color-field "impl"
+                             :legend-options legend-options}))))))))
+
               (kindly-heading (str "Domain Regression (axis: " (name axis)
                                    ", metric: " (pr-str metric)
                                    ", by: " (name impl-axis) ")"))
@@ -387,6 +426,7 @@
           (doseq [[metric-id {:keys [metric models best-fit with-error-bounds]}]
                   regressions]
             (let [metric-extract-data (get-in extract [:metrics metric-id])
+                  log-log-data (get-in log-log [:regressions metric-id])
                   best-r-squared (when best-fit
                                    (->> models
                                         (filter #(= (:id %) best-fit))
@@ -398,6 +438,38 @@
                                               (* (double best-r-squared)
                                                  (- 1.0 tolerance))))
                                         (sort-by :r-squared >)))]
+              ;; Log-log diagnostic chart (before model fit chart)
+              (when log-log-data
+                (kindly-heading (str "Log-Log Diagnostic (axis: " (name axis)
+                                     ", metric: " (pr-str metric) ")"))
+                (when-let [point-data (viewer-common/prepare-log-log-points
+                                       log-log-data {:axis axis})]
+                  (let [{:keys [points has-error-bounds?]} point-data
+                        line-pts (viewer-common/prepare-log-log-fit-line
+                                  log-log-data {:axis axis})
+                        {:keys [slope r-squared]} log-log-data]
+                    (when (seq points)
+                      (kindly-vega-lite
+                       (charts/log-log-chart-spec
+                        points line-pts
+                        {:width chart-width
+                         :height chart-height
+                         :axis-name (name axis)
+                         :has-error-bounds? has-error-bounds?
+                         :slope slope
+                         :r-squared r-squared}))
+                      ;; Log-log residual plot
+                      (let [residual-pts (viewer-common/prepare-log-log-residuals
+                                          log-log-data {:axis axis})]
+                        (when (seq residual-pts)
+                          (kindly-heading "Log-Log Residual Plot")
+                          (kindly-vega-lite
+                           (charts/log-log-residual-spec
+                            residual-pts
+                            {:width chart-width
+                             :height (long (/ (long chart-height) 2))
+                             :axis-name (name axis)}))))))))
+
               (kindly-heading (str "Domain Regression (axis: " (name axis)
                                    ", metric: " (pr-str metric) ")"))
               ;; Model table
