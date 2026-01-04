@@ -1582,7 +1582,7 @@
 
   The log-log-data comes from the :regressions map of a
   :criterium/domain-log-log-regression result."
-  [log-log-data {:keys [axis impl-axis]}]
+  [log-log-data {:keys [axis _impl-axis]}]
   (when log-log-data
     (let [multi-impl? (contains? log-log-data :by-impl)]
       (if multi-impl?
@@ -1638,7 +1638,7 @@
 
   Uses the pre-computed slope and intercept: y = slope * x + intercept
   where x = log(n), y = log(time)."
-  [log-log-data {:keys [axis impl-axis]}]
+  [log-log-data {:keys [_axis _impl-axis]}]
   (when log-log-data
     (let [multi-impl? (contains? log-log-data :by-impl)]
       (if multi-impl?
@@ -1674,7 +1674,7 @@
   Returns vector of point maps with x (log(n)), residual, and optionally impl.
 
   Residuals are in log space: residual = log(y) - (slope * log(x) + intercept)"
-  [log-log-data {:keys [axis impl-axis]}]
+  [log-log-data {:keys [_axis _impl-axis]}]
   (when log-log-data
     (let [multi-impl? (contains? log-log-data :by-impl)]
       (if multi-impl?
@@ -1716,6 +1716,233 @@
         (format "O(n^%d)" rounded))
       ;; Show decimal
       (format "O(n^%.2f)" slope))))
+
+;;; Domain regression rendering orchestration
+;;
+;; A higher-order function to reduce duplication across viewers for the
+;; domain-regression* view. The iteration and data-preparation logic is
+;; common; only the rendering differs.
+
+(defn with-domain-regression-data
+  "Orchestrate domain-regression rendering by iterating over metrics and
+  implementations, calling the provided render functions at appropriate points.
+
+  The opts map must contain:
+    :regression-id - key for regression in data-map (default :regression)
+    :extract-id    - key for extract in data-map (default :extract)
+    :log-log-id    - key for log-log in data-map (default :log-log)
+    :tolerance     - tolerance for selecting plotted models (default 0.01)
+    :table-options - options for prepare-regression-model-table functions
+
+  The handlers map must contain render functions:
+    :render-log-log-charts     - (fn [{:keys [title axis metric impl-axis points
+                                             line-pts residual-pts chart-opts]}] ...)
+    :render-model-heading      - (fn [{:keys [title axis metric impl-axis]}] ...)
+    :render-model-table        - (fn [{:keys [table-rows multi-impl?]}] ...)
+    :render-regression-charts  - (fn [{:keys [points line-pts residual-pts
+                                             y-title residual-title axis
+                                             chart-opts multi-impl?]}] ...)
+
+  For multi-impl mode, the impl-key is included in callback maps.
+  For single-impl mode, slope/r-squared from log-log are included for display."
+  [data-map opts handlers]
+  (let [{:keys [regression-id extract-id log-log-id tolerance table-options]}
+        opts
+        regression-id (or regression-id :regression)
+        regression (data-map regression-id)
+        log-log-id (or log-log-id :log-log)
+        log-log (data-map log-log-id)
+        tolerance (double (or tolerance 0.01))
+        extract-id (or extract-id :extract)
+        extract (data-map extract-id)
+
+        {:keys [render-log-log-charts render-model-heading
+                render-model-table render-regression-charts]}
+        handlers]
+
+    (when regression
+      (let [{:keys [axis regressions impl-axis implementations]} regression
+            multi-impl? (> (count implementations) 1)]
+
+        (if multi-impl?
+          ;; Multi-implementation mode
+          (doseq [[metric-id {:keys [metric by-impl with-error-bounds]}]
+                  regressions]
+            (let [metric-extract-data (get-in extract [:metrics metric-id])
+                  impl-keys (sort (keys by-impl))
+                  log-log-data (get-in log-log [:regressions metric-id])]
+
+              ;; Log-log diagnostic charts (before model fit)
+              (when log-log-data
+                (when-let [point-data (prepare-log-log-points
+                                       log-log-data
+                                       {:axis axis :impl-axis impl-axis})]
+                  (let [{:keys [points has-error-bounds?]} point-data
+                        line-pts (prepare-log-log-fit-line
+                                  log-log-data {:axis axis :impl-axis impl-axis})
+                        residual-pts (prepare-log-log-residuals
+                                      log-log-data
+                                      {:axis axis :impl-axis impl-axis})]
+                    (when (seq points)
+                      (render-log-log-charts
+                       {:title (str "Log-Log Diagnostic (axis: " (name axis)
+                                    ", metric: " (pr-str metric)
+                                    ", by: " (name impl-axis) ")")
+                        :axis axis
+                        :metric metric
+                        :impl-axis impl-axis
+                        :points points
+                        :line-pts line-pts
+                        :residual-pts residual-pts
+                        :chart-opts {:axis-name (name axis)
+                                     :color-field "impl"
+                                     :has-error-bounds? has-error-bounds?}})))))
+
+              ;; Model heading
+              (render-model-heading
+               {:title (str "Domain Regression (axis: " (name axis)
+                            ", metric: " (pr-str metric)
+                            ", by: " (name impl-axis) ")")
+                :axis axis
+                :metric metric
+                :impl-axis impl-axis})
+
+              ;; Model table
+              (render-model-table
+               {:table-rows (when (seq by-impl)
+                              (prepare-regression-model-table-multi-impl
+                               by-impl impl-keys table-options))
+                :multi-impl? true})
+
+              ;; Regression charts
+              (when-let [point-data (prepare-regression-points
+                                     metric-extract-data
+                                     {:axis axis
+                                      :impl-axis impl-axis
+                                      :has-error-bounds? with-error-bounds
+                                      :metric metric})]
+                (let [{:keys [points unit]} point-data
+                      line-pts (prepare-regression-fit-lines
+                                point-data
+                                {:by-impl by-impl :impl-keys impl-keys})
+                      y-title (if (seq unit)
+                                (str (pr-str metric) " (" unit ")")
+                                (pr-str metric))
+                      residual-title (if (seq unit)
+                                       (str "Residual (" unit ")")
+                                       "Residual")]
+                  (when (seq points)
+                    (let [residual-pts (prepare-regression-residuals
+                                        point-data
+                                        {:axis axis
+                                         :impl-axis impl-axis
+                                         :has-error-bounds? with-error-bounds
+                                         :by-impl by-impl
+                                         :impl-keys impl-keys})]
+                      (render-regression-charts
+                       {:points points
+                        :line-pts line-pts
+                        :residual-pts residual-pts
+                        :y-title y-title
+                        :residual-title residual-title
+                        :axis axis
+                        :chart-opts {:axis-name (name axis)
+                                     :color-field "impl"
+                                     :has-error-bounds? with-error-bounds}
+                        :multi-impl? true})))))))
+
+          ;; Single-implementation mode
+          (doseq [[metric-id {:keys [metric models best-fit with-error-bounds]}]
+                  regressions]
+            (let [metric-extract-data (get-in extract [:metrics metric-id])
+                  log-log-data (get-in log-log [:regressions metric-id])
+                  best-r-squared (when best-fit
+                                   (->> models
+                                        (filter #(= (:id %) best-fit))
+                                        first
+                                        :r-squared))
+                  models-to-plot (when best-r-squared
+                                   (->> models
+                                        (filter
+                                         #(>= (double (:r-squared %))
+                                              (* (double best-r-squared)
+                                                 (- 1.0 tolerance))))
+                                        (sort-by :r-squared >)))]
+
+              ;; Log-log diagnostic charts (before model fit)
+              (when log-log-data
+                (when-let [point-data (prepare-log-log-points
+                                       log-log-data {:axis axis})]
+                  (let [{:keys [points has-error-bounds?]} point-data
+                        line-pts (prepare-log-log-fit-line
+                                  log-log-data {:axis axis})
+                        {:keys [slope r-squared]} log-log-data
+                        residual-pts (prepare-log-log-residuals
+                                      log-log-data {:axis axis})]
+                    (when (seq points)
+                      (render-log-log-charts
+                       {:title (str "Log-Log Diagnostic (axis: " (name axis)
+                                    ", metric: " (pr-str metric) ")")
+                        :axis axis
+                        :metric metric
+                        :points points
+                        :line-pts line-pts
+                        :residual-pts residual-pts
+                        :slope slope
+                        :r-squared r-squared
+                        :chart-opts {:axis-name (name axis)
+                                     :has-error-bounds? has-error-bounds?
+                                     :slope slope
+                                     :r-squared r-squared}})))))
+
+              ;; Model heading
+              (render-model-heading
+               {:title (str "Domain Regression (axis: " (name axis)
+                            ", metric: " (pr-str metric) ")")
+                :axis axis
+                :metric metric})
+
+              ;; Model table
+              (render-model-table
+               {:table-rows (when (seq models)
+                              (prepare-regression-model-table
+                               {:models models :best-fit best-fit}
+                               table-options))
+                :multi-impl? false})
+
+              ;; Regression charts
+              (when (and metric-extract-data (seq models-to-plot))
+                (when-let [point-data (prepare-regression-points
+                                       metric-extract-data
+                                       {:axis axis
+                                        :has-error-bounds? with-error-bounds
+                                        :metric metric})]
+                  (let [{:keys [points unit]} point-data
+                        line-pts (prepare-regression-fit-lines
+                                  point-data {:models models-to-plot})
+                        y-title (if (seq unit)
+                                  (str (pr-str metric) " (" unit ")")
+                                  (pr-str metric))
+                        residual-title (if (seq unit)
+                                         (str "Residual (" unit ")")
+                                         "Residual")]
+                    (when (seq points)
+                      (let [residual-pts (prepare-regression-residuals
+                                          point-data
+                                          {:axis axis
+                                           :has-error-bounds? with-error-bounds
+                                           :models models-to-plot})]
+                        (render-regression-charts
+                         {:points points
+                          :line-pts line-pts
+                          :residual-pts residual-pts
+                          :y-title y-title
+                          :residual-title residual-title
+                          :axis axis
+                          :chart-opts {:axis-name (name axis)
+                                       :color-field "model"
+                                       :has-error-bounds? with-error-bounds}
+                          :multi-impl? false})))))))))))))
 
 ;;; Allocation view helpers
 
