@@ -983,3 +983,144 @@
         (is (:valid? result)
             (str "treemap-vega-spec validation failed: "
                  (pr-str (:errors result))))))))
+
+;;; Log-Log Chart Tests
+;;
+;; Tests for log-log regression chart functions.
+;; These charts display log-transformed data where slope indicates complexity class.
+
+(def sample-log-log-points
+  "Sample log-log scatter plot points."
+  [{"x" 2.3 "y" 4.6}
+   {"x" 3.0 "y" 6.0}
+   {"x" 3.7 "y" 7.4}
+   {"x" 4.4 "y" 8.8}])
+
+(def sample-log-log-line-points
+  "Sample log-log fit line points."
+  [{"x" 2.0 "y" 4.0}
+   {"x" 3.0 "y" 6.0}
+   {"x" 4.0 "y" 8.0}
+   {"x" 5.0 "y" 10.0}])
+
+(def sample-log-log-residuals
+  "Sample log-log residual points."
+  [{"x" 2.3 "residual" 0.01}
+   {"x" 3.0 "residual" -0.02}
+   {"x" 3.7 "residual" 0.01}
+   {"x" 4.4 "residual" -0.01}])
+
+(deftest log-log-chart-spec-test
+  ;; Tests the log-log-chart-spec function for structure correctness.
+  ;; Contracts: returns valid Vega-Lite spec with correct layers.
+  (testing "log-log-chart-spec"
+    (testing "produces valid Vega-Lite spec structure"
+      (let [spec (charts/log-log-chart-spec
+                  sample-log-log-points
+                  sample-log-log-line-points
+                  {:width 600 :height 400 :axis-name "n"})]
+        (is (map? spec))
+        (is (contains? spec :width))
+        (is (contains? spec :height))
+        (is (contains? spec :layer))
+        (is (= 600 (:width spec)))
+        (is (= 400 (:height spec)))
+        ;; Should have scatter layer and line layer
+        (is (>= (count (:layer spec)) 2))))
+    (testing "includes error bar layer when error bounds present"
+      (let [points-with-error [{"x" 2.3 "y" 4.6 "yLower" 4.4 "yUpper" 4.8}]
+            spec (charts/log-log-chart-spec
+                  points-with-error
+                  sample-log-log-line-points
+                  {:has-error-bounds? true})]
+        ;; Should have scatter, line, and error bar layers
+        (is (= 3 (count (:layer spec))))))
+    (testing "includes title with slope and r-squared when provided"
+      (let [spec (charts/log-log-chart-spec
+                  sample-log-log-points
+                  sample-log-log-line-points
+                  {:slope 1.02 :r-squared 0.998})]
+        (is (some? (:title spec)))
+        (is (string? (:title spec)))))
+    (testing "handles multi-impl with color field"
+      (let [points [{"x" 2.3 "y" 4.6 "impl" "vec"}
+                    {"x" 2.3 "y" 5.0 "impl" "list"}]
+            line-pts [{"x" 2.0 "y" 4.0 "impl" "vec"}
+                      {"x" 2.0 "y" 4.5 "impl" "list"}]
+            spec (charts/log-log-chart-spec
+                  points line-pts
+                  {:color-field "impl"})]
+        (is (map? spec))
+        ;; Check that color encoding exists in scatter layer
+        (let [scatter-layer (first (:layer spec))]
+          (is (contains? (get-in scatter-layer [:encoding :color]) :field)))))))
+
+(deftest log-log-residual-spec-test
+  ;; Tests the log-log-residual-spec function for structure correctness.
+  (testing "log-log-residual-spec"
+    (testing "produces valid Vega-Lite spec structure"
+      (let [spec (charts/log-log-residual-spec
+                  sample-log-log-residuals
+                  {:width 600 :height 200 :axis-name "n"})]
+        (is (map? spec))
+        (is (contains? spec :width))
+        (is (contains? spec :height))
+        (is (contains? spec :layer))
+        (is (= 200 (:height spec)))
+        ;; Should have scatter layer and zero line (no loess without color-field)
+        (is (= 2 (count (:layer spec))))))
+    (testing "uses log axis title"
+      (let [spec (charts/log-log-residual-spec
+                  sample-log-log-residuals
+                  {:axis-name "n"})
+            scatter-layer (first (:layer spec))
+            x-title (get-in scatter-layer [:encoding :x :title])]
+        (is (= "log(n)" x-title))))))
+
+(deftest log-log-chart-spec-schema-validation-test
+  ;; Validates log-log-chart-spec output against Vega-Lite v5 schema.
+  (testing "log-log-chart-spec"
+    (testing "produces valid Vega-Lite spec"
+      (let [spec (charts/log-log-chart-spec
+                  sample-log-log-points
+                  sample-log-log-line-points
+                  {:width 600 :height 400 :axis-name "n"})
+            result (schema/validate-vega-lite-spec spec)]
+        (is (:valid? result)
+            (str "log-log-chart-spec validation failed: "
+                 (pr-str (:errors result))))))
+    (testing "with error bounds produces valid spec"
+      (let [points-with-error [{"x" 2.3 "y" 4.6 "yLower" 4.4 "yUpper" 4.8}
+                               {"x" 3.0 "y" 6.0 "yLower" 5.8 "yUpper" 6.2}]
+            spec (charts/log-log-chart-spec
+                  points-with-error
+                  sample-log-log-line-points
+                  {:has-error-bounds? true})
+            result (schema/validate-vega-lite-spec spec)]
+        (is (:valid? result)
+            (str "log-log-chart-spec with error bounds failed: "
+                 (pr-str (:errors result))))))
+    (testing "with color field produces valid spec"
+      (let [points [{"x" 2.3 "y" 4.6 "impl" "vec"}
+                    {"x" 3.0 "y" 6.0 "impl" "list"}]
+            line-pts [{"x" 2.0 "y" 4.0 "impl" "vec"}
+                      {"x" 3.0 "y" 6.0 "impl" "list"}]
+            spec (charts/log-log-chart-spec
+                  points line-pts
+                  {:color-field "impl"})
+            result (schema/validate-vega-lite-spec spec)]
+        (is (:valid? result)
+            (str "log-log-chart-spec with color field failed: "
+                 (pr-str (:errors result))))))))
+
+(deftest log-log-residual-spec-schema-validation-test
+  ;; Validates log-log-residual-spec output against Vega-Lite v5 schema.
+  (testing "log-log-residual-spec"
+    (testing "produces valid Vega-Lite spec"
+      (let [spec (charts/log-log-residual-spec
+                  sample-log-log-residuals
+                  {:width 600 :height 200 :axis-name "n"})
+            result (schema/validate-vega-lite-spec spec)]
+        (is (:valid? result)
+            (str "log-log-residual-spec validation failed: "
+                 (pr-str (:errors result))))))))

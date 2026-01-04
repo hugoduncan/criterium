@@ -1375,3 +1375,124 @@
                         (str/includes? % "└──"))
                   lines)
             "Expected java.lang.Long as last child with └── connector")))))
+
+;;; Log-Log regression view helper tests.
+;;; Verifies data preparation functions for log-log charts.
+
+(deftest prepare-log-log-points-test
+  ;; Tests prepare-log-log-points which formats log-log regression data for charts.
+  ;; Contracts: returns correct structure, handles error bounds, supports multi-impl.
+  (testing "prepare-log-log-points"
+    (testing "returns points in log space"
+      (let [log-log-data {:log-xs [(Math/log 10) (Math/log 20)]
+                          :log-ys [(Math/log 100) (Math/log 200)]}
+            result (common/prepare-log-log-points
+                    log-log-data
+                    {:axis :n})]
+        (is (map? result))
+        (is (= 2 (count (:points result))))
+        (is (= "n" (:axis-name result)))
+        (is (= (Math/log 10) (get (first (:points result)) "x")))
+        (is (= (Math/log 100) (get (first (:points result)) "y")))))
+    (testing "includes error bounds when present"
+      (let [log-log-data {:log-xs [(Math/log 10)]
+                          :log-ys [(Math/log 100)]
+                          :log-lowers [(Math/log 90)]
+                          :log-uppers [(Math/log 110)]}
+            result (common/prepare-log-log-points
+                    log-log-data
+                    {:axis :n})]
+        (is (true? (:has-error-bounds? result)))
+        (is (= (Math/log 90) (get (first (:points result)) "yLower")))
+        (is (= (Math/log 110) (get (first (:points result)) "yUpper")))))
+    (testing "returns nil for missing data"
+      (is (nil? (common/prepare-log-log-points nil {:axis :n})))
+      (is (nil? (common/prepare-log-log-points {} {:axis :n}))))
+    (testing "handles multi-implementation data"
+      (let [log-log-data {:by-impl {:vec {:log-xs [(Math/log 10)]
+                                          :log-ys [(Math/log 100)]}
+                                    :list {:log-xs [(Math/log 10)]
+                                           :log-ys [(Math/log 200)]}}}
+            result (common/prepare-log-log-points
+                    log-log-data
+                    {:axis :n :impl-axis :impl})]
+        (is (= 2 (count (:points result))))
+        (is (some #(= "vec" (get % "impl")) (:points result)))
+        (is (some #(= "list" (get % "impl")) (:points result)))))))
+
+(deftest prepare-log-log-fit-line-test
+  ;; Tests prepare-log-log-fit-line which generates fit line points.
+  ;; Uses slope and intercept to compute line: y = slope * x + intercept
+  (testing "prepare-log-log-fit-line"
+    (testing "generates fit line points"
+      (let [log-log-data {:slope 1.0
+                          :intercept 0.0
+                          :log-xs [(Math/log 10) (Math/log 100)]}
+            result (common/prepare-log-log-fit-line
+                    log-log-data
+                    {:axis :n})]
+        (is (vector? result))
+        (is (> (count result) 2))
+        ;; Check that y = x (slope 1, intercept 0)
+        (is (every? #(< (Math/abs (- (get % "y") (get % "x"))) 0.01) result))))
+    (testing "returns nil for missing data"
+      (is (nil? (common/prepare-log-log-fit-line nil {:axis :n})))
+      (is (nil? (common/prepare-log-log-fit-line {} {:axis :n}))))
+    (testing "handles multi-implementation data"
+      (let [log-log-data {:by-impl {:vec {:slope 1.0
+                                          :intercept 0.0
+                                          :log-xs [(Math/log 10) (Math/log 20)]}
+                                    :list {:slope 2.0
+                                           :intercept 0.0
+                                           :log-xs [(Math/log 10) (Math/log 20)]}}}
+            result (common/prepare-log-log-fit-line
+                    log-log-data
+                    {:axis :n :impl-axis :impl})]
+        (is (vector? result))
+        (is (some #(= "vec" (get % "impl")) result))
+        (is (some #(= "list" (get % "impl")) result))))))
+
+(deftest prepare-log-log-residuals-test
+  ;; Tests prepare-log-log-residuals which formats residual points.
+  ;; Residuals are pre-computed in analysis layer.
+  (testing "prepare-log-log-residuals"
+    (testing "returns residual points"
+      (let [log-log-data {:log-xs [(Math/log 10) (Math/log 20)]
+                          :residuals [0.01 -0.02]}
+            result (common/prepare-log-log-residuals
+                    log-log-data
+                    {:axis :n})]
+        (is (vector? result))
+        (is (= 2 (count result)))
+        (is (= 0.01 (get (first result) "residual")))
+        (is (= (Math/log 10) (get (first result) "x")))))
+    (testing "returns nil for missing data"
+      (is (nil? (common/prepare-log-log-residuals nil {:axis :n})))
+      (is (nil? (common/prepare-log-log-residuals {} {:axis :n}))))
+    (testing "handles multi-implementation data"
+      (let [log-log-data {:by-impl {:vec {:log-xs [(Math/log 10)]
+                                          :residuals [0.01]}
+                                    :list {:log-xs [(Math/log 10)]
+                                           :residuals [-0.01]}}}
+            result (common/prepare-log-log-residuals
+                    log-log-data
+                    {:axis :n :impl-axis :impl})]
+        (is (= 2 (count result)))
+        (is (some #(= "vec" (get % "impl")) result))
+        (is (some #(= "list" (get % "impl")) result))))))
+
+(deftest format-log-log-slope-test
+  ;; Tests formatting of log-log slope as complexity class.
+  (testing "format-log-log-slope"
+    (testing "formats integer slopes with simplified form"
+      (is (= "O(1)" (common/format-log-log-slope 0.0)))
+      (is (= "O(n)" (common/format-log-log-slope 1.0)))
+      (is (= "O(n²)" (common/format-log-log-slope 2.0)))
+      (is (= "O(n³)" (common/format-log-log-slope 3.0))))
+    (testing "formats near-integer slopes as integers"
+      (is (= "O(n)" (common/format-log-log-slope 0.98)))
+      (is (= "O(n)" (common/format-log-log-slope 1.02)))
+      (is (= "O(n²)" (common/format-log-log-slope 1.97))))
+    (testing "formats fractional slopes with decimals"
+      (is (str/includes? (common/format-log-log-slope 1.5) "1.50"))
+      (is (str/includes? (common/format-log-log-slope 0.5) "0.50")))))

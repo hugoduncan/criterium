@@ -1560,6 +1560,157 @@
                   valid-data)))
         models)))))
 
+;;; Log-Log Regression view helpers
+;;
+;; Functions for preparing log-log regression data for chart display.
+;; Log-log plots show log(time) vs log(n), where the slope indicates
+;; complexity class directly (slope ≈ 1 for O(n), slope ≈ 2 for O(n²)).
+
+(defn prepare-log-log-points
+  "Prepare log-log transformed data points for scatter plot.
+  Returns {:points [...] :axis-name string} or nil.
+
+  Points have keys: x (log(n)), y (log(time)), and optionally
+  yLower, yUpper for log-transformed error bounds.
+  For multi-impl mode, points also have :impl key.
+
+  The log-log-data comes from the :regressions map of a
+  :criterium/domain-log-log-regression result."
+  [log-log-data {:keys [axis impl-axis]}]
+  (when log-log-data
+    (let [multi-impl? (contains? log-log-data :by-impl)]
+      (if multi-impl?
+        ;; Multi-implementation mode
+        (let [by-impl (:by-impl log-log-data)
+              impl-keys (keys by-impl)
+              all-points
+              (vec
+               (mapcat
+                (fn [impl-key]
+                  (let [{:keys [log-xs log-ys log-lowers log-uppers]}
+                        (get by-impl impl-key)]
+                    (when (and log-xs log-ys)
+                      (map-indexed
+                       (fn [i log-x]
+                         (let [log-y (nth log-ys i)]
+                           (cond-> {"x" log-x
+                                    "y" log-y
+                                    "impl" (name impl-key)}
+                             (and log-lowers (nth log-lowers i nil))
+                             (assoc "yLower" (nth log-lowers i))
+                             (and log-uppers (nth log-uppers i nil))
+                             (assoc "yUpper" (nth log-uppers i)))))
+                       log-xs))))
+                impl-keys))]
+          (when (seq all-points)
+            {:points all-points
+             :axis-name (name axis)
+             :has-error-bounds? (boolean
+                                 (some #(contains? % "yLower") all-points))}))
+        ;; Single implementation mode
+        (let [{:keys [log-xs log-ys log-lowers log-uppers]} log-log-data]
+          (when (and log-xs log-ys)
+            (let [points (vec
+                          (map-indexed
+                           (fn [i log-x]
+                             (let [log-y (nth log-ys i)]
+                               (cond-> {"x" log-x
+                                        "y" log-y}
+                                 (and log-lowers (nth log-lowers i nil))
+                                 (assoc "yLower" (nth log-lowers i))
+                                 (and log-uppers (nth log-uppers i nil))
+                                 (assoc "yUpper" (nth log-uppers i)))))
+                           log-xs))]
+              {:points points
+               :axis-name (name axis)
+               :has-error-bounds? (boolean
+                                   (some #(contains? % "yLower") points))})))))))
+
+(defn prepare-log-log-fit-line
+  "Generate fit line points for log-log plot.
+  Returns vector of point maps with x, y, and optionally impl key.
+
+  Uses the pre-computed slope and intercept: y = slope * x + intercept
+  where x = log(n), y = log(time)."
+  [log-log-data {:keys [axis impl-axis]}]
+  (when log-log-data
+    (let [multi-impl? (contains? log-log-data :by-impl)]
+      (if multi-impl?
+        ;; Multi-implementation mode: one line per impl
+        (let [by-impl (:by-impl log-log-data)]
+          (vec
+           (mapcat
+            (fn [[impl-key {:keys [slope intercept log-xs]}]]
+              (when (and slope intercept log-xs (seq log-xs))
+                (let [x-min (reduce min log-xs)
+                      x-max (reduce max log-xs)
+                      x-range (range x-min (+ x-max 0.1) (/ (- x-max x-min) 50))]
+                  (mapv (fn [x]
+                          {"x" x
+                           "y" (+ (* (double slope) x) (double intercept))
+                           "impl" (name impl-key)})
+                        x-range))))
+            by-impl)))
+        ;; Single implementation mode
+        (let [{:keys [slope intercept log-xs]} log-log-data]
+          (when (and slope intercept log-xs (seq log-xs))
+            (let [x-min (reduce min log-xs)
+                  x-max (reduce max log-xs)
+                  x-range (range x-min (+ x-max 0.1) (/ (- x-max x-min) 50))]
+              (vec
+               (mapv (fn [x]
+                       {"x" x
+                        "y" (+ (* (double slope) x) (double intercept))})
+                     x-range)))))))))
+
+(defn prepare-log-log-residuals
+  "Compute residual points for log-log plot.
+  Returns vector of point maps with x (log(n)), residual, and optionally impl.
+
+  Residuals are in log space: residual = log(y) - (slope * log(x) + intercept)"
+  [log-log-data {:keys [axis impl-axis]}]
+  (when log-log-data
+    (let [multi-impl? (contains? log-log-data :by-impl)]
+      (if multi-impl?
+        ;; Multi-implementation mode
+        (let [by-impl (:by-impl log-log-data)]
+          (vec
+           (mapcat
+            (fn [[impl-key {:keys [log-xs residuals]}]]
+              (when (and log-xs residuals)
+                (map-indexed
+                 (fn [i log-x]
+                   {"x" log-x
+                    "residual" (nth residuals i)
+                    "impl" (name impl-key)})
+                 log-xs)))
+            by-impl)))
+        ;; Single implementation mode
+        (let [{:keys [log-xs residuals]} log-log-data]
+          (when (and log-xs residuals)
+            (vec
+             (map-indexed
+              (fn [i log-x]
+                {"x" log-x
+                 "residual" (nth residuals i)})
+              log-xs))))))))
+
+(defn format-log-log-slope
+  "Format log-log slope as complexity class estimate.
+  Returns string like 'O(n^1.02)' or 'O(n)' for integer slopes."
+  [^double slope]
+  (let [rounded (Math/round slope)]
+    (if (< (Math/abs (- slope rounded)) 0.05)
+      ;; Close to integer - use simplified form
+      (case rounded
+        0 "O(1)"
+        1 "O(n)"
+        2 "O(n²)"
+        3 "O(n³)"
+        (format "O(n^%d)" rounded))
+      ;; Show decimal
+      (format "O(n^%.2f)" slope))))
+
 ;;; Allocation view helpers
 
 (defn format-call-site

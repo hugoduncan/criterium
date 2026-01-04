@@ -533,6 +533,46 @@
      :b b
      :r-squared r-sq}))
 
+(defn log-log-regression
+  "Perform linear regression on log-transformed data.
+
+  Transforms (x, y) to (log(x), log(y)) and fits a linear model:
+    log(y) = slope * log(x) + intercept
+
+  The slope directly indicates algorithmic complexity:
+    - slope ≈ 0   → O(1)
+    - slope ≈ 0.5 → O(√n)
+    - slope ≈ 1   → O(n)
+    - slope ≈ 1.5 → O(n√n)
+    - slope ≈ 2   → O(n²)
+
+  Returns:
+    {:slope      - complexity exponent
+     :intercept  - log-space intercept
+     :r-squared  - coefficient of determination in log-log space
+     :log-xs     - log-transformed x values
+     :log-ys     - log-transformed y values
+     :residuals  - residuals in log space
+     :predict-fn - (fn [x] predicted-y) in original space}"
+  [xs ys]
+  {:pre [(seq xs) (seq ys) (= (count xs) (count ys))
+         (every? pos? xs) (every? pos? ys)]}
+  (let [log-xs (mapv #(Math/log (double %)) xs)
+        log-ys (mapv #(Math/log (double %)) ys)
+        {:keys [^double a ^double b ^double r-squared]}
+        (linear-regression log-xs log-ys)
+        residuals (mapv (fn [^double lx ^double ly]
+                          (- ly (+ (* a lx) b)))
+                        log-xs log-ys)]
+    {:slope a
+     :intercept b
+     :r-squared r-squared
+     :log-xs log-xs
+     :log-ys log-ys
+     :residuals residuals
+     :predict-fn (fn [^double x]
+                   (Math/exp (+ (* a (Math/log x)) b)))}))
+
 (defn- linear-regression-2
   "Perform multiple linear regression with 2 predictors: y = a*x1 + b*x2 + c.
   Uses centered variables for numerical stability, then adjusts intercept.
@@ -810,6 +850,183 @@
            id (or id :regression)
            extract (data-map extract-id)
            result (fit-complexity extract axis models)]
+       (assoc data-map id result)))))
+
+;;; Log-Log Regression Analysis
+;;
+;; Functions for computing log-log regression on domain extract data.
+;; The log-log plot provides intuitive understanding of complexity class:
+;; the slope directly indicates the complexity exponent.
+
+(defn fit-log-log
+  "Fit log-log linear regression to domain extract data.
+
+  Returns a domain-log-log-regression result with log-transformed data
+  and regression statistics for each metric.
+
+  extract is a domain-extract result (with :metrics map).
+  axis is the coordinate key to use for x-values (e.g., :n for input size).
+
+  The log-log regression fits: log(y) = slope * log(x) + intercept
+  The slope directly indicates complexity class:
+    - slope ≈ 1   → O(n)
+    - slope ≈ 2   → O(n²)
+
+  Filters out data points with nil or non-positive values before fitting.
+
+  When the extract has multiple implementations, data is grouped by
+  implementation and regression is fit separately for each.
+
+  Example - single implementation:
+  (fit-log-log extract :n)
+  ;; => {:type :criterium/domain-log-log-regression
+  ;;     :axis :n
+  ;;     :regressions {:elapsed-time {:metric [:stats :elapsed-time :mean]
+  ;;                                  :slope 1.02
+  ;;                                  :intercept -15.3
+  ;;                                  :r-squared 0.998
+  ;;                                  :log-xs [...]
+  ;;                                  :log-ys [...]
+  ;;                                  :xs [...]
+  ;;                                  :ys [...]
+  ;;                                  :residuals [...]}}}
+
+  Example - multiple implementations:
+  (fit-log-log extract-with-impls :n)
+  ;; => {:type :criterium/domain-log-log-regression
+  ;;     :axis :n
+  ;;     :impl-axis :impl
+  ;;     :implementations [:vec :list]
+  ;;     :regressions {:elapsed-time {:metric [:stats :elapsed-time :mean]
+  ;;                                  :by-impl {:vec {:slope 1.0 ...}
+  ;;                                            :list {:slope 2.0 ...}}}}}"
+  [extract axis]
+  (let [impl-axis-key (:impl-axis extract)
+        impls (:implementations extract)
+        multi-impl? (> (count impls) 1)
+
+        ;; Helper to fit log-log regression to a set of data points
+        fit-data-points
+        (fn [data with-error-bounds]
+          (let [get-value (if with-error-bounds
+                            (fn [v] (when (map? v) (:value v)))
+                            identity)
+                get-lower (when with-error-bounds
+                            (fn [v] (when (map? v) (:lower v))))
+                get-upper (when with-error-bounds
+                            (fn [v] (when (map? v) (:upper v))))
+                ;; Filter: valid coord with axis, positive x and y
+                valid-data (filterv (fn [[coord value]]
+                                      (let [y (get-value value)
+                                            x (when (map? coord) (get coord axis))]
+                                        (and (some? y) (pos? (double y))
+                                             (some? x) (pos? (double x)))))
+                                    data)]
+            (when (>= (count valid-data) 2)
+              (let [xs (mapv (fn [[coord _]] (double (get coord axis))) valid-data)
+                    ys (mapv (fn [[_ v]] (double (get-value v))) valid-data)
+                    {:keys [slope intercept r-squared log-xs log-ys residuals predict-fn]}
+                    (log-log-regression xs ys)
+                    ;; Transform error bounds to log space if present
+                    log-lowers (when with-error-bounds
+                                 (mapv (fn [[_ v]]
+                                         (let [lower (get-lower v)]
+                                           (when (and lower (pos? (double lower)))
+                                             (Math/log (double lower)))))
+                                       valid-data))
+                    log-uppers (when with-error-bounds
+                                 (mapv (fn [[_ v]]
+                                         (let [upper (get-upper v)]
+                                           (when (and upper (pos? (double upper)))
+                                             (Math/log (double upper)))))
+                                       valid-data))]
+                (cond-> {:slope slope
+                         :intercept intercept
+                         :r-squared r-squared
+                         :xs xs
+                         :ys ys
+                         :log-xs log-xs
+                         :log-ys log-ys
+                         :residuals residuals
+                         :predict-fn predict-fn}
+                  (and with-error-bounds (some some? log-lowers))
+                  (assoc :log-lowers log-lowers :log-uppers log-uppers))))))
+
+        ;; Fit a single metric's data (no implementation grouping)
+        fit-single
+        (fn [[_metric-id metric-data]]
+          (let [{:keys [metric data with-error-bounds]} metric-data
+                result (fit-data-points data with-error-bounds)]
+            (cond-> {:metric metric
+                     :with-error-bounds (boolean with-error-bounds)}
+              result (merge result))))
+
+        ;; Fit a single metric's data with implementation grouping
+        fit-single-by-impl
+        (fn [[_metric-id metric-data]]
+          (let [{:keys [metric data with-error-bounds]} metric-data
+                ;; Group data by implementation
+                by-impl (group-by (fn [[coord _]] (get coord impl-axis-key)) data)
+                ;; Fit each implementation separately
+                impl-results
+                (into {}
+                      (keep (fn [[impl-val impl-data]]
+                              (when-let [result (fit-data-points
+                                                 impl-data with-error-bounds)]
+                                [impl-val result])))
+                      by-impl)]
+            {:metric metric
+             :with-error-bounds (boolean with-error-bounds)
+             :by-impl impl-results}))]
+
+    (if multi-impl?
+      ;; Multi-implementation: group and fit separately
+      {:type :criterium/domain-log-log-regression
+       :axis axis
+       :impl-axis impl-axis-key
+       :implementations impls
+       :regressions (into {}
+                          (map (fn [[metric-id metric-data]]
+                                 [metric-id
+                                  (fit-single-by-impl [metric-id metric-data])]))
+                          (:metrics extract))}
+      ;; Single implementation
+      {:type :criterium/domain-log-log-regression
+       :axis axis
+       :regressions (into {}
+                          (map (fn [[metric-id metric-data]]
+                                 [metric-id
+                                  (fit-single [metric-id metric-data])]))
+                          (:metrics extract))})))
+
+(defn domain-log-log-fn
+  "Returns a function that fits log-log regression to a domain extract in a data-map.
+
+  Parameters:
+    opts - Map with keys:
+      :id         - Key for result in output (default: :log-log)
+      :extract-id - Key for source domain-extract in input (default: :extract)
+      :axis       - Coordinate key to use for x-values (required, e.g., :n)
+
+  The returned function:
+  - Takes a data-map containing a domain-extract under :extract-id
+  - Returns the data-map with a domain-log-log-regression result added under :id
+
+  Example:
+  (-> {:domain my-domain}
+      ((domain-extract-fn {:id :extract
+                           :metric-path [:stats :elapsed-time :mean]}))
+      ((domain-log-log-fn {:id :log-log :axis :n})))
+  ;; => {:domain my-domain
+  ;;     :extract {:type :criterium/domain-extract ...}
+  ;;     :log-log {:type :criterium/domain-log-log-regression ...}}"
+  ([] (domain-log-log-fn {}))
+  ([{:keys [id extract-id axis]}]
+   (fn [data-map]
+     (let [extract-id (or extract-id :extract)
+           id (or id :log-log)
+           extract (data-map extract-id)
+           result (fit-log-log extract axis)]
        (assoc data-map id result)))))
 
 ;;; Domain Plan Execution
