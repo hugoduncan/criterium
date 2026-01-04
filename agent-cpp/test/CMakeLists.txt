@@ -1,6 +1,7 @@
 # Test executable
 add_executable(criterium_tests
     test_main.cpp
+    all_tags_test.cpp
     is_system_class_test.cpp
     message_queue_test.cpp
 )

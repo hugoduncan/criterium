@@ -1,4 +1,5 @@
 #include "jni.h"
+#include "include/alloc_rec.h"
 #include "include/message_queue.h"
 #include "include/utils.h"
 #include <algorithm>
@@ -260,18 +261,8 @@ struct alloc_rec {
 
 typedef std::vector<std::unique_ptr<alloc_rec>> allocs_t;
 typedef std::map<jlong, alloc_rec*> allocs_by_tag_t;
-/* static allocs_t allocs; */
-/* static auto allocs_by_tag = allocs_by_tag_t(); */
 
-
-auto all_tags(allocs_t& allocs) {
-  auto tags=std::vector<jlong>(allocs.size());
-  std::transform(allocs.begin(),
-                   allocs.end(),
-                   std::back_inserter(tags),
-                   std::mem_fn(&alloc_rec::tag));
-  return tags;
-}
+using criterium::all_tags;
 
 
 class VMContext {
