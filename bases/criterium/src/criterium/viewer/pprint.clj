@@ -3,6 +3,7 @@
   (:require
    [clojure.pprint :as pprint]
    [criterium.metric :as metric]
+   [criterium.util.format :as format]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have]]
    [criterium.view :as view]
@@ -92,24 +93,28 @@
   (print-outlier-significances view data-map))
 
 (defn- format-bootstrap-estimate
-  "Format a BcaEstimate for display, returning a map with :value and :ci keys."
-  [estimate]
+  "Format a BcaEstimate for display, returning a map with :value and :ci keys.
+  Applies unit scaling based on metric-config dimension and scale."
+  [estimate metric-config]
   (when estimate
-    (let [quantiles (:estimate-quantiles estimate)
+    (let [{:keys [dimension scale]} metric-config
+          quantiles (:estimate-quantiles estimate)
           ci-lower (when (seq quantiles) (-> quantiles first :value))
-          ci-upper (when (seq quantiles) (-> quantiles second :value))]
-      {:value (:point-estimate estimate)
-       :ci-lower ci-lower
-       :ci-upper ci-upper})))
+          ci-upper (when (seq quantiles) (-> quantiles second :value))
+          point-est (:point-estimate estimate)
+          fmt-val (fn [v] (when v (format/format-value dimension (* scale v))))]
+      {:value (fmt-val point-est)
+       :ci-lower (fmt-val ci-lower)
+       :ci-upper (fmt-val ci-upper)})))
 
 (defn- bootstrap-stat-row
   "Create a row for the bootstrap stats table."
   [metric-config stat]
   (let [{:keys [mean quantiles]} stat
-        mean-fmt (format-bootstrap-estimate mean)
-        p10 (format-bootstrap-estimate (get quantiles 0.1))
-        p50 (format-bootstrap-estimate (get quantiles 0.5))
-        p90 (format-bootstrap-estimate (get quantiles 0.9))]
+        mean-fmt (format-bootstrap-estimate mean metric-config)
+        p10 (format-bootstrap-estimate (get quantiles 0.1) metric-config)
+        p50 (format-bootstrap-estimate (get quantiles 0.5) metric-config)
+        p90 (format-bootstrap-estimate (get quantiles 0.9) metric-config)]
     {:metric (:label metric-config)
      :mean (:value mean-fmt)
      :mean-ci-lower (:ci-lower mean-fmt)

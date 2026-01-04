@@ -518,15 +518,16 @@
 
 (deftest pprint-bootstrap-stats-test
   ;; Tests view/bootstrap-stats* pprint multimethod for table output format.
-  ;; Verifies: column headers for mean/median/spread, CI bounds, percentiles.
+  ;; Verifies: column headers for mean/median/spread, CI bounds, percentiles,
+  ;; and that values are displayed with SI unit scaling.
   (testing "bootstrap-stats*"
     (testing "displays table with mean, median, CI bounds, and percentiles"
       (is (= [""
               "Bootstrap Statistics:"
               ""
-              "|      :metric | :mean | :mean-ci-lower | :mean-ci-upper | :median | :median-ci-lower | :median-ci-upper | :p10 | :p90 |"
-              "|--------------+-------+----------------+----------------+---------+------------------+------------------+------+------|"
-              "| Elapsed Time |   1.0 |            1.0 |            1.0 |     1.0 |              1.0 |              1.0 |  1.0 |  1.0 |"]
+              "|      :metric |   :mean | :mean-ci-lower | :mean-ci-upper | :median | :median-ci-lower | :median-ci-upper |    :p10 |    :p90 |"
+              "|--------------+---------+----------------+----------------+---------+------------------+------------------+---------+---------|"
+              "| Elapsed Time | 1.00 ns |        1.00 ns |        1.00 ns | 1.00 ns |          1.00 ns |          1.00 ns | 1.00 ns | 1.00 ns |"]
              (let [data-map
                    {:samples
                     {:type :criterium/metrics-samples
