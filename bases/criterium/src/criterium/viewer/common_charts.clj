@@ -184,7 +184,9 @@
                        (tform (:value (first median-ci))))
             ci-upper (when (seq median-ci)
                        (tform (:value (second median-ci))))
-            ;; Fixed y position for the boxplot (below the histogram)
+            ;; Position boxplot at y=0 (histogram baseline) extending slightly
+            ;; below into negative density space. The -0.02 height creates a thin
+            ;; overlay that doesn't obscure histogram bars while remaining visible.
             box-y 0
             box-height -0.02]
         [{:layer
