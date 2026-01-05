@@ -148,9 +148,18 @@ When completing a story, kill any nREPL processes that are running in the story'
 2. **Analysis** - Apply statistical analysis to raw metrics
 3. **Viewing** - Format and present results through viewers
 
+Each of these must be usable independently. e.g the collection can be
+replaced by the instrument-fn or sampled-fn results.
+
 **Analysis vs View Separation** (critical design constraint):
 - **Analysis** (`criterium.analyse`) contains ALL non-visualization computation. Users must be able to access all criterium analysis results without using viewers. Analysis functions transform data maps and produce computed results (statistics, fits, tests, etc.).
 - **View** (`criterium.view`, `criterium.viewer.*`) contains ONLY visualization-specific functionality. Viewers format and display analysis results but must not perform analysis-type computation. Different viewers should render the same pre-computed analysis data.
+
+**Bench Plans** (`criterium.bench-plans`):
+- Compose collection, analysis, and view stages into reusable configurations
+- Define which collectors to use, which analyses to run, and which views to display
+- Users select a bench plan to get a complete benchmarking workflow
+- Custom bench plans allow tailored analysis pipelines (e.g., distribution fitting, allocation profiling)
 
 **Key Abstractions**:
 - `measured` - Wraps expressions/functions for measurement
@@ -185,6 +194,7 @@ When completing a story, kill any nREPL processes that are running in the story'
 - `:print` - Default human-readable text output
 - `:pprint` - Pretty-printed structured output
 - `:portal` - Interactive charts and visualizations (requires Portal)
+- `:kindly` - Notebook charts and visualizations using kindly
 
 ## Testing Strategy
 
