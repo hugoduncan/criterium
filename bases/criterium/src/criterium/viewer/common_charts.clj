@@ -10,7 +10,8 @@
    [criterium.util.invariant :refer [have have?]]
    [criterium.util.probability :as probability]
    [criterium.viewer.common.core :as core]
-   [criterium.viewer.common.domain.comparison :as comparison]))
+   [criterium.viewer.common.domain.comparison :as comparison]
+   [stats.interface :as si]))
 
 ;;; Scatter plots
 
@@ -1448,6 +1449,157 @@
                          (and modes-data (seq (:modes modes-data)))
                          (into (kde-modes-layer
                                 modes-data metric-config kde-transforms)))}))}))))
+      metric-configs)}))
+
+;;; Distribution PDF overlay charts
+
+(def ^:private distribution-colors
+  "Color palette for fitted distributions."
+  {:gamma "#e41a1c"
+   :lognormal "#377eb8"
+   :inverse-gaussian "#4daf4a"
+   :weibull "#984ea3"})
+
+(def ^:private distribution-labels
+  "Human-readable labels for distributions."
+  {:gamma "Gamma"
+   :lognormal "Log-normal"
+   :inverse-gaussian "Inverse Gaussian"
+   :weibull "Weibull"})
+
+(defn- make-pdf-fn
+  "Create a PDF function for the given distribution and parameters."
+  [dist params]
+  (case dist
+    :gamma (si/gamma-pdf (:shape params) (:scale params))
+    :lognormal (si/lognormal-pdf (:mu params) (:sigma params))
+    :inverse-gaussian (si/inverse-gaussian-pdf (:mu params) (:lambda params))
+    :weibull (si/weibull-pdf (:shape params) (:scale params))
+    nil))
+
+(defn distribution-pdf-layer
+  "Build a PDF curve layer for a single fitted distribution.
+
+  Takes the distribution keyword, fit result, KDE grid, and transforms.
+  Returns a Vega-Lite layer spec or nil if the distribution couldn't be fitted."
+  [dist fit-result grid transforms]
+  (when (and (:params fit-result)
+             (not (:error fit-result))
+             (not (:skipped fit-result)))
+    (let [pdf-fn (make-pdf-fn dist (:params fit-result))
+          label (get distribution-labels dist (name dist))
+          color (get distribution-colors dist "#999999")
+          is-best? (= dist (:best-model fit-result))
+          data (mapv (fn [x]
+                       (let [tx (util/transform-sample-> x transforms)
+                             ;; PDF needs to be evaluated at original x, but displayed at transformed x
+                             p (pdf-fn x)]
+                         {"x" tx "pdf-density" p}))
+                     grid)]
+      {:data {:values data}
+       :transform [{:calculate (str "'" label "'") :as "distribution"}]
+       :mark {:type "line"
+              :strokeWidth (if is-best? 2.5 1.5)
+              :strokeDash (if is-best? [1 0] [4 4])}
+       :encoding {:x {:field "x" :type "quantitative"
+                      :scale {:zero false}}
+                  :y {:field "pdf-density" :type "quantitative"}
+                  :color {:field "distribution" :type "nominal"
+                          :scale {:domain (mapv #(get distribution-labels % (name %))
+                                                (keys distribution-colors))
+                                  :range (vals distribution-colors)}
+                          :legend {:orient "top-right" :title "Fitted Distributions"}}}})))
+
+(defn distribution-pdf-overlay-layers
+  "Build PDF overlay layers for all fitted distributions.
+
+  Takes distribution-fit data for a metric, KDE grid, best-model keyword, and transforms.
+  Returns a vector of Vega-Lite layer specs for successfully fitted distributions."
+  [fit-data grid transforms]
+  (let [distributions (:distributions fit-data)
+        best-model (:best-model fit-data)]
+    (->> (keys distributions)
+         (mapv (fn [dist]
+                 (distribution-pdf-layer
+                  dist
+                  (assoc (get distributions dist) :best-model best-model)
+                  grid
+                  transforms)))
+         (filterv some?))))
+
+(defn distribution-pdf-vega-spec
+  "Build a complete Vega-Lite spec for KDE with distribution PDF overlays.
+
+  Takes data-map, view options, and chart-options map containing :width and/or
+  :height for chart dimensions.
+
+  View options:
+    :kde-id - Key for KDE data in data-map (default :kde)
+    :distribution-fit-id - Key for distribution fit data (default :distribution-fit)
+    :histogram-id - Optional key for histogram data to overlay
+
+  Returns the Vega-Lite spec without viewer-specific wrapping."
+  [data-map view chart-options]
+  (let [kde-id (or (:kde-id view) :kde)
+        distribution-fit-id (or (:distribution-fit-id view) :distribution-fit)
+        histogram-id (:histogram-id view)
+        kde-map (util/lookup-data data-map kde-id)
+        distribution-fit-map (get data-map distribution-fit-id)
+        histograms-map (when histogram-id
+                         (util/lookup-data data-map histogram-id))
+        kdes (:kdes kde-map)
+        fits (when distribution-fit-map (:fits distribution-fit-map))
+        metrics-defs (-> (:metrics-defs kde-map)
+                         (metric/filter-metrics
+                          (metric/type-pred :quantitative)))
+        metric-configs (metric/all-metric-configs metrics-defs)
+        kde-transforms (util/get-transforms data-map kde-id)
+        hist-transforms (when histogram-id
+                          (util/get-transforms data-map histogram-id))]
+    {:data {:values []}
+     :resolve {:scale {:x "independent"
+                       :y "independent"
+                       :color "independent"}}
+     :vconcat
+     (mapv
+      (fn [metric-config]
+        (let [kde-data (get kdes (:path metric-config))
+              fit-data (when fits (get fits (:path metric-config)))
+              histogram (when histograms-map
+                          (get (:histograms histograms-map)
+                               (:path metric-config)))]
+          (when kde-data
+            (merge
+             chart-options
+             {:resolve {:scale {:x "shared" :y "independent"}}
+              :layer
+              (cond-> []
+                ;; Add histogram bars if available
+                histogram
+                (conj (metric-computed-histo-layer
+                       hist-transforms
+                       histogram
+                       metric-config
+                       0))
+                ;; Wrap KDE + distribution layers in a nested group with shared Y-scale
+                true
+                (conj {:resolve {:scale {:y "shared"}}
+                       :layer
+                       (cond-> []
+                         ;; Add KDE confidence band
+                         true
+                         (conj (kde-confidence-band-layer
+                                kde-data metric-config kde-transforms))
+                         ;; Add KDE density curve
+                         true
+                         (conj (kde-density-layer
+                                kde-data metric-config kde-transforms))
+                         ;; Add distribution PDF overlays
+                         fit-data
+                         (into (distribution-pdf-overlay-layers
+                                fit-data
+                                (:grid kde-data)
+                                kde-transforms)))}))}))))
       metric-configs)}))
 
 (defn treemap-vega-spec

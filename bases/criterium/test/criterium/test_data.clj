@@ -336,4 +336,59 @@
       :batch-size 1
       :source-id :samples}}))
 
-
+(defn distribution-fit-data-map
+  "Create a data-map with KDE and distribution-fit data for testing PDF overlays.
+  Includes successfully fitted distributions and one that was skipped."
+  []
+  (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])]
+    {:kde {:type :criterium/kde
+           :metrics-defs metrics-defs
+           :transform {:sample-> identity :->sample identity}
+           :kdes {[:elapsed-time]
+                  {:type :criterium/kde
+                   :bandwidth 0.5
+                   :grid [1.0 2.0 3.0 4.0 5.0]
+                   :density [0.1 0.25 0.3 0.25 0.1]
+                   :lower-band [0.08 0.20 0.25 0.20 0.08]
+                   :upper-band [0.12 0.30 0.35 0.30 0.12]
+                   :n 100}}}
+     :distribution-fit
+     {:type :criterium/distribution-fit
+      :transform collect-plan/identity-transforms
+      :fits {[:elapsed-time]
+             {:n 100
+              :best-model :gamma
+              :distributions
+              {:gamma {:params {:shape 2.0 :scale 1.5}
+                       :log-likelihood -150.0
+                       :aic 304.0
+                       :bic 309.2
+                       :aicc 304.1
+                       :delta-aic 0.0
+                       :ks-test {:statistic 0.05 :p-value 0.85}
+                       :cvm-test {:statistic 0.02 :p-value 0.90}}
+               :lognormal {:params {:mu 0.5 :sigma 0.8}
+                           :log-likelihood -155.0
+                           :aic 314.0
+                           :bic 319.2
+                           :aicc 314.1
+                           :delta-aic 10.0
+                           :ks-test {:statistic 0.08 :p-value 0.45}
+                           :cvm-test {:statistic 0.05 :p-value 0.50}}
+               :weibull {:params {:shape 1.8 :scale 3.2}
+                         :log-likelihood -152.0
+                         :aic 308.0
+                         :bic 313.2
+                         :aicc 308.1
+                         :delta-aic 4.0
+                         :ks-test {:statistic 0.06 :p-value 0.70}
+                         :cvm-test {:statistic 0.03 :p-value 0.75}}
+               :inverse-gaussian {:skipped :moment-match-failed
+                                  :prefilter-result {:valid? false
+                                                     :reason :negative-lambda}}}
+              :parameter-cis {:gamma {:shape {:point-estimate 2.0
+                                              :ci-lower 1.7
+                                              :ci-upper 2.3}
+                                      :scale {:point-estimate 1.5
+                                              :ci-lower 1.2
+                                              :ci-upper 1.8}}}}}}}))
