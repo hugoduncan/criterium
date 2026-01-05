@@ -148,6 +148,10 @@ When completing a story, kill any nREPL processes that are running in the story'
 2. **Analysis** - Apply statistical analysis to raw metrics
 3. **Viewing** - Format and present results through viewers
 
+**Analysis vs View Separation** (critical design constraint):
+- **Analysis** (`criterium.analyse`) contains ALL non-visualization computation. Users must be able to access all criterium analysis results without using viewers. Analysis functions transform data maps and produce computed results (statistics, fits, tests, etc.).
+- **View** (`criterium.view`, `criterium.viewer.*`) contains ONLY visualization-specific functionality. Viewers format and display analysis results but must not perform analysis-type computation. Different viewers should render the same pre-computed analysis data.
+
 **Key Abstractions**:
 - `measured` - Wraps expressions/functions for measurement
 - `collector` - Captures various metrics during execution
