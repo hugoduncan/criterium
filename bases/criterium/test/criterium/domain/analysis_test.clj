@@ -90,7 +90,6 @@
                   :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
               result (analysis/extract d [:stats :elapsed-time :mean])]
           (is (= :criterium/domain-extract (:type result)))
-          (is (= :criterium/domain-extract (:type result)))
           (is (contains? (:metrics result) :elapsed-time))
           (is (= [:stats :elapsed-time :mean]
                  (get-in result [:metrics :elapsed-time :metric])))))
@@ -718,7 +717,6 @@
                                                      [{:n 200} 200.0]
                                                      [{:n 300} 300.0]]}}}
             result (analysis/fit-complexity extract :n)]
-        (is (= :criterium/domain-regression (:type result)))
         (is (= :criterium/domain-regression (:type result)))
         (is (= :n (:axis result)))
         (is (contains? (:regressions result) :elapsed-time))
