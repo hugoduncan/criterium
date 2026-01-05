@@ -577,7 +577,7 @@
 (defn log-log-line-layer
   "Build fit line layer for log-log plot.
   Line represents: y = slope * x + intercept in log space."
-  [line-pts {:keys [color-field legend-options]}]
+  [line-pts {:keys [color-field _legend-options]}]
   {:data {:values (vec line-pts)}
    :mark {:type "line" :strokeWidth 2}
    :encoding (cond-> {:x {:field "x" :type "quantitative"}
