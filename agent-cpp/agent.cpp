@@ -2,6 +2,7 @@
 #include "include/agent_state.h"
 #include "include/agent_types.h"
 #include "include/alloc_rec.h"
+#include "include/call_tree.h"
 #include "include/jni_operations.h"
 #include "include/jvmti_operations.h"
 #include "include/message_queue.h"
@@ -155,6 +156,8 @@ static constexpr char const* data8_sig =
   "Ljava/lang/Object;)V";
 
 using criterium::AllocRec;
+using criterium::CallTreeNode;
+using criterium::ThreadCallState;
 
 jclass ifn(JNIEnv* env) {
   auto *ifn = (env)->FindClass(IFn);
@@ -736,6 +739,10 @@ private:
   std::vector<std::unique_ptr<AllocRec>> allocs;
   std::map<jlong, AllocRec*> allocs_by_tag;
 
+  // Method tracing state
+  std::unique_ptr<CallTreeNode> call_tree_root_;
+  std::map<jlong, ThreadCallState> thread_call_states_;
+
   std::unique_ptr<VMContext::global_ref<jclass>> agent_class;
   std::unique_ptr<VMContext::global_ref<jclass>> agent_allocation_start_marker_class;
   std::unique_ptr<VMContext::global_ref<jclass>> agent_allocation_finish_marker_class;
@@ -789,6 +796,12 @@ private:
   void enable_method_tracing(JNIEnv* env) {
     set_state(env, method_tracing_starting);
 
+    // Initialize call tree with a synthetic root node
+    call_tree_root_ = std::make_unique<CallTreeNode>();
+    call_tree_root_->class_name = "<root>";
+    call_tree_root_->method_name = "<root>";
+    thread_call_states_.clear();
+
     // Enable method entry/exit events
     DEBUG_PRINT("Enabling JVMTI_EVENT_METHOD_ENTRY\n");
     jvmti_ops_.set_event_notification_mode(JVMTI_ENABLE,
@@ -818,12 +831,60 @@ private:
     set_state(env, method_tracing_stopped);
   }
 
-  // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+  /// Resolve method information from a jmethodID.
+  /// Returns tuple of (class_name, method_name, source_file, line_number).
+  auto resolve_method_info(jmethodID method) {
+    std::string class_name;
+    std::string method_name_str;
+    std::string source_file;
+    jint line_number = -1;
+
+    // Get declaring class
+    auto declaring_class = AgentContext::allocated<jclass>();
+    if (jvmti_ops_.get_method_declaring_class(method, &declaring_class)) {
+      // Get class signature
+      auto class_sig = AgentContext::allocated<char*>();
+      if (jvmti_ops_.get_class_signature(declaring_class, &class_sig)) {
+        class_name = class_sig;
+      }
+
+      // Get source file name
+      auto source_name = AgentContext::allocated<char*>();
+      if (jvmti_ops_.get_source_file_name(declaring_class, &source_name)) {
+        source_file = source_name;
+      }
+    }
+
+    // Get method name
+    auto method_name_ptr = AgentContext::allocated<char*>();
+    if (jvmti_ops_.get_method_name(method, &method_name_ptr)) {
+      method_name_str = method_name_ptr;
+    }
+
+    // Get line number from line number table (first entry as approximation)
+    jint entry_count = 0;
+    auto line_table = AgentContext::allocated<jvmtiLineNumberEntry*>();
+    if (jvmti_ops_.get_line_number_table(method, &entry_count, &line_table)) {
+      if (entry_count > 0) {
+        // Use the first line number as the method's line
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+        line_number = line_table[0].line_number;
+      }
+    }
+
+    return std::make_tuple(std::move(class_name), std::move(method_name_str),
+                           std::move(source_file), line_number);
+  }
+
   void method_tracing_report([[maybe_unused]] JNIEnv* env) {
-    // Placeholder for method tracing report implementation.
-    // The actual call tree building and reporting is handled in task #507.
-    // Will access instance state (call tree) when implemented.
-    DEBUG_PRINT("Method tracing report (placeholder)\n");
+    // Call tree data is available in call_tree_root_.
+    // Reporting to Java will be implemented in task #508.
+    // For now, just log that report was requested.
+    DEBUG_PRINT("Method tracing report - call tree ready\n");
+    if (call_tree_root_) {
+      DEBUG_PRINTLN("  Total nodes: " << call_tree_root_->node_count());
+      DEBUG_PRINTLN("  Max depth: " << call_tree_root_->max_depth());
+    }
   }
 
   void untag_objects(allocs_t &allocs, allocs_by_tag_t &allocs_by_tag);
@@ -1007,34 +1068,60 @@ public:
     }
   }
 
-  // NOLINTNEXTLINE(readability-make-member-function-const)
-  void process_method_entry_event([[maybe_unused]] JNIEnv* env,
-                                  [[maybe_unused]] const MethodEntryEvent& event) {
+  void process_method_entry_event(JNIEnv* env,
+                                  const MethodEntryEvent& event) {
     using namespace criterium::method_tracing_transitions;
 
     if (!is_method_tracing_active(agent_state)) {
       return;
     }
 
-    // Placeholder for method entry processing.
-    // The actual call stack building is handled in task #507.
-    // Will modify instance state (call tree) when implemented.
-    DEBUG_PRINT("Method entry event (placeholder)\n");
+    if (!call_tree_root_) {
+      return;
+    }
+
+    // Get thread ID
+    jlong thread_id = jni_ops_.call_long_method(env, event.thread,
+                                                thread_getId_method_);
+
+    // Get or create thread state
+    auto& thread_state = thread_call_states_[thread_id];
+
+    // Resolve method info
+    auto [class_name, method_name, source_file, line_number] =
+        resolve_method_info(event.method);
+
+    // Get current node (root if stack empty)
+    CallTreeNode* current = thread_state.empty()
+        ? call_tree_root_.get()
+        : thread_state.current();
+
+    // Find or create child for this method call
+    CallTreeNode* child = current->find_or_create_child(
+        class_name, method_name, source_file, line_number);
+    child->call_count++;
+
+    // Push child onto stack
+    thread_state.push(child);
   }
 
-  // NOLINTNEXTLINE(readability-make-member-function-const)
-  void process_method_exit_event([[maybe_unused]] JNIEnv* env,
-                                 [[maybe_unused]] const MethodExitEvent& event) {
+  void process_method_exit_event(JNIEnv* env,
+                                 const MethodExitEvent& event) {
     using namespace criterium::method_tracing_transitions;
 
     if (!is_method_tracing_active(agent_state)) {
       return;
     }
 
-    // Placeholder for method exit processing.
-    // The actual call stack building is handled in task #507.
-    // Will modify instance state (call tree) when implemented.
-    DEBUG_PRINT("Method exit event (placeholder)\n");
+    // Get thread ID
+    jlong thread_id = jni_ops_.call_long_method(env, event.thread,
+                                                thread_getId_method_);
+
+    // Find thread state and pop from stack
+    auto iter = thread_call_states_.find(thread_id);
+    if (iter != thread_call_states_.end()) {
+      iter->second.pop();
+    }
   }
 
   void process_command(JNIEnv* env, const Command& cmd) {

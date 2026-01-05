@@ -1,5 +1,10 @@
 {
-  "enabledMcpjsonServers": [
+"permissions": {
+    "allow": [
+      "Bash(./build/test/criterium_tests:*)"
+    ]
+  },
+"enabledMcpjsonServers": [
     "clojure-mcp",
     "mcp-tasks",
     "clj-kondo"
