@@ -7,10 +7,12 @@
 #include <vector>
 #include "include/agent_types.h"
 #include "include/agent_state.h"
+#include "include/state_transitions.h"
 #include "mocks.h"
 
 using namespace criterium;
 using namespace criterium::test;
+using namespace criterium::state_transitions;
 using ::testing::_;
 using ::testing::Return;
 using ::testing::NiceMock;
@@ -22,6 +24,9 @@ using ::testing::Invoke;
 // to report generation, using mocked JVMTI/JNI interfaces to validate
 // that the correct operations are called with expected arguments.
 //
+// The IntegrationStateMachine uses the same pure transition functions
+// as AgentState, ensuring tests and production code share the same logic.
+//
 // These tests exercise the full allocation tracking lifecycle:
 // - Start command enables tracing and clears previous records
 // - Start marker allocation/free triggers active state
@@ -31,15 +36,14 @@ using ::testing::Invoke;
 // - Finish marker free disables object free events
 // - Report command generates allocation data
 
-static constexpr char const* START_MARKER =
-    "Lcriterium/agent/Agent$AllocationStartMarker;";
-static constexpr char const* FINISH_MARKER =
-    "Lcriterium/agent/Agent$AllocationFinishMarker;";
+// Use shared marker constants from state_transitions.h
+static constexpr char const* START_MARKER = ALLOCATION_START_MARKER;
+static constexpr char const* FINISH_MARKER = ALLOCATION_FINISH_MARKER;
 static constexpr char const* REGULAR_CLASS = "Ljava/lang/String;";
 
 /// Testable state machine for integration flow tests.
-/// Models the state transition and allocation tracking logic of AgentState
-/// while allowing mock verification of JVMTI/JNI operations.
+/// Uses the same pure transition functions as AgentState, ensuring tests
+/// and production code share the same state machine logic.
 class IntegrationStateMachine {
 private:
   NiceMock<MockJvmtiOperations>& jvmti_ops_;
@@ -56,30 +60,24 @@ public:
   jlong get_state() const { return state_; }
 
   void process_command(const Command& cmd) {
-    switch (cmd.cmd) {
-    case start_allocation_tracing:
+    auto new_state = next_state_for_command(cmd.cmd);
+    if (new_state == -1) {
+      return;
+    }
+
+    if (cmd.cmd == start_allocation_tracing) {
       enable_allocation_tracing();
-      break;
-    case stop_allocation_tracing:
-      disable_allocation_tracing();
-      break;
-    case report_allocation_tracing:
+    } else if (cmd.cmd == stop_allocation_tracing) {
+      state_ = new_state;
+    } else if (cmd.cmd == report_allocation_tracing) {
       state_ = allocation_tracing_reporting;
       state_ = allocation_tracing_reported;
-      break;
-    case sync_state:
-    case ping:
-    default:
-      break;
     }
   }
 
   void process_allocation_event(const char* class_sig, jlong tag) {
-    auto starting = state_ == allocation_tracing_starting &&
-                    std::strcmp(class_sig, START_MARKER) == 0;
-
-    auto stopping = state_ == allocation_tracing_stopping &&
-                    std::strcmp(class_sig, FINISH_MARKER) == 0;
+    auto starting = is_start_marker_allocation(state_, class_sig);
+    auto stopping = is_finish_marker_allocation(state_, class_sig);
 
     auto rec = std::make_unique<AllocRec>(class_sig, 0, nullptr, nullptr,
                                           nullptr, -1, nullptr, nullptr,
@@ -93,7 +91,7 @@ public:
       jvmti_ops_.set_event_notification_mode(
           JVMTI_DISABLE, JVMTI_EVENT_SAMPLED_OBJECT_ALLOC, nullptr);
       rec->disable_marker = true;
-      state_ = allocation_tracing_flushing;
+      state_ = next_state_after_allocation(state_, class_sig);
     }
 
     allocs_by_tag_.emplace(rec->tag, rec.get());
@@ -109,14 +107,14 @@ public:
     AllocRec* rec = it->second;
     rec->freed = 1;
 
-    if (rec->start_marker && state_ == allocation_tracing_starting) {
-      state_ = allocation_tracing_active;
-    }
-
-    if (state_ == allocation_tracing_flushing && rec->disable_marker) {
-      jvmti_ops_.set_event_notification_mode(JVMTI_DISABLE,
-                                             JVMTI_EVENT_OBJECT_FREE, nullptr);
-      state_ = allocation_tracing_flushed;
+    auto new_state = next_state_after_object_free(state_, rec->start_marker,
+                                                  rec->disable_marker);
+    if (new_state != state_) {
+      if (rec->disable_marker) {
+        jvmti_ops_.set_event_notification_mode(JVMTI_DISABLE,
+                                               JVMTI_EVENT_OBJECT_FREE, nullptr);
+      }
+      state_ = new_state;
     }
   }
 
@@ -143,8 +141,6 @@ private:
     jvmti_ops_.set_event_notification_mode(JVMTI_ENABLE,
                                            JVMTI_EVENT_OBJECT_FREE, nullptr);
   }
-
-  void disable_allocation_tracing() { state_ = allocation_tracing_stopping; }
 };
 
 class IntegrationFlowTest : public ::testing::Test {

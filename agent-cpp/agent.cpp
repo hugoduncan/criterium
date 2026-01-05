@@ -5,6 +5,7 @@
 #include "include/jni_operations.h"
 #include "include/jvmti_operations.h"
 #include "include/message_queue.h"
+#include "include/state_transitions.h"
 #include "include/utils.h"
 #include <algorithm>
 #include <array>
@@ -834,17 +835,15 @@ public:
   }
 
   void process_allocation_event(JNIEnv* env, const AllocationEvent& event) {
+    using namespace criterium::state_transitions;
+
     auto class_sig = AgentContext::allocated<char*>();
     if (!jvmti_ops_.get_class_signature(event.object_klass, &class_sig)) {
       return;
     }
 
-    auto starting = agent_state == allocation_tracing_starting &&
-                    0 == std::strcmp(class_sig, allocation_start_marker);
-
-    auto stopping = agent_state == allocation_tracing_stopping &&
-                    0 == std::strcmp(class_sig, allocation_finish_marker);
-
+    auto starting = is_start_marker_allocation(agent_state, class_sig);
+    auto stopping = is_finish_marker_allocation(agent_state, class_sig);
     auto internal = !(starting || stopping);
 
     // Use the pre-captured stack frames from the allocation event
@@ -859,7 +858,6 @@ public:
                                 event.tag);
 
     if (starting) {
-      // DEBUG_PRINT("Start marker seen\n");
       rec->start_marker = true;
     }
 
@@ -868,7 +866,8 @@ public:
       jvmti_ops_.set_event_notification_mode(
           JVMTI_DISABLE, JVMTI_EVENT_SAMPLED_OBJECT_ALLOC, nullptr);
       rec->disable_marker = true;
-      set_state(env, allocation_tracing_flushing);
+      auto new_state = next_state_after_allocation(agent_state, class_sig);
+      set_state(env, new_state);
     }
 
     allocs_by_tag.emplace(rec->tag, rec.get());
@@ -876,25 +875,27 @@ public:
   }  // NOLINT(clang-analyzer-cplusplus.NewDeleteLeaks)
 
   void process_object_free_event(JNIEnv* env, const ObjectFreeEvent& event) {
-    // DEBUG_PRINT("Free\n");
+    using namespace criterium::state_transitions;
+
     try {
       AllocRec* rec = allocs_by_tag.at(event.tag);
       rec->freed = 1;
-      // DEBUG_PRINT("Free %d %d\n", rec->start_marker, rec->disable_marker);
 
-      if (rec->start_marker && agent_state == start_allocation_tracing) {
-        // set the state to allow the sampler to know that we have
-        // actually activated
-        DEBUG_PRINT("Start marker seen in Free\n");
-        set_state(env, allocation_tracing_active);
-      }
-      if (agent_state == allocation_tracing_flushing && rec->disable_marker) {
-        DEBUG_PRINT("Disabling JVMTI_EVENT_OBJECT_FREE\n");
-        jvmti_ops_.set_event_notification_mode(JVMTI_DISABLE,
-                                               JVMTI_EVENT_OBJECT_FREE,
-                                               nullptr);
-        DEBUG_PRINT("Disabled\n");
-        set_state(env, allocation_tracing_flushed);
+      auto new_state =
+          next_state_after_object_free(agent_state, rec->start_marker,
+                                       rec->disable_marker);
+      if (new_state != agent_state) {
+        if (rec->start_marker) {
+          DEBUG_PRINT("Start marker freed, transitioning to active\n");
+        }
+        if (rec->disable_marker) {
+          DEBUG_PRINT("Disabling JVMTI_EVENT_OBJECT_FREE\n");
+          jvmti_ops_.set_event_notification_mode(JVMTI_DISABLE,
+                                                 JVMTI_EVENT_OBJECT_FREE,
+                                                 nullptr);
+          DEBUG_PRINT("Disabled\n");
+        }
+        set_state(env, new_state);
       }
     } catch (const std::out_of_range&) {
       DEBUG_PRINT("Tag not found in map\n");

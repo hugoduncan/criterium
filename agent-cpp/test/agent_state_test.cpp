@@ -4,20 +4,24 @@
 #include <vector>
 #include "include/agent_types.h"
 #include "include/agent_state.h"
+#include "include/state_transitions.h"
 #include "mocks.h"
 
 using namespace criterium;
 using namespace criterium::test;
+using namespace criterium::state_transitions;
 using ::testing::_;
 using ::testing::Return;
 using ::testing::NiceMock;
 using ::testing::DoAll;
 using ::testing::SetArgPointee;
 
-// Tests for AgentState state machine transitions.
-// These tests validate the state transition logic using mocked JVMTI/JNI
-// operations. The state machine follows this flow:
+// Tests for AgentState state machine behavior using mocked JVMTI/JNI ops.
+// The pure state transition logic is tested in state_transitions_test.cpp.
+// These tests verify that TestableStateMachine (which uses the shared
+// pure functions) correctly interacts with JVMTI/JNI operations.
 //
+// State machine flow:
 //   passive → allocation_tracing_starting (start command)
 //           → allocation_tracing_active (start marker freed)
 //           → allocation_tracing_stopping (stop command)
@@ -26,14 +30,13 @@ using ::testing::SetArgPointee;
 //           → allocation_tracing_reporting (report command)
 //           → allocation_tracing_reported (report complete)
 
-// Marker class signatures for state transitions
-static constexpr char const* START_MARKER =
-    "Lcriterium/agent/Agent$AllocationStartMarker;";
-static constexpr char const* FINISH_MARKER =
-    "Lcriterium/agent/Agent$AllocationFinishMarker;";
+// Use shared marker constants from state_transitions.h
+static constexpr char const* START_MARKER = ALLOCATION_START_MARKER;
+static constexpr char const* FINISH_MARKER = ALLOCATION_FINISH_MARKER;
 static constexpr char const* REGULAR_CLASS = "Ljava/lang/Object;";
 
-/// Testable state machine that mirrors AgentState's transition logic.
+/// Testable state machine that uses the same pure transition functions
+/// as AgentState, ensuring tests and production code share the same logic.
 /// This enables unit testing of state transitions without the full
 /// agent dependencies (VMContext, AgentContext singletons).
 class TestableStateMachine {
@@ -52,37 +55,26 @@ public:
   jlong get_state() const { return state_; }
 
   void process_command(const Command& cmd) {
-    switch (cmd.cmd) {
-    case start_allocation_tracing:
+    auto new_state = next_state_for_command(cmd.cmd);
+    if (new_state == -1) {
+      // No state change for this command
+      return;
+    }
+
+    if (cmd.cmd == start_allocation_tracing) {
       enable_allocation_tracing();
-      break;
-    case stop_allocation_tracing:
-      disable_allocation_tracing();
-      break;
-    case report_allocation_tracing:
+    } else if (cmd.cmd == stop_allocation_tracing) {
+      state_ = new_state;
+    } else if (cmd.cmd == report_allocation_tracing) {
       state_ = allocation_tracing_reporting;
       // allocation_tracing_report would be called here
       state_ = allocation_tracing_reported;
-      break;
-    case sync_state:
-      // sync_state just reports current state to Java, no transition
-      break;
-    case ping:
-      // ping is a no-op for state
-      break;
-    default:
-      break;
     }
   }
 
   void process_allocation_event(const char* class_sig, jlong tag) {
-    auto starting =
-        state_ == allocation_tracing_starting &&
-        std::strcmp(class_sig, START_MARKER) == 0;
-
-    auto stopping =
-        state_ == allocation_tracing_stopping &&
-        std::strcmp(class_sig, FINISH_MARKER) == 0;
+    auto starting = is_start_marker_allocation(state_, class_sig);
+    auto stopping = is_finish_marker_allocation(state_, class_sig);
 
     auto rec = std::make_unique<AllocRec>(
         class_sig, 0, nullptr, nullptr, nullptr, -1,
@@ -97,7 +89,7 @@ public:
       jvmti_ops_.set_event_notification_mode(
           JVMTI_DISABLE, JVMTI_EVENT_SAMPLED_OBJECT_ALLOC, nullptr);
       rec->disable_marker = true;
-      state_ = allocation_tracing_flushing;
+      state_ = next_state_after_allocation(state_, class_sig);
     }
 
     allocs_by_tag_.emplace(rec->tag, rec.get());
@@ -113,14 +105,14 @@ public:
     AllocRec* rec = it->second;
     rec->freed = 1;
 
-    if (rec->start_marker && state_ == allocation_tracing_starting) {
-      state_ = allocation_tracing_active;
-    }
-
-    if (state_ == allocation_tracing_flushing && rec->disable_marker) {
-      jvmti_ops_.set_event_notification_mode(
-          JVMTI_DISABLE, JVMTI_EVENT_OBJECT_FREE, nullptr);
-      state_ = allocation_tracing_flushed;
+    auto new_state = next_state_after_object_free(state_, rec->start_marker,
+                                                  rec->disable_marker);
+    if (new_state != state_) {
+      if (rec->disable_marker) {
+        jvmti_ops_.set_event_notification_mode(
+            JVMTI_DISABLE, JVMTI_EVENT_OBJECT_FREE, nullptr);
+      }
+      state_ = new_state;
     }
   }
 
@@ -144,10 +136,6 @@ private:
         JVMTI_ENABLE, JVMTI_EVENT_SAMPLED_OBJECT_ALLOC, nullptr);
     jvmti_ops_.set_event_notification_mode(
         JVMTI_ENABLE, JVMTI_EVENT_OBJECT_FREE, nullptr);
-  }
-
-  void disable_allocation_tracing() {
-    state_ = allocation_tracing_stopping;
   }
 };
 
