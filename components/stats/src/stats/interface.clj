@@ -2,7 +2,8 @@
   "Public API for the stats component.
 
   Provides statistical functions including:
-  - Core stats: min, max, mean, sum, variance, median, quartiles, quantile
+  - Core stats: min, max, mean, sum, variance, median, quartiles, quantile,
+                skewness, kurtosis
   - Outlier detection: boxplot-outlier-thresholds
   - Sampling: uniform-distribution, sample-uniform, sample, confidence-interval
   - Probability: log-gamma, erf, normal-cdf, normal-pdf, normal-quantile
@@ -93,6 +94,40 @@
   "Calculate the quantile of a sorted data set."
   [^double quantile data]
   (core/quantile quantile data))
+
+(defn central-moment
+  "Compute the r-th central moment: (1/n) * Σ(xᵢ - μ)^r"
+  ^double [data ^double mean ^long r]
+  (core/central-moment data mean r))
+
+(defn skewness
+  "Compute sample skewness using one of three methods.
+
+  Type 1: g₁ = m₃ / m₂^(3/2) - typical textbook definition
+  Type 2: G₁ = g₁ × √(n(n-1)) / (n-2) - unbiased under normality (SAS/SPSS)
+  Type 3: b₁ = g₁ × ((n-1)/n)^(3/2) - used in MINITAB/BMDP
+
+  Default is type 2 (unbiased under normality).
+
+  Reference: Joanes & Gill (1998), Comparing measures of sample skewness
+             and kurtosis. The Statistician, 47, 183-189."
+  (^double [data] (core/skewness data))
+  (^double [data type] (core/skewness data type)))
+
+(defn kurtosis
+  "Compute sample excess kurtosis using one of three methods.
+
+  Type 1: g₂ = m₄ / m₂² - 3 - typical textbook definition
+  Type 2: G₂ = ((n+1)g₂ + 6)(n-1) / ((n-2)(n-3)) - unbiased under normality (SAS/SPSS)
+  Type 3: b₂ = (g₂ + 3)((n-1)/n)² - 3 - used in MINITAB/BMDP
+
+  Default is type 2 (unbiased under normality). Returns excess kurtosis
+  (normal distribution has excess kurtosis of 0).
+
+  Reference: Joanes & Gill (1998), Comparing measures of sample skewness
+             and kurtosis. The Statistician, 47, 183-189."
+  (^double [data] (core/kurtosis data))
+  (^double [data type] (core/kurtosis data type)))
 
 ;;; Outliers
 

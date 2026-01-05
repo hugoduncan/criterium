@@ -124,3 +124,75 @@
                      :else     (+ (* p (double (nth data (inc i))))
                                   (* (- 1.0 p) (double (nth data i)))))))]
     (interp (* quantile n))))
+
+(defn central-moment
+  "Compute the r-th central moment: (1/n) * Σ(xᵢ - μ)^r"
+  ^double [data ^double mean ^long r]
+  (let [n (count data)]
+    (/ (double
+        (reduce
+         (fn ^double [^double acc ^double x]
+           (+ acc (Math/pow (- x mean) r)))
+         0.0
+         data))
+       n)))
+
+(defn skewness
+  "Compute sample skewness using one of three methods.
+
+  Type 1: g₁ = m₃ / m₂^(3/2) - typical textbook definition
+  Type 2: G₁ = g₁ × √(n(n-1)) / (n-2) - unbiased under normality (SAS/SPSS)
+  Type 3: b₁ = g₁ × ((n-1)/n)^(3/2) - used in MINITAB/BMDP
+
+  Where m_r = sample central moment of order r: Σ(xᵢ - μ)^r / n
+
+  Default is type 2 (unbiased under normality).
+
+  Reference: Joanes & Gill (1998), Comparing measures of sample skewness
+             and kurtosis. The Statistician, 47, 183-189."
+  (^double [data] (skewness data 2))
+  (^double [data ^long type]
+   (let [n  (count data)
+         mu (mean data)
+         m2 (central-moment data mu 2)
+         m3 (central-moment data mu 3)
+         g1 (/ m3 (Math/pow m2 1.5))]
+     (case (int type)
+       1 g1
+       2 (if (< n 3)
+           Double/NaN
+           (* g1 (/ (Math/sqrt (* n (dec n))) (- n 2))))
+       3 (* g1 (Math/pow (/ (dec n) n) 1.5))
+       (throw (ex-info "Invalid skewness type, must be 1, 2, or 3"
+                       {:type type}))))))
+
+(defn kurtosis
+  "Compute sample excess kurtosis using one of three methods.
+
+  Type 1: g₂ = m₄ / m₂² - 3 - typical textbook definition
+  Type 2: G₂ = ((n+1)g₂ + 6)(n-1) / ((n-2)(n-3)) - unbiased under normality (SAS/SPSS)
+  Type 3: b₂ = (g₂ + 3)((n-1)/n)² - 3 - used in MINITAB/BMDP
+
+  Where m_r = sample central moment of order r: Σ(xᵢ - μ)^r / n
+
+  Default is type 2 (unbiased under normality). Returns excess kurtosis
+  (normal distribution has excess kurtosis of 0).
+
+  Reference: Joanes & Gill (1998), Comparing measures of sample skewness
+             and kurtosis. The Statistician, 47, 183-189."
+  (^double [data] (kurtosis data 2))
+  (^double [data ^long type]
+   (let [n  (count data)
+         mu (mean data)
+         m2 (central-moment data mu 2)
+         m4 (central-moment data mu 4)
+         g2 (- (/ m4 (* m2 m2)) 3.0)]
+     (case (int type)
+       1 g2
+       2 (if (< n 4)
+           Double/NaN
+           (/ (* (+ (* (inc n) g2) 6) (dec n))
+              (* (- n 2) (- n 3))))
+       3 (- (* (+ g2 3) (Math/pow (/ (dec n) n) 2)) 3)
+       (throw (ex-info "Invalid kurtosis type, must be 1, 2, or 3"
+                       {:type type}))))))
