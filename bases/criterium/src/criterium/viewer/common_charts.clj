@@ -503,18 +503,22 @@
                                      legend-options)}}})
 
 (defn regression-loess-layer
-  "Build loess smoothing layer for residual plot."
+  "Build loess smoothing layer for residual plot.
+  When color-field is nil, LOESS is applied to all data points as one series."
   [residual-pts {:keys [color-field]}]
   {:data {:values (vec residual-pts)}
-   :transform [{:loess "residual"
-                :on "x"
-                :groupby [color-field]
-                :bandwidth 0.3}]
+   :transform [(cond-> {:loess "residual"
+                        :on "x"
+                        :bandwidth 0.3}
+                 color-field (assoc :groupby [color-field]))]
    :mark {:type "line" :strokeWidth 1}
-   :encoding {:x {:field "x" :type "quantitative"}
-              :y {:field "residual" :type "quantitative"}
-              :color {:field color-field :type "nominal" :legend nil}
-              :opacity {:value 0.4}}})
+   :encoding (cond-> {:x {:field "x" :type "quantitative"}
+                      :y {:field "residual" :type "quantitative"}
+                      :opacity {:value 0.4}}
+               color-field
+               (assoc :color {:field color-field :type "nominal" :legend nil})
+               (not color-field)
+               (assoc :color {:value "steelblue"}))})
 
 (defn regression-zero-line-layer
   "Build zero reference line layer for residual plot."
@@ -665,13 +669,9 @@
                  :or {width 600 height 200} :as opts}]
   {:width width
    :height height
-   :layer (cond-> [(log-log-residual-layer residual-pts
-                                           (assoc opts :axis-name axis-name))]
-            ;; Only include loess smoothing when groupby field is present
-            color-field
-            (conj (regression-loess-layer residual-pts {:color-field color-field}))
-            :always
-            (conj (regression-zero-line-layer)))})
+   :layer [(log-log-residual-layer residual-pts (assoc opts :axis-name axis-name))
+           (regression-loess-layer residual-pts {:color-field color-field})
+           (regression-zero-line-layer)]})
 
 ;;; Single-point comparison bar charts
 

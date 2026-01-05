@@ -1067,8 +1067,8 @@
         (is (contains? spec :height))
         (is (contains? spec :layer))
         (is (= 200 (:height spec)))
-        ;; Should have scatter layer and zero line (no loess without color-field)
-        (is (= 2 (count (:layer spec))))))
+        ;; Should have scatter layer, loess layer, and zero line
+        (is (= 3 (count (:layer spec))))))
     (testing "uses log axis title"
       (let [spec (charts/log-log-residual-spec
                   sample-log-log-residuals
