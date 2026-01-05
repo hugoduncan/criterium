@@ -437,3 +437,48 @@
                          :delta-aic 1.0
                          :ks-test {:statistic 0.11 :p-value 0.85}
                          :cvm-test {:statistic 0.055 :p-value 0.8}}}}}}}))
+
+(defn distribution-qq-data-map
+  "Create a data-map with samples and distribution-fit data for testing Q-Q plots.
+  Includes sample data and fitted distributions for Q-Q scatter overlays."
+  []
+  (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])]
+    {:samples
+     {:type :criterium/metrics-samples
+      :metrics-defs metrics-defs
+      :metric->values {[:elapsed-time] [1.0 1.5 2.0 2.5 3.0 3.5 4.0 4.5 5.0]}
+      :transform {:sample-> identity :->sample identity}
+      :batch-size 1
+      :eval-count 9
+      :num-samples 9}
+     :distribution-fit
+     {:type :criterium/distribution-fit
+      :transform {:sample-> identity :->sample identity}
+      :fits {[:elapsed-time]
+             {:n 9
+              :best-model :gamma
+              :distributions
+              {:gamma {:params {:shape 2.0 :scale 1.5}
+                       :log-likelihood -15.0
+                       :aic 34.0
+                       :bic 34.6
+                       :aicc 36.0
+                       :delta-aic 0.0
+                       :ks-test {:statistic 0.1 :p-value 0.9}
+                       :cvm-test {:statistic 0.05 :p-value 0.85}}
+               :lognormal {:params {:mu 0.5 :sigma 0.6}
+                           :log-likelihood -16.0
+                           :aic 36.0
+                           :bic 36.6
+                           :aicc 38.0
+                           :delta-aic 2.0
+                           :ks-test {:statistic 0.12 :p-value 0.8}
+                           :cvm-test {:statistic 0.06 :p-value 0.75}}
+               :weibull {:params {:shape 2.0 :scale 3.0}
+                         :log-likelihood -15.5
+                         :aic 35.0
+                         :bic 35.6
+                         :aicc 37.0
+                         :delta-aic 1.0
+                         :ks-test {:statistic 0.11 :p-value 0.85}
+                         :cvm-test {:statistic 0.055 :p-value 0.8}}}}}}}))

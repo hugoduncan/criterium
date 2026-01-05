@@ -1467,6 +1467,106 @@
    :inverse-gaussian "Inverse Gaussian"
    :weibull "Weibull"})
 
+;;; Distribution quantile (inverse CDF) functions for Q-Q plots
+
+(defn- weibull-quantile
+  "Quantile function for Weibull distribution.
+  Q(p) = λ * (-ln(1-p))^(1/k) where k=shape, λ=scale"
+  [^double shape ^double scale]
+  (fn ^double [^double p]
+    (if (<= p 0.0)
+      0.0
+      (if (>= p 1.0)
+        Double/POSITIVE_INFINITY
+        (* scale (Math/pow (- (Math/log (- 1.0 p))) (/ 1.0 shape)))))))
+
+(defn- lognormal-quantile
+  "Quantile function for log-normal distribution.
+  Q(p) = exp(μ + σ * Φ^(-1)(p))"
+  [^double mu ^double sigma]
+  (fn ^double [^double p]
+    (if (<= p 0.0)
+      0.0
+      (if (>= p 1.0)
+        Double/POSITIVE_INFINITY
+        (Math/exp (+ mu (* sigma (si/normal-quantile p))))))))
+
+(defn- gamma-quantile
+  "Quantile function for gamma distribution using Newton-Raphson inversion.
+  Finds x such that gamma-cdf(x) = p."
+  [^double shape ^double scale]
+  (let [cdf-fn (si/gamma-cdf shape scale)
+        pdf-fn (si/gamma-pdf shape scale)
+        ;; Initial guess using Wilson-Hilferty approximation for large shape
+        initial-guess (fn ^double [^double p]
+                        (let [z (si/normal-quantile p)]
+                          (if (< shape 1.0)
+                            ;; For small shape, use median approximation
+                            (* scale shape (Math/pow (- 1.0 (/ 1.0 (* 9.0 (max shape 0.1)))) 3.0))
+                            ;; Wilson-Hilferty approximation
+                            (let [d (/ 1.0 (* 9.0 shape))
+                                  x-norm (- 1.0 d (- (* z (Math/sqrt d))))]
+                              (* scale shape (Math/pow (max x-norm 0.01) 3.0))))))]
+    (fn ^double [^double p]
+      (cond
+        (<= p 0.0) 0.0
+        (>= p 1.0) Double/POSITIVE_INFINITY
+        :else
+        ;; Newton-Raphson: x_{n+1} = x_n - (F(x_n) - p) / f(x_n)
+        (let [max-iter 50
+              tol 1e-10]
+          (loop [x (max (initial-guess p) 1e-10)
+                 iter 0]
+            (if (>= iter max-iter)
+              x
+              (let [fx (cdf-fn x)
+                    fpx (pdf-fn x)]
+                (if (< fpx 1e-100)
+                  x
+                  (let [x-new (- x (/ (- fx p) fpx))
+                        x-new (max x-new 1e-10)]
+                    (if (< (Math/abs (- x-new x)) (* tol x))
+                      x-new
+                      (recur x-new (inc iter)))))))))))))
+
+(defn- inverse-gaussian-quantile
+  "Quantile function for inverse-gaussian distribution using Newton-Raphson inversion.
+  Finds x such that inverse-gaussian-cdf(x) = p."
+  [^double mu ^double lambda]
+  (let [cdf-fn (si/inverse-gaussian-cdf mu lambda)
+        pdf-fn (si/inverse-gaussian-pdf mu lambda)]
+    (fn ^double [^double p]
+      (cond
+        (<= p 0.0) 0.0
+        (>= p 1.0) Double/POSITIVE_INFINITY
+        :else
+        ;; Newton-Raphson with mu as initial guess
+        (let [max-iter 50
+              tol 1e-10]
+          (loop [x mu
+                 iter 0]
+            (if (>= iter max-iter)
+              x
+              (let [fx (cdf-fn x)
+                    fpx (pdf-fn x)]
+                (if (< fpx 1e-100)
+                  x
+                  (let [x-new (- x (/ (- fx p) fpx))
+                        x-new (max x-new 1e-10)]
+                    (if (< (Math/abs (- x-new x)) (* tol x))
+                      x-new
+                      (recur x-new (inc iter)))))))))))))
+
+(defn- make-quantile-fn
+  "Create a quantile (inverse CDF) function for the given distribution and parameters."
+  [dist params]
+  (case dist
+    :gamma (gamma-quantile (:shape params) (:scale params))
+    :lognormal (lognormal-quantile (:mu params) (:sigma params))
+    :inverse-gaussian (inverse-gaussian-quantile (:mu params) (:lambda params))
+    :weibull (weibull-quantile (:shape params) (:scale params))
+    nil))
+
 (defn- make-pdf-fn
   "Create a PDF function for the given distribution and parameters."
   [dist params]
@@ -1756,6 +1856,163 @@
                 (into (distribution-cdf-overlay-layers
                        fit-data
                        grid
+                       samples-transforms)))}))))
+      metric-configs)}))
+
+;;; Distribution Q-Q plot charts
+
+(defn qq-points
+  "Generate Q-Q plot points comparing sample quantiles to theoretical quantiles.
+
+  For each sample value (ordered), computes:
+  - theoretical: the theoretical quantile at probability (i-0.5)/n
+  - observed: the actual sample value
+
+  If data follows the theoretical distribution, points should lie along y=x.
+
+  Returns a vector of {\"theoretical\" x \"observed\" y} maps."
+  [samples quantile-fn transforms]
+  (let [sorted-samples (vec (sort samples))
+        n (count sorted-samples)]
+    (mapv (fn [i x]
+            (let [;; Hazen plotting position: (i - 0.5) / n
+                  p (/ (- (double (inc i)) 0.5) (double n))
+                  theoretical (quantile-fn p)]
+              {"theoretical" (util/transform-sample-> theoretical transforms)
+               "observed" (util/transform-sample-> x transforms)}))
+          (range n)
+          sorted-samples)))
+
+(defn distribution-qq-layer
+  "Build a Q-Q scatter layer for a single fitted distribution.
+
+  Takes the distribution keyword, fit result, samples, and transforms.
+  Returns a Vega-Lite layer spec or nil if the distribution couldn't be fitted."
+  [dist fit-result samples transforms]
+  (when (and (:params fit-result)
+             (not (:error fit-result))
+             (not (:skipped fit-result)))
+    (let [quantile-fn (make-quantile-fn dist (:params fit-result))
+          label (get distribution-labels dist (name dist))
+          color (get distribution-colors dist "#999999")
+          is-best? (= dist (:best-model fit-result))
+          data (qq-points samples quantile-fn transforms)]
+      {:data {:values data}
+       :transform [{:calculate (str "'" label "'") :as "distribution"}]
+       :mark {:type "point"
+              :size (if is-best? 60 40)
+              :filled is-best?
+              :opacity (if is-best? 0.8 0.5)}
+       :encoding {:x {:field "theoretical" :type "quantitative"
+                      :title "Theoretical Quantiles"
+                      :scale {:zero false}}
+                  :y {:field "observed" :type "quantitative"
+                      :title "Sample Quantiles"
+                      :scale {:zero false}}
+                  :color {:field "distribution" :type "nominal"
+                          :scale {:domain (mapv #(get distribution-labels % (name %))
+                                                (keys distribution-colors))
+                                  :range (vals distribution-colors)}
+                          :legend {:orient "top-right" :title "Fitted Distributions"}}
+                  :tooltip [{:field "theoretical" :type "quantitative"
+                             :title "Theoretical" :format ".4g"}
+                            {:field "observed" :type "quantitative"
+                             :title "Observed" :format ".4g"}]}})))
+
+(defn qq-reference-line-layer
+  "Build a y=x reference line layer for Q-Q plots.
+
+  Takes the min and max values from the data range to draw the diagonal.
+  Points lying on this line indicate perfect fit to the distribution."
+  [min-val max-val]
+  (let [;; Extend range slightly for visual clarity
+        margin (* 0.05 (- (double max-val) (double min-val)))
+        start (- (double min-val) margin)
+        end (+ (double max-val) margin)]
+    {:data {:values [{"x" start "y" start}
+                     {"x" end "y" end}]}
+     :mark {:type "line"
+            :strokeDash [4 4]
+            :strokeWidth 1.5
+            :color "#666666"}
+     :encoding {:x {:field "x" :type "quantitative"}
+                :y {:field "y" :type "quantitative"}}}))
+
+(defn distribution-qq-overlay-layers
+  "Build Q-Q overlay layers for all fitted distributions.
+
+  Takes distribution-fit data for a metric, samples, and transforms.
+  Returns a vector of Vega-Lite layer specs for successfully fitted distributions."
+  [fit-data samples transforms]
+  (let [distributions (:distributions fit-data)
+        best-model (:best-model fit-data)]
+    (->> (keys distributions)
+         (mapv (fn [dist]
+                 (distribution-qq-layer
+                  dist
+                  (assoc (get distributions dist) :best-model best-model)
+                  samples
+                  transforms)))
+         (filterv some?))))
+
+(defn distribution-qq-vega-spec
+  "Build a complete Vega-Lite spec for Q-Q plot with all fitted distributions overlaid.
+
+  Takes data-map, view options, and chart-options map containing :width and/or
+  :height for chart dimensions.
+
+  View options:
+    :samples-id - Key for samples data in data-map (default :samples)
+    :distribution-fit-id - Key for distribution fit data (default :distribution-fit)
+
+  Each fitted distribution is plotted as a separate scatter series. If data follows
+  the distribution, points lie along the y=x reference line. Best-fit model uses
+  larger, filled points; other models use smaller, hollow points.
+
+  Returns the Vega-Lite spec without viewer-specific wrapping."
+  [data-map view chart-options]
+  (let [samples-id (or (:samples-id view) :samples)
+        distribution-fit-id (or (:distribution-fit-id view) :distribution-fit)
+        samples-map (util/lookup-data data-map samples-id)
+        distribution-fit-map (get data-map distribution-fit-id)
+        metrics-defs (-> (:metrics-defs samples-map)
+                         (metric/filter-metrics
+                          (metric/type-pred :quantitative)))
+        metric-configs (metric/all-metric-configs metrics-defs)
+        metric->values (util/metric->values samples-map)
+        fits (when distribution-fit-map (:fits distribution-fit-map))
+        samples-transforms (util/get-transforms data-map samples-id)]
+    {:data {:values []}
+     :resolve {:scale {:x "shared"
+                       :y "shared"
+                       :color "independent"}}
+     :vconcat
+     (mapv
+      (fn [metric-config]
+        (let [path (:path metric-config)
+              samples (get metric->values path)
+              fit-data (when fits (get fits path))
+              ;; Compute data range for reference line
+              sorted-samples (when (seq samples) (sort samples))
+              transformed-samples (when sorted-samples
+                                    (mapv #(util/transform-sample-> % samples-transforms)
+                                          sorted-samples))
+              min-val (when transformed-samples (first transformed-samples))
+              max-val (when transformed-samples (last transformed-samples))]
+          (when (and (seq samples) fit-data)
+            (merge
+             chart-options
+             {:resolve {:scale {:x "shared" :y "shared"}}
+              :layer
+              (cond-> []
+                ;; Add reference line first (background)
+                (and min-val max-val)
+                (conj (qq-reference-line-layer min-val max-val))
+                ;; Add distribution Q-Q scatter layers
+                fit-data
+                (into (distribution-qq-overlay-layers
+                       fit-data
+                       samples
                        samples-transforms)))}))))
       metric-configs)}))
 

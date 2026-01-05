@@ -2074,3 +2074,205 @@
         (is (:valid? result)
             (str "distribution-cdf-vega-spec validation failed: "
                  (pr-str (:errors result))))))))
+
+;;; Q-Q Plot Chart Tests
+
+(deftest qq-points-test
+  ;; Tests Q-Q point generation comparing sample quantiles to theoretical quantiles.
+  ;; Verifies correct output structure and Hazen plotting position.
+  (testing "qq-points"
+    (testing "generates correct structure"
+      (let [samples [1.0 2.0 3.0 4.0 5.0]
+            ;; Simple identity quantile function for testing
+            quantile-fn identity
+            points (charts/qq-points samples quantile-fn identity-transforms)]
+        (is (= 5 (count points)))
+        (is (every? #(contains? % "theoretical") points))
+        (is (every? #(contains? % "observed") points))))
+
+    (testing "uses Hazen plotting position"
+      (let [samples [1.0 2.0 3.0]
+            quantile-fn identity
+            points (charts/qq-points samples quantile-fn identity-transforms)]
+        ;; Hazen: (i - 0.5) / n for i = 1, 2, 3 and n = 3
+        ;; p1 = 0.5/3 = 0.167, p2 = 1.5/3 = 0.5, p3 = 2.5/3 = 0.833
+        (is (< (Math/abs (- (/ 0.5 3.0) (get (nth points 0) "theoretical"))) 0.001))
+        (is (< (Math/abs (- 0.5 (get (nth points 1) "theoretical"))) 0.001))
+        (is (< (Math/abs (- (/ 2.5 3.0) (get (nth points 2) "theoretical"))) 0.001))))
+
+    (testing "preserves sorted sample values"
+      (let [samples [3.0 1.0 2.0]  ; unsorted input
+            quantile-fn identity
+            points (charts/qq-points samples quantile-fn identity-transforms)]
+        ;; Observed values should be sorted
+        (is (= 1.0 (get (nth points 0) "observed")))
+        (is (= 2.0 (get (nth points 1) "observed")))
+        (is (= 3.0 (get (nth points 2) "observed")))))
+
+    (testing "applies transforms"
+      (let [samples [1.0 2.0 3.0]
+            quantile-fn identity
+            transforms {:sample-> (list #(* 1000.0 %)) :->sample [#(/ % 1000.0)]}
+            points (charts/qq-points samples quantile-fn transforms)]
+        ;; Values should be transformed to ns from s
+        (is (= 1000.0 (get (nth points 0) "observed")))))))
+
+(deftest distribution-qq-layer-test
+  ;; Tests Q-Q scatter layer generation for fitted distributions.
+  ;; Verifies layer structure, mark properties, and encoding.
+  (testing "distribution-qq-layer"
+    (testing "generates valid layer for fitted distribution"
+      (let [samples [1.0 2.0 3.0 4.0 5.0]
+            fit-result {:params {:shape 2.0 :scale 1.5}
+                        :best-model :gamma}
+            layer (charts/distribution-qq-layer
+                   :gamma fit-result samples identity-transforms)]
+        (is (some? layer))
+        (is (map? layer))
+        (is (contains? layer :data))
+        (is (contains? layer :mark))
+        (is (contains? layer :encoding))
+        (is (= "point" (get-in layer [:mark :type])))))
+
+    (testing "uses larger filled marks for best model"
+      (let [samples [1.0 2.0 3.0]
+            fit-result {:params {:shape 2.0 :scale 1.5}
+                        :best-model :gamma}
+            layer (charts/distribution-qq-layer
+                   :gamma fit-result samples identity-transforms)]
+        (is (= 60 (get-in layer [:mark :size])))
+        (is (true? (get-in layer [:mark :filled])))))
+
+    (testing "uses smaller hollow marks for non-best model"
+      (let [samples [1.0 2.0 3.0]
+            fit-result {:params {:mu 0.5 :sigma 0.6}
+                        :best-model :gamma}  ; lognormal is not best
+            layer (charts/distribution-qq-layer
+                   :lognormal fit-result samples identity-transforms)]
+        (is (= 40 (get-in layer [:mark :size])))
+        (is (false? (get-in layer [:mark :filled])))))
+
+    (testing "returns nil for skipped distribution"
+      (let [samples [1.0 2.0 3.0]
+            fit-result {:skipped :moment-match-failed}
+            layer (charts/distribution-qq-layer
+                   :inverse-gaussian fit-result samples identity-transforms)]
+        (is (nil? layer))))
+
+    (testing "returns nil for distribution without params"
+      (let [samples [1.0 2.0 3.0]
+            fit-result {}
+            layer (charts/distribution-qq-layer
+                   :gamma fit-result samples identity-transforms)]
+        (is (nil? layer))))))
+
+(deftest qq-reference-line-layer-test
+  ;; Tests reference line (y=x diagonal) generation for Q-Q plots.
+  ;; Verifies line structure and range extension.
+  (testing "qq-reference-line-layer"
+    (testing "generates valid layer structure"
+      (let [layer (charts/qq-reference-line-layer 1.0 5.0)]
+        (is (map? layer))
+        (is (contains? layer :data))
+        (is (contains? layer :mark))
+        (is (contains? layer :encoding))
+        (is (= "line" (get-in layer [:mark :type])))))
+
+    (testing "uses dashed line style"
+      (let [layer (charts/qq-reference-line-layer 1.0 5.0)]
+        (is (= [4 4] (get-in layer [:mark :strokeDash])))))
+
+    (testing "extends range for visual clarity"
+      (let [layer (charts/qq-reference-line-layer 1.0 5.0)
+            values (get-in layer [:data :values])]
+        ;; Range 1.0-5.0, margin = 0.05 * 4 = 0.2
+        ;; Start = 1.0 - 0.2 = 0.8, End = 5.0 + 0.2 = 5.2
+        (is (= 2 (count values)))
+        (is (< (Math/abs (- 0.8 (get (first values) "x"))) 0.001))
+        (is (< (Math/abs (- 5.2 (get (second values) "x"))) 0.001))))))
+
+(deftest distribution-qq-overlay-layers-test
+  ;; Tests building Q-Q overlay layers for all fitted distributions.
+  ;; Verifies filtering of skipped distributions and layer count.
+  (testing "distribution-qq-overlay-layers"
+    (testing "generates layers for fitted distributions"
+      (let [samples [1.0 2.0 3.0 4.0 5.0]
+            fit-data {:best-model :gamma
+                      :distributions
+                      {:gamma {:params {:shape 2.0 :scale 1.5}}
+                       :lognormal {:params {:mu 0.5 :sigma 0.6}}
+                       :weibull {:params {:shape 2.0 :scale 3.0}}}}
+            layers (charts/distribution-qq-overlay-layers
+                    fit-data samples identity-transforms)]
+        (is (= 3 (count layers)))
+        (is (every? map? layers))))
+
+    (testing "filters out skipped distributions"
+      (let [samples [1.0 2.0 3.0]
+            fit-data {:best-model :gamma
+                      :distributions
+                      {:gamma {:params {:shape 2.0 :scale 1.5}}
+                       :inverse-gaussian {:skipped :moment-match-failed}}}
+            layers (charts/distribution-qq-overlay-layers
+                    fit-data samples identity-transforms)]
+        (is (= 1 (count layers)))))
+
+    (testing "returns empty vector when no distributions fitted"
+      (let [samples [1.0 2.0 3.0]
+            fit-data {:best-model nil :distributions {}}
+            layers (charts/distribution-qq-overlay-layers
+                    fit-data samples identity-transforms)]
+        (is (empty? layers))))))
+
+(deftest distribution-qq-vega-spec-test
+  ;; Tests complete Vega-Lite spec generation for Q-Q plots with distribution overlays.
+  ;; Verifies layer composition and structure.
+  (testing "distribution-qq-vega-spec"
+    (testing "produces valid structure"
+      (let [data-map (test-data/distribution-qq-data-map)
+            spec (charts/distribution-qq-vega-spec
+                  data-map {} {:width 400 :height 300})]
+        (is (map? spec))
+        (is (contains? spec :vconcat))
+        (is (vector? (:vconcat spec)))
+        (is (= 1 (count (:vconcat spec))))))
+
+    (testing "includes chart dimensions"
+      (let [data-map (test-data/distribution-qq-data-map)
+            spec (charts/distribution-qq-vega-spec
+                  data-map {} {:width 500 :height 350})
+            chart (first (:vconcat spec))]
+        (is (= 500 (:width chart)))
+        (is (= 350 (:height chart)))))
+
+    (testing "includes reference line and distribution Q-Q layers"
+      (let [data-map (test-data/distribution-qq-data-map)
+            spec (charts/distribution-qq-vega-spec
+                  data-map {} {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            layers (:layer chart)]
+        ;; Should have reference line + Q-Q points for each distribution
+        ;; (gamma, lognormal, weibull = 3 distributions + 1 reference line)
+        (is (= 4 (count layers)))))
+
+    (testing "returns nil chart when no distribution-fit data"
+      (let [data-map {:samples (:samples (test-data/distribution-qq-data-map))}
+            spec (charts/distribution-qq-vega-spec
+                  data-map {} {:width 400 :height 300})]
+        (is (map? spec))
+        (is (contains? spec :vconcat))
+        ;; Chart should be nil when no fit data
+        (is (nil? (first (:vconcat spec))))))))
+
+(deftest distribution-qq-vega-spec-schema-validation-test
+  ;; Validates distribution-qq-vega-spec output against Vega-Lite v6 schema.
+  ;; Tests Q-Q plot with distribution overlay visualization.
+  (testing "distribution-qq-vega-spec"
+    (testing "produces valid Vega-Lite spec"
+      (let [data-map (test-data/distribution-qq-data-map)
+            spec (charts/distribution-qq-vega-spec
+                  data-map {} {:width 400 :height 300})
+            result (schema/validate-vega-lite-spec spec)]
+        (is (:valid? result)
+            (str "distribution-qq-vega-spec validation failed: "
+                 (pr-str (:errors result))))))))
