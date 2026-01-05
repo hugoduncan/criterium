@@ -1068,15 +1068,15 @@
         ;; Vega-Lite data uses string keys for field names
         (is (= 100.0 (get data "elapsed-time")))))
 
-    (testing "applies transforms to values"
+    (testing "ignores transforms (values are pre-scaled by bootstrap-stats-for)"
       (let [scale-transforms {:sample-> (list (fn [^double v] (/ v 1e9)))
                               :->sample [identity]}
             result (charts/metric-bootstrap-boxplot-layer
                     scale-transforms sample-bootstrap-stats sample-metric-config)
             whisker (get-in result [0 :layer 0])
             whisker-data (get-in whisker [:data :values 0])]
-        ;; Values should be scaled by 1e-9
-        (is (< (double (get whisker-data "elapsed-time")) 1e-6))))
+        ;; Values remain unchanged - transforms not applied
+        (is (= 90.0 (double (get whisker-data "elapsed-time"))))))
 
     (testing "returns nil when quantiles missing"
       (let [missing-quantiles {:quantiles {}}

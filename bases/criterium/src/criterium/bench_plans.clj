@@ -54,6 +54,8 @@
              :outliers
              [:stats {}]
              [:stats {:samples-id :log-samples :id :log-stats}]
+             [:bootstrap-stats {:quantiles [0.99]
+                                :estimate-quantiles [0.025 0.975]}]
              :histogram
              :event-stats
              :allocation-summary
@@ -62,6 +64,7 @@
              :allocation-treemap]
    :view [[:stats {:metric-ids [:memory]}]
           [:stats {:stats-id :log-stats}]
+          :bootstrap-stats
           :quantiles
           :event-stats
           :outlier-counts

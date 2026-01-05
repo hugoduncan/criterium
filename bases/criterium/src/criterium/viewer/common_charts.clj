@@ -163,8 +163,11 @@
   - Center line: median point estimate
   - Whiskers: 10th and 90th percentiles
 
+  Bootstrap stats values are already scaled by bootstrap-stats-for, so no
+  additional transform is applied here.
+
   Returns a vector of Vega-Lite layer specs."
-  [transforms bootstrap-stats metric-config]
+  [_transforms bootstrap-stats metric-config]
   (let [quantiles (:quantiles bootstrap-stats)
         p10 (get quantiles 0.1)
         p50 (get quantiles 0.5)
@@ -173,17 +176,16 @@
       (let [path (:path metric-config)
             k (first path)
             field-name (name k)
-            tform #(util/transform-sample-> % transforms)
-            ;; Extract point estimates
-            p10-val (tform (:point-estimate p10))
-            p50-val (tform (:point-estimate p50))
-            p90-val (tform (:point-estimate p90))
+            ;; Values are already scaled by bootstrap-stats-for
+            p10-val (:point-estimate p10)
+            p50-val (:point-estimate p50)
+            p90-val (:point-estimate p90)
             ;; Extract median CI bounds
             median-ci (:estimate-quantiles p50)
             ci-lower (when (seq median-ci)
-                       (tform (:value (first median-ci))))
+                       (:value (first median-ci)))
             ci-upper (when (seq median-ci)
-                       (tform (:value (second median-ci))))
+                       (:value (second median-ci)))
             ;; Position boxplot at y=0 (histogram baseline)
             box-y 0]
         [{:layer

@@ -6,6 +6,7 @@
    [criterium.analyse.metrics-samples]
    [criterium.collect-plan :as collect-plan]
    [criterium.metric :as metric]
+   [criterium.util.bootstrap :as bootstrap]
    [criterium.util.debug :as debug]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have]]))
@@ -777,3 +778,28 @@
   ([] (allocation-treemap {}))
   ([opts]
    (allocation-analysis/treemap-fn opts)))
+
+(def bootstrap-stats
+  "Analysis function that adds bootstrap statistics to the result.
+
+  Computes bootstrap BCa confidence intervals for mean, variance, min, max,
+  and configurable quantiles (0.1, 0.25, 0.5, 0.75, 0.9 by default plus any
+  additional quantiles specified in opts).
+
+  Parameters:
+    opts - Optional map with keys:
+      :id                - Key for result in output (default: :bootstrap-stats)
+      :samples-id        - Key for source samples (default: :samples)
+      :metric-ids        - Set of metric ids to analyze (default: all quantitative)
+      :quantiles         - Additional quantiles beyond defaults (e.g., [0.99])
+      :estimate-quantiles - Confidence interval bounds (e.g., [0.025 0.975])
+      :bootstrap-size    - Number of bootstrap resamples (default: 80% of sample size)
+
+  The returned function:
+  - Takes a data map containing samples
+  - Returns the map with bootstrap statistics added under :id key
+  - For each metric, calculates bootstrapped estimates with BCa CIs for:
+    - mean, variance, min-val, max-val
+    - mean-plus-3sigma, mean-minus-3sigma
+    - quantiles (0.1, 0.25, 0.5, 0.75, 0.9 plus configured)"
+  bootstrap/bootstrap-stats)
