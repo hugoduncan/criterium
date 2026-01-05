@@ -3,9 +3,11 @@
    [clojure.string :as str]
    [clojure.test :refer [deftest is testing]]
    [criterium.analyse :as analyse]
+   [criterium.collect-plan :as collect-plan]
    [criterium.collector.metrics]
    [criterium.test-data :as test-data]
    [criterium.test-utils :refer [trimmed-lines]]
+   [criterium.util.bootstrap :as bootstrap]
    [criterium.view :as view]
    [criterium.viewer.pprint]))
 
@@ -513,3 +515,36 @@
                                                {:my-modes modes-data}))]
         (is (str/includes? output "Mode count"))
         (is (str/includes? output "2"))))))
+
+(deftest pprint-bootstrap-stats-test
+  ;; Tests view/bootstrap-stats* pprint multimethod for table output format.
+  ;; Verifies: column headers for mean/median/spread, CI bounds, percentiles,
+  ;; and that values are displayed with SI unit scaling.
+  (testing "bootstrap-stats*"
+    (testing "displays table with mean, median, CI bounds, and percentiles"
+      (is (= [""
+              "Bootstrap Statistics:"
+              ""
+              "|      :metric |   :mean | :mean-ci-lower | :mean-ci-upper | :median | :median-ci-lower | :median-ci-upper |    :p10 |    :p90 |"
+              "|--------------+---------+----------------+----------------+---------+------------------+------------------+---------+---------|"
+              "| Elapsed Time | 1.00 ns |        1.00 ns |        1.00 ns | 1.00 ns |          1.00 ns |          1.00 ns | 1.00 ns | 1.00 ns |"]
+             (let [data-map
+                   {:samples
+                    {:type :criterium/metrics-samples
+                     :metric->values {[:elapsed-time] [1 1 1]}
+                     :metrics-defs (select-keys
+                                    (criterium.collector.metrics/metrics)
+                                    [:elapsed-time])
+                     :transform collect-plan/identity-transforms
+                     :batch-size 1
+                     :eval-count 1
+                     :elapsed-time 1}}
+                   bootstrap-fn (bootstrap/bootstrap-stats
+                                 {:quantiles [0.025 0.975]
+                                  :estimate-quantiles [0.025 0.975]})
+                   view-fn (view/bootstrap-stats {})]
+               (trimmed-lines
+                (with-out-str
+                  (->> data-map
+                       bootstrap-fn
+                       (view-fn :pprint))))))))))

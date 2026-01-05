@@ -95,18 +95,20 @@
 (defmethod view/event-stats* :print
   [_ {:keys [event-stats-id]} data-map]
   (let [event-stats-id (or event-stats-id :event-stats)
-        event-stats-map (data-map event-stats-id)
-        metrics-defs (-> (:metrics-defs event-stats-map)
-                         (metric/filter-metrics
-                          (metric/type-pred :event)))
-        event-stats (util/event-stats event-stats-map)]
-    (print-event-stats metrics-defs event-stats)))
+        event-stats-map (data-map event-stats-id)]
+    (when event-stats-map
+      (let [metrics-defs (-> (:metrics-defs event-stats-map)
+                             (metric/filter-metrics
+                              (metric/type-pred :event)))
+            event-stats (util/event-stats event-stats-map)]
+        (print-event-stats metrics-defs event-stats)))))
 
 (defn print-bootstrap-stat
   [metric
    {:keys [mean
            mean-minus-3sigma
-           mean-plus-3sigma]
+           mean-plus-3sigma
+           quantiles]
     minval :min-val
     :as stat}]
   (assert minval stat)
@@ -115,7 +117,11 @@
                        dimension
                        (* (:scale metric) (:point-estimate mean)))
         min-quantiles (:estimate-quantiles minval)
-        quantiles (:estimate-quantiles mean)
+        mean-ci (:estimate-quantiles mean)
+        median-est (get quantiles 0.5)
+        median-ci (:estimate-quantiles median-est)
+        p10-est (get quantiles 0.1)
+        p90-est (get quantiles 0.9)
         scale (* (:scale metric) scale)]
     (println
      (format "%36s: %.3g %s CI [%.3g %.3g] (%.3f %.3f)"
@@ -131,16 +137,33 @@
              (str label " mean")
              (* scale (:point-estimate mean))
              units
-             (* scale (-> quantiles first :value))
-             (* scale (-> quantiles second :value))
-             (-> quantiles first :alpha)
-             (-> quantiles second :alpha)))
+             (* scale (-> mean-ci first :value))
+             (* scale (-> mean-ci second :value))
+             (-> mean-ci first :alpha)
+             (-> mean-ci second :alpha)))
+    (when (and median-est (seq median-ci))
+      (println
+       (format "%36s: %.3g %s CI [%.3g %.3g] (%.3f %.3f)"
+               (str label " median")
+               (* scale (:point-estimate median-est))
+               units
+               (* scale (-> median-ci first :value))
+               (* scale (-> median-ci second :value))
+               (-> median-ci first :alpha)
+               (-> median-ci second :alpha))))
     (println
-     (format "%36s: [%.3g %.3g] %s "
+     (format "%36s: [%.3g %.3g] %s"
              (str label " 3σ")
              (* scale (:point-estimate mean-minus-3sigma))
              (* scale (:point-estimate mean-plus-3sigma))
-             units))))
+             units))
+    (when (and p10-est p90-est)
+      (println
+       (format "%36s: [%.3g %.3g] %s (10th-90th percentile)"
+               (str label " spread")
+               (* scale (:point-estimate p10-est))
+               (* scale (:point-estimate p90-est))
+               units)))))
 
 (defn print-bootstrap-stats
   [{:keys [bootstrap-stats-id]} data-map]

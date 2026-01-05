@@ -84,7 +84,7 @@
   {:pre [(:quantiles opts)
          (:estimate-quantiles opts)]}
   (let [vs        (mapv double samples)
-        quantiles (into [0.25 0.5 0.75] (:quantiles opts))
+        quantiles (into [0.1 0.25 0.5 0.75 0.9] (:quantiles opts))
         stats-fn  (stats/stats-fn (stats/stats-fns quantiles))
         stats     (stats/bootstrap-bca
                    vs

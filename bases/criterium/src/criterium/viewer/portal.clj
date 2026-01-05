@@ -96,14 +96,15 @@
 (defmethod view/event-stats* :portal
   [_ {:keys [event-stats-id]} data-map]
   (let [event-stats-id (or event-stats-id :event-stats)
-        event-stats-map (data-map event-stats-id)
-        metrics-defs (have (:metrics-defs event-stats-map))
-        stats (viewer-common/event-stats
-               metrics-defs
-               (util/event-stats event-stats-map))]
-    (when (seq stats)
-      (heading "Event stats")
-      (portal-table stats))))
+        event-stats-map (data-map event-stats-id)]
+    (when event-stats-map
+      (let [metrics-defs (have (:metrics-defs event-stats-map))
+            stats (viewer-common/event-stats
+                   metrics-defs
+                   (util/event-stats event-stats-map))]
+        (when (seq stats)
+          (heading "Event stats")
+          (portal-table stats))))))
 
 (defmethod view/quantiles* :portal
   [_ {:keys [quantiles-id]} data-map]

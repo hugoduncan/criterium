@@ -22,6 +22,7 @@
     {:type         :criterium/stats
      :stats        {:elapsed-time
                     {:mean              100.0
+                     :median            100.0
                      :variance          16.0
                      :mean-plus-3sigma  112.0
                      :mean-minus-3sigma 88.0
@@ -242,6 +243,53 @@
          outliers
          stats
          histogram)))
+
+(defn histogram-with-bootstrap-data-map
+  "Create a data-map suitable for histogram-vega-spec with boxplot overlay.
+
+  Includes bootstrap-stats with complete bootstrap structure matching real
+  bootstrap output: mean, variance, min-val, mean-plus-3sigma, mean-minus-3sigma,
+  and quantiles (0.1, 0.25, 0.5, 0.75, 0.9). Exercises the boxplot overlay code
+  path with median CI and spread percentiles."
+  []
+  (let [base-map (histogram-data-map)
+        metrics-defs (select-keys (metrics/metrics) [:elapsed-time])]
+    (assoc base-map
+           :bootstrap-stats
+           {:type :criterium/bootstrap
+            :bootstrap
+            {:elapsed-time
+             {:mean {:point-estimate 9.8
+                     :estimate-quantiles [{:value 9.5 :alpha 0.025}
+                                          {:value 10.1 :alpha 0.975}]}
+              :variance {:point-estimate 0.5
+                         :estimate-quantiles [{:value 0.3 :alpha 0.025}
+                                              {:value 0.8 :alpha 0.975}]}
+              :min-val {:point-estimate 9.0
+                        :estimate-quantiles [{:value 8.8 :alpha 0.025}
+                                             {:value 9.2 :alpha 0.975}]}
+              :mean-plus-3sigma {:point-estimate 11.9
+                                 :estimate-quantiles [{:value 11.1 :alpha 0.025}
+                                                      {:value 12.7 :alpha 0.975}]}
+              :mean-minus-3sigma {:point-estimate 7.7
+                                  :estimate-quantiles [{:value 6.9 :alpha 0.025}
+                                                       {:value 8.5 :alpha 0.975}]}
+              :quantiles
+              {0.1 {:point-estimate 9.2
+                    :estimate-quantiles []}
+               0.25 {:point-estimate 9.5
+                     :estimate-quantiles []}
+               0.5 {:point-estimate 9.75
+                    :estimate-quantiles [{:value 9.3 :alpha 0.025}
+                                         {:value 10.2 :alpha 0.975}]}
+               0.75 {:point-estimate 10.0
+                     :estimate-quantiles []}
+               0.9 {:point-estimate 10.5
+                    :estimate-quantiles []}}}}
+            :metrics-defs metrics-defs
+            :transform collect-plan/identity-transforms
+            :batch-size 1
+            :source-id :samples})))
 
 (defn kde-data-map
   "Create a data-map suitable for kde-vega-spec testing."

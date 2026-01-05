@@ -10,7 +10,8 @@
 (def stats-fns
   ;; called on sorted values
   (juxt
-   (pair-fn :mean  stats/mean)
+   (pair-fn :mean stats/mean)
+   (pair-fn :median (partial stats/quantile 0.5))
    (pair-fn :variance stats/variance)
    (pair-fn :min-val first)
    (pair-fn :max-val last)))
@@ -47,9 +48,8 @@
   {:pre [(have? seq path)
          (have? seq samples)
          (have? map? samples)]}
-  (have :quantiles config)
   (have (comp not :tail-quantile) config)
-  (let [qs (into [0.25 0.5 0.75] (:quantiles config))
+  (let [qs (vec (sort (into #{0.1 0.25 0.5 0.75 0.9} (:quantiles config))))
         vs (sort (samples-for-path samples path))]
     (sample-quantiles qs vs)))
 

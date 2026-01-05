@@ -155,6 +155,99 @@
                               :title (str "Mean " (name k))}]}
         :mark "rule"}]}]))
 
+(defn metric-bootstrap-boxplot-layer
+  "Build a boxplot-style layer showing median CI and spread percentiles.
+
+  Creates a rug-plot style annotation at the bottom of the histogram showing:
+  - Box: median confidence interval bounds
+  - Center line: median point estimate
+  - Whiskers: 10th and 90th percentiles
+
+  Bootstrap stats values are already scaled by bootstrap-stats-for, so no
+  additional transform is applied here.
+
+  Returns a vector of Vega-Lite layer specs."
+  [_transforms bootstrap-stats metric-config]
+  (let [quantiles (:quantiles bootstrap-stats)
+        p10 (get quantiles 0.1)
+        p50 (get quantiles 0.5)
+        p90 (get quantiles 0.9)]
+    (when (and p10 p50 p90)
+      (let [path (:path metric-config)
+            k (first path)
+            field-name (name k)
+            ;; Values are already scaled by bootstrap-stats-for
+            p10-val (:point-estimate p10)
+            p50-val (:point-estimate p50)
+            p90-val (:point-estimate p90)
+            ;; Extract median CI bounds and alpha for label
+            median-ci (:estimate-quantiles p50)
+            ci-lower (when (seq median-ci)
+                       (:value (first median-ci)))
+            ci-upper (when (seq median-ci)
+                       (:value (second median-ci)))
+            ci-alpha (when (seq median-ci)
+                       (:alpha (first median-ci)))
+            ci-level (when ci-alpha
+                       (long (* 100 (- 1.0 (* 2.0 (double ci-alpha))))))
+            ;; Position boxplot at y=0 (histogram baseline)
+            box-y 0]
+        [{:layer
+          (cond-> []
+            ;; Whisker from p10 to p90
+            true
+            (conj {:data {:values [{field-name p10-val
+                                    :end p90-val}]}
+                   :transform [{:calculate "'Spread (10th-90th)'" :as "layer"}]
+                   :encoding {:x {:field field-name
+                                  :type "quantitative"
+                                  :scale {:zero false}}
+                              :x2 {:field "end"
+                                   :type "quantitative"}
+                              :y {:datum box-y}
+                              :color {:field "layer" :type "nominal"
+                                      :legend {:orient "top-left" :offset 10}}}
+                   :mark {:type "rule"
+                          :strokeWidth 1}})
+
+            ;; Box for median CI - extends slightly below into negative density
+            ;; space. The -0.02 height creates a thin overlay that doesn't
+            ;; obscure histogram bars while remaining visible.
+            (and ci-lower ci-upper)
+            (conj (let [box-height -0.02
+                        ci-label (if ci-level
+                                   (str "Median CI (" ci-level "%)")
+                                   "Median CI")]
+                    {:data {:values [{field-name ci-lower
+                                      :end ci-upper}]}
+                     :transform [{:calculate (str "'" ci-label "'") :as "layer"}]
+                     :encoding {:x {:field field-name
+                                    :type "quantitative"
+                                    :scale {:zero false}}
+                                :x2 {:field "end"
+                                     :type "quantitative"}
+                                :y {:datum box-y}
+                                :y2 {:datum box-height}
+                                :color {:field "layer" :type "nominal"
+                                        :legend {:orient "top-left" :offset 10}}}
+                     :mark {:type "rect"
+                            :opacity 0.6}}))
+
+            ;; Median line
+            true
+            (conj {:data {:values [{field-name p50-val
+                                    :title "median"}]}
+                   :transform [{:calculate "'Median'" :as "layer"}]
+                   :encoding {:x {:field field-name
+                                  :type "quantitative"
+                                  :scale {:zero false}}
+                              :tooltip [{:field field-name
+                                         :title (str "Median " (name k))}]
+                              :color {:field "layer" :type "nominal"
+                                      :legend {:orient "top-left" :offset 10}}}
+                   :mark {:type "rule"
+                          :strokeWidth 2}}))}]))))
+
 ;;; Event markers
 
 (defn event-occurrence
@@ -269,9 +362,11 @@
   [data-map view chart-options]
   (let [histogram-id (or (:histogram-id view) :histograms)
         stats-id (or (:stats-id view) :stats)
+        bootstrap-stats-id (or (:bootstrap-stats-id view) :bootstrap-stats)
         quant-samples-id (or (:samples-id view) :samples)
         quant-samples (data-map quant-samples-id)
         stats (data-map stats-id)
+        bootstrap-stats-map (data-map bootstrap-stats-id)
         histograms-map (util/lookup-data data-map histogram-id)
         histograms (:histograms histograms-map)
         metrics-defs (-> (:metrics-defs quant-samples)
@@ -280,6 +375,10 @@
         metric-configs (metric/all-metric-configs metrics-defs)
         hist-transforms (util/get-transforms data-map histogram-id)
         stats-transforms (util/get-transforms data-map (:source-id stats))
+        bootstrap-transforms (when bootstrap-stats-map
+                               (util/get-transforms
+                                data-map
+                                (:source-id bootstrap-stats-map)))
         layer-num (volatile! 0)]
     {:data {:values []}
      :resolve {:scale {:x "independent"
@@ -299,15 +398,25 @@
                       (vswap!
                        layer-num
                        (fn [^long x] (unchecked-inc x))))]
-                    (when stats
-                      (->>
-                       (metric-sample-stats-layer
-                        stats-transforms
-                        (get-in (util/stats stats) (:path metric-config))
-                        metric-config
-                        (vswap!
-                         layer-num
-                         (fn [^long x] (unchecked-inc x)))))))}))
+                    (concat
+                     ;; Bootstrap boxplot layers (median) first
+                     (when bootstrap-stats-map
+                       (->>
+                        (metric-bootstrap-boxplot-layer
+                         bootstrap-transforms
+                         (get-in (util/bootstrap bootstrap-stats-map)
+                                 (:path metric-config))
+                         metric-config)))
+                     ;; Stats layers (mean) last so mean line appears on top
+                     (when stats
+                       (->>
+                        (metric-sample-stats-layer
+                         stats-transforms
+                         (get-in (util/stats stats) (:path metric-config))
+                         metric-config
+                         (vswap!
+                          layer-num
+                          (fn [^long x] (unchecked-inc x))))))))}))
                metric-configs)}))
 
 ;;; Percentile charts
