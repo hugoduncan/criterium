@@ -7,6 +7,73 @@
                                        mock-bench-result
                                        mock-bench-result-with-defs]]))
 
+;; Tests for AIC/BIC computation functions.
+;; Validates information criterion formulas for model selection.
+
+(deftest compute-aic-test
+  ;; Tests compute-aic (AICc with small-sample correction).
+  ;; Formula: AICc = n*ln(RSS/n) + 2k + (2k(k+1))/(n-k-1)
+  ;; Contracts: returns correct value, handles edge cases.
+  (testing "compute-aic"
+    (testing "computes AICc with small-sample correction"
+      ;; Known values: n=10, k=2, RSS=5.0
+      ;; base-aic = 10*ln(5/10) + 2*2 = 10*(-0.693147) + 4 = -2.931
+      ;; correction = (2*2*(2+1))/(10-2-1) = 12/7 = 1.714
+      ;; AICc = -2.931 + 1.714 = -1.217
+      (let [result (double (analysis/compute-aic 5.0 10 2))]
+        (is (< (Math/abs (- result -1.217)) 0.01))))
+    (testing "returns nil when n <= k+1"
+      ;; Correction term has division by (n-k-1), undefined when n <= k+1
+      (is (nil? (analysis/compute-aic 5.0 3 2)))
+      (is (nil? (analysis/compute-aic 5.0 2 2))))
+    (testing "works with minimum valid sample size"
+      ;; n=4, k=2 gives n-k-1=1, minimum valid
+      (is (some? (analysis/compute-aic 5.0 4 2))))
+    (testing "handles k=1 (simple regression)"
+      ;; n=5, k=1, RSS=2.0
+      ;; base-aic = 5*ln(2/5) + 2*1 = 5*(-0.916) + 2 = -2.581
+      ;; correction = (2*1*2)/(5-1-1) = 4/3 = 1.333
+      ;; AICc = -2.581 + 1.333 = -1.248
+      (let [result (double (analysis/compute-aic 2.0 5 1))]
+        (is (< (Math/abs (- result -1.248)) 0.01))))
+    (testing "lower AICc indicates better fit"
+      ;; With same n and k, lower RSS gives lower AICc
+      (let [aic-low-rss (analysis/compute-aic 1.0 10 2)
+            aic-high-rss (analysis/compute-aic 5.0 10 2)]
+        (is (< aic-low-rss aic-high-rss))))))
+
+(deftest compute-bic-test
+  ;; Tests compute-bic (Bayesian Information Criterion).
+  ;; Formula: BIC = n*ln(RSS/n) + k*ln(n)
+  ;; Contracts: returns correct value, handles edge cases.
+  (testing "compute-bic"
+    (testing "computes BIC correctly"
+      ;; Known values: n=10, k=2, RSS=5.0
+      ;; BIC = 10*ln(5/10) + 2*ln(10) = 10*(-0.693) + 2*2.303 = -2.325
+      (let [result (double (analysis/compute-bic 5.0 10 2))]
+        (is (< (Math/abs (- result -2.325)) 0.01))))
+    (testing "returns nil when n = 0"
+      (is (nil? (analysis/compute-bic 5.0 0 2))))
+    (testing "handles k=1 (simple regression)"
+      ;; n=5, k=1, RSS=2.0
+      ;; BIC = 5*ln(2/5) + 1*ln(5) = 5*(-0.916) + 1.609 = -2.972
+      (let [result (double (analysis/compute-bic 2.0 5 1))]
+        (is (< (Math/abs (- result -2.972)) 0.01))))
+    (testing "penalizes complexity more than AIC for large n"
+      ;; BIC penalty is k*ln(n), AIC penalty is 2k
+      ;; For n > e^2 ≈ 7.4, BIC penalizes complexity more
+      (let [;; For n=20, k=3: BIC penalty = 3*ln(20) = 8.99
+            ;; AIC base penalty = 2*3 = 6
+            bic (analysis/compute-bic 10.0 20 3)
+            aic (analysis/compute-aic 10.0 20 3)]
+        ;; For large n, BIC is larger (more penalized) than AICc
+        (is (> bic aic))))
+    (testing "lower BIC indicates better fit"
+      ;; With same n and k, lower RSS gives lower BIC
+      (let [bic-low-rss (analysis/compute-bic 1.0 10 2)
+            bic-high-rss (analysis/compute-bic 5.0 10 2)]
+        (is (< bic-low-rss bic-high-rss))))))
+
 ;; Tests for domain analysis function extract.
 ;; Validates extracting metric values across runs with coordinate-value pairs,
 ;; handling missing metrics, preserving order, and applying transforms.
@@ -22,7 +89,6 @@
                  {:coord {:n 100}
                   :data (mock-bench-result {:elapsed-time {:mean 1.0}})})
               result (analysis/extract d [:stats :elapsed-time :mean])]
-          (is (= :criterium/domain-extract (:type result)))
           (is (= :criterium/domain-extract (:type result)))
           (is (contains? (:metrics result) :elapsed-time))
           (is (= [:stats :elapsed-time :mean]
@@ -652,7 +718,6 @@
                                                      [{:n 300} 300.0]]}}}
             result (analysis/fit-complexity extract :n)]
         (is (= :criterium/domain-regression (:type result)))
-        (is (= :criterium/domain-regression (:type result)))
         (is (= :n (:axis result)))
         (is (contains? (:regressions result) :elapsed-time))
         (is (= [:stats :elapsed-time :mean]
@@ -865,6 +930,129 @@
         (is (not (contains? regression :by-impl)))
         (is (contains? regression :models))))))
 
+;; Tests for AIC/BIC computation and model selection in fit-complexity.
+;; Validates that information criteria are computed and used for model selection.
+
+(deftest fit-complexity-aic-bic-test
+  ;; Tests that fit-complexity computes and returns AIC/BIC values for models.
+  ;; Contracts: models include :aic and :bic, values are correct.
+  (testing "fit-complexity returns AIC/BIC values"
+    (testing "models include :aic and :bic keys"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100} 100.0]
+                                                     [{:n 200} 200.0]
+                                                     [{:n 300} 300.0]
+                                                     [{:n 400} 400.0]
+                                                     [{:n 500} 500.0]]}}}
+            result (analysis/fit-complexity extract :n)
+            models (get-in result [:regressions :elapsed-time :models])]
+        (is (every? #(contains? % :aic) models))
+        (is (every? #(contains? % :bic) models))))
+    (testing "AIC/BIC values are numbers for sufficient data"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100} 100.0]
+                                                     [{:n 200} 200.0]
+                                                     [{:n 300} 300.0]
+                                                     [{:n 400} 400.0]
+                                                     [{:n 500} 500.0]]}}}
+            result (analysis/fit-complexity extract :n)
+            linear (first (filter #(= :linear (:id %))
+                                  (get-in result [:regressions :elapsed-time :models])))]
+        (is (number? (:aic linear)))
+        (is (number? (:bic linear)))))
+    (testing "AIC/BIC can be nil for insufficient data"
+      ;; With only 3 data points and k=2, AICc correction term may still work
+      ;; but with k=3 (composite model), we need n > k+1 = 4
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100} 100.0]
+                                                     [{:n 200} 200.0]
+                                                     [{:n 300} 300.0]]}}}
+            result (analysis/fit-complexity extract :n)
+            ;; nlogn-linear has 3 parameters, needs n > 4 for AICc
+            composite (first (filter #(= :nlogn-linear (:id %))
+                                     (get-in result [:regressions :elapsed-time :models])))]
+        ;; With n=3 and k=3, AICc correction is undefined (n <= k+1)
+        (is (nil? (:aic composite)))))))
+
+(deftest fit-complexity-selection-method-test
+  ;; Tests model selection using different methods.
+  ;; Contracts: :aic, :bic, :r-squared methods work correctly.
+  (testing "fit-complexity with :selection-method"
+    (testing "defaults to :aic selection"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100} 100.0]
+                                                     [{:n 200} 200.0]
+                                                     [{:n 300} 300.0]
+                                                     [{:n 400} 400.0]
+                                                     [{:n 500} 500.0]]}}}
+            result (analysis/fit-complexity extract :n)]
+        ;; Linear data should select linear model
+        (is (= :linear (get-in result [:regressions :elapsed-time :best-fit])))))
+    (testing ":r-squared selection uses highest R²"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100} 100.0]
+                                                     [{:n 200} 200.0]
+                                                     [{:n 300} 300.0]
+                                                     [{:n 400} 400.0]
+                                                     [{:n 500} 500.0]]}}}
+            result (analysis/fit-complexity extract :n {:selection-method :r-squared})]
+        (is (= :linear (get-in result [:regressions :elapsed-time :best-fit])))))
+    (testing ":bic selection uses lowest BIC"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100} 100.0]
+                                                     [{:n 200} 200.0]
+                                                     [{:n 300} 300.0]
+                                                     [{:n 400} 400.0]
+                                                     [{:n 500} 500.0]]}}}
+            result (analysis/fit-complexity extract :n {:selection-method :bic})]
+        (is (= :linear (get-in result [:regressions :elapsed-time :best-fit])))))
+    (testing "backward compatible with models map as third arg"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100} 100.0]
+                                                     [{:n 200} 200.0]
+                                                     [{:n 300} 300.0]]}}}
+            models {:linear {:transform identity
+                             :label "O(n)"}}
+            result (analysis/fit-complexity extract :n models)
+            regression (get-in result [:regressions :elapsed-time])]
+        (is (= 1 (count (:models regression))))
+        (is (= :linear (:id (first (:models regression)))))))
+    (testing "options map with :models and :selection-method"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100} 100.0]
+                                                     [{:n 200} 200.0]
+                                                     [{:n 300} 300.0]
+                                                     [{:n 400} 400.0]
+                                                     [{:n 500} 500.0]]}}}
+            result (analysis/fit-complexity extract :n {:models nil
+                                                        :selection-method :bic})]
+        (is (= :linear (get-in result [:regressions :elapsed-time :best-fit]))))))
+  (testing "selection method prefers simpler models when values are equal"
+    ;; With perfect linear data, multiple models may have near-perfect fit
+    ;; Selection should prefer simpler (fewer param) models
+    (testing "AIC selection prefers simpler model"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100} 100.0]
+                                                     [{:n 200} 200.0]
+                                                     [{:n 300} 300.0]
+                                                     [{:n 400} 400.0]
+                                                     [{:n 500} 500.0]]}}}
+            result (analysis/fit-complexity extract :n {:selection-method :aic})
+            models (get-in result [:regressions :elapsed-time :models])
+            linear (first (filter #(= :linear (:id %)) models))]
+        ;; Linear should be selected as it fits perfectly and has fewer params
+        (is (= :linear (get-in result [:regressions :elapsed-time :best-fit])))
+        (is (> (:r-squared linear) 0.99))))))
+
 (deftest domain-regression-fn-test
   ;; Tests the factory function that creates regression pipelines.
   ;; Contracts: returns function, fits regression from data-map, supports options.
@@ -909,6 +1097,19 @@
             f (analysis/domain-regression-fn {:id :scaling :axis :n})
             result (f {:extract extract :other-key "value"})]
         (is (= "value" (:other-key result)))))
+    (testing "passes :selection-method to fit-complexity"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 100} 100.0]
+                                                     [{:n 200} 200.0]
+                                                     [{:n 300} 300.0]
+                                                     [{:n 400} 400.0]
+                                                     [{:n 500} 500.0]]}}}
+            f (analysis/domain-regression-fn {:id :scaling
+                                              :axis :n
+                                              :selection-method :bic})
+            result (f {:extract extract})]
+        (is (= :linear (get-in result [:scaling :regressions :elapsed-time :best-fit])))))
     (testing "composes with domain-extract-fn"
       (let [d (domain/domain
                {:coord {:n 100}
@@ -1095,3 +1296,246 @@
             result (analysis/analyse-domain plan d)]
         (is (= d (:domain result)))
         (is (contains? result :viewer))))))
+
+;; Tests for log-log regression functions.
+;; Validates log-log transformation and linear regression in log space
+;; for intuitive complexity class identification.
+
+(deftest log-log-regression-test
+  ;; Tests the core log-log-regression function.
+  ;; In log-log space, power laws become linear: slope indicates exponent.
+  ;; Contracts: returns correct slope, intercept, r-squared, and residuals.
+  (testing "log-log-regression"
+    (testing "identifies O(n) complexity with slope ≈ 1"
+      ;; y = c * n^1 → log(y) = log(c) + 1 * log(n)
+      (let [xs [10.0 20.0 40.0 80.0]
+            ys [10.0 20.0 40.0 80.0]
+            result (analysis/log-log-regression xs ys)]
+        (is (< (Math/abs (- (double (:slope result)) 1.0)) 0.01))
+        (is (> (:r-squared result) 0.99))))
+    (testing "identifies O(n²) complexity with slope ≈ 2"
+      ;; y = c * n^2 → log(y) = log(c) + 2 * log(n)
+      (let [xs [10.0 20.0 40.0 80.0]
+            ys [100.0 400.0 1600.0 6400.0]
+            result (analysis/log-log-regression xs ys)]
+        (is (< (Math/abs (- (double (:slope result)) 2.0)) 0.01))
+        (is (> (:r-squared result) 0.99))))
+    (testing "identifies O(1) complexity with slope ≈ 0"
+      ;; y = c → log(y) = log(c) + 0 * log(n)
+      (let [xs [10.0 20.0 40.0 80.0]
+            ys [100.0 100.0 100.0 100.0]
+            result (analysis/log-log-regression xs ys)]
+        (is (< (Math/abs (double (:slope result))) 0.01))))
+    (testing "returns log-transformed xs and ys"
+      (let [xs [10.0 100.0]
+            ys [20.0 200.0]
+            result (analysis/log-log-regression xs ys)]
+        (is (= 2 (count (:log-xs result))))
+        (is (= 2 (count (:log-ys result))))
+        ;; log(10) ≈ 2.303, log(100) ≈ 4.605
+        (is (< (Math/abs (- (double (first (:log-xs result))) (Math/log 10))) 0.001))
+        (is (< (Math/abs (- (double (second (:log-xs result))) (Math/log 100))) 0.001))))
+    (testing "returns residuals in log space"
+      (let [xs [10.0 20.0 40.0 80.0]
+            ys [10.0 20.0 40.0 80.0]
+            result (analysis/log-log-regression xs ys)]
+        (is (= 4 (count (:residuals result))))
+        ;; Perfect linear data should have near-zero residuals
+        (is (every? #(< (Math/abs (double %)) 0.01) (:residuals result)))))
+    (testing "returns predict-fn that works in original space"
+      (let [xs [10.0 20.0 40.0]
+            ys [100.0 200.0 400.0]
+            result (analysis/log-log-regression xs ys)
+            predict (:predict-fn result)]
+        ;; Should predict y = 10 * n for this linear data
+        (is (< (Math/abs (- (double (predict 30.0)) 300.0)) 5.0))))
+    (testing "requires positive x and y values"
+      (is (thrown? AssertionError
+                   (analysis/log-log-regression [0.0 1.0 2.0] [1.0 2.0 3.0])))
+      (is (thrown? AssertionError
+                   (analysis/log-log-regression [1.0 2.0 3.0] [0.0 2.0 3.0]))))))
+
+(deftest fit-log-log-test
+  ;; Tests the domain-level log-log regression function.
+  ;; Applies log-log regression to domain extract data.
+  ;; Contracts: returns domain-log-log-regression, handles multi-impl.
+  (testing "fit-log-log"
+    (testing "returns a domain-log-log-regression result"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 10} 100.0]
+                                                     [{:n 20} 200.0]
+                                                     [{:n 40} 400.0]]}}}
+            result (analysis/fit-log-log extract :n)]
+        (is (= :criterium/domain-log-log-regression (:type result)))
+        (is (= :n (:axis result)))
+        (is (contains? (:regressions result) :elapsed-time))))
+    (testing "identifies linear complexity"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 10} 100.0]
+                                                     [{:n 20} 200.0]
+                                                     [{:n 40} 400.0]
+                                                     [{:n 80} 800.0]]}}}
+            result (analysis/fit-log-log extract :n)
+            reg (get-in result [:regressions :elapsed-time])]
+        ;; Slope should be ≈ 1 for O(n)
+        (is (< (Math/abs (- (double (:slope reg)) 1.0)) 0.01))
+        (is (> (:r-squared reg) 0.99))))
+    (testing "identifies quadratic complexity"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 10} 100.0]
+                                                     [{:n 20} 400.0]
+                                                     [{:n 40} 1600.0]
+                                                     [{:n 80} 6400.0]]}}}
+            result (analysis/fit-log-log extract :n)
+            reg (get-in result [:regressions :elapsed-time])]
+        ;; Slope should be ≈ 2 for O(n²)
+        (is (< (Math/abs (- (double (:slope reg)) 2.0)) 0.01))))
+    (testing "includes log-transformed data"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 10} 100.0]
+                                                     [{:n 20} 200.0]]}}}
+            result (analysis/fit-log-log extract :n)
+            reg (get-in result [:regressions :elapsed-time])]
+        (is (= 2 (count (:log-xs reg))))
+        (is (= 2 (count (:log-ys reg))))
+        (is (= 2 (count (:xs reg))))
+        (is (= 2 (count (:ys reg))))))
+    (testing "filters out nil values"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 10} 100.0]
+                                                     [{:n 20} nil]
+                                                     [{:n 40} 400.0]]}}}
+            result (analysis/fit-log-log extract :n)
+            reg (get-in result [:regressions :elapsed-time])]
+        (is (some? (:slope reg)))
+        (is (= 2 (count (:log-xs reg))))))
+    (testing "filters out non-positive values"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 10} 100.0]
+                                                     [{:n 20} 0.0]
+                                                     [{:n 40} 400.0]]}}}
+            result (analysis/fit-log-log extract :n)
+            reg (get-in result [:regressions :elapsed-time])]
+        (is (some? (:slope reg)))
+        (is (= 2 (count (:log-xs reg))))))
+    (testing "handles error-bound data"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :with-error-bounds true
+                                              :data [[{:n 10} {:value 100.0 :lower 90.0 :upper 110.0}]
+                                                     [{:n 20} {:value 200.0 :lower 180.0 :upper 220.0}]
+                                                     [{:n 40} {:value 400.0 :lower 360.0 :upper 440.0}]]}}}
+            result (analysis/fit-log-log extract :n)
+            reg (get-in result [:regressions :elapsed-time])]
+        (is (some? (:slope reg)))
+        (is (contains? reg :log-lowers))
+        (is (contains? reg :log-uppers))
+        (is (= 3 (count (:log-lowers reg))))))
+    (testing "returns nil for insufficient data"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 10} 100.0]]}}}
+            result (analysis/fit-log-log extract :n)
+            reg (get-in result [:regressions :elapsed-time])]
+        (is (nil? (:slope reg)))
+        (is (nil? (:log-xs reg)))))))
+
+(deftest fit-log-log-multi-impl-test
+  ;; Tests fit-log-log with multi-implementation domains.
+  ;; Data should be grouped by implementation and fit separately.
+  (testing "fit-log-log with multiple implementations"
+    (testing "returns regression with :impl-axis and :implementations"
+      (let [extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations [:vec :list]
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 10 :impl :vec} 100.0]
+                                                     [{:n 20 :impl :vec} 200.0]
+                                                     [{:n 10 :impl :list} 100.0]
+                                                     [{:n 20 :impl :list} 400.0]]}}}
+            result (analysis/fit-log-log extract :n)]
+        (is (= :criterium/domain-log-log-regression (:type result)))
+        (is (= :impl (:impl-axis result)))
+        (is (= [:vec :list] (:implementations result)))))
+    (testing "groups regression by implementation in :by-impl"
+      (let [extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations [:vec :list]
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 10 :impl :vec} 100.0]
+                                                     [{:n 20 :impl :vec} 200.0]
+                                                     [{:n 10 :impl :list} 100.0]
+                                                     [{:n 20 :impl :list} 400.0]]}}}
+            result (analysis/fit-log-log extract :n)
+            reg (get-in result [:regressions :elapsed-time])]
+        (is (contains? reg :by-impl))
+        (is (contains? (:by-impl reg) :vec))
+        (is (contains? (:by-impl reg) :list))))
+    (testing "fits slopes separately per implementation"
+      (let [;; vec is O(n): 100, 200
+            ;; list is O(n²): 100, 400
+            extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations [:vec :list]
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 10 :impl :vec} 100.0]
+                                                     [{:n 20 :impl :vec} 200.0]
+                                                     [{:n 10 :impl :list} 100.0]
+                                                     [{:n 20 :impl :list} 400.0]]}}}
+            result (analysis/fit-log-log extract :n)
+            by-impl (get-in result [:regressions :elapsed-time :by-impl])]
+        ;; vec slope ≈ 1
+        (is (< (Math/abs (- (double (get-in by-impl [:vec :slope])) 1.0)) 0.01))
+        ;; list slope ≈ 2
+        (is (< (Math/abs (- (double (get-in by-impl [:list :slope])) 2.0)) 0.01))))))
+
+(deftest domain-log-log-fn-test
+  ;; Tests the factory function that creates log-log regression pipelines.
+  ;; Contracts: returns function, fits log-log from data-map, supports options.
+  (testing "domain-log-log-fn"
+    (testing "returns a function"
+      (is (fn? (analysis/domain-log-log-fn)))
+      (is (fn? (analysis/domain-log-log-fn {}))))
+    (testing "fits log-log regression to extract in data-map"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 10} 100.0]
+                                                     [{:n 20} 200.0]
+                                                     [{:n 40} 400.0]]}}}
+            f (analysis/domain-log-log-fn {:id :log-log :axis :n})
+            result (f {:extract extract})]
+        (is (contains? result :extract))
+        (is (contains? result :log-log))
+        (is (= :criterium/domain-log-log-regression (:type (:log-log result))))))
+    (testing "uses default :id when not specified"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 10} 100.0]
+                                                     [{:n 20} 200.0]]}}}
+            f (analysis/domain-log-log-fn {:axis :n})
+            result (f {:extract extract})]
+        (is (contains? result :log-log))))
+    (testing "uses custom :extract-id"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 10} 100.0]
+                                                     [{:n 20} 200.0]]}}}
+            f (analysis/domain-log-log-fn
+               {:id :scaling :extract-id :my-extract :axis :n})
+            result (f {:my-extract extract})]
+        (is (contains? result :scaling))
+        (is (= :criterium/domain-log-log-regression (:type (:scaling result))))))
+    (testing "preserves other keys in data-map"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
+                                              :data [[{:n 10} 100.0]
+                                                     [{:n 20} 200.0]]}}}
+            f (analysis/domain-log-log-fn {:id :log-log :axis :n})
+            result (f {:extract extract :other-key "value"})]
+        (is (= "value" (:other-key result)))))))

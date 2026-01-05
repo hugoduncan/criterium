@@ -612,18 +612,22 @@
                                      legend-options)}}})
 
 (defn regression-loess-layer
-  "Build loess smoothing layer for residual plot."
+  "Build loess smoothing layer for residual plot.
+  When color-field is nil, LOESS is applied to all data points as one series."
   [residual-pts {:keys [color-field]}]
   {:data {:values (vec residual-pts)}
-   :transform [{:loess "residual"
-                :on "x"
-                :groupby [color-field]
-                :bandwidth 0.3}]
+   :transform [(cond-> {:loess "residual"
+                        :on "x"
+                        :bandwidth 0.3}
+                 color-field (assoc :groupby [color-field]))]
    :mark {:type "line" :strokeWidth 1}
-   :encoding {:x {:field "x" :type "quantitative"}
-              :y {:field "residual" :type "quantitative"}
-              :color {:field color-field :type "nominal" :legend nil}
-              :opacity {:value 0.4}}})
+   :encoding (cond-> {:x {:field "x" :type "quantitative"}
+                      :y {:field "residual" :type "quantitative"}
+                      :opacity {:value 0.4}}
+               color-field
+               (assoc :color {:field color-field :type "nominal" :legend nil})
+               (not color-field)
+               (assoc :color {:value "steelblue"}))})
 
 (defn regression-zero-line-layer
   "Build zero reference line layer for residual plot."
@@ -647,6 +651,134 @@
   {:width width
    :height height
    :layer [(regression-residual-layer residual-pts opts)
+           (regression-loess-layer residual-pts {:color-field color-field})
+           (regression-zero-line-layer)]})
+
+;;; Log-Log Regression Charts
+;;
+;; Charts for visualizing log-log regression analysis.
+;; In log-log space, power law relationships become linear:
+;; log(y) = slope * log(x) + intercept
+;; The slope directly indicates complexity class (1 for O(n), 2 for O(n²), etc.)
+
+(defn log-log-scatter-layer
+  "Build scatter layer for log-log plot.
+  Points are in log space: x = log(n), y = log(time)."
+  [points {:keys [axis-name color-field color-value legend-options]}]
+  {:data {:values (vec points)}
+   :mark {:type "point" :size 60 :filled true}
+   :encoding (cond-> {:x {:field "x"
+                          :type "quantitative"
+                          :title (str "log(" axis-name ")")}
+                      :y {:field "y"
+                          :type "quantitative"
+                          :title "log(time)"}}
+               color-field
+               (assoc :color {:field color-field
+                              :type "nominal"
+                              :legend (merge {:title (if (= color-field "impl")
+                                                       "Implementation"
+                                                       "Model")}
+                                             legend-options)})
+               (and (nil? color-field) color-value)
+               (assoc :color {:value color-value}))})
+
+(defn log-log-line-layer
+  "Build fit line layer for log-log plot.
+  Line represents: y = slope * x + intercept in log space."
+  [line-pts {:keys [color-field _legend-options]}]
+  {:data {:values (vec line-pts)}
+   :mark {:type "line" :strokeWidth 2}
+   :encoding (cond-> {:x {:field "x" :type "quantitative"}
+                      :y {:field "y" :type "quantitative"}}
+               color-field
+               (assoc :color {:field color-field
+                              :type "nominal"
+                              :legend nil}))})
+
+(defn log-log-error-layer
+  "Build error bar layer for log-log plot.
+  Shows confidence bounds in log space."
+  [points {:keys [color-field color-value]}]
+  {:data {:values (vec (filter #(and (contains? % "yLower")
+                                     (contains? % "yUpper"))
+                               points))}
+   :mark {:type "rule" :strokeWidth 1}
+   :encoding (cond-> {:x {:field "x" :type "quantitative"}
+                      :y {:field "yLower" :type "quantitative"}
+                      :y2 {:field "yUpper"}}
+               color-field
+               (assoc :color {:field color-field :type "nominal" :legend nil})
+               (and (nil? color-field) color-value)
+               (assoc :color {:value color-value}))})
+
+(defn log-log-chart-spec
+  "Build complete log-log scatter plot with fit line.
+  Options:
+    :width - chart width
+    :height - chart height
+    :axis-name - name of the axis variable (e.g., 'n')
+    :color-field - field for color encoding ('impl' or nil)
+    :color-value - static color when color-field is nil
+    :legend-options - legend config map
+    :has-error-bounds? - whether to include error bars
+    :slope - slope value to show in title
+    :r-squared - R² value to show in title"
+  [points line-pts
+   {:keys [width height color-field color-value
+           legend-options has-error-bounds? slope r-squared]
+    :or {width 600 height 400 color-value "steelblue"} :as opts}]
+  (let [scatter-layer (log-log-scatter-layer points opts)
+        line-layer (log-log-line-layer line-pts
+                                       {:color-field color-field
+                                        :legend-options legend-options})
+        error-layer (when has-error-bounds?
+                      (log-log-error-layer points
+                                           {:color-field color-field
+                                            :color-value color-value}))
+        layers (cond-> [scatter-layer line-layer]
+                 has-error-bounds? (conj error-layer))
+        title (when (and slope r-squared (nil? color-field))
+                (format "Log-Log Plot: slope=%.2f (R²=%.4f)"
+                        (double slope) (double r-squared)))]
+    (cond-> {:width width
+             :height height
+             :layer layers}
+      title (assoc :title title))))
+
+(defn log-log-residual-layer
+  "Build scatter layer for log-log residual plot."
+  [residual-pts {:keys [axis-name residual-title color-field legend-options]}]
+  {:data {:values (vec residual-pts)}
+   :mark {:type "point" :size 60}
+   :encoding (cond-> {:x {:field "x"
+                          :type "quantitative"
+                          :title (str "log(" axis-name ")")}
+                      :y {:field "residual"
+                          :type "quantitative"
+                          :title (or residual-title "Residual (log space)")}}
+               color-field
+               (assoc :color {:field color-field
+                              :type "nominal"
+                              :legend (merge {:title (if (= color-field "impl")
+                                                       "Implementation"
+                                                       "Model")}
+                                             legend-options)}))})
+
+(defn log-log-residual-spec
+  "Build complete log-log residual plot spec.
+  Options:
+    :width - chart width
+    :height - chart height (typically half of main chart)
+    :axis-name - name of the axis variable (e.g., 'n')
+    :residual-title - y-axis title
+    :color-field - field for color encoding
+    :legend-options - legend config map"
+  [residual-pts {:keys [width height color-field axis-name]
+                 :or {width 600 height 200} :as opts}]
+  {:width width
+   :height height
+   :layer [(log-log-residual-layer residual-pts (assoc opts :axis-name axis-name))
            (regression-loess-layer residual-pts {:color-field color-field})
            (regression-zero-line-layer)]})
 
