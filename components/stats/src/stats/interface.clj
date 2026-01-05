@@ -9,6 +9,7 @@
   - Probability: log-gamma, digamma, trigamma, erf, normal-cdf, normal-pdf, normal-quantile
   - Distributions: gamma, weibull, lognormal, inverse-gaussian (PDF and CDF)
   - Model selection: aic, bic, aicc (information criteria)
+  - Goodness-of-fit tests: ks-test, cvm-test (Kolmogorov-Smirnov, Cramér-von Mises)
   - Moment matching: parameter estimation, distribution suitability prefilter
   - MLE fitting: gamma-mle, lognormal-mle, inverse-gaussian-mle, weibull-mle
   - Histogram: histogram (Freedman-Diaconis or Knuth Bayesian binning)
@@ -350,6 +351,95 @@
   Requires n > k + 1."
   ^double [^long k ^long n ^double log-likelihood]
   (probability/aicc k n log-likelihood))
+
+;;; Goodness-of-Fit Tests
+
+(defn ks-test-statistic
+  "Compute the Kolmogorov-Smirnov D statistic.
+
+  D = max|Fₙ(x) - F(x)|
+
+  Parameters:
+    samples - sequence of sample values
+    cdf-fn - theoretical CDF function (e.g., from gamma-cdf, weibull-cdf)
+
+  Returns the D statistic."
+  ^double [samples cdf-fn]
+  (probability/ks-test-statistic samples cdf-fn))
+
+(defn ks-pvalue
+  "Compute asymptotic p-value for Kolmogorov-Smirnov test.
+
+  Uses the asymptotic distribution with continuity correction.
+
+  Parameters:
+    d-statistic - the D statistic from ks-test-statistic
+    n - sample size
+
+  Returns the two-sided p-value."
+  ^double [^double d-statistic ^long n]
+  (probability/ks-pvalue d-statistic n))
+
+(defn ks-test
+  "One-sample Kolmogorov-Smirnov goodness-of-fit test.
+
+  Tests whether the sample comes from the specified distribution.
+
+  Parameters:
+    samples - sequence of sample values
+    cdf-fn - theoretical CDF function (e.g., (gamma-cdf shape scale))
+
+  Returns map with:
+    :statistic - the D statistic
+    :p-value - asymptotic two-sided p-value
+    :n - sample size
+
+  A small p-value suggests the sample does not come from the specified distribution."
+  [samples cdf-fn]
+  (probability/ks-test samples cdf-fn))
+
+(defn cvm-test-statistic
+  "Compute the Cramér-von Mises W² statistic.
+
+  W² = (1/12n) + Σᵢ₌₁ⁿ [F(xᵢ) - (2i-1)/(2n)]²
+
+  Parameters:
+    samples - sequence of sample values
+    cdf-fn - theoretical CDF function
+
+  Returns the W² statistic."
+  ^double [samples cdf-fn]
+  (probability/cvm-test-statistic samples cdf-fn))
+
+(defn cvm-pvalue
+  "Compute asymptotic p-value for Cramér-von Mises test.
+
+  Parameters:
+    w2-statistic - the W² statistic from cvm-test-statistic
+    n - sample size
+
+  Returns the p-value."
+  ^double [^double w2-statistic ^long n]
+  (probability/cvm-pvalue w2-statistic n))
+
+(defn cvm-test
+  "One-sample Cramér-von Mises goodness-of-fit test.
+
+  Tests whether the sample comes from the specified distribution.
+  W² is more sensitive to differences in the tails than K-S.
+
+  Parameters:
+    samples - sequence of sample values
+    cdf-fn - theoretical CDF function (e.g., (gamma-cdf shape scale))
+
+  Returns map with:
+    :statistic - the W² statistic
+    :p-value - asymptotic p-value
+    :n - sample size
+
+  A small p-value suggests the sample does not come from the specified distribution."
+  [samples cdf-fn]
+  (probability/cvm-test samples cdf-fn))
 
 ;;; Moment-Based Parameter Estimation
 
