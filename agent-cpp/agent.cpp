@@ -1,4 +1,5 @@
 #include "jni.h"
+#include "include/agent_state.h"
 #include "include/agent_types.h"
 #include "include/alloc_rec.h"
 #include "include/jni_operations.h"
@@ -177,31 +178,11 @@ jmethodID class_invoke_method_id(JNIEnv* env, jclass klass) {
 }
 
 // States and Commands enums are defined in include/agent_types.h
+// Event/Command structures are defined in include/agent_state.h
 
-// Event/Command structures
-struct AllocationEvent {
-  jobject object;
-  jclass object_klass;
-  jthread thread;
-  jlong size;
-  jlong tag;
-  std::array<jvmtiFrameInfo, MAX_FRAMES> frames;
-  jint frame_count;
-
-  void delete_global_refs(JNIEnv* env, criterium::IJniOperations& jni_ops) const {
-    jni_ops.delete_global_ref(env, object_klass);
-    jni_ops.delete_global_ref(env, object);
-    jni_ops.delete_global_ref(env, thread);
-  }
-};
-
-struct ObjectFreeEvent {
-    jlong tag;
-};
-
-struct Command {
-    jlong cmd;
-};
+using criterium::AllocationEvent;
+using criterium::ObjectFreeEvent;
+using criterium::Command;
 
 // Queue message type
 using Message = std::variant<AllocationEvent, ObjectFreeEvent, Command>;
