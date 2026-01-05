@@ -112,7 +112,11 @@
               0.0
               [{:value 0.0 :alpha 0.025}
                {:value 0.0 :alpha 0.975}])
-             (-> stats :variance)))))
+             (-> stats :variance)))
+      (testing "includes skewness, kurtosis, and cv"
+        (is (contains? stats :skewness))
+        (is (contains? stats :kurtosis))
+        (is (contains? stats :cv)))))
 
   (testing "sequential input"
     (let [samples (mapv double (range 101))

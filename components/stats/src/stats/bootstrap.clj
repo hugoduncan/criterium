@@ -190,7 +190,10 @@
   {:mean     core/mean
    :variance core/variance
    :min-val  core/min
-   :max-val  core/max})
+   :max-val  core/max
+   :skewness core/skewness
+   :kurtosis core/kurtosis
+   :cv       core/cv})
 
 (defn stats-fns
   "Build vector of stat functions including quantile functions for given quantiles."

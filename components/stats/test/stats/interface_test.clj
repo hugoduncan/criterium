@@ -71,6 +71,21 @@
       (is (= 5 (stats/quantile 0.05 (range 0 101))))
       (is (= 95 (stats/quantile 0.95 (range 0 101)))))))
 
+(deftest cv-test
+  (testing "cv"
+    (testing "returns coefficient of variation (std dev / mean)"
+      ;; For data [2 4 6 8]: mean=5, var=20/3, sd=sqrt(20/3)≈2.582
+      ;; CV = 2.582/5 ≈ 0.5164
+      (is (< (Math/abs (- (stats/cv [2 4 6 8])
+                          (/ (Math/sqrt (/ 20.0 3)) 5.0)))
+             1e-10)))
+    (testing "returns NaN for single element"
+      (is (Double/isNaN (stats/cv [5.0]))))
+    (testing "returns NaN for empty collection"
+      (is (Double/isNaN (stats/cv []))))
+    (testing "returns NaN when mean is zero"
+      (is (Double/isNaN (stats/cv [-1.0 1.0]))))))
+
 (deftest boxplot-outlier-thresholds-test
   (testing "boxplot-outlier-thresholds"
     (testing "returns [severe-low mild-low mild-high severe-high]"

@@ -196,3 +196,19 @@
        3 (- (* (+ g2 3) (Math/pow (/ (dec n) n) 2)) 3)
        (throw (ex-info "Invalid kurtosis type, must be 1, 2, or 3"
                        {:type type}))))))
+
+(defn cv
+  "Coefficient of variation (CV), also known as relative standard deviation.
+  Computed as σ/μ (standard deviation divided by mean).
+
+  Returns Double/NaN if mean is zero or data has fewer than 2 elements.
+  CV is dimensionless and useful for comparing variability across datasets
+  with different units or scales."
+  ^double [data]
+  (let [n (count data)]
+    (if (< n 2)
+      Double/NaN
+      (let [mu (mean data)]
+        (if (zero? mu)
+          Double/NaN
+          (/ (Math/sqrt (variance data)) mu))))))

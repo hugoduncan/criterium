@@ -509,3 +509,44 @@
                   clj-kurt (stats/kurtosis right-skewed 3)]
               (is (approx= r-kurt clj-kurt 1e-10)
                   (format "kurtosis mismatch: R=%.15f, clj=%.15f" r-kurt clj-kurt)))))))))
+
+(deftest cv-validation-test
+  ;; Validates stats.interface/cv against R's sd(x)/mean(x) formula.
+  ;; Coefficient of variation is computed as standard deviation / mean.
+  (testing "cv"
+    (if-not (r/r-available?)
+      (do
+        (println "Skipping cv validation: R/Rserve not available")
+        (is true "Skipped - R unavailable"))
+      (do
+        (testing "with simple integers"
+          (let [r-cv (first (r/r-eval
+                             (str "sd(" (vec->r-str simple-integers)
+                                  ") / mean(" (vec->r-str simple-integers) ")")))
+                clj-cv (stats/cv simple-integers)]
+            (is (approx= r-cv clj-cv 1e-10)
+                (format "cv mismatch: R=%.15f, clj=%.15f" r-cv clj-cv))))
+
+        (testing "with simple doubles"
+          (let [r-cv (first (r/r-eval
+                             (str "sd(" (vec->r-str simple-doubles)
+                                  ") / mean(" (vec->r-str simple-doubles) ")")))
+                clj-cv (stats/cv simple-doubles)]
+            (is (approx= r-cv clj-cv 1e-10)
+                (format "cv mismatch: R=%.15f, clj=%.15f" r-cv clj-cv))))
+
+        (testing "with right-skewed data"
+          (let [r-cv (first (r/r-eval
+                             (str "sd(" (vec->r-str right-skewed)
+                                  ") / mean(" (vec->r-str right-skewed) ")")))
+                clj-cv (stats/cv right-skewed)]
+            (is (approx= r-cv clj-cv 1e-10)
+                (format "cv mismatch: R=%.15f, clj=%.15f" r-cv clj-cv))))
+
+        (testing "with large range of values"
+          (let [r-cv (first (r/r-eval
+                             (str "sd(" (vec->r-str large-range)
+                                  ") / mean(" (vec->r-str large-range) ")")))
+                clj-cv (stats/cv large-range)]
+            (is (approx= r-cv clj-cv 1e-10)
+                (format "cv mismatch: R=%.15f, clj=%.15f" r-cv clj-cv))))))))

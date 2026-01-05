@@ -136,6 +136,16 @@
   (^double [data] (core/kurtosis data))
   (^double [data type] (core/kurtosis data type)))
 
+(defn cv
+  "Coefficient of variation (CV), also known as relative standard deviation.
+  Computed as σ/μ (standard deviation divided by mean).
+
+  Returns Double/NaN if mean is zero or data has fewer than 2 elements.
+  CV is dimensionless and useful for comparing variability across datasets
+  with different units or scales."
+  ^double [data]
+  (core/cv data))
+
 ;;; Outliers
 
 (defn boxplot-outlier-thresholds
