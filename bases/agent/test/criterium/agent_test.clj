@@ -1,11 +1,12 @@
 (ns criterium.agent-test
   "Tests for the criterium.agent namespace.
 
-  Tests cover four main areas:
+  Tests cover five main areas:
   1. Agent Attachment - Verifying agent initialization and status
   2. Allocation Tracking - Testing allocation capture functionality
-  3. Thread Filtering - Testing thread-specific allocation filtering
-  4. Results Analysis - Testing allocation summary and statistics
+  3. Call Tracing - Testing method call tracing and call tree building
+  4. Thread Filtering - Testing thread-specific allocation filtering
+  5. Results Analysis - Testing allocation summary and statistics
 
   Test organization:
   - Unit tests verify individual function behavior
@@ -239,6 +240,90 @@
               (is (pos? (:num-allocated summary)))
               (is (every? #(= current-thread (:thread %)) thread-allocs)))
             (is true)))))))
+
+;;; Call Tracing Tests
+
+(defn simple-computation
+  "A simple function to trace."
+  [x]
+  (+ x 1))
+
+(defn nested-computation
+  "A function that calls other functions."
+  [x]
+  (simple-computation (simple-computation x)))
+
+(deftest with-call-tracing-test
+  ;; Tests call tracing macro behavior
+  (testing "with-call-tracing"
+    (testing "returns the result value unchanged"
+      (let [[_call-tree rv] (agent/with-call-tracing 42)]
+        (is (= 42 rv)
+            "Should return body result as second element")))
+
+    (testing "when agent not attached"
+      (testing "returns nil call-tree gracefully"
+        (with-redefs [agent/attached? (constantly false)]
+          (let [[call-tree rv] (agent/with-call-tracing
+                                 (simple-computation 1))]
+            (is (nil? call-tree)
+                "Should return nil when agent not attached")
+            (is (= 2 rv)
+                "Should still execute body")))))
+
+    (testing "when agent attached"
+      (when (agent/attached?)
+        (testing "captures method calls"
+          (let [[call-tree rv] (agent/with-call-tracing
+                                 (nested-computation 1))]
+            (is (= 3 rv)
+                "Should return body result")
+            (is (map? call-tree)
+                "Should return call tree map")
+            (when (map? call-tree)
+              (is (contains? call-tree :children)
+                  "Call tree should have :children key")
+              (is (vector? (:children call-tree))
+                  ":children should be a vector"))))
+
+        (testing "call tree node structure"
+          (let [[call-tree _] (agent/with-call-tracing
+                                (simple-computation 1))]
+            (when (map? call-tree)
+              (is (contains? call-tree :class)
+                  "Node should have :class")
+              (is (contains? call-tree :method)
+                  "Node should have :method")
+              (is (contains? call-tree :call-count)
+                  "Node should have :call-count")
+              (is (contains? call-tree :children)
+                  "Node should have :children")
+              (is (contains? call-tree :file)
+                  "Node should have :file")
+              (is (contains? call-tree :line)
+                  "Node should have :line"))))))
+
+    (testing "propagates exceptions"
+      (is (thrown? Exception
+                   (agent/with-call-tracing
+                     (throw (Exception. "test exception"))))))))
+
+(deftest call-tracing-nested-test
+  ;; Tests nested call tracing behavior
+  (testing "with-call-tracing nested calls"
+    (testing "handles nested tracing"
+      (let [[outer-tree outer-rv]
+            (agent/with-call-tracing
+              (let [[inner-tree inner-rv]
+                    (agent/with-call-tracing
+                      (simple-computation 1))]
+                (is (= 2 inner-rv))
+                (when (agent/attached?)
+                  (is (or (nil? inner-tree) (map? inner-tree))))
+                3))]
+        (is (= 3 outer-rv))
+        (when (agent/attached?)
+          (is (or (nil? outer-tree) (map? outer-tree))))))))
 
 ;; Warmup for allocation tests
 (dotimes [_ 100]

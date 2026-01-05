@@ -1,22 +1,17 @@
 (ns criterium.agent
-  "Interface to the Criterium native agent for allocation tracking and profiling.
+  "Interface to the Criterium native agent for allocation tracking and call tracing.
 
-  This namespace provides functions for tracking JVM heap allocations and garbage
-  collection during benchmark execution. It uses a native agent to capture detailed
-  allocation information with minimal overhead.
+  This namespace provides functions for:
+  - Tracking JVM heap allocations during benchmark execution
+  - Tracing method calls to build call graphs
 
-  The key concepts are:
-  - Native Agent: A JVM agent that hooks into allocation events
-  - Allocation Records: Detailed data about each object allocation
-  - Thread Filtering: Ability to focus on allocations from specific threads
+  Key Features:
+  - Allocation Tracking: Capture detailed information about object allocations
+  - Call Tracing: Record method entry/exit to build hierarchical call trees
 
   Agent Loading:
   Due to JVMTI limitations, the agent MUST be loaded at JVM startup using
-  -agentpath for allocation tracking to work. The required capability
-  (can_generate_sampled_object_alloc_events) can only be requested during
-  VM initialization, not during runtime attachment.
-
-  Start your JVM with:
+  -agentpath for full functionality. Start your JVM with:
     clojure -J-agentpath:/path/to/libcriterium.dylib -M:dev
 
   Or use (jvm-opts) to get the correct path, then restart your JVM with that option.
@@ -24,11 +19,17 @@
   Example usage:
 
   ```clojure
+  ;; Allocation tracking
   (let [[allocations result] (with-allocation-tracing
                               (your-code-here))]
-    ;; Filter to current thread
     (let [thread-allocs (filter (allocation-on-thread?) allocations)]
       (allocations-summary thread-allocs)))
+
+  ;; Call tracing
+  (let [[call-tree result] (with-call-tracing
+                            (your-code-here))]
+    ;; call-tree is a nested map with :class, :method, :call-count, :children
+    call-tree)
   ```
 
   For more details, see the README in projects/agent/."
@@ -107,6 +108,42 @@
                       (core/allocation-tracing-stop!))))]
        (core/collect-allocation-records)
        [@core/records res#])
+     [nil (do ~@body)]))
+
+(defmacro with-call-tracing
+  "Creates a scope in which all method calls are traced to build a call tree.
+
+  Captures method entry and exit events during execution of body forms and
+  builds a hierarchical call tree representing the observed call graph.
+
+  If the agent is not attached, returns [nil result] without tracing.
+
+  Returns a vector of [call-tree result] where:
+  - call-tree: A nested map structure representing the call hierarchy:
+    {:class       - Class name in standard format (e.g. \"myapp.Core\")
+     :method      - Method name (e.g. \"process\")
+     :file        - Source file name (may be nil)
+     :line        - Line number (-1 if unknown)
+     :call-count  - Number of times this call path was executed
+     :children    - Vector of child call nodes}
+  - result: The value returned by the body forms
+
+  Note: Method tracing captures ALL method calls across all threads.
+  The call tree represents the aggregated call graph, not per-thread traces.
+
+  Warning: Method tracing has significant overhead. Use for profiling and
+  debugging, not for production benchmarks."
+  [& body]
+  `(if (attached?)
+     (let [active?# (core/method-tracing-active?)
+           res# (if active?#
+                  (do ~@body)
+                  (try
+                    (core/method-tracing-start!)
+                    ~@body
+                    (finally
+                      (core/method-tracing-stop!))))]
+       [(core/collect-method-call-tree) res#])
      [nil (do ~@body)]))
 
 (defn allocation-on-thread?

@@ -74,6 +74,14 @@
       (catch ClassNotFoundException _
         nil))))
 
+(def ^:private method-call-class
+  "Lazily resolved MethodCall class, or nil if not available."
+  (delay
+    (try
+      (Class/forName "criterium.agent.MethodCall")
+      (catch ClassNotFoundException _
+        nil))))
+
 ;;; Native Agent
 
 (def ^:internal records
@@ -91,6 +99,18 @@
   - :thread       - Thread ID
   - :freed        - GC status"
   (atom []))
+
+(def ^:internal method-call-tree
+  "Atom containing the method call tree from the last tracing session.
+
+  The tree is a nested map structure representing the call hierarchy:
+  {:class       - Class name (JVM internal format converted to standard)
+   :method      - Method name
+   :file        - Source file name (may be nil)
+   :line        - Line number (-1 if unknown)
+   :call-count  - Number of times this call path was executed
+   :children    - Vector of child call nodes}"
+  (atom nil))
 
 (defn internal->class-name
   "Convert an internal JVM class name to standard Java/Clojure class name.
@@ -124,16 +144,45 @@
   ^Class []
   @allocation-class)
 
+(defn- get-method-call-class
+  "Returns the MethodCall class with proper type hint to avoid reflection."
+  ^Class []
+  @method-call-class)
+
 (defn- blank->nil [s]
   (when-not (str/blank? s)
     s))
 
-(defn- data-fn
-  "Callback function invoked by the native agent for allocation events.
+(defn- method-call->map
+  "Recursively convert a MethodCall Java object to a Clojure map.
 
-  Processes allocation events from the native agent and stores them in
-  the records atom. Handles both object and primitive allocation
-  records.
+  Transforms the tree structure into nested maps with:
+  - :class converted from JVM internal format to standard class names
+  - :children as a vector of child call maps"
+  [method-call]
+  (when method-call
+    (let [^Class klass (get-method-call-class)
+          class-field (.getField klass "class_name")
+          method-field (.getField klass "method_name")
+          source-field (.getField klass "source_file")
+          line-field (.getField klass "line_number")
+          count-field (.getField klass "call_count")
+          children-field (.getField klass "children")
+          class-name (.get class-field method-call)
+          children ^objects (.get children-field method-call)]
+      {:class (when class-name (internal->class-name class-name))
+       :method (.get method-field method-call)
+       :file (blank->nil (.get source-field method-call))
+       :line (.get line-field method-call)
+       :call-count (.get count-field method-call)
+       :children (mapv method-call->map children)})))
+
+(defn- data-fn
+  "Callback function invoked by the native agent for data events.
+
+  Processes data from the native agent and stores in appropriate atoms:
+  - Allocation objects -> records atom
+  - MethodCall objects -> method-call-tree atom
 
   Implementation Notes:
   - Called from native code via JNI
@@ -142,11 +191,15 @@
   - Filters out internal marker allocations
 
   Called in two forms:
-  1. Single object form for complex allocations
+  1. Single object form for complex allocations and method call trees
   2. Multi-argument form for primitive allocations"
   ([object]
    (cond
-     ;; Use reflection to check instance type
+     ;; Handle MethodCall objects for method tracing
+     (and @method-call-class (.isInstance (get-method-call-class) object))
+     (reset! method-call-tree (method-call->map object))
+
+     ;; Handle Allocation objects for allocation tracing
      (and @allocation-class (.isInstance (get-allocation-class) object))
      (let [object-type (.getField (get-allocation-class) "object_type")
            object-size (.getField (get-allocation-class) "object_size")
@@ -224,13 +277,19 @@
   - :start-allocation-tracing - Begin allocation tracking
   - :stop-allocation-tracing - End allocation tracking
   - :report-allocation-tracing - Retrieve allocation data
+  - :start-method-tracing - Begin method call tracing
+  - :stop-method-tracing - End method call tracing
+  - :report-method-tracing - Retrieve method call tree
 
   Values correspond to the native agent protocol constants."
   {:ping 0
    :sync-state 1
    :start-allocation-tracing 10
    :stop-allocation-tracing 11
-   :report-allocation-tracing 12})
+   :report-allocation-tracing 12
+   :start-method-tracing 20
+   :stop-method-tracing 21
+   :report-method-tracing 22})
 
 (def ^:private states
   "Map of numeric state codes to their keyword representations.
@@ -238,11 +297,21 @@
   Agent States and Transitions:
   :not-attached (-1) - Agent not loaded or initialized
   :passive (0) - Agent loaded but inactive
+
+  Allocation Tracing States:
   :allocation-tracing-starting (10) -> :allocation-tracing-active
   :allocation-tracing-active (11) - Collecting allocation data
   :allocation-tracing-stopping (15) -> :allocation-tracing-flushing
   :allocation-tracing-flushing (16) -> :allocation-tracing-flushed
   :allocation-tracing-flushed (17) - Data ready for collection
+
+  Method Tracing States:
+  :method-tracing-starting (20) -> :method-tracing-active
+  :method-tracing-active (21) - Capturing method entry/exit events
+  :method-tracing-stopping (25) -> :method-tracing-stopped
+  :method-tracing-stopped (26) - Events captured, ready to report
+  :method-tracing-reporting (27) -> :method-tracing-reported
+  :method-tracing-reported (28) - Call tree data sent to handler
 
   State transitions are managed by agent commands."
   {-1 :not-attached
@@ -253,7 +322,13 @@
    16 :allocation-tracing-flushing
    17 :allocation-tracing-flushed
    18 :allocation-tracing-reporting
-   19 :allocation-tracing-reported})
+   19 :allocation-tracing-reported
+   20 :method-tracing-starting
+   21 :method-tracing-active
+   25 :method-tracing-stopping
+   26 :method-tracing-stopped
+   27 :method-tracing-reporting
+   28 :method-tracing-reported})
 
 (defn ^:internal agent-command
   "Send a command to the native agent.
@@ -471,3 +546,72 @@
      :num-freed (count freed)
      :allocated-bytes (reduce + (map :object_size records))
      :freed-bytes (reduce + (map :object_size freed))}))
+
+;;; Method Tracing Control
+
+(defn ^:internal method-tracing-active?
+  "Test if method tracing is currently active.
+
+  Returns true only when the agent is in the :method-tracing-active state."
+  []
+  (= (agent-state) :method-tracing-active))
+
+(defn ^:internal method-tracing-start!
+  "Initialize and start method call tracing.
+
+  Sends the start command to the agent and waits for the state to transition
+  to :method-tracing-active. Unlike allocation tracing, method tracing does
+  not require GC cycles or marker objects - it uses pure JVMTI events.
+
+  Implementation Notes:
+  - Blocks until tracing is active
+  - May timeout if agent doesn't respond
+  - Thread-safe but should not be called concurrently"
+  []
+  (agent-command :start-method-tracing)
+  (loop [i 100000]
+    (when (and (pos? i) (not (method-tracing-active?)))
+      (Thread/yield)
+      (recur (unchecked-dec i))))
+  (when (not= (agent-state) :method-tracing-active)
+    (println "WARNING method tracing failed to start promptly")))
+
+(defn ^:internal method-tracing-stop!
+  "Stop method call tracing.
+
+  Sends the stop command to the agent and waits for the state to transition
+  to :method-tracing-stopped, indicating events have been processed and the
+  call tree is ready for reporting.
+
+  Implementation Notes:
+  - Blocks until processing complete
+  - Thread-safe but should not be called concurrently
+  - May timeout if agent doesn't respond"
+  []
+  (agent-command :stop-method-tracing)
+  (loop [i 100000]
+    (when (and (pos? i)
+               (not= (agent-state) :method-tracing-stopped))
+      (Thread/yield)
+      (recur (unchecked-dec i))))
+  (when (not= (agent-state) :method-tracing-stopped)
+    (println "WARNING method tracing failed to stop promptly")))
+
+(defn ^:internal collect-method-call-tree
+  "Retrieve the method call tree from the agent.
+
+  Sends the report command and waits for the agent to send the MethodCall
+  tree via the data callback. The tree is stored in the method-call-tree atom.
+
+  Returns the call tree map structure."
+  []
+  (reset! method-call-tree nil)
+  (agent-command :report-method-tracing)
+  (loop [i 100000]
+    (when (and (pos? i)
+               (not= (agent-state) :method-tracing-reported))
+      (Thread/yield)
+      (recur (unchecked-dec i))))
+  (when (not= (agent-state) :method-tracing-reported)
+    (println "WARNING method tracing failed to collect results promptly"))
+  @method-call-tree)
