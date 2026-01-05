@@ -50,6 +50,10 @@
 
 (def-multi-view allocation-treemap)
 
+;;; Call Tracing Views
+
+(def-multi-view call-tree)
+
 ;;; Domain Views
 
 (def-multi-view domain-extract)
@@ -89,6 +93,9 @@
 (defmethod allocation-by-type* :none [_ _ _])
 
 (defmethod allocation-treemap* :none [_ _ _])
+
+;; Call Tracing Null Viewer
+(defmethod call-tree* :none [_ _ _])
 
 ;; Domain Null Viewer
 (defmethod domain-extract* :none [_ _ _])

@@ -1,0 +1,231 @@
+(ns criterium.viewer.call-graph-test
+  (:require
+   [clojure.test :refer [deftest is testing]]
+   [criterium.test-utils :refer [trimmed-lines]]
+   [criterium.view :as view]
+   [criterium.viewer.call-graph :as call-graph]))
+
+;;; Test Data
+
+(def simple-call-tree
+  "A simple call tree with one child."
+  {:class "myapp.Core"
+   :method "main"
+   :file "Core.java"
+   :line 10
+   :call-count 1
+   :children
+   [{:class "myapp.Service"
+     :method "process"
+     :file "Service.java"
+     :line 20
+     :call-count 5
+     :children []}]})
+
+(def nested-call-tree
+  "A nested call tree for testing tree rendering."
+  {:class "myapp.Core"
+   :method "main"
+   :file "Core.java"
+   :line 10
+   :call-count 1
+   :children
+   [{:class "myapp.Service"
+     :method "process"
+     :file "Service.java"
+     :line 20
+     :call-count 10
+     :children
+     [{:class "myapp.Helper"
+       :method "compute"
+       :file "Helper.java"
+       :line 30
+       :call-count 100
+       :children []}
+      {:class "myapp.Util"
+       :method "format"
+       :file "Util.java"
+       :line 40
+       :call-count 50
+       :children []}]}
+    {:class "myapp.Logger"
+     :method "log"
+     :file "Logger.java"
+     :line 50
+     :call-count 5
+     :children []}]})
+
+(def single-node-tree
+  "A call tree with no children."
+  {:class "myapp.Main"
+   :method "run"
+   :file "Main.java"
+   :line 1
+   :call-count 1
+   :children []})
+
+;;; Unit Tests
+
+(deftest total-call-count-test
+  ;; Tests that total-call-count correctly sums all call counts in a tree.
+  (testing "total-call-count"
+    (testing "returns 0 for nil"
+      (is (= 0 (call-graph/total-call-count nil))))
+
+    (testing "returns call-count for single node"
+      (is (= 1 (call-graph/total-call-count single-node-tree))))
+
+    (testing "sums all calls in simple tree"
+      ;; 1 (root) + 5 (Service.process) = 6
+      (is (= 6 (call-graph/total-call-count simple-call-tree))))
+
+    (testing "sums all calls in nested tree"
+      ;; 1 + 10 + 100 + 50 + 5 = 166
+      (is (= 166 (call-graph/total-call-count nested-call-tree))))))
+
+(deftest render-call-tree-test
+  ;; Tests ASCII tree rendering with box-drawing characters.
+  (testing "render-call-tree"
+    (testing "returns nil for nil input"
+      (is (nil? (call-graph/render-call-tree nil))))
+
+    (testing "renders single node without tree characters"
+      (let [result (call-graph/render-call-tree single-node-tree)]
+        (is (= ["myapp.Main.run (1 call, 100.0%)"]
+               (trimmed-lines result)))))
+
+    (testing "renders simple tree with box characters"
+      (let [result (call-graph/render-call-tree simple-call-tree)]
+        (is (= ["myapp.Core.main (1 call, 16.7%)"
+                "└── myapp.Service.process (5 calls, 83.3%)"]
+               (trimmed-lines result)))))
+
+    (testing "renders nested tree with proper indentation"
+      (let [result (call-graph/render-call-tree nested-call-tree)
+            lines (trimmed-lines result)]
+        ;; Check structure
+        (is (= 5 (count lines)))
+        ;; Root
+        (is (= "myapp.Core.main (1 call, 0.6%)" (nth lines 0)))
+        ;; First child with ├──
+        (is (= "├── myapp.Service.process (10 calls, 6.0%)" (nth lines 1)))
+        ;; Grandchildren with │ prefix
+        (is (= "│   ├── myapp.Helper.compute (100 calls, 60.2%)" (nth lines 2)))
+        (is (= "│   └── myapp.Util.format (50 calls, 30.1%)" (nth lines 3)))
+        ;; Last child with └──
+        (is (= "└── myapp.Logger.log (5 calls, 3.0%)" (nth lines 4)))))
+
+    (testing "uses 'call' singular for count of 1"
+      (let [result (call-graph/render-call-tree single-node-tree)]
+        (is (re-find #"\(1 call," result))))
+
+    (testing "uses 'calls' plural for count > 1"
+      (let [result (call-graph/render-call-tree simple-call-tree)]
+        (is (re-find #"\(5 calls," result))))))
+
+(deftest render-call-tree-edge-cases-test
+  ;; Tests edge cases in tree rendering.
+  (testing "render-call-tree edge cases"
+    (testing "handles missing class name"
+      (let [tree {:class nil
+                  :method "unknown"
+                  :call-count 1
+                  :children []}
+            result (call-graph/render-call-tree tree)]
+        (is (= ["<unknown>.unknown (1 call, 100.0%)"]
+               (trimmed-lines result)))))
+
+    (testing "handles missing method name"
+      (let [tree {:class "myapp.Test"
+                  :method nil
+                  :call-count 1
+                  :children []}
+            result (call-graph/render-call-tree tree)]
+        (is (= ["myapp.Test.<unknown> (1 call, 100.0%)"]
+               (trimmed-lines result)))))
+
+    (testing "handles zero call count"
+      (let [tree {:class "myapp.Test"
+                  :method "test"
+                  :call-count 0
+                  :children []}
+            result (call-graph/render-call-tree tree)]
+        (is (= ["myapp.Test.test (0 calls, 0.0%)"]
+               (trimmed-lines result)))))
+
+    (testing "handles deeply nested tree"
+      (let [deep-tree {:class "L1"
+                       :method "m"
+                       :call-count 1
+                       :children
+                       [{:class "L2"
+                         :method "m"
+                         :call-count 1
+                         :children
+                         [{:class "L3"
+                           :method "m"
+                           :call-count 1
+                           :children
+                           [{:class "L4"
+                             :method "m"
+                             :call-count 1
+                             :children []}]}]}]}
+            result (call-graph/render-call-tree deep-tree)
+            lines (trimmed-lines result)]
+        (is (= 4 (count lines)))
+        ;; Check indentation increases correctly
+        (is (= "L1.m (1 call, 25.0%)" (nth lines 0)))
+        (is (= "└── L2.m (1 call, 25.0%)" (nth lines 1)))
+        (is (= "└── L3.m (1 call, 25.0%)" (nth lines 2)))
+        (is (= "└── L4.m (1 call, 25.0%)" (nth lines 3)))))))
+
+;;; View Integration Tests
+
+(deftest call-tree-view-print-test
+  ;; Tests the :print viewer integration for call-tree.
+  (testing "call-tree*"
+    (testing "prints tree with header"
+      (let [output (with-out-str
+                     (view/call-tree*
+                      :print
+                      {}
+                      {:call-tree simple-call-tree}))
+            lines (trimmed-lines output)]
+        (is (= "Call Tree (6 total calls)" (first lines)))
+        (is (= "myapp.Core.main (1 call, 16.7%)" (second lines)))))
+
+    (testing "uses custom call-tree-id"
+      (let [output (with-out-str
+                     (view/call-tree*
+                      :print
+                      {:call-tree-id :my-tree}
+                      {:my-tree single-node-tree}))
+            lines (trimmed-lines output)]
+        (is (= "Call Tree (1 total calls)" (first lines)))))
+
+    (testing "handles missing call-tree gracefully"
+      (let [output (with-out-str
+                     (view/call-tree*
+                      :print
+                      {}
+                      {}))]
+        (is (= "" output))))
+
+    (testing "handles nil call-tree gracefully"
+      (let [output (with-out-str
+                     (view/call-tree*
+                      :print
+                      {}
+                      {:call-tree nil}))]
+        (is (= "" output))))))
+
+(deftest call-tree-view-none-test
+  ;; Tests the :none viewer does nothing.
+  (testing "call-tree* :none"
+    (testing "produces no output"
+      (let [output (with-out-str
+                     (view/call-tree*
+                      :none
+                      {}
+                      {:call-tree nested-call-tree}))]
+        (is (= "" output))))))
