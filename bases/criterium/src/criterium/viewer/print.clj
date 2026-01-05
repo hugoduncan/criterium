@@ -95,12 +95,13 @@
 (defmethod view/event-stats* :print
   [_ {:keys [event-stats-id]} data-map]
   (let [event-stats-id (or event-stats-id :event-stats)
-        event-stats-map (data-map event-stats-id)
-        metrics-defs (-> (:metrics-defs event-stats-map)
-                         (metric/filter-metrics
-                          (metric/type-pred :event)))
-        event-stats (util/event-stats event-stats-map)]
-    (print-event-stats metrics-defs event-stats)))
+        event-stats-map (data-map event-stats-id)]
+    (when event-stats-map
+      (let [metrics-defs (-> (:metrics-defs event-stats-map)
+                             (metric/filter-metrics
+                              (metric/type-pred :event)))
+            event-stats (util/event-stats event-stats-map)]
+        (print-event-stats metrics-defs event-stats)))))
 
 (defn print-bootstrap-stat
   [metric

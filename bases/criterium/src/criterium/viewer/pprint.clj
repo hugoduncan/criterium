@@ -56,14 +56,15 @@
 (defmethod view/event-stats* :pprint
   [_ {:keys [event-stats-id]} data-map]
   (let [event-stats-id (or event-stats-id :event-stats)
-        event-stats-map (data-map event-stats-id)
-        metrics-defs (:metrics-defs event-stats-map)
-        res (viewer-common/event-stats
-             metrics-defs
-             (util/event-stats event-stats-map))
-        ks (reduce into [] (map keys res))]
-    (when (seq res)
-      (pprint/print-table (distinct ks) res))))
+        event-stats-map (data-map event-stats-id)]
+    (when event-stats-map
+      (let [metrics-defs (:metrics-defs event-stats-map)
+            res (viewer-common/event-stats
+                 metrics-defs
+                 (util/event-stats event-stats-map))
+            ks (reduce into [] (map keys res))]
+        (when (seq res)
+          (pprint/print-table (distinct ks) res))))))
 
 (defmethod view/outlier-counts* :pprint
   [_ {:keys [outliers-id] :as _view} data-map]

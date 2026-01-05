@@ -180,12 +180,16 @@
             p10-val (:point-estimate p10)
             p50-val (:point-estimate p50)
             p90-val (:point-estimate p90)
-            ;; Extract median CI bounds
+            ;; Extract median CI bounds and alpha for label
             median-ci (:estimate-quantiles p50)
             ci-lower (when (seq median-ci)
                        (:value (first median-ci)))
             ci-upper (when (seq median-ci)
                        (:value (second median-ci)))
+            ci-alpha (when (seq median-ci)
+                       (:alpha (first median-ci)))
+            ci-level (when ci-alpha
+                       (long (* 100 (- 1.0 (* 2.0 (double ci-alpha))))))
             ;; Position boxplot at y=0 (histogram baseline)
             box-y 0]
         [{:layer
@@ -210,10 +214,13 @@
             ;; space. The -0.02 height creates a thin overlay that doesn't
             ;; obscure histogram bars while remaining visible.
             (and ci-lower ci-upper)
-            (conj (let [box-height -0.02]
+            (conj (let [box-height -0.02
+                        ci-label (if ci-level
+                                   (str "Median CI (" ci-level "%)")
+                                   "Median CI")]
                     {:data {:values [{field-name ci-lower
                                       :end ci-upper}]}
-                     :transform [{:calculate "'Median CI'" :as "layer"}]
+                     :transform [{:calculate (str "'" ci-label "'") :as "layer"}]
                      :encoding {:x {:field field-name
                                     :type "quantitative"
                                     :scale {:zero false}}
@@ -392,6 +399,15 @@
                        layer-num
                        (fn [^long x] (unchecked-inc x))))]
                     (concat
+                     ;; Bootstrap boxplot layers (median) first
+                     (when bootstrap-stats-map
+                       (->>
+                        (metric-bootstrap-boxplot-layer
+                         bootstrap-transforms
+                         (get-in (util/bootstrap bootstrap-stats-map)
+                                 (:path metric-config))
+                         metric-config)))
+                     ;; Stats layers (mean) last so mean line appears on top
                      (when stats
                        (->>
                         (metric-sample-stats-layer
@@ -400,14 +416,7 @@
                          metric-config
                          (vswap!
                           layer-num
-                          (fn [^long x] (unchecked-inc x))))))
-                     (when bootstrap-stats-map
-                       (->>
-                        (metric-bootstrap-boxplot-layer
-                         bootstrap-transforms
-                         (get-in (util/bootstrap bootstrap-stats-map)
-                                 (:path metric-config))
-                         metric-config)))))}))
+                          (fn [^long x] (unchecked-inc x))))))))}))
                metric-configs)}))
 
 ;;; Percentile charts

@@ -281,7 +281,9 @@ bench-plans/knuth-histogram
 ^:kindly/hide-code
 (bench-display
  (bench/bench (reduce + (range 1000))
-              :viewer [:print {:show-medcouple true}]
+              :viewer :print
+              :view (conj (:view bench-plans/log-histogram)
+                          [:outlier-counts {:show-medcouple true}])
               :bench-plan bench-plans/log-histogram))
 
 ;; Medcouple interpretation:

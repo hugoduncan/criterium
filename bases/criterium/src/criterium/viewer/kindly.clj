@@ -199,14 +199,15 @@
 (defmethod view/event-stats* :kindly
   [_ {:keys [event-stats-id]} data-map]
   (let [event-stats-id (or event-stats-id :event-stats)
-        event-stats-map (data-map event-stats-id)
-        metrics-defs (have (:metrics-defs event-stats-map))
-        stats (viewer-common/event-stats
-               metrics-defs
-               (util/event-stats event-stats-map))]
-    (when (seq stats)
-      (kindly-heading "Event stats")
-      (kindly-table stats))))
+        event-stats-map (data-map event-stats-id)]
+    (when event-stats-map
+      (let [metrics-defs (have (:metrics-defs event-stats-map))
+            stats (viewer-common/event-stats
+                   metrics-defs
+                   (util/event-stats event-stats-map))]
+        (when (seq stats)
+          (kindly-heading "Event stats")
+          (kindly-table stats))))))
 
 (defmethod view/outlier-significance* :kindly
   [_ {:keys [outlier-significance-id] :as _view} data-map]
