@@ -1954,6 +1954,21 @@
                   transforms)))
          (filterv some?))))
 
+(defn- qq-layers-data-range
+  "Extract the min and max values across all Q-Q layer data points.
+
+  Returns [min-val max-val] covering both theoretical and observed values
+  across all distribution layers, ensuring the reference line spans the
+  full data range."
+  [qq-layers]
+  (let [all-values (for [layer qq-layers
+                         point (get-in layer [:data :values])
+                         v [(get point "theoretical") (get point "observed")]
+                         :when (and v (not (Double/isNaN v)) (Double/isFinite v))]
+                     v)]
+    (when (seq all-values)
+      [(apply min all-values) (apply max all-values)])))
+
 (defn distribution-qq-vega-spec
   "Build a complete Vega-Lite spec for Q-Q plot with all fitted distributions overlaid.
 
@@ -1990,29 +2005,26 @@
       (fn [metric-config]
         (let [path (:path metric-config)
               samples (get metric->values path)
-              fit-data (when fits (get fits path))
-              ;; Compute data range for reference line
-              sorted-samples (when (seq samples) (sort samples))
-              transformed-samples (when sorted-samples
-                                    (mapv #(util/transform-sample-> % samples-transforms)
-                                          sorted-samples))
-              min-val (when transformed-samples (first transformed-samples))
-              max-val (when transformed-samples (last transformed-samples))]
+              fit-data (when fits (get fits path))]
           (when (and (seq samples) fit-data)
-            (merge
-             chart-options
-             {:resolve {:scale {:x "shared" :y "shared"}}
-              :layer
-              (cond-> []
-                ;; Add reference line first (background)
-                (and min-val max-val)
-                (conj (qq-reference-line-layer min-val max-val))
-                ;; Add distribution Q-Q scatter layers
-                fit-data
-                (into (distribution-qq-overlay-layers
-                       fit-data
-                       samples
-                       samples-transforms)))}))))
+            ;; Generate Q-Q layers first to determine full data range
+            (let [qq-layers (distribution-qq-overlay-layers
+                             fit-data
+                             samples
+                             samples-transforms)
+                  ;; Compute range from both theoretical and observed values
+                  [min-val max-val] (qq-layers-data-range qq-layers)]
+              (merge
+               chart-options
+               {:resolve {:scale {:x "shared" :y "shared"}}
+                :layer
+                (cond-> []
+                  ;; Add reference line first (background)
+                  (and min-val max-val)
+                  (conj (qq-reference-line-layer min-val max-val))
+                  ;; Add distribution Q-Q scatter layers
+                  (seq qq-layers)
+                  (into qq-layers))})))))
       metric-configs)}))
 
 (defn treemap-vega-spec

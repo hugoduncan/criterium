@@ -2257,6 +2257,38 @@
         ;; (gamma, lognormal, weibull = 3 distributions + 1 reference line)
         (is (= 4 (count layers)))))
 
+    (testing "reference line spans full range of theoretical and observed values"
+      ;; The reference line must cover both theoretical quantiles (x-axis) and
+      ;; observed values (y-axis) to properly show where data deviates from fit.
+      ;; Previously, only observed range was used, causing "narrow tails" appearance.
+      (let [data-map (test-data/distribution-qq-data-map)
+            spec (charts/distribution-qq-vega-spec
+                  data-map {} {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            layers (:layer chart)
+            ref-line-layer (first layers)
+            ref-line-data (get-in ref-line-layer [:data :values])
+            ;; Collect all theoretical and observed values from Q-Q scatter layers
+            qq-layers (rest layers)
+            all-theoretical (for [layer qq-layers
+                                  point (get-in layer [:data :values])]
+                              (get point "theoretical"))
+            all-observed (for [layer qq-layers
+                               point (get-in layer [:data :values])]
+                           (get point "observed"))
+            min-theoretical (apply min all-theoretical)
+            max-theoretical (apply max all-theoretical)
+            min-observed (apply min all-observed)
+            max-observed (apply max all-observed)
+            ;; Reference line endpoints
+            ref-start (get (first ref-line-data) "x")
+            ref-end (get (second ref-line-data) "x")]
+        ;; Reference line should extend beyond both min and max of all data
+        (is (<= ref-start (min min-theoretical min-observed))
+            "Reference line start should cover minimum of all data")
+        (is (>= ref-end (max max-theoretical max-observed))
+            "Reference line end should cover maximum of all data")))
+
     (testing "returns nil chart when no distribution-fit data"
       (let [data-map {:samples (:samples (test-data/distribution-qq-data-map))}
             spec (charts/distribution-qq-vega-spec
