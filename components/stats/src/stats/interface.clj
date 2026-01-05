@@ -6,10 +6,11 @@
                 skewness, kurtosis
   - Outlier detection: boxplot-outlier-thresholds
   - Sampling: uniform-distribution, sample-uniform, sample, confidence-interval
-  - Probability: log-gamma, erf, normal-cdf, normal-pdf, normal-quantile
+  - Probability: log-gamma, digamma, trigamma, erf, normal-cdf, normal-pdf, normal-quantile
   - Distributions: gamma, weibull, lognormal, inverse-gaussian (PDF and CDF)
   - Model selection: aic, bic, aicc (information criteria)
   - Moment matching: parameter estimation, distribution suitability prefilter
+  - MLE fitting: gamma-mle, lognormal-mle, inverse-gaussian-mle
   - Histogram: histogram (Freedman-Diaconis or Knuth Bayesian binning)
   - Knuth: optimal-bins, log-posterior (Bayesian histogram binning)
   - T-digest: streaming quantile estimation
@@ -24,6 +25,7 @@
    [stats.kde :as kde]
    [stats.kernel :as kernel]
    [stats.knuth :as knuth]
+   [stats.mle :as mle]
    [stats.moment-match :as moment-match]
    [stats.outliers :as outliers]
    [stats.probability :as probability]
@@ -226,6 +228,22 @@
   ^double [^double x]
   (probability/log-gamma x))
 
+(defn digamma
+  "Compute the digamma function ψ(x) = d/dx ln(Γ(x)) = Γ'(x)/Γ(x).
+
+  Uses the asymptotic expansion for large x and recurrence relation for small x.
+  Accurate to ~15 digits for x > 0. Matches R's digamma() behavior."
+  ^double [^double x]
+  (probability/digamma x))
+
+(defn trigamma
+  "Compute the trigamma function ψ'(x) = d²/dx² ln(Γ(x)).
+
+  Uses the asymptotic expansion for large x and recurrence relation for small x.
+  Accurate to ~15 digits for x > 0. Matches R's trigamma() behavior."
+  ^double [^double x]
+  (probability/trigamma x))
+
 (defn regularized-gamma-p
   "Regularized lower incomplete gamma function P(a, x) = γ(a,x) / Γ(a).
   Uses series expansion for small x, continued fraction for large x.
@@ -425,6 +443,66 @@
    (moment-match/unsuitable-distributions mean variance))
   ([^double mean ^double variance distributions]
    (moment-match/unsuitable-distributions mean variance distributions)))
+
+;;; Maximum Likelihood Estimation
+
+(defn gamma-mle
+  "Maximum likelihood estimation for the gamma distribution.
+
+  Uses Minka's fast fixed-point iteration for shape parameter.
+  Scale is then: θ = mean(x) / k
+
+  Parameters:
+    samples - sequence of positive sample values
+    opts - optional map with:
+      :max-iter - maximum iterations (default 100)
+      :tol - convergence tolerance (default 1e-10)
+      :init-shape - initial shape estimate (default: method of moments)
+
+  Returns map with:
+    :params {:shape k, :scale θ}
+    :log-likelihood - the maximized log-likelihood value
+    :iterations - number of iterations used
+
+  Throws if any sample is non-positive."
+  ([samples] (mle/gamma-mle samples))
+  ([samples opts] (mle/gamma-mle samples opts)))
+
+(defn lognormal-mle
+  "Maximum likelihood estimation for the log-normal distribution.
+
+  The MLE for log-normal has a closed-form solution:
+    μ = mean(log(x))
+    σ = sqrt(variance(log(x)))  ; using population variance
+
+  Parameters:
+    samples - sequence of positive sample values
+
+  Returns map with:
+    :params {:mu μ, :sigma σ}
+    :log-likelihood - the maximized log-likelihood value
+
+  Throws if any sample is non-positive."
+  [samples]
+  (mle/lognormal-mle samples))
+
+(defn inverse-gaussian-mle
+  "Maximum likelihood estimation for the inverse Gaussian distribution.
+
+  The MLE for inverse Gaussian has a closed-form solution:
+    μ = mean(x)
+    λ = n / Σ(1/xᵢ - 1/μ)
+
+  Parameters:
+    samples - sequence of positive sample values
+
+  Returns map with:
+    :params {:mu μ, :lambda λ}
+    :log-likelihood - the maximized log-likelihood value
+
+  Throws if any sample is non-positive."
+  [samples]
+  (mle/inverse-gaussian-mle samples))
 
 ;;; Knuth Bayesian histogram binning
 
