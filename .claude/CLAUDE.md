@@ -190,6 +190,31 @@ replaced by the instrument-fn or sampled-fn results.
 - `criterium.core/bench` - Deprecated but still available
 - `criterium.core/quick-bench` - Fast benchmarking variant
 
+### Domain Analysis
+
+Domain analysis enables benchmarking across a parameter space (varying input sizes, comparing implementations) rather than at a single point.
+
+**Main API** (`criterium.domain`):
+- `domain-expr` - Macro to define axes and implementations concisely
+- `bench` - Run benchmarks across a domain and analyze results
+- `domain`, `add-run`, `runs`, `select` - Domain data structure operations
+
+**Domain Plans** (`criterium.domain-plans`):
+- `complexity-analysis` - Fit O(log n), O(n), O(n log n), O(n²) models
+- `implementation-comparison` - Compare implementations across an :impl axis
+- `extract-metrics` - Extract all quantitative metrics from runs
+
+**Analysis Functions** (`criterium.domain.analysis`):
+- `extract` - Extract metric values from all runs
+- `compare-by` - Compare metrics across an axis dimension
+- `group-by-axis` - Partition runs by axis values
+- `fit-complexity` - Fit complexity models to extracted data
+- `analyse-domain` - Execute a domain plan
+
+**Builder** (`criterium.domain.builder`):
+- `domain-builder` - Build domain by running benchmarks across axes
+- `log-range`, `linear-range` - Generate coordinate ranges
+
 ### Viewers
 - `:print` - Default human-readable text output
 - `:pprint` - Pretty-printed structured output
