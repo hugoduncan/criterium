@@ -123,6 +123,9 @@ static constexpr char const* const allocation_finish_marker =
 static constexpr char const* const allocation_class_name =
   "Lcriterium/agent/Allocation;";
 
+static constexpr char const* const method_call_class_name =
+  "criterium/agent/MethodCall";
+
 static constexpr char const* IFn  = "clojure/lang/IFn";
 
 static constexpr char const *invoke_sig =
@@ -144,6 +147,13 @@ static constexpr char const *agent_allocation_class_args =
   "Ljava/lang/String;"
   "Ljava/lang/String;"
   "JJJ)V";
+
+// MethodCall(String, String, String, long, long, MethodCall[])
+static constexpr char const *method_call_ctor_args =
+  "(Ljava/lang/String;"
+  "Ljava/lang/String;"
+  "Ljava/lang/String;"
+  "JJ[Lcriterium/agent/MethodCall;)V";
 
 static constexpr char const* data8_sig =
   "(Ljava/lang/Object;"
@@ -747,7 +757,9 @@ private:
   std::unique_ptr<VMContext::global_ref<jclass>> agent_allocation_start_marker_class;
   std::unique_ptr<VMContext::global_ref<jclass>> agent_allocation_finish_marker_class;
   std::unique_ptr<VMContext::global_ref<jclass>> agent_allocation_class;
+  std::unique_ptr<VMContext::global_ref<jclass>> agent_method_call_class;
   jmethodID agent_allocation_ctor{};
+  jmethodID agent_method_call_ctor{};
   jmethodID agent_data1_method{};
   jmethodID agent_data8_method{};
   jfieldID agent_state_field{};
@@ -876,14 +888,59 @@ private:
                            std::move(source_file), line_number);
   }
 
-  void method_tracing_report([[maybe_unused]] JNIEnv* env) {
-    // Call tree data is available in call_tree_root_.
-    // Reporting to Java will be implemented in task #508.
-    // For now, just log that report was requested.
+  /// Recursively convert CallTreeNode to Java MethodCall object.
+  /// Returns a local reference to the created MethodCall object.
+  jobject call_tree_node_to_java(JNIEnv* env, const CallTreeNode& node) {
+    // Create children array first (depth-first)
+    auto children_array = VMContext::local_ref<jobjectArray>(
+        env, env->NewObjectArray(static_cast<jsize>(node.children.size()),
+                                 *agent_method_call_class, nullptr));
+
+    for (size_t i = 0; i < node.children.size(); ++i) {
+      auto* child = call_tree_node_to_java(env, *node.children[i]);
+      env->SetObjectArrayElement(children_array, static_cast<jsize>(i), child);
+      env->DeleteLocalRef(child);
+    }
+
+    // Create strings for this node
+    auto class_jstr = java::string(env, node.class_name);
+    auto method_jstr = java::string(env, node.method_name);
+    auto source_jstr = java::string(env, node.source_file);
+
+    // Build jvalue array for NewObjectA
+    // Signature: (String, String, String, long, long, MethodCall[])
+    static constexpr size_t METHOD_CALL_CTOR_ARG_COUNT = 6;
+    // NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
+    std::array<jvalue, METHOD_CALL_CTOR_ARG_COUNT> args = {};
+    args[0].l = static_cast<jstring>(class_jstr);
+    args[1].l = static_cast<jstring>(method_jstr);
+    args[2].l = static_cast<jstring>(source_jstr);
+    args[3].j = node.line_number;
+    args[4].j = node.call_count;
+    args[5].l = static_cast<jobjectArray>(children_array);
+    // NOLINTEND(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
+
+    return jni_ops_.new_object_a(env, *agent_method_call_class,
+                                 agent_method_call_ctor, args.data());
+  }
+
+  void method_tracing_report(JNIEnv* env) {
     DEBUG_PRINT("Method tracing report - call tree ready\n");
     if (call_tree_root_) {
       DEBUG_PRINTLN("  Total nodes: " << call_tree_root_->node_count());
       DEBUG_PRINTLN("  Max depth: " << call_tree_root_->max_depth());
+    }
+
+    if (!agent_class || !agent_method_call_class || !call_tree_root_) {
+      return;
+    }
+
+    // Send each child of the synthetic root as a separate MethodCall
+    for (const auto& child : call_tree_root_->children) {
+      auto method_call = VMContext::local_ref<jobject>(
+          env, call_tree_node_to_java(env, *child));
+      jni_ops_.call_static_void_method(env, *agent_class, agent_data1_method,
+                                       static_cast<jobject&>(method_call));
     }
   }
 
@@ -942,6 +999,13 @@ public:
       return;
     }
 
+    auto method_call_klass =
+      vm_context.mk_local_ref(env, env->FindClass(method_call_class_name));
+    if (method_call_klass == nullptr) {
+      std::cout << "Failed to find MethodCall class\n";
+      return;
+    }
+
     static std::array<JNINativeMethod, 1> registry = {{
       {
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
@@ -987,12 +1051,21 @@ public:
       std::make_unique<VMContext::global_ref<jclass>>(env, allocation_finish_marker_klass);
     agent_allocation_class =
       std::make_unique<VMContext::global_ref<jclass>>(env, allocation_klass);
+    agent_method_call_class =
+      std::make_unique<VMContext::global_ref<jclass>>(env, method_call_klass);
 
     agent_allocation_ctor = env->GetMethodID(*agent_allocation_class,
 					     "<init>",
 					     agent_allocation_class_args);
     if (agent_allocation_ctor == nullptr) {
       std::cout << "Failed to get Allocation constructor\n";
+    }
+
+    agent_method_call_ctor = env->GetMethodID(*agent_method_call_class,
+                                              "<init>",
+                                              method_call_ctor_args);
+    if (agent_method_call_ctor == nullptr) {
+      std::cout << "Failed to get MethodCall constructor\n";
     }
 
     agent_data1_method = data1_method;
