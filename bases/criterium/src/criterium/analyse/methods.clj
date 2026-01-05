@@ -44,3 +44,10 @@
   Returns nil if raw sample data is not available."
   (fn [kde-map _samples _outliers _metric-configs _options]
     (:type kde-map)))
+
+(defmulti distribution-fit
+  "Fit parametric distributions to sample data using MLE.
+  Computes parameter estimates, log-likelihood, AIC/BIC, and goodness-of-fit tests.
+  Returns nil if sample data is not available."
+  (fn [sample-map _outliers _metric-configs _options]
+    (:type sample-map)))

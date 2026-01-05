@@ -7,7 +7,9 @@
    [criterium.util.invariant :refer [have]]
    [criterium.util.kde :as kde]
    [criterium.util.sampled-stats :as sampled-stats]
-   [criterium.util.stats :as stats]))
+   [criterium.util.stats :as stats]
+   [random.interface :as random]
+   [stats.interface :as si]))
 
 (def ^:private metrics-samples-keys
   "Keys for :criterium/metrics-samples type, used for select-keys."
@@ -443,3 +445,192 @@
       {:type :criterium/modes
        :modes modes-results
        :transform (:transform kde-map)})))
+
+;;; Distribution Fitting
+
+(def ^:private all-distributions
+  "All distributions supported for fitting."
+  #{:gamma :lognormal :inverse-gaussian :weibull})
+
+(def ^:private distribution-num-params
+  "Number of parameters for each distribution (for AIC/BIC)."
+  {:gamma 2
+   :lognormal 2
+   :inverse-gaussian 2
+   :weibull 2})
+
+(defn- fit-distribution
+  "Fit a single distribution to samples using MLE.
+  Returns {:params {...} :log-likelihood ... :error ...} or nil on failure."
+  [dist samples]
+  (try
+    (case dist
+      :gamma (si/gamma-mle samples)
+      :lognormal (si/lognormal-mle samples)
+      :inverse-gaussian (si/inverse-gaussian-mle samples)
+      :weibull (si/weibull-mle samples))
+    (catch Exception e
+      {:error (.getMessage e)})))
+
+(defn- make-cdf-fn
+  "Create a CDF function for the given distribution and parameters."
+  [dist params]
+  (case dist
+    :gamma (si/gamma-cdf (:shape params) (:scale params))
+    :lognormal (si/lognormal-cdf (:mu params) (:sigma params))
+    :inverse-gaussian (si/inverse-gaussian-cdf (:mu params) (:lambda params))
+    :weibull (si/weibull-cdf (:shape params) (:scale params))))
+
+(defn- compute-gof-tests
+  "Compute goodness-of-fit tests (K-S and CvM) for fitted distribution."
+  [samples cdf-fn]
+  {:ks-test (si/ks-test samples cdf-fn)
+   :cvm-test (si/cvm-test samples cdf-fn)})
+
+(defn- compute-information-criteria
+  "Compute AIC, BIC, and AICc for a fitted model."
+  [dist n log-likelihood]
+  (let [k (get distribution-num-params dist 2)]
+    {:aic (si/aic k log-likelihood)
+     :bic (si/bic k n log-likelihood)
+     :aicc (when (> n (inc k))
+             (si/aicc k n log-likelihood))}))
+
+(defn- bootstrap-parameter-ci
+  "Bootstrap confidence intervals for distribution parameters.
+  Returns map of parameter name to {:point-estimate :ci-lower :ci-upper}."
+  [dist samples {:keys [n-bootstrap alpha]
+                 :or {n-bootstrap 200 alpha 0.05}}]
+  (let [n (count samples)
+        bootstrap-size (max 50 (long (* n 0.8)))
+        quantiles [(/ alpha 2.0) (- 1.0 (/ alpha 2.0))]
+        ;; Bootstrap the MLE fitting
+        fit-fn (fn [s] (fit-distribution dist s))
+        rng-factory random/well-rng-1024a
+        ;; Run bootstrap
+        bootstrap-fits
+        (loop [i 0
+               results []]
+          (if (>= i n-bootstrap)
+            results
+            (let [rng (rng-factory)
+                  indices (si/sample-uniform bootstrap-size n rng)
+                  boot-samples (mapv #(nth samples (int %)) indices)
+                  fit (fit-fn boot-samples)]
+              (recur (inc i)
+                     (if (:error fit)
+                       results
+                       (conj results (:params fit)))))))
+        ;; Extract parameter estimates
+        param-keys (case dist
+                     :gamma [:shape :scale]
+                     :lognormal [:mu :sigma]
+                     :inverse-gaussian [:mu :lambda]
+                     :weibull [:shape :scale])
+        ;; Compute CIs for each parameter
+        original-fit (fit-fn samples)]
+    (when-not (:error original-fit)
+      (into {}
+            (for [param-key param-keys]
+              (let [values (mapv #(get % param-key) bootstrap-fits)
+                    sorted-vals (sort values)
+                    n-boot (count sorted-vals)]
+                (when (>= n-boot 10)
+                  [param-key
+                   {:point-estimate (get-in original-fit [:params param-key])
+                    :ci-lower (nth sorted-vals (long (* n-boot (first quantiles))))
+                    :ci-upper (nth sorted-vals (min (dec n-boot)
+                                                    (long (* n-boot (second quantiles)))))}])))))))
+
+(defn- fit-distributions-for-metric
+  "Fit all applicable distributions to samples for a single metric.
+  Returns fit results including best model selection."
+  [samples options]
+  (let [{:keys [distributions n-bootstrap alpha]
+         :or {n-bootstrap 200 alpha 0.05}} options
+        n (count samples)
+        ;; Compute sample statistics for moment-match prefilter
+        mean-val (si/mean samples)
+        var-val (si/variance samples)
+        ;; Determine which distributions to fit
+        requested-dists (if distributions
+                          (set distributions)
+                          all-distributions)
+        ;; Use moment-match prefilter to screen distributions
+        prefilter-results (si/moment-match-prefilter mean-val var-val requested-dists)
+        suitable-dists (si/suitable-distributions mean-val var-val requested-dists)
+        ;; Fit each distribution
+        fit-results
+        (into {}
+              (for [dist requested-dists]
+                (if (contains? suitable-dists dist)
+                  (let [fit (fit-distribution dist samples)]
+                    (if (:error fit)
+                      [dist {:error (:error fit)}]
+                      (let [{:keys [params log-likelihood]} fit
+                            cdf-fn (make-cdf-fn dist params)
+                            gof (compute-gof-tests samples cdf-fn)
+                            ic (compute-information-criteria dist n log-likelihood)]
+                        [dist (merge {:params params
+                                      :log-likelihood log-likelihood}
+                                     ic
+                                     gof)])))
+                  ;; Distribution failed moment-match prefilter
+                  [dist {:skipped :moment-match-failed
+                         :prefilter-result (get prefilter-results dist)}])))
+        ;; Find best model by AIC (lowest AIC wins)
+        valid-fits (filter (fn [[_ v]] (and (:aic v) (not (:error v)) (not (:skipped v))))
+                           fit-results)
+        best-model (when (seq valid-fits)
+                     (first (apply min-key (fn [[_ v]] (:aic v)) valid-fits)))
+        best-aic (when best-model (get-in fit-results [best-model :aic]))
+        ;; Add delta-AIC to each fit
+        fit-results-with-delta
+        (into {}
+              (for [[dist result] fit-results]
+                [dist (if (and (:aic result) best-aic)
+                        (assoc result :delta-aic (- (:aic result) best-aic))
+                        result)]))
+        ;; Bootstrap parameter CIs for best model only
+        parameter-cis (when best-model
+                        {best-model (bootstrap-parameter-ci
+                                     best-model samples
+                                     {:n-bootstrap n-bootstrap :alpha alpha})})]
+    {:n n
+     :warning (when (< n 30) :small-sample)
+     :distributions fit-results-with-delta
+     :best-model best-model
+     :parameter-cis parameter-cis}))
+
+(defn distribution-fit-for-metric
+  "Compute distribution fitting for a single metric's samples."
+  [metric->values outliers metric-config options]
+  (try
+    (let [p (:path metric-config)
+          samples (metric->values p)
+          outliers-data (get-in outliers p)
+          samples (if-let [ols (:outliers outliers-data)]
+                    (remove-outliers samples ols)
+                    samples)]
+      (when (and (seq samples) (> (count samples) 2))
+        (fit-distributions-for-metric samples options)))
+    (catch Exception e
+      {:error (.getMessage e)})))
+
+(defmethod methods/distribution-fit :criterium/metrics-samples
+  [metrics-samples outliers metric-configs options]
+  (let [metric->values (util/metric->values metrics-samples)
+        outliers (when outliers (util/outliers outliers))
+        fit-results
+        (->> metric-configs
+             (mapv
+              (fn [metric-config]
+                (let [p (:path metric-config)]
+                  [p (distribution-fit-for-metric
+                      metric->values outliers metric-config options)])))
+             (filterv (comp some? second))
+             (into {}))]
+    (when (seq fit-results)
+      {:type :criterium/distribution-fit
+       :fits fit-results
+       :transform collect-plan/identity-transforms})))

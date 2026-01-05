@@ -985,3 +985,189 @@
             result ((analyse/kde-stats {:id :my-kde-stats}) with-kde)]
         (is (contains? result :my-kde-stats))
         (is (not (contains? result :kde-stats)))))))
+
+;;; Distribution Fitting Tests
+;; Tests the analyse/distribution-fit function for fitting parametric
+;; distributions using MLE with model selection via AIC/BIC.
+
+(deftest distribution-fit-test
+  ;; Tests distribution fitting analysis including MLE parameter estimation,
+  ;; model selection, goodness-of-fit tests, and bootstrap CIs.
+  (testing "distribution-fit"
+    (testing "returns correct structure"
+      (let [;; Generate gamma-distributed samples (shape=2, scale=50)
+            ;; Using inverse CDF method would be complex, so use samples
+            ;; that roughly follow a right-skewed distribution
+            raw-data (mapv #(+ 50.0 (* 20.0 (Math/pow (/ (double %) 100.0) 0.5)))
+                           (range 1 101))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            result ((analyse/distribution-fit {:n-bootstrap 20}) data-map)]
+        (is (contains? result :distribution-fit)
+            "result should have :distribution-fit key")
+        (let [fit-data (:distribution-fit result)]
+          (is (= :criterium/distribution-fit (:type fit-data)))
+          (is (= :samples (:source-id fit-data)))
+          (is (map? (:fits fit-data)))
+          (is (contains? (:fits fit-data) [:elapsed-time]))
+          (let [elapsed-fit (get-in fit-data [:fits [:elapsed-time]])]
+            (is (= 100 (:n elapsed-fit))
+                "should record sample size")
+            (is (nil? (:warning elapsed-fit))
+                "no warning for n >= 30")
+            (is (keyword? (:best-model elapsed-fit))
+                "should identify best model")
+            (is (map? (:distributions elapsed-fit))
+                "should have distributions map")
+            (is (map? (:parameter-cis elapsed-fit))
+                "should have parameter CIs for best model")))))
+
+    (testing "warns for small sample size"
+      (let [raw-data (mapv #(+ 50.0 (* 10.0 (double %))) (range 1 21))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            result ((analyse/distribution-fit {:n-bootstrap 10}) data-map)]
+        (is (= :small-sample
+               (get-in result [:distribution-fit :fits [:elapsed-time] :warning]))
+            "should warn when n < 30")))
+
+    (testing "fits specified distributions only"
+      (let [raw-data (mapv #(+ 50.0 (* 10.0 (double %))) (range 1 51))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            result ((analyse/distribution-fit
+                     {:distributions [:gamma :lognormal]
+                      :n-bootstrap 10})
+                    data-map)
+            fit-data (get-in result [:distribution-fit :fits [:elapsed-time]])]
+        (is (= #{:gamma :lognormal}
+               (set (keys (:distributions fit-data))))
+            "should only fit requested distributions")))
+
+    (testing "computes AIC/BIC for fitted distributions"
+      (let [raw-data (mapv #(+ 50.0 (* 10.0 (double %))) (range 1 51))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            result ((analyse/distribution-fit {:n-bootstrap 10}) data-map)
+            fit-data (get-in result [:distribution-fit :fits [:elapsed-time]])
+            gamma-fit (get-in fit-data [:distributions :gamma])]
+        (when-not (:error gamma-fit)
+          (is (number? (:aic gamma-fit)) "should have AIC")
+          (is (number? (:bic gamma-fit)) "should have BIC")
+          (is (number? (:aicc gamma-fit)) "should have AICc")
+          (is (number? (:delta-aic gamma-fit)) "should have delta-AIC"))))
+
+    (testing "computes goodness-of-fit tests"
+      (let [raw-data (mapv #(+ 50.0 (* 10.0 (double %))) (range 1 51))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            result ((analyse/distribution-fit {:n-bootstrap 10}) data-map)
+            fit-data (get-in result [:distribution-fit :fits [:elapsed-time]])
+            gamma-fit (get-in fit-data [:distributions :gamma])]
+        (when-not (:error gamma-fit)
+          (is (map? (:ks-test gamma-fit)) "should have K-S test")
+          (is (number? (get-in gamma-fit [:ks-test :statistic])))
+          (is (number? (get-in gamma-fit [:ks-test :p-value])))
+          (is (map? (:cvm-test gamma-fit)) "should have CvM test")
+          (is (number? (get-in gamma-fit [:cvm-test :statistic])))
+          (is (number? (get-in gamma-fit [:cvm-test :p-value]))))))
+
+    (testing "best model has delta-aic of 0"
+      (let [raw-data (mapv #(+ 50.0 (* 10.0 (double %))) (range 1 51))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            result ((analyse/distribution-fit {:n-bootstrap 10}) data-map)
+            fit-data (get-in result [:distribution-fit :fits [:elapsed-time]])
+            best-model (:best-model fit-data)
+            best-fit (get-in fit-data [:distributions best-model])]
+        (when best-model
+          (is (approx= 0.0 (:delta-aic best-fit))
+              "best model should have delta-AIC of 0"))))
+
+    (testing "parameter CIs computed for best model only"
+      (let [raw-data (mapv #(+ 50.0 (* 10.0 (double %))) (range 1 51))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            result ((analyse/distribution-fit {:n-bootstrap 20}) data-map)
+            fit-data (get-in result [:distribution-fit :fits [:elapsed-time]])
+            best-model (:best-model fit-data)
+            cis (:parameter-cis fit-data)]
+        (when best-model
+          (is (= 1 (count cis))
+              "should only have CIs for best model")
+          (is (contains? cis best-model)
+              "CIs should be keyed by best model")
+          (let [best-cis (get cis best-model)]
+            (is (map? best-cis) "CIs should be a map")
+            (doseq [[_param ci] best-cis]
+              (is (number? (:point-estimate ci))
+                  "CI should have point estimate")
+              (is (number? (:ci-lower ci))
+                  "CI should have lower bound")
+              (is (number? (:ci-upper ci))
+                  "CI should have upper bound"))))))
+
+    (testing "uses moment-match prefilter"
+      ;; Using data that should fail prefilter for some distributions
+      ;; (e.g., data with negative values would fail all, but we use
+      ;; positive data that might fail weibull CV constraint)
+      (let [raw-data (mapv #(+ 1.0 (* 0.01 (double %))) (range 1 51))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            result ((analyse/distribution-fit {:n-bootstrap 10}) data-map)
+            fit-data (get-in result [:distribution-fit :fits [:elapsed-time]])
+            distributions (:distributions fit-data)]
+        ;; At least some distributions should be fitted
+        (is (some #(and (not (:skipped (second %)))
+                        (not (:error (second %))))
+                  distributions)
+            "at least some distributions should be fitted successfully")))
+
+    (testing "filters outliers when outliers-id provided"
+      (let [;; Normal samples around 100, with extreme outlier
+            raw-data (conj (vec (mapv #(+ 100.0 (* 0.5 (double %))) (range 49)))
+                           10000.0)
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            with-quantiles ((analyse/quantiles {:quantiles []}) data-map)
+            with-outliers ((analyse/outliers) with-quantiles)
+            ;; Fit without outlier filtering
+            result-no-filter ((analyse/distribution-fit
+                               {:outliers-id nil :n-bootstrap 10})
+                              with-outliers)
+            ;; Fit with outlier filtering
+            result-with-filter ((analyse/distribution-fit
+                                 {:n-bootstrap 10})
+                                with-outliers)
+            n-no-filter (get-in result-no-filter
+                                [:distribution-fit :fits [:elapsed-time] :n])
+            n-with-filter (get-in result-with-filter
+                                  [:distribution-fit :fits [:elapsed-time] :n])]
+        (is (= 50 n-no-filter)
+            "without filtering should use all samples")
+        (is (< n-with-filter 50)
+            "with filtering should exclude outliers")))
+
+    (testing "returns data-map unchanged when samples unavailable"
+      (let [data-map {:other-data 123}
+            result ((analyse/distribution-fit) data-map)]
+        (is (= data-map result))
+        (is (not (contains? result :distribution-fit)))))
+
+    (testing "uses custom output id"
+      (let [raw-data (mapv #(+ 50.0 (* 10.0 (double %))) (range 1 51))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            result ((analyse/distribution-fit {:id :my-fit :n-bootstrap 10})
+                    data-map)]
+        (is (contains? result :my-fit))
+        (is (not (contains? result :distribution-fit)))))
+
+    (testing "uses custom samples-id"
+      (let [raw-data (mapv #(+ 50.0 (* 10.0 (double %))) (range 1 51))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:my-samples samples}
+            result ((analyse/distribution-fit {:samples-id :my-samples
+                                               :n-bootstrap 10})
+                    data-map)]
+        (is (contains? result :distribution-fit))))))
