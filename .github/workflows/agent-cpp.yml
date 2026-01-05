@@ -50,6 +50,10 @@ jobs:
       working-directory: agent-cpp
       run: cmake --build build
 
+    - name: Run C++ tests
+      working-directory: agent-cpp
+      run: ctest --test-dir build --output-on-failure
+
     - name: Copy library to expected location
       working-directory: agent-cpp
       run: cp build/libcriterium.so .
@@ -97,6 +101,10 @@ jobs:
       working-directory: agent-cpp
       run: cmake --build build
 
+    - name: Run C++ tests (ARM64)
+      working-directory: agent-cpp
+      run: ctest --test-dir build --output-on-failure
+
     - name: Copy ARM64 library to expected location
       working-directory: agent-cpp
       run: cp build/libcriterium.dylib .
@@ -132,6 +140,10 @@ jobs:
     - name: Build agent-cpp (x86_64)
       working-directory: agent-cpp
       run: cmake --build build
+
+    - name: Run C++ tests (x86_64)
+      working-directory: agent-cpp
+      run: ctest --test-dir build --output-on-failure
 
     - name: Copy x86_64 library to expected location
       working-directory: agent-cpp
