@@ -18,10 +18,13 @@
   complexity. Requires map coordinates with an :n key for input size.
 
   Includes error bounds (±3σ) for each data point when viewed with kindly.
+  Shows log-log diagnostic chart before model fits for intuitive complexity
+  class estimation (slope ≈ 1 for O(n), slope ≈ 2 for O(n²), etc.).
 
   Example:
     (analyse-domain complexity-analysis my-domain)"
   {:analyse [[:domain-extract-fn {:with-error-bounds true}]
+             [:domain-log-log-fn {:axis :n}]
              [:domain-regression-fn {:axis :n}]]
    :view [[:domain-extract {}]
           [:domain-regression {}]]})
