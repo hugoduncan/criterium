@@ -1453,6 +1453,10 @@
 
 ;;; Distribution PDF overlay charts
 
+(def ^:private distribution-order
+  "Canonical ordering of distributions for consistent color assignment."
+  [:gamma :lognormal :inverse-gaussian :weibull])
+
 (def ^:private distribution-colors
   "Color palette for fitted distributions."
   {:gamma "#e41a1c"
@@ -1466,6 +1470,11 @@
    :lognormal "Log-normal"
    :inverse-gaussian "Inverse Gaussian"
    :weibull "Weibull"})
+
+(def ^:private distribution-color-scale
+  "Vega-Lite color scale with domain and range in consistent order."
+  {:domain (mapv #(get distribution-labels % (name %)) distribution-order)
+   :range (mapv #(get distribution-colors % "#999999") distribution-order)})
 
 ;;; Distribution quantile (inverse CDF) functions for Q-Q plots
 
@@ -1588,7 +1597,6 @@
              (not (:skipped fit-result)))
     (let [pdf-fn (make-pdf-fn dist (:params fit-result))
           label (get distribution-labels dist (name dist))
-          color (get distribution-colors dist "#999999")
           is-best? (= dist (:best-model fit-result))
           data (mapv (fn [x]
                        (let [tx (util/transform-sample-> x transforms)
@@ -1605,9 +1613,7 @@
                       :scale {:zero false}}
                   :y {:field "pdf-density" :type "quantitative"}
                   :color {:field "distribution" :type "nominal"
-                          :scale {:domain (mapv #(get distribution-labels % (name %))
-                                                (keys distribution-colors))
-                                  :range (vals distribution-colors)}
+                          :scale distribution-color-scale
                           :legend {:orient "top-right" :title "Fitted Distributions"}}}})))
 
 (defn distribution-pdf-overlay-layers
@@ -1755,7 +1761,6 @@
              (not (:skipped fit-result)))
     (let [cdf-fn (make-cdf-fn dist (:params fit-result))
           label (get distribution-labels dist (name dist))
-          color (get distribution-colors dist "#999999")
           is-best? (= dist (:best-model fit-result))
           data (mapv (fn [x]
                        (let [tx (util/transform-sample-> x transforms)
@@ -1772,9 +1777,7 @@
                       :scale {:zero false}}
                   :y {:field "cdf" :type "quantitative"}
                   :color {:field "distribution" :type "nominal"
-                          :scale {:domain (mapv #(get distribution-labels % (name %))
-                                                (keys distribution-colors))
-                                  :range (vals distribution-colors)}
+                          :scale distribution-color-scale
                           :legend {:orient "top-right" :title "Fitted Distributions"}}}})))
 
 (defn distribution-cdf-overlay-layers
@@ -1894,7 +1897,6 @@
              (not (:skipped fit-result)))
     (let [quantile-fn (make-quantile-fn dist (:params fit-result))
           label (get distribution-labels dist (name dist))
-          color (get distribution-colors dist "#999999")
           is-best? (= dist (:best-model fit-result))
           data (qq-points samples quantile-fn transforms)]
       {:data {:values data}
@@ -1910,9 +1912,7 @@
                       :title "Sample Quantiles"
                       :scale {:zero false}}
                   :color {:field "distribution" :type "nominal"
-                          :scale {:domain (mapv #(get distribution-labels % (name %))
-                                                (keys distribution-colors))
-                                  :range (vals distribution-colors)}
+                          :scale distribution-color-scale
                           :legend {:orient "top-right" :title "Fitted Distributions"}}
                   :tooltip [{:field "theoretical" :type "quantitative"
                              :title "Theoretical" :format ".4g"}
