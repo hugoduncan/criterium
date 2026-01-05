@@ -74,6 +74,63 @@ inline jlong next_state_for_command(jlong cmd) {
 }
 
 } // namespace state_transitions
+
+/// Pure functions for method tracing state machine transitions.
+/// Method tracing uses a simpler command-driven model without marker objects.
+namespace method_tracing_transitions {
+
+/// Returns the next state after processing a method tracing command.
+/// Returns -1 if the command doesn't cause a state change.
+inline jlong next_state_for_command(jlong cmd) {
+  switch (cmd) {
+  case start_method_tracing:
+    return method_tracing_starting;
+  case stop_method_tracing:
+    return method_tracing_stopping;
+  case report_method_tracing:
+    return method_tracing_reporting;
+  default:
+    return -1; // No state change
+  }
+}
+
+/// Returns true if the given state is a method tracing state.
+inline bool is_method_tracing_state(jlong state) {
+  return state >= method_tracing_starting && state <= method_tracing_reported;
+}
+
+/// Returns true if method tracing is active and should process events.
+inline bool is_method_tracing_active(jlong state) {
+  return state == method_tracing_active;
+}
+
+/// Returns the next state after enabling method tracing events.
+/// Called after start command when events are enabled.
+inline jlong next_state_after_events_enabled(jlong state) {
+  if (state == method_tracing_starting) {
+    return method_tracing_active;
+  }
+  return state;
+}
+
+/// Returns the next state after disabling method tracing events.
+/// Called after stop command when events are disabled.
+inline jlong next_state_after_events_disabled(jlong state) {
+  if (state == method_tracing_stopping) {
+    return method_tracing_stopped;
+  }
+  return state;
+}
+
+/// Returns the next state after method tracing report is complete.
+inline jlong next_state_after_report_complete(jlong state) {
+  if (state == method_tracing_reporting) {
+    return method_tracing_reported;
+  }
+  return state;
+}
+
+} // namespace method_tracing_transitions
 } // namespace criterium
 
 #endif // CRITERIUM_STATE_TRANSITIONS_H

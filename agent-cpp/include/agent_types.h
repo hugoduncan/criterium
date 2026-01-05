@@ -19,6 +19,12 @@ enum States : jlong {
   allocation_tracing_flushed = 17,
   allocation_tracing_reporting = 18,
   allocation_tracing_reported = 19,
+  method_tracing_starting = 20,
+  method_tracing_active = 21,
+  method_tracing_stopping = 25,
+  method_tracing_stopped = 26,
+  method_tracing_reporting = 27,
+  method_tracing_reported = 28,
 };
 
 /// Commands sent from Java to the agent.
@@ -27,7 +33,10 @@ enum Commands : jlong {
   sync_state = 1,
   start_allocation_tracing = 10,
   stop_allocation_tracing = 11,
-  report_allocation_tracing = 12
+  report_allocation_tracing = 12,
+  start_method_tracing = 20,
+  stop_method_tracing = 21,
+  report_method_tracing = 22
 };
 // NOLINTEND(performance-enum-size)
 

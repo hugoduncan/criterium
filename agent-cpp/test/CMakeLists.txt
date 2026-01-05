@@ -6,6 +6,7 @@ add_executable(criterium_tests
     integration_test.cpp
     is_system_class_test.cpp
     message_queue_test.cpp
+    method_tracing_state_transitions_test.cpp
     state_transitions_test.cpp
 )
 

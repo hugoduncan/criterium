@@ -44,6 +44,12 @@ using criterium::allocation_tracing_flushing;
 using criterium::allocation_tracing_flushed;
 using criterium::allocation_tracing_reporting;
 using criterium::allocation_tracing_reported;
+using criterium::method_tracing_starting;
+using criterium::method_tracing_active;
+using criterium::method_tracing_stopping;
+using criterium::method_tracing_stopped;
+using criterium::method_tracing_reporting;
+using criterium::method_tracing_reported;
 
 // Command enum values
 using criterium::ping;
@@ -51,6 +57,9 @@ using criterium::sync_state;
 using criterium::start_allocation_tracing;
 using criterium::stop_allocation_tracing;
 using criterium::report_allocation_tracing;
+using criterium::start_method_tracing;
+using criterium::stop_method_tracing;
+using criterium::report_method_tracing;
 
 // NOLINTNEXTLINE(bugprone-branch-clone)
 void debug_print_jvmti_err([[maybe_unused]] jvmtiError err) {
@@ -183,10 +192,13 @@ jmethodID class_invoke_method_id(JNIEnv* env, jclass klass) {
 
 using criterium::AllocationEvent;
 using criterium::ObjectFreeEvent;
+using criterium::MethodEntryEvent;
+using criterium::MethodExitEvent;
 using criterium::Command;
 
 // Queue message type
-using Message = std::variant<AllocationEvent, ObjectFreeEvent, Command>;
+using Message = std::variant<AllocationEvent, ObjectFreeEvent,
+                             MethodEntryEvent, MethodExitEvent, Command>;
 using MessageQueue = criterium::MessageQueue<Message>;
 
 using allocs_t = std::vector<std::unique_ptr<AllocRec>>;
@@ -407,6 +419,8 @@ public:
     capabilities.can_get_source_file_name = 1;
     capabilities.can_tag_objects = 1;
     capabilities.can_generate_object_free_events = 1;
+    capabilities.can_generate_method_entry_events = 1;
+    capabilities.can_generate_method_exit_events = 1;
 
     {
       auto err = jvmti->AddCapabilities(&capabilities);
@@ -586,6 +600,34 @@ public:
                                             nullptr);
   }
 
+  void enable_method_entry() {
+    DEBUG_PRINT("Enabling JVMTI_EVENT_METHOD_ENTRY\n");
+    jvmti_ops_->set_event_notification_mode(JVMTI_ENABLE,
+                                            JVMTI_EVENT_METHOD_ENTRY,
+                                            nullptr);
+  }
+
+  void enable_method_exit() {
+    DEBUG_PRINT("Enabling JVMTI_EVENT_METHOD_EXIT\n");
+    jvmti_ops_->set_event_notification_mode(JVMTI_ENABLE,
+                                            JVMTI_EVENT_METHOD_EXIT,
+                                            nullptr);
+  }
+
+  void disable_method_entry() {
+    DEBUG_PRINT("Disabling JVMTI_EVENT_METHOD_ENTRY\n");
+    jvmti_ops_->set_event_notification_mode(JVMTI_DISABLE,
+                                            JVMTI_EVENT_METHOD_ENTRY,
+                                            nullptr);
+  }
+
+  void disable_method_exit() {
+    DEBUG_PRINT("Disabling JVMTI_EVENT_METHOD_EXIT\n");
+    jvmti_ops_->set_event_notification_mode(JVMTI_DISABLE,
+                                            JVMTI_EVENT_METHOD_EXIT,
+                                            nullptr);
+  }
+
 };
 
 
@@ -601,6 +643,27 @@ void JNICALL ObjectFree(jvmtiEnv *jvmti, jlong tag) {
   // DEBUG_PRINT("ObjectFree\n");
   auto& context = AgentContext::getInstance();
   context.object_free(jvmti, tag);
+}
+
+void JNICALL MethodEntry(jvmtiEnv* jvmti, JNIEnv* env,
+                         jthread thread, jmethodID method) {
+  (void)jvmti; // Unused parameter
+  auto& context = AgentContext::getInstance();
+  context.get_message_queue().push(MethodEntryEvent{
+      static_cast<jthread>(context.jni_ops().new_global_ref(env, thread)),
+      method});
+}
+
+void JNICALL MethodExit(jvmtiEnv* jvmti, JNIEnv* env,
+                        jthread thread, jmethodID method,
+                        jboolean was_popped_by_exception, jvalue return_value) {
+  (void)jvmti; // Unused parameter
+  (void)was_popped_by_exception; // Unused for now
+  (void)return_value; // Unused for now
+  auto& context = AgentContext::getInstance();
+  context.get_message_queue().push(MethodExitEvent{
+      static_cast<jthread>(context.jni_ops().new_global_ref(env, thread)),
+      method});
 }
 
 void JNICALL VMInit(jvmtiEnv* jvmti, JNIEnv* env, jthread thread) {
@@ -629,6 +692,8 @@ Agent_OnAttach(JavaVM* jvm, char* options, void* reserved) {
 void AgentContext::set_callbacks(jvmtiEventCallbacks& callbacks) {
   callbacks.SampledObjectAlloc = SampledObjectAlloc;
   callbacks.ObjectFree = ObjectFree;
+  callbacks.MethodEntry = MethodEntry;
+  callbacks.MethodExit = MethodExit;
   callbacks.VMInit = VMInit;
   callbacks.VMDeath = VMDeath;
 }
@@ -719,6 +784,46 @@ private:
 
   void disable_allocation_tracing(JNIEnv* env) {
     set_state(env, allocation_tracing_stopping);
+  }
+
+  void enable_method_tracing(JNIEnv* env) {
+    set_state(env, method_tracing_starting);
+
+    // Enable method entry/exit events
+    DEBUG_PRINT("Enabling JVMTI_EVENT_METHOD_ENTRY\n");
+    jvmti_ops_.set_event_notification_mode(JVMTI_ENABLE,
+                                           JVMTI_EVENT_METHOD_ENTRY,
+                                           nullptr);
+    DEBUG_PRINT("Enabling JVMTI_EVENT_METHOD_EXIT\n");
+    jvmti_ops_.set_event_notification_mode(JVMTI_ENABLE,
+                                           JVMTI_EVENT_METHOD_EXIT,
+                                           nullptr);
+
+    set_state(env, method_tracing_active);
+  }
+
+  void disable_method_tracing(JNIEnv* env) {
+    set_state(env, method_tracing_stopping);
+
+    // Disable method entry/exit events
+    DEBUG_PRINT("Disabling JVMTI_EVENT_METHOD_ENTRY\n");
+    jvmti_ops_.set_event_notification_mode(JVMTI_DISABLE,
+                                           JVMTI_EVENT_METHOD_ENTRY,
+                                           nullptr);
+    DEBUG_PRINT("Disabling JVMTI_EVENT_METHOD_EXIT\n");
+    jvmti_ops_.set_event_notification_mode(JVMTI_DISABLE,
+                                           JVMTI_EVENT_METHOD_EXIT,
+                                           nullptr);
+
+    set_state(env, method_tracing_stopped);
+  }
+
+  // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+  void method_tracing_report([[maybe_unused]] JNIEnv* env) {
+    // Placeholder for method tracing report implementation.
+    // The actual call tree building and reporting is handled in task #507.
+    // Will access instance state (call tree) when implemented.
+    DEBUG_PRINT("Method tracing report (placeholder)\n");
   }
 
   void untag_objects(allocs_t &allocs, allocs_by_tag_t &allocs_by_tag);
@@ -902,6 +1007,36 @@ public:
     }
   }
 
+  // NOLINTNEXTLINE(readability-make-member-function-const)
+  void process_method_entry_event([[maybe_unused]] JNIEnv* env,
+                                  [[maybe_unused]] const MethodEntryEvent& event) {
+    using namespace criterium::method_tracing_transitions;
+
+    if (!is_method_tracing_active(agent_state)) {
+      return;
+    }
+
+    // Placeholder for method entry processing.
+    // The actual call stack building is handled in task #507.
+    // Will modify instance state (call tree) when implemented.
+    DEBUG_PRINT("Method entry event (placeholder)\n");
+  }
+
+  // NOLINTNEXTLINE(readability-make-member-function-const)
+  void process_method_exit_event([[maybe_unused]] JNIEnv* env,
+                                 [[maybe_unused]] const MethodExitEvent& event) {
+    using namespace criterium::method_tracing_transitions;
+
+    if (!is_method_tracing_active(agent_state)) {
+      return;
+    }
+
+    // Placeholder for method exit processing.
+    // The actual call stack building is handled in task #507.
+    // Will modify instance state (call tree) when implemented.
+    DEBUG_PRINT("Method exit event (placeholder)\n");
+  }
+
   void process_command(JNIEnv* env, const Command& cmd) {
     switch (cmd.cmd) {
     case start_allocation_tracing:
@@ -914,6 +1049,17 @@ public:
       set_state(env, allocation_tracing_reporting);
       allocation_tracing_report(env, allocs, allocs_by_tag);
       set_state(env, allocation_tracing_reported);
+      break;
+    case start_method_tracing:
+      enable_method_tracing(env);
+      break;
+    case stop_method_tracing:
+      disable_method_tracing(env);
+      break;
+    case report_method_tracing:
+      set_state(env, method_tracing_reporting);
+      method_tracing_report(env);
+      set_state(env, method_tracing_reported);
       break;
     case ping:
       if (agent_class) {
@@ -1115,12 +1261,22 @@ void queue_consumer_thread() {
         arg.delete_global_refs(env, agent_context.jni_ops());
       }
       else if constexpr (std::is_same_v<T, ObjectFreeEvent>) {
-	// DEBUG_PRINT("Process ObjectFreeEvent\n");
-	state.process_object_free_event(env, arg);
+        // DEBUG_PRINT("Process ObjectFreeEvent\n");
+        state.process_object_free_event(env, arg);
+      }
+      else if constexpr (std::is_same_v<T, MethodEntryEvent>) {
+        // DEBUG_PRINT("Process MethodEntryEvent\n");
+        state.process_method_entry_event(env, arg);
+        arg.delete_global_refs(env, agent_context.jni_ops());
+      }
+      else if constexpr (std::is_same_v<T, MethodExitEvent>) {
+        // DEBUG_PRINT("Process MethodExitEvent\n");
+        state.process_method_exit_event(env, arg);
+        arg.delete_global_refs(env, agent_context.jni_ops());
       }
       else if constexpr (std::is_same_v<T, Command>) {
-	DEBUG_PRINT("Process command\n");
-	state.process_command(env, arg);
+        DEBUG_PRINT("Process command\n");
+        state.process_command(env, arg);
       }
     }, msg);
   }

@@ -43,6 +43,26 @@ struct Command {
   jlong cmd;
 };
 
+/// Method entry event from JVMTI callback, queued for processing.
+struct MethodEntryEvent {
+  jthread thread;
+  jmethodID method;
+
+  void delete_global_refs(JNIEnv* env, IJniOperations& jni_ops) const {
+    jni_ops.delete_global_ref(env, thread);
+  }
+};
+
+/// Method exit event from JVMTI callback, queued for processing.
+struct MethodExitEvent {
+  jthread thread;
+  jmethodID method;
+
+  void delete_global_refs(JNIEnv* env, IJniOperations& jni_ops) const {
+    jni_ops.delete_global_ref(env, thread);
+  }
+};
+
 } // namespace criterium
 
 #endif // CRITERIUM_AGENT_STATE_H
