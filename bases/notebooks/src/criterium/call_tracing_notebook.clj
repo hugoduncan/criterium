@@ -3,9 +3,8 @@
   (:require
    [clojure.string :as str]
    [criterium.agent :as agent]
-   [criterium.view :as view]
    [criterium.viewer.call-graph :as call-graph]
-   [criterium.viewer.kindly]
+   [criterium.viewer.common-charts :as charts]
    [scicloj.kindly.v4.kind :as kind]))
 
 ;; # Call Tracing
@@ -88,15 +87,26 @@
   (when call-tree
     (println (call-graph/render-call-tree call-tree))))
 
-;; ### Visual Tree (`:kindly` viewer)
+;; ### Visual Tree Diagram
 ;;
-;; The Kindly viewer generates interactive Vega charts showing the call
-;; hierarchy as a tree diagram and flame chart.
+;; The call tree can be visualized as an interactive Vega tree diagram
+;; where node size represents call count.
 
 (let [[call-tree _] (agent/with-call-tracing
                       (reduce + (map #(* % %) (range 10))))]
   (when call-tree
-    ((view/call-tree) :kindly {:call-tree call-tree})))
+    (kind/vega (charts/call-tree-tree-vega-spec call-tree {}))))
+
+;; ### Flame Chart
+;;
+;; A flame chart shows the call hierarchy where horizontal width represents
+;; call count. Hover over segments for details.
+
+(let [[call-tree _] (agent/with-call-tracing
+                      (reduce + (map #(* % %) (range 10))))]
+  (when call-tree
+    (let [total-calls (call-graph/total-call-count call-tree)]
+      (kind/vega (charts/call-tree-flame-vega-spec call-tree total-calls {})))))
 
 ;; ## Filtering Call Trees
 ;;

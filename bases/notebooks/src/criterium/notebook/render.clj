@@ -12,6 +12,7 @@
    "bases/notebooks/src/criterium/sampled_fn_notebook.clj"
    "bases/notebooks/src/criterium/instrument_fn_notebook.clj"
    "bases/notebooks/src/criterium/allocation_tracking_notebook.clj"
+   "bases/notebooks/src/criterium/call_tracing_notebook.clj"
    "bases/notebooks/src/criterium/allocation_bench_notebook.clj"
    "bases/notebooks/src/criterium/domain_bench_notebook.clj"
    "bases/notebooks/src/criterium/analyse_domain_notebook.clj"

@@ -1545,6 +1545,49 @@
 
 ;;; Call Tree Visualizations
 
+(defn- clojure-invoke-method?
+  "Check if a method name is a Clojure function invocation method."
+  [method]
+  (contains? #{"invoke" "invokeStatic" "invokePrim" "doInvoke"} method))
+
+(defn- extract-clojure-fn-name
+  "Extract Clojure function name from class name like 'myns.core$my_fn'.
+  Returns the part after the last $ converted from underscores to hyphens."
+  [class-name]
+  (when class-name
+    (when-let [idx (str/last-index-of class-name "$")]
+      (-> (subs class-name (inc idx))
+          (str/replace "_" "-")
+          (str/replace "BANG" "!")
+          (str/replace "QMARK" "?")
+          (str/replace "STAR" "*")
+          (str/replace "PLUS" "+")
+          (str/replace "GT" ">")
+          (str/replace "LT" "<")
+          (str/replace "EQ" "=")))))
+
+(defn- extract-simple-class-name
+  "Extract simple class name without package prefix.
+  'java.util.HashMap' -> 'HashMap'"
+  [class-name]
+  (when class-name
+    (if-let [idx (str/last-index-of class-name ".")]
+      (subs class-name (inc idx))
+      class-name)))
+
+(defn- call-tree-display-name
+  "Get display name for a call tree node.
+  For Clojure invoke methods, shows the function name extracted from the class.
+  For Java methods, shows SimpleClassName.method (without package)."
+  [class-name method]
+  (if (and (clojure-invoke-method? method)
+           (str/includes? (or class-name "") "$"))
+    (or (extract-clojure-fn-name class-name)
+        (str class-name "." method))
+    (str (extract-simple-class-name (or class-name "<unknown>"))
+         "."
+         (or method "<unknown>"))))
+
 (defn- flatten-call-tree-node
   "Flatten a hierarchical call tree node into a sequence of flat records.
   Each record has :id, :parent, :name, :call-count keys for use with Vega stratify.
@@ -1552,8 +1595,10 @@
   ([node] (flatten-call-tree-node node nil []))
   ([node parent-id path]
    (when node
-     (let [node-name (str (or (:class node) "<unknown>") "."
-                          (or (:method node) "<unknown>"))
+     (let [class-name (or (:class node) "<unknown>")
+           method (or (:method node) "<unknown>")
+           display-name (call-tree-display-name class-name method)
+           node-name (str class-name "." method)
            node-id (if (empty? path)
                      "root"
                      (str/join "/" (conj path node-name)))
@@ -1562,9 +1607,9 @@
            call-count (or (:call-count node) 0)
            node-record {:id node-id
                         :parent parent-id
-                        :name node-name
-                        :class (or (:class node) "<unknown>")
-                        :method (or (:method node) "<unknown>")
+                        :name display-name
+                        :class class-name
+                        :method method
                         :file (:file node)
                         :line (:line node)
                         :call-count call-count
@@ -1614,7 +1659,10 @@
                :method "tidy"
                :size [{:signal "width - 100"} {:signal "height - 100"}]
                :separation true
-               :as ["x" "y" "depth" "children"]}]}
+               :as ["x" "y" "depth" "children"]}
+              ;; Offset to center in available space
+              {:type "formula" :as "x" :expr "datum.x + 50"}
+              {:type "formula" :as "y" :expr "datum.y + 50"}]}
             {:name "links"
              :source "tree"
              :transform
@@ -1650,12 +1698,13 @@
                 :stroke {:value "#fff"}
                 :strokeWidth {:value 1}}
                :update
-               {:x {:field "x" :offset 50}
-                :y {:field "y" :offset 50}
+               {:x {:field "x"}
+                :y {:field "y"}
                 :tooltip
                 {:signal
                  (str "{"
-                      "'Method': datum.name, "
+                      "'Function': datum.name, "
+                      "'Full': datum.class + '.' + datum.method, "
                       "'Calls': datum['call-count'], "
                       "'Location': datum.file ? (datum.file + ':' + datum.line) : 'unknown'"
                       "}")}}}}
@@ -1669,11 +1718,11 @@
                 :align {:value "center"}
                 :baseline {:value "bottom"}}
                :update
-               {:x {:field "x" :offset 50}
-                :y {:field "y" :offset 45}
+               {:x {:field "x"}
+                :y {:field "y" :offset -5}
                 :text {:signal (str "datum['call-count'] > "
                                     (/ max-calls 10)
-                                    " ? datum.method : ''")}
+                                    " ? datum.name : ''")}
                 :fillOpacity {:value 0.8}}}}]}))
 
 (defn call-tree-flame-vega-spec
@@ -1698,54 +1747,50 @@
   [call-tree total-calls opts]
   (let [width (or (:width opts) 700)
         height (or (:height opts) 400)
-        row-height 24]
+        row-height 24
+        total-calls (double (if (pos? total-calls) total-calls 1))]
     (letfn [(compute-flame-data
-              [node parent-start parent-width depth]
+              [node x0 node-width depth]
               (when node
                 (let [call-count (or (:call-count node) 0)
-                      node-width (if (pos? total-calls)
-                                   (* parent-width (/ call-count (double total-calls)))
-                                   parent-width)
-                      node-name (str (or (:class node) "<unknown>") "."
-                                     (or (:method node) "<unknown>"))
-                      percentage (if (pos? total-calls)
-                                   (* 100.0 (/ call-count (double total-calls)))
-                                   0.0)
-                      node-record {:name node-name
-                                   :class (or (:class node) "<unknown>")
-                                   :method (or (:method node) "<unknown>")
+                      class-name (or (:class node) "<unknown>")
+                      method (or (:method node) "<unknown>")
+                      display-name (call-tree-display-name class-name method)
+                      percentage (* 100.0 (/ (double call-count) total-calls))
+                      x1 (+ x0 node-width)
+                      node-record {:name display-name
+                                   :class class-name
+                                   :method method
                                    :file (:file node)
                                    :line (:line node)
                                    :call-count call-count
                                    :percentage percentage
                                    :depth depth
-                                   :x0 parent-start
-                                   :x1 (+ parent-start node-width)
+                                   :x0 x0
+                                   :x1 x1
                                    :y0 (* depth row-height)
                                    :y1 (* (inc depth) row-height)}
                       children (:children node)
-                      ;; Compute total calls of children for proportional widths
-                      children-total (reduce + 0 (map #(or (:call-count %) 0) children))]
+                      ;; Children are sized proportionally within parent's width
+                      children-total (double
+                                      (reduce + 0 (map #(or (:call-count %) 0) children)))]
                   (if (seq children)
-                    (let [child-data (loop [remaining children
-                                            child-start parent-start
-                                            acc []]
-                                       (if (empty? remaining)
-                                         acc
-                                         (let [child (first remaining)
-                                               child-count (or (:call-count child) 0)
-                                               child-width (if (pos? children-total)
-                                                             (* node-width
-                                                                (/ child-count (double children-total)))
-                                                             0)
-                                               child-results (compute-flame-data
-                                                              child
-                                                              child-start
-                                                              child-width
-                                                              (inc depth))]
-                                           (recur (rest remaining)
-                                                  (+ child-start child-width)
-                                                  (into acc child-results)))))]
+                    (let [child-data
+                          (loop [remaining children
+                                 child-x x0
+                                 acc []]
+                            (if (empty? remaining)
+                              acc
+                              (let [child (first remaining)
+                                    child-count (double (or (:call-count child) 0))
+                                    child-width (if (pos? children-total)
+                                                  (* node-width (/ child-count children-total))
+                                                  0.0)
+                                    child-results (compute-flame-data
+                                                   child child-x child-width (inc depth))]
+                                (recur (rest remaining)
+                                       (+ child-x child-width)
+                                       (into acc child-results)))))]
                       (cons node-record child-data))
                     [node-record]))))]
       (let [flame-data (when call-tree
@@ -1782,7 +1827,8 @@
                     :tooltip
                     {:signal
                      (str "{"
-                          "'Method': datum.name, "
+                          "'Function': datum.name, "
+                          "'Full': datum.class + '.' + datum.method, "
                           "'Calls': datum['call-count'], "
                           "'Percentage': format(datum.percentage, '.1f') + '%', "
                           "'Location': datum.file ? (datum.file + ':' + datum.line) : 'unknown'"
@@ -1803,5 +1849,5 @@
                    {:x {:signal "datum.x0 + 2"}
                     :y {:signal "(datum.y0 + datum.y1) / 2"}
                     ;; Only show text if bar is wide enough
-                    :text {:signal "(datum.x1 - datum.x0) > 60 ? datum.method : ''"}
+                    :text {:signal "(datum.x1 - datum.x0) > 60 ? datum.name : ''"}
                     :limit {:signal "datum.x1 - datum.x0 - 4"}}}}]}))))
