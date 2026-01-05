@@ -7,6 +7,7 @@
   - Outlier detection: boxplot-outlier-thresholds
   - Sampling: uniform-distribution, sample-uniform, sample, confidence-interval
   - Probability: log-gamma, erf, normal-cdf, normal-pdf, normal-quantile
+  - Distributions: gamma, weibull, lognormal, inverse-gaussian (PDF and CDF)
   - Histogram: histogram (Freedman-Diaconis or Knuth Bayesian binning)
   - Knuth: optimal-bins, log-posterior (Bayesian histogram binning)
   - T-digest: streaming quantile estimation
@@ -221,6 +222,69 @@
   approximately 15 digits of precision. Matches R's lgamma() behavior."
   ^double [^double x]
   (probability/log-gamma x))
+
+(defn regularized-gamma-p
+  "Regularized lower incomplete gamma function P(a, x) = γ(a,x) / Γ(a).
+  Uses series expansion for small x, continued fraction for large x.
+  This is the CDF of the gamma distribution with shape=a and scale=1."
+  ^double [^double a ^double x]
+  (probability/regularized-gamma-p a x))
+
+;;; Gamma Distribution
+
+(defn gamma-pdf
+  "Probability density function for the gamma distribution.
+  Returns a function f(x) that computes the density at x."
+  [^double shape ^double scale]
+  (probability/gamma-pdf shape scale))
+
+(defn gamma-cdf
+  "Cumulative distribution function for the gamma distribution.
+  Returns a function F(x) that computes P(X ≤ x)."
+  [^double shape ^double scale]
+  (probability/gamma-cdf shape scale))
+
+;;; Weibull Distribution
+
+(defn weibull-pdf
+  "Probability density function for the Weibull distribution.
+  Returns a function f(x) that computes the density at x."
+  [^double shape ^double scale]
+  (probability/weibull-pdf shape scale))
+
+(defn weibull-cdf
+  "Cumulative distribution function for the Weibull distribution.
+  Returns a function F(x) that computes P(X ≤ x)."
+  [^double shape ^double scale]
+  (probability/weibull-cdf shape scale))
+
+;;; Log-normal Distribution
+
+(defn lognormal-pdf
+  "Probability density function for the log-normal distribution.
+  Returns a function f(x) that computes the density at x."
+  [^double mu ^double sigma]
+  (probability/lognormal-pdf mu sigma))
+
+(defn lognormal-cdf
+  "Cumulative distribution function for the log-normal distribution.
+  Returns a function F(x) that computes P(X ≤ x)."
+  [^double mu ^double sigma]
+  (probability/lognormal-cdf mu sigma))
+
+;;; Inverse Gaussian Distribution
+
+(defn inverse-gaussian-pdf
+  "Probability density function for the inverse Gaussian distribution.
+  Returns a function f(x) that computes the density at x."
+  [^double mu ^double lambda]
+  (probability/inverse-gaussian-pdf mu lambda))
+
+(defn inverse-gaussian-cdf
+  "Cumulative distribution function for the inverse Gaussian distribution.
+  Returns a function F(x) that computes P(X ≤ x)."
+  [^double mu ^double lambda]
+  (probability/inverse-gaussian-cdf mu lambda))
 
 ;;; Knuth Bayesian histogram binning
 

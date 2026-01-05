@@ -1,7 +1,14 @@
 (ns stats.probability-validation-test
   "Validation tests for stats.interface probability functions against R reference.
 
-  Tests skip gracefully when R/Rserve is unavailable."
+  Tests skip gracefully when R/Rserve is unavailable.
+
+  Distributions tested:
+  - Normal: qnorm, pnorm
+  - Gamma: dgamma, pgamma (shape, scale parameterization)
+  - Weibull: dweibull, pweibull
+  - Log-normal: dlnorm, plnorm
+  - Inverse Gaussian: dinvgauss, pinvgauss (requires statmod package)"
   (:require
    [clojure.test :refer [deftest is testing]]
    [criterium.test.assert :refer [approx=]]
@@ -159,3 +166,338 @@
               (is (approx= x x-back 1e-5)
                   (format "inverse mismatch: x=%.1f, pnorm(x)=%.15f, qnorm(pnorm(x))=%.15f"
                           x p x-back)))))))))
+
+;;; Gamma Distribution Validation
+
+;; Test parameters for gamma distribution
+(def gamma-params [[1.0 1.0]    ; exponential
+                   [2.0 1.0]    ; shape > 1
+                   [0.5 1.0]    ; shape < 1
+                   [3.0 2.0]    ; different scale
+                   [5.0 0.5]]) ; higher shape, smaller scale
+
+;; Test x values for gamma (positive only)
+(def gamma-x-values [0.1 0.5 1.0 2.0 3.0 5.0 10.0])
+
+(deftest gamma-pdf-validation-test
+  ;; Validates stats.interface/gamma-pdf against R's dgamma().
+  ;; R uses shape and scale parameterization by default.
+  (testing "gamma-pdf"
+    (if-not (r/r-available?)
+      (do
+        (println "Skipping gamma-pdf validation: R/Rserve not available")
+        (is true "Skipped - R unavailable"))
+      (doseq [[shape scale] gamma-params]
+        (testing (str "with shape=" shape ", scale=" scale)
+          (let [pdf-fn (stats/gamma-pdf shape scale)]
+            (doseq [x gamma-x-values]
+              (testing (str "at x=" x)
+                (let [r-d (first (r/r-eval
+                                  (format "dgamma(%s, shape=%s, scale=%s)"
+                                          x shape scale)))
+                      clj-d (pdf-fn x)]
+                  (is (approx= r-d clj-d 1e-10)
+                      (format "gamma-pdf mismatch: R=%.15f, clj=%.15f"
+                              r-d clj-d)))))))))))
+
+(deftest gamma-cdf-validation-test
+  ;; Validates stats.interface/gamma-cdf against R's pgamma().
+  (testing "gamma-cdf"
+    (if-not (r/r-available?)
+      (do
+        (println "Skipping gamma-cdf validation: R/Rserve not available")
+        (is true "Skipped - R unavailable"))
+      (doseq [[shape scale] gamma-params]
+        (testing (str "with shape=" shape ", scale=" scale)
+          (let [cdf-fn (stats/gamma-cdf shape scale)]
+            (doseq [x gamma-x-values]
+              (testing (str "at x=" x)
+                (let [r-p (first (r/r-eval
+                                  (format "pgamma(%s, shape=%s, scale=%s)"
+                                          x shape scale)))
+                      clj-p (cdf-fn x)]
+                  (is (approx= r-p clj-p 1e-10)
+                      (format "gamma-cdf mismatch: R=%.15f, clj=%.15f"
+                              r-p clj-p)))))))))))
+
+(deftest gamma-cdf-pdf-consistency-test
+  ;; Verifies that gamma-cdf and gamma-pdf are consistent.
+  ;; The PDF should be the derivative of the CDF (tested numerically).
+  (testing "gamma-cdf and gamma-pdf"
+    (testing "are consistent"
+      (let [shape 2.0
+            scale 1.5
+            pdf-fn (stats/gamma-pdf shape scale)
+            cdf-fn (stats/gamma-cdf shape scale)
+            h 1e-6]
+        (doseq [x [0.5 1.0 2.0 3.0]]
+          (testing (str "at x=" x)
+            (let [numerical-deriv (/ (- (cdf-fn (+ x h)) (cdf-fn (- x h)))
+                                     (* 2.0 h))
+                  pdf-value (pdf-fn x)]
+              (is (approx= numerical-deriv pdf-value 1e-4)
+                  (format "CDF derivative != PDF: deriv=%.10f, pdf=%.10f"
+                          numerical-deriv pdf-value)))))))))
+
+;;; Weibull Distribution Validation
+
+;; Test parameters for Weibull distribution
+(def weibull-params [[1.0 1.0]    ; exponential
+                     [2.0 1.0]    ; shape > 1 (increasing hazard)
+                     [0.5 1.0]    ; shape < 1 (decreasing hazard)
+                     [3.0 2.0]    ; Rayleigh-like
+                     [5.0 0.5]])  ; high shape, small scale
+
+;; Test x values for Weibull (positive only)
+(def weibull-x-values [0.1 0.5 1.0 2.0 3.0 5.0])
+
+(deftest weibull-pdf-validation-test
+  ;; Validates stats.interface/weibull-pdf against R's dweibull().
+  ;; R uses shape and scale parameterization.
+  (testing "weibull-pdf"
+    (if-not (r/r-available?)
+      (do
+        (println "Skipping weibull-pdf validation: R/Rserve not available")
+        (is true "Skipped - R unavailable"))
+      (doseq [[shape scale] weibull-params]
+        (testing (str "with shape=" shape ", scale=" scale)
+          (let [pdf-fn (stats/weibull-pdf shape scale)]
+            (doseq [x weibull-x-values]
+              (testing (str "at x=" x)
+                (let [r-d (first (r/r-eval
+                                  (format "dweibull(%s, shape=%s, scale=%s)"
+                                          x shape scale)))
+                      clj-d (pdf-fn x)]
+                  (is (approx= r-d clj-d 1e-10)
+                      (format "weibull-pdf mismatch: R=%.15f, clj=%.15f"
+                              r-d clj-d)))))))))))
+
+(deftest weibull-cdf-validation-test
+  ;; Validates stats.interface/weibull-cdf against R's pweibull().
+  (testing "weibull-cdf"
+    (if-not (r/r-available?)
+      (do
+        (println "Skipping weibull-cdf validation: R/Rserve not available")
+        (is true "Skipped - R unavailable"))
+      (doseq [[shape scale] weibull-params]
+        (testing (str "with shape=" shape ", scale=" scale)
+          (let [cdf-fn (stats/weibull-cdf shape scale)]
+            (doseq [x weibull-x-values]
+              (testing (str "at x=" x)
+                (let [r-p (first (r/r-eval
+                                  (format "pweibull(%s, shape=%s, scale=%s)"
+                                          x shape scale)))
+                      clj-p (cdf-fn x)]
+                  (is (approx= r-p clj-p 1e-10)
+                      (format "weibull-cdf mismatch: R=%.15f, clj=%.15f"
+                              r-p clj-p)))))))))))
+
+(deftest weibull-cdf-pdf-consistency-test
+  ;; Verifies that weibull-cdf and weibull-pdf are consistent.
+  (testing "weibull-cdf and weibull-pdf"
+    (testing "are consistent"
+      (let [shape 2.0
+            scale 1.5
+            pdf-fn (stats/weibull-pdf shape scale)
+            cdf-fn (stats/weibull-cdf shape scale)
+            h 1e-6]
+        (doseq [x [0.5 1.0 2.0 3.0]]
+          (testing (str "at x=" x)
+            (let [numerical-deriv (/ (- (cdf-fn (+ x h)) (cdf-fn (- x h)))
+                                     (* 2.0 h))
+                  pdf-value (pdf-fn x)]
+              (is (approx= numerical-deriv pdf-value 1e-4)
+                  (format "CDF derivative != PDF: deriv=%.10f, pdf=%.10f"
+                          numerical-deriv pdf-value)))))))))
+
+;;; Log-normal Distribution Validation
+
+;; Test parameters for log-normal distribution
+(def lognormal-params [[0.0 1.0]     ; standard log-normal
+                       [1.0 0.5]     ; shifted, smaller variance
+                       [-0.5 1.5]    ; negative mu, larger variance
+                       [2.0 0.25]])  ; larger mean, tight
+
+;; Test x values for log-normal (positive only)
+(def lognormal-x-values [0.1 0.5 1.0 2.0 5.0 10.0])
+
+(deftest lognormal-pdf-validation-test
+  ;; Validates stats.interface/lognormal-pdf against R's dlnorm().
+  ;; R uses meanlog and sdlog parameterization.
+  (testing "lognormal-pdf"
+    (if-not (r/r-available?)
+      (do
+        (println "Skipping lognormal-pdf validation: R/Rserve not available")
+        (is true "Skipped - R unavailable"))
+      (doseq [[mu sigma] lognormal-params]
+        (testing (str "with mu=" mu ", sigma=" sigma)
+          (let [pdf-fn (stats/lognormal-pdf mu sigma)]
+            (doseq [x lognormal-x-values]
+              (testing (str "at x=" x)
+                (let [r-d (first (r/r-eval
+                                  (format "dlnorm(%s, meanlog=%s, sdlog=%s)"
+                                          x mu sigma)))
+                      clj-d (pdf-fn x)]
+                  (is (approx= r-d clj-d 1e-10)
+                      (format "lognormal-pdf mismatch: R=%.15f, clj=%.15f"
+                              r-d clj-d)))))))))))
+
+(deftest lognormal-cdf-validation-test
+  ;; Validates stats.interface/lognormal-cdf against R's plnorm().
+  ;; Uses erf approximation so tolerance is slightly looser.
+  (testing "lognormal-cdf"
+    (if-not (r/r-available?)
+      (do
+        (println "Skipping lognormal-cdf validation: R/Rserve not available")
+        (is true "Skipped - R unavailable"))
+      (doseq [[mu sigma] lognormal-params]
+        (testing (str "with mu=" mu ", sigma=" sigma)
+          (let [cdf-fn (stats/lognormal-cdf mu sigma)]
+            (doseq [x lognormal-x-values]
+              (testing (str "at x=" x)
+                (let [r-p (first (r/r-eval
+                                  (format "plnorm(%s, meanlog=%s, sdlog=%s)"
+                                          x mu sigma)))
+                      clj-p (cdf-fn x)]
+                  ;; Slightly looser tolerance due to erf approximation
+                  (is (approx= r-p clj-p 1e-5)
+                      (format "lognormal-cdf mismatch: R=%.15f, clj=%.15f"
+                              r-p clj-p)))))))))))
+
+(deftest lognormal-cdf-pdf-consistency-test
+  ;; Verifies that lognormal-cdf and lognormal-pdf are consistent.
+  ;; Uses looser tolerance (2e-3) due to erf approximation in normal-cdf.
+  (testing "lognormal-cdf and lognormal-pdf"
+    (testing "are consistent"
+      (let [mu 0.0
+            sigma 1.0
+            pdf-fn (stats/lognormal-pdf mu sigma)
+            cdf-fn (stats/lognormal-cdf mu sigma)
+            h 1e-6]
+        (doseq [x [0.5 1.0 2.0 3.0]]
+          (testing (str "at x=" x)
+            (let [numerical-deriv (/ (- (cdf-fn (+ x h)) (cdf-fn (- x h)))
+                                     (* 2.0 h))
+                  pdf-value (pdf-fn x)]
+              ;; Looser tolerance due to erf approximation error propagation
+              ;; The erf polynomial has max error 1.5e-7 which propagates
+              (is (approx= numerical-deriv pdf-value 2e-3)
+                  (format "CDF derivative != PDF: deriv=%.10f, pdf=%.10f"
+                          numerical-deriv pdf-value)))))))))
+
+;;; Inverse Gaussian Distribution Validation
+
+;; Test parameters for inverse Gaussian distribution
+(def inverse-gaussian-params [[1.0 1.0]     ; standard
+                              [2.0 1.0]     ; larger mean
+                              [1.0 2.0]     ; larger shape (tighter)
+                              [0.5 0.5]     ; small
+                              [3.0 5.0]])   ; larger values
+
+;; Test x values for inverse Gaussian (positive only)
+(def inverse-gaussian-x-values [0.1 0.5 1.0 2.0 3.0 5.0])
+
+(defn statmod-available?
+  "Check if R's statmod package is available."
+  []
+  (when (r/r-available?)
+    (try
+      (r/r-eval "library(statmod)")
+      true
+      (catch Exception _
+        false))))
+
+(deftest inverse-gaussian-pdf-validation-test
+  ;; Validates stats.interface/inverse-gaussian-pdf against R's dinvgauss().
+  ;; Requires the statmod R package.
+  (testing "inverse-gaussian-pdf"
+    (if-not (statmod-available?)
+      (do
+        (println "Skipping inverse-gaussian-pdf validation: R/statmod not available")
+        (is true "Skipped - R/statmod unavailable"))
+      (doseq [[mu lambda] inverse-gaussian-params]
+        (testing (str "with mu=" mu ", lambda=" lambda)
+          (let [pdf-fn (stats/inverse-gaussian-pdf mu lambda)]
+            (doseq [x inverse-gaussian-x-values]
+              (testing (str "at x=" x)
+                (let [r-d (first (r/r-eval
+                                  (format "dinvgauss(%s, mean=%s, shape=%s)"
+                                          x mu lambda)))
+                      clj-d (pdf-fn x)]
+                  (is (approx= r-d clj-d 1e-10)
+                      (format "inverse-gaussian-pdf mismatch: R=%.15f, clj=%.15f"
+                              r-d clj-d)))))))))))
+
+(deftest inverse-gaussian-cdf-validation-test
+  ;; Validates stats.interface/inverse-gaussian-cdf against R's pinvgauss().
+  ;; Requires the statmod R package. Uses erf approximation so slightly looser.
+  (testing "inverse-gaussian-cdf"
+    (if-not (statmod-available?)
+      (do
+        (println "Skipping inverse-gaussian-cdf validation: R/statmod not available")
+        (is true "Skipped - R/statmod unavailable"))
+      (doseq [[mu lambda] inverse-gaussian-params]
+        (testing (str "with mu=" mu ", lambda=" lambda)
+          (let [cdf-fn (stats/inverse-gaussian-cdf mu lambda)]
+            (doseq [x inverse-gaussian-x-values]
+              (testing (str "at x=" x)
+                (let [r-p (first (r/r-eval
+                                  (format "pinvgauss(%s, mean=%s, shape=%s)"
+                                          x mu lambda)))
+                      clj-p (cdf-fn x)]
+                  ;; Slightly looser tolerance due to erf approximation
+                  (is (approx= r-p clj-p 1e-5)
+                      (format "inverse-gaussian-cdf mismatch: R=%.15f, clj=%.15f"
+                              r-p clj-p)))))))))))
+
+(deftest inverse-gaussian-cdf-pdf-consistency-test
+  ;; Verifies that inverse-gaussian-cdf and inverse-gaussian-pdf are consistent.
+  ;; Uses looser tolerance (2e-3) due to erf approximation in normal-cdf.
+  (testing "inverse-gaussian-cdf and inverse-gaussian-pdf"
+    (testing "are consistent"
+      (let [mu 1.0
+            lambda 1.0
+            pdf-fn (stats/inverse-gaussian-pdf mu lambda)
+            cdf-fn (stats/inverse-gaussian-cdf mu lambda)
+            h 1e-6]
+        (doseq [x [0.5 1.0 2.0 3.0]]
+          (testing (str "at x=" x)
+            (let [numerical-deriv (/ (- (cdf-fn (+ x h)) (cdf-fn (- x h)))
+                                     (* 2.0 h))
+                  pdf-value (pdf-fn x)]
+              ;; Looser tolerance due to erf approximation error propagation
+              ;; The erf polynomial has max error 1.5e-7 which propagates
+              (is (approx= numerical-deriv pdf-value 2e-3)
+                  (format "CDF derivative != PDF: deriv=%.10f, pdf=%.10f"
+                          numerical-deriv pdf-value)))))))))
+
+;;; Regularized Gamma Function Validation
+
+(deftest regularized-gamma-p-validation-test
+  ;; Validates stats.interface/regularized-gamma-p against R's pgamma().
+  ;; P(a, x) = pgamma(x, shape=a, scale=1)
+  (testing "regularized-gamma-p"
+    (if-not (r/r-available?)
+      (do
+        (println "Skipping regularized-gamma-p validation: R/Rserve not available")
+        (is true "Skipped - R unavailable"))
+      (do
+        (testing "at various (a, x) values"
+          (doseq [[a x] [[1.0 1.0] [2.0 1.0] [0.5 2.0] [3.0 5.0] [5.0 3.0]
+                         [10.0 5.0] [1.0 10.0] [0.5 0.1]]]
+            (testing (str "at a=" a ", x=" x)
+              (let [r-p (first (r/r-eval (format "pgamma(%s, shape=%s, scale=1)"
+                                                 x a)))
+                    clj-p (stats/regularized-gamma-p a x)]
+                (is (approx= r-p clj-p 1e-10)
+                    (format "regularized-gamma-p mismatch: R=%.15f, clj=%.15f"
+                            r-p clj-p))))))
+
+        (testing "at x=0"
+          (is (= 0.0 (stats/regularized-gamma-p 1.0 0.0))
+              "P(a, 0) should be 0"))
+
+        (testing "approaches 1 for large x"
+          (let [p (stats/regularized-gamma-p 2.0 100.0)]
+            (is (> p 0.9999999)
+                (format "P(2, 100) should be very close to 1, got: %.15f" p))))))))

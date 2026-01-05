@@ -1,5 +1,6 @@
 (ns stats.probability
-  "Probability functions: log-gamma, error function, normal distribution.")
+  "Probability functions: log-gamma, error function, normal distribution,
+  and common statistical distributions (gamma, weibull, lognormal, inverse-gaussian).")
 
 (defn polynomial-value
   "Evaluate a polynomial at the given value x, for the coefficients given in
@@ -177,3 +178,255 @@
           (let [r (- r 5.0)]
             (* (Math/signum (double (- x 0.5)))
                (/ (polynomial-value r e) (polynomial-value r f)))))))))
+
+;;; Regularized Incomplete Gamma Function
+;; Required for gamma distribution CDF
+
+(defn regularized-gamma-p
+  "Regularized lower incomplete gamma function P(a, x) = γ(a,x) / Γ(a).
+  Uses series expansion for small x, continued fraction for large x.
+
+  This is the CDF of the gamma distribution with shape=a and scale=1.
+
+  Reference: Numerical Recipes 3rd ed., section 6.2"
+  ^double [^double a ^double x]
+  (cond
+    (< x 0.0)
+    (throw (IllegalArgumentException. (str "x must be >= 0, got: " x)))
+
+    (<= a 0.0)
+    (throw (IllegalArgumentException. (str "a must be > 0, got: " a)))
+
+    (== x 0.0)
+    0.0
+
+    ;; Use series expansion when x < a + 1
+    (< x (+ a 1.0))
+    (let [max-iter 200
+          eps 1e-14
+          log-gamma-a (log-gamma a)]
+      (loop [n 1
+             ap a
+             sum (/ 1.0 a)
+             del (/ 1.0 a)]
+        (if (>= n max-iter)
+          (* sum (Math/exp (- (* a (Math/log x)) x log-gamma-a)))
+          (let [ap (+ ap 1.0)
+                del (* del (/ x ap))
+                sum (+ sum del)]
+            (if (< (Math/abs del) (* (Math/abs sum) eps))
+              (* sum (Math/exp (- (* a (Math/log x)) x log-gamma-a)))
+              (recur (inc n) ap sum del))))))
+
+    ;; Use continued fraction when x >= a + 1
+    :else
+    (let [max-iter 200
+          eps 1e-14
+          fpmin 1e-300
+          log-gamma-a (log-gamma a)
+          b (+ x 1.0 (- a))
+          c (/ 1.0 fpmin)
+          d (/ 1.0 b)
+          h d]
+      (loop [i 1
+             d d
+             c c
+             h h]
+        (if (>= i max-iter)
+          (- 1.0 (* h (Math/exp (- (* a (Math/log x)) x log-gamma-a))))
+          (let [an (* (- i) (- i a))
+                b (+ b 2.0)
+                d (+ (* an d) b)
+                d (if (< (Math/abs d) fpmin) fpmin d)
+                c (+ b (/ an c))
+                c (if (< (Math/abs c) fpmin) fpmin c)
+                d (/ 1.0 d)
+                del (* d c)
+                h (* h del)]
+            (if (< (Math/abs (- del 1.0)) eps)
+              (- 1.0 (* h (Math/exp (- (* a (Math/log x)) x log-gamma-a))))
+              (recur (inc i) d c h))))))))
+
+;;; Gamma Distribution
+
+(defn gamma-pdf
+  "Probability density function for the gamma distribution.
+
+  Parameters:
+    shape (k) - shape parameter, must be > 0
+    scale (θ) - scale parameter, must be > 0
+
+  Returns a function f(x) that computes the density at x.
+  f(x) = x^(k-1) * e^(-x/θ) / (θ^k * Γ(k)) for x > 0"
+  [^double shape ^double scale]
+  (when (<= shape 0.0)
+    (throw (IllegalArgumentException. (str "shape must be > 0, got: " shape))))
+  (when (<= scale 0.0)
+    (throw (IllegalArgumentException. (str "scale must be > 0, got: " scale))))
+  (let [log-normalizer (+ (* shape (Math/log scale)) (log-gamma shape))]
+    (fn ^double [^double x]
+      (if (<= x 0.0)
+        0.0
+        (Math/exp (- (+ (* (- shape 1.0) (Math/log x))
+                        (- (/ x scale)))
+                     log-normalizer))))))
+
+(defn gamma-cdf
+  "Cumulative distribution function for the gamma distribution.
+
+  Parameters:
+    shape (k) - shape parameter, must be > 0
+    scale (θ) - scale parameter, must be > 0
+
+  Returns a function F(x) that computes P(X ≤ x).
+  Uses the regularized incomplete gamma function."
+  [^double shape ^double scale]
+  (when (<= shape 0.0)
+    (throw (IllegalArgumentException. (str "shape must be > 0, got: " shape))))
+  (when (<= scale 0.0)
+    (throw (IllegalArgumentException. (str "scale must be > 0, got: " scale))))
+  (fn ^double [^double x]
+    (if (<= x 0.0)
+      0.0
+      (regularized-gamma-p shape (/ x scale)))))
+
+;;; Weibull Distribution
+
+(defn weibull-pdf
+  "Probability density function for the Weibull distribution.
+
+  Parameters:
+    shape (k) - shape parameter, must be > 0
+    scale (λ) - scale parameter, must be > 0
+
+  Returns a function f(x) that computes the density at x.
+  f(x) = (k/λ) * (x/λ)^(k-1) * e^(-(x/λ)^k) for x > 0"
+  [^double shape ^double scale]
+  (when (<= shape 0.0)
+    (throw (IllegalArgumentException. (str "shape must be > 0, got: " shape))))
+  (when (<= scale 0.0)
+    (throw (IllegalArgumentException. (str "scale must be > 0, got: " scale))))
+  (fn ^double [^double x]
+    (if (<= x 0.0)
+      0.0
+      (let [x-scaled (/ x scale)
+            x-pow (Math/pow x-scaled (- shape 1.0))
+            exp-term (Math/exp (- (Math/pow x-scaled shape)))]
+        (* (/ shape scale) x-pow exp-term)))))
+
+(defn weibull-cdf
+  "Cumulative distribution function for the Weibull distribution.
+
+  Parameters:
+    shape (k) - shape parameter, must be > 0
+    scale (λ) - scale parameter, must be > 0
+
+  Returns a function F(x) that computes P(X ≤ x).
+  F(x) = 1 - e^(-(x/λ)^k) for x > 0"
+  [^double shape ^double scale]
+  (when (<= shape 0.0)
+    (throw (IllegalArgumentException. (str "shape must be > 0, got: " shape))))
+  (when (<= scale 0.0)
+    (throw (IllegalArgumentException. (str "scale must be > 0, got: " scale))))
+  (fn ^double [^double x]
+    (if (<= x 0.0)
+      0.0
+      (- 1.0 (Math/exp (- (Math/pow (/ x scale) shape)))))))
+
+;;; Log-normal Distribution
+
+(defn lognormal-pdf
+  "Probability density function for the log-normal distribution.
+
+  Parameters:
+    mu (μ) - mean of the underlying normal distribution (log scale)
+    sigma (σ) - standard deviation of the underlying normal, must be > 0
+
+  Returns a function f(x) that computes the density at x.
+  f(x) = 1/(x*σ*√(2π)) * e^(-(ln(x)-μ)²/(2σ²)) for x > 0"
+  [^double mu ^double sigma]
+  (when (<= sigma 0.0)
+    (throw (IllegalArgumentException. (str "sigma must be > 0, got: " sigma))))
+  (let [log-normalizer (+ (Math/log sigma) (* 0.5 (Math/log (* 2.0 Math/PI))))]
+    (fn ^double [^double x]
+      (if (<= x 0.0)
+        0.0
+        (let [log-x (Math/log x)
+              z (/ (- log-x mu) sigma)]
+          (Math/exp (- (- (* 0.5 z z))
+                       (Math/log x)
+                       log-normalizer)))))))
+
+(defn lognormal-cdf
+  "Cumulative distribution function for the log-normal distribution.
+
+  Parameters:
+    mu (μ) - mean of the underlying normal distribution (log scale)
+    sigma (σ) - standard deviation of the underlying normal, must be > 0
+
+  Returns a function F(x) that computes P(X ≤ x).
+  F(x) = Φ((ln(x) - μ) / σ) for x > 0"
+  [^double mu ^double sigma]
+  (when (<= sigma 0.0)
+    (throw (IllegalArgumentException. (str "sigma must be > 0, got: " sigma))))
+  (fn ^double [^double x]
+    (if (<= x 0.0)
+      0.0
+      (let [z (/ (- (Math/log x) mu) sigma)]
+        (normal-cdf z)))))
+
+;;; Inverse Gaussian (Wald) Distribution
+
+(defn inverse-gaussian-pdf
+  "Probability density function for the inverse Gaussian distribution.
+
+  Parameters:
+    mu (μ) - mean parameter, must be > 0
+    lambda (λ) - shape parameter, must be > 0
+
+  Returns a function f(x) that computes the density at x.
+  f(x) = √(λ/(2πx³)) * e^(-λ(x-μ)²/(2μ²x)) for x > 0"
+  [^double mu ^double lambda]
+  (when (<= mu 0.0)
+    (throw (IllegalArgumentException. (str "mu must be > 0, got: " mu))))
+  (when (<= lambda 0.0)
+    (throw (IllegalArgumentException. (str "lambda must be > 0, got: " lambda))))
+  (let [mu-sq (* mu mu)
+        half-log-lambda-2pi (* 0.5 (- (Math/log lambda)
+                                      (Math/log (* 2.0 Math/PI))))]
+    (fn ^double [^double x]
+      (if (<= x 0.0)
+        0.0
+        (let [diff (- x mu)
+              exponent (/ (* (- lambda) diff diff)
+                          (* 2.0 mu-sq x))]
+          (Math/exp (+ half-log-lambda-2pi
+                       (* -1.5 (Math/log x))
+                       exponent)))))))
+
+(defn inverse-gaussian-cdf
+  "Cumulative distribution function for the inverse Gaussian distribution.
+
+  Parameters:
+    mu (μ) - mean parameter, must be > 0
+    lambda (λ) - shape parameter, must be > 0
+
+  Returns a function F(x) that computes P(X ≤ x).
+  F(x) = Φ(√(λ/x)*(x/μ - 1)) + e^(2λ/μ) * Φ(-√(λ/x)*(x/μ + 1))"
+  [^double mu ^double lambda]
+  (when (<= mu 0.0)
+    (throw (IllegalArgumentException. (str "mu must be > 0, got: " mu))))
+  (when (<= lambda 0.0)
+    (throw (IllegalArgumentException. (str "lambda must be > 0, got: " lambda))))
+  (let [two-lambda-over-mu (/ (* 2.0 lambda) mu)]
+    (fn ^double [^double x]
+      (if (<= x 0.0)
+        0.0
+        (let [sqrt-lambda-x (Math/sqrt (/ lambda x))
+              x-over-mu (/ x mu)
+              term1 (normal-cdf (* sqrt-lambda-x (- x-over-mu 1.0)))
+              ;; For numerical stability, cap the exponent
+              exp-factor (Math/min two-lambda-over-mu 700.0)
+              term2 (* (Math/exp exp-factor)
+                       (normal-cdf (* (- sqrt-lambda-x) (+ x-over-mu 1.0))))]
+          (+ term1 term2))))))
