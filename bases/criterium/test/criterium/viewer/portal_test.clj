@@ -987,6 +987,43 @@
         (is (empty? point-layers)
             "Expected no point layers when modes list empty")))))
 
+;;; Shape Statistics Views
+
+(deftest portal-shape-stats-test
+  ;; Tests the portal viewer output for shape-stats results.
+  ;; Covers: skewness, kurtosis, and CV with their classifications.
+  (testing "shape-stats*"
+    (testing "produces table with shape statistics"
+      (let [data-map (test-data/bootstrap-stats-with-shape-map)
+            [title table] (with-tap-out (view/shape-stats* :portal {} data-map))]
+        (is (= [:b "Shape Statistics"] title))
+        (is (= 1 (count table)) "Expected 1 row for 1 metric")
+        (let [row (first table)]
+          (is (= "Elapsed Time" (:metric row)))
+          (is (str/includes? (:skewness row) "0.35"))
+          (is (= "slightly-right-skewed" (:skewness-interpretation row)))
+          (is (str/includes? (:kurtosis row) "2.8"))
+          (is (= "normal-tails" (:kurtosis-interpretation row)))
+          (is (str/includes? (:cv row) "0.04"))
+          (is (= "low-variability" (:cv-interpretation row))))))
+    (testing "handles missing bootstrap data gracefully"
+      (let [v (volatile! [])
+            f (fn [x] (when-not (= ::portal/_ x) (vswap! v conj x)))]
+        (try
+          (add-tap f)
+          (view/shape-stats* :portal {} {})
+          (portal/flush)
+          (is (empty? @v))
+          (finally
+            (remove-tap f)))))
+    (testing "uses custom bootstrap-stats-id"
+      (let [data-map (test-data/bootstrap-stats-with-shape-map)
+            custom-map {:my-bootstrap (:bootstrap-stats data-map)}
+            [title _table] (with-tap-out
+                             (view/shape-stats* :portal {:bootstrap-stats-id :my-bootstrap}
+                                                custom-map))]
+        (is (= [:b "Shape Statistics"] title))))))
+
 ;;; Modal Analysis Views
 
 (deftest portal-multimodal-warning-test

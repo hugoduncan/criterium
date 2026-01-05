@@ -298,4 +298,42 @@
                    :upper-band [0.12 0.30 0.35 0.30 0.12]
                    :n 100}}}}))
 
+(defn bootstrap-stats-with-shape-map
+  "Create a data-map with bootstrap-stats including skewness, kurtosis, and CV.
+  Used for testing shape-stats views."
+  []
+  (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])]
+    {:bootstrap-stats
+     {:type :criterium/bootstrap
+      :bootstrap
+      {:elapsed-time
+       {:mean {:point-estimate 100.0
+               :estimate-quantiles [{:value 95.0 :alpha 0.025}
+                                    {:value 105.0 :alpha 0.975}]}
+        :variance {:point-estimate 16.0
+                   :estimate-quantiles [{:value 12.0 :alpha 0.025}
+                                        {:value 20.0 :alpha 0.975}]}
+        :min-val {:point-estimate 80.0
+                  :estimate-quantiles [{:value 75.0 :alpha 0.025}
+                                       {:value 85.0 :alpha 0.975}]}
+        :max-val {:point-estimate 120.0
+                  :estimate-quantiles [{:value 115.0 :alpha 0.025}
+                                       {:value 125.0 :alpha 0.975}]}
+        :skewness {:point-estimate 0.35
+                   :estimate-quantiles [{:value 0.20 :alpha 0.025}
+                                        {:value 0.50 :alpha 0.975}]}
+        :kurtosis {:point-estimate 2.8
+                   :estimate-quantiles [{:value 2.5 :alpha 0.025}
+                                        {:value 3.1 :alpha 0.975}]}
+        :cv {:point-estimate 0.04
+             :estimate-quantiles [{:value 0.03 :alpha 0.025}
+                                  {:value 0.05 :alpha 0.975}]}
+        :mean-plus-3sigma {:point-estimate 112.0}
+        :mean-minus-3sigma {:point-estimate 88.0}
+        :quantiles {}}}
+      :metrics-defs metrics-defs
+      :transform collect-plan/identity-transforms
+      :batch-size 1
+      :source-id :samples}}))
+
 

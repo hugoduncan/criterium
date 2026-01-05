@@ -1432,6 +1432,45 @@
           (is (empty? point-layers)
               "Expected no point layers when modes list empty"))))))
 
+;;; Shape Statistics Views
+
+(deftest shape-stats-view-test
+  ;; Tests the view/shape-stats* multimethod for :kindly viewer.
+  ;; Covers: skewness, kurtosis, and CV with their classifications.
+  (testing "view/shape-stats* :kindly"
+    (testing "renders shape statistics as heading and table"
+      (reset! kindly/accumulated [])
+      (let [data-map (test-data/bootstrap-stats-with-shape-map)]
+        (view/shape-stats* :kindly {} data-map)
+        (let [result (kindly/flush)]
+          (is (= :kind/fragment (:kindly/kind (meta result))))
+          (is (= 2 (count result)) "Expected heading and table")
+          (let [[heading table] result]
+            (is (= :kind/md (:kindly/kind (meta heading))))
+            (is (= ["**Shape Statistics**"] heading))
+            (is (= :kind/table (:kindly/kind (meta table))))
+            (is (= 1 (count table)) "Expected 1 row for 1 metric")
+            (let [row (first table)]
+              (is (= "Elapsed Time" (:metric row)))
+              (is (str/includes? (:skewness row) "0.35"))
+              (is (= "slightly-right-skewed" (:skewness-interpretation row)))
+              (is (str/includes? (:kurtosis row) "2.8"))
+              (is (= "normal-tails" (:kurtosis-interpretation row)))
+              (is (str/includes? (:cv row) "0.04"))
+              (is (= "low-variability" (:cv-interpretation row))))))))
+    (testing "handles missing bootstrap data gracefully"
+      (reset! kindly/accumulated [])
+      (view/shape-stats* :kindly {} {})
+      (is (nil? (kindly/flush))))
+    (testing "uses custom bootstrap-stats-id"
+      (reset! kindly/accumulated [])
+      (let [data-map (test-data/bootstrap-stats-with-shape-map)
+            custom-map {:my-bootstrap (:bootstrap-stats data-map)}]
+        (view/shape-stats* :kindly {:bootstrap-stats-id :my-bootstrap} custom-map)
+        (let [result (kindly/flush)
+              [heading _table] result]
+          (is (= ["**Shape Statistics**"] heading)))))))
+
 ;;; Modal Analysis Views
 
 (deftest multimodal-warning-view-test

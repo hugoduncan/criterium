@@ -37,6 +37,7 @@
 (def-multi-view collect-plan)
 (def-multi-view samples)
 (def-multi-view stats)
+(def-multi-view shape-stats)
 
 ;;; Modal Analysis Views
 
@@ -85,6 +86,7 @@
 (defmethod collect-plan* :none [_ _ _])
 (defmethod samples* :none [_ _ _])
 (defmethod stats* :none [_ _ _])
+(defmethod shape-stats* :none [_ _ _])
 
 ;; Modal Analysis Null Viewer
 (defmethod multimodal-warning* :none [_ _ _])

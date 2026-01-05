@@ -22,7 +22,8 @@
    [criterium.viewer.common.domain.detection :as detection]
    [criterium.viewer.common.domain.extract :as extract]
    [criterium.viewer.common.modal :as modal]
-   [criterium.viewer.common.regression :as regression]))
+   [criterium.viewer.common.regression :as regression]
+   [criterium.viewer.common.shape :as shape]))
 
 (defonce ^{:doc "Accumulator for Kindly-annotated values."}
   accumulated
@@ -482,6 +483,33 @@
            {:column-names [:metric :median :median-ci-lower :median-ci-upper
                            :mean :mean-ci-lower :mean-ci-upper
                            :p10 :p90]}))))))
+
+;;; Shape statistics view
+
+(defmethod view/shape-stats* :kindly
+  [_ {:keys [bootstrap-stats-id] :as _view} data-map]
+  (let [bootstrap-stats-id (or bootstrap-stats-id :bootstrap-stats)
+        bootstrap-map (data-map bootstrap-stats-id)]
+    (when bootstrap-map
+      (let [metrics-defs (-> (:metrics-defs bootstrap-map)
+                             (metric/filter-metrics
+                              (metric/type-pred :quantitative)))
+            metric-configs (metric/all-metric-configs metrics-defs)
+            bootstrap (util/bootstrap bootstrap-map)
+            shape-data (shape/shape-stats-data metric-configs bootstrap)]
+        (when (seq shape-data)
+          (kindly-heading "Shape Statistics")
+          (kindly-table
+           (mapv (fn [{:keys [metric skewness skewness-class
+                              kurtosis kurtosis-class cv cv-class]}]
+                   {:metric metric
+                    :skewness skewness
+                    :skewness-interpretation (name skewness-class)
+                    :kurtosis kurtosis
+                    :kurtosis-interpretation (name kurtosis-class)
+                    :cv cv
+                    :cv-interpretation (name cv-class)})
+                 shape-data)))))))
 
 ;;; Call Tree Views
 

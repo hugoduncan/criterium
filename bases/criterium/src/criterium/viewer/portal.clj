@@ -239,6 +239,31 @@
               :when stat]
           (bootstrap/bootstrap-stat-row m stat)))))))
 
+(defmethod view/shape-stats* :portal
+  [_ {:keys [bootstrap-stats-id] :as _view} data-map]
+  (let [bootstrap-stats-id (or bootstrap-stats-id :bootstrap-stats)
+        bootstrap-map (data-map bootstrap-stats-id)]
+    (when bootstrap-map
+      (let [metrics-defs (-> (:metrics-defs bootstrap-map)
+                             (metric/filter-metrics
+                              (metric/type-pred :quantitative)))
+            metric-configs (metric/all-metric-configs metrics-defs)
+            bootstrap (util/bootstrap bootstrap-map)
+            shape-data (viewer-common/shape-stats-data metric-configs bootstrap)]
+        (when (seq shape-data)
+          (heading "Shape Statistics")
+          (portal-table
+           (mapv (fn [{:keys [metric skewness skewness-class
+                              kurtosis kurtosis-class cv cv-class]}]
+                   {:metric metric
+                    :skewness skewness
+                    :skewness-interpretation (name skewness-class)
+                    :kurtosis kurtosis
+                    :kurtosis-interpretation (name kurtosis-class)
+                    :cv cv
+                    :cv-interpretation (name cv-class)})
+                 shape-data)))))))
+
 (defmethod view/final-gc-warnings* :portal [_ _ _])
 
 (defmethod view/os* :portal [_ _ _])
