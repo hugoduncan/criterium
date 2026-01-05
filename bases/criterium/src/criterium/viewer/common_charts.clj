@@ -1602,6 +1602,163 @@
                                 kde-transforms)))}))}))))
       metric-configs)}))
 
+;;; Distribution CDF overlay charts
+
+(defn- make-cdf-fn
+  "Create a CDF function for the given distribution and parameters."
+  [dist params]
+  (case dist
+    :gamma (si/gamma-cdf (:shape params) (:scale params))
+    :lognormal (si/lognormal-cdf (:mu params) (:sigma params))
+    :inverse-gaussian (si/inverse-gaussian-cdf (:mu params) (:lambda params))
+    :weibull (si/weibull-cdf (:shape params) (:scale params))
+    nil))
+
+(defn ecdf-layer
+  "Build an ECDF (empirical cumulative distribution function) step layer.
+
+  Takes samples and transforms, returns a Vega-Lite layer spec showing
+  the empirical CDF as a step function."
+  [samples transforms]
+  (let [sorted-samples (sort samples)
+        n (count sorted-samples)
+        ;; ECDF: F_n(x) = (number of samples <= x) / n
+        ;; For step function, we need points at each sample value
+        data (mapv (fn [i x]
+                     {"x" (util/transform-sample-> x transforms)
+                      "ecdf" (/ (double (inc i)) n)})
+                   (range n)
+                   sorted-samples)]
+    {:data {:values data}
+     :transform [{:calculate "'ECDF'" :as "layer"}]
+     :mark {:type "line"
+            :interpolate "step-after"
+            :strokeWidth 2}
+     :encoding {:x {:field "x" :type "quantitative"
+                    :scale {:zero false}}
+                :y {:field "ecdf" :type "quantitative"
+                    :title "Cumulative Probability"
+                    :scale {:domain [0 1]}}
+                :color {:field "layer" :type "nominal"
+                        :scale {:domain ["ECDF"]
+                                :range ["#333333"]}
+                        :legend {:orient "top-right" :title "Distribution"}}}}))
+
+(defn distribution-cdf-layer
+  "Build a CDF curve layer for a single fitted distribution.
+
+  Takes the distribution keyword, fit result, x-values grid, and transforms.
+  Returns a Vega-Lite layer spec or nil if the distribution couldn't be fitted."
+  [dist fit-result grid transforms]
+  (when (and (:params fit-result)
+             (not (:error fit-result))
+             (not (:skipped fit-result)))
+    (let [cdf-fn (make-cdf-fn dist (:params fit-result))
+          label (get distribution-labels dist (name dist))
+          color (get distribution-colors dist "#999999")
+          is-best? (= dist (:best-model fit-result))
+          data (mapv (fn [x]
+                       (let [tx (util/transform-sample-> x transforms)
+                             ;; CDF needs to be evaluated at original x
+                             p (cdf-fn x)]
+                         {"x" tx "cdf" p}))
+                     grid)]
+      {:data {:values data}
+       :transform [{:calculate (str "'" label "'") :as "distribution"}]
+       :mark {:type "line"
+              :strokeWidth (if is-best? 2.5 1.5)
+              :strokeDash (if is-best? [1 0] [4 4])}
+       :encoding {:x {:field "x" :type "quantitative"
+                      :scale {:zero false}}
+                  :y {:field "cdf" :type "quantitative"}
+                  :color {:field "distribution" :type "nominal"
+                          :scale {:domain (mapv #(get distribution-labels % (name %))
+                                                (keys distribution-colors))
+                                  :range (vals distribution-colors)}
+                          :legend {:orient "top-right" :title "Fitted Distributions"}}}})))
+
+(defn distribution-cdf-overlay-layers
+  "Build CDF overlay layers for all fitted distributions.
+
+  Takes distribution-fit data for a metric, x-values grid, and transforms.
+  Returns a vector of Vega-Lite layer specs for successfully fitted distributions."
+  [fit-data grid transforms]
+  (let [distributions (:distributions fit-data)
+        best-model (:best-model fit-data)]
+    (->> (keys distributions)
+         (mapv (fn [dist]
+                 (distribution-cdf-layer
+                  dist
+                  (assoc (get distributions dist) :best-model best-model)
+                  grid
+                  transforms)))
+         (filterv some?))))
+
+(defn distribution-cdf-vega-spec
+  "Build a complete Vega-Lite spec for ECDF with distribution CDF overlays.
+
+  Takes data-map, view options, and chart-options map containing :width and/or
+  :height for chart dimensions.
+
+  View options:
+    :samples-id - Key for samples data in data-map (default :samples)
+    :distribution-fit-id - Key for distribution fit data (default :distribution-fit)
+
+  The x-axis range is derived from the sample data. Fitted CDFs are overlaid
+  on the empirical CDF for visual comparison of goodness-of-fit.
+
+  Returns the Vega-Lite spec without viewer-specific wrapping."
+  [data-map view chart-options]
+  (let [samples-id (or (:samples-id view) :samples)
+        distribution-fit-id (or (:distribution-fit-id view) :distribution-fit)
+        samples-map (util/lookup-data data-map samples-id)
+        distribution-fit-map (get data-map distribution-fit-id)
+        metrics-defs (-> (:metrics-defs samples-map)
+                         (metric/filter-metrics
+                          (metric/type-pred :quantitative)))
+        metric-configs (metric/all-metric-configs metrics-defs)
+        metric->values (util/metric->values samples-map)
+        fits (when distribution-fit-map (:fits distribution-fit-map))
+        samples-transforms (util/get-transforms data-map samples-id)]
+    {:data {:values []}
+     :resolve {:scale {:x "independent"
+                       :y "shared"
+                       :color "independent"}}
+     :vconcat
+     (mapv
+      (fn [metric-config]
+        (let [path (:path metric-config)
+              samples (get metric->values path)
+              fit-data (when fits (get fits path))
+              ;; Generate grid from sample range for CDF curves
+              sorted-samples (when (seq samples) (sort samples))
+              min-val (when sorted-samples (first sorted-samples))
+              max-val (when sorted-samples (last sorted-samples))
+              ;; Extend range slightly for better visualization
+              range-val (when (and min-val max-val)
+                          (- (double max-val) (double min-val)))
+              grid-min (when range-val (- (double min-val) (* 0.05 range-val)))
+              grid-max (when range-val (+ (double max-val) (* 0.05 range-val)))
+              grid (when (and grid-min grid-max)
+                     (let [step (/ (- grid-max grid-min) 100.0)]
+                       (vec (range grid-min grid-max step))))]
+          (when (seq samples)
+            (merge
+             chart-options
+             {:resolve {:scale {:y "shared"}}
+              :layer
+              (cond-> []
+                ;; Add ECDF layer
+                true
+                (conj (ecdf-layer samples samples-transforms))
+                ;; Add distribution CDF overlays
+                (and fit-data grid)
+                (into (distribution-cdf-overlay-layers
+                       fit-data
+                       grid
+                       samples-transforms)))}))))
+      metric-configs)}))
+
 (defn treemap-vega-spec
   "Build a complete Vega spec for treemap visualization.
 
