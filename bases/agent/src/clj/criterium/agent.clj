@@ -34,6 +34,7 @@
 
   For more details, see the README in projects/agent/."
   (:require
+   [clojure.string :as str]
    [criterium.agent.core :as core]
    [criterium.agent.runtime :as runtime]
    [criterium.jvm :as jvm]))
@@ -177,6 +178,86 @@
   Useful for getting high-level metrics from allocation tracking results."
   [records]
   (core/allocations-summary records))
+
+;;; Call Tree Filtering
+
+(defn- matches-any-prefix?
+  "Returns true if class-name starts with any of the given prefixes."
+  [class-name prefixes]
+  (boolean
+   (and class-name
+        (some #(str/starts-with? class-name %) prefixes))))
+
+(defn- flatten-promoted
+  "Flatten promoted children markers recursively."
+  [children]
+  (mapcat (fn [child]
+            (if (:promoted-children child)
+              (flatten-promoted (:promoted-children child))
+              [child]))
+          children))
+
+(defn- filter-node
+  "Filter a single call tree node according to filter options.
+  Returns nil if node should be excluded, or the filtered node."
+  [node {:keys [exclude-packages stop-at-packages max-depth] :as opts} depth]
+  (when node
+    (let [class-name (:class node)]
+      (cond
+        ;; Depth limit reached - exclude this node
+        (and max-depth (> depth max-depth))
+        nil
+
+        ;; Excluded package - skip this node but process children
+        (and exclude-packages (matches-any-prefix? class-name exclude-packages))
+        (let [raw-children (keep #(filter-node % opts depth) (:children node))
+              filtered-children (flatten-promoted raw-children)]
+          ;; Return children promoted up (may be empty or multiple)
+          ;; We return a special marker to indicate promotion
+          (when (seq filtered-children)
+            {:promoted-children filtered-children}))
+
+        ;; Stop-at package - keep node but truncate children
+        (and stop-at-packages (matches-any-prefix? class-name stop-at-packages))
+        (assoc node :children [])
+
+        ;; Normal case - filter children recursively
+        :else
+        (let [next-depth (inc depth)
+              raw-children (keep #(filter-node % opts next-depth) (:children node))
+              filtered-children (flatten-promoted raw-children)]
+          (assoc node :children (vec filtered-children)))))))
+
+(defn filter-call-tree
+  "Filter a call tree according to filter options.
+
+  Options:
+  - :exclude-packages - Set of package prefixes to exclude entirely.
+    Nodes with matching classes are removed, their children promoted up.
+  - :stop-at-packages - Set of package prefixes where traversal stops.
+    Matching nodes are kept but their children are truncated.
+  - :max-depth - Maximum depth to include (1 = root only, 2 = root + children, etc.)
+
+  Returns the filtered call tree, or nil if the root is excluded."
+  [call-tree opts]
+  (when call-tree
+    (let [result (filter-node call-tree opts 1)]
+      (cond
+        (nil? result) nil
+        (:promoted-children result) (first (:promoted-children result))
+        :else result))))
+
+;;; Predefined Filters
+
+(def jdk-filter
+  "Filter that excludes JDK internal packages.
+  Use with filter-call-tree to remove JDK implementation details."
+  {:exclude-packages #{"java." "javax." "jdk." "sun." "com.sun."}})
+
+(def clojure-core-boundary-filter
+  "Filter that stops traversal at clojure.core and clojure.lang boundaries.
+  Shows calls into Clojure core but not the internal implementation."
+  {:stop-at-packages #{"clojure.core" "clojure.lang."}})
 
 (with-allocation-tracing
   (comment

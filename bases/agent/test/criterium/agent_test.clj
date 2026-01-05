@@ -15,6 +15,7 @@
 
   Note: Some tests require the native agent to be properly attached."
   (:require
+   [clojure.string :as str]
    [clojure.test :refer [deftest is testing]]
    [criterium.agent :as agent]
    [criterium.agent.core :as agent-core]
@@ -324,6 +325,236 @@
         (is (= 3 outer-rv))
         (when (agent/attached?)
           (is (or (nil? outer-tree) (map? outer-tree))))))))
+
+;;; Call Tree Filter Tests
+
+(def sample-call-tree
+  "Sample call tree for filter testing."
+  {:class "myapp.Core"
+   :method "main"
+   :file "Core.java"
+   :line 10
+   :call-count 1
+   :children
+   [{:class "myapp.Service"
+     :method "process"
+     :file "Service.java"
+     :line 20
+     :call-count 5
+     :children
+     [{:class "java.util.ArrayList"
+       :method "add"
+       :file nil
+       :line -1
+       :call-count 10
+       :children
+       [{:class "java.util.Arrays"
+         :method "copyOf"
+         :file nil
+         :line -1
+         :call-count 2
+         :children []}]}
+      {:class "clojure.core$map"
+       :method "invoke"
+       :file "core.clj"
+       :line 100
+       :call-count 3
+       :children
+       [{:class "clojure.lang.LazySeq"
+         :method "seq"
+         :file nil
+         :line -1
+         :call-count 3
+         :children []}]}]}
+    {:class "sun.misc.Unsafe"
+     :method "allocate"
+     :file nil
+     :line -1
+     :call-count 1
+     :children []}]})
+
+(deftest filter-call-tree-test
+  ;; Tests call tree filtering with various filter options.
+  ;; Validates :exclude-packages, :stop-at-packages, and :max-depth filters.
+  (testing "filter-call-tree"
+    (testing "with nil input"
+      (is (nil? (agent/filter-call-tree nil {}))
+          "Should return nil for nil input")
+      (is (nil? (agent/filter-call-tree nil {:max-depth 2}))
+          "Should return nil for nil input with options"))
+
+    (testing "with empty options"
+      (is (= sample-call-tree (agent/filter-call-tree sample-call-tree {}))
+          "Should return unchanged tree with empty options"))
+
+    (testing ":exclude-packages"
+      (testing "removes matching nodes and promotes children"
+        (let [result (agent/filter-call-tree
+                      sample-call-tree
+                      {:exclude-packages #{"java."}})]
+          (is (= "myapp.Core" (:class result)))
+          ;; java.util.ArrayList should be removed, its children promoted
+          (let [service (first (:children result))]
+            (is (= "myapp.Service" (:class service)))
+            ;; java.util.ArrayList removed, java.util.Arrays promoted up
+            ;; but java.util.Arrays is also excluded, so it and its children removed
+            (let [children-classes (set (map :class (:children service)))]
+              (is (not (contains? children-classes "java.util.ArrayList")))
+              (is (not (contains? children-classes "java.util.Arrays")))))))
+
+      (testing "excludes root when it matches"
+        (let [result (agent/filter-call-tree
+                      sample-call-tree
+                      {:exclude-packages #{"myapp."}})]
+          ;; Root matches, so children are promoted
+          ;; First promoted child should be myapp.Service (also excluded)
+          ;; Eventually we get to non-matching children or nil
+          (is (or (nil? result)
+                  (and (:class result)
+                       (not (str/starts-with? (:class result) "myapp.")))))))
+
+      (testing "handles multiple exclude prefixes"
+        (let [result (agent/filter-call-tree
+                      sample-call-tree
+                      {:exclude-packages #{"java." "sun."}})]
+          (let [root-children (:children result)]
+            ;; sun.misc.Unsafe should be removed
+            (is (not (some #(= "sun.misc.Unsafe" (:class %)) root-children)))))))
+
+    (testing ":stop-at-packages"
+      (testing "truncates children at matching nodes"
+        (let [result (agent/filter-call-tree
+                      sample-call-tree
+                      {:stop-at-packages #{"clojure.core"}})]
+          ;; Find the clojure.core$map node
+          (let [service (first (:children result))
+                clj-map (first (filter #(str/starts-with?
+                                         (:class %) "clojure.core")
+                                       (:children service)))]
+            (is (some? clj-map)
+                "clojure.core node should exist")
+            (is (= [] (:children clj-map))
+                "clojure.core node should have no children"))))
+
+      (testing "keeps non-matching nodes unchanged"
+        (let [result (agent/filter-call-tree
+                      sample-call-tree
+                      {:stop-at-packages #{"clojure.core"}})]
+          ;; java.util.ArrayList should still have children
+          (let [service (first (:children result))
+                arraylist (first (filter #(= "java.util.ArrayList" (:class %))
+                                         (:children service)))]
+            (when arraylist
+              (is (seq (:children arraylist))
+                  "Non-matching node should keep children"))))))
+
+    (testing ":max-depth"
+      (testing "depth 1 returns only root"
+        (let [result (agent/filter-call-tree
+                      sample-call-tree
+                      {:max-depth 1})]
+          (is (= "myapp.Core" (:class result)))
+          (is (= [] (:children result)))))
+
+      (testing "depth 2 returns root and immediate children"
+        (let [result (agent/filter-call-tree
+                      sample-call-tree
+                      {:max-depth 2})]
+          (is (= "myapp.Core" (:class result)))
+          (is (= 2 (count (:children result))))
+          (is (every? #(= [] (:children %)) (:children result)))))
+
+      (testing "depth 3 includes grandchildren"
+        (let [result (agent/filter-call-tree
+                      sample-call-tree
+                      {:max-depth 3})]
+          (let [service (first (:children result))]
+            (is (= 2 (count (:children service))))
+            ;; Grandchildren should exist but have no children
+            (is (every? #(= [] (:children %))
+                        (:children service)))))))
+
+    (testing "combined filters"
+      (testing ":exclude-packages with :max-depth"
+        (let [result (agent/filter-call-tree
+                      sample-call-tree
+                      {:exclude-packages #{"sun."}
+                       :max-depth 2})]
+          (is (= "myapp.Core" (:class result)))
+          ;; sun.misc.Unsafe should be excluded
+          (is (not (some #(= "sun.misc.Unsafe" (:class %))
+                         (:children result))))
+          ;; Children should have no children due to depth limit
+          (is (every? #(= [] (:children %)) (:children result)))))
+
+      (testing ":stop-at-packages with :exclude-packages"
+        (let [result (agent/filter-call-tree
+                      sample-call-tree
+                      {:exclude-packages #{"java."}
+                       :stop-at-packages #{"clojure.core"}})]
+          ;; java.* nodes excluded
+          (let [service (first (:children result))]
+            (is (not (some #(str/starts-with? (:class %) "java.")
+                           (:children service))))
+            ;; clojure.core node truncated
+            (let [clj-map (first (filter #(str/starts-with?
+                                           (:class %) "clojure.core")
+                                         (:children service)))]
+              (when clj-map
+                (is (= [] (:children clj-map)))))))))))
+
+(deftest jdk-filter-test
+  ;; Tests the predefined JDK filter.
+  (testing "jdk-filter"
+    (testing "is a valid filter map"
+      (is (map? agent/jdk-filter))
+      (is (contains? agent/jdk-filter :exclude-packages))
+      (is (set? (:exclude-packages agent/jdk-filter))))
+
+    (testing "excludes JDK packages"
+      (let [prefixes (:exclude-packages agent/jdk-filter)]
+        (is (contains? prefixes "java."))
+        (is (contains? prefixes "javax."))
+        (is (contains? prefixes "jdk."))
+        (is (contains? prefixes "sun."))
+        (is (contains? prefixes "com.sun."))))
+
+    (testing "filters sample tree correctly"
+      (let [result (agent/filter-call-tree sample-call-tree agent/jdk-filter)]
+        ;; Should not contain any JDK classes
+        (letfn [(contains-jdk? [node]
+                  (or (some #(str/starts-with? (:class node) %)
+                            (:exclude-packages agent/jdk-filter))
+                      (some contains-jdk? (:children node))))]
+          (is (not (contains-jdk? result))
+              "Result should not contain JDK classes"))))))
+
+(deftest clojure-core-boundary-filter-test
+  ;; Tests the predefined Clojure core boundary filter.
+  (testing "clojure-core-boundary-filter"
+    (testing "is a valid filter map"
+      (is (map? agent/clojure-core-boundary-filter))
+      (is (contains? agent/clojure-core-boundary-filter :stop-at-packages))
+      (is (set? (:stop-at-packages agent/clojure-core-boundary-filter))))
+
+    (testing "stops at clojure.core and clojure.lang"
+      (let [prefixes (:stop-at-packages agent/clojure-core-boundary-filter)]
+        (is (contains? prefixes "clojure.core"))
+        (is (contains? prefixes "clojure.lang."))))
+
+    (testing "filters sample tree correctly"
+      (let [result (agent/filter-call-tree
+                    sample-call-tree
+                    agent/clojure-core-boundary-filter)]
+        ;; Find clojure.core$map - it should exist but have no children
+        (let [service (first (:children result))
+              clj-map (first (filter #(str/starts-with?
+                                       (:class %) "clojure.core")
+                                     (:children service)))]
+          (is (some? clj-map)
+              "clojure.core node should exist")
+          (is (= [] (:children clj-map))
+              "clojure.core node should have empty children"))))))
 
 ;; Warmup for allocation tests
 (dotimes [_ 100]
