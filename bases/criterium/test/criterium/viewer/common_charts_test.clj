@@ -1836,8 +1836,10 @@
             chart (first (:vconcat spec))
             inner-group (first (:layer chart))
             inner-layers (:layer inner-group)]
-        ;; Should have KDE confidence band + KDE density + distribution PDFs
+        ;; Should have KDE density + distribution PDFs
         ;; (gamma, lognormal, weibull - inverse-gaussian is skipped)
+        ;; Note: KDE confidence band is intentionally not included to avoid
+        ;; scale mismatch with fitted PDFs
         (is (>= (count inner-layers) 3))))
 
     (testing "works without distribution-fit data"

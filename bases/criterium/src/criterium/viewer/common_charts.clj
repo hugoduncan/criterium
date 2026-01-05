@@ -1688,14 +1688,13 @@
                        metric-config
                        0))
                 ;; Wrap KDE + distribution layers in a nested group with shared Y-scale
+                ;; Note: KDE confidence band is intentionally omitted here.
+                ;; It's shown in the plain KDE chart; including it here causes
+                ;; scale mismatches with the fitted distribution PDFs.
                 true
                 (conj {:resolve {:scale {:y "shared"}}
                        :layer
                        (cond-> []
-                         ;; Add KDE confidence band
-                         true
-                         (conj (kde-confidence-band-layer
-                                kde-data metric-config kde-transforms))
                          ;; Add KDE density curve
                          true
                          (conj (kde-density-layer
