@@ -190,3 +190,54 @@
           :allocation-by-type
           :allocation-treemap]
    :viewer :print})
+
+(def distribution-analysis
+  "Benchmark plan with distribution fitting and shape analysis.
+
+  Fits parametric distributions (gamma, log-normal, inverse-gaussian, Weibull)
+  to sample data using maximum likelihood estimation. Includes:
+  - Shape statistics: skewness, kurtosis, coefficient of variation
+  - Model selection via AIC/BIC with small-sample correction (AICc)
+  - Goodness-of-fit testing: Kolmogorov-Smirnov, Cramér-von Mises
+  - Bootstrap confidence intervals for best model parameters
+  - PDF/CDF overlays and Q-Q plots for visual assessment
+
+  Uses outlier-filtered samples by default. Distribution fit requires KDE
+  analysis to run first (for visualization overlays).
+
+  The analysis pipeline order is:
+  1. transform-log - for log-scale analysis
+  2. quantiles - for percentile calculations
+  3. outliers - for outlier detection
+  4. kde - required for distribution-fit visualizations
+  5. bootstrap-stats - for shape statistics (skewness, kurtosis, CV)
+  6. distribution-fit - MLE fitting with model selection"
+  {:collector-config default-collector-config
+   :analyse [:transform-log
+             [:quantiles {:quantiles [0.9 0.99 0.99]}]
+             :outliers
+             [:stats {}]
+             [:stats {:samples-id :log-samples :id :log-stats}]
+             :histogram
+             :kde
+             [:bootstrap-stats {:quantiles [0.99]
+                                :estimate-quantiles [0.025 0.975]}]
+             :distribution-fit
+             :event-stats
+             :allocation-summary
+             [:allocation-hotspots {:limit 10}]
+             :allocation-by-type]
+   :view [[:stats {:metric-ids [:memory]}]
+          [:stats {:stats-id :log-stats}]
+          :bootstrap-stats
+          :shape-stats
+          :distribution-fit
+          :quantiles
+          :event-stats
+          :outlier-counts
+          :collect-plan
+          [:histogram {:stats-id :log-stats}]
+          :allocation-summary
+          :allocation-hotspots
+          :allocation-by-type]
+   :viewer :print})
