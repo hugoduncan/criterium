@@ -1482,20 +1482,69 @@
         (is (some #(= "list" (get % "impl")) result))))))
 
 (deftest format-log-log-slope-test
-  ;; Tests formatting of log-log slope as complexity class.
+  ;; Tests formatting of log-log slope as complexity class estimate.
+  ;; The function uses a 0.05 (5%) tolerance for integer rounding.
   (testing "format-log-log-slope"
-    (testing "formats integer slopes with simplified form"
+    (testing "exact integer slopes use simplified form"
       (is (= "O(1)" (common/format-log-log-slope 0.0)))
       (is (= "O(n)" (common/format-log-log-slope 1.0)))
       (is (= "O(n²)" (common/format-log-log-slope 2.0)))
       (is (= "O(n³)" (common/format-log-log-slope 3.0))))
-    (testing "formats near-integer slopes as integers"
-      (is (= "O(n)" (common/format-log-log-slope 0.98)))
-      (is (= "O(n)" (common/format-log-log-slope 1.02)))
-      (is (= "O(n²)" (common/format-log-log-slope 1.97))))
-    (testing "formats fractional slopes with decimals"
-      (is (str/includes? (common/format-log-log-slope 1.5) "1.50"))
-      (is (str/includes? (common/format-log-log-slope 0.5) "0.50")))))
+
+    (testing "slopes greater than 3 use O(n^k) form"
+      (is (= "O(n^4)" (common/format-log-log-slope 4.0)))
+      (is (= "O(n^5)" (common/format-log-log-slope 5.0))))
+
+    (testing "slopes within 0.05 of integer round to integer form"
+      ;; Near 0: tolerance = 0.05
+      (is (= "O(1)" (common/format-log-log-slope 0.04)))
+      (is (= "O(1)" (common/format-log-log-slope -0.04)))
+      ;; Near 1
+      (is (= "O(n)" (common/format-log-log-slope 0.96)))
+      (is (= "O(n)" (common/format-log-log-slope 1.04)))
+      ;; Near 2
+      (is (= "O(n²)" (common/format-log-log-slope 1.96)))
+      (is (= "O(n²)" (common/format-log-log-slope 2.04)))
+      ;; Near 3
+      (is (= "O(n³)" (common/format-log-log-slope 2.96)))
+      (is (= "O(n³)" (common/format-log-log-slope 3.04))))
+
+    (testing "slopes outside 0.05 tolerance show decimal form"
+      ;; Just outside the 0.05 threshold (testing boundary)
+      (is (= "O(n^0.06)" (common/format-log-log-slope 0.06)))
+      (is (= "O(n^0.94)" (common/format-log-log-slope 0.94)))
+      (is (= "O(n^1.06)" (common/format-log-log-slope 1.06)))
+      (is (= "O(n^1.94)" (common/format-log-log-slope 1.94)))
+      (is (= "O(n^2.06)" (common/format-log-log-slope 2.06)))
+      (is (= "O(n^2.94)" (common/format-log-log-slope 2.94))))
+
+    (testing "non-integer slopes show two decimal places"
+      (is (= "O(n^0.50)" (common/format-log-log-slope 0.5)))
+      (is (= "O(n^1.50)" (common/format-log-log-slope 1.5)))
+      (is (= "O(n^2.50)" (common/format-log-log-slope 2.5)))
+      (is (= "O(n^1.23)" (common/format-log-log-slope 1.23))))
+
+    (testing "edge cases at exact tolerance boundary"
+      ;; The 0.05 threshold uses strict < comparison. Due to floating point
+      ;; representation, values like 2.05, 2.95, 3.05 round to integer form
+      ;; (their diff from nearest int is 0.04999... < 0.05), while 0.05, 0.95,
+      ;; 1.05, 1.95 show decimal (their diff is exactly 0.05 or slightly more).
+      (is (= "O(n^0.05)" (common/format-log-log-slope 0.05)))
+      (is (= "O(n^0.95)" (common/format-log-log-slope 0.95)))
+      (is (= "O(n^1.05)" (common/format-log-log-slope 1.05)))
+      (is (= "O(n^1.95)" (common/format-log-log-slope 1.95)))
+      ;; Larger values round to integer due to floating-point representation
+      (is (= "O(n²)" (common/format-log-log-slope 2.05)))
+      (is (= "O(n³)" (common/format-log-log-slope 2.95)))
+      (is (= "O(n³)" (common/format-log-log-slope 3.05)))
+      ;; Just inside boundary: 0.049 is within tolerance (< 0.05)
+      (is (= "O(1)" (common/format-log-log-slope 0.049)))
+      (is (= "O(n)" (common/format-log-log-slope 0.951)))
+      (is (= "O(n)" (common/format-log-log-slope 1.049)))
+      (is (= "O(n²)" (common/format-log-log-slope 1.951)))
+      (is (= "O(n²)" (common/format-log-log-slope 2.049)))
+      (is (= "O(n³)" (common/format-log-log-slope 2.951)))
+      (is (= "O(n³)" (common/format-log-log-slope 3.049))))))
 
 ;;; Regression model table tests.
 ;;; Verifies prepare-regression-model-table and prepare-regression-model-table-multi-impl
