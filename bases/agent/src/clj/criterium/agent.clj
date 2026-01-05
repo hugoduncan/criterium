@@ -143,8 +143,14 @@
                     (core/method-tracing-start!)
                     ~@body
                     (finally
-                      (core/method-tracing-stop!))))]
-       [(core/collect-method-call-tree) res#])
+                      (core/method-tracing-stop!))))
+           ;; Filter out criterium infrastructure from the trace roots
+           raw-trees# (core/collect-method-call-tree)
+           filtered-trees# (keep #(filter-call-tree % criterium-infrastructure-filter)
+                                 raw-trees#)
+           ;; Return first filtered root (user code), or nil if none remain
+           result-tree# (first filtered-trees#)]
+       [result-tree# res#])
      [nil (do ~@body)]))
 
 (defn allocation-on-thread?
@@ -200,12 +206,12 @@
 (defn- filter-node
   "Filter a single call tree node according to filter options.
   Returns nil if node should be excluded, or the filtered node."
-  [node {:keys [exclude-packages stop-at-packages max-depth] :as opts} depth]
+  [node {:keys [exclude-packages stop-at-packages max-depth] :as opts} ^long depth]
   (when node
     (let [class-name (:class node)]
       (cond
         ;; Depth limit reached - exclude this node
-        (and max-depth (> depth max-depth))
+        (and max-depth (> depth (long max-depth)))
         nil
 
         ;; Excluded package - skip this node but process children
@@ -258,6 +264,12 @@
   "Filter that stops traversal at clojure.core and clojure.lang boundaries.
   Shows calls into Clojure core but not the internal implementation."
   {:stop-at-packages #{"clojure.core" "clojure.lang."}})
+
+(def criterium-infrastructure-filter
+  "Filter that excludes criterium's own infrastructure from call traces.
+  Applied by default in with-call-tracing to avoid capturing the tracing
+  machinery itself (method-tracing-stop!, agent-command, etc.)."
+  {:exclude-packages #{"criterium.agent"}})
 
 (with-allocation-tracing
   (comment

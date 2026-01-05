@@ -12,22 +12,22 @@
 (defn total-call-count
   "Calculate the total call count across all nodes in the tree.
   Sums the :call-count of each node recursively."
-  [node]
+  ^long [node]
   (if (nil? node)
     0
-    (+ (or (:call-count node) 0)
-       (reduce + 0 (map total-call-count (:children node))))))
+    (+ (long (or (:call-count node) 0))
+       (long (reduce + 0 (map total-call-count (:children node)))))))
 
 ;;; ASCII Tree Rendering
 
 (defn- format-node-label
   "Format a single node's label with class.method and call statistics."
-  [node total-calls]
+  [node ^long total-calls]
   (let [class-name (:class node)
         method (:method node)
-        call-count (or (:call-count node) 0)
+        call-count (long (or (:call-count node) 0))
         percentage (if (pos? total-calls)
-                     (* 100.0 (/ call-count total-calls))
+                     (* 100.0 (/ (double call-count) (double total-calls)))
                      0.0)
         call-word (if (= 1 call-count) "call" "calls")]
     (format "%s.%s (%d %s, %.1f%%)"
