@@ -143,7 +143,7 @@ static constexpr char const* data8_sig =
   "Ljava/lang/Object;"
   "Ljava/lang/Object;)V";
 
-static constexpr char const *no_file_name = "NO_SOURCE";
+using criterium::AllocRec;
 
 jclass ifn(JNIEnv* env) {
   auto *ifn = (env)->FindClass(IFn);
@@ -207,60 +207,8 @@ struct Command {
 using Message = std::variant<AllocationEvent, ObjectFreeEvent, Command>;
 using MessageQueue = criterium::MessageQueue<Message>;
 
-// Structure used to record allocations
-struct alloc_rec {
-  std::string obj_class;
-  jlong obj_size;
-
-  std::string call_class;
-  std::string call_method;
-  std::string call_file;
-  jlong call_line;
-
-  std::string alloc_class;
-  std::string alloc_method;
-  std::string alloc_file;
-  jlong alloc_line;
-
-  jlong thread_id;
-  jlong freed{};
-
-  jlong tag;
-  bool start_marker{};
-  bool disable_marker{};
-
-  alloc_rec(char const * obj_class,
-            jlong obj_size,
-	    // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
-            char const * call_class,
-            char const * call_method,
-            char const * call_file,
-            jlong call_line,
-	    // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
-            char const * alloc_class,
-            char const * alloc_method,
-            char const * alloc_file,
-	    // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
-            jlong alloc_line,
-            jlong thread_id,
-            jlong tag)
-    : obj_class(obj_class),
-      obj_size(obj_size),
-      call_class(call_class == nullptr ? "" : call_class),
-      call_method(call_method == nullptr ? "" : call_method),
-      call_file(call_file == NULL ? no_file_name : call_file),
-      call_line(call_line),
-      alloc_class(alloc_class == nullptr ? "" : alloc_class),
-      alloc_method(alloc_method == nullptr ? "" : alloc_method),
-      alloc_file(alloc_file == NULL ? no_file_name : alloc_file),
-      alloc_line(alloc_line),
-      thread_id(thread_id),
-      tag(tag)
-  { }
-};
-
-typedef std::vector<std::unique_ptr<alloc_rec>> allocs_t;
-typedef std::map<jlong, alloc_rec*> allocs_by_tag_t;
+using allocs_t = std::vector<std::unique_ptr<AllocRec>>;
+using allocs_by_tag_t = std::map<jlong, AllocRec*>;
 
 using criterium::all_tags;
 
@@ -738,8 +686,8 @@ private:
   jmethodID thread_getId_method_;
 
   jlong agent_state = passive;
-  std::vector<std::unique_ptr<alloc_rec>> allocs;
-  std::map<jlong, alloc_rec*> allocs_by_tag;
+  std::vector<std::unique_ptr<AllocRec>> allocs;
+  std::map<jlong, AllocRec*> allocs_by_tag;
 
   std::unique_ptr<VMContext::global_ref<jclass>> agent_class;
   std::unique_ptr<VMContext::global_ref<jclass>> agent_allocation_start_marker_class;
@@ -794,12 +742,12 @@ private:
   void untag_objects(allocs_t &allocs, allocs_by_tag_t &allocs_by_tag);
   auto calling_frame(JNIEnv *env, jvmtiFrameInfo *frames, jint num_frames);
   auto frame_detail(JNIEnv *env, jvmtiFrameInfo &frame);
-  std::unique_ptr<alloc_rec> allocation_record(JNIEnv* env,
+  std::unique_ptr<AllocRec> allocation_record(JNIEnv* env,
 					       const char* class_sig,
 					       jlong size,
 					       jthread thread,
 					       jlong tag);
-  std::unique_ptr<alloc_rec> allocation_record(JNIEnv *env,
+  std::unique_ptr<AllocRec> allocation_record(JNIEnv *env,
                                                const char *class_sig,
                                                jlong size,
 					       jthread thread, jint num_frames,
@@ -949,7 +897,7 @@ public:
   void process_object_free_event(JNIEnv* env, const ObjectFreeEvent& event) {
     // DEBUG_PRINT("Free\n");
     try {
-      alloc_rec* rec = allocs_by_tag.at(event.tag);
+      AllocRec* rec = allocs_by_tag.at(event.tag);
       rec->freed = 1;
       // DEBUG_PRINT("Free %d %d\n", rec->start_marker, rec->disable_marker);
 
@@ -1063,7 +1011,7 @@ auto AgentState::frame_detail(JNIEnv* env, jvmtiFrameInfo& frame) {
                          std::move(source_name), line_num);
 }
 
-std::unique_ptr<alloc_rec> AgentState::allocation_record(
+std::unique_ptr<AllocRec> AgentState::allocation_record(
     JNIEnv* env, const char* class_sig, jlong size, jthread thread,
     jint num_frames, jvmtiFrameInfo* frames, jlong tag) {
   jint framei = 0;
@@ -1081,19 +1029,19 @@ std::unique_ptr<alloc_rec> AgentState::allocation_record(
 
   jlong tid = jni_ops_.call_long_method(env, thread, thread_getId_method_);
 
-  return std::make_unique<alloc_rec>(
+  return std::make_unique<AllocRec>(
       class_sig, size, fi_class_name, fi_method, fi_source,
       static_cast<jlong>(fi_line), f0_class_name, f0_method, f0_source,
       static_cast<jlong>(f0_line), tid, tag);
 }
 
-std::unique_ptr<alloc_rec> AgentState::allocation_record(JNIEnv* env,
+std::unique_ptr<AllocRec> AgentState::allocation_record(JNIEnv* env,
                                                          const char* class_sig,
                                                          jlong size,
                                                          jthread thread,
                                                          jlong tag) {
   jlong tid = jni_ops_.call_long_method(env, thread, thread_getId_method_);
-  return std::make_unique<alloc_rec>(class_sig, size, nullptr, nullptr, nullptr,
+  return std::make_unique<AllocRec>(class_sig, size, nullptr, nullptr, nullptr,
                                      -1, nullptr, nullptr, nullptr, -1, tid,
                                      tag);
 }

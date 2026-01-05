@@ -1,8 +1,8 @@
 #ifndef CRITERIUM_ALLOC_REC_H
 #define CRITERIUM_ALLOC_REC_H
 
+#include <jni.h>
 #include <algorithm>
-#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
@@ -11,49 +11,51 @@
 namespace criterium {
 
 // Allocation record for tracking object allocations.
-// Uses int64_t for portability (maps to jlong in JNI).
 struct AllocRec {
   std::string obj_class;
-  int64_t obj_size;
+  jlong obj_size;
 
   std::string call_class;
   std::string call_method;
   std::string call_file;
-  int64_t call_line;
+  jlong call_line;
 
   std::string alloc_class;
   std::string alloc_method;
   std::string alloc_file;
-  int64_t alloc_line;
+  jlong alloc_line;
 
-  int64_t thread_id;
-  int64_t freed{};
+  jlong thread_id;
+  jlong freed{};
 
-  int64_t tag;
+  jlong tag;
   bool start_marker{};
   bool disable_marker{};
 
-  AllocRec(const char* obj_class,
-           int64_t obj_size,
-           const char* call_class,
-           const char* call_method,
-           const char* call_file,
-           int64_t call_line,
-           const char* alloc_class,
-           const char* alloc_method,
-           const char* alloc_file,
-           int64_t alloc_line,
-           int64_t thread_id,
-           int64_t tag)
+  static constexpr char const* no_file_name = "NO_SOURCE";
+
+  // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
+  AllocRec(char const* obj_class,
+           jlong obj_size,
+           char const* call_class,
+           char const* call_method,
+           char const* call_file,
+           jlong call_line,
+           char const* alloc_class,
+           char const* alloc_method,
+           char const* alloc_file,
+           jlong alloc_line,
+           jlong thread_id,
+           jlong tag)
     : obj_class(obj_class),
       obj_size(obj_size),
-      call_class(call_class != nullptr ? call_class : ""),
-      call_method(call_method != nullptr ? call_method : ""),
-      call_file(call_file != nullptr ? call_file : "<no_file>"),
+      call_class(call_class == nullptr ? "" : call_class),
+      call_method(call_method == nullptr ? "" : call_method),
+      call_file(call_file == nullptr ? no_file_name : call_file),
       call_line(call_line),
-      alloc_class(alloc_class != nullptr ? alloc_class : ""),
-      alloc_method(alloc_method != nullptr ? alloc_method : ""),
-      alloc_file(alloc_file != nullptr ? alloc_file : "<no_file>"),
+      alloc_class(alloc_class == nullptr ? "" : alloc_class),
+      alloc_method(alloc_method == nullptr ? "" : alloc_method),
+      alloc_file(alloc_file == nullptr ? no_file_name : alloc_file),
       alloc_line(alloc_line),
       thread_id(thread_id),
       tag(tag) {}
