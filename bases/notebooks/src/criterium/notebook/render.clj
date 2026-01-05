@@ -17,7 +17,8 @@
    "bases/notebooks/src/criterium/domain_bench_notebook.clj"
    "bases/notebooks/src/criterium/analyse_domain_notebook.clj"
    "bases/notebooks/src/criterium/domain_builder_notebook.clj"
-   "bases/notebooks/src/criterium/kde_analysis_notebook.clj"])
+   "bases/notebooks/src/criterium/kde_analysis_notebook.clj"
+   "bases/notebooks/src/criterium/distribution_fitting_notebook.clj"])
 
 (defn render-site!
   "Render all notebooks to HTML in the docs directory."
