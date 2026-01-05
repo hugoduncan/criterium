@@ -9,6 +9,7 @@
   - Probability: log-gamma, erf, normal-cdf, normal-pdf, normal-quantile
   - Distributions: gamma, weibull, lognormal, inverse-gaussian (PDF and CDF)
   - Model selection: aic, bic, aicc (information criteria)
+  - Moment matching: parameter estimation, distribution suitability prefilter
   - Histogram: histogram (Freedman-Diaconis or Knuth Bayesian binning)
   - Knuth: optimal-bins, log-posterior (Bayesian histogram binning)
   - T-digest: streaming quantile estimation
@@ -23,6 +24,7 @@
    [stats.kde :as kde]
    [stats.kernel :as kernel]
    [stats.knuth :as knuth]
+   [stats.moment-match :as moment-match]
    [stats.outliers :as outliers]
    [stats.probability :as probability]
    [stats.sampling :as sampling]
@@ -330,6 +332,99 @@
   Requires n > k + 1."
   ^double [^long k ^long n ^double log-likelihood]
   (probability/aicc k n log-likelihood))
+
+;;; Moment-Based Parameter Estimation
+
+(defn gamma-moment-estimate
+  "Estimate gamma distribution parameters using method of moments.
+
+  Parameters (returned):
+    shape (k) = mean² / variance
+    scale (θ) = variance / mean
+
+  Returns nil if estimates are invalid (non-positive mean or variance)."
+  [^double mean ^double variance]
+  (moment-match/gamma-moment-estimate mean variance))
+
+(defn lognormal-moment-estimate
+  "Estimate log-normal distribution parameters using method of moments.
+
+  Parameters (log-space):
+    sigma² = log(1 + variance/mean²)
+    mu = log(mean) - sigma²/2
+
+  Returns nil if mean is non-positive or variance is negative."
+  [^double mean ^double variance]
+  (moment-match/lognormal-moment-estimate mean variance))
+
+(defn inverse-gaussian-moment-estimate
+  "Estimate inverse Gaussian distribution parameters using method of moments.
+
+  Parameters:
+    mu = mean
+    lambda = mean³ / variance
+
+  Returns nil if mean or variance is non-positive."
+  [^double mean ^double variance]
+  (moment-match/inverse-gaussian-moment-estimate mean variance))
+
+(defn weibull-moment-estimate
+  "Estimate Weibull distribution parameters using method of moments.
+
+  Uses the coefficient of variation to estimate shape, then derives scale.
+  Returns nil if mean/variance non-positive or CV > 2."
+  [^double mean ^double variance]
+  (moment-match/weibull-moment-estimate mean variance))
+
+(def all-distributions
+  "Set of all distributions supported by the moment-match prefilter."
+  moment-match/all-distributions)
+
+(defn moment-match-prefilter
+  "Screen distributions for suitability based on sample moments.
+
+  Takes sample mean and variance and returns a map of distributions with
+  their moment-based parameter estimates. Distributions where moment
+  matching yields invalid parameters are excluded.
+
+  Parameters:
+    mean - sample mean
+    variance - sample variance
+    distributions - (optional) set of distributions to check, defaults to all
+
+  Returns map from distribution keyword to {:params {...} :suitable? true/false}."
+  ([^double mean ^double variance]
+   (moment-match/moment-match-prefilter mean variance))
+  ([^double mean ^double variance distributions]
+   (moment-match/moment-match-prefilter mean variance distributions)))
+
+(defn suitable-distributions
+  "Return the set of distributions suitable for the given sample statistics.
+
+  Parameters:
+    mean - sample mean
+    variance - sample variance
+    distributions - (optional) set of distributions to check, defaults to all
+
+  Returns set of suitable distribution keywords."
+  ([^double mean ^double variance]
+   (moment-match/suitable-distributions mean variance))
+  ([^double mean ^double variance distributions]
+   (moment-match/suitable-distributions mean variance distributions)))
+
+(defn unsuitable-distributions
+  "Return the set of distributions unsuitable for the given sample statistics.
+
+  Parameters:
+    mean - sample mean
+    variance - sample variance
+    distributions - (optional) set of distributions to check, defaults to all
+
+  Returns set of unsuitable distribution keywords."
+  ([^double mean ^double variance]
+   (moment-match/unsuitable-distributions mean variance))
+  ([^double mean ^double variance distributions]
+   (moment-match/unsuitable-distributions mean variance distributions)))
 
 ;;; Knuth Bayesian histogram binning
 
