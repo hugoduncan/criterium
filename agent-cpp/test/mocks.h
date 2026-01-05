@@ -45,6 +45,9 @@ public:
               (jvmtiEventMode mode, jvmtiEvent event_type, jthread event_thread),
               (override));
 
+  // Thread operations
+  MOCK_METHOD(bool, get_current_thread, (jthread* thread), (override));
+
   // Memory deallocation
   MOCK_METHOD(void, deallocate, (unsigned char* mem), (override));
 };

@@ -41,6 +41,13 @@ struct ObjectFreeEvent {
 /// Command sent from Java to the agent.
 struct Command {
   jlong cmd;
+  jthread calling_thread = nullptr;  // Thread that sent the command (as global ref)
+
+  void delete_global_refs(JNIEnv* env, IJniOperations& jni_ops) const {
+    if (calling_thread != nullptr) {
+      jni_ops.delete_global_ref(env, calling_thread);
+    }
+  }
 };
 
 /// Method entry event from JVMTI callback, queued for processing.

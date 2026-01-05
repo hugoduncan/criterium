@@ -521,13 +521,22 @@ public:
     message_queue.push(ObjectFreeEvent{tag});
   }
 
-  void agent_command([[maybe_unused]] JNIEnv* env,
+  void agent_command(JNIEnv* env,
                      [[maybe_unused]] jclass klass,
                      jlong cmd) {
-    if (cmd != 1) {
-      DEBUG_PRINTLN("Agent command: " << cmd);
+    DEBUG_PRINTLN("Agent command: " << cmd);
+
+    // For method tracing commands, capture the calling thread
+    jthread calling_thread = nullptr;
+    if (cmd == start_method_tracing) {
+      jthread current_thread = nullptr;
+      if (jvmti_ops_->get_current_thread(&current_thread)) {
+        calling_thread = static_cast<jthread>(
+            jni_ops_->new_global_ref(env, current_thread));
+      }
     }
-    message_queue.push(Command{cmd});
+
+    message_queue.push(Command{cmd, calling_thread});
   }
 
   jlong thread_id(JNIEnv *env, jthread thread) {
@@ -613,34 +622,6 @@ public:
                                             nullptr);
   }
 
-  void enable_method_entry() {
-    DEBUG_PRINT("Enabling JVMTI_EVENT_METHOD_ENTRY\n");
-    jvmti_ops_->set_event_notification_mode(JVMTI_ENABLE,
-                                            JVMTI_EVENT_METHOD_ENTRY,
-                                            nullptr);
-  }
-
-  void enable_method_exit() {
-    DEBUG_PRINT("Enabling JVMTI_EVENT_METHOD_EXIT\n");
-    jvmti_ops_->set_event_notification_mode(JVMTI_ENABLE,
-                                            JVMTI_EVENT_METHOD_EXIT,
-                                            nullptr);
-  }
-
-  void disable_method_entry() {
-    DEBUG_PRINT("Disabling JVMTI_EVENT_METHOD_ENTRY\n");
-    jvmti_ops_->set_event_notification_mode(JVMTI_DISABLE,
-                                            JVMTI_EVENT_METHOD_ENTRY,
-                                            nullptr);
-  }
-
-  void disable_method_exit() {
-    DEBUG_PRINT("Disabling JVMTI_EVENT_METHOD_EXIT\n");
-    jvmti_ops_->set_event_notification_mode(JVMTI_DISABLE,
-                                            JVMTI_EVENT_METHOD_EXIT,
-                                            nullptr);
-  }
-
 };
 
 
@@ -658,25 +639,79 @@ void JNICALL ObjectFree(jvmtiEnv *jvmti, jlong tag) {
   context.object_free(jvmti, tag);
 }
 
+// Thread-local guard to prevent recursive method event generation.
+// When we're inside a MethodEntry/MethodExit callback and make JNI calls,
+// those calls may trigger more method events. This flag prevents the
+// infinite recursion that would otherwise occur.
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+thread_local bool in_method_callback = false;
+
+// Consumer thread ID - events from this thread should be skipped.
+// The consumer thread processes events and makes JNI/JVMTI calls that would
+// otherwise generate more events, creating a feedback loop.
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+std::atomic<std::thread::id> consumer_thread_id{};
+
+// Counter for method events (used for debugging/diagnostics)
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+std::atomic<size_t> method_event_count{0};
+
+// Returns true if the current thread is the queue consumer thread.
+bool is_consumer_thread() {
+  return std::this_thread::get_id() == consumer_thread_id.load();
+}
+
 void JNICALL MethodEntry(jvmtiEnv* jvmti, JNIEnv* env,
                          jthread thread, jmethodID method) {
-  (void)jvmti; // Unused parameter
+  (void)jvmti;
+  (void)env;
+  (void)thread;
+
+  // Check if consumer thread is getting events (should never happen if
+  // we correctly limited events to the calling thread)
+  if (is_consumer_thread()) {
+    DEBUG_PRINT("ERROR: Consumer thread got MethodEntry event!\n");
+    return;
+  }
+
+  // Skip if we're already processing a method event (prevents recursion)
+  if (in_method_callback) {
+    return;
+  }
+  in_method_callback = true;
+
+  method_event_count.fetch_add(1);
   auto& context = AgentContext::getInstance();
-  context.get_message_queue().push(MethodEntryEvent{
-      static_cast<jthread>(context.jni_ops().new_global_ref(env, thread)),
-      method});
+  context.get_message_queue().push(MethodEntryEvent{nullptr, method});
+
+  in_method_callback = false;
 }
 
 void JNICALL MethodExit(jvmtiEnv* jvmti, JNIEnv* env,
                         jthread thread, jmethodID method,
                         jboolean was_popped_by_exception, jvalue return_value) {
-  (void)jvmti; // Unused parameter
-  (void)was_popped_by_exception; // Unused for now
-  (void)return_value; // Unused for now
+  (void)jvmti;
+  (void)env;
+  (void)thread;
+  (void)was_popped_by_exception;
+  (void)return_value;
+
+  // Skip events from the consumer thread to prevent feedback loop
+  if (is_consumer_thread()) {
+    return;
+  }
+
+  // Skip if we're already processing a method event (prevents recursion)
+  if (in_method_callback) {
+    return;
+  }
+  in_method_callback = true;
+
+  method_event_count.fetch_add(1);
   auto& context = AgentContext::getInstance();
-  context.get_message_queue().push(MethodExitEvent{
-      static_cast<jthread>(context.jni_ops().new_global_ref(env, thread)),
-      method});
+  context.get_message_queue().push(MethodExitEvent{nullptr, method});
+
+  in_method_callback = false;
 }
 
 void JNICALL VMInit(jvmtiEnv* jvmti, JNIEnv* env, jthread thread) {
@@ -752,6 +787,7 @@ private:
   // Method tracing state
   std::unique_ptr<CallTreeNode> call_tree_root_;
   std::map<jlong, ThreadCallState> thread_call_states_;
+  jthread method_traced_thread_ = nullptr;  // Thread being traced for method events
 
   std::unique_ptr<VMContext::global_ref<jclass>> agent_class;
   std::unique_ptr<VMContext::global_ref<jclass>> agent_allocation_start_marker_class;
@@ -805,8 +841,11 @@ private:
     set_state(env, allocation_tracing_stopping);
   }
 
-  void enable_method_tracing(JNIEnv* env) {
+  void enable_method_tracing(JNIEnv* env, jthread traced_thread) {
     set_state(env, method_tracing_starting);
+
+    // Store the thread we're tracing (for use when disabling)
+    method_traced_thread_ = traced_thread;
 
     // Initialize call tree with a synthetic root node
     call_tree_root_ = std::make_unique<CallTreeNode>();
@@ -814,15 +853,15 @@ private:
     call_tree_root_->method_name = "<root>";
     thread_call_states_.clear();
 
-    // Enable method entry/exit events
+    // Enable method entry/exit events for the traced thread only
     DEBUG_PRINT("Enabling JVMTI_EVENT_METHOD_ENTRY\n");
     jvmti_ops_.set_event_notification_mode(JVMTI_ENABLE,
                                            JVMTI_EVENT_METHOD_ENTRY,
-                                           nullptr);
+                                           traced_thread);
     DEBUG_PRINT("Enabling JVMTI_EVENT_METHOD_EXIT\n");
     jvmti_ops_.set_event_notification_mode(JVMTI_ENABLE,
                                            JVMTI_EVENT_METHOD_EXIT,
-                                           nullptr);
+                                           traced_thread);
 
     set_state(env, method_tracing_active);
   }
@@ -830,15 +869,21 @@ private:
   void disable_method_tracing(JNIEnv* env) {
     set_state(env, method_tracing_stopping);
 
-    // Disable method entry/exit events
+    // Disable method entry/exit events for the traced thread
     DEBUG_PRINT("Disabling JVMTI_EVENT_METHOD_ENTRY\n");
     jvmti_ops_.set_event_notification_mode(JVMTI_DISABLE,
                                            JVMTI_EVENT_METHOD_ENTRY,
-                                           nullptr);
+                                           method_traced_thread_);
     DEBUG_PRINT("Disabling JVMTI_EVENT_METHOD_EXIT\n");
     jvmti_ops_.set_event_notification_mode(JVMTI_DISABLE,
                                            JVMTI_EVENT_METHOD_EXIT,
-                                           nullptr);
+                                           method_traced_thread_);
+
+    // Delete and clear the stored thread reference
+    if (method_traced_thread_ != nullptr) {
+      jni_ops_.delete_global_ref(env, method_traced_thread_);
+      method_traced_thread_ = nullptr;
+    }
 
     set_state(env, method_tracing_stopped);
   }
@@ -851,23 +896,24 @@ private:
     std::string source_file;
     jint line_number = -1;
 
-    // Get declaring class
-    auto declaring_class = AgentContext::allocated<jclass>();
+    // Get declaring class - NOTE: jclass is a JNI local reference,
+    // NOT JVMTI-allocated memory, so don't use allocated<jclass>
+    jclass declaring_class = nullptr;
     if (jvmti_ops_.get_method_declaring_class(method, &declaring_class)) {
-      // Get class signature
+      // Get class signature (JVMTI-allocated, needs deallocation)
       auto class_sig = AgentContext::allocated<char*>();
       if (jvmti_ops_.get_class_signature(declaring_class, &class_sig)) {
         class_name = class_sig;
       }
 
-      // Get source file name
+      // Get source file name (JVMTI-allocated, needs deallocation)
       auto source_name = AgentContext::allocated<char*>();
       if (jvmti_ops_.get_source_file_name(declaring_class, &source_name)) {
         source_file = source_name;
       }
     }
 
-    // Get method name
+    // Get method name (JVMTI-allocated, needs deallocation)
     auto method_name_ptr = AgentContext::allocated<char*>();
     if (jvmti_ops_.get_method_name(method, &method_name_ptr)) {
       method_name_str = method_name_ptr;
@@ -1141,7 +1187,7 @@ public:
     }
   }
 
-  void process_method_entry_event(JNIEnv* env,
+  void process_method_entry_event([[maybe_unused]] JNIEnv* env,
                                   const MethodEntryEvent& event) {
     using namespace criterium::method_tracing_transitions;
 
@@ -1153,12 +1199,9 @@ public:
       return;
     }
 
-    // Get thread ID
-    jlong thread_id = jni_ops_.call_long_method(env, event.thread,
-                                                thread_getId_method_);
-
-    // Get or create thread state
-    auto& thread_state = thread_call_states_[thread_id];
+    // Use a single global call stack (thread 0) for simplicity
+    // This aggregates calls across all threads into one tree
+    auto& thread_state = thread_call_states_[0];
 
     // Resolve method info
     auto [class_name, method_name, source_file, line_number] =
@@ -1178,20 +1221,16 @@ public:
     thread_state.push(child);
   }
 
-  void process_method_exit_event(JNIEnv* env,
-                                 const MethodExitEvent& event) {
+  void process_method_exit_event([[maybe_unused]] JNIEnv* env,
+                                 [[maybe_unused]] const MethodExitEvent& event) {
     using namespace criterium::method_tracing_transitions;
 
     if (!is_method_tracing_active(agent_state)) {
       return;
     }
 
-    // Get thread ID
-    jlong thread_id = jni_ops_.call_long_method(env, event.thread,
-                                                thread_getId_method_);
-
-    // Find thread state and pop from stack
-    auto iter = thread_call_states_.find(thread_id);
+    // Use a single global call stack (thread 0) for simplicity
+    auto iter = thread_call_states_.find(0);
     if (iter != thread_call_states_.end()) {
       iter->second.pop();
     }
@@ -1211,7 +1250,7 @@ public:
       set_state(env, allocation_tracing_reported);
       break;
     case start_method_tracing:
-      enable_method_tracing(env);
+      enable_method_tracing(env, cmd.calling_thread);
       break;
     case stop_method_tracing:
       disable_method_tracing(env);
@@ -1401,6 +1440,9 @@ void AgentState::allocation_tracing_report(JNIEnv* env, allocs_t& allocs,
 
 // Queue consumer thread
 void queue_consumer_thread() {
+  // Store this thread's ID so callbacks can skip events from this thread
+  consumer_thread_id.store(std::this_thread::get_id());
+
   JNIEnv* env = nullptr;
   VMContext& vm_context = VMContext::getInstance();
   AgentContext& agent_context = AgentContext::getInstance();
@@ -1416,23 +1458,17 @@ void queue_consumer_thread() {
     std::visit([&](auto&& arg) {
       using T = std::decay_t<decltype(arg)>;
       if constexpr (std::is_same_v<T, AllocationEvent>) {
-        // DEBUG_PRINT("Process AllocationEvent\n");
         state.process_allocation_event(env, arg);
         arg.delete_global_refs(env, agent_context.jni_ops());
       }
       else if constexpr (std::is_same_v<T, ObjectFreeEvent>) {
-        // DEBUG_PRINT("Process ObjectFreeEvent\n");
         state.process_object_free_event(env, arg);
       }
       else if constexpr (std::is_same_v<T, MethodEntryEvent>) {
-        // DEBUG_PRINT("Process MethodEntryEvent\n");
         state.process_method_entry_event(env, arg);
-        arg.delete_global_refs(env, agent_context.jni_ops());
       }
       else if constexpr (std::is_same_v<T, MethodExitEvent>) {
-        // DEBUG_PRINT("Process MethodExitEvent\n");
         state.process_method_exit_event(env, arg);
-        arg.delete_global_refs(env, agent_context.jni_ops());
       }
       else if constexpr (std::is_same_v<T, Command>) {
         DEBUG_PRINT("Process command\n");
