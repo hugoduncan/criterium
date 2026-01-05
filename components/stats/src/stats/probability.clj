@@ -430,3 +430,67 @@
               term2 (* (Math/exp exp-factor)
                        (normal-cdf (* (- sqrt-lambda-x) (+ x-over-mu 1.0))))]
           (+ term1 term2))))))
+
+;;; Information Criteria for Model Selection
+
+(defn aic
+  "Akaike Information Criterion.
+
+  AIC = 2k - 2·ln(L)
+
+  Parameters:
+    k - number of estimated parameters
+    log-likelihood - log-likelihood value (log(L))
+
+  Lower AIC indicates better model fit (balances goodness of fit with parsimony).
+
+  Reference: Akaike (1974), A new look at the statistical model identification."
+  ^double [^long k ^double log-likelihood]
+  (- (* 2.0 (double k)) (* 2.0 log-likelihood)))
+
+(defn bic
+  "Bayesian Information Criterion (Schwarz criterion).
+
+  BIC = k·ln(n) - 2·ln(L)
+
+  Parameters:
+    k - number of estimated parameters
+    n - sample size
+    log-likelihood - log-likelihood value (log(L))
+
+  Lower BIC indicates better model fit. BIC penalizes model complexity
+  more heavily than AIC for n ≥ 8.
+
+  Reference: Schwarz (1978), Estimating the dimension of a model."
+  ^double [^long k ^long n ^double log-likelihood]
+  (- (* (double k) (Math/log (double n)))
+     (* 2.0 log-likelihood)))
+
+(defn aicc
+  "Corrected Akaike Information Criterion for small samples.
+
+  AICc = AIC + (2k² + 2k) / (n - k - 1)
+       = 2k - 2·ln(L) + (2k² + 2k) / (n - k - 1)
+
+  Parameters:
+    k - number of estimated parameters
+    n - sample size
+    log-likelihood - log-likelihood value (log(L))
+
+  For small samples (n/k < 40), AICc should be used instead of AIC.
+  As n → ∞, AICc → AIC.
+
+  Requires n > k + 1 to avoid division by zero.
+
+  Reference: Hurvich & Tsai (1989), Regression and time series model
+             selection in small samples."
+  ^double [^long k ^long n ^double log-likelihood]
+  (let [k (double k)
+        n (double n)
+        denom (- n k 1.0)]
+    (when (<= denom 0.0)
+      (throw (IllegalArgumentException.
+              (str "AICc requires n > k + 1, got n=" (long n) ", k=" (long k)))))
+    (+ (aic (long k) log-likelihood)
+       (/ (+ (* 2.0 k k) (* 2.0 k))
+          denom))))

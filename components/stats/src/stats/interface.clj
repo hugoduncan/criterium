@@ -8,6 +8,7 @@
   - Sampling: uniform-distribution, sample-uniform, sample, confidence-interval
   - Probability: log-gamma, erf, normal-cdf, normal-pdf, normal-quantile
   - Distributions: gamma, weibull, lognormal, inverse-gaussian (PDF and CDF)
+  - Model selection: aic, bic, aicc (information criteria)
   - Histogram: histogram (Freedman-Diaconis or Knuth Bayesian binning)
   - Knuth: optimal-bins, log-posterior (Bayesian histogram binning)
   - T-digest: streaming quantile estimation
@@ -285,6 +286,50 @@
   Returns a function F(x) that computes P(X ≤ x)."
   [^double mu ^double lambda]
   (probability/inverse-gaussian-cdf mu lambda))
+
+;;; Information Criteria for Model Selection
+
+(defn aic
+  "Akaike Information Criterion.
+
+  AIC = 2k - 2·ln(L)
+
+  Parameters:
+    k - number of estimated parameters
+    log-likelihood - log-likelihood value (log(L))
+
+  Lower AIC indicates better model fit."
+  ^double [^long k ^double log-likelihood]
+  (probability/aic k log-likelihood))
+
+(defn bic
+  "Bayesian Information Criterion (Schwarz criterion).
+
+  BIC = k·ln(n) - 2·ln(L)
+
+  Parameters:
+    k - number of estimated parameters
+    n - sample size
+    log-likelihood - log-likelihood value (log(L))
+
+  Lower BIC indicates better model fit."
+  ^double [^long k ^long n ^double log-likelihood]
+  (probability/bic k n log-likelihood))
+
+(defn aicc
+  "Corrected Akaike Information Criterion for small samples.
+
+  AICc = AIC + (2k² + 2k) / (n - k - 1)
+
+  Parameters:
+    k - number of estimated parameters
+    n - sample size
+    log-likelihood - log-likelihood value (log(L))
+
+  For small samples (n/k < 40), AICc should be used instead of AIC.
+  Requires n > k + 1."
+  ^double [^long k ^long n ^double log-likelihood]
+  (probability/aicc k n log-likelihood))
 
 ;;; Knuth Bayesian histogram binning
 
