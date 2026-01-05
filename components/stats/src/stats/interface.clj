@@ -10,7 +10,7 @@
   - Distributions: gamma, weibull, lognormal, inverse-gaussian (PDF and CDF)
   - Model selection: aic, bic, aicc (information criteria)
   - Moment matching: parameter estimation, distribution suitability prefilter
-  - MLE fitting: gamma-mle, lognormal-mle, inverse-gaussian-mle
+  - MLE fitting: gamma-mle, lognormal-mle, inverse-gaussian-mle, weibull-mle
   - Histogram: histogram (Freedman-Diaconis or Knuth Bayesian binning)
   - Knuth: optimal-bins, log-posterior (Bayesian histogram binning)
   - T-digest: streaming quantile estimation
@@ -503,6 +503,30 @@
   Throws if any sample is non-positive."
   [samples]
   (mle/inverse-gaussian-mle samples))
+
+(defn weibull-mle
+  "Maximum likelihood estimation for the Weibull distribution.
+
+  Uses Newton-Raphson iteration to find the shape parameter k that solves:
+    1/k + mean(log(x)) - (Σxᵏlog(x))/(Σxᵏ) = 0
+
+  Once k is found, scale is: λ = (Σxᵏ/n)^(1/k)
+
+  Parameters:
+    samples - sequence of positive sample values
+    opts - optional map with:
+      :max-iter - maximum iterations (default 100)
+      :tol - convergence tolerance (default 1e-10)
+      :init-shape - initial shape estimate (default: method of moments)
+
+  Returns map with:
+    :params {:shape k, :scale λ}
+    :log-likelihood - the maximized log-likelihood value
+    :iterations - number of iterations used
+
+  Throws if any sample is non-positive."
+  ([samples] (mle/weibull-mle samples))
+  ([samples opts] (mle/weibull-mle samples opts)))
 
 ;;; Knuth Bayesian histogram binning
 

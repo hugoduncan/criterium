@@ -7,6 +7,7 @@
   - gamma-mle: using R's MASS::fitdistr or fitdistrplus
   - lognormal-mle: using R's MASS::fitdistr or fitdistrplus
   - inverse-gaussian-mle: using R's statmod package
+  - weibull-mle: using R's MASS::fitdistr
 
   Also validates digamma and trigamma functions."
   (:require
@@ -107,6 +108,11 @@
   "Test data generated from inverse-gaussian(mu=2, lambda=5) distribution."
   [1.8 2.1 1.9 2.3 1.7 2.4 2.0 1.6 2.2 1.8
    2.5 1.9 2.1 1.7 2.3 2.0 1.8 2.2 1.9 2.1])
+
+(def weibull-test-data
+  "Test data generated from weibull(shape=2, scale=5) distribution."
+  [4.2 5.1 3.8 6.2 4.5 5.8 3.2 4.8 5.5 4.1
+   5.3 4.6 3.9 5.0 4.3 6.1 4.7 3.5 5.2 4.9])
 
 ;;; Gamma MLE Validation
 
@@ -293,6 +299,73 @@
                 (is (approx= r-lambda (get-in clj-result [:params :lambda]) 1e-10)
                     (format "lambda mismatch for %s" desc))))))))))
 
+;;; Weibull MLE Validation
+
+(deftest weibull-mle-validation-test
+  ;; Validates stats.interface/weibull-mle against R's MASS::fitdistr().
+  ;; R: MASS::fitdistr(data, "weibull")
+  (testing "weibull-mle"
+    (if-not (r/r-available?)
+      (do
+        (println "Skipping weibull-mle validation: R/Rserve not available")
+        (is true "Skipped - R unavailable"))
+      (do
+        (testing "against R's MASS::fitdistr"
+          (let [data-str (str "c(" (clojure.string/join "," weibull-test-data) ")")
+                ;; Load MASS and fit weibull distribution
+                _ (r/r-eval "library(MASS)")
+                r-result (r/r-eval (str "fit <- fitdistr(" data-str ", 'weibull'); "
+                                        "c(fit$estimate['shape'], fit$estimate['scale'], fit$loglik)"))
+                r-shape (first r-result)
+                r-scale (second r-result)
+                r-loglik (nth r-result 2)
+                clj-result (stats/weibull-mle weibull-test-data)
+                clj-shape (get-in clj-result [:params :shape])
+                clj-scale (get-in clj-result [:params :scale])
+                clj-loglik (:log-likelihood clj-result)]
+            (testing "shape parameter"
+              (is (approx= r-shape clj-shape 1e-3)
+                  (format "shape mismatch: R=%.6f, clj=%.6f" r-shape clj-shape)))
+            (testing "scale parameter"
+              (is (approx= r-scale clj-scale 1e-3)
+                  (format "scale mismatch: R=%.6f, clj=%.6f" r-scale clj-scale)))
+            (testing "log-likelihood"
+              (is (approx= r-loglik clj-loglik 1e-2)
+                  (format "log-lik mismatch: R=%.6f, clj=%.6f" r-loglik clj-loglik)))))
+
+        (testing "with different shape values"
+          ;; Test with data that has known weibull parameters
+          (doseq [[desc data]
+                  [["low shape (k~1)" [0.5 1.2 0.8 1.5 0.3 2.1 0.9 1.1 0.6 1.8]]
+                   ["high shape (k~5)" [4.8 5.0 4.9 5.1 4.7 5.2 4.85 5.05 4.95 5.15]]]]
+            (testing desc
+              (let [data-str (str "c(" (clojure.string/join "," data) ")")
+                    r-result (r/r-eval (str "fit <- fitdistr(" data-str ", 'weibull'); "
+                                            "c(fit$estimate['shape'], fit$estimate['scale'])"))
+                    r-shape (first r-result)
+                    r-scale (second r-result)
+                    clj-result (stats/weibull-mle data)
+                    clj-shape (get-in clj-result [:params :shape])
+                    clj-scale (get-in clj-result [:params :scale])]
+                (is (approx= r-shape clj-shape 1e-2)
+                    (format "shape mismatch for %s: R=%.6f, clj=%.6f"
+                            desc r-shape clj-shape))
+                (is (approx= r-scale clj-scale 1e-2)
+                    (format "scale mismatch for %s: R=%.6f, clj=%.6f"
+                            desc r-scale clj-scale))))))
+
+        (testing "log-likelihood matches R's dweibull"
+          (let [data-str (str "c(" (clojure.string/join "," weibull-test-data) ")")
+                clj-result (stats/weibull-mle weibull-test-data)
+                clj-shape (get-in clj-result [:params :shape])
+                clj-scale (get-in clj-result [:params :scale])
+                r-loglik (first (r/r-eval
+                                 (str "sum(log(dweibull(" data-str
+                                      ", shape=" clj-shape ", scale=" clj-scale ")))")))
+                clj-loglik (:log-likelihood clj-result)]
+            (is (approx= r-loglik clj-loglik 1e-10)
+                (format "log-lik mismatch: R=%.10f, clj=%.10f" r-loglik clj-loglik))))))))
+
 ;;; Cross-validation: MLE log-likelihood matches AIC calculation
 
 (deftest mle-aic-consistency-test
@@ -319,4 +392,18 @@
             n (count inverse-gaussian-test-data)
             aicc (stats/aicc k n (:log-likelihood ig-result))]
         (is (number? aicc) "AICc should be computable from IG MLE result")
+        (is (< aicc 1000) "AICc should be reasonable")))
+
+    (testing "can be used with weibull-mle"
+      (let [weibull-result (stats/weibull-mle weibull-test-data)
+            k 2  ; weibull has 2 parameters
+            n (count weibull-test-data)
+            aic (stats/aic k (:log-likelihood weibull-result))
+            bic (stats/bic k n (:log-likelihood weibull-result))
+            aicc (stats/aicc k n (:log-likelihood weibull-result))]
+        (is (number? aic) "AIC should be computable from weibull MLE result")
+        (is (number? bic) "BIC should be computable from weibull MLE result")
+        (is (number? aicc) "AICc should be computable from weibull MLE result")
+        (is (< aic 1000) "AIC should be reasonable")
+        (is (< bic 1000) "BIC should be reasonable")
         (is (< aicc 1000) "AICc should be reasonable")))))
