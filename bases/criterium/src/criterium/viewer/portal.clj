@@ -6,6 +6,7 @@
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have]]
    [criterium.view :as view]
+   [criterium.viewer.call-graph :as call-graph]
    [criterium.viewer.common-charts :as charts]
    [criterium.viewer.common.allocation :as allocation]
    [criterium.viewer.common.bootstrap :as bootstrap]
@@ -436,6 +437,19 @@
     (when (and treemap-data (:root treemap-data))
       (heading "Allocation Treemap")
       (portal-vega (charts/treemap-vega-spec treemap-data {})))))
+
+;;; Call Tree Views
+
+(defmethod view/call-tree* :portal
+  [_ {:keys [call-tree-id]} data-map]
+  (let [call-tree-id (or call-tree-id :call-tree)
+        call-tree (get data-map call-tree-id)]
+    (when call-tree
+      (let [total-calls (call-graph/total-call-count call-tree)]
+        (heading (format "Call Tree (%d total calls)" total-calls))
+        (portal-vega (charts/call-tree-tree-vega-spec call-tree {}))
+        (heading "Call Flame Chart")
+        (portal-vega (charts/call-tree-flame-vega-spec call-tree total-calls {}))))))
 
 ;;; Modal Analysis Views
 

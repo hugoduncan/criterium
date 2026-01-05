@@ -1,9 +1,15 @@
 (ns criterium.viewer.call-graph-test
   (:require
+   [clojure.string :as str]
    [clojure.test :refer [deftest is testing]]
    [criterium.test-utils :refer [trimmed-lines]]
    [criterium.view :as view]
-   [criterium.viewer.call-graph :as call-graph]))
+   [criterium.viewer.call-graph :as call-graph]
+   [criterium.viewer.common-charts :as charts]
+   [criterium.viewer.kindly :as kindly]
+   [criterium.viewer.portal :as portal])
+  (:import
+   [java.util Queue]))
 
 ;;; Test Data
 
@@ -229,3 +235,191 @@
                       {}
                       {:call-tree nested-call-tree}))]
         (is (= "" output))))))
+
+;;; Chart Generation Tests
+
+(deftest call-tree-tree-vega-spec-test
+  ;; Tests the Vega spec generation for tree diagram.
+  (testing "call-tree-tree-vega-spec"
+    (testing "generates valid Vega spec for nested tree"
+      (let [spec (charts/call-tree-tree-vega-spec nested-call-tree {})]
+        (is (str/includes? (:$schema spec) "vega/v5.json"))
+        (is (= 700 (:width spec)))
+        (is (= 500 (:height spec)))
+        (is (contains? spec :data))
+        (is (contains? spec :marks))
+        (is (contains? spec :scales))))
+
+    (testing "respects width/height options"
+      (let [spec (charts/call-tree-tree-vega-spec nested-call-tree
+                                                  {:width 800 :height 600})]
+        (is (= 800 (:width spec)))
+        (is (= 600 (:height spec)))))
+
+    (testing "handles nil call-tree"
+      (let [spec (charts/call-tree-tree-vega-spec nil {})]
+        (is (map? spec))
+        (is (= [] (get-in spec [:data 0 :values])))))))
+
+(deftest call-tree-flame-vega-spec-test
+  ;; Tests the Vega spec generation for flame chart.
+  (testing "call-tree-flame-vega-spec"
+    (testing "generates valid Vega spec for nested tree"
+      (let [total-calls (call-graph/total-call-count nested-call-tree)
+            spec (charts/call-tree-flame-vega-spec nested-call-tree total-calls {})]
+        (is (str/includes? (:$schema spec) "vega/v5.json"))
+        (is (= 700 (:width spec)))
+        (is (contains? spec :data))
+        (is (contains? spec :marks))
+        (is (contains? spec :scales))
+        ;; Check flame data was computed
+        (let [flame-data (get-in spec [:data 0 :values])]
+          (is (vector? flame-data))
+          (is (= 5 (count flame-data)))
+          ;; Check first node (root)
+          (let [root (first flame-data)]
+            (is (= "myapp.Core.main" (:name root)))
+            (is (= 0 (:x0 root)))
+            (is (= 0 (:depth root)))))))
+
+    (testing "respects width option"
+      (let [total-calls (call-graph/total-call-count simple-call-tree)
+            spec (charts/call-tree-flame-vega-spec simple-call-tree total-calls
+                                                   {:width 500})]
+        (is (= 500 (:width spec)))))
+
+    (testing "handles nil call-tree"
+      (let [spec (charts/call-tree-flame-vega-spec nil 0 {})]
+        (is (map? spec))
+        (is (= [] (get-in spec [:data 0 :values])))))))
+
+;;; Portal Tests
+
+(defmacro with-tap-out
+  "Capture tapped values during body execution."
+  [& body]
+  `(let [v# (volatile! [])
+         f# (fn [x#]
+              (when-not (= ::portal/_ x#)
+                (vswap! v# conj x#)))]
+     (try
+       (add-tap f#)
+       ~@body
+       (loop []
+         (when-not (.isEmpty ^Queue @#'clojure.core/tapq)
+           (recur)))
+       (loop []
+         (when (empty? @v#)
+           (recur)))
+       (portal/flush)
+       @v#
+       (finally
+         (remove-tap f#)))))
+
+(deftest call-tree-view-portal-test
+  ;; Tests the :portal viewer integration for call-tree.
+  (testing "call-tree* :portal"
+    (testing "outputs heading, tree diagram, and flame chart"
+      (let [outputs (with-tap-out
+                      (view/call-tree*
+                       :portal
+                       {}
+                       {:call-tree nested-call-tree}))]
+        (is (>= (count outputs) 4)
+            "Expected at least 4 outputs: heading, tree, heading, flame")
+        ;; First is heading
+        (let [[heading tree-spec flame-heading flame-spec] outputs]
+          (is (= :b (first heading)))
+          (is (str/includes? (second heading) "Call Tree"))
+          (is (str/includes? (second heading) "166"))
+          ;; Tree spec
+          (is (str/includes? (:$schema tree-spec) "vega"))
+          (is (= :portal.viewer/vega (:portal.viewer/default (meta tree-spec))))
+          ;; Flame heading
+          (is (= :b (first flame-heading)))
+          (is (str/includes? (second flame-heading) "Flame"))
+          ;; Flame spec
+          (is (str/includes? (:$schema flame-spec) "vega"))
+          (is (= :portal.viewer/vega (:portal.viewer/default (meta flame-spec)))))))
+
+    (testing "uses custom call-tree-id"
+      (let [outputs (with-tap-out
+                      (view/call-tree*
+                       :portal
+                       {:call-tree-id :my-tree}
+                       {:my-tree simple-call-tree}))]
+        (is (>= (count outputs) 2))
+        (let [[heading _] outputs]
+          (is (str/includes? (second heading) "6")))))
+
+    (testing "handles missing call-tree gracefully"
+      (let [v (volatile! [])
+            f (fn [x] (when-not (= ::portal/_ x) (vswap! v conj x)))]
+        (try
+          (add-tap f)
+          (view/call-tree* :portal {} {})
+          (portal/flush)
+          (is (empty? @v))
+          (finally
+            (remove-tap f)))))
+
+    (testing "handles nil call-tree gracefully"
+      (let [v (volatile! [])
+            f (fn [x] (when-not (= ::portal/_ x) (vswap! v conj x)))]
+        (try
+          (add-tap f)
+          (view/call-tree* :portal {} {:call-tree nil})
+          (portal/flush)
+          (is (empty? @v))
+          (finally
+            (remove-tap f)))))))
+
+;;; Kindly Tests
+
+(deftest call-tree-view-kindly-test
+  ;; Tests the :kindly viewer integration for call-tree.
+  (testing "call-tree* :kindly"
+    (testing "outputs heading, tree diagram, and flame chart"
+      (reset! kindly/accumulated [])
+      (view/call-tree*
+       :kindly
+       {}
+       {:call-tree nested-call-tree})
+      (let [result (kindly/flush)]
+        (is (= :kind/fragment (:kindly/kind (meta result))))
+        (is (= 4 (count result))
+            "Expected 4 elements: heading, tree, heading, flame")
+        (let [[heading tree-spec flame-heading flame-spec] result]
+          ;; Heading
+          (is (= :kind/md (:kindly/kind (meta heading))))
+          (is (str/includes? (first heading) "Call Tree"))
+          (is (str/includes? (first heading) "166"))
+          ;; Tree spec
+          (is (= :kind/vega (:kindly/kind (meta tree-spec))))
+          (is (str/includes? (:$schema tree-spec) "vega"))
+          ;; Flame heading
+          (is (= :kind/md (:kindly/kind (meta flame-heading))))
+          (is (str/includes? (first flame-heading) "Flame"))
+          ;; Flame spec
+          (is (= :kind/vega (:kindly/kind (meta flame-spec))))
+          (is (str/includes? (:$schema flame-spec) "vega")))))
+
+    (testing "uses custom call-tree-id"
+      (reset! kindly/accumulated [])
+      (view/call-tree*
+       :kindly
+       {:call-tree-id :my-tree}
+       {:my-tree simple-call-tree})
+      (let [result (kindly/flush)
+            [heading _] result]
+        (is (str/includes? (first heading) "6"))))
+
+    (testing "handles missing call-tree gracefully"
+      (reset! kindly/accumulated [])
+      (view/call-tree* :kindly {} {})
+      (is (nil? (kindly/flush))))
+
+    (testing "handles nil call-tree gracefully"
+      (reset! kindly/accumulated [])
+      (view/call-tree* :kindly {} {:call-tree nil})
+      (is (nil? (kindly/flush))))))

@@ -1542,3 +1542,266 @@
                       "'Path': replace(replace(datum.id, /^[^/]+\\//, ''), /\\/[^/]+$/, '')}")}}
                :hover
                {:fill {:value "rgba(0,0,0,0.1)"}}}}]}))
+
+;;; Call Tree Visualizations
+
+(defn- flatten-call-tree-node
+  "Flatten a hierarchical call tree node into a sequence of flat records.
+  Each record has :id, :parent, :name, :call-count keys for use with Vega stratify.
+  Unlike treemap, all nodes get call-count since we're showing the call hierarchy."
+  ([node] (flatten-call-tree-node node nil []))
+  ([node parent-id path]
+   (when node
+     (let [node-name (str (or (:class node) "<unknown>") "."
+                          (or (:method node) "<unknown>"))
+           node-id (if (empty? path)
+                     "root"
+                     (str/join "/" (conj path node-name)))
+           current-path (conj path node-name)
+           children (:children node)
+           call-count (or (:call-count node) 0)
+           node-record {:id node-id
+                        :parent parent-id
+                        :name node-name
+                        :class (or (:class node) "<unknown>")
+                        :method (or (:method node) "<unknown>")
+                        :file (:file node)
+                        :line (:line node)
+                        :call-count call-count
+                        :depth (count path)}]
+       (if (seq children)
+         (cons node-record
+               (mapcat #(flatten-call-tree-node % node-id current-path) children))
+         [node-record])))))
+
+(defn call-tree-tree-vega-spec
+  "Build a Vega spec for hierarchical tree visualization of call graph.
+
+  Displays the call tree as a top-down tree diagram where node size represents
+  call count. Uses Vega's tree layout for proper hierarchical positioning.
+
+  Parameters:
+    call-tree - The call tree map with :class, :method, :call-count, :children
+    opts - Display options:
+      :width (default 700)
+      :height (default 500)
+
+  Returns a full Vega spec with:
+    - stratify transform to build hierarchy
+    - tree layout for positioning
+    - symbol marks sized by call count
+    - link paths connecting parent to children
+    - tooltip on hover showing method, call count, file:line"
+  [call-tree opts]
+  (let [width (or (:width opts) 700)
+        height (or (:height opts) 500)
+        flat-data (when call-tree (vec (flatten-call-tree-node call-tree)))
+        max-calls (if (seq flat-data)
+                    (apply max (map :call-count flat-data))
+                    1)]
+    {:$schema "https://vega.github.io/schema/vega/v5.json"
+     :width width
+     :height height
+     :padding 5
+
+     :data [{:name "tree"
+             :values (or flat-data [])
+             :transform
+             [{:type "stratify"
+               :key "id"
+               :parentKey "parent"}
+              {:type "tree"
+               :method "tidy"
+               :size [{:signal "width - 100"} {:signal "height - 100"}]
+               :separation true
+               :as ["x" "y" "depth" "children"]}]}
+            {:name "links"
+             :source "tree"
+             :transform
+             [{:type "treelinks"}
+              {:type "linkpath"
+               :orient "vertical"
+               :shape "diagonal"}]}]
+
+     :scales [{:name "color"
+               :type "ordinal"
+               :domain {:data "tree" :field "class" :sort true}
+               :range {:scheme "category20"}}
+              {:name "size"
+               :type "sqrt"
+               :domain [1 max-calls]
+               :range [100 2000]}]
+
+     :marks [;; Links between nodes
+             {:type "path"
+              :from {:data "links"}
+              :encode
+              {:update
+               {:path {:field "path"}
+                :stroke {:value "#ccc"}
+                :strokeWidth {:value 1.5}}}}
+             ;; Nodes
+             {:type "symbol"
+              :from {:data "tree"}
+              :encode
+              {:enter
+               {:size {:scale "size" :field "call-count"}
+                :fill {:scale "color" :field "class"}
+                :stroke {:value "#fff"}
+                :strokeWidth {:value 1}}
+               :update
+               {:x {:field "x" :offset 50}
+                :y {:field "y" :offset 50}
+                :tooltip
+                {:signal
+                 (str "{"
+                      "'Method': datum.name, "
+                      "'Calls': datum['call-count'], "
+                      "'Location': datum.file ? (datum.file + ':' + datum.line) : 'unknown'"
+                      "}")}}}}
+             ;; Labels for nodes with high call counts
+             {:type "text"
+              :from {:data "tree"}
+              :encode
+              {:enter
+               {:font {:value "sans-serif"}
+                :fontSize {:value 10}
+                :align {:value "center"}
+                :baseline {:value "bottom"}}
+               :update
+               {:x {:field "x" :offset 50}
+                :y {:field "y" :offset 45}
+                :text {:signal (str "datum['call-count'] > "
+                                    (/ max-calls 10)
+                                    " ? datum.method : ''")}
+                :fillOpacity {:value 0.8}}}}]}))
+
+(defn call-tree-flame-vega-spec
+  "Build a Vega spec for flame chart visualization of call graph.
+
+  Displays the call tree as a flame chart where horizontal width represents
+  call count (not time). Each level shows methods called, with children
+  stacked below their parent.
+
+  Parameters:
+    call-tree - The call tree map with :class, :method, :call-count, :children
+    total-calls - Total call count for percentage calculation
+    opts - Display options:
+      :width (default 700)
+      :height (default 400)
+
+  Returns a full Vega spec with:
+    - Custom flame layout computed in Clojure
+    - rect marks with width proportional to call count
+    - Color by class for visual grouping
+    - tooltip showing method, call count, percentage"
+  [call-tree total-calls opts]
+  (let [width (or (:width opts) 700)
+        height (or (:height opts) 400)
+        row-height 24]
+    (letfn [(compute-flame-data
+              [node parent-start parent-width depth]
+              (when node
+                (let [call-count (or (:call-count node) 0)
+                      node-width (if (pos? total-calls)
+                                   (* parent-width (/ call-count (double total-calls)))
+                                   parent-width)
+                      node-name (str (or (:class node) "<unknown>") "."
+                                     (or (:method node) "<unknown>"))
+                      percentage (if (pos? total-calls)
+                                   (* 100.0 (/ call-count (double total-calls)))
+                                   0.0)
+                      node-record {:name node-name
+                                   :class (or (:class node) "<unknown>")
+                                   :method (or (:method node) "<unknown>")
+                                   :file (:file node)
+                                   :line (:line node)
+                                   :call-count call-count
+                                   :percentage percentage
+                                   :depth depth
+                                   :x0 parent-start
+                                   :x1 (+ parent-start node-width)
+                                   :y0 (* depth row-height)
+                                   :y1 (* (inc depth) row-height)}
+                      children (:children node)
+                      ;; Compute total calls of children for proportional widths
+                      children-total (reduce + 0 (map #(or (:call-count %) 0) children))]
+                  (if (seq children)
+                    (let [child-data (loop [remaining children
+                                            child-start parent-start
+                                            acc []]
+                                       (if (empty? remaining)
+                                         acc
+                                         (let [child (first remaining)
+                                               child-count (or (:call-count child) 0)
+                                               child-width (if (pos? children-total)
+                                                             (* node-width
+                                                                (/ child-count (double children-total)))
+                                                             0)
+                                               child-results (compute-flame-data
+                                                              child
+                                                              child-start
+                                                              child-width
+                                                              (inc depth))]
+                                           (recur (rest remaining)
+                                                  (+ child-start child-width)
+                                                  (into acc child-results)))))]
+                      (cons node-record child-data))
+                    [node-record]))))]
+      (let [flame-data (when call-tree
+                         (vec (compute-flame-data call-tree 0 width 0)))
+            max-depth (if (seq flame-data)
+                        (apply max (map :depth flame-data))
+                        0)
+            computed-height (max height (* (inc max-depth) row-height 1.2))]
+        {:$schema "https://vega.github.io/schema/vega/v5.json"
+         :width width
+         :height computed-height
+         :padding 5
+
+         :data [{:name "flame"
+                 :values (or flame-data [])}]
+
+         :scales [{:name "color"
+                   :type "ordinal"
+                   :domain {:data "flame" :field "class" :sort true}
+                   :range {:scheme "category20"}}]
+
+         :marks [{:type "rect"
+                  :from {:data "flame"}
+                  :encode
+                  {:enter
+                   {:stroke {:value "#fff"}
+                    :strokeWidth {:value 0.5}}
+                   :update
+                   {:x {:field "x0"}
+                    :x2 {:field "x1"}
+                    :y {:field "y0"}
+                    :y2 {:field "y1"}
+                    :fill {:scale "color" :field "class"}
+                    :tooltip
+                    {:signal
+                     (str "{"
+                          "'Method': datum.name, "
+                          "'Calls': datum['call-count'], "
+                          "'Percentage': format(datum.percentage, '.1f') + '%', "
+                          "'Location': datum.file ? (datum.file + ':' + datum.line) : 'unknown'"
+                          "}")}}
+                   :hover
+                   {:fill {:value "#ff6600"}}}}
+                 ;; Labels for wider bars
+                 {:type "text"
+                  :from {:data "flame"}
+                  :encode
+                  {:enter
+                   {:font {:value "sans-serif"}
+                    :fontSize {:value 10}
+                    :align {:value "left"}
+                    :baseline {:value "middle"}
+                    :fill {:value "#000"}}
+                   :update
+                   {:x {:signal "datum.x0 + 2"}
+                    :y {:signal "(datum.y0 + datum.y1) / 2"}
+                    ;; Only show text if bar is wide enough
+                    :text {:signal "(datum.x1 - datum.x0) > 60 ? datum.method : ''"}
+                    :limit {:signal "datum.x1 - datum.x0 - 4"}}}}]}))))

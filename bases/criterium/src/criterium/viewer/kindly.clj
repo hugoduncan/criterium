@@ -13,6 +13,7 @@
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have]]
    [criterium.view :as view]
+   [criterium.viewer.call-graph :as call-graph]
    [criterium.viewer.common-charts :as charts]
    [criterium.viewer.common.allocation :as allocation]
    [criterium.viewer.common.bootstrap :as bootstrap]
@@ -481,6 +482,19 @@
            {:column-names [:metric :median :median-ci-lower :median-ci-upper
                            :mean :mean-ci-lower :mean-ci-upper
                            :p10 :p90]}))))))
+
+;;; Call Tree Views
+
+(defmethod view/call-tree* :kindly
+  [_ {:keys [call-tree-id]} data-map]
+  (let [call-tree-id (or call-tree-id :call-tree)
+        call-tree (get data-map call-tree-id)]
+    (when call-tree
+      (let [total-calls (call-graph/total-call-count call-tree)]
+        (kindly-heading (clojure.core/format "Call Tree (%d total calls)" total-calls))
+        (kindly-vega (charts/call-tree-tree-vega-spec call-tree {}))
+        (kindly-heading "Call Flame Chart")
+        (kindly-vega (charts/call-tree-flame-vega-spec call-tree total-calls {}))))))
 
 ;;; Noop implementations for views not applicable to Kindly output
 
