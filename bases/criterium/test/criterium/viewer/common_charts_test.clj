@@ -1706,7 +1706,8 @@
   (testing "distribution-pdf-layer"
     (testing "produces valid layer for fitted distribution"
       (let [layer (charts/distribution-pdf-layer
-                   :gamma sample-fit-result sample-grid "elapsed-time" false true)]
+                   :gamma sample-fit-result sample-grid "elapsed-time"
+                   identity-transforms false true)]
         (is (map? layer))
         (is (contains? layer :data))
         (is (contains? layer :mark))
@@ -1714,7 +1715,8 @@
 
     (testing "includes PDF density values in data"
       (let [layer (charts/distribution-pdf-layer
-                   :gamma sample-fit-result sample-grid "elapsed-time" false true)
+                   :gamma sample-fit-result sample-grid "elapsed-time"
+                   identity-transforms false true)
             data (get-in layer [:data :values])]
         (is (= 5 (count data)))
         (is (every? #(contains? % "elapsed-time") data))
@@ -1724,33 +1726,38 @@
 
     (testing "uses line mark"
       (let [layer (charts/distribution-pdf-layer
-                   :gamma sample-fit-result sample-grid "elapsed-time" false true)]
+                   :gamma sample-fit-result sample-grid "elapsed-time"
+                   identity-transforms false true)]
         (is (= "line" (get-in layer [:mark :type])))))
 
     (testing "best model has solid line"
       (let [best-result (assoc sample-fit-result :best-model :gamma)
             layer (charts/distribution-pdf-layer
-                   :gamma best-result sample-grid "elapsed-time" false true)]
+                   :gamma best-result sample-grid "elapsed-time"
+                   identity-transforms false true)]
         (is (= [1 0] (get-in layer [:mark :strokeDash])))
         (is (= 2.5 (get-in layer [:mark :strokeWidth])))))
 
     (testing "non-best model has dashed line"
       (let [non-best-result (assoc sample-fit-result :best-model :lognormal)
             layer (charts/distribution-pdf-layer
-                   :gamma non-best-result sample-grid "elapsed-time" false true)]
+                   :gamma non-best-result sample-grid "elapsed-time"
+                   identity-transforms false true)]
         (is (= [4 4] (get-in layer [:mark :strokeDash])))
         (is (= 1.5 (get-in layer [:mark :strokeWidth])))))
 
     (testing "returns nil for failed fit"
       (let [failed-result {:error "Fitting failed"}
             layer (charts/distribution-pdf-layer
-                   :gamma failed-result sample-grid "elapsed-time" false true)]
+                   :gamma failed-result sample-grid "elapsed-time"
+                   identity-transforms false true)]
         (is (nil? layer))))
 
     (testing "returns nil for skipped distribution"
       (let [skipped-result {:skipped :moment-match-failed}
             layer (charts/distribution-pdf-layer
-                   :gamma skipped-result sample-grid "elapsed-time" false true)]
+                   :gamma skipped-result sample-grid "elapsed-time"
+                   identity-transforms false true)]
         (is (nil? layer))))
 
     (testing "works for all distribution types"
@@ -1760,7 +1767,8 @@
                              [:inverse-gaussian {:mu 3.0 :lambda 2.0}]]]
         (let [result {:params params}
               layer (charts/distribution-pdf-layer
-                     dist result sample-grid "elapsed-time" false true)]
+                     dist result sample-grid "elapsed-time"
+                     identity-transforms false true)]
           (is (map? layer)
               (str "Failed for distribution: " dist))
           (is (seq (get-in layer [:data :values]))
@@ -1768,12 +1776,14 @@
 
     (testing "shows legend when show-legend? is true"
       (let [layer (charts/distribution-pdf-layer
-                   :gamma sample-fit-result sample-grid "elapsed-time" false true)]
+                   :gamma sample-fit-result sample-grid "elapsed-time"
+                   identity-transforms false true)]
         (is (some? (get-in layer [:encoding :color :legend])))))
 
     (testing "hides legend when show-legend? is false"
       (let [layer (charts/distribution-pdf-layer
-                   :gamma sample-fit-result sample-grid "elapsed-time" false false)]
+                   :gamma sample-fit-result sample-grid "elapsed-time"
+                   identity-transforms false false)]
         (is (nil? (get-in layer [:encoding :color :legend])))))))
 
 (deftest distribution-pdf-overlay-layers-test
@@ -1787,7 +1797,7 @@
                        :weibull {:params {:shape 1.8 :scale 3.2}}}
                       :best-model :gamma}
             layers (charts/distribution-pdf-overlay-layers
-                    fit-data sample-grid "elapsed-time" false)]
+                    fit-data sample-grid "elapsed-time" identity-transforms false)]
         (is (= 3 (count layers)))
         (is (every? map? layers))))
 
@@ -1797,7 +1807,7 @@
                        :lognormal {:error "Fitting failed"}}
                       :best-model :gamma}
             layers (charts/distribution-pdf-overlay-layers
-                    fit-data sample-grid "elapsed-time" false)]
+                    fit-data sample-grid "elapsed-time" identity-transforms false)]
         (is (= 1 (count layers)))))
 
     (testing "filters out skipped distributions"
@@ -1806,7 +1816,7 @@
                        :inverse-gaussian {:skipped :moment-match-failed}}
                       :best-model :gamma}
             layers (charts/distribution-pdf-overlay-layers
-                    fit-data sample-grid "elapsed-time" false)]
+                    fit-data sample-grid "elapsed-time" identity-transforms false)]
         (is (= 1 (count layers)))))
 
     (testing "returns empty vector when all fail"
@@ -1815,7 +1825,7 @@
                        :lognormal {:skipped :moment-match-failed}}
                       :best-model nil}
             layers (charts/distribution-pdf-overlay-layers
-                    fit-data sample-grid "elapsed-time" false)]
+                    fit-data sample-grid "elapsed-time" identity-transforms false)]
         (is (empty? layers))))))
 
 (deftest distribution-pdf-vega-spec-test

@@ -13,7 +13,8 @@
     lambdaisland/kaocha {:mvn/version "1.87.1366"}
     lambdaisland/kaocha-cloverage {:mvn/version "1.1.89"}
     metosin/malli {:mvn/version "0.20.0"}
-    org.clojure/clojure {:mvn/version "1.12.4"}}
+    org.clojure/clojure {:mvn/version "1.12.4"}
+    org.scicloj/clay {:mvn/version "2.0.3"}}
    :jvm-opts ["-Djdk.attach.allowAttachSelf"]}
   :test {:extra-paths ["bases/criterium/test"
                        "bases/blackhole/test"

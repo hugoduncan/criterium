@@ -1590,10 +1590,11 @@
   "Build a PDF curve layer for a single fitted distribution.
 
   Takes the distribution keyword, fit result, grid (in original units), field-name,
-  scale-by-jacobian? flag, and show-legend? flag.
+  transforms, scale-by-jacobian? flag, and show-legend? flag.
 
   The grid should be in original sample units. The field-name should match the
-  KDE layer's x-field for proper axis sharing.
+  KDE layer's x-field for proper axis sharing. The transforms are applied to
+  x-values for display alignment with the KDE (which may include batch normalization).
 
   When scale-by-jacobian? is true, the PDF is multiplied by x to convert from
   density-per-original-unit to density-per-log-unit (for overlay on log-transformed KDE).
@@ -1602,7 +1603,7 @@
   layer should have show-legend? true to avoid duplicate legends.
 
   Returns a Vega-Lite layer spec or nil if the distribution couldn't be fitted."
-  [dist fit-result grid field-name scale-by-jacobian? show-legend?]
+  [dist fit-result grid field-name transforms scale-by-jacobian? show-legend?]
   (when (and (:params fit-result)
              (not (:error fit-result))
              (not (:skipped fit-result)))
@@ -1616,9 +1617,10 @@
                                   ;; Converts density-per-original-unit to density-per-log-unit
                                   scaled-p (if scale-by-jacobian?
                                              (* p (double x))
-                                             p)]
-                              ;; x is in original units - use same field name as KDE
-                              {field-name x "pdf-density" scaled-p})))
+                                             p)
+                                  ;; Transform x for display to match KDE axis
+                                  display-x (util/transform-sample-> x transforms)]
+                              {field-name display-x "pdf-density" scaled-p})))
                     ;; Filter out non-finite values that can't be encoded in JSON
                     (filterv (fn [pt]
                                (let [p (get pt "pdf-density")
@@ -1643,11 +1645,12 @@
   "Build PDF overlay layers for all fitted distributions.
 
   Takes distribution-fit data for a metric, grid (in original units), field-name,
-  and scale-by-jacobian? flag. When scale-by-jacobian? is true, PDFs are scaled
-  by x to convert to density-per-log-unit for overlay on log-transformed KDE.
+  transforms, and scale-by-jacobian? flag. When scale-by-jacobian? is true, PDFs
+  are scaled by x to convert to density-per-log-unit for overlay on log-transformed KDE.
+  The transforms are applied to x-values for display alignment with the KDE.
 
   Returns a vector of Vega-Lite layer specs for successfully fitted distributions."
-  [fit-data grid field-name scale-by-jacobian?]
+  [fit-data grid field-name transforms scale-by-jacobian?]
   (let [distributions (:distributions fit-data)
         best-model (:best-model fit-data)
         dist-keys (vec (keys distributions))]
@@ -1659,6 +1662,7 @@
              (assoc (get distributions dist) :best-model best-model)
              grid
              field-name
+             transforms
              scale-by-jacobian?
              ;; Only first distribution shows legend to avoid duplicates
              (zero? idx))))
@@ -1710,7 +1714,12 @@
         kde-source-id (:source-id kde-map)
         scale-by-jacobian? (= kde-source-id :log-samples)
         hist-transforms (when histogram-id
-                          (util/get-transforms data-map histogram-id))]
+                          (util/get-transforms data-map histogram-id))
+        ;; Distribution fit transforms differ from KDE transforms when KDE is on log-samples
+        ;; KDE: log-space → exp → /batch-size (for log-samples)
+        ;; Fit: original samples → /batch-size (no exp since fit uses original samples)
+        fit-transforms (when distribution-fit-map
+                         (util/get-transforms data-map distribution-fit-id))]
     {:data {:values []}
      :resolve {:scale {:x "independent"
                        :y "independent"
@@ -1775,12 +1784,15 @@
                          ;; Add distribution PDF overlays using original-unit grid
                          ;; Use same field name as KDE for shared x-axis
                          ;; Scale by Jacobian if KDE is on log-transformed data
+                         ;; Apply fit-transforms (not kde-transforms) to x-values since
+                         ;; distribution fit uses original samples, not log-samples
                          ;; Only add overlays when both fit-data and pdf-grid exist
                          (and fit-data (seq pdf-grid))
                          (into (distribution-pdf-overlay-layers
                                 fit-data
                                 pdf-grid
                                 field-name
+                                fit-transforms
                                 scale-by-jacobian?)))}))}))))
       metric-configs)}))
 
