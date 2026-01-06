@@ -255,7 +255,7 @@
         (kindly-heading heading)
         (kindly-table rows {:column-names col-headers})
         (kindly-vega-lite
-         (charts/single-point-bar-chart-spec extract {:width chart-width
+         (charts/single-point-box-chart-spec extract {:width chart-width
                                                       :height chart-height})))
 
       :multi-point-line
@@ -296,7 +296,7 @@
       (case (viewer-common/comparison-visualization-strategy comparison)
         :single-point-bar
         (kindly-vega-lite
-         (charts/comparison-bar-chart-spec comparison {:width chart-width
+         (charts/comparison-box-chart-spec comparison {:width chart-width
                                                        :height chart-height}))
         :multi-point-line
         (kindly-vega-lite

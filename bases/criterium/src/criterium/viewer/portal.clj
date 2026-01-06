@@ -250,7 +250,7 @@
         (heading heading-text)
         (portal-table rows)
         (portal-vega-lite
-         (charts/single-point-bar-chart-spec extract {:height 400})))
+         (charts/single-point-box-chart-spec extract {:height 400})))
 
       :multi-point-line
       (when-let [table-data (viewer-common/prepare-domain-extract-table
@@ -287,7 +287,7 @@
       (case (viewer-common/comparison-visualization-strategy comparison)
         :single-point-bar
         (portal-vega-lite
-         (charts/comparison-bar-chart-spec comparison {:height 400}))
+         (charts/comparison-box-chart-spec comparison {:height 400}))
         :multi-point-line
         (portal-vega-lite
          (charts/comparison-line-chart-spec comparison {:height 400}))
