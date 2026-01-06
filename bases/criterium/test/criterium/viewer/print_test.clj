@@ -111,12 +111,10 @@
 
 (deftest print-booststrap-stat-test
   ;; Tests print-bootstrap-stat function for bootstrap statistics display.
-  ;; Covers: min, mean, median with CIs, 3σ range, and spread (10th-90th percentile).
+  ;; Covers: median with CI (first), mean with CI, and spread (10th-90th percentile).
   (testing "print-bootstrap-stat"
-    (testing "without quantiles only prints min, mean, and 3σ"
-      (is (= ["Elapsed Time min: 16.0 ns CI [9.00 25.0] (0.050 0.950)"
-              "Elapsed Time mean: 100 ns CI [95.0 105] (0.050 0.950)"
-              "Elapsed Time 3σ: [76.0 124] ns"]
+    (testing "without quantiles only prints mean"
+      (is (= ["Elapsed Time mean: 100 ns CI [95.0 105] (0.050 0.950)"]
              (trimmed-lines
               (with-out-str
                 (print/print-bootstrap-stat
@@ -129,24 +127,10 @@
                   :variance {:point-estimate 16.0
                              :estimate-quantiles
                              [{:value 9.0 :alpha 0.05}
-                              {:value 25.0 :alpha 0.95}]}
-                  :min-val {:point-estimate 16.0
-                            :estimate-quantiles
-                            [{:value 9.0 :alpha 0.05}
-                             {:value 25.0 :alpha 0.95}]}
-                  :mean-plus-3sigma {:point-estimate 124.0
-                                     :estimate-quantiles
-                                     [{:value 9.0 :alpha 0.05}
-                                      {:value 25.0 :alpha 0.95}]}
-                  :mean-minus-3sigma {:point-estimate 76.0
-                                      :estimate-quantiles
-                                      [{:value 9.0 :alpha 0.05}
-                                       {:value 25.0 :alpha 0.95}]}}))))))
-    (testing "with quantiles prints median and spread"
-      (is (= ["Elapsed Time min: 80.0 ns CI [75.0 85.0] (0.025 0.975)"
+                              {:value 25.0 :alpha 0.95}]}}))))))
+    (testing "with quantiles prints median first, then mean, then spread"
+      (is (= ["Elapsed Time median: 98.0 ns CI [93.0 103] (0.025 0.975)"
               "Elapsed Time mean: 100 ns CI [95.0 105] (0.025 0.975)"
-              "Elapsed Time median: 98.0 ns CI [93.0 103] (0.025 0.975)"
-              "Elapsed Time 3σ: [76.0 124] ns"
               "Elapsed Time spread: [85.0 115] ns (10th-90th percentile)"]
              (trimmed-lines
               (with-out-str
@@ -161,18 +145,6 @@
                              :estimate-quantiles
                              [{:value 9.0 :alpha 0.025}
                               {:value 25.0 :alpha 0.975}]}
-                  :min-val {:point-estimate 80.0
-                            :estimate-quantiles
-                            [{:value 75.0 :alpha 0.025}
-                             {:value 85.0 :alpha 0.975}]}
-                  :mean-plus-3sigma {:point-estimate 124.0
-                                     :estimate-quantiles
-                                     [{:value 9.0 :alpha 0.025}
-                                      {:value 25.0 :alpha 0.975}]}
-                  :mean-minus-3sigma {:point-estimate 76.0
-                                      :estimate-quantiles
-                                      [{:value 9.0 :alpha 0.025}
-                                       {:value 25.0 :alpha 0.975}]}
                   :quantiles
                   {0.1 {:point-estimate 85.0
                         :estimate-quantiles
@@ -187,10 +159,8 @@
                         [{:value 110.0 :alpha 0.025}
                          {:value 120.0 :alpha 0.975}]}}}))))))
     (testing "via bootstrap pipeline with degenerate data"
-      (is (= ["Elapsed Time min: 1.00 ns CI [1.00 1.00] (0.025 0.975)"
+      (is (= ["Elapsed Time median: 1.00 ns CI [1.00 1.00] (0.025 0.975)"
               "Elapsed Time mean: 1.00 ns CI [1.00 1.00] (0.025 0.975)"
-              "Elapsed Time median: 1.00 ns CI [1.00 1.00] (0.025 0.975)"
-              "Elapsed Time 3σ: [1.00 1.00] ns"
               "Elapsed Time spread: [1.00 1.00] ns (10th-90th percentile)"]
              (let [data-map
                    {:samples

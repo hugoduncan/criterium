@@ -104,43 +104,24 @@
         (print-event-stats metrics-defs event-stats)))))
 
 (defn print-bootstrap-stat
+  "Print bootstrap statistics for a metric.
+
+  Output format:
+  1. Median with 95% CI
+  2. Mean with 95% CI
+  3. p10-p90 percentile spread"
   [metric
-   {:keys [mean
-           mean-minus-3sigma
-           mean-plus-3sigma
-           quantiles]
-    minval :min-val
-    :as stat}]
-  (assert minval stat)
+   {:keys [mean quantiles]}]
   (let [{:keys [dimension label]} metric
         [scale units] (format/scale
                        dimension
                        (* (:scale metric) (:point-estimate mean)))
-        min-quantiles (:estimate-quantiles minval)
         mean-ci (:estimate-quantiles mean)
         median-est (get quantiles 0.5)
         median-ci (:estimate-quantiles median-est)
         p10-est (get quantiles 0.1)
         p90-est (get quantiles 0.9)
         scale (* (:scale metric) scale)]
-    (println
-     (format "%36s: %.3g %s CI [%.3g %.3g] (%.3f %.3f)"
-             (str label " min")
-             (* scale (:point-estimate minval))
-             units
-             (* scale (-> min-quantiles first :value))
-             (* scale (-> min-quantiles second :value))
-             (-> min-quantiles first :alpha)
-             (-> min-quantiles second :alpha)))
-    (println
-     (format "%36s: %.3g %s CI [%.3g %.3g] (%.3f %.3f)"
-             (str label " mean")
-             (* scale (:point-estimate mean))
-             units
-             (* scale (-> mean-ci first :value))
-             (* scale (-> mean-ci second :value))
-             (-> mean-ci first :alpha)
-             (-> mean-ci second :alpha)))
     (when (and median-est (seq median-ci))
       (println
        (format "%36s: %.3g %s CI [%.3g %.3g] (%.3f %.3f)"
@@ -152,11 +133,14 @@
                (-> median-ci first :alpha)
                (-> median-ci second :alpha))))
     (println
-     (format "%36s: [%.3g %.3g] %s"
-             (str label " 3σ")
-             (* scale (:point-estimate mean-minus-3sigma))
-             (* scale (:point-estimate mean-plus-3sigma))
-             units))
+     (format "%36s: %.3g %s CI [%.3g %.3g] (%.3f %.3f)"
+             (str label " mean")
+             (* scale (:point-estimate mean))
+             units
+             (* scale (-> mean-ci first :value))
+             (* scale (-> mean-ci second :value))
+             (-> mean-ci first :alpha)
+             (-> mean-ci second :alpha)))
     (when (and p10-est p90-est)
       (println
        (format "%36s: [%.3g %.3g] %s (10th-90th percentile)"

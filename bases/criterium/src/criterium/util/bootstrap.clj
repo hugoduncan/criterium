@@ -79,7 +79,10 @@
   (stats/scale-bootstrap-stat scale-f stat))
 
 (defn bootstrap-stats-for
-  "Compute bootstrap statistics for samples with given options and transforms."
+  "Compute bootstrap statistics for samples with given options and transforms.
+
+  Computes mean, variance, and quantiles with BCa confidence intervals.
+  Does not include min-val, max-val, or 3-sigma bounds."
   [samples opts transforms]
   {:pre [(:quantiles opts)
          (:estimate-quantiles opts)]}
@@ -96,7 +99,7 @@
         scale-f   (partial scale-bootstrap-stat scale-1)
         ks        (keys stats/stats-fn-map)]
     (-> (zipmap ks stats)
-        (stats/assoc-bootstrap-mean-3-sigma)
+        (dissoc :min-val :max-val)
         (stats/scale-bootstrap-values scale-f)
         (assoc :quantiles
                (zipmap quantiles (map scale-f (drop (count ks) stats)))))))
