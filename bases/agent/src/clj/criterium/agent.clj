@@ -140,6 +140,10 @@
   Note: Method tracing captures ALL method calls across all threads.
   The call tree represents the aggregated call graph, not per-thread traces.
 
+  Note: The body is evaluated twice - once for warmup (untraced) to trigger
+  lazy initialization, then once while tracing. The returned result is from
+  the traced execution.
+
   Warning: Method tracing has significant overhead. Use for profiling and
   debugging, not for production benchmarks."
   [& body]
