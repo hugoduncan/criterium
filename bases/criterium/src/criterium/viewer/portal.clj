@@ -3,7 +3,6 @@
   (:refer-clojure :exclude [flush])
   (:require
    [criterium.metric :as metric]
-   [criterium.util.format :as format]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have]]
    [criterium.view :as view]
@@ -216,42 +215,6 @@
              (util/metric->values quant-samples)
              (first metric-configs))]))}])})))
 
-(defn- format-bootstrap-estimate-portal
-  "Format a BcaEstimate for display, returning a map with :value and :ci keys.
-  Applies unit scaling based on metric-config dimension and scale."
-  [estimate metric-config]
-  (when estimate
-    (let [{:keys [dimension scale]} metric-config
-          quantiles (:estimate-quantiles estimate)
-          ci-lower (when (seq quantiles) (-> quantiles first :value))
-          ci-upper (when (seq quantiles) (-> quantiles second :value))
-          point-est (:point-estimate estimate)
-          fmt-val (fn [v]
-                    (when v
-                      (format/format-value dimension (* scale v))))]
-      {:value (fmt-val point-est)
-       :ci-lower (fmt-val ci-lower)
-       :ci-upper (fmt-val ci-upper)})))
-
-(defn- bootstrap-stat-row-portal
-  "Create a row for the bootstrap stats table.
-  Column order: median first, then mean, then percentile spread."
-  [metric-config stat]
-  (let [{:keys [mean quantiles]} stat
-        mean-fmt (format-bootstrap-estimate-portal mean metric-config)
-        p10 (format-bootstrap-estimate-portal (get quantiles 0.1) metric-config)
-        p50 (format-bootstrap-estimate-portal (get quantiles 0.5) metric-config)
-        p90 (format-bootstrap-estimate-portal (get quantiles 0.9) metric-config)]
-    {:metric (:label metric-config)
-     :median (:value p50)
-     :median-ci-lower (:ci-lower p50)
-     :median-ci-upper (:ci-upper p50)
-     :mean (:value mean-fmt)
-     :mean-ci-lower (:ci-lower mean-fmt)
-     :mean-ci-upper (:ci-upper mean-fmt)
-     :p10 (:value p10)
-     :p90 (:value p90)}))
-
 (defmethod view/bootstrap-stats* :portal
   [_ {:keys [bootstrap-stats-id]} data-map]
   (let [bootstrap-stats-id (or bootstrap-stats-id :bootstrap-stats)
@@ -266,7 +229,7 @@
         (for [m metric-configs
               :let [stat (get-in bootstrap (:path m))]
               :when stat]
-          (bootstrap-stat-row-portal m stat)))))))
+          (viewer-common/bootstrap-stat-row m stat)))))))
 
 (defmethod view/final-gc-warnings* :portal [_ _ _])
 
