@@ -236,7 +236,6 @@
           :event-stats
           :outlier-counts
           :collect-plan
-          [:histogram {:stats-id :log-stats}]
           :allocation-summary
           :allocation-hotspots
           :allocation-by-type]

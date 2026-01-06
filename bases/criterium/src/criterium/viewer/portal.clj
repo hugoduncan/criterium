@@ -363,11 +363,14 @@
 
           ;; Charts - only if KDE data is available
           (when kde-map
-            (heading "Distribution PDF Overlay")
+            (heading "Distribution PDF")
             (portal-vega-lite
-             (charts/distribution-pdf-vega-spec data-map view {:height 400}))
+             (charts/distribution-pdf-vega-spec
+              data-map
+              (assoc view :histogram-id :histograms)
+              {:height 400}))
 
-            (heading "Distribution CDF Overlay")
+            (heading "Distribution CDF")
             (portal-vega-lite
              (charts/distribution-cdf-vega-spec data-map view {:height 400}))
 

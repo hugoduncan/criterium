@@ -1713,7 +1713,7 @@
     {:data {:values []}
      :resolve {:scale {:x "independent"
                        :y "independent"
-                       :color "shared"}}
+                       :color "independent"}}
      :vconcat
      (mapv
       (fn [metric-config]
@@ -1738,7 +1738,7 @@
           (when kde-data
             (merge
              chart-options
-             {:resolve {:scale {:x "shared" :y "independent" :color "shared"}}
+             {:resolve {:scale {:x "shared" :y "independent" :color "independent"}}
               :layer
               (cond-> []
                 ;; Add histogram bars if available

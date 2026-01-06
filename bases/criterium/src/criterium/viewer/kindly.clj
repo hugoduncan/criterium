@@ -641,12 +641,15 @@
 
           ;; Charts - only if KDE data is available
           (when kde-map
-            (kindly-heading "Distribution PDF Overlay")
+            (kindly-heading "Distribution PDF")
             (kindly-vega-lite
-             (charts/distribution-pdf-vega-spec data-map view {:width chart-width
-                                                               :height chart-height}))
+             (charts/distribution-pdf-vega-spec
+              data-map
+              (assoc view :histogram-id :histograms)
+              {:width chart-width
+               :height chart-height}))
 
-            (kindly-heading "Distribution CDF Overlay")
+            (kindly-heading "Distribution CDF")
             (kindly-vega-lite
              (charts/distribution-cdf-vega-spec data-map view {:width chart-width
                                                                :height chart-height}))
