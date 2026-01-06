@@ -1589,21 +1589,36 @@
 (defn distribution-pdf-layer
   "Build a PDF curve layer for a single fitted distribution.
 
-  Takes the distribution keyword, fit result, KDE grid, and transforms.
+  Takes the distribution keyword, fit result, grid (in original units), transforms,
+  and scale-by-jacobian? flag.
+
+  When scale-by-jacobian? is true, the PDF is multiplied by x to convert from
+  density-per-original-unit to density-per-log-unit (for overlay on log-transformed KDE).
+
   Returns a Vega-Lite layer spec or nil if the distribution couldn't be fitted."
-  [dist fit-result grid transforms]
+  [dist fit-result grid transforms scale-by-jacobian?]
   (when (and (:params fit-result)
              (not (:error fit-result))
              (not (:skipped fit-result)))
     (let [pdf-fn (make-pdf-fn dist (:params fit-result))
           label (get distribution-labels dist (name dist))
           is-best? (= dist (:best-model fit-result))
-          data (mapv (fn [x]
-                       (let [tx (util/transform-sample-> x transforms)
-                             ;; PDF needs to be evaluated at original x, but displayed at transformed x
-                             p (pdf-fn x)]
-                         {"x" tx "pdf-density" p}))
-                     grid)]
+          data (->> grid
+                    (mapv (fn [x]
+                            (let [tx (util/transform-sample-> x transforms)
+                                  p (pdf-fn x)
+                                  ;; Scale by Jacobian if KDE is on log-transformed data
+                                  ;; Converts density-per-original-unit to density-per-log-unit
+                                  scaled-p (if scale-by-jacobian?
+                                             (* p (double x))
+                                             p)]
+                              {"x" tx "pdf-density" scaled-p})))
+                    ;; Filter out non-finite values that can't be encoded in JSON
+                    (filterv (fn [pt]
+                               (let [p (get pt "pdf-density")
+                                     x (get pt "x")]
+                                 (and (Double/isFinite p) (not (Double/isNaN p))
+                                      (Double/isFinite x) (not (Double/isNaN x)))))))]
       {:data {:values data}
        :transform [{:calculate (str "'" label "'") :as "distribution"}]
        :mark {:type "line"
@@ -1619,9 +1634,12 @@
 (defn distribution-pdf-overlay-layers
   "Build PDF overlay layers for all fitted distributions.
 
-  Takes distribution-fit data for a metric, KDE grid, best-model keyword, and transforms.
+  Takes distribution-fit data for a metric, grid (in original units), transforms,
+  and scale-by-jacobian? flag. When scale-by-jacobian? is true, PDFs are scaled
+  by x to convert to density-per-log-unit for overlay on log-transformed KDE.
+
   Returns a vector of Vega-Lite layer specs for successfully fitted distributions."
-  [fit-data grid transforms]
+  [fit-data grid transforms scale-by-jacobian?]
   (let [distributions (:distributions fit-data)
         best-model (:best-model fit-data)]
     (->> (keys distributions)
@@ -1630,7 +1648,8 @@
                   dist
                   (assoc (get distributions dist) :best-model best-model)
                   grid
-                  transforms)))
+                  transforms
+                  scale-by-jacobian?)))
          (filterv some?))))
 
 (defn distribution-pdf-vega-spec
@@ -1644,6 +1663,11 @@
     :distribution-fit-id - Key for distribution fit data (default :distribution-fit)
     :histogram-id - Optional key for histogram data to overlay
 
+  Note: The distribution fit is done on original samples (not log-transformed),
+  so we generate a grid from sample range for PDF evaluation, then transform
+  for display. The PDF values are also scaled by the Jacobian to account for
+  the log transform on the display axis.
+
   Returns the Vega-Lite spec without viewer-specific wrapping."
   [data-map view chart-options]
   (let [kde-id (or (:kde-id view) :kde)
@@ -1653,6 +1677,13 @@
         distribution-fit-map (get data-map distribution-fit-id)
         histograms-map (when histogram-id
                          (util/lookup-data data-map histogram-id))
+        ;; Get samples in original units (distribution fit source) - only needed
+        ;; when distribution-fit data exists
+        fit-source-id (when distribution-fit-map
+                        (or (:source-id distribution-fit-map) :samples))
+        samples-map (when fit-source-id
+                      (util/lookup-data data-map fit-source-id))
+        metric->values (when samples-map (util/metric->values samples-map))
         kdes (:kdes kde-map)
         fits (when distribution-fit-map (:fits distribution-fit-map))
         metrics-defs (-> (:metrics-defs kde-map)
@@ -1660,6 +1691,12 @@
                           (metric/type-pred :quantitative)))
         metric-configs (metric/all-metric-configs metrics-defs)
         kde-transforms (util/get-transforms data-map kde-id)
+        ;; Use samples transforms for PDF overlay since distribution fit is on original samples
+        samples-transforms (when fit-source-id
+                             (util/get-transforms data-map fit-source-id))
+        ;; Check if KDE is on log-transformed data - if so, PDF needs Jacobian scaling
+        kde-source-id (:source-id kde-map)
+        scale-by-jacobian? (= kde-source-id :log-samples)
         hist-transforms (when histogram-id
                           (util/get-transforms data-map histogram-id))]
     {:data {:values []}
@@ -1669,11 +1706,24 @@
      :vconcat
      (mapv
       (fn [metric-config]
-        (let [kde-data (get kdes (:path metric-config))
-              fit-data (when fits (get fits (:path metric-config)))
+        (let [path (:path metric-config)
+              kde-data (get kdes path)
+              fit-data (when fits (get fits path))
               histogram (when histograms-map
-                          (get (:histograms histograms-map)
-                               (:path metric-config)))]
+                          (get (:histograms histograms-map) path))
+              ;; Generate grid from original samples for PDF evaluation
+              samples (get metric->values path)
+              sorted-samples (when (seq samples) (sort samples))
+              min-val (when sorted-samples (first sorted-samples))
+              max-val (when sorted-samples (last sorted-samples))
+              range-val (when (and min-val max-val)
+                          (- (double max-val) (double min-val)))
+              ;; Grid in original units with slight extension
+              pdf-grid (when range-val
+                         (let [grid-min (- (double min-val) (* 0.05 range-val))
+                               grid-max (+ (double max-val) (* 0.05 range-val))
+                               step (/ (- grid-max grid-min) 200.0)]
+                           (vec (range (max grid-min 1e-10) grid-max step))))]
           (when kde-data
             (merge
              chart-options
@@ -1699,12 +1749,16 @@
                          true
                          (conj (kde-density-layer
                                 kde-data metric-config kde-transforms))
-                         ;; Add distribution PDF overlays
-                         fit-data
+                         ;; Add distribution PDF overlays using original-unit grid
+                         ;; Use samples transforms (not kde transforms) since fit is on original data
+                         ;; Scale by Jacobian if KDE is on log-transformed data
+                         ;; Only add overlays when both fit-data and pdf-grid exist
+                         (and fit-data pdf-grid)
                          (into (distribution-pdf-overlay-layers
                                 fit-data
-                                (:grid kde-data)
-                                kde-transforms)))}))}))))
+                                pdf-grid
+                                samples-transforms
+                                scale-by-jacobian?)))}))}))))
       metric-configs)}))
 
 ;;; Distribution CDF overlay charts
@@ -1719,6 +1773,13 @@
     :weibull (si/weibull-cdf (:shape params) (:scale params))
     nil))
 
+(def ^:private cdf-color-scale
+  "Vega-Lite color scale for CDF overlay including ECDF and fitted distributions."
+  {:domain (into ["ECDF"]
+                 (mapv #(get distribution-labels % (name %)) distribution-order))
+   :range (into ["#333333"]
+                (mapv #(get distribution-colors % "#999999") distribution-order))})
+
 (defn ecdf-layer
   "Build an ECDF (empirical cumulative distribution function) step layer.
 
@@ -1731,22 +1792,21 @@
         ;; For step function, we need points at each sample value
         data (mapv (fn [i x]
                      {"x" (util/transform-sample-> x transforms)
-                      "ecdf" (/ (double (inc i)) n)})
+                      "cdf" (/ (double (inc i)) n)})
                    (range n)
                    sorted-samples)]
     {:data {:values data}
-     :transform [{:calculate "'ECDF'" :as "layer"}]
+     :transform [{:calculate "'ECDF'" :as "distribution"}]
      :mark {:type "line"
             :interpolate "step-after"
             :strokeWidth 2}
      :encoding {:x {:field "x" :type "quantitative"
                     :scale {:zero false}}
-                :y {:field "ecdf" :type "quantitative"
+                :y {:field "cdf" :type "quantitative"
                     :title "Cumulative Probability"
                     :scale {:domain [0 1]}}
-                :color {:field "layer" :type "nominal"
-                        :scale {:domain ["ECDF"]
-                                :range ["#333333"]}
+                :color {:field "distribution" :type "nominal"
+                        :scale cdf-color-scale
                         :legend {:orient "top-right" :title "Distribution"}}}}))
 
 (defn distribution-cdf-layer
@@ -1761,12 +1821,16 @@
     (let [cdf-fn (make-cdf-fn dist (:params fit-result))
           label (get distribution-labels dist (name dist))
           is-best? (= dist (:best-model fit-result))
-          data (mapv (fn [x]
-                       (let [tx (util/transform-sample-> x transforms)
-                             ;; CDF needs to be evaluated at original x
-                             p (cdf-fn x)]
-                         {"x" tx "cdf" p}))
-                     grid)]
+          data (->> grid
+                    (mapv (fn [x]
+                            (let [tx (util/transform-sample-> x transforms)
+                                  ;; CDF needs to be evaluated at original x
+                                  p (cdf-fn x)]
+                              {"x" tx "cdf" p})))
+                    ;; Filter out non-finite values that can't be encoded in JSON
+                    (filterv (fn [pt]
+                               (let [p (get pt "cdf")]
+                                 (and (Double/isFinite p) (not (Double/isNaN p)))))))]
       {:data {:values data}
        :transform [{:calculate (str "'" label "'") :as "distribution"}]
        :mark {:type "line"
@@ -1775,9 +1839,11 @@
        :encoding {:x {:field "x" :type "quantitative"
                       :scale {:zero false}}
                   :y {:field "cdf" :type "quantitative"}
+                  ;; Use unified color scale that includes ECDF, omit legend
+                  ;; since ECDF layer provides the combined legend
                   :color {:field "distribution" :type "nominal"
-                          :scale distribution-color-scale
-                          :legend {:orient "top-right" :title "Fitted Distributions"}}}})))
+                          :scale cdf-color-scale
+                          :legend nil}}})))
 
 (defn distribution-cdf-overlay-layers
   "Build CDF overlay layers for all fitted distributions.
@@ -1871,19 +1937,26 @@
   - observed: the actual sample value
 
   If data follows the theoretical distribution, points should lie along y=x.
+  Points with non-finite theoretical values are filtered out.
 
   Returns a vector of {\"theoretical\" x \"observed\" y} maps."
   [samples quantile-fn transforms]
   (let [sorted-samples (vec (sort samples))
         n (count sorted-samples)]
-    (mapv (fn [i x]
-            (let [;; Hazen plotting position: (i - 0.5) / n
-                  p (/ (- (double (inc i)) 0.5) (double n))
-                  theoretical (quantile-fn p)]
-              {"theoretical" (util/transform-sample-> theoretical transforms)
-               "observed" (util/transform-sample-> x transforms)}))
-          (range n)
-          sorted-samples)))
+    (->> (mapv (fn [i x]
+                 (let [;; Hazen plotting position: (i - 0.5) / n
+                       p (/ (- (double (inc i)) 0.5) (double n))
+                       theoretical (quantile-fn p)]
+                   {"theoretical" (util/transform-sample-> theoretical transforms)
+                    "observed" (util/transform-sample-> x transforms)}))
+               (range n)
+               sorted-samples)
+         ;; Filter out non-finite values that can't be encoded in JSON
+         (filterv (fn [pt]
+                    (let [t (get pt "theoretical")
+                          o (get pt "observed")]
+                      (and (Double/isFinite t) (not (Double/isNaN t))
+                           (Double/isFinite o) (not (Double/isNaN o)))))))))
 
 (defn distribution-qq-layer
   "Build a Q-Q scatter layer for a single fitted distribution.
@@ -1954,20 +2027,20 @@
                   transforms)))
          (filterv some?))))
 
-(defn- qq-layers-data-range
-  "Extract the min and max values across all Q-Q layer data points.
+(defn- qq-observed-data-range
+  "Extract the min and max observed values from Q-Q layer data points.
 
-  Returns [min-val max-val] covering both theoretical and observed values
-  across all distribution layers, ensuring the reference line spans the
-  full data range."
+  Returns [min-val max-val] covering only the observed (sample) values.
+  The reference line should span the observed range, not the theoretical
+  quantiles which can be extreme for poorly-fitting distributions."
   [qq-layers]
-  (let [all-values (for [layer qq-layers
-                         point (get-in layer [:data :values])
-                         v [(get point "theoretical") (get point "observed")]
-                         :when (and v (not (Double/isNaN v)) (Double/isFinite v))]
-                     v)]
-    (when (seq all-values)
-      [(apply min all-values) (apply max all-values)])))
+  (let [observed-values (for [layer qq-layers
+                              point (get-in layer [:data :values])
+                              :let [v (get point "observed")]
+                              :when (and v (not (Double/isNaN v)) (Double/isFinite v))]
+                          v)]
+    (when (seq observed-values)
+      [(apply min observed-values) (apply max observed-values)])))
 
 (defn distribution-qq-vega-spec
   "Build a complete Vega-Lite spec for Q-Q plot with all fitted distributions overlaid.
@@ -2007,24 +2080,39 @@
               samples (get metric->values path)
               fit-data (when fits (get fits path))]
           (when (and (seq samples) fit-data)
-            ;; Generate Q-Q layers first to determine full data range
+            ;; Generate Q-Q layers first to determine observed data range
             (let [qq-layers (distribution-qq-overlay-layers
                              fit-data
                              samples
                              samples-transforms)
-                  ;; Compute range from both theoretical and observed values
-                  [min-val max-val] (qq-layers-data-range qq-layers)]
-              (merge
-               chart-options
-               {:resolve {:scale {:x "shared" :y "shared"}}
-                :layer
-                (cond-> []
-                  ;; Add reference line first (background)
-                  (and min-val max-val)
-                  (conj (qq-reference-line-layer min-val max-val))
-                  ;; Add distribution Q-Q scatter layers
-                  (seq qq-layers)
-                  (into qq-layers))})))))
+                  ;; Compute range from observed values only (not theoretical)
+                  ;; to avoid extreme axis extension from poorly-fitting distributions
+                  [min-val max-val] (qq-observed-data-range qq-layers)]
+              (let [;; Calculate axis domain with small margin
+                    margin (when (and min-val max-val)
+                             (* 0.05 (- (double max-val) (double min-val))))
+                    domain-min (when margin (- (double min-val) margin))
+                    domain-max (when margin (+ (double max-val) margin))]
+                (merge
+                 chart-options
+                 {:resolve {:scale {:x "shared" :y "shared"}}
+                  :layer
+                  (cond-> []
+                    ;; Add reference line first (background)
+                    (and min-val max-val)
+                    (conj (qq-reference-line-layer min-val max-val))
+                    ;; Add distribution Q-Q scatter layers with constrained axes
+                    (seq qq-layers)
+                    (into (mapv
+                           (fn [layer]
+                             (-> layer
+                                 ;; Constrain x-axis (theoretical) to observed range
+                                 (assoc-in [:encoding :x :scale :domain]
+                                           [domain-min domain-max])
+                                 ;; Constrain y-axis (observed) to observed range
+                                 (assoc-in [:encoding :y :scale :domain]
+                                           [domain-min domain-max])))
+                           qq-layers)))}))))))
       metric-configs)}))
 
 (defn treemap-vega-spec

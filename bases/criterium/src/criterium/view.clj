@@ -38,6 +38,7 @@
 (def-multi-view samples)
 (def-multi-view stats)
 (def-multi-view shape-stats)
+(def-multi-view distribution-fit)
 
 ;;; Modal Analysis Views
 
@@ -87,6 +88,7 @@
 (defmethod samples* :none [_ _ _])
 (defmethod stats* :none [_ _ _])
 (defmethod shape-stats* :none [_ _ _])
+(defmethod distribution-fit* :none [_ _ _])
 
 ;; Modal Analysis Null Viewer
 (defmethod multimodal-warning* :none [_ _ _])

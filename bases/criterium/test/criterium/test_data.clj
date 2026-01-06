@@ -337,11 +337,20 @@
       :source-id :samples}}))
 
 (defn distribution-fit-data-map
-  "Create a data-map with KDE and distribution-fit data for testing PDF overlays.
-  Includes successfully fitted distributions and one that was skipped."
+  "Create a data-map with KDE, samples and distribution-fit data for testing
+  PDF overlays. Includes successfully fitted distributions and one that was
+  skipped."
   []
   (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])]
-    {:kde {:type :criterium/kde
+    {:samples
+     {:type :criterium/metrics-samples
+      :metrics-defs metrics-defs
+      :metric->values {[:elapsed-time] [1.0 1.5 2.0 2.5 3.0 3.5 4.0 4.5 5.0]}
+      :transform {:sample-> identity :->sample identity}
+      :batch-size 1
+      :eval-count 9
+      :num-samples 9}
+     :kde {:type :criterium/kde
            :metrics-defs metrics-defs
            :transform {:sample-> identity :->sample identity}
            :kdes {[:elapsed-time]

@@ -1706,7 +1706,7 @@
   (testing "distribution-pdf-layer"
     (testing "produces valid layer for fitted distribution"
       (let [layer (charts/distribution-pdf-layer
-                   :gamma sample-fit-result sample-grid identity-transforms)]
+                   :gamma sample-fit-result sample-grid identity-transforms false)]
         (is (map? layer))
         (is (contains? layer :data))
         (is (contains? layer :mark))
@@ -1714,7 +1714,7 @@
 
     (testing "includes PDF density values in data"
       (let [layer (charts/distribution-pdf-layer
-                   :gamma sample-fit-result sample-grid identity-transforms)
+                   :gamma sample-fit-result sample-grid identity-transforms false)
             data (get-in layer [:data :values])]
         (is (= 5 (count data)))
         (is (every? #(contains? % "x") data))
@@ -1724,33 +1724,33 @@
 
     (testing "uses line mark"
       (let [layer (charts/distribution-pdf-layer
-                   :gamma sample-fit-result sample-grid identity-transforms)]
+                   :gamma sample-fit-result sample-grid identity-transforms false)]
         (is (= "line" (get-in layer [:mark :type])))))
 
     (testing "best model has solid line"
       (let [best-result (assoc sample-fit-result :best-model :gamma)
             layer (charts/distribution-pdf-layer
-                   :gamma best-result sample-grid identity-transforms)]
+                   :gamma best-result sample-grid identity-transforms false)]
         (is (= [1 0] (get-in layer [:mark :strokeDash])))
         (is (= 2.5 (get-in layer [:mark :strokeWidth])))))
 
     (testing "non-best model has dashed line"
       (let [non-best-result (assoc sample-fit-result :best-model :lognormal)
             layer (charts/distribution-pdf-layer
-                   :gamma non-best-result sample-grid identity-transforms)]
+                   :gamma non-best-result sample-grid identity-transforms false)]
         (is (= [4 4] (get-in layer [:mark :strokeDash])))
         (is (= 1.5 (get-in layer [:mark :strokeWidth])))))
 
     (testing "returns nil for failed fit"
       (let [failed-result {:error "Fitting failed"}
             layer (charts/distribution-pdf-layer
-                   :gamma failed-result sample-grid identity-transforms)]
+                   :gamma failed-result sample-grid identity-transforms false)]
         (is (nil? layer))))
 
     (testing "returns nil for skipped distribution"
       (let [skipped-result {:skipped :moment-match-failed}
             layer (charts/distribution-pdf-layer
-                   :gamma skipped-result sample-grid identity-transforms)]
+                   :gamma skipped-result sample-grid identity-transforms false)]
         (is (nil? layer))))
 
     (testing "works for all distribution types"
@@ -1760,7 +1760,7 @@
                              [:inverse-gaussian {:mu 3.0 :lambda 2.0}]]]
         (let [result {:params params}
               layer (charts/distribution-pdf-layer
-                     dist result sample-grid identity-transforms)]
+                     dist result sample-grid identity-transforms false)]
           (is (map? layer)
               (str "Failed for distribution: " dist))
           (is (seq (get-in layer [:data :values]))
@@ -1777,7 +1777,7 @@
                        :weibull {:params {:shape 1.8 :scale 3.2}}}
                       :best-model :gamma}
             layers (charts/distribution-pdf-overlay-layers
-                    fit-data sample-grid identity-transforms)]
+                    fit-data sample-grid identity-transforms false)]
         (is (= 3 (count layers)))
         (is (every? map? layers))))
 
@@ -1787,7 +1787,7 @@
                        :lognormal {:error "Fitting failed"}}
                       :best-model :gamma}
             layers (charts/distribution-pdf-overlay-layers
-                    fit-data sample-grid identity-transforms)]
+                    fit-data sample-grid identity-transforms false)]
         (is (= 1 (count layers)))))
 
     (testing "filters out skipped distributions"
@@ -1796,7 +1796,7 @@
                        :inverse-gaussian {:skipped :moment-match-failed}}
                       :best-model :gamma}
             layers (charts/distribution-pdf-overlay-layers
-                    fit-data sample-grid identity-transforms)]
+                    fit-data sample-grid identity-transforms false)]
         (is (= 1 (count layers)))))
 
     (testing "returns empty vector when all fail"
@@ -1805,7 +1805,7 @@
                        :lognormal {:skipped :moment-match-failed}}
                       :best-model nil}
             layers (charts/distribution-pdf-overlay-layers
-                    fit-data sample-grid identity-transforms)]
+                    fit-data sample-grid identity-transforms false)]
         (is (empty? layers))))))
 
 (deftest distribution-pdf-vega-spec-test
@@ -1891,9 +1891,9 @@
       (let [samples [1.0 2.0 3.0 4.0 5.0]
             layer (charts/ecdf-layer samples identity-transforms)
             data (get-in layer [:data :values])
-            ecdf-values (mapv #(get % "ecdf") data)]
+            cdf-values (mapv #(get % "cdf") data)]
         ;; ECDF at each point should be i/n
-        (is (= [0.2 0.4 0.6 0.8 1.0] ecdf-values))))
+        (is (= [0.2 0.4 0.6 0.8 1.0] cdf-values))))
 
     (testing "uses step-after interpolation"
       (let [samples [1.0 2.0 3.0]
@@ -2257,10 +2257,11 @@
         ;; (gamma, lognormal, weibull = 3 distributions + 1 reference line)
         (is (= 4 (count layers)))))
 
-    (testing "reference line spans full range of theoretical and observed values"
-      ;; The reference line must cover both theoretical quantiles (x-axis) and
-      ;; observed values (y-axis) to properly show where data deviates from fit.
-      ;; Previously, only observed range was used, causing "narrow tails" appearance.
+    (testing "reference line spans observed data range"
+      ;; The reference line is constrained to the observed data range to prevent
+      ;; poorly-fitting distributions from extending the chart axes excessively.
+      ;; When theoretical quantiles extend beyond observed values, the reference
+      ;; line still provides a useful y=x guide within the data's actual range.
       (let [data-map (test-data/distribution-qq-data-map)
             spec (charts/distribution-qq-vega-spec
                   data-map {} {:width 400 :height 300})
@@ -2268,26 +2269,21 @@
             layers (:layer chart)
             ref-line-layer (first layers)
             ref-line-data (get-in ref-line-layer [:data :values])
-            ;; Collect all theoretical and observed values from Q-Q scatter layers
+            ;; Collect all observed values from Q-Q scatter layers
             qq-layers (rest layers)
-            all-theoretical (for [layer qq-layers
-                                  point (get-in layer [:data :values])]
-                              (get point "theoretical"))
             all-observed (for [layer qq-layers
                                point (get-in layer [:data :values])]
                            (get point "observed"))
-            min-theoretical (apply min all-theoretical)
-            max-theoretical (apply max all-theoretical)
             min-observed (apply min all-observed)
             max-observed (apply max all-observed)
             ;; Reference line endpoints
             ref-start (get (first ref-line-data) "x")
             ref-end (get (second ref-line-data) "x")]
-        ;; Reference line should extend beyond both min and max of all data
-        (is (<= ref-start (min min-theoretical min-observed))
-            "Reference line start should cover minimum of all data")
-        (is (>= ref-end (max max-theoretical max-observed))
-            "Reference line end should cover maximum of all data")))
+        ;; Reference line should span the observed data range with small margin
+        (is (<= ref-start min-observed)
+            "Reference line start should cover minimum observed value")
+        (is (>= ref-end max-observed)
+            "Reference line end should cover maximum observed value")))
 
     (testing "returns nil chart when no distribution-fit data"
       (let [data-map {:samples (:samples (test-data/distribution-qq-data-map))}

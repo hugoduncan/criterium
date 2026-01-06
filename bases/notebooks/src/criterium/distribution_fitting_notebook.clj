@@ -118,8 +118,8 @@
     {:model best
      :params (:params best-result)
      :aic (:aic best-result)
-     :ks-pvalue (get-in best-result [:gof :ks :p-value])
-     :cvm-pvalue (get-in best-result [:gof :cvm :p-value])}))
+     :ks-pvalue (get-in best-result [:ks-test :p-value])
+     :cvm-pvalue (get-in best-result [:cvm-test :p-value])}))
 
 ;; ### Comparing All Models
 
@@ -134,7 +134,7 @@
          (map (fn [[dist result]]
                 {:distribution dist
                  :delta-aic (:delta-aic result)
-                 :ks-pvalue (get-in result [:gof :ks :p-value])}))
+                 :ks-pvalue (get-in result [:ks-test :p-value])}))
          (sort-by :delta-aic))))
 
 ;; ## Parameter Confidence Intervals
