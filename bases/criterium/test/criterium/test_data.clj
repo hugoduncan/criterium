@@ -367,6 +367,7 @@
       :fits {[:elapsed-time]
              {:n 100
               :best-model :gamma
+              :sample-range [1.0 5.0]
               :distributions
               {:gamma {:params {:shape 2.0 :scale 1.5}
                        :log-likelihood -150.0

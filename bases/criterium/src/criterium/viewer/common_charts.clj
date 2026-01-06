@@ -1689,20 +1689,10 @@
   (let [kde-id (or (:kde-id view) :kde)
         distribution-fit-id (or (:distribution-fit-id view) :distribution-fit)
         histogram-id (:histogram-id view)
-        outliers-id (or (:outliers-id view) :outliers)
         kde-map (util/lookup-data data-map kde-id)
         distribution-fit-map (get data-map distribution-fit-id)
         histograms-map (when histogram-id
                          (util/lookup-data data-map histogram-id))
-        ;; Get outlier bounds for constraining range
-        outliers-map (get data-map outliers-id)
-        outliers-data (when outliers-map (util/outliers outliers-map))
-        ;; Get samples for range calculation (distribution fit uses these after outlier removal)
-        fit-source-id (when distribution-fit-map
-                        (or (:source-id distribution-fit-map) :samples))
-        samples-map (when fit-source-id
-                      (util/lookup-data data-map fit-source-id))
-        metric->values (when samples-map (util/metric->values samples-map))
         kdes (:kdes kde-map)
         fits (when distribution-fit-map (:fits distribution-fit-map))
         metrics-defs (-> (:metrics-defs kde-map)
@@ -1734,25 +1724,10 @@
               fit-data (when fits (get fits path))
               histogram (when histograms-map
                           (get (:histograms histograms-map) path))
-              ;; Get outlier indices (map of index -> outlier-type)
-              ;; Use same filtering as histogram/KDE: remove by index, not threshold
-              metric-outliers (when outliers-data (get-in outliers-data path))
-              outlier-indices (:outliers metric-outliers)
-              ;; Get samples and filter by outlier indices
-              samples (when metric->values (get metric->values path))
-              non-outlier-samples (when (seq samples)
-                                    (into []
-                                          (comp
-                                           (map-indexed
-                                            (fn [i s] (when-not (and outlier-indices
-                                                                     (outlier-indices i))
-                                                        s)))
-                                           (filter some?))
-                                          samples))
-              sorted-samples (when (seq non-outlier-samples) (sort non-outlier-samples))
-              sample-min (when sorted-samples (first sorted-samples))
-              sample-max (when sorted-samples (last sorted-samples))
-              ;; Generate PDF grid spanning the non-outlier sample range with slight margin
+              ;; Use sample-range from distribution-fit analysis
+              ;; The analysis layer filters outliers and provides the range
+              [sample-min sample-max] (:sample-range fit-data)
+              ;; Generate PDF grid spanning the sample range with slight margin
               pdf-grid (when (and sample-min sample-max
                                   (> (double sample-max) (double sample-min)))
                          (let [range-val (- (double sample-max) (double sample-min))

@@ -603,7 +603,10 @@
      :parameter-cis parameter-cis}))
 
 (defn distribution-fit-for-metric
-  "Compute distribution fitting for a single metric's samples."
+  "Compute distribution fitting for a single metric's samples.
+
+  Returns fit results including :sample-range [min max] of the filtered samples
+  used for fitting, enabling viewers to display consistent axis ranges."
   [metric->values outliers metric-config options]
   (try
     (let [p (:path metric-config)
@@ -613,7 +616,10 @@
                     (remove-outliers samples ols)
                     samples)]
       (when (and (seq samples) (> (count samples) 2))
-        (fit-distributions-for-metric samples options)))
+        (let [sample-min (reduce min samples)
+              sample-max (reduce max samples)]
+          (assoc (fit-distributions-for-metric samples options)
+                 :sample-range [sample-min sample-max]))))
     (catch Exception e
       {:error (.getMessage e)})))
 
