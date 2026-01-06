@@ -1589,8 +1589,11 @@
 (defn distribution-pdf-layer
   "Build a PDF curve layer for a single fitted distribution.
 
-  Takes the distribution keyword, fit result, grid (in original units), transforms,
+  Takes the distribution keyword, fit result, grid (in original units), field-name,
   scale-by-jacobian? flag, and show-legend? flag.
+
+  The grid should be in original sample units. The field-name should match the
+  KDE layer's x-field for proper axis sharing.
 
   When scale-by-jacobian? is true, the PDF is multiplied by x to convert from
   density-per-original-unit to density-per-log-unit (for overlay on log-transformed KDE).
@@ -1599,7 +1602,7 @@
   layer should have show-legend? true to avoid duplicate legends.
 
   Returns a Vega-Lite layer spec or nil if the distribution couldn't be fitted."
-  [dist fit-result grid transforms scale-by-jacobian? show-legend?]
+  [dist fit-result grid field-name scale-by-jacobian? show-legend?]
   (when (and (:params fit-result)
              (not (:error fit-result))
              (not (:skipped fit-result)))
@@ -1614,12 +1617,12 @@
                                   scaled-p (if scale-by-jacobian?
                                              (* p (double x))
                                              p)]
-                              ;; x is already in original display units, no transform needed
-                              {"x" x "pdf-density" scaled-p})))
+                              ;; x is in original units - use same field name as KDE
+                              {field-name x "pdf-density" scaled-p})))
                     ;; Filter out non-finite values that can't be encoded in JSON
                     (filterv (fn [pt]
                                (let [p (get pt "pdf-density")
-                                     x (get pt "x")]
+                                     x (get pt field-name)]
                                  (and (Double/isFinite p) (not (Double/isNaN p))
                                       (Double/isFinite x) (not (Double/isNaN x)))))))]
       {:data {:values data}
@@ -1627,7 +1630,7 @@
        :mark {:type "line"
               :strokeWidth (if is-best? 2.5 1.5)
               :strokeDash (if is-best? [1 0] [4 4])}
-       :encoding {:x {:field "x" :type "quantitative"
+       :encoding {:x {:field field-name :type "quantitative"
                       :scale {:zero false}}
                   :y {:field "pdf-density" :type "quantitative"}
                   :color {:field "distribution" :type "nominal"
@@ -1639,12 +1642,12 @@
 (defn distribution-pdf-overlay-layers
   "Build PDF overlay layers for all fitted distributions.
 
-  Takes distribution-fit data for a metric, grid (in original units), transforms,
+  Takes distribution-fit data for a metric, grid (in original units), field-name,
   and scale-by-jacobian? flag. When scale-by-jacobian? is true, PDFs are scaled
   by x to convert to density-per-log-unit for overlay on log-transformed KDE.
 
   Returns a vector of Vega-Lite layer specs for successfully fitted distributions."
-  [fit-data grid transforms scale-by-jacobian?]
+  [fit-data grid field-name scale-by-jacobian?]
   (let [distributions (:distributions fit-data)
         best-model (:best-model fit-data)
         dist-keys (vec (keys distributions))]
@@ -1655,7 +1658,7 @@
              dist
              (assoc (get distributions dist) :best-model best-model)
              grid
-             transforms
+             field-name
              scale-by-jacobian?
              ;; Only first distribution shows legend to avoid duplicates
              (zero? idx))))
@@ -1672,22 +1675,25 @@
     :distribution-fit-id - Key for distribution fit data (default :distribution-fit)
     :histogram-id - Optional key for histogram data to overlay
 
-  Note: The distribution fit is done on original samples (not log-transformed),
-  so we generate a grid from sample range for PDF evaluation, then transform
-  for display. The PDF values are also scaled by the Jacobian to account for
-  the log transform on the display axis.
+  Note: The distribution fit is done on original samples (not log-transformed).
+  The PDF grid is generated to match the KDE display range, constrained by
+  the sample data range. PDF values are scaled by the Jacobian when the
+  KDE is on log-transformed data.
 
   Returns the Vega-Lite spec without viewer-specific wrapping."
   [data-map view chart-options]
   (let [kde-id (or (:kde-id view) :kde)
         distribution-fit-id (or (:distribution-fit-id view) :distribution-fit)
         histogram-id (:histogram-id view)
+        outliers-id (or (:outliers-id view) :outliers)
         kde-map (util/lookup-data data-map kde-id)
         distribution-fit-map (get data-map distribution-fit-id)
         histograms-map (when histogram-id
                          (util/lookup-data data-map histogram-id))
-        ;; Get samples in original units (distribution fit source) - only needed
-        ;; when distribution-fit data exists
+        ;; Get outlier bounds for constraining range
+        outliers-map (get data-map outliers-id)
+        outliers-data (when outliers-map (util/outliers outliers-map))
+        ;; Get samples for range calculation (distribution fit uses these after outlier removal)
         fit-source-id (when distribution-fit-map
                         (or (:source-id distribution-fit-map) :samples))
         samples-map (when fit-source-id
@@ -1700,9 +1706,6 @@
                           (metric/type-pred :quantitative)))
         metric-configs (metric/all-metric-configs metrics-defs)
         kde-transforms (util/get-transforms data-map kde-id)
-        ;; Use samples transforms for PDF overlay since distribution fit is on original samples
-        samples-transforms (when fit-source-id
-                             (util/get-transforms data-map fit-source-id))
         ;; Check if KDE is on log-transformed data - if so, PDF needs Jacobian scaling
         kde-source-id (:source-id kde-map)
         scale-by-jacobian? (= kde-source-id :log-samples)
@@ -1716,23 +1719,34 @@
      (mapv
       (fn [metric-config]
         (let [path (:path metric-config)
+              k (first path)
+              field-name (name k)
               kde-data (get kdes path)
               fit-data (when fits (get fits path))
               histogram (when histograms-map
                           (get (:histograms histograms-map) path))
-              ;; Generate grid from original samples for PDF evaluation
-              samples (get metric->values path)
-              sorted-samples (when (seq samples) (sort samples))
-              min-val (when sorted-samples (first sorted-samples))
-              max-val (when sorted-samples (last sorted-samples))
-              range-val (when (and min-val max-val)
-                          (- (double max-val) (double min-val)))
-              ;; Grid in original units with slight extension
-              pdf-grid (when range-val
-                         (let [grid-min (- (double min-val) (* 0.05 range-val))
-                               grid-max (+ (double max-val) (* 0.05 range-val))
+              ;; Get outlier bounds from thresholds vector [low-severe low-mild high-mild high-severe]
+              metric-outliers (when outliers-data (get-in outliers-data path))
+              thresholds (:thresholds metric-outliers)
+              low-bound (if thresholds (nth thresholds 0) Double/NEGATIVE_INFINITY)
+              high-bound (if thresholds (nth thresholds 3) Double/POSITIVE_INFINITY)
+              ;; Get samples and filter by outlier bounds
+              samples (when metric->values (get metric->values path))
+              non-outlier-samples (when (seq samples)
+                                    (filterv #(and (>= (double %) low-bound)
+                                                   (<= (double %) high-bound))
+                                             samples))
+              sorted-samples (when (seq non-outlier-samples) (sort non-outlier-samples))
+              sample-min (when sorted-samples (first sorted-samples))
+              sample-max (when sorted-samples (last sorted-samples))
+              ;; Generate PDF grid spanning the non-outlier sample range with slight margin
+              pdf-grid (when (and sample-min sample-max
+                                  (> (double sample-max) (double sample-min)))
+                         (let [range-val (- (double sample-max) (double sample-min))
+                               grid-min (max 1e-10 (- (double sample-min) (* 0.05 range-val)))
+                               grid-max (+ (double sample-max) (* 0.05 range-val))
                                step (/ (- grid-max grid-min) 200.0)]
-                           (vec (range (max grid-min 1e-10) grid-max step))))]
+                           (vec (range grid-min grid-max step))))]
           (when kde-data
             (merge
              chart-options
@@ -1759,14 +1773,14 @@
                          (conj (kde-density-layer
                                 kde-data metric-config kde-transforms))
                          ;; Add distribution PDF overlays using original-unit grid
-                         ;; Use KDE transforms for x-axis to match KDE display
+                         ;; Use same field name as KDE for shared x-axis
                          ;; Scale by Jacobian if KDE is on log-transformed data
                          ;; Only add overlays when both fit-data and pdf-grid exist
-                         (and fit-data pdf-grid)
+                         (and fit-data (seq pdf-grid))
                          (into (distribution-pdf-overlay-layers
                                 fit-data
                                 pdf-grid
-                                kde-transforms
+                                field-name
                                 scale-by-jacobian?)))}))}))))
       metric-configs)}))
 
