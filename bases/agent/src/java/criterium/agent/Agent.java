@@ -19,12 +19,33 @@ public class Agent {
   public static class AllocationStartMarker {};
   public static class AllocationFinishMarker {};
 
+  // Method tracing markers - calling mark() generates MethodEntry/Exit events
+  // that the agent uses for synchronization
+  public static class MethodTracingStartMarker {
+    public static void mark() {
+      // Empty method - the method entry/exit events are what matter
+    }
+  };
+  public static class MethodTracingFinishMarker {
+    public static void mark() {
+      // Empty method - the method entry/exit events are what matter
+    }
+  };
+
   public static AllocationStartMarker allocation_start_marker()  {
     return new AllocationStartMarker();
   }
 
   public static AllocationFinishMarker allocation_finish_marker()  {
     return new AllocationFinishMarker();
+  }
+
+  public static void method_tracing_start_marker() {
+    MethodTracingStartMarker.mark();
+  }
+
+  public static void method_tracing_finish_marker() {
+    MethodTracingFinishMarker.mark();
   }
 
   public static void set_handler(clojure.lang.IFn handler_fn) {

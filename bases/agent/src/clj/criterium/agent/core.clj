@@ -64,6 +64,20 @@
       (requiring-resolve 'criterium.agent.wrapper/set-handler)
       (catch Exception _ nil))))
 
+(def ^:private wrapper-method-tracing-start-marker
+  "Lazily resolved wrapper/method-tracing-start-marker, or nil if wrapper can't load."
+  (delay
+    (try
+      (requiring-resolve 'criterium.agent.wrapper/method-tracing-start-marker)
+      (catch Exception _ nil))))
+
+(def ^:private wrapper-method-tracing-finish-marker
+  "Lazily resolved wrapper/method-tracing-finish-marker, or nil if wrapper can't load."
+  (delay
+    (try
+      (requiring-resolve 'criterium.agent.wrapper/method-tracing-finish-marker)
+      (catch Exception _ nil))))
+
 ;;; Agent Class Access via Reflection
 
 (def ^:private allocation-class
@@ -120,21 +134,53 @@
 
   Parameter:
     internal-name - String in JVM internal format (e.g. 'Ljava/lang/String;')
+                   Also handles primitive arrays ('[B', '[I', etc.) and
+                   object arrays ('[Ljava/lang/String;')
 
   Return:
     Standard class name with dot notation (e.g. 'java.lang.String')
+    or array notation (e.g. 'byte[]', 'String[]')
 
   Example:
     (internal->class-name \"Ljava/util/List;\")
-    => \"java.util.List\""
+    => \"java.util.List\"
+    (internal->class-name \"[B\")
+    => \"byte[]\"
+    (internal->class-name \"[Ljava/lang/String;\")
+    => \"java.lang.String[]\""
   [internal-name]
-  {:pre [(have? string? internal-name)
-         (have? #(str/starts-with? % "L") internal-name)
-         (have? #(str/includes? % "/") internal-name)
-         (have? #(str/ends-with? % ";") internal-name)]}
-  (-> internal-name
-      (subs 1 (dec (count internal-name)))
-      (str/replace "/" ".")))
+  {:pre [(have? string? internal-name)]}
+  (cond
+    ;; Primitive array types
+    (= internal-name "[B") "byte[]"
+    (= internal-name "[C") "char[]"
+    (= internal-name "[D") "double[]"
+    (= internal-name "[F") "float[]"
+    (= internal-name "[I") "int[]"
+    (= internal-name "[J") "long[]"
+    (= internal-name "[S") "short[]"
+    (= internal-name "[Z") "boolean[]"
+
+    ;; Object array type: [Lclassname;
+    (str/starts-with? internal-name "[L")
+    (str (-> internal-name
+             (subs 2 (dec (count internal-name)))
+             (str/replace "/" "."))
+         "[]")
+
+    ;; Multi-dimensional arrays (just return as-is for now)
+    (str/starts-with? internal-name "[[")
+    internal-name
+
+    ;; Standard object type: Lclassname;
+    (and (str/starts-with? internal-name "L")
+         (str/ends-with? internal-name ";"))
+    (-> internal-name
+        (subs 1 (dec (count internal-name)))
+        (str/replace "/" "."))
+
+    ;; Unknown format - return as-is
+    :else internal-name))
 
 (def ^:private allocation-start-marker-jvm-type
   "Lcriterium/agent/Agent$AllocationStartMarker;")
@@ -560,44 +606,83 @@
   []
   (= (agent-state) :method-tracing-active))
 
+(defn ^:internal method-tracing-starting?
+  "Test if method tracing is in starting state (waiting for start marker)."
+  []
+  (= (agent-state) :method-tracing-starting))
+
+(defn ^:internal method-tracing-start-marker
+  "Call the method tracing start marker.
+
+  This generates a MethodEntry event that the agent uses to transition
+  from :method-tracing-starting to :method-tracing-active state."
+  []
+  (assert @wrapper-method-tracing-start-marker "Agent not loaded")
+  (@wrapper-method-tracing-start-marker))
+
+(defn ^:internal method-tracing-finish-marker
+  "Call the method tracing finish marker.
+
+  This generates a MethodEntry event that the agent uses to transition
+  from :method-tracing-stopping to :method-tracing-stopped state."
+  []
+  (assert @wrapper-method-tracing-finish-marker "Agent not loaded")
+  (@wrapper-method-tracing-finish-marker))
+
 (defn ^:internal method-tracing-start!
   "Initialize and start method call tracing.
 
-  Sends the start command to the agent and waits for the state to transition
-  to :method-tracing-active. Unlike allocation tracing, method tracing does
-  not require GC cycles or marker objects - it uses pure JVMTI events.
+  Sends the start command to the agent, waits for events to be enabled,
+  then calls the start marker to synchronize the transition to active state.
+  This ensures all method events after the marker are captured.
 
   Implementation Notes:
   - Blocks until tracing is active
+  - Uses marker-based synchronization for precise event capture
   - May timeout if agent doesn't respond
   - Thread-safe but should not be called concurrently"
   []
   (agent-command :start-method-tracing)
-  (loop [i 100000]
-    (when (and (pos? i) (not (method-tracing-active?)))
-      (Thread/yield)
+  ;; Wait for starting state (events are enabled but not yet recording)
+  (loop [i 1000]
+    (when (and (pos? i) (not (method-tracing-starting?)))
+      (Thread/sleep 1)
       (recur (unchecked-dec i))))
-  (when (not= (agent-state) :method-tracing-active)
+  (when (not (method-tracing-starting?))
+    (println "WARNING method tracing failed to reach starting state"))
+  ;; Call start marker to trigger transition to active
+  (method-tracing-start-marker)
+  ;; Wait for active state
+  (loop [i 1000]
+    (when (and (pos? i) (not (method-tracing-active?)))
+      (Thread/sleep 1)
+      (recur (unchecked-dec i))))
+  (when (not (method-tracing-active?))
     (println "WARNING method tracing failed to start promptly")))
 
 (defn ^:internal method-tracing-stop!
   "Stop method call tracing.
 
-  Sends the stop command to the agent and waits for the state to transition
-  to :method-tracing-stopped, indicating events have been processed and the
-  call tree is ready for reporting.
+  Sends the stop command to the agent, then calls the finish marker to
+  ensure all user code events are captured before transitioning to stopped.
 
   Implementation Notes:
   - Blocks until processing complete
+  - Uses marker-based synchronization for precise event capture
   - Thread-safe but should not be called concurrently
   - May timeout if agent doesn't respond"
   []
   (agent-command :stop-method-tracing)
-  ;; Method tracing can capture many events (10000s), so use a real sleep
-  ;; rather than yield to give the consumer thread time to process.
+  ;; Wait for stopping state
   (loop [i 1000]
-    (when (and (pos? i)
-               (not= (agent-state) :method-tracing-stopped))
+    (when (and (pos? i) (not= (agent-state) :method-tracing-stopping))
+      (Thread/sleep 1)
+      (recur (unchecked-dec i))))
+  ;; Call finish marker to trigger transition to stopped
+  (method-tracing-finish-marker)
+  ;; Wait for stopped state
+  (loop [i 1000]
+    (when (and (pos? i) (not= (agent-state) :method-tracing-stopped))
       (Thread/sleep 1)
       (recur (unchecked-dec i))))
   (when (not= (agent-state) :method-tracing-stopped)

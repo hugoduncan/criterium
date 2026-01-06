@@ -663,9 +663,7 @@ bool is_consumer_thread() {
 
 void JNICALL MethodEntry(jvmtiEnv* jvmti, JNIEnv* env,
                          jthread thread, jmethodID method) {
-  (void)jvmti;
   (void)env;
-  (void)thread;
 
   // Check if consumer thread is getting events (should never happen if
   // we correctly limited events to the calling thread)
@@ -680,9 +678,13 @@ void JNICALL MethodEntry(jvmtiEnv* jvmti, JNIEnv* env,
   }
   in_method_callback = true;
 
+  // Get current frame count for stack depth tracking
+  jint frame_count = 0;
+  jvmti->GetFrameCount(thread, &frame_count);
+
   method_event_count.fetch_add(1);
   auto& context = AgentContext::getInstance();
-  context.get_message_queue().push(MethodEntryEvent{nullptr, method});
+  context.get_message_queue().push(MethodEntryEvent{nullptr, method, frame_count});
 
   in_method_callback = false;
 }
@@ -690,9 +692,7 @@ void JNICALL MethodEntry(jvmtiEnv* jvmti, JNIEnv* env,
 void JNICALL MethodExit(jvmtiEnv* jvmti, JNIEnv* env,
                         jthread thread, jmethodID method,
                         jboolean was_popped_by_exception, jvalue return_value) {
-  (void)jvmti;
   (void)env;
-  (void)thread;
   (void)was_popped_by_exception;
   (void)return_value;
 
@@ -707,9 +707,13 @@ void JNICALL MethodExit(jvmtiEnv* jvmti, JNIEnv* env,
   }
   in_method_callback = true;
 
+  // Get current frame count for stack depth tracking
+  jint frame_count = 0;
+  jvmti->GetFrameCount(thread, &frame_count);
+
   method_event_count.fetch_add(1);
   auto& context = AgentContext::getInstance();
-  context.get_message_queue().push(MethodExitEvent{nullptr, method});
+  context.get_message_queue().push(MethodExitEvent{nullptr, method, frame_count});
 
   in_method_callback = false;
 }
@@ -788,6 +792,7 @@ private:
   std::unique_ptr<CallTreeNode> call_tree_root_;
   std::map<jlong, ThreadCallState> thread_call_states_;
   jthread method_traced_thread_ = nullptr;  // Thread being traced for method events
+  jint baseline_frame_count_ = 0;  // JVM stack depth when tracing became active
 
   std::unique_ptr<VMContext::global_ref<jclass>> agent_class;
   std::unique_ptr<VMContext::global_ref<jclass>> agent_allocation_start_marker_class;
@@ -852,6 +857,7 @@ private:
     call_tree_root_->class_name = "<root>";
     call_tree_root_->method_name = "<root>";
     thread_call_states_.clear();
+    baseline_frame_count_ = 0;  // Will be set when start marker is detected
 
     // Enable method entry/exit events for the traced thread only
     DEBUG_PRINT("Enabling JVMTI_EVENT_METHOD_ENTRY\n");
@@ -863,13 +869,18 @@ private:
                                            JVMTI_EVENT_METHOD_EXIT,
                                            traced_thread);
 
-    set_state(env, method_tracing_active);
+    // Stay in starting state - start marker event will trigger active state
+    DEBUG_PRINT("Method tracing enabled, waiting for start marker\n");
   }
 
   void disable_method_tracing(JNIEnv* env) {
+    // Just set state to stopping - finish marker will complete the transition
     set_state(env, method_tracing_stopping);
+    DEBUG_PRINT("Method tracing stopping, waiting for finish marker\n");
+  }
 
-    // Disable method entry/exit events for the traced thread
+  void finish_method_tracing(JNIEnv* env) {
+    // Called when finish marker is detected - disable events and complete
     DEBUG_PRINT("Disabling JVMTI_EVENT_METHOD_ENTRY\n");
     jvmti_ops_.set_event_notification_mode(JVMTI_DISABLE,
                                            JVMTI_EVENT_METHOD_ENTRY,
@@ -1191,7 +1202,10 @@ public:
                                   const MethodEntryEvent& event) {
     using namespace criterium::method_tracing_transitions;
 
-    if (!is_method_tracing_active(agent_state)) {
+    // Only process in starting, active, or stopping states
+    if (agent_state != method_tracing_starting &&
+        agent_state != method_tracing_active &&
+        agent_state != method_tracing_stopping) {
       return;
     }
 
@@ -1199,13 +1213,43 @@ public:
       return;
     }
 
+    // Resolve method info to check for markers
+    auto [class_name, method_name, source_file, line_number] =
+        resolve_method_info(event.method);
+
+    // Check for start marker in starting state
+    if (agent_state == method_tracing_starting) {
+      if (is_start_marker(class_name.c_str(), method_name.c_str())) {
+        DEBUG_PRINT("Start marker detected, transitioning to active\n");
+        // Set baseline to one less than current frame count (the caller's depth)
+        // Only events deeper than this baseline will be recorded
+        baseline_frame_count_ = event.frame_count - 1;
+        DEBUG_PRINTLN("  Baseline frame count: " << baseline_frame_count_);
+        set_state(env, method_tracing_active);
+      }
+      // Don't record any events until we see the start marker
+      return;
+    }
+
+    // Check for finish marker in stopping state
+    if (agent_state == method_tracing_stopping) {
+      if (is_finish_marker(class_name.c_str(), method_name.c_str())) {
+        DEBUG_PRINT("Finish marker detected, completing method tracing\n");
+        finish_method_tracing(env);
+        return;
+      }
+      // Continue recording events until we see the finish marker
+    }
+
+    // Skip marker method calls - don't add them to the call tree
+    if (is_start_marker(class_name.c_str(), method_name.c_str()) ||
+        is_finish_marker(class_name.c_str(), method_name.c_str())) {
+      return;
+    }
+
     // Use a single global call stack (thread 0) for simplicity
     // This aggregates calls across all threads into one tree
     auto& thread_state = thread_call_states_[0];
-
-    // Resolve method info
-    auto [class_name, method_name, source_file, line_number] =
-        resolve_method_info(event.method);
 
     // Get current node (root if stack empty)
     CallTreeNode* current = thread_state.empty()
@@ -1225,7 +1269,10 @@ public:
                                  [[maybe_unused]] const MethodExitEvent& event) {
     using namespace criterium::method_tracing_transitions;
 
-    if (!is_method_tracing_active(agent_state)) {
+    // Only process in active or stopping states
+    // (starting state doesn't record, stopped means we're done)
+    if (agent_state != method_tracing_active &&
+        agent_state != method_tracing_stopping) {
       return;
     }
 

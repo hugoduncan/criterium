@@ -54,6 +54,7 @@ struct Command {
 struct MethodEntryEvent {
   jthread thread;
   jmethodID method;
+  jint frame_count;  // JVM stack depth at time of entry
 
   void delete_global_refs(JNIEnv* env, IJniOperations& jni_ops) const {
     jni_ops.delete_global_ref(env, thread);
@@ -64,6 +65,7 @@ struct MethodEntryEvent {
 struct MethodExitEvent {
   jthread thread;
   jmethodID method;
+  jint frame_count;  // JVM stack depth at time of exit
 
   void delete_global_refs(JNIEnv* env, IJniOperations& jni_ops) const {
     jni_ops.delete_global_ref(env, thread);

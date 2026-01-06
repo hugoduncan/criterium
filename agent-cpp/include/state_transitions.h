@@ -12,6 +12,13 @@ inline constexpr char const* ALLOCATION_START_MARKER =
 inline constexpr char const* ALLOCATION_FINISH_MARKER =
     "Lcriterium/agent/Agent$AllocationFinishMarker;";
 
+/// Method tracing marker class/method signatures.
+inline constexpr char const* METHOD_TRACING_START_MARKER_CLASS =
+    "Lcriterium/agent/Agent$MethodTracingStartMarker;";
+inline constexpr char const* METHOD_TRACING_FINISH_MARKER_CLASS =
+    "Lcriterium/agent/Agent$MethodTracingFinishMarker;";
+inline constexpr char const* METHOD_TRACING_MARKER_METHOD = "mark";
+
 /// Pure functions for state machine transitions.
 /// These can be tested without mocking JVMTI/JNI.
 namespace state_transitions {
@@ -76,8 +83,21 @@ inline jlong next_state_for_command(jlong cmd) {
 } // namespace state_transitions
 
 /// Pure functions for method tracing state machine transitions.
-/// Method tracing uses a simpler command-driven model without marker objects.
+/// Method tracing uses markers to synchronize state transitions with actual
+/// traced code, ensuring all user code events are captured.
 namespace method_tracing_transitions {
+
+/// Returns true if this is a method tracing start marker event.
+inline bool is_start_marker(const char* class_sig, const char* method_name) {
+  return std::strcmp(class_sig, METHOD_TRACING_START_MARKER_CLASS) == 0 &&
+         std::strcmp(method_name, METHOD_TRACING_MARKER_METHOD) == 0;
+}
+
+/// Returns true if this is a method tracing finish marker event.
+inline bool is_finish_marker(const char* class_sig, const char* method_name) {
+  return std::strcmp(class_sig, METHOD_TRACING_FINISH_MARKER_CLASS) == 0 &&
+         std::strcmp(method_name, METHOD_TRACING_MARKER_METHOD) == 0;
+}
 
 /// Returns the next state after processing a method tracing command.
 /// Returns -1 if the command doesn't cause a state change.
