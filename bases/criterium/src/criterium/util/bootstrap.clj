@@ -92,7 +92,7 @@
         stats     (stats/bootstrap-bca
                    vs
                    stats-fn
-                   (:bootstrap-size opts (long (* (count vs) 0.8)))
+                   (:bootstrap-size opts 2000)
                    (into [0.5] (:estimate-quantiles opts))
                    random/well-rng-1024a)
         scale-1   (fn [v] (util/transform-sample-> v transforms))
