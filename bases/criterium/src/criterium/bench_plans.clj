@@ -223,6 +223,7 @@
              [:bootstrap-stats {:quantiles [0.99]
                                 :estimate-quantiles [0.025 0.975]}]
              :distribution-fit
+             :outlier-significance
              :event-stats
              :allocation-summary
              [:allocation-hotspots {:limit 10}]
@@ -235,6 +236,7 @@
           :quantiles
           :event-stats
           :outlier-counts
+          :outlier-significance
           :collect-plan
           :allocation-summary
           :allocation-hotspots
