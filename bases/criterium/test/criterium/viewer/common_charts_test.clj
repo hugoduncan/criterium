@@ -1784,7 +1784,8 @@
       (let [layer (charts/distribution-pdf-layer
                    :gamma sample-fit-result sample-grid "elapsed-time"
                    identity-transforms false false)]
-        (is (nil? (get-in layer [:encoding :color :legend])))))))
+        ;; Legend is either nil or false (Vega-Lite accepts both to hide legend)
+        (is (not (get-in layer [:encoding :color :legend])))))))
 
 (deftest distribution-pdf-overlay-layers-test
   ;; Tests overlay layer generation for multiple distributions.

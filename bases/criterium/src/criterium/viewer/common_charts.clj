@@ -1476,6 +1476,37 @@
   {:domain (mapv #(get distribution-labels % (name %)) distribution-order)
    :range (mapv #(get distribution-colors % "#999999") distribution-order)})
 
+(def ^:private pdf-color-scale
+  "Vega-Lite color scale for PDF chart including KDE and fitted distributions.
+  KDE uses black solid line; fitted distributions use colored dashed lines."
+  {:domain (into ["KDE"]
+                 (mapv #(get distribution-labels % (name %)) distribution-order))
+   :range (into ["#333333"]
+                (mapv #(get distribution-colors % "#999999") distribution-order))})
+
+(defn- kde-pdf-layer
+  "Build a KDE density curve layer for the distribution PDF chart.
+  Uses 'distribution' field to share legend with fitted distributions.
+  KDE shown as solid black line to distinguish from dashed fitted PDFs."
+  [kde-data metric-config transforms]
+  (let [{:keys [grid density]} kde-data
+        k (first (:path metric-config))
+        field-name (name k)
+        data (mapv (fn [log-x d]
+                     {field-name (util/transform-sample-> log-x transforms)
+                      "pdf-density" d
+                      "distribution" "KDE"})
+                   grid density)]
+    {:data {:values data}
+     :mark {:type "line" :strokeWidth 2}
+     :encoding {:x {:field field-name :type "quantitative"
+                    :scale {:zero false}}
+                :y {:field "pdf-density" :type "quantitative"}
+                :color {:field "distribution" :type "nominal"
+                        :scale pdf-color-scale
+                        :legend {:title "Fitted Distributions"
+                                 :orient "top-right"}}}}))
+
 ;;; Distribution quantile (inverse CDF) functions for Q-Q plots
 
 (defn- weibull-quantile
@@ -1636,10 +1667,9 @@
                       :scale {:zero false}}
                   :y {:field "pdf-density" :type "quantitative"}
                   :color {:field "distribution" :type "nominal"
-                          :scale distribution-color-scale
-                          ;; Only show legend on one layer to avoid duplicates
-                          :legend (when show-legend?
-                                    {:orient "top-right" :title "Fitted Distributions"})}}})))
+                          :scale pdf-color-scale
+                          ;; Legend shown on KDE layer, suppress here
+                          :legend false}}})))
 
 (defn distribution-pdf-overlay-layers
   "Build PDF overlay layers for all fitted distributions.
@@ -1655,8 +1685,8 @@
         best-model (:best-model fit-data)
         dist-keys (vec (keys distributions))]
     (->> dist-keys
-         (map-indexed
-          (fn [idx dist]
+         (mapv
+          (fn [dist]
             (distribution-pdf-layer
              dist
              (assoc (get distributions dist) :best-model best-model)
@@ -1664,8 +1694,8 @@
              field-name
              transforms
              scale-by-jacobian?
-             ;; Only first distribution shows legend to avoid duplicates
-             (zero? idx))))
+             ;; Legend shown on KDE layer, not distribution layers
+             false)))
          (filterv some?))))
 
 (defn distribution-pdf-vega-spec
@@ -1756,9 +1786,9 @@
                 (conj {:resolve {:scale {:y "shared"}}
                        :layer
                        (cond-> []
-                         ;; Add KDE density curve
+                         ;; Add KDE density curve (solid black line)
                          true
-                         (conj (kde-density-layer
+                         (conj (kde-pdf-layer
                                 kde-data metric-config kde-transforms))
                          ;; Add distribution PDF overlays using original-unit grid
                          ;; Use same field name as KDE for shared x-axis
