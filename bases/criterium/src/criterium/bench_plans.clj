@@ -36,8 +36,8 @@
              :allocation-by-type
              :allocation-treemap]
    :view [[:stats {:metric-ids [:memory]}]
-          [:stats {:stats-id :log-stats}]
           :bootstrap-stats
+          [:stats {:stats-id :log-stats}]
           [:multimodal-warning {:modes-id :modes}]
           :event-stats
           :outlier-counts
@@ -66,8 +66,8 @@
              :allocation-by-type
              :allocation-treemap]
    :view [[:stats {:metric-ids [:memory]}]
-          [:stats {:stats-id :log-stats}]
           :bootstrap-stats
+          [:stats {:stats-id :log-stats}]
           :quantiles
           :event-stats
           :outlier-counts
