@@ -112,6 +112,8 @@ The command `clj-nrepl-eval` is installed on your path for evaluating Clojure co
 
 `clj-nrepl-eval --discover-ports`
 
+Only ever use an nREPL server from your own worktree.
+
 **Evaluate code:**
 
 `clj-nrepl-eval -p <port> "<clojure-code>"`
