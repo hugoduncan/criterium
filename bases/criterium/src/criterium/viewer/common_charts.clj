@@ -950,6 +950,89 @@
                 :y {:field "valueUpper" :type "quantitative"}
                 :color {:value "#333"}}}]})
 
+(defn- box-plot-whisker-layer
+  "Build whisker layer for box plot (rule from p10 to p90)."
+  [data]
+  {:data {:values data}
+   :mark {:type "rule" :strokeWidth 1.5}
+   :encoding {:x {:field "impl" :type "nominal"}
+              :y {:field "p10" :type "quantitative"}
+              :y2 {:field "p90"}
+              :color {:value "#333"}}})
+
+(defn- box-plot-ci-layer
+  "Build CI box layer for box plot (rect from ciLower to ciUpper)."
+  [data]
+  {:data {:values data}
+   :mark {:type "bar" :width 20}
+   :encoding {:x {:field "impl" :type "nominal"}
+              :y {:field "ciLower" :type "quantitative"}
+              :y2 {:field "ciUpper"}
+              :color {:field "impl" :type "nominal" :legend nil}}})
+
+(defn- box-plot-median-layer
+  "Build median line layer for box plot (tick mark at median)."
+  [data]
+  {:data {:values data}
+   :mark {:type "tick" :thickness 2 :size 20 :color "white"}
+   :encoding {:x {:field "impl" :type "nominal"}
+              :y {:field "median" :type "quantitative"}}})
+
+(defn- box-plot-layer
+  "Build a box plot from prepared box data.
+  Returns a layered spec with:
+  - Whisker rule from p10 to p90
+  - CI box from ciLower to ciUpper (when present)
+  - Median tick mark
+  Used by both single-point-box-chart-spec and comparison-box-chart-spec."
+  [{:keys [y-title data]} chart-options]
+  (let [has-ci? (some #(contains? % "ciLower") data)
+        base-tooltip [{:field "impl"
+                       :type "nominal"
+                       :title "Implementation"}
+                      {:field "median"
+                       :type "quantitative"
+                       :title "Median"
+                       :format ".3g"}
+                      {:field "p10"
+                       :type "quantitative"
+                       :title "10th percentile"
+                       :format ".3g"}
+                      {:field "p90"
+                       :type "quantitative"
+                       :title "90th percentile"
+                       :format ".3g"}]
+        tooltip (if has-ci?
+                  (into base-tooltip
+                        [{:field "ciLower"
+                          :type "quantitative"
+                          :title "CI lower"
+                          :format ".3g"}
+                         {:field "ciUpper"
+                          :type "quantitative"
+                          :title "CI upper"
+                          :format ".3g"}])
+                  base-tooltip)
+        ;; Build layers: whisker, optionally CI box, median
+        layers (cond-> [(box-plot-whisker-layer data)]
+                 has-ci? (conj (box-plot-ci-layer data))
+                 true (conj (box-plot-median-layer data)))
+        ;; Add invisible point layer for tooltip on hover
+        tooltip-layer {:data {:values data}
+                       :mark {:type "point" :opacity 0 :size 400}
+                       :encoding {:x {:field "impl" :type "nominal"}
+                                  :y {:field "median" :type "quantitative"}
+                                  :tooltip tooltip}}]
+    (merge chart-options
+           {:layer (conj layers tooltip-layer)
+            :encoding {:x {:field "impl"
+                           :type "nominal"
+                           :title "Implementation"
+                           :sort nil
+                           :axis {:labelAngle 0}}
+                       :y {:type "quantitative"
+                           :title y-title}}})))
+
 (defn- bar-chart-layer
   "Build a bar chart from prepared bar data.
   Returns a layered spec with error bars when has-error-bounds? is true,
@@ -1011,6 +1094,27 @@
     {:data {:values []}
      :vconcat (mapv #(bar-chart-layer % chart-options) bar-data)}))
 
+(defn single-point-box-chart-spec
+  "Build a Vega-Lite box plot spec for single-point multi-impl comparison.
+
+  Shows implementations on x-axis with box plots showing:
+  - Whiskers: 10th and 90th percentiles (p10, p90)
+  - Box: Confidence interval on median (ciLower, ciUpper) when available
+  - Center line: Median point estimate
+
+  Requires bootstrap stats in the extract data. If bootstrap stats are missing,
+  the chart will be empty (data prep warns and filters out metrics without stats).
+
+  Parameters:
+    extract - Domain extract with single-point multi-impl data containing bootstrap stats
+    chart-options - Map with :width and/or :height for chart dimensions
+
+  Returns a Vega-Lite spec with vconcat of box plots (one per metric)."
+  [extract chart-options]
+  (let [box-data (prepare-single-point-box-data extract)]
+    {:data {:values []}
+     :vconcat (mapv #(box-plot-layer % chart-options) box-data)}))
+
 (defn comparison-bar-chart-spec
   "Build a Vega-Lite bar chart spec for single-point comparison data.
 
@@ -1026,6 +1130,27 @@
   (let [bar-data (viewer-common/prepare-comparison-bar-data comparison)]
     {:data {:values []}
      :vconcat (mapv #(bar-chart-layer % chart-options) bar-data)}))
+
+(defn comparison-box-chart-spec
+  "Build a Vega-Lite box plot spec for single-point comparison data.
+
+  Shows implementations on x-axis with box plots showing:
+  - Whiskers: 10th and 90th percentiles (p10, p90)
+  - Box: Confidence interval on median (ciLower, ciUpper) when available
+  - Center line: Median point estimate
+
+  Requires bootstrap stats in the comparison data. If bootstrap stats are missing,
+  the chart will be empty (data prep warns and filters out metrics without stats).
+
+  Parameters:
+    comparison - Domain comparison with single-point multi-impl data containing bootstrap stats
+    chart-options - Map with :width and/or :height for chart dimensions
+
+  Returns a Vega-Lite spec with vconcat of box plots (one per metric)."
+  [comparison chart-options]
+  (let [box-data (viewer-common/prepare-comparison-box-data comparison)]
+    {:data {:values []}
+     :vconcat (mapv #(box-plot-layer % chart-options) box-data)}))
 
 ;;; Multi-point line charts
 

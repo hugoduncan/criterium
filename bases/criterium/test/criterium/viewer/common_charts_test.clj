@@ -1235,6 +1235,282 @@
         (is (= #{:elapsed-time :thread-allocation}
                (set (map :metric-id result))))))))
 
+;;; Single-point box chart tests.
+;;; Verifies box plot chart generation for single-point multi-impl comparison scenarios.
+
+(deftest single-point-box-chart-spec-test
+  ;; Tests box plot spec generation for single-point multi-impl comparisons.
+  ;; Verifies correct Vega-Lite structure with implementation box plots.
+  (testing "single-point-box-chart-spec"
+    (testing "produces valid structure"
+      (let [spec (charts/single-point-box-chart-spec
+                  single-point-box-extract
+                  {:width 400 :height 300})]
+        (is (map? spec))
+        (is (contains? spec :vconcat))
+        (is (vector? (:vconcat spec)))
+        (is (= 1 (count (:vconcat spec))))))
+
+    (testing "includes layered structure"
+      (let [spec (charts/single-point-box-chart-spec
+                  single-point-box-extract
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))]
+        (is (contains? chart :layer))
+        ;; 4 layers: whisker, CI box, median, tooltip
+        (is (= 4 (count (:layer chart))))))
+
+    (testing "includes whisker layer with rule mark"
+      (let [spec (charts/single-point-box-chart-spec
+                  single-point-box-extract
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            whisker-layer (first (:layer chart))]
+        (is (= "rule" (get-in whisker-layer [:mark :type])))
+        (is (= "p10" (get-in whisker-layer [:encoding :y :field])))
+        (is (= "p90" (get-in whisker-layer [:encoding :y2 :field])))))
+
+    (testing "includes CI box layer with bar mark"
+      (let [spec (charts/single-point-box-chart-spec
+                  single-point-box-extract
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            ci-layer (second (:layer chart))]
+        (is (= "bar" (get-in ci-layer [:mark :type])))
+        (is (= "ciLower" (get-in ci-layer [:encoding :y :field])))
+        (is (= "ciUpper" (get-in ci-layer [:encoding :y2 :field])))))
+
+    (testing "includes median layer with tick mark"
+      (let [spec (charts/single-point-box-chart-spec
+                  single-point-box-extract
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            median-layer (nth (:layer chart) 2)]
+        (is (= "tick" (get-in median-layer [:mark :type])))
+        (is (= "median" (get-in median-layer [:encoding :y :field])))))
+
+    (testing "encodes implementation on x-axis"
+      (let [spec (charts/single-point-box-chart-spec
+                  single-point-box-extract
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            x-encoding (get-in chart [:encoding :x])]
+        (is (= "impl" (:field x-encoding)))
+        (is (= "nominal" (:type x-encoding)))
+        (is (= "Implementation" (:title x-encoding)))))
+
+    (testing "preserves implementation order from data"
+      (let [spec (charts/single-point-box-chart-spec
+                  single-point-box-extract
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            x-encoding (get-in chart [:encoding :x])]
+        (is (nil? (:sort x-encoding))
+            "x-axis sort should be nil to preserve data order")))
+
+    (testing "y-axis title includes median prefix"
+      (let [spec (charts/single-point-box-chart-spec
+                  single-point-box-extract
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            y-encoding (get-in chart [:encoding :y])]
+        (is (re-find #"median" (:title y-encoding)))))
+
+    (testing "respects chart dimensions"
+      (let [spec (charts/single-point-box-chart-spec
+                  single-point-box-extract
+                  {:width 500 :height 250})
+            chart (first (:vconcat spec))]
+        (is (= 500 (:width chart)))
+        (is (= 250 (:height chart)))))
+
+    (testing "includes tooltip layer"
+      (let [spec (charts/single-point-box-chart-spec
+                  single-point-box-extract
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            tooltip-layer (last (:layer chart))
+            tooltip (get-in tooltip-layer [:encoding :tooltip])]
+        (is (vector? tooltip))
+        ;; Should include impl, median, p10, p90, ciLower, ciUpper
+        (is (= 6 (count tooltip)))))))
+
+(deftest single-point-box-chart-without-ci-test
+  ;; Tests box plot spec when CI bounds are not present.
+  ;; Verifies graceful degradation - only whiskers and median shown.
+  (testing "single-point-box-chart-spec without CI bounds"
+    (testing "produces structure without CI layer"
+      (let [spec (charts/single-point-box-chart-spec
+                  single-point-box-extract-no-ci
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))]
+        (is (contains? chart :layer))
+        ;; 3 layers: whisker, median, tooltip (no CI box)
+        (is (= 3 (count (:layer chart))))))
+
+    (testing "still includes whisker and median layers"
+      (let [spec (charts/single-point-box-chart-spec
+                  single-point-box-extract-no-ci
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            whisker-layer (first (:layer chart))
+            median-layer (second (:layer chart))]
+        (is (= "rule" (get-in whisker-layer [:mark :type])))
+        (is (= "tick" (get-in median-layer [:mark :type])))))
+
+    (testing "tooltip excludes CI fields"
+      (let [spec (charts/single-point-box-chart-spec
+                  single-point-box-extract-no-ci
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            tooltip-layer (last (:layer chart))
+            tooltip (get-in tooltip-layer [:encoding :tooltip])]
+        ;; Should include impl, median, p10, p90 (no CI fields)
+        (is (= 4 (count tooltip)))))))
+
+(deftest single-point-box-chart-missing-bootstrap-test
+  ;; Tests box plot spec when bootstrap stats are missing entirely.
+  ;; Verifies empty chart is produced (data prep filters out).
+  (testing "single-point-box-chart-spec with missing bootstrap stats"
+    (testing "produces empty vconcat"
+      (let [output (with-out-str
+                     (let [spec (charts/single-point-box-chart-spec
+                                 single-point-missing-bootstrap
+                                 {:width 400 :height 300})]
+                       (is (empty? (:vconcat spec)))))]
+        ;; Should have printed a warning
+        (is (re-find #"WARNING.*bootstrap" output))))))
+
+(deftest single-point-box-chart-spec-schema-validation-test
+  ;; Validates single-point-box-chart-spec output against Vega-Lite v6 schema.
+  (testing "single-point-box-chart-spec"
+    (testing "produces valid Vega-Lite spec"
+      (let [spec (charts/single-point-box-chart-spec
+                  single-point-box-extract
+                  {:width 400 :height 300})
+            result (schema/validate-vega-lite-spec spec)]
+        (is (:valid? result)
+            (str "single-point-box-chart-spec validation failed: "
+                 (pr-str (:errors result))))))))
+
+(deftest single-point-box-chart-no-ci-schema-validation-test
+  ;; Validates box chart without CI bounds against Vega-Lite v6 schema.
+  (testing "single-point-box-chart-spec without CI"
+    (testing "produces valid Vega-Lite spec"
+      (let [spec (charts/single-point-box-chart-spec
+                  single-point-box-extract-no-ci
+                  {:width 400 :height 300})
+            result (schema/validate-vega-lite-spec spec)]
+        (is (:valid? result)
+            (str "box chart without CI validation failed: "
+                 (pr-str (:errors result))))))))
+
+;;; Comparison box chart tests.
+;;; Verifies box plot chart generation from domain-comparison data.
+
+(def single-point-box-comparison
+  "Sample single-point multi-impl comparison with box plot data for testing."
+  {:type :criterium/domain-comparison
+   :axis :n
+   :metric [:stats :elapsed-time :mean]
+   :implementations [:foo :bar :baz]
+   :data {:foo [{:coord {:n 100}
+                 :value {:median 1.0e-6 :ci-lower 0.9e-6 :ci-upper 1.1e-6
+                         :p10 0.8e-6 :p90 1.2e-6}}]
+          :bar [{:coord {:n 100}
+                 :value {:median 2.0e-6 :ci-lower 1.8e-6 :ci-upper 2.2e-6
+                         :p10 1.6e-6 :p90 2.4e-6}}]
+          :baz [{:coord {:n 100}
+                 :value {:median 1.5e-6 :ci-lower 1.3e-6 :ci-upper 1.7e-6
+                         :p10 1.2e-6 :p90 1.8e-6}}]}})
+
+(def single-point-box-comparison-no-ci
+  "Sample comparison with box data but without CI bounds."
+  {:type :criterium/domain-comparison
+   :axis :n
+   :metric [:stats :elapsed-time :mean]
+   :implementations [:foo :bar]
+   :data {:foo [{:coord {:n 100}
+                 :value {:median 1.0e-6 :p10 0.8e-6 :p90 1.2e-6}}]
+          :bar [{:coord {:n 100}
+                 :value {:median 2.0e-6 :p10 1.6e-6 :p90 2.4e-6}}]}})
+
+(deftest comparison-box-chart-spec-test
+  ;; Tests box plot spec generation from domain-comparison data.
+  (testing "comparison-box-chart-spec"
+    (testing "produces valid structure"
+      (let [spec (charts/comparison-box-chart-spec
+                  single-point-box-comparison
+                  {:width 400 :height 300})]
+        (is (map? spec))
+        (is (contains? spec :vconcat))
+        (is (vector? (:vconcat spec)))
+        (is (= 1 (count (:vconcat spec))))))
+
+    (testing "includes layered structure"
+      (let [spec (charts/comparison-box-chart-spec
+                  single-point-box-comparison
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))]
+        (is (contains? chart :layer))
+        ;; 4 layers: whisker, CI box, median, tooltip
+        (is (= 4 (count (:layer chart))))))
+
+    (testing "encodes implementation on x-axis"
+      (let [spec (charts/comparison-box-chart-spec
+                  single-point-box-comparison
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            x-encoding (get-in chart [:encoding :x])]
+        (is (= "impl" (:field x-encoding)))
+        (is (= "nominal" (:type x-encoding)))
+        (is (= "Implementation" (:title x-encoding)))))
+
+    (testing "preserves implementation order from data"
+      (let [spec (charts/comparison-box-chart-spec
+                  single-point-box-comparison
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            x-encoding (get-in chart [:encoding :x])]
+        (is (nil? (:sort x-encoding))
+            "x-axis sort should be nil to preserve data order")))))
+
+(deftest comparison-box-chart-without-ci-test
+  ;; Tests comparison box plot spec when CI bounds are not present.
+  (testing "comparison-box-chart-spec without CI bounds"
+    (testing "produces structure without CI layer"
+      (let [spec (charts/comparison-box-chart-spec
+                  single-point-box-comparison-no-ci
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))]
+        (is (contains? chart :layer))
+        ;; 3 layers: whisker, median, tooltip (no CI box)
+        (is (= 3 (count (:layer chart))))))))
+
+(deftest comparison-box-chart-spec-schema-validation-test
+  ;; Validates comparison-box-chart-spec output against Vega-Lite v6 schema.
+  (testing "comparison-box-chart-spec"
+    (testing "produces valid Vega-Lite spec"
+      (let [spec (charts/comparison-box-chart-spec
+                  single-point-box-comparison
+                  {:width 400 :height 300})
+            result (schema/validate-vega-lite-spec spec)]
+        (is (:valid? result)
+            (str "comparison-box-chart-spec validation failed: "
+                 (pr-str (:errors result))))))))
+
+(deftest comparison-box-chart-no-ci-schema-validation-test
+  ;; Validates comparison box chart without CI bounds against Vega-Lite schema.
+  (testing "comparison-box-chart-spec without CI"
+    (testing "produces valid Vega-Lite spec"
+      (let [spec (charts/comparison-box-chart-spec
+                  single-point-box-comparison-no-ci
+                  {:width 400 :height 300})
+            result (schema/validate-vega-lite-spec spec)]
+        (is (:valid? result)
+            (str "comparison box chart without CI failed: "
+                 (pr-str (:errors result))))))))
+
 (deftest treemap-vega-spec-schema-validation-test
   ;; Validates treemap-vega-spec output against Vega v5 schema.
   ;; Tests treemap visualization for allocation data.
