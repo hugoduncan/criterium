@@ -276,9 +276,9 @@
         (let [flame-data (get-in spec [:data 0 :values])]
           (is (vector? flame-data))
           (is (= 5 (count flame-data)))
-          ;; Check first node (root)
+          ;; Check first node (root) - uses short class name for readability
           (let [root (first flame-data)]
-            (is (= "myapp.Core.main" (:name root)))
+            (is (= "Core.main" (:name root)))
             (is (= 0 (:x0 root)))
             (is (= 0 (:depth root)))))))
 

@@ -42,6 +42,7 @@ struct ObjectFreeEvent {
 struct Command {
   jlong cmd;
   jthread calling_thread = nullptr;  // Thread that sent the command (as global ref)
+  jint caller_frame_count = 0;       // Stack depth of caller (for method tracing)
 
   void delete_global_refs(JNIEnv* env, IJniOperations& jni_ops) const {
     if (calling_thread != nullptr) {

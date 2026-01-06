@@ -111,6 +111,14 @@
        [@core/records res#])
      [nil (do ~@body)]))
 
+(defn run-traced*
+  "Wrapper function for traced code execution.
+  Executes f and returns the result.
+  This function becomes the root of the traced call tree, consolidating
+  user code under a single tree. The wrapper itself is filtered out."
+  [f]
+  (f))
+
 (defmacro with-call-tracing
   "Creates a scope in which all method calls are traced to build a call tree.
 
@@ -136,21 +144,20 @@
   debugging, not for production benchmarks."
   [& body]
   `(if (attached?)
-     (let [active?# (core/method-tracing-active?)
-           res# (if active?#
-                  (do ~@body)
-                  (try
-                    (core/method-tracing-start!)
-                    ~@body
-                    (finally
-                      (core/method-tracing-stop!))))
-           ;; Filter out criterium infrastructure from the trace roots
-           raw-trees# (core/collect-method-call-tree)
-           filtered-trees# (keep #(filter-call-tree % criterium-infrastructure-filter)
-                                 raw-trees#)
-           ;; Return first filtered root (user code), or nil if none remain
-           result-tree# (first filtered-trees#)]
-       [result-tree# res#])
+     (if (core/method-tracing-active?)
+       ;; Already tracing, just run body
+       [nil (do ~@body)]
+       ;; Start tracing, run body in wrapper, stop tracing
+       (let [f# (fn [] ~@body)]
+         (core/method-tracing-start!)
+         (let [res# (run-traced* f#)]
+           (core/method-tracing-stop!)
+           ;; Collect and filter the call tree
+           (let [raw-trees#   (core/collect-method-call-tree)
+                 user-tree#   (find-user-code-tree raw-trees#)
+                 result-tree# (some-> user-tree#
+                                      (filter-call-tree criterium-infrastructure-filter))]
+             [result-tree# res#]))))
      [nil (do ~@body)]))
 
 (defn allocation-on-thread?
@@ -186,6 +193,9 @@
   (core/allocations-summary records))
 
 ;;; Call Tree Filtering
+
+;; Forward declaration for use in filter-call-tree
+(declare tree-contains-user-code?)
 
 (defn- matches-any-prefix?
   "Returns true if class-name starts with any of the given prefixes."
@@ -244,14 +254,80 @@
     Matching nodes are kept but their children are truncated.
   - :max-depth - Maximum depth to include (1 = root only, 2 = root + children, etc.)
 
-  Returns the filtered call tree, or nil if the root is excluded."
+  Returns the filtered call tree, or nil if the root is excluded.
+  If multiple children are promoted, returns the one containing user code."
   [call-tree opts]
   (when call-tree
     (let [result (filter-node call-tree opts 1)]
       (cond
         (nil? result) nil
-        (:promoted-children result) (first (:promoted-children result))
+        (:promoted-children result)
+        ;; When root is excluded, find promoted child with user code
+        (let [promoted (:promoted-children result)]
+          (or (first (filter tree-contains-user-code? promoted))
+              (first promoted)))
         :else result))))
+
+;;; Tree Selection Helpers
+
+(defn- tracing-infrastructure-class?
+  "Returns true if class-name is tracing infrastructure.
+  Matches criterium.agent.* classes (tracing methods) but NOT the run-traced* wrapper."
+  [class-name]
+  (and class-name
+       (str/starts-with? class-name "criterium.agent")
+       ;; Exclude the wrapper - it contains user code
+       (not (str/starts-with? class-name "criterium.agent$run_traced"))))
+
+(defn- wrapper-tree?
+  "Returns true if tree is rooted at the run-traced* wrapper."
+  [tree]
+  (when-let [class-name (:class tree)]
+    (str/starts-with? class-name "criterium.agent$run_traced")))
+
+(defn- tree-contains-tracing-infrastructure?
+  "Returns true if tree contains tracing infrastructure within max-depth levels."
+  [tree ^long max-depth]
+  (when (and tree (pos? max-depth))
+    (or (tracing-infrastructure-class? (:class tree))
+        (some #(tree-contains-tracing-infrastructure? % (dec max-depth))
+              (:children tree)))))
+
+(defn remove-tracing-infrastructure-trees
+  "Remove trees that contain tracing infrastructure within the first few levels.
+  This filters out call trees that are part of the tracing machinery itself."
+  [trees]
+  (remove #(tree-contains-tracing-infrastructure? % 5) trees))
+
+(def ^:private standard-prefixes
+  "Package prefixes for standard library code (not user code)."
+  #{"java." "javax." "jdk." "sun." "com.sun." "clojure." "criterium."})
+
+(defn- user-code-class?
+  "Returns true if class-name looks like user code.
+  User code is Clojure-compiled functions (containing $) from non-standard packages."
+  [class-name]
+  (and class-name
+       (str/includes? class-name "$")
+       (not (some #(str/starts-with? class-name %) standard-prefixes))))
+
+(defn- tree-contains-user-code?
+  "Returns true if tree or any descendant contains user code."
+  [tree]
+  (when tree
+    (or (user-code-class? (:class tree))
+        (some tree-contains-user-code? (:children tree)))))
+
+(defn find-user-code-tree
+  "Find the best tree containing user code after removing infrastructure trees.
+  Prioritizes the run-traced* wrapper tree if it contains user code."
+  [trees]
+  (let [clean-trees (remove-tracing-infrastructure-trees trees)]
+    ;; Prioritize wrapper tree if it contains user code
+    (or (first (filter #(and (wrapper-tree? %) (tree-contains-user-code? %))
+                       clean-trees))
+        ;; Fall back to any tree containing user code
+        (first (filter tree-contains-user-code? clean-trees)))))
 
 ;;; Predefined Filters
 

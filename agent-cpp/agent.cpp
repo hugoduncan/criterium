@@ -526,17 +526,30 @@ public:
                      jlong cmd) {
     DEBUG_PRINTLN("Agent command: " << cmd);
 
-    // For method tracing commands, capture the calling thread
+    // For method tracing commands, capture the calling thread and frame count
     jthread calling_thread = nullptr;
+    jint caller_frame_count = 0;
     if (cmd == start_method_tracing) {
       jthread current_thread = nullptr;
       if (jvmti_ops_->get_current_thread(&current_thread)) {
         calling_thread = static_cast<jthread>(
             jni_ops_->new_global_ref(env, current_thread));
+        DEBUG_PRINTLN("Captured calling thread: " << calling_thread);
+
+        // Capture caller's stack depth for filtering
+        std::array<jvmtiFrameInfo, MAX_FRAMES> frames = {};
+        jint depth = 0;
+        if (jvmti_ops_->get_stack_trace(current_thread, 0, MAX_FRAMES,
+                                        frames.data(), &depth)) {
+          caller_frame_count = depth;
+          DEBUG_PRINTLN("Captured caller frame count: " << caller_frame_count);
+        }
+      } else {
+        DEBUG_PRINT("WARNING: Failed to get current thread for method tracing\n");
       }
     }
 
-    message_queue.push(Command{cmd, calling_thread});
+    message_queue.push(Command{cmd, calling_thread, caller_frame_count});
   }
 
   jlong thread_id(JNIEnv *env, jthread thread) {
@@ -846,7 +859,7 @@ private:
     set_state(env, allocation_tracing_stopping);
   }
 
-  void enable_method_tracing(JNIEnv* env, jthread traced_thread) {
+  void enable_method_tracing(JNIEnv* env, jthread traced_thread, jint caller_frame_count) {
     set_state(env, method_tracing_starting);
 
     // Store the thread we're tracing (for use when disabling)
@@ -857,10 +870,18 @@ private:
     call_tree_root_->class_name = "<root>";
     call_tree_root_->method_name = "<root>";
     thread_call_states_.clear();
-    baseline_frame_count_ = 0;  // Will be set when start marker is detected
 
-    // Enable method entry/exit events for the traced thread only
-    DEBUG_PRINT("Enabling JVMTI_EVENT_METHOD_ENTRY\n");
+    // Use the frame count from when tracing was started, not from marker detection.
+    // This ensures we filter based on the user's call site depth.
+    baseline_frame_count_ = caller_frame_count;
+    DEBUG_PRINTLN("Setting baseline frame count from caller: " << baseline_frame_count_);
+
+    // Enable method entry/exit events for the traced thread only.
+    // IMPORTANT: We MUST NOT use nullptr (all threads) here because the agent's
+    // consumer thread processes events and would itself generate method events,
+    // causing exponential growth of the call tree. By limiting events to the
+    // calling thread, we avoid this feedback loop.
+    DEBUG_PRINTLN("Enabling method events for thread: " << traced_thread);
     jvmti_ops_.set_event_notification_mode(JVMTI_ENABLE,
                                            JVMTI_EVENT_METHOD_ENTRY,
                                            traced_thread);
@@ -1221,10 +1242,8 @@ public:
     if (agent_state == method_tracing_starting) {
       if (is_start_marker(class_name.c_str(), method_name.c_str())) {
         DEBUG_PRINT("Start marker detected, transitioning to active\n");
-        // Set baseline to one less than current frame count (the caller's depth)
-        // Only events deeper than this baseline will be recorded
-        baseline_frame_count_ = event.frame_count - 1;
-        DEBUG_PRINTLN("  Baseline frame count: " << baseline_frame_count_);
+        // baseline_frame_count_ was already set from caller's depth when tracing started
+        DEBUG_PRINTLN("  Using baseline frame count: " << baseline_frame_count_);
         set_state(env, method_tracing_active);
       }
       // Don't record any events until we see the start marker
@@ -1246,6 +1265,10 @@ public:
         is_finish_marker(class_name.c_str(), method_name.c_str())) {
       return;
     }
+
+    // Note: Frame count filtering removed because user code runs at shallower
+    // depth than when tracing starts. All calls between markers are captured,
+    // and filtering happens on the Clojure side.
 
     // Use a single global call stack (thread 0) for simplicity
     // This aggregates calls across all threads into one tree
@@ -1276,6 +1299,8 @@ public:
       return;
     }
 
+    // Frame count filtering removed - see process_method_entry_event comment
+
     // Use a single global call stack (thread 0) for simplicity
     auto iter = thread_call_states_.find(0);
     if (iter != thread_call_states_.end()) {
@@ -1297,7 +1322,7 @@ public:
       set_state(env, allocation_tracing_reported);
       break;
     case start_method_tracing:
-      enable_method_tracing(env, cmd.calling_thread);
+      enable_method_tracing(env, cmd.calling_thread, cmd.caller_frame_count);
       break;
     case stop_method_tracing:
       disable_method_tracing(env);
