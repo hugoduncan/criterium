@@ -83,7 +83,7 @@
 ;; of total calls.
 
 (let [[call-tree _] (agent/with-call-tracing
-                      (reduce + (map #(* % %) (range 10))))]
+                      (reduce + (range 10)))]
   (when call-tree
     (println (call-graph/render-call-tree call-tree))))
 
@@ -93,7 +93,7 @@
 ;; where node size represents call count.
 
 (let [[call-tree _] (agent/with-call-tracing
-                      (reduce + (map #(* % %) (range 10))))]
+                      (reduce + (range 10)))]
   (when call-tree
     (kind/vega (charts/call-tree-tree-vega-spec call-tree {}))))
 
@@ -103,7 +103,7 @@
 ;; call count. Hover over segments for details.
 
 (let [[call-tree _] (agent/with-call-tracing
-                      (reduce + (map #(* % %) (range 10))))]
+                      (reduce + (range 10)))]
   (when call-tree
     (let [total-calls (call-graph/total-call-count call-tree)]
       (kind/vega (charts/call-tree-flame-vega-spec call-tree total-calls {})))))
@@ -138,7 +138,7 @@ agent/clojure-core-boundary-filter
 ;; ### Applying Filters
 
 (let [[call-tree _] (agent/with-call-tracing
-                      (reduce + (map #(* % %) (range 10))))]
+                      (reduce + (range 10)))]
   (when call-tree
     (let [filtered (agent/filter-call-tree call-tree agent/jdk-filter)]
       {:original-children (count (:children call-tree))
@@ -154,7 +154,7 @@ agent/clojure-core-boundary-filter
    :max-depth 5})
 
 (let [[call-tree _] (agent/with-call-tracing
-                      (reduce + (map #(* % %) (range 10))))]
+                      (reduce + (range 10)))]
   (when call-tree
     (let [filtered (agent/filter-call-tree call-tree my-filter)]
       (println (call-graph/render-call-tree filtered)))))

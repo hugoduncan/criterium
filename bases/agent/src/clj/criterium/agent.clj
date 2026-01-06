@@ -277,7 +277,10 @@
   Matches criterium.agent.* classes (tracing methods) but NOT the run-traced* wrapper."
   [class-name]
   (and class-name
-       (str/starts-with? class-name "criterium.agent")
+       ;; Match criterium.agent subnamespaces (criterium.agent.core, etc.)
+       ;; or criterium.agent$ compiled fns, but NOT criterium.agent_test
+       (or (str/starts-with? class-name "criterium.agent.")
+           (str/starts-with? class-name "criterium.agent$"))
        ;; Exclude the wrapper - it contains user code
        (not (str/starts-with? class-name "criterium.agent$run_traced"))))
 
@@ -295,13 +298,22 @@
         (some #(tree-contains-tracing-infrastructure? % (dec max-depth))
               (:children tree)))))
 
+(defn- tree-contains-wrapper?
+  "Returns true if tree contains the run-traced* wrapper within max-depth levels."
+  [tree ^long max-depth]
+  (when (and tree (pos? max-depth))
+    (or (wrapper-tree? tree)
+        (some #(tree-contains-wrapper? % (dec max-depth))
+              (:children tree)))))
+
 (defn remove-tracing-infrastructure-trees
   "Remove trees that contain tracing infrastructure within the first few levels.
   This filters out call trees that are part of the tracing machinery itself,
-  but preserves the run-traced* wrapper tree (which may contain infrastructure
-  as children but is the entry point for user code)."
+  but preserves the run-traced* wrapper tree and any trees containing it
+  (which may contain infrastructure as children but is the entry point for user code)."
   [trees]
   (remove #(and (not (wrapper-tree? %))
+                (not (tree-contains-wrapper? % 10))
                 (tree-contains-tracing-infrastructure? % 5))
           trees))
 
@@ -333,8 +345,9 @@
       (some find-wrapper-node (:children tree)))))
 
 (defn find-user-code-tree
-  "Find the run-traced* wrapper tree from collected call trees.
-  Searches within trees to find the wrapper node.
+  "Find the user code tree from collected call trees.
+  Searches for the run-traced* wrapper node and extracts the user code
+  from within it, skipping the wrapper's invoke/invokeStatic frames.
   Throws if the wrapper tree is not found - this indicates a bug in tracing."
   [trees]
   (let [clean-trees (remove-tracing-infrastructure-trees trees)
@@ -345,7 +358,17 @@
                       {:tree-count (count trees)
                        :clean-tree-count (count clean-trees)
                        :root-classes (mapv :class trees)})))
-    wrapper))
+    ;; Navigate through wrapper frames (invoke -> invokeStatic -> user code)
+    ;; The call tree is: invoke -> invokeStatic -> user$fn.invoke -> ...
+    (loop [node wrapper]
+      (if (wrapper-tree? node)
+        ;; Still in wrapper frames, descend to first child
+        (if-let [child (first (:children node))]
+          (recur child)
+          ;; No children - return the wrapper itself (edge case)
+          node)
+        ;; Reached user code
+        node))))
 
 ;;; Predefined Filters
 
