@@ -104,28 +104,61 @@
         (assoc :quantiles
                (zipmap quantiles (map scale-f (drop (count ks) stats)))))))
 
+(defn- filter-outliers
+  "Remove outlier samples from values vector based on outlier indices.
+  Returns values unchanged if no outliers for this path."
+  [values outliers path]
+  (let [ols (:outliers (get-in outliers path) {})]
+    (if (seq ols)
+      (into []
+            (comp
+             (map-indexed (fn [i v] (when-not (ols i) v)))
+             (filter some?))
+            values)
+      values)))
+
 (defn bootstrap-stats*
-  "Compute bootstrap stats for all metric paths."
-  [metric->values metric-configs transforms config]
+  "Compute bootstrap stats for all metric paths.
+  When outliers is non-nil, removes outlier samples before bootstrap resampling."
+  [metric->values outliers metric-configs transforms config]
   (reduce
    (fn [res path]
-     (assoc-in
-      res path
-      (bootstrap-stats-for
-       (get metric->values path)
-       config
-       transforms)))
+     (let [values (get metric->values path)
+           filtered-values (filter-outliers values outliers path)]
+       (if (seq filtered-values)
+         (assoc-in
+          res path
+          (bootstrap-stats-for filtered-values config transforms))
+         res)))
    {}
    (map :path metric-configs)))
 
 (defn bootstrap-stats
-  "Analysis function that adds bootstrap stats to the result."
+  "Analysis function that adds bootstrap stats to the result.
+
+  Parameters:
+    opts - Optional map with keys:
+      :id            - Key for bootstrap stats in output (default: :bootstrap-stats)
+      :samples-id    - Key for source samples (default: :samples)
+      :outliers-id   - Key for outlier analysis if available (default: :outliers)
+      :metric-ids    - Set of metric ids to analyze (default: all quantitative)
+      :quantiles     - Additional quantiles to compute (default: none)
+      :estimate-quantiles - Confidence interval quantiles (default: [0.025 0.975])
+      :bootstrap-size     - Number of bootstrap resamples (default: 2000)
+
+  When :outliers-id is provided, outliers identified in the outlier analysis
+  are removed from samples before bootstrap resampling. This prevents outliers
+  from propagating and amplifying in resamples."
   ([] (bootstrap-stats {}))
-  ([{:keys [id metric-ids samples-id] :as analysis}]
+  ([{:keys [id metric-ids samples-id outliers-id] :as analysis}]
    (fn [data-map]
      (let [id              (or id :bootstrap-stats)
            samples-id      (or samples-id :samples)
+           outliers-id     (or outliers-id :outliers)
            metrics-samples (data-map samples-id)
+           outliers-data   (data-map outliers-id)
+           outliers        (when outliers-data
+                             (util/outliers outliers-data))
            metrics-defs    (-> (:metrics-defs metrics-samples)
                                (metric/select-metrics metric-ids)
                                (metric/filter-metrics
@@ -134,6 +167,7 @@
            transforms      (util/get-transforms data-map samples-id)
            result          (bootstrap-stats*
                             (util/metric->values metrics-samples)
+                            outliers
                             metric-configs
                             transforms
                             analysis)]
@@ -145,4 +179,5 @@
          :metrics-defs metrics-defs
          :transform    collect-plan/identity-transforms
          :batch-size   (:batch-size metrics-samples)
-         :source-id    samples-id})))))
+         :source-id    samples-id
+         :outliers-id  (when outliers-data outliers-id)})))))

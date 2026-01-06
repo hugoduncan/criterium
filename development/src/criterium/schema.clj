@@ -146,7 +146,8 @@
    [:metrics-defs map?]
    [:transform transform-map]
    [:batch-size pos-int?]
-   [:source-id keyword?]])
+   [:source-id keyword?]
+   [:outliers-id [:maybe keyword?]]])
 
 ;;; Composite schemas
 

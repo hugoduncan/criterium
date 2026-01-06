@@ -108,7 +108,8 @@
    :metrics-defs {}
    :transform valid-transform
    :batch-size 1
-   :source-id :samples})
+   :source-id :samples
+   :outliers-id nil})
 
 (def valid-allocation-trace
   {:type :criterium/allocation-trace
