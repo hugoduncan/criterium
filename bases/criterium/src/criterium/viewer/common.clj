@@ -471,6 +471,21 @@
                 (contains? v :upper)))
          coll)))
 
+(defn has-box-plot-data?
+  "Check if a value map contains all required box plot fields.
+  Box plot data requires :median, :p10, and :p90 keys."
+  [v]
+  (and (map? v)
+       (contains? v :median)
+       (contains? v :p10)
+       (contains? v :p90)))
+
+(defn warn-missing-bootstrap-stats
+  "Print warning to stdout when bootstrap stats are missing for a metric."
+  [metric-id]
+  (println (str "WARNING: Missing bootstrap stats for metric " metric-id
+                ". Box plot will not be rendered.")))
+
 (defn detect-uniform-axes
   "Find coordinate axes where all values are identical.
   Returns a set of keys that have uniform values across all coords."
@@ -716,6 +731,129 @@
       {:heading "Domain Extract"
        :col-headers col-headers
        :rows table-rows})))
+
+(defn- prepare-comparison-box-data-multi-metric
+  "Prepare box data for multi-metric comparison mode."
+  [metrics implementations]
+  (->> metrics
+       (sort-by key)
+       (keep
+        (fn [[metric-id {:keys [metric data]}]]
+          (let [;; Build lookup: impl -> bootstrap stats value map
+                lookup (reduce
+                        (fn [acc [impl-val entries]]
+                          (reduce
+                           (fn [acc2 {:keys [value]}]
+                             (assoc acc2 impl-val value))
+                           acc
+                           entries))
+                        {}
+                        data)
+                ;; Get all values from lookup
+                all-raw-values (keep #(get lookup %) implementations)
+                ;; Check if all values have required box plot fields
+                all-have-box-data? (every? has-box-plot-data? all-raw-values)]
+            (if-not all-have-box-data?
+              (do
+                (warn-missing-bootstrap-stats metric-id)
+                nil)
+              (let [;; Get median values for SI scaling
+                    all-medians (map :median all-raw-values)
+                    {:keys [^double total-scale unit]}
+                    (compute-si-scaling metric all-medians)
+                    ;; Build y-axis title with unit
+                    metric-name (name metric-id)
+                    base-title (str "median " metric-name)
+                    y-title (if (seq unit)
+                              (str base-title " (" unit ")")
+                              base-title)
+                    ;; Build chart data
+                    chart-data (mapv
+                                (fn [impl]
+                                  (let [v (get lookup impl)]
+                                    (cond-> {"impl" (name impl)
+                                             "median" (* (double (:median v)) total-scale)
+                                             "p10" (* (double (:p10 v)) total-scale)
+                                             "p90" (* (double (:p90 v)) total-scale)}
+                                      (contains? v :ci-lower)
+                                      (assoc "ciLower" (* (double (:ci-lower v)) total-scale))
+                                      (contains? v :ci-upper)
+                                      (assoc "ciUpper" (* (double (:ci-upper v)) total-scale)))))
+                                implementations)]
+                {:metric-id metric-id
+                 :metric-path metric
+                 :y-title y-title
+                 :data chart-data})))))
+       vec))
+
+(defn- prepare-comparison-box-data-single-metric
+  "Prepare box data for single-metric comparison mode."
+  [metric implementations data]
+  (let [;; Build lookup: impl -> bootstrap stats value map
+        lookup (reduce
+                (fn [acc [impl-val entries]]
+                  (reduce
+                   (fn [acc2 {:keys [value]}]
+                     (assoc acc2 impl-val value))
+                   acc
+                   entries))
+                {}
+                data)
+        ;; Get all values from lookup
+        all-raw-values (keep #(get lookup %) implementations)
+        ;; Check if all values have required box plot fields
+        all-have-box-data? (every? has-box-plot-data? all-raw-values)]
+    (if-not all-have-box-data?
+      (do
+        (warn-missing-bootstrap-stats (pr-str metric))
+        [])
+      (let [;; Get median values for SI scaling
+            all-medians (map :median all-raw-values)
+            {:keys [^double total-scale unit]}
+            (compute-si-scaling metric all-medians)
+            ;; Build y-axis title with unit
+            base-title (str "median " (pr-str metric))
+            y-title (if (seq unit)
+                      (str base-title " (" unit ")")
+                      base-title)
+            ;; Build chart data
+            chart-data (mapv
+                        (fn [impl]
+                          (let [v (get lookup impl)]
+                            (cond-> {"impl" (name impl)
+                                     "median" (* (double (:median v)) total-scale)
+                                     "p10" (* (double (:p10 v)) total-scale)
+                                     "p90" (* (double (:p90 v)) total-scale)}
+                              (contains? v :ci-lower)
+                              (assoc "ciLower" (* (double (:ci-lower v)) total-scale))
+                              (contains? v :ci-upper)
+                              (assoc "ciUpper" (* (double (:ci-upper v)) total-scale)))))
+                        implementations)]
+        [{:metric-id nil
+          :metric-path metric
+          :y-title y-title
+          :data chart-data}]))))
+
+(defn prepare-comparison-box-data
+  "Prepare data for single-point box plot from domain comparison.
+  Extracts bootstrap statistics (median, CI, percentiles) from embedded data.
+
+  Returns a vector of maps, one per metric, each containing:
+    :metric-id - the metric keyword (or nil for single-metric mode)
+    :metric-path - the metric path vector
+    :y-title - y-axis title with SI unit (uses 'median' prefix)
+    :data - vector of maps with string keys:
+            {\"impl\" string \"median\" number \"ciLower\" number \"ciUpper\" number
+             \"p10\" number \"p90\" number}
+            (ciLower/ciUpper omitted when CI bounds not available)
+
+  If bootstrap stats are missing for a metric, warns to stdout and returns nil
+  for that metric entry (filtered from result)."
+  [comparison]
+  (let [{:keys [metric metrics implementations data]} comparison]
+    (if metrics
+      (prepare-comparison-box-data-multi-metric metrics implementations)
+      (prepare-comparison-box-data-single-metric metric implementations data))))
 
 (defn prepare-comparison-bar-data
   "Prepare data for single-point bar chart from domain comparison.

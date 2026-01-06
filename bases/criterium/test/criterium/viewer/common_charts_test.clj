@@ -1112,6 +1112,129 @@
         (is (some? (get-in whisker [:transform])))
         (is (some #(contains? % :calculate) (get-in whisker [:transform])))))))
 
+;;; Single-point box plot data preparation tests.
+;;; Verifies box plot data preparation from domain extract with bootstrap stats.
+
+(def single-point-box-extract
+  "Sample single-point multi-impl extract with box plot data for testing."
+  {:type :criterium/domain-extract
+   :impl-axis :impl
+   :implementations [:foo :bar :baz]
+   :metrics {:elapsed-time
+             {:metric [:stats :elapsed-time :mean]
+              :data [[{:n 100 :impl :foo}
+                      {:median 1.0e-6 :ci-lower 0.9e-6 :ci-upper 1.1e-6
+                       :p10 0.8e-6 :p90 1.2e-6}]
+                     [{:n 100 :impl :bar}
+                      {:median 2.0e-6 :ci-lower 1.8e-6 :ci-upper 2.2e-6
+                       :p10 1.6e-6 :p90 2.4e-6}]
+                     [{:n 100 :impl :baz}
+                      {:median 1.5e-6 :ci-lower 1.3e-6 :ci-upper 1.7e-6
+                       :p10 1.2e-6 :p90 1.8e-6}]]}}})
+
+(def single-point-box-extract-no-ci
+  "Sample extract with box data but without CI bounds."
+  {:type :criterium/domain-extract
+   :impl-axis :impl
+   :implementations [:foo :bar]
+   :metrics {:elapsed-time
+             {:metric [:stats :elapsed-time :mean]
+              :data [[{:n 100 :impl :foo}
+                      {:median 1.0e-6 :p10 0.8e-6 :p90 1.2e-6}]
+                     [{:n 100 :impl :bar}
+                      {:median 2.0e-6 :p10 1.6e-6 :p90 2.4e-6}]]}}})
+
+(def single-point-missing-bootstrap
+  "Sample extract missing bootstrap stats (plain values)."
+  {:type :criterium/domain-extract
+   :impl-axis :impl
+   :implementations [:foo :bar]
+   :metrics {:elapsed-time
+             {:metric [:stats :elapsed-time :mean]
+              :data [[{:n 100 :impl :foo} 1.0e-6]
+                     [{:n 100 :impl :bar} 2.0e-6]]}}})
+
+(deftest prepare-single-point-box-data-test
+  ;; Tests data preparation for single-point box plots.
+  ;; Verifies correct extraction of median, CI bounds, and percentiles.
+  (testing "prepare-single-point-box-data"
+    (testing "extracts data for each metric"
+      (let [result (charts/prepare-single-point-box-data single-point-box-extract)]
+        (is (vector? result))
+        (is (= 1 (count result)))
+        (is (= :elapsed-time (:metric-id (first result))))))
+
+    (testing "includes all implementations in data"
+      (let [result (charts/prepare-single-point-box-data single-point-box-extract)
+            data (:data (first result))]
+        (is (= 3 (count data)))
+        (is (= #{"foo" "bar" "baz"}
+               (set (map #(get % "impl") data))))))
+
+    (testing "extracts median, p10, p90 values"
+      (let [result (charts/prepare-single-point-box-data single-point-box-extract)
+            data (:data (first result))]
+        (is (every? #(contains? % "median") data))
+        (is (every? #(contains? % "p10") data))
+        (is (every? #(contains? % "p90") data))))
+
+    (testing "extracts CI bounds when present"
+      (let [result (charts/prepare-single-point-box-data single-point-box-extract)
+            data (:data (first result))]
+        (is (every? #(contains? % "ciLower") data))
+        (is (every? #(contains? % "ciUpper") data))
+        ;; Verify order: ciLower < median < ciUpper
+        (doseq [d data]
+          (is (< (get d "ciLower") (get d "median")))
+          (is (< (get d "median") (get d "ciUpper"))))))
+
+    (testing "omits CI bounds when not present"
+      (let [result (charts/prepare-single-point-box-data single-point-box-extract-no-ci)
+            data (:data (first result))]
+        (is (every? #(contains? % "median") data))
+        (is (every? #(contains? % "p10") data))
+        (is (every? #(contains? % "p90") data))
+        (is (every? #(not (contains? % "ciLower")) data))
+        (is (every? #(not (contains? % "ciUpper")) data))))
+
+    (testing "applies SI scaling to values"
+      (let [result (charts/prepare-single-point-box-data single-point-box-extract)
+            first-metric (first result)]
+        ;; y-title should contain SI unit
+        (is (string? (:y-title first-metric)))
+        ;; y-title should contain "median"
+        (is (re-find #"median" (:y-title first-metric)))
+        ;; values should be scaled (not raw nanoseconds)
+        (let [data (:data first-metric)
+              medians (keep #(get % "median") data)]
+          (is (seq medians))
+          ;; All values should be positive numbers
+          (is (every? pos? medians)))))
+
+    (testing "warns and returns nil for missing bootstrap stats"
+      (let [output (with-out-str
+                     (let [result (charts/prepare-single-point-box-data
+                                   single-point-missing-bootstrap)]
+                       (is (empty? result))))]
+        ;; Should have printed a warning
+        (is (re-find #"WARNING.*bootstrap" output))))
+
+    (testing "handles multiple metrics"
+      (let [multi-metric-extract
+            (assoc-in single-point-box-extract
+                      [:metrics :thread-allocation]
+                      {:metric [:stats :thread-allocation :mean]
+                       :data [[{:n 100 :impl :foo}
+                               {:median 1000 :p10 800 :p90 1200}]
+                              [{:n 100 :impl :bar}
+                               {:median 2000 :p10 1600 :p90 2400}]
+                              [{:n 100 :impl :baz}
+                               {:median 1500 :p10 1200 :p90 1800}]]})
+            result (charts/prepare-single-point-box-data multi-metric-extract)]
+        (is (= 2 (count result)))
+        (is (= #{:elapsed-time :thread-allocation}
+               (set (map :metric-id result))))))))
+
 (deftest treemap-vega-spec-schema-validation-test
   ;; Validates treemap-vega-spec output against Vega v5 schema.
   ;; Tests treemap visualization for allocation data.

@@ -490,6 +490,131 @@
           (is (not (contains? bar-data "valueLower")))
           (is (not (contains? bar-data "valueUpper"))))))))
 
+;;; Tests for prepare-comparison-box-data helper.
+;;; Verifies box plot data preparation from domain-comparison data with bootstrap stats.
+
+(deftest prepare-comparison-box-data-test
+  ;; Tests box plot data preparation for domain-comparison with bootstrap stats.
+  ;; Verifies correct extraction of median, CI bounds, and percentiles.
+  (testing "prepare-comparison-box-data"
+    (testing "prepares data for single-metric comparison"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo :bar :baz]
+                        :data {:foo [{:coord {:n 100}
+                                      :value {:median 1.0e-6 :ci-lower 0.9e-6 :ci-upper 1.1e-6
+                                              :p10 0.8e-6 :p90 1.2e-6}}]
+                               :bar [{:coord {:n 100}
+                                      :value {:median 2.0e-6 :ci-lower 1.8e-6 :ci-upper 2.2e-6
+                                              :p10 1.6e-6 :p90 2.4e-6}}]
+                               :baz [{:coord {:n 100}
+                                      :value {:median 1.5e-6 :ci-lower 1.3e-6 :ci-upper 1.7e-6
+                                              :p10 1.2e-6 :p90 1.8e-6}}]}}
+            result (common/prepare-comparison-box-data comparison)]
+        (is (vector? result))
+        (is (= 1 (count result)))
+        (is (nil? (:metric-id (first result))))
+        (is (= 3 (count (:data (first result)))))
+        (is (= #{"foo" "bar" "baz"}
+               (set (map #(get % "impl") (:data (first result))))))))
+
+    (testing "prepares data for multi-metric comparison"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :implementations [:foo :bar]
+                        :metrics {:elapsed-time
+                                  {:metric [:stats :elapsed-time :mean]
+                                   :data {:foo [{:coord {:n 100}
+                                                 :value {:median 1.0e-6 :p10 0.8e-6 :p90 1.2e-6}}]
+                                          :bar [{:coord {:n 100}
+                                                 :value {:median 2.0e-6 :p10 1.6e-6 :p90 2.4e-6}}]}}
+                                  :thread-allocation
+                                  {:metric [:stats :thread-allocation :mean]
+                                   :data {:foo [{:coord {:n 100}
+                                                 :value {:median 1000 :p10 800 :p90 1200}}]
+                                          :bar [{:coord {:n 100}
+                                                 :value {:median 2000 :p10 1600 :p90 2400}}]}}}}
+            result (common/prepare-comparison-box-data comparison)]
+        (is (= 2 (count result)))
+        (is (= #{:elapsed-time :thread-allocation}
+               (set (map :metric-id result))))))
+
+    (testing "extracts median, p10, p90 values"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo :bar]
+                        :data {:foo [{:coord {:n 100}
+                                      :value {:median 1.0e-6 :p10 0.8e-6 :p90 1.2e-6}}]
+                               :bar [{:coord {:n 100}
+                                      :value {:median 2.0e-6 :p10 1.6e-6 :p90 2.4e-6}}]}}
+            result (common/prepare-comparison-box-data comparison)
+            data (:data (first result))]
+        (is (every? #(contains? % "median") data))
+        (is (every? #(contains? % "p10") data))
+        (is (every? #(contains? % "p90") data))))
+
+    (testing "extracts CI bounds when present"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo :bar]
+                        :data {:foo [{:coord {:n 100}
+                                      :value {:median 1.0e-6 :ci-lower 0.9e-6 :ci-upper 1.1e-6
+                                              :p10 0.8e-6 :p90 1.2e-6}}]
+                               :bar [{:coord {:n 100}
+                                      :value {:median 2.0e-6 :ci-lower 1.8e-6 :ci-upper 2.2e-6
+                                              :p10 1.6e-6 :p90 2.4e-6}}]}}
+            result (common/prepare-comparison-box-data comparison)
+            data (:data (first result))]
+        (is (every? #(contains? % "ciLower") data))
+        (is (every? #(contains? % "ciUpper") data))
+        ;; Verify order: ciLower < median < ciUpper
+        (doseq [d data]
+          (is (< (get d "ciLower") (get d "median")))
+          (is (< (get d "median") (get d "ciUpper"))))))
+
+    (testing "omits CI bounds when not present"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo :bar]
+                        :data {:foo [{:coord {:n 100}
+                                      :value {:median 1.0e-6 :p10 0.8e-6 :p90 1.2e-6}}]
+                               :bar [{:coord {:n 100}
+                                      :value {:median 2.0e-6 :p10 1.6e-6 :p90 2.4e-6}}]}}
+            result (common/prepare-comparison-box-data comparison)
+            data (:data (first result))]
+        (is (every? #(not (contains? % "ciLower")) data))
+        (is (every? #(not (contains? % "ciUpper")) data))))
+
+    (testing "y-title contains 'median'"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo :bar]
+                        :data {:foo [{:coord {:n 100}
+                                      :value {:median 1.0e-6 :p10 0.8e-6 :p90 1.2e-6}}]
+                               :bar [{:coord {:n 100}
+                                      :value {:median 2.0e-6 :p10 1.6e-6 :p90 2.4e-6}}]}}
+            result (common/prepare-comparison-box-data comparison)
+            y-title (:y-title (first result))]
+        (is (re-find #"median" y-title))))
+
+    (testing "warns and returns empty for missing bootstrap stats"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo :bar]
+                        :data {:foo [{:coord {:n 100} :value 1.0e-6}]
+                               :bar [{:coord {:n 100} :value 2.0e-6}]}}
+            output (with-out-str
+                     (let [result (common/prepare-comparison-box-data comparison)]
+                       (is (empty? result))))]
+        ;; Should have printed a warning
+        (is (re-find #"WARNING.*bootstrap" output))))))
+
 ;;; Tests for single-axis-multi-point-comparison? helper.
 ;;; Verifies detection of multi-point line chart scenarios in domain-comparison data.
 

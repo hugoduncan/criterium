@@ -782,7 +782,75 @@
            (regression-loess-layer residual-pts {:color-field color-field})
            (regression-zero-line-layer)]})
 
-;;; Single-point comparison bar charts
+;;; Single-point comparison bar and box charts
+
+(defn prepare-single-point-box-data
+  "Prepare data for single-point box plot from domain extract.
+  Extracts bootstrap statistics (median, CI, percentiles) from embedded data.
+
+  Returns a vector of maps, one per metric, each containing:
+    :metric-id - the metric keyword
+    :metric-path - the metric path vector
+    :y-title - y-axis title with SI unit (uses 'median' prefix)
+    :data - vector of maps with string keys:
+            {\"impl\" string \"median\" number \"ciLower\" number \"ciUpper\" number
+             \"p10\" number \"p90\" number}
+            (ciLower/ciUpper omitted when CI bounds not available)
+
+  If bootstrap stats are missing for a metric, warns to stdout and returns nil
+  for that metric entry (filtered from result)."
+  [extract]
+  (let [impl-axis-key (:impl-axis extract)
+        implementations (:implementations extract)
+        metrics (:metrics extract)]
+    (->> metrics
+         (sort-by key)
+         (keep
+          (fn [[metric-id {:keys [metric data]}]]
+            (let [;; Build lookup: impl -> bootstrap stats value map
+                  lookup (reduce
+                          (fn [acc [coord value]]
+                            (let [impl-val (get coord impl-axis-key)]
+                              (assoc acc impl-val value)))
+                          {}
+                          data)
+                  ;; Get all values from lookup
+                  all-raw-values (keep #(get lookup %) implementations)
+                  ;; Check if all values have required box plot fields
+                  all-have-box-data? (every? viewer-common/has-box-plot-data?
+                                             all-raw-values)]
+              (if-not all-have-box-data?
+                (do
+                  (viewer-common/warn-missing-bootstrap-stats metric-id)
+                  nil)
+                (let [;; Get median values for SI scaling
+                      all-medians (map :median all-raw-values)
+                      {:keys [^double total-scale unit]}
+                      (viewer-common/compute-si-scaling metric all-medians)
+                      ;; Build y-axis title with unit
+                      metric-name (name metric-id)
+                      base-title (str "median " metric-name)
+                      y-title (if (seq unit)
+                                (str base-title " (" unit ")")
+                                base-title)
+                      ;; Build chart data
+                      chart-data (mapv
+                                  (fn [impl]
+                                    (let [v (get lookup impl)]
+                                      (cond-> {"impl" (name impl)
+                                               "median" (* (double (:median v)) total-scale)
+                                               "p10" (* (double (:p10 v)) total-scale)
+                                               "p90" (* (double (:p90 v)) total-scale)}
+                                        (contains? v :ci-lower)
+                                        (assoc "ciLower" (* (double (:ci-lower v)) total-scale))
+                                        (contains? v :ci-upper)
+                                        (assoc "ciUpper" (* (double (:ci-upper v)) total-scale)))))
+                                  implementations)]
+                  {:metric-id metric-id
+                   :metric-path metric
+                   :y-title y-title
+                   :data chart-data})))))
+         vec)))
 
 (defn prepare-single-point-bar-data
   "Prepare data for single-point bar chart from domain extract.
