@@ -837,3 +837,30 @@
                   :total-calls 1500}
                  ...]}"
   call-graph-analysis/most-called)
+
+(def filter-calls
+  "Analysis function that filters the call graph and stores the result.
+
+  Applies filter-call-tree to the source call tree and stores the filtered
+  result under a new identifier. Multiple filter-calls can be chained to
+  create different filtered views of the same call tree.
+
+  Parameters:
+    opts - Optional map with keys:
+      :id               - Key for result in output (default: :filtered)
+      :call-tree-id     - Key for source call tree (default: :call-tree)
+      :exclude-packages - Set of package prefixes to exclude entirely
+      :stop-at-packages - Set of package prefixes where traversal stops
+      :max-depth        - Maximum depth to include (1 = root only)
+
+  The returned function:
+  - Takes a data-map containing :call-tree (or custom :call-tree-id)
+  - Returns the data-map with filtered tree added under :id key
+  - Returns data-map unchanged if call-tree is not present
+
+  Result structure:
+  {:type :criterium/filtered-call-tree
+   :source-id :call-tree
+   :filter-opts {...}
+   :call-tree <filtered-tree>}"
+  call-graph-analysis/filter-calls)

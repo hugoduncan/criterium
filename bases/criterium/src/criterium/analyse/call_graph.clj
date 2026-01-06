@@ -2,7 +2,9 @@
   "Analysis functions for call graph data from method tracing.
 
   Provides analysis functions that operate on call tree data collected
-  via the method tracing agent.")
+  via the method tracing agent."
+  (:require
+   [criterium.agent :as agent]))
 
 ;;; Call Tree Flattening
 
@@ -90,3 +92,67 @@
                        :limit limit
                        :most-called sorted}]
            (assoc data-map id result)))))))
+
+;;; Filter Calls Analysis
+
+(defn filter-calls
+  "Analysis function that filters the call graph and stores the result.
+
+  Applies filter-call-tree to the source call tree and stores the filtered
+  result under a new identifier. Multiple filter-calls can be chained to
+  create different filtered views of the same call tree.
+
+  Parameters:
+    opts - Optional map with keys:
+      :id               - Key for result in output (default: :filtered)
+      :call-tree-id     - Key for source call tree (default: :call-tree)
+      :exclude-packages - Set of package prefixes to exclude entirely.
+                          Nodes with matching classes are removed,
+                          their children promoted up.
+      :stop-at-packages - Set of package prefixes where traversal stops.
+                          Matching nodes are kept but their children
+                          are truncated.
+      :max-depth        - Maximum depth to include (1 = root only,
+                          2 = root + children, etc.)
+
+  The returned function:
+  - Takes a data-map containing :call-tree (or custom :call-tree-id)
+  - Returns the data-map with filtered tree added under :id key
+  - Returns data-map unchanged if call-tree is not present
+
+  Result structure:
+  {:type :criterium/filtered-call-tree
+   :source-id :call-tree
+   :filter-opts {...}
+   :call-tree <filtered-tree>}
+
+  Example:
+  ;; In call-graph-plan :analyse
+  [[:filter-calls {:id :filtered
+                   :exclude-packages #{\"java.\" \"sun.\"}
+                   :stop-at-packages #{\"clojure.core\"}}]]
+
+  ;; Result structure
+  {:call-tree original-tree
+   :filtered {:type :criterium/filtered-call-tree
+              :source-id :call-tree
+              :filter-opts {...}
+              :call-tree filtered-tree}}"
+  ([] (filter-calls {}))
+  ([{:keys [id call-tree-id exclude-packages stop-at-packages max-depth]
+     :or {id :filtered
+          call-tree-id :call-tree}}]
+   (let [filter-opts (cond-> {}
+                       exclude-packages (assoc :exclude-packages exclude-packages)
+                       stop-at-packages (assoc :stop-at-packages stop-at-packages)
+                       max-depth (assoc :max-depth max-depth))]
+     (fn [data-map]
+       (let [call-tree (get data-map call-tree-id)]
+         (if-not call-tree
+           data-map
+           (let [filtered-tree (agent/filter-call-tree call-tree filter-opts)
+                 result {:type :criterium/filtered-call-tree
+                         :source-id call-tree-id
+                         :filter-opts filter-opts
+                         :call-tree filtered-tree}]
+             (assoc data-map id result))))))))
