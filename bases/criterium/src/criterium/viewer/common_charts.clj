@@ -1590,13 +1590,16 @@
   "Build a PDF curve layer for a single fitted distribution.
 
   Takes the distribution keyword, fit result, grid (in original units), transforms,
-  and scale-by-jacobian? flag.
+  scale-by-jacobian? flag, and show-legend? flag.
 
   When scale-by-jacobian? is true, the PDF is multiplied by x to convert from
   density-per-original-unit to density-per-log-unit (for overlay on log-transformed KDE).
 
+  When show-legend? is true, this layer will display the color legend. Only one
+  layer should have show-legend? true to avoid duplicate legends.
+
   Returns a Vega-Lite layer spec or nil if the distribution couldn't be fitted."
-  [dist fit-result grid transforms scale-by-jacobian?]
+  [dist fit-result grid transforms scale-by-jacobian? show-legend?]
   (when (and (:params fit-result)
              (not (:error fit-result))
              (not (:skipped fit-result)))
@@ -1605,14 +1608,14 @@
           is-best? (= dist (:best-model fit-result))
           data (->> grid
                     (mapv (fn [x]
-                            (let [tx (util/transform-sample-> x transforms)
-                                  p (pdf-fn x)
+                            (let [p (pdf-fn x)
                                   ;; Scale by Jacobian if KDE is on log-transformed data
                                   ;; Converts density-per-original-unit to density-per-log-unit
                                   scaled-p (if scale-by-jacobian?
                                              (* p (double x))
                                              p)]
-                              {"x" tx "pdf-density" scaled-p})))
+                              ;; x is already in original display units, no transform needed
+                              {"x" x "pdf-density" scaled-p})))
                     ;; Filter out non-finite values that can't be encoded in JSON
                     (filterv (fn [pt]
                                (let [p (get pt "pdf-density")
@@ -1629,7 +1632,9 @@
                   :y {:field "pdf-density" :type "quantitative"}
                   :color {:field "distribution" :type "nominal"
                           :scale distribution-color-scale
-                          :legend {:orient "top-right" :title "Fitted Distributions"}}}})))
+                          ;; Only show legend on one layer to avoid duplicates
+                          :legend (when show-legend?
+                                    {:orient "top-right" :title "Fitted Distributions"})}}})))
 
 (defn distribution-pdf-overlay-layers
   "Build PDF overlay layers for all fitted distributions.
@@ -1641,15 +1646,19 @@
   Returns a vector of Vega-Lite layer specs for successfully fitted distributions."
   [fit-data grid transforms scale-by-jacobian?]
   (let [distributions (:distributions fit-data)
-        best-model (:best-model fit-data)]
-    (->> (keys distributions)
-         (mapv (fn [dist]
-                 (distribution-pdf-layer
-                  dist
-                  (assoc (get distributions dist) :best-model best-model)
-                  grid
-                  transforms
-                  scale-by-jacobian?)))
+        best-model (:best-model fit-data)
+        dist-keys (vec (keys distributions))]
+    (->> dist-keys
+         (map-indexed
+          (fn [idx dist]
+            (distribution-pdf-layer
+             dist
+             (assoc (get distributions dist) :best-model best-model)
+             grid
+             transforms
+             scale-by-jacobian?
+             ;; Only first distribution shows legend to avoid duplicates
+             (zero? idx))))
          (filterv some?))))
 
 (defn distribution-pdf-vega-spec
@@ -1702,7 +1711,7 @@
     {:data {:values []}
      :resolve {:scale {:x "independent"
                        :y "independent"
-                       :color "independent"}}
+                       :color "shared"}}
      :vconcat
      (mapv
       (fn [metric-config]
@@ -1727,7 +1736,7 @@
           (when kde-data
             (merge
              chart-options
-             {:resolve {:scale {:x "shared" :y "independent"}}
+             {:resolve {:scale {:x "shared" :y "independent" :color "shared"}}
               :layer
               (cond-> []
                 ;; Add histogram bars if available
@@ -1891,7 +1900,7 @@
     {:data {:values []}
      :resolve {:scale {:x "independent"
                        :y "shared"
-                       :color "independent"}}
+                       :color "shared"}}
      :vconcat
      (mapv
       (fn [metric-config]
@@ -1913,7 +1922,7 @@
           (when (seq samples)
             (merge
              chart-options
-             {:resolve {:scale {:y "shared"}}
+             {:resolve {:scale {:y "shared" :color "shared"}}
               :layer
               (cond-> []
                 ;; Add ECDF layer

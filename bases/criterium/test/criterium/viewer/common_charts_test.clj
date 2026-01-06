@@ -1706,7 +1706,7 @@
   (testing "distribution-pdf-layer"
     (testing "produces valid layer for fitted distribution"
       (let [layer (charts/distribution-pdf-layer
-                   :gamma sample-fit-result sample-grid identity-transforms false)]
+                   :gamma sample-fit-result sample-grid identity-transforms false true)]
         (is (map? layer))
         (is (contains? layer :data))
         (is (contains? layer :mark))
@@ -1714,7 +1714,7 @@
 
     (testing "includes PDF density values in data"
       (let [layer (charts/distribution-pdf-layer
-                   :gamma sample-fit-result sample-grid identity-transforms false)
+                   :gamma sample-fit-result sample-grid identity-transforms false true)
             data (get-in layer [:data :values])]
         (is (= 5 (count data)))
         (is (every? #(contains? % "x") data))
@@ -1724,33 +1724,33 @@
 
     (testing "uses line mark"
       (let [layer (charts/distribution-pdf-layer
-                   :gamma sample-fit-result sample-grid identity-transforms false)]
+                   :gamma sample-fit-result sample-grid identity-transforms false true)]
         (is (= "line" (get-in layer [:mark :type])))))
 
     (testing "best model has solid line"
       (let [best-result (assoc sample-fit-result :best-model :gamma)
             layer (charts/distribution-pdf-layer
-                   :gamma best-result sample-grid identity-transforms false)]
+                   :gamma best-result sample-grid identity-transforms false true)]
         (is (= [1 0] (get-in layer [:mark :strokeDash])))
         (is (= 2.5 (get-in layer [:mark :strokeWidth])))))
 
     (testing "non-best model has dashed line"
       (let [non-best-result (assoc sample-fit-result :best-model :lognormal)
             layer (charts/distribution-pdf-layer
-                   :gamma non-best-result sample-grid identity-transforms false)]
+                   :gamma non-best-result sample-grid identity-transforms false true)]
         (is (= [4 4] (get-in layer [:mark :strokeDash])))
         (is (= 1.5 (get-in layer [:mark :strokeWidth])))))
 
     (testing "returns nil for failed fit"
       (let [failed-result {:error "Fitting failed"}
             layer (charts/distribution-pdf-layer
-                   :gamma failed-result sample-grid identity-transforms false)]
+                   :gamma failed-result sample-grid identity-transforms false true)]
         (is (nil? layer))))
 
     (testing "returns nil for skipped distribution"
       (let [skipped-result {:skipped :moment-match-failed}
             layer (charts/distribution-pdf-layer
-                   :gamma skipped-result sample-grid identity-transforms false)]
+                   :gamma skipped-result sample-grid identity-transforms false true)]
         (is (nil? layer))))
 
     (testing "works for all distribution types"
@@ -1760,11 +1760,21 @@
                              [:inverse-gaussian {:mu 3.0 :lambda 2.0}]]]
         (let [result {:params params}
               layer (charts/distribution-pdf-layer
-                     dist result sample-grid identity-transforms false)]
+                     dist result sample-grid identity-transforms false true)]
           (is (map? layer)
               (str "Failed for distribution: " dist))
           (is (seq (get-in layer [:data :values]))
-              (str "No data for distribution: " dist)))))))
+              (str "No data for distribution: " dist)))))
+
+    (testing "shows legend when show-legend? is true"
+      (let [layer (charts/distribution-pdf-layer
+                   :gamma sample-fit-result sample-grid identity-transforms false true)]
+        (is (some? (get-in layer [:encoding :color :legend])))))
+
+    (testing "hides legend when show-legend? is false"
+      (let [layer (charts/distribution-pdf-layer
+                   :gamma sample-fit-result sample-grid identity-transforms false false)]
+        (is (nil? (get-in layer [:encoding :color :legend])))))))
 
 (deftest distribution-pdf-overlay-layers-test
   ;; Tests overlay layer generation for multiple distributions.
