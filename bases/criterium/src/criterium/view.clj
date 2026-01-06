@@ -38,7 +38,14 @@
 (def-multi-view samples)
 (def-multi-view stats)
 (def-multi-view shape-stats)
-(def-multi-view distribution-fit)
+
+;;; Distribution Fit Views
+
+(def-multi-view distribution-models)
+(def-multi-view distribution-parameter-cis)
+(def-multi-view distribution-pdf)
+(def-multi-view distribution-cdf)
+(def-multi-view distribution-qq)
 
 ;;; Modal Analysis Views
 
@@ -88,7 +95,13 @@
 (defmethod samples* :none [_ _ _])
 (defmethod stats* :none [_ _ _])
 (defmethod shape-stats* :none [_ _ _])
-(defmethod distribution-fit* :none [_ _ _])
+
+;; Distribution Fit Null Viewer
+(defmethod distribution-models* :none [_ _ _])
+(defmethod distribution-parameter-cis* :none [_ _ _])
+(defmethod distribution-pdf* :none [_ _ _])
+(defmethod distribution-cdf* :none [_ _ _])
+(defmethod distribution-qq* :none [_ _ _])
 
 ;; Modal Analysis Null Viewer
 (defmethod multimodal-warning* :none [_ _ _])

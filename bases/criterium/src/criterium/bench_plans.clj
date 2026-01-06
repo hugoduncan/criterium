@@ -232,7 +232,11 @@
           [:stats {:stats-id :log-stats}]
           :bootstrap-stats
           :shape-stats
-          :distribution-fit
+          :distribution-models
+          :distribution-parameter-cis
+          :distribution-pdf
+          :distribution-cdf
+          :distribution-qq
           :quantiles
           :event-stats
           :outlier-counts

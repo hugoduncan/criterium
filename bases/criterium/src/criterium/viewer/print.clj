@@ -632,12 +632,12 @@
         (println (format "%20s    %s: %s"
                          "" (name param) (format-param-ci ci-data)))))))
 
-(defn- print-distribution-fit-for-metric
-  "Print distribution fit results for a single metric."
+(defn- print-distribution-models-for-metric
+  "Print distribution model comparison for a single metric."
   [metric-config fit-data]
-  (let [{:keys [n warning distributions best-model parameter-cis]} fit-data
+  (let [{:keys [n warning distributions best-model]} fit-data
         {:keys [label]} metric-config]
-    (println (format "%32s: Distribution Fit (n=%d%s)"
+    (println (format "%32s: Distribution Models (n=%d%s)"
                      label n
                      (if warning " - WARNING: small sample" "")))
     ;; Print each distribution result, best model first
@@ -647,13 +647,10 @@
                                    distributions)]
       (when (not= dist best-model)
         (print-distribution-result dist result false)))
-    ;; Print parameter CIs for best model
-    (when (and best-model (get parameter-cis best-model))
-      (print-parameter-cis best-model (get parameter-cis best-model)))
     (println)))
 
-(defn print-distribution-fit
-  "Print distribution fit results for all metrics."
+(defn print-distribution-models
+  "Print distribution model comparison for all metrics."
   [{:keys [distribution-fit-id] :as _view} data-map]
   (let [distribution-fit-id (or distribution-fit-id :distribution-fit)
         distribution-fit-map (data-map distribution-fit-id)]
@@ -666,20 +663,66 @@
                                metrics-defs
                                (metric/type-pred :quantitative))))]
         (when (seq fits)
-          (println "Distribution Fitting Results:")
+          (println "Distribution Model Comparison:")
           (if metric-configs
             (doseq [mc metric-configs]
               (when-let [fit-data (get fits (:path mc))]
-                (print-distribution-fit-for-metric mc fit-data)))
+                (print-distribution-models-for-metric mc fit-data)))
             ;; Fallback if no metric-configs available
             (doseq [[path fit-data] fits]
-              (print-distribution-fit-for-metric
+              (print-distribution-models-for-metric
                {:label (str path) :path path}
                fit-data))))))))
 
-(defmethod view/distribution-fit* :print
+(defmethod view/distribution-models* :print
   [_ view data-map]
-  (print-distribution-fit view data-map))
+  (print-distribution-models view data-map))
+
+(defn- print-distribution-parameter-cis-for-metric
+  "Print parameter CIs for a single metric's best model."
+  [metric-config fit-data]
+  (let [{:keys [best-model parameter-cis]} fit-data
+        {:keys [label]} metric-config]
+    (when (and best-model (get parameter-cis best-model))
+      (println (format "%32s: %s Parameter CIs"
+                       label
+                       (get distribution-labels best-model (name best-model))))
+      (print-parameter-cis best-model (get parameter-cis best-model))
+      (println))))
+
+(defn print-distribution-parameter-cis
+  "Print parameter CIs for best models across all metrics."
+  [{:keys [distribution-fit-id] :as _view} data-map]
+  (let [distribution-fit-id (or distribution-fit-id :distribution-fit)
+        distribution-fit-map (data-map distribution-fit-id)]
+    (when distribution-fit-map
+      (let [fits (:fits distribution-fit-map)
+            metrics-defs (:metrics-defs (data-map :samples))
+            metric-configs (when metrics-defs
+                             (metric/all-metric-configs
+                              (metric/filter-metrics
+                               metrics-defs
+                               (metric/type-pred :quantitative))))]
+        (when (seq fits)
+          (println "Distribution Parameter Confidence Intervals:")
+          (if metric-configs
+            (doseq [mc metric-configs]
+              (when-let [fit-data (get fits (:path mc))]
+                (print-distribution-parameter-cis-for-metric mc fit-data)))
+            ;; Fallback if no metric-configs available
+            (doseq [[path fit-data] fits]
+              (print-distribution-parameter-cis-for-metric
+               {:label (str path) :path path}
+               fit-data))))))))
+
+(defmethod view/distribution-parameter-cis* :print
+  [_ view data-map]
+  (print-distribution-parameter-cis view data-map))
+
+;; Chart views are no-ops for print viewer
+(defmethod view/distribution-pdf* :print [_ _ _])
+(defmethod view/distribution-cdf* :print [_ _ _])
+(defmethod view/distribution-qq* :print [_ _ _])
 
 ;;; Domain Views
 

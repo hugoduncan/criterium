@@ -333,50 +333,67 @@
                :ci-upper (format "%.4g" ci-upper)})
             cis))))
 
-(defmethod view/distribution-fit* :portal
-  [_ {:keys [distribution-fit-id kde-id] :as view} data-map]
+(defmethod view/distribution-models* :portal
+  [_ {:keys [distribution-fit-id] :as _view} data-map]
   (let [distribution-fit-id (or distribution-fit-id :distribution-fit)
-        kde-id (or kde-id :kde)
-        distribution-fit-map (data-map distribution-fit-id)
-        kde-map (data-map kde-id)]
+        distribution-fit-map (data-map distribution-fit-id)]
     (when distribution-fit-map
       (let [fits (:fits distribution-fit-map)]
         (when (seq fits)
           (doseq [[path fit-data] fits]
-            (let [{:keys [n warning distributions best-model parameter-cis]} fit-data
+            (let [{:keys [n warning distributions best-model]} fit-data
                   metric-label (name (first path))]
-              ;; Heading with sample size and warning
-              (heading (str "Distribution Fit: " metric-label
+              (heading (str "Distribution Models: " metric-label
                             " (n=" n (when warning " - small sample") ")"))
-
-              ;; Model comparison table
               (portal-table
                (mapv (fn [[dist result]]
                        (format-distribution-table-row dist result best-model))
                      (sort-by (fn [[_ r]] (or (:delta-aic r) Double/MAX_VALUE))
-                              distributions)))
+                              distributions))))))))))
 
-              ;; Parameter CIs for best model
+(defmethod view/distribution-parameter-cis* :portal
+  [_ {:keys [distribution-fit-id] :as _view} data-map]
+  (let [distribution-fit-id (or distribution-fit-id :distribution-fit)
+        distribution-fit-map (data-map distribution-fit-id)]
+    (when distribution-fit-map
+      (let [fits (:fits distribution-fit-map)]
+        (when (seq fits)
+          (doseq [[path fit-data] fits]
+            (let [{:keys [best-model parameter-cis]} fit-data
+                  metric-label (name (first path))]
               (when-let [ci-rows (format-parameter-ci-rows best-model parameter-cis)]
-                (heading "Best Model Parameter CIs")
-                (portal-table ci-rows))))
+                (heading (str "Parameter CIs: " metric-label))
+                (portal-table ci-rows)))))))))
 
-          ;; Charts - only if KDE data is available
-          (when kde-map
-            (heading "Distribution PDF")
-            (portal-vega-lite
-             (charts/distribution-pdf-vega-spec
-              data-map
-              (assoc view :histogram-id :histograms)
-              {:height 400}))
+(defmethod view/distribution-pdf* :portal
+  [_ {:keys [kde-id] :as view} data-map]
+  (let [kde-id (or kde-id :kde)
+        kde-map (data-map kde-id)]
+    (when kde-map
+      (heading "Distribution PDF")
+      (portal-vega-lite
+       (charts/distribution-pdf-vega-spec
+        data-map
+        (assoc view :histogram-id :histograms)
+        {:height 400})))))
 
-            (heading "Distribution CDF")
-            (portal-vega-lite
-             (charts/distribution-cdf-vega-spec data-map view {:height 400}))
+(defmethod view/distribution-cdf* :portal
+  [_ {:keys [kde-id] :as view} data-map]
+  (let [kde-id (or kde-id :kde)
+        kde-map (data-map kde-id)]
+    (when kde-map
+      (heading "Distribution CDF")
+      (portal-vega-lite
+       (charts/distribution-cdf-vega-spec data-map view {:height 400})))))
 
-            (heading "Q-Q Plot")
-            (portal-vega-lite
-             (charts/distribution-qq-vega-spec data-map view {:height 400}))))))))
+(defmethod view/distribution-qq* :portal
+  [_ {:keys [kde-id] :as view} data-map]
+  (let [kde-id (or kde-id :kde)
+        kde-map (data-map kde-id)]
+    (when kde-map
+      (heading "Q-Q Plot")
+      (portal-vega-lite
+       (charts/distribution-qq-vega-spec data-map view {:height 400})))))
 
 (defmethod view/final-gc-warnings* :portal [_ _ _])
 
