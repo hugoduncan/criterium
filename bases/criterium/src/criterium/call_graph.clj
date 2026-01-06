@@ -27,6 +27,7 @@
   (:require
    [criterium.agent :as agent]
    [criterium.benchmark :as benchmark]
+   [criterium.call-graph.plans :as plans]
    [criterium.viewer.call-graph]
    [criterium.viewer.kindly]
    [criterium.viewer.portal]
@@ -94,15 +95,6 @@
   [results]
   (vreset! last-bench* results))
 
-;;; Default Plan
-
-(def default-call-graph-plan
-  "Default plan for call graph tracing.
-
-  Includes both tree and flame chart views."
-  {:analyse []
-   :view [:call-tree :call-flame]})
-
 ;;; Re-exported Filter Functions
 
 (def filter-call-tree
@@ -151,8 +143,8 @@
   [& {:as options}]
   (let [viewer (or (:viewer options) *default-viewer* :print)]
     {:viewer viewer
-     :analyse (or (:analyse options) (:analyse default-call-graph-plan))
-     :view (or (:view options) (:view default-call-graph-plan))}))
+     :analyse (or (:analyse options) (:analyse plans/default))
+     :view (or (:view options) (:view plans/default))}))
 
 ;;; Core Implementation
 
