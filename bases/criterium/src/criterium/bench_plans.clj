@@ -26,6 +26,8 @@
              :outliers
              [:stats {}]
              [:stats {:samples-id :log-samples :id :log-stats}]
+             [:bootstrap-stats {:quantiles [0.99]
+                                :estimate-quantiles [0.025 0.975]}]
              :kde
              :modes
              :event-stats
@@ -35,6 +37,7 @@
              :allocation-treemap]
    :view [[:stats {:metric-ids [:memory]}]
           [:stats {:stats-id :log-stats}]
+          :bootstrap-stats
           [:multimodal-warning {:modes-id :modes}]
           :event-stats
           :outlier-counts
