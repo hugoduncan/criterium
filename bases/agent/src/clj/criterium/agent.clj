@@ -148,9 +148,13 @@
        ;; Already tracing, just run body
        [nil (do ~@body)]
        ;; Start tracing, run body in wrapper, stop tracing
-       (let [f# (fn [] ~@body)]
+       (let [f#            (fn [] ~@body)
+             run-traced**# @#'run-traced*
+             traced#       (fn [] (run-traced**# f#))]
+         ;; Warm up: call once before tracing to trigger lazy initialization
+         (traced#)
          (core/method-tracing-start!)
-         (let [res# (run-traced* f#)]
+         (let [res# (traced#)]
            (core/method-tracing-stop!)
            ;; Collect the call tree from the run-traced* wrapper
            (let [raw-trees# (core/collect-method-call-tree)
@@ -320,12 +324,22 @@
     (or (user-code-class? (:class tree))
         (some tree-contains-user-code? (:children tree)))))
 
+(defn- find-wrapper-node
+  "Find the run-traced* wrapper node within a tree (depth-first search)."
+  [tree]
+  (when tree
+    (if (wrapper-tree? tree)
+      tree
+      (some find-wrapper-node (:children tree)))))
+
 (defn find-user-code-tree
   "Find the run-traced* wrapper tree from collected call trees.
+  Searches within trees to find the wrapper node.
   Throws if the wrapper tree is not found - this indicates a bug in tracing."
   [trees]
   (let [clean-trees (remove-tracing-infrastructure-trees trees)
-        wrapper      (first (filter wrapper-tree? clean-trees))]
+        wrapper     (or (first (filter wrapper-tree? clean-trees))
+                        (some find-wrapper-node clean-trees))]
     (when-not wrapper
       (throw (ex-info "run-traced* wrapper tree not found in call traces"
                       {:tree-count (count trees)
