@@ -83,85 +83,6 @@
   Below this threshold, BCa confidence intervals may be unreliable."
   30)
 
-;;; Selective stats computation for robust/non-robust split
-
-(def ^:private base-stat-keys
-  "Base statistics keys (excluding quantiles)."
-  [:mean :variance])
-
-(defn- quantile-robust?
-  "Check if a quantile should use unfiltered data."
-  [robust-stats-set q]
-  (or (contains? robust-stats-set :quantiles)
-      (contains? robust-stats-set q)))
-
-(defn- partition-stats
-  "Partition base stats and quantiles into robust and non-robust groups.
-
-  robust-stats can contain:
-    - :mean, :variance - these specific stats are robust
-    - :quantiles - all quantiles are robust
-    - specific quantile values like 0.5 - these specific quantiles are robust"
-  [robust-stats quantiles]
-  (let [robust-set (set robust-stats)]
-    {:robust {:stats (filterv #(contains? robust-set %) base-stat-keys)
-              :quantiles (filterv #(quantile-robust? robust-set %) quantiles)}
-     :non-robust {:stats (filterv #(not (contains? robust-set %)) base-stat-keys)
-                  :quantiles (filterv #(not (quantile-robust? robust-set %)) quantiles)}}))
-
-(defn- build-selective-stats-fn
-  "Build a stats function for selected base stats and quantiles."
-  [base-stats quantiles]
-  (let [stat-fns (keep #(get stats/stats-fn-map %) base-stats)
-        quantile-fns (map (fn [q] (fn [vs] (stats/quantile q vs))) quantiles)]
-    (stats/stats-fn (into (vec stat-fns) quantile-fns))))
-
-(defn- process-bootstrap-result
-  "Process bootstrap-bca result into a map with stat keys and quantiles."
-  [base-stats quantiles result scale-f]
-  (let [n-stats (count base-stats)
-        stat-results (take n-stats result)
-        quantile-results (drop n-stats result)]
-    (cond-> {}
-      (seq base-stats)
-      (merge (zipmap base-stats (map scale-f stat-results)))
-
-      (seq quantiles)
-      (assoc :quantiles (zipmap quantiles (map scale-f quantile-results))))))
-
-(defn- compute-all-stats
-  "Single-pass bootstrap computation for all stats (original behavior)."
-  [vs quantiles bootstrap-n estimate-qs scale-f]
-  (let [stats-fn (stats/stats-fn (stats/stats-fns quantiles))
-        stats    (stats/bootstrap-bca
-                  vs stats-fn bootstrap-n estimate-qs
-                  random/well-rng-1024a)
-        ks       (keys stats/stats-fn-map)]
-    (-> (zipmap ks stats)
-        (dissoc :min-val :max-val)
-        (stats/scale-bootstrap-values scale-f)
-        (assoc :quantiles
-               (zipmap quantiles (map scale-f (drop (count ks) stats)))))))
-
-(defn- compute-selective-stats
-  "Compute bootstrap stats for selected base-stats and quantiles."
-  [vs base-stats quantiles bootstrap-n estimate-qs scale-f]
-  (when (or (seq base-stats) (seq quantiles))
-    (let [stats-fn (build-selective-stats-fn base-stats quantiles)
-          result   (stats/bootstrap-bca
-                    vs stats-fn bootstrap-n estimate-qs
-                    random/well-rng-1024a)]
-      (process-bootstrap-result base-stats quantiles result scale-f))))
-
-(defn- merge-stats-results
-  "Merge robust and non-robust stats results."
-  [robust-result non-robust-result]
-  (merge
-   (dissoc robust-result :quantiles)
-   (dissoc non-robust-result :quantiles)
-   {:quantiles (merge (:quantiles robust-result)
-                      (:quantiles non-robust-result))}))
-
 (defn bootstrap-stats-for
   "Compute bootstrap statistics for samples with given options and transforms.
 
@@ -173,19 +94,13 @@
     :min-samples    - Minimum sample size threshold (default: 30). When sample
                       count is below this, a warning is printed and results
                       include :low-sample-count? true.
-    :robust-stats   - Stats to compute without outlier filtering.
-                      Can include :mean, :variance, :quantiles (all quantiles),
-                      or specific quantile values like 0.5.
-                      When specified and samples differ from unfiltered-samples,
-                      robust stats use unfiltered data, others use filtered.
 
   The :bootstrap-size option controls the number of bootstrap resamples.
   Defaults to the number of samples if not specified."
-  [samples unfiltered-samples opts transforms]
+  [samples opts transforms]
   {:pre [(:quantiles opts)
          (:estimate-quantiles opts)]}
   (let [vs            (mapv double samples)
-        unfilt-vs     (mapv double unfiltered-samples)
         n             (count vs)
         min-samples   (long (:min-samples opts default-min-samples))
         low-samples?  (< n min-samples)
@@ -194,31 +109,21 @@
                          "Warning: bootstrap sample count (%d) below minimum (%d). Results may be unreliable.\n"
                          n min-samples))
         quantiles     (into [0.1 0.25 0.5 0.75 0.9] (:quantiles opts))
-        robust-stats  (:robust-stats opts)
+        stats-fn      (stats/stats-fn (stats/stats-fns quantiles))
+        stats         (stats/bootstrap-bca
+                       vs
+                       stats-fn
+                       (:bootstrap-size opts n)
+                       (into [0.5] (:estimate-quantiles opts))
+                       random/well-rng-1024a)
         scale-1       (fn [v] (util/transform-sample-> v transforms))
         scale-f       (partial scale-bootstrap-stat scale-1)
-        estimate-qs   (into [0.5] (:estimate-quantiles opts))
-        bootstrap-n   (:bootstrap-size opts n)
-        ;; Need split computation when robust-stats specified and data differs
-        needs-split?  (and (seq robust-stats)
-                           (not= vs unfilt-vs))]
-    (cond->
-      (if needs-split?
-          ;; Two-pass: robust stats from unfiltered, non-robust from filtered
-        (let [{:keys [robust non-robust]} (partition-stats robust-stats quantiles)
-              robust-result (compute-selective-stats
-                             unfilt-vs
-                             (:stats robust)
-                             (:quantiles robust)
-                             bootstrap-n estimate-qs scale-f)
-              non-robust-result (compute-selective-stats
-                                 vs
-                                 (:stats non-robust)
-                                 (:quantiles non-robust)
-                                 bootstrap-n estimate-qs scale-f)]
-          (merge-stats-results robust-result non-robust-result))
-          ;; Single pass: all stats from same data (original behavior)
-        (compute-all-stats vs quantiles bootstrap-n estimate-qs scale-f))
+        ks            (keys stats/stats-fn-map)]
+    (cond-> (-> (zipmap ks stats)
+                (dissoc :min-val :max-val)
+                (stats/scale-bootstrap-values scale-f)
+                (assoc :quantiles
+                       (zipmap quantiles (map scale-f (drop (count ks) stats)))))
       low-samples? (assoc :low-sample-count? true))))
 
 (defn- filter-outliers
@@ -236,19 +141,16 @@
 
 (defn bootstrap-stats*
   "Compute bootstrap stats for all metric paths.
-
-  When outliers is non-nil, removes outlier samples before bootstrap resampling.
-  When :robust-stats is specified in config, those stats use unfiltered data
-  while other stats use filtered data."
+  When outliers is non-nil, removes outlier samples before bootstrap resampling."
   [metric->values outliers metric-configs transforms config]
   (reduce
    (fn [res path]
-     (let [unfiltered-values (get metric->values path)
-           filtered-values (filter-outliers unfiltered-values outliers path)]
+     (let [values (get metric->values path)
+           filtered-values (filter-outliers values outliers path)]
        (if (seq filtered-values)
          (assoc-in
           res path
-          (bootstrap-stats-for filtered-values unfiltered-values config transforms))
+          (bootstrap-stats-for filtered-values config transforms))
          res)))
    {}
    (map :path metric-configs)))
@@ -268,22 +170,10 @@
       :min-samples        - Minimum sample size for reliable results (default: 30).
                             When sample count is below this threshold, a warning
                             is printed and results include :low-sample-count? true.
-      :robust-stats       - Stats to compute without outlier filtering. Can include:
-                            - :mean, :variance - these specific stats are robust
-                            - :quantiles - all quantiles are robust
-                            - specific quantile values like 0.5 (median)
-                            When specified with :outliers-id, robust stats use
-                            unfiltered data while other stats use filtered data.
-                            This enables computing median on raw data (robust to
-                            outliers) while protecting mean from outlier influence.
 
   When :outliers-id is provided, outliers identified in the outlier analysis
   are removed from samples before bootstrap resampling. This prevents outliers
-  from propagating and amplifying in resamples.
-
-  Example usage for robust median with filtered mean:
-    [:bootstrap-stats {:outliers-id :outliers
-                       :robust-stats [:quantiles]}]"
+  from propagating and amplifying in resamples."
   ([] (bootstrap-stats {}))
   ([{:keys [id metric-ids samples-id outliers-id] :as analysis}]
    (fn [data-map]

@@ -95,12 +95,10 @@
     (dissoc (criterium.measure/measure m {}) :state))
 
 (deftest bootstrap-stats-for-test
-  ;; Tests for bootstrap-stats-for now pass samples twice (filtered, unfiltered)
-  ;; since the function signature changed to support robust-stats option.
   (testing "constant input"
     (let [samples (mapv double (repeat 100 1))
           stats   (bootstrap/bootstrap-stats-for
-                   samples samples
+                   samples
                    {:estimate-quantiles [0.025 0.975] :quantiles [0.99]}
                    sampled-stats-test/identity-transforms)
           result  (bootstrap/->BcaEstimate
@@ -120,7 +118,7 @@
   (testing "sequential input"
     (let [samples (mapv double (range 101))
           stats   (bootstrap/bootstrap-stats-for
-                   samples samples
+                   samples
                    {:estimate-quantiles [0.025 0.975] :quantiles [0.99]}
                    sampled-stats-test/identity-transforms)]
       (let [{m                       :point-estimate
@@ -137,7 +135,7 @@
   (testing "reverse sequential input"
     (let [samples (mapv double (reverse (range 101)))
           stats   (bootstrap/bootstrap-stats-for
-                   samples samples
+                   samples
                    {:estimate-quantiles [0.025 0.975] :quantiles [0.99]}
                    sampled-stats-test/identity-transforms)]
       (let [{m                       :point-estimate
@@ -158,7 +156,7 @@
       (testing "does not set :low-sample-count?"
         (let [samples (mapv double (range 30))
               stats (bootstrap/bootstrap-stats-for
-                     samples samples
+                     samples
                      {:estimate-quantiles [0.025 0.975] :quantiles [0.99]}
                      sampled-stats-test/identity-transforms)]
           (is (nil? (:low-sample-count? stats))))))
@@ -169,11 +167,11 @@
               ;; First run suppresses stdout, second captures return value
               _ (with-out-str
                   (bootstrap/bootstrap-stats-for
-                   samples samples
+                   samples
                    {:estimate-quantiles [0.025 0.975] :quantiles [0.99]}
                    sampled-stats-test/identity-transforms))
               result (bootstrap/bootstrap-stats-for
-                      samples samples
+                      samples
                       {:estimate-quantiles [0.025 0.975] :quantiles [0.99]}
                       sampled-stats-test/identity-transforms)]
           (is (true? (:low-sample-count? result)))))
@@ -182,7 +180,7 @@
         (let [samples (mapv double (range 20))
               output (with-out-str
                        (bootstrap/bootstrap-stats-for
-                        samples samples
+                        samples
                         {:estimate-quantiles [0.025 0.975] :quantiles [0.99]}
                         sampled-stats-test/identity-transforms))]
           (is (re-find #"Warning.*bootstrap sample count.*20.*below minimum.*30"
@@ -193,7 +191,7 @@
         (let [samples (mapv double (range 15))
               ;; With min-samples=10, 15 samples should be fine
               result (bootstrap/bootstrap-stats-for
-                      samples samples
+                      samples
                       {:estimate-quantiles [0.025 0.975]
                        :quantiles [0.99]
                        :min-samples 10}
@@ -204,7 +202,7 @@
         (let [samples (mapv double (range 5))
               output (with-out-str
                        (bootstrap/bootstrap-stats-for
-                        samples samples
+                        samples
                         {:estimate-quantiles [0.025 0.975]
                          :quantiles [0.99]
                          :min-samples 10}
@@ -356,7 +354,7 @@
                                     (combined vs))))]
         (with-redefs [stats-interface/stats-fn tracking-stats-fn]
           (bootstrap/bootstrap-stats-for
-           samples samples
+           samples
            {:estimate-quantiles [0.025 0.975]
             :quantiles          [0.99]
             :bootstrap-size     bootstrap-size}
@@ -372,163 +370,3 @@
                    "(1 estimate + " bootstrap-size " bootstrap + "
                    (count samples) " jackknife), got " @invocation-count
                    ". If higher, quantiles may be bootstrapped separately.")))))))
-
-;; Tests for :robust-stats option - allows computing some stats from unfiltered
-;; data (robust stats like median) while others use filtered data (mean).
-(deftest bootstrap-stats-robust-stats-test
-  ;; Test that robust-stats option enables selective outlier filtering.
-  ;; When :robust-stats is specified, those stats use unfiltered data
-  ;; while other stats use filtered data.
-  (testing "bootstrap-stats-for"
-    (testing "with :robust-stats [:quantiles]"
-      (testing "computes quantiles from unfiltered data, mean from filtered"
-        ;; Create samples where filtering makes a big difference
-        ;; Unfiltered: [1000000, 1000000, 10, 10, 10, ...] - mean ~20000
-        ;; Filtered: [10, 10, 10, ...] - mean ~10
-        (let [base-samples (mapv double (repeat 98 10.0))
-              outlier-samples (into [1000000.0 1000000.0] base-samples)
-              ;; When samples differ, robust stats use unfiltered
-              result (bootstrap/bootstrap-stats-for
-                      base-samples        ; filtered (without outliers)
-                      outlier-samples     ; unfiltered (with outliers)
-                      {:estimate-quantiles [0.025 0.975]
-                       :quantiles [0.99]
-                       :robust-stats [:quantiles]
-                       :bootstrap-size 50}
-                      sampled-stats-test/identity-transforms)
-              ;; Mean should be computed from filtered data (close to 10)
-              mean-estimate (-> result :mean :point-estimate)
-              ;; Median (0.5 quantile) should be computed from unfiltered data
-              ;; With outliers included, median is still ~10 (robust)
-              median-estimate (-> result :quantiles (get 0.5) :point-estimate)]
-          ;; Mean from filtered data should be close to 10
-          (is (< mean-estimate 20.0)
-              (str "Mean should be from filtered data (close to 10): " mean-estimate))
-          ;; Median from unfiltered data should also be ~10 (robust to outliers)
-          (is (< 5.0 median-estimate 20.0)
-              (str "Median should be robust even with outliers: " median-estimate)))))
-
-    (testing "without :robust-stats (same data)"
-      (testing "uses single-pass computation"
-        ;; When filtered and unfiltered are the same, should use single pass
-        (let [samples (mapv double (range 101))
-              result (bootstrap/bootstrap-stats-for
-                      samples samples
-                      {:estimate-quantiles [0.025 0.975]
-                       :quantiles [0.99]
-                       :robust-stats [:quantiles]
-                       :bootstrap-size 50}
-                      sampled-stats-test/identity-transforms)]
-          ;; Should have all stats computed
-          (is (some? (-> result :mean)))
-          (is (some? (-> result :variance)))
-          (is (some? (-> result :quantiles (get 0.5)))))))
-
-    (testing "with :robust-stats [:mean :variance]"
-      (testing "computes mean and variance from unfiltered data"
-        (let [base-samples (mapv double (repeat 98 10.0))
-              outlier-samples (into [1000000.0 1000000.0] base-samples)
-              result (bootstrap/bootstrap-stats-for
-                      base-samples        ; filtered
-                      outlier-samples     ; unfiltered
-                      {:estimate-quantiles [0.025 0.975]
-                       :quantiles [0.99]
-                       :robust-stats [:mean :variance]
-                       :bootstrap-size 50}
-                      sampled-stats-test/identity-transforms)
-              mean-estimate (-> result :mean :point-estimate)]
-          ;; Mean should be computed from unfiltered data (affected by outliers)
-          (is (> mean-estimate 1000.0)
-              (str "Mean should be from unfiltered data (high due to outliers): "
-                   mean-estimate)))))
-
-    (testing "with specific quantile in :robust-stats"
-      (testing "only that quantile uses unfiltered data"
-        ;; Test that we can specify individual quantiles as robust
-        (let [base-samples (mapv double (repeat 98 10.0))
-              outlier-samples (into [1000000.0 1000000.0] base-samples)
-              result (bootstrap/bootstrap-stats-for
-                      base-samples
-                      outlier-samples
-                      {:estimate-quantiles [0.025 0.975]
-                       :quantiles [0.99]
-                       :robust-stats [0.5]  ; Only median is robust
-                       :bootstrap-size 50}
-                      sampled-stats-test/identity-transforms)
-              median (-> result :quantiles (get 0.5) :point-estimate)
-              q25 (-> result :quantiles (get 0.25) :point-estimate)]
-          ;; Both should be ~10 in this case, but from different data sources
-          (is (< 5.0 median 20.0)
-              (str "Median should be from unfiltered data: " median))
-          (is (< 5.0 q25 20.0)
-              (str "Q25 should be from filtered data: " q25)))))))
-
-;; Integration test: verify robust-stats works through the full bootstrap-stats
-;; analysis function pipeline.
-(deftest bootstrap-stats-robust-stats-integration-test
-  ;; Test that :robust-stats works through the full analysis pipeline.
-  (testing "bootstrap-stats analysis function"
-    (testing "with :robust-stats [:quantiles]"
-      (let [batch-size 100
-            num-samples 100
-            ;; Normal values around 10.0 * batch-size = 1000
-            base-samples (sample-values batch-size (- num-samples 2) 123 10.0 1.0)
-            ;; Add outliers at indices 0 and 1
-            outlier-samples (into [1000000.0 1000000.0] base-samples)
-            samples {[:v] outlier-samples}
-            metric-samples (assoc
-                            (metrics-samples samples batch-size)
-                            :metrics-defs
-                            {:v
-                             {:type :quantitative
-                              :values [{:path [:v]
-                                        :type :quantitative
-                                        :dimension :time
-                                        :scale 1
-                                        :label "v"}]}})
-            ;; Create outliers map marking indices 0 and 1 as outliers
-            outliers-map {:type :criterium/outliers
-                          :outliers {:v {:outliers {0 :high-severe
-                                                    1 :high-severe}
-                                         :outlier-counts {:low-severe 0
-                                                          :low-mild 0
-                                                          :high-mild 0
-                                                          :high-severe 2}}}
-                          :metrics-defs {:v
-                                         {:type :quantitative
-                                          :values [{:path [:v]
-                                                    :type :quantitative
-                                                    :dimension :time
-                                                    :scale 1
-                                                    :label "v"}]}}
-                          :num-samples num-samples
-                          :source-id :samples
-                          :quantiles-id :quantiles
-                          :transform collect-plan/identity-transforms}
-            result ((bootstrap/bootstrap-stats
-                     {:quantiles [0.99]
-                      :estimate-quantiles [0.025 0.975]
-                      :bootstrap-size 100
-                      :outliers-id :outliers
-                      :robust-stats [:quantiles]})
-                    {:samples metric-samples
-                     :outliers outliers-map})
-            mean-estimate (-> result
-                              :bootstrap-stats
-                              util/bootstrap
-                              :v
-                              :mean
-                              :point-estimate)
-            median-estimate (-> result
-                                :bootstrap-stats
-                                util/bootstrap
-                                :v
-                                :quantiles
-                                (get 0.5)
-                                :point-estimate)]
-        ;; Mean should be computed from filtered data (close to 10)
-        (is (< mean-estimate 20.0)
-            (str "Mean should use filtered data (close to 10): " mean-estimate))
-        ;; Median is robust - even with unfiltered data, should be ~10
-        (is (< 5.0 median-estimate 20.0)
-            (str "Median should be robust to outliers: " median-estimate))))))

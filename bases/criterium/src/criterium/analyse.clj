@@ -796,9 +796,6 @@
       :estimate-quantiles - Confidence interval bounds (e.g., [0.025 0.975])
       :bootstrap-size     - Number of bootstrap resamples (default: sample count)
       :min-samples        - Minimum sample size threshold (default: 30)
-      :robust-stats       - Stats to compute without outlier filtering.
-                            Can include :mean, :variance, :quantiles (all quantiles),
-                            or specific quantile values like 0.5.
 
   The returned function:
   - Takes a data map containing samples (and optionally outliers)
@@ -807,8 +804,6 @@
     - mean, variance
     - quantiles (0.1, 0.25, 0.5, 0.75, 0.9 plus configured)
 
-  When :robust-stats is specified with :outliers-id, robust stats (e.g., median)
-  use unfiltered data while non-robust stats (e.g., mean) use filtered data.
-  This enables computing median on raw data (robust to outliers) while protecting
-  mean from outlier influence."
+  When :outliers-id is provided, outliers are removed from samples before
+  bootstrap resampling."
   bootstrap/bootstrap-stats)
