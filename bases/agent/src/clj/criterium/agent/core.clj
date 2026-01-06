@@ -101,16 +101,19 @@
   (atom []))
 
 (def ^:internal method-call-tree
-  "Atom containing the method call tree from the last tracing session.
+  "Atom containing the method call tree roots from the last tracing session.
 
-  The tree is a nested map structure representing the call hierarchy:
+  The value is a vector of tree nodes. Each tree node is a map:
   {:class       - Class name (JVM internal format converted to standard)
    :method      - Method name
    :file        - Source file name (may be nil)
    :line        - Line number (-1 if unknown)
    :call-count  - Number of times this call path was executed
-   :children    - Vector of child call nodes}"
-  (atom nil))
+   :children    - Vector of child call nodes}
+
+  Multiple roots occur when separate call chains are traced (e.g., user code
+  followed by the tracing infrastructure's stop function)."
+  (atom []))
 
 (defn internal->class-name
   "Convert an internal JVM class name to standard Java/Clojure class name.
@@ -196,8 +199,9 @@
   ([object]
    (cond
      ;; Handle MethodCall objects for method tracing
+     ;; Accumulate multiple roots (each top-level call chain is sent separately)
      (and @method-call-class (.isInstance (get-method-call-class) object))
-     (reset! method-call-tree (method-call->map object))
+     (swap! method-call-tree conj (method-call->map object))
 
      ;; Handle Allocation objects for allocation tracing
      (and @allocation-class (.isInstance (get-allocation-class) object))
@@ -589,10 +593,12 @@
   - May timeout if agent doesn't respond"
   []
   (agent-command :stop-method-tracing)
-  (loop [i 100000]
+  ;; Method tracing can capture many events (10000s), so use a real sleep
+  ;; rather than yield to give the consumer thread time to process.
+  (loop [i 1000]
     (when (and (pos? i)
                (not= (agent-state) :method-tracing-stopped))
-      (Thread/yield)
+      (Thread/sleep 1)
       (recur (unchecked-dec i))))
   (when (not= (agent-state) :method-tracing-stopped)
     (println "WARNING method tracing failed to stop promptly")))
@@ -601,16 +607,19 @@
   "Retrieve the method call tree from the agent.
 
   Sends the report command and waits for the agent to send the MethodCall
-  tree via the data callback. The tree is stored in the method-call-tree atom.
+  trees via the data callback. The trees are accumulated in the
+  method-call-tree atom.
 
-  Returns the call tree map structure."
+  Returns a vector of call tree root nodes."
   []
-  (reset! method-call-tree nil)
+  (reset! method-call-tree [])
   (agent-command :report-method-tracing)
-  (loop [i 100000]
+  ;; Method tracing can capture many events (10000s), so use a real sleep
+  ;; rather than yield to give the consumer thread time to process.
+  (loop [i 1000]
     (when (and (pos? i)
                (not= (agent-state) :method-tracing-reported))
-      (Thread/yield)
+      (Thread/sleep 1)
       (recur (unchecked-dec i))))
   (when (not= (agent-state) :method-tracing-reported)
     (println "WARNING method tracing failed to collect results promptly"))
