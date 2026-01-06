@@ -2091,20 +2091,26 @@
   "Build a single Q-Q subplot for one distribution.
 
   Returns a Vega-Lite spec with reference line and scatter points for the
-  given distribution, with axes constrained to the observed data range."
-  [dist fit-result samples transforms observed-range subplot-options]
+  given distribution. Axes domain is computed from both theoretical and
+  observed values to ensure all Q-Q points are visible."
+  [dist fit-result samples transforms _observed-range subplot-options]
   (when (and (:params fit-result)
              (not (:error fit-result))
              (not (:skipped fit-result)))
-    (let [[min-val max-val] observed-range
-          margin (* 0.05 (- (double max-val) (double min-val)))
-          domain-min (- (double min-val) margin)
-          domain-max (+ (double max-val) margin)
-          quantile-fn (make-quantile-fn dist (:params fit-result))
+    (let [quantile-fn (make-quantile-fn dist (:params fit-result))
           label (get distribution-labels dist (name dist))
           is-best? (= dist (:best-model fit-result))
           color (get distribution-colors dist "#999999")
-          data (qq-points samples quantile-fn transforms)]
+          data (qq-points samples quantile-fn transforms)
+          ;; Compute domain from both theoretical and observed values
+          ;; to ensure all points are visible within the axes
+          all-values (into (mapv #(get % "theoretical") data)
+                           (mapv #(get % "observed") data))
+          min-val (apply min all-values)
+          max-val (apply max all-values)
+          margin (* 0.05 (- (double max-val) (double min-val)))
+          domain-min (- (double min-val) margin)
+          domain-max (+ (double max-val) margin)]
       (merge
        subplot-options
        {:title {:text label
