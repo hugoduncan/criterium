@@ -1750,14 +1750,14 @@
                          (conj (kde-density-layer
                                 kde-data metric-config kde-transforms))
                          ;; Add distribution PDF overlays using original-unit grid
-                         ;; Use samples transforms (not kde transforms) since fit is on original data
+                         ;; Use KDE transforms for x-axis to match KDE display
                          ;; Scale by Jacobian if KDE is on log-transformed data
                          ;; Only add overlays when both fit-data and pdf-grid exist
                          (and fit-data pdf-grid)
                          (into (distribution-pdf-overlay-layers
                                 fit-data
                                 pdf-grid
-                                samples-transforms
+                                kde-transforms
                                 scale-by-jacobian?)))}))}))))
       metric-configs)}))
 
@@ -1807,7 +1807,7 @@
                     :scale {:domain [0 1]}}
                 :color {:field "distribution" :type "nominal"
                         :scale cdf-color-scale
-                        :legend {:orient "top-right" :title "Distribution"}}}}))
+                        :legend {:orient "bottom-right" :title "Distribution"}}}}))
 
 (defn distribution-cdf-layer
   "Build a CDF curve layer for a single fitted distribution.
@@ -2042,8 +2042,61 @@
     (when (seq observed-values)
       [(apply min observed-values) (apply max observed-values)])))
 
+(defn- qq-subplot-spec
+  "Build a single Q-Q subplot for one distribution.
+
+  Returns a Vega-Lite spec with reference line and scatter points for the
+  given distribution, with axes constrained to the observed data range."
+  [dist fit-result samples transforms observed-range subplot-options]
+  (when (and (:params fit-result)
+             (not (:error fit-result))
+             (not (:skipped fit-result)))
+    (let [[min-val max-val] observed-range
+          margin (* 0.05 (- (double max-val) (double min-val)))
+          domain-min (- (double min-val) margin)
+          domain-max (+ (double max-val) margin)
+          quantile-fn (make-quantile-fn dist (:params fit-result))
+          label (get distribution-labels dist (name dist))
+          is-best? (= dist (:best-model fit-result))
+          color (get distribution-colors dist "#999999")
+          data (qq-points samples quantile-fn transforms)]
+      (merge
+       subplot-options
+       {:title {:text label
+                :color (if is-best? color "#666666")
+                :fontWeight (if is-best? "bold" "normal")}
+        :layer
+        [;; Reference line (y=x diagonal)
+         {:data {:values [{"x" domain-min "y" domain-min}
+                          {"x" domain-max "y" domain-max}]}
+          :mark {:type "line"
+                 :strokeDash [4 4]
+                 :strokeWidth 1.5
+                 :color "#999999"}
+          :encoding {:x {:field "x" :type "quantitative"
+                         :scale {:domain [domain-min domain-max]}}
+                     :y {:field "y" :type "quantitative"
+                         :scale {:domain [domain-min domain-max]}}}}
+         ;; Q-Q scatter points
+         {:data {:values data}
+          :mark {:type "point"
+                 :size 50
+                 :filled true
+                 :opacity 0.7
+                 :color color}
+          :encoding {:x {:field "theoretical" :type "quantitative"
+                         :title "Theoretical Quantiles"
+                         :scale {:domain [domain-min domain-max]}}
+                     :y {:field "observed" :type "quantitative"
+                         :title "Sample Quantiles"
+                         :scale {:domain [domain-min domain-max]}}
+                     :tooltip [{:field "theoretical" :type "quantitative"
+                                :title "Theoretical" :format ".4g"}
+                               {:field "observed" :type "quantitative"
+                                :title "Observed" :format ".4g"}]}}]}))))
+
 (defn distribution-qq-vega-spec
-  "Build a complete Vega-Lite spec for Q-Q plot with all fitted distributions overlaid.
+  "Build a complete Vega-Lite spec for Q-Q plots with separate subplots per distribution.
 
   Takes data-map, view options, and chart-options map containing :width and/or
   :height for chart dimensions.
@@ -2052,9 +2105,9 @@
     :samples-id - Key for samples data in data-map (default :samples)
     :distribution-fit-id - Key for distribution fit data (default :distribution-fit)
 
-  Each fitted distribution is plotted as a separate scatter series. If data follows
-  the distribution, points lie along the y=x reference line. Best-fit model uses
-  larger, filled points; other models use smaller, hollow points.
+  Each fitted distribution gets its own subplot. If data follows the distribution,
+  points lie along the y=x reference line. The best-fit model has bold title.
+  Subplots are arranged in a 2-column grid.
 
   Returns the Vega-Lite spec without viewer-specific wrapping."
   [data-map view chart-options]
@@ -2068,11 +2121,14 @@
         metric-configs (metric/all-metric-configs metrics-defs)
         metric->values (util/metric->values samples-map)
         fits (when distribution-fit-map (:fits distribution-fit-map))
-        samples-transforms (util/get-transforms data-map samples-id)]
+        samples-transforms (util/get-transforms data-map samples-id)
+        ;; Subplot dimensions - smaller since we have multiple
+        subplot-width (or (:subplot-width chart-options)
+                          (quot (or (:width chart-options) 400) 2))
+        subplot-height (or (:subplot-height chart-options)
+                           (quot (or (:height chart-options) 300) 2))
+        subplot-options {:width subplot-width :height subplot-height}]
     {:data {:values []}
-     :resolve {:scale {:x "shared"
-                       :y "shared"
-                       :color "independent"}}
      :vconcat
      (mapv
       (fn [metric-config]
@@ -2080,39 +2136,34 @@
               samples (get metric->values path)
               fit-data (when fits (get fits path))]
           (when (and (seq samples) fit-data)
-            ;; Generate Q-Q layers first to determine observed data range
-            (let [qq-layers (distribution-qq-overlay-layers
-                             fit-data
-                             samples
-                             samples-transforms)
-                  ;; Compute range from observed values only (not theoretical)
-                  ;; to avoid extreme axis extension from poorly-fitting distributions
-                  [min-val max-val] (qq-observed-data-range qq-layers)]
-              (let [;; Calculate axis domain with small margin
-                    margin (when (and min-val max-val)
-                             (* 0.05 (- (double max-val) (double min-val))))
-                    domain-min (when margin (- (double min-val) margin))
-                    domain-max (when margin (+ (double max-val) margin))]
-                (merge
-                 chart-options
-                 {:resolve {:scale {:x "shared" :y "shared"}}
-                  :layer
-                  (cond-> []
-                    ;; Add reference line first (background)
-                    (and min-val max-val)
-                    (conj (qq-reference-line-layer min-val max-val))
-                    ;; Add distribution Q-Q scatter layers with constrained axes
-                    (seq qq-layers)
-                    (into (mapv
-                           (fn [layer]
-                             (-> layer
-                                 ;; Constrain x-axis (theoretical) to observed range
-                                 (assoc-in [:encoding :x :scale :domain]
-                                           [domain-min domain-max])
-                                 ;; Constrain y-axis (observed) to observed range
-                                 (assoc-in [:encoding :y :scale :domain]
-                                           [domain-min domain-max])))
-                           qq-layers)))}))))))
+            ;; Compute observed range for consistent axes across subplots
+            (let [sorted-samples (sort samples)
+                  transformed-samples (mapv #(util/transform-sample-> % samples-transforms)
+                                            sorted-samples)
+                  min-val (apply min transformed-samples)
+                  max-val (apply max transformed-samples)
+                  observed-range [min-val max-val]
+                  distributions (:distributions fit-data)
+                  best-model (:best-model fit-data)
+                  ;; Generate subplots for each distribution
+                  subplots (->> distribution-order
+                                (filter #(contains? distributions %))
+                                (mapv (fn [dist]
+                                        (qq-subplot-spec
+                                         dist
+                                         (assoc (get distributions dist)
+                                                :best-model best-model)
+                                         samples
+                                         samples-transforms
+                                         observed-range
+                                         subplot-options)))
+                                (filterv some?))]
+              ;; Arrange in 2-column grid using vconcat of hconcat rows
+              (when (seq subplots)
+                {:vconcat
+                 (->> subplots
+                      (partition-all 2)
+                      (mapv (fn [row] {:hconcat (vec row)})))})))))
       metric-configs)}))
 
 (defn treemap-vega-spec

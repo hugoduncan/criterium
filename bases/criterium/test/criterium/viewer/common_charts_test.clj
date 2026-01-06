@@ -2227,63 +2227,63 @@
         (is (empty? layers))))))
 
 (deftest distribution-qq-vega-spec-test
-  ;; Tests complete Vega-Lite spec generation for Q-Q plots with distribution overlays.
-  ;; Verifies layer composition and structure.
+  ;; Tests complete Vega-Lite spec generation for Q-Q plots with subplots per distribution.
+  ;; Verifies subplot grid structure and individual subplot composition.
   (testing "distribution-qq-vega-spec"
-    (testing "produces valid structure"
+    (testing "produces valid structure with subplot grid"
       (let [data-map (test-data/distribution-qq-data-map)
             spec (charts/distribution-qq-vega-spec
                   data-map {} {:width 400 :height 300})]
         (is (map? spec))
         (is (contains? spec :vconcat))
         (is (vector? (:vconcat spec)))
-        (is (= 1 (count (:vconcat spec))))))
+        ;; First metric produces a grid of subplots
+        (let [metric-grid (first (:vconcat spec))]
+          (is (contains? metric-grid :vconcat) "Grid uses vconcat for rows"))))
 
-    (testing "includes chart dimensions"
-      (let [data-map (test-data/distribution-qq-data-map)
-            spec (charts/distribution-qq-vega-spec
-                  data-map {} {:width 500 :height 350})
-            chart (first (:vconcat spec))]
-        (is (= 500 (:width chart)))
-        (is (= 350 (:height chart)))))
-
-    (testing "includes reference line and distribution Q-Q layers"
+    (testing "creates subplot for each distribution"
       (let [data-map (test-data/distribution-qq-data-map)
             spec (charts/distribution-qq-vega-spec
                   data-map {} {:width 400 :height 300})
-            chart (first (:vconcat spec))
-            layers (:layer chart)]
-        ;; Should have reference line + Q-Q points for each distribution
-        ;; (gamma, lognormal, weibull = 3 distributions + 1 reference line)
-        (is (= 4 (count layers)))))
+            metric-grid (first (:vconcat spec))
+            rows (:vconcat metric-grid)
+            all-subplots (mapcat :hconcat rows)]
+        ;; Test data has 3 distributions (gamma, lognormal, weibull)
+        (is (= 3 (count all-subplots)))
+        ;; Each subplot has a title with the distribution name
+        (is (every? #(get-in % [:title :text]) all-subplots))))
 
-    (testing "reference line spans observed data range"
-      ;; The reference line is constrained to the observed data range to prevent
-      ;; poorly-fitting distributions from extending the chart axes excessively.
-      ;; When theoretical quantiles extend beyond observed values, the reference
-      ;; line still provides a useful y=x guide within the data's actual range.
+    (testing "each subplot includes reference line and Q-Q scatter layers"
       (let [data-map (test-data/distribution-qq-data-map)
             spec (charts/distribution-qq-vega-spec
                   data-map {} {:width 400 :height 300})
-            chart (first (:vconcat spec))
-            layers (:layer chart)
-            ref-line-layer (first layers)
-            ref-line-data (get-in ref-line-layer [:data :values])
-            ;; Collect all observed values from Q-Q scatter layers
-            qq-layers (rest layers)
-            all-observed (for [layer qq-layers
-                               point (get-in layer [:data :values])]
-                           (get point "observed"))
-            min-observed (apply min all-observed)
-            max-observed (apply max all-observed)
-            ;; Reference line endpoints
-            ref-start (get (first ref-line-data) "x")
-            ref-end (get (second ref-line-data) "x")]
-        ;; Reference line should span the observed data range with small margin
-        (is (<= ref-start min-observed)
-            "Reference line start should cover minimum observed value")
-        (is (>= ref-end max-observed)
-            "Reference line end should cover maximum observed value")))
+            metric-grid (first (:vconcat spec))
+            rows (:vconcat metric-grid)
+            first-subplot (first (:hconcat (first rows)))
+            layers (:layer first-subplot)]
+        ;; Each subplot has 2 layers: reference line + Q-Q scatter
+        (is (= 2 (count layers)))
+        ;; First layer is reference line (dashed)
+        (is (= [4 4] (get-in (first layers) [:mark :strokeDash])))
+        ;; Second layer is scatter plot
+        (is (= "point" (get-in (second layers) [:mark :type])))))
+
+    (testing "subplot axes constrained to observed data range"
+      (let [data-map (test-data/distribution-qq-data-map)
+            spec (charts/distribution-qq-vega-spec
+                  data-map {} {:width 400 :height 300})
+            metric-grid (first (:vconcat spec))
+            rows (:vconcat metric-grid)
+            first-subplot (first (:hconcat (first rows)))
+            layers (:layer first-subplot)
+            scatter-layer (second layers)
+            x-domain (get-in scatter-layer [:encoding :x :scale :domain])
+            y-domain (get-in scatter-layer [:encoding :y :scale :domain])]
+        ;; Both axes should have explicit domain constraints
+        (is (vector? x-domain))
+        (is (vector? y-domain))
+        ;; Domains should be equal (square plot for y=x reference)
+        (is (= x-domain y-domain))))
 
     (testing "returns nil chart when no distribution-fit data"
       (let [data-map {:samples (:samples (test-data/distribution-qq-data-map))}
