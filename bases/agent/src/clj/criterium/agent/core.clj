@@ -656,6 +656,7 @@
   (loop [i 1000]
     (when (and (pos? i) (not (method-tracing-active?)))
       (Thread/sleep 1)
+      (method-tracing-start-marker)
       (recur (unchecked-dec i))))
   (when (not (method-tracing-active?))
     (println "WARNING method tracing failed to start promptly")))
