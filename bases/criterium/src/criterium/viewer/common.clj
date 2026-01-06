@@ -246,9 +246,14 @@
   "Determine the visualization strategy for domain extract data.
 
   Returns one of:
-  - :single-point-bar  - single parameter point, multiple implementations (bar chart)
+  - :single-point-bar  - single parameter point, multiple implementations
+                         (renders as box plot showing median with CI and percentiles)
   - :multi-point-line  - multiple parameter points, single axis (line chart)
-  - :default-table     - regular table format (no chart)"
+  - :default-table     - regular table format (no chart)
+
+  Note: The :single-point-bar keyword is retained for API compatibility, but
+  the actual rendering uses box plots (not bar charts) to show statistical
+  distribution information from bootstrap analysis."
   [extract]
   (cond
     (single-point-multi-impl? extract) :single-point-bar
@@ -335,9 +340,14 @@
   "Determine the visualization strategy for domain comparison data.
 
   Returns one of:
-  - :single-point-bar  - single parameter point, multiple implementations (bar chart)
+  - :single-point-bar  - single parameter point, multiple implementations
+                         (renders as box plot showing median with CI and percentiles)
   - :multi-point-line  - multiple parameter points, single axis (line chart)
-  - :default-table     - regular table format (no chart)"
+  - :default-table     - regular table format (no chart)
+
+  Note: The :single-point-bar keyword is retained for API compatibility, but
+  the actual rendering uses box plots (not bar charts) to show statistical
+  distribution information from bootstrap analysis."
   [comparison]
   (cond
     (single-point-multi-impl-comparison? comparison) :single-point-bar
