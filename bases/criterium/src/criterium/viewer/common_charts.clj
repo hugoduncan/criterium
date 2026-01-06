@@ -1734,17 +1734,21 @@
               fit-data (when fits (get fits path))
               histogram (when histograms-map
                           (get (:histograms histograms-map) path))
-              ;; Get outlier bounds from thresholds vector [low-severe low-mild high-mild high-severe]
+              ;; Get outlier indices (map of index -> outlier-type)
+              ;; Use same filtering as histogram/KDE: remove by index, not threshold
               metric-outliers (when outliers-data (get-in outliers-data path))
-              thresholds (:thresholds metric-outliers)
-              low-bound (if thresholds (nth thresholds 0) Double/NEGATIVE_INFINITY)
-              high-bound (if thresholds (nth thresholds 3) Double/POSITIVE_INFINITY)
-              ;; Get samples and filter by outlier bounds
+              outlier-indices (:outliers metric-outliers)
+              ;; Get samples and filter by outlier indices
               samples (when metric->values (get metric->values path))
               non-outlier-samples (when (seq samples)
-                                    (filterv #(and (>= (double %) low-bound)
-                                                   (<= (double %) high-bound))
-                                             samples))
+                                    (into []
+                                          (comp
+                                           (map-indexed
+                                            (fn [i s] (when-not (and outlier-indices
+                                                                     (outlier-indices i))
+                                                        s)))
+                                           (filter some?))
+                                          samples))
               sorted-samples (when (seq non-outlier-samples) (sort non-outlier-samples))
               sample-min (when sorted-samples (first sorted-samples))
               sample-max (when sorted-samples (last sorted-samples))
