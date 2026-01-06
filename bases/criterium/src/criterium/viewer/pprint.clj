@@ -109,7 +109,8 @@
        :ci-upper (fmt-val ci-upper)})))
 
 (defn- bootstrap-stat-row
-  "Create a row for the bootstrap stats table."
+  "Create a row for the bootstrap stats table.
+  Column order: median first, then mean, then percentile spread."
   [metric-config stat]
   (let [{:keys [mean quantiles]} stat
         mean-fmt (format-bootstrap-estimate mean metric-config)
@@ -117,12 +118,12 @@
         p50 (format-bootstrap-estimate (get quantiles 0.5) metric-config)
         p90 (format-bootstrap-estimate (get quantiles 0.9) metric-config)]
     {:metric (:label metric-config)
-     :mean (:value mean-fmt)
-     :mean-ci-lower (:ci-lower mean-fmt)
-     :mean-ci-upper (:ci-upper mean-fmt)
      :median (:value p50)
      :median-ci-lower (:ci-lower p50)
      :median-ci-upper (:ci-upper p50)
+     :mean (:value mean-fmt)
+     :mean-ci-lower (:ci-lower mean-fmt)
+     :mean-ci-upper (:ci-upper mean-fmt)
      :p10 (:value p10)
      :p90 (:value p90)}))
 
@@ -136,8 +137,8 @@
     (when (seq metric-configs)
       (println "\nBootstrap Statistics:")
       (pprint/print-table
-       [:metric :mean :mean-ci-lower :mean-ci-upper
-        :median :median-ci-lower :median-ci-upper
+       [:metric :median :median-ci-lower :median-ci-upper
+        :mean :mean-ci-lower :mean-ci-upper
         :p10 :p90]
        (for [m metric-configs
              :let [stat (get-in bootstrap (:path m))]

@@ -1069,3 +1069,41 @@
                        {:my-modes modes-data}))]
         (is (= 4 (count outputs))
             "Expected output with custom modes-id")))))
+
+;;; Bootstrap Stats Views
+
+(deftest portal-bootstrap-stats-test
+  ;; Tests the portal viewer output for bootstrap-stats results.
+  ;; Verifies table generation with median-first column ordering.
+  (testing "bootstrap-stats*"
+    (testing "produces table with median first, then mean, CI bounds, percentiles"
+      (let [data-map {:samples
+                      {:type :criterium/metrics-samples
+                       :metric->values {[:elapsed-time] [1 1 1]}
+                       :metrics-defs (select-keys
+                                      (criterium.collector.metrics/metrics)
+                                      [:elapsed-time])
+                       :transform {:sample-> identity :->sample identity}
+                       :batch-size 1
+                       :eval-count 1
+                       :elapsed-time 1}}
+            bootstrap-fn (analyse/bootstrap-stats
+                          {:quantiles [0.025 0.975]
+                           :estimate-quantiles [0.025 0.975]})
+            view-fn (view/bootstrap-stats {})
+            [title table] (with-tap-out
+                            (->> data-map
+                                 bootstrap-fn
+                                 (view-fn :portal)))]
+        (is (= [:b "Bootstrap Statistics"] title))
+        (is (= 1 (count table)) "Expected 1 row for elapsed-time metric")
+        (let [row (first table)]
+          (is (= "Elapsed Time" (:metric row)))
+          (is (contains? row :median))
+          (is (contains? row :median-ci-lower))
+          (is (contains? row :median-ci-upper))
+          (is (contains? row :mean))
+          (is (contains? row :mean-ci-lower))
+          (is (contains? row :mean-ci-upper))
+          (is (contains? row :p10))
+          (is (contains? row :p90)))))))
