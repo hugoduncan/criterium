@@ -152,12 +152,10 @@
          (core/method-tracing-start!)
          (let [res# (run-traced* f#)]
            (core/method-tracing-stop!)
-           ;; Collect and filter the call tree
-           (let [raw-trees#   (core/collect-method-call-tree)
-                 user-tree#   (find-user-code-tree raw-trees#)
-                 result-tree# (some-> user-tree#
-                                      (filter-call-tree criterium-infrastructure-filter))]
-             [result-tree# res#]))))
+           ;; Collect the call tree from the run-traced* wrapper
+           (let [raw-trees# (core/collect-method-call-tree)
+                 user-tree# (find-user-code-tree raw-trees#)]
+             [user-tree# res#]))))
      [nil (do ~@body)]))
 
 (defn allocation-on-thread?
@@ -295,13 +293,17 @@
 
 (defn remove-tracing-infrastructure-trees
   "Remove trees that contain tracing infrastructure within the first few levels.
-  This filters out call trees that are part of the tracing machinery itself."
+  This filters out call trees that are part of the tracing machinery itself,
+  but preserves the run-traced* wrapper tree (which may contain infrastructure
+  as children but is the entry point for user code)."
   [trees]
-  (remove #(tree-contains-tracing-infrastructure? % 5) trees))
+  (remove #(and (not (wrapper-tree? %))
+                (tree-contains-tracing-infrastructure? % 5))
+          trees))
 
 (def ^:private standard-prefixes
   "Package prefixes for standard library code (not user code)."
-  #{"java." "javax." "jdk." "sun." "com.sun." "clojure." "criterium."})
+  #{"java." "javax." "jdk." "sun." "com.sun." "clojure." "criterium.agent."})
 
 (defn- user-code-class?
   "Returns true if class-name looks like user code.
@@ -319,15 +321,17 @@
         (some tree-contains-user-code? (:children tree)))))
 
 (defn find-user-code-tree
-  "Find the best tree containing user code after removing infrastructure trees.
-  Prioritizes the run-traced* wrapper tree if it contains user code."
+  "Find the run-traced* wrapper tree from collected call trees.
+  Throws if the wrapper tree is not found - this indicates a bug in tracing."
   [trees]
-  (let [clean-trees (remove-tracing-infrastructure-trees trees)]
-    ;; Prioritize wrapper tree if it contains user code
-    (or (first (filter #(and (wrapper-tree? %) (tree-contains-user-code? %))
-                       clean-trees))
-        ;; Fall back to any tree containing user code
-        (first (filter tree-contains-user-code? clean-trees)))))
+  (let [clean-trees (remove-tracing-infrastructure-trees trees)
+        wrapper      (first (filter wrapper-tree? clean-trees))]
+    (when-not wrapper
+      (throw (ex-info "run-traced* wrapper tree not found in call traces"
+                      {:tree-count (count trees)
+                       :clean-tree-count (count clean-trees)
+                       :root-classes (mapv :class trees)})))
+    wrapper))
 
 ;;; Predefined Filters
 
