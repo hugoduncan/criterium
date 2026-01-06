@@ -1,6 +1,7 @@
 (ns criterium.analyse
   (:require
    [criterium.allocation.analysis :as allocation-analysis]
+   [criterium.analyse.call-graph :as call-graph-analysis]
    [criterium.analyse.digest-samples]
    [criterium.analyse.methods :as methods]
    [criterium.analyse.metrics-samples]
@@ -807,3 +808,32 @@
   When :outliers-id is provided, outliers are removed from samples before
   bootstrap resampling."
   bootstrap/bootstrap-stats)
+
+;;; Call Graph Analysis
+
+(def most-called
+  "Analysis function that identifies the most frequently called methods.
+
+  Flattens the call tree and aggregates by class+method, returning a sorted
+  vector of the top N methods by total call count.
+
+  Parameters:
+    opts - Optional map with keys:
+      :id           - Key for result in output (default: :most-called)
+      :call-tree-id - Key for source call tree (default: :call-tree)
+      :limit        - Maximum methods to return (default: 20)
+
+  The returned function:
+  - Takes a data-map containing :call-tree
+  - Returns the data-map with :most-called added
+  - Returns data-map unchanged if call-tree is not present
+
+  Result structure:
+  {:type :criterium/most-called
+   :most-called [{:class \"com.example.Foo\"
+                  :method \"bar\"
+                  :file \"Foo.java\"
+                  :line 42
+                  :total-calls 1500}
+                 ...]}"
+  call-graph-analysis/most-called)

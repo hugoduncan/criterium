@@ -97,3 +97,72 @@
         call-tree (get data-map call-tree-id)]
     (when call-tree
       (println "Call Flame Chart (use :portal or :kindly viewer for visual display)"))))
+
+;;; Most-Called View
+
+(defn- format-location
+  "Format file:line location, or return nil if not available."
+  [file line]
+  (when (and file (pos? (or line 0)))
+    (str file ":" line)))
+
+(defn- clojure-invoke-method?
+  "Check if a method name is a Clojure function invocation method."
+  [method]
+  (contains? #{"invoke" "invokeStatic" "invokePrim" "doInvoke"} method))
+
+(defn- extract-clojure-fn-name
+  "Extract Clojure function name from class name like 'myns.core$my_fn'.
+  Returns the part after the last $ converted from underscores to hyphens."
+  [class-name]
+  (when class-name
+    (when-let [idx (str/last-index-of class-name "$")]
+      (-> (subs class-name (inc idx))
+          (str/replace "_" "-")
+          (str/replace "BANG" "!")
+          (str/replace "QMARK" "?")
+          (str/replace "STAR" "*")
+          (str/replace "PLUS" "+")
+          (str/replace "GT" ">")
+          (str/replace "LT" "<")
+          (str/replace "EQ" "=")))))
+
+(defn- format-method-name
+  "Format a method name for display.
+  For Clojure invoke methods, shows the function name.
+  For Java methods, shows class.method."
+  [class-name method]
+  (if (and (clojure-invoke-method? method)
+           (str/includes? (or class-name "") "$"))
+    (or (extract-clojure-fn-name class-name)
+        (str class-name "." method))
+    (str (or class-name "<unknown>") "." (or method "<unknown>"))))
+
+(defn print-most-called
+  "Print a table of most frequently called methods."
+  [{:keys [most-called-id]} data-map]
+  (let [most-called-id (or most-called-id :most-called)
+        most-called-data (get data-map most-called-id)]
+    (when most-called-data
+      (let [methods (:most-called most-called-data)
+            total-in-list (reduce + 0 (map :total-calls methods))]
+        (println (format "\nMost Called Methods (top %d, %d total calls in list)"
+                         (count methods) total-in-list))
+        (println (str/join "" (repeat 70 "-")))
+        (println (format "%-4s %-40s %10s  %s" "Rank" "Method" "Calls" "Location"))
+        (println (str/join "" (repeat 70 "-")))
+        (doseq [[idx {:keys [class method file line total-calls]}] (map-indexed vector methods)]
+          (let [display-name (format-method-name class method)
+                location (or (format-location file line) "")]
+            (println (format "%-4d %-40s %10d  %s"
+                             (inc idx)
+                             (if (> (count display-name) 40)
+                               (str (subs display-name 0 37) "...")
+                               display-name)
+                             total-calls
+                             location))))
+        (println (str/join "" (repeat 70 "-")))))))
+
+(defmethod view/most-called* :print
+  [_ options data-map]
+  (print-most-called options data-map))

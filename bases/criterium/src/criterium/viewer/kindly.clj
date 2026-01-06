@@ -503,6 +503,17 @@
         (kindly-heading "Call Flame Chart")
         (kindly-vega (charts/call-tree-flame-vega-spec call-tree total-calls {}))))))
 
+(defmethod view/most-called* :kindly
+  [_ {:keys [most-called-id]} data-map]
+  (let [most-called-id (or most-called-id :most-called)
+        most-called-data (get data-map most-called-id)]
+    (when most-called-data
+      (let [methods (:most-called most-called-data)
+            total-in-list (reduce + 0 (map :total-calls methods))]
+        (kindly-heading (clojure.core/format "Most Called Methods (top %d, %d total calls)"
+                                             (count methods) total-in-list))
+        (kindly-vega-lite (charts/most-called-vega-lite-spec most-called-data {}))))))
+
 ;;; Noop implementations for views not applicable to Kindly output
 
 (defmethod view/final-gc-warnings* :kindly [_ _ _])

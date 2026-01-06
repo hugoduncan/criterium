@@ -498,3 +498,166 @@
       (reset! kindly/accumulated [])
       (view/call-flame* :kindly {} {:call-tree nil})
       (is (nil? (kindly/flush))))))
+
+;;; Most-Called Tests
+
+(def sample-most-called
+  "Sample most-called analysis result for testing."
+  {:type :criterium/most-called
+   :source-id :call-tree
+   :limit 20
+   :most-called [{:class "myapp.Helper"
+                  :method "compute"
+                  :file "Helper.java"
+                  :line 30
+                  :total-calls 100}
+                 {:class "myapp.Util"
+                  :method "format"
+                  :file "Util.java"
+                  :line 40
+                  :total-calls 50}
+                 {:class "myapp.Service"
+                  :method "process"
+                  :file "Service.java"
+                  :line 20
+                  :total-calls 10}]})
+
+(deftest most-called-view-print-test
+  ;; Tests the :print viewer integration for most-called.
+  (testing "most-called* :print"
+    (testing "prints table with header"
+      (let [output (with-out-str
+                     (view/most-called*
+                      :print
+                      {}
+                      {:most-called sample-most-called}))
+            lines (trimmed-lines output)
+            ;; Skip empty first line if present (output starts with \n)
+            header (first (filter #(str/includes? % "Most Called") lines))]
+        (is (str/includes? header "Most Called Methods"))
+        (is (str/includes? header "top 3"))
+        (is (some #(str/includes? % "Rank") lines))
+        (is (some #(str/includes? % "Method") lines))
+        (is (some #(str/includes? % "Calls") lines))))
+
+    (testing "shows method names and call counts"
+      (let [output (with-out-str
+                     (view/most-called*
+                      :print
+                      {}
+                      {:most-called sample-most-called}))]
+        (is (str/includes? output "myapp.Helper.compute"))
+        (is (str/includes? output "100"))
+        (is (str/includes? output "myapp.Util.format"))
+        (is (str/includes? output "50"))))
+
+    (testing "uses custom most-called-id"
+      (let [output (with-out-str
+                     (view/most-called*
+                      :print
+                      {:most-called-id :my-most-called}
+                      {:my-most-called sample-most-called}))]
+        (is (str/includes? output "Most Called Methods"))))
+
+    (testing "handles missing most-called gracefully"
+      (let [output (with-out-str
+                     (view/most-called* :print {} {}))]
+        (is (= "" output))))
+
+    (testing "handles nil most-called gracefully"
+      (let [output (with-out-str
+                     (view/most-called* :print {} {:most-called nil}))]
+        (is (= "" output))))))
+
+(deftest most-called-view-none-test
+  ;; Tests the :none viewer does nothing.
+  (testing "most-called* :none"
+    (testing "produces no output"
+      (let [output (with-out-str
+                     (view/most-called*
+                      :none
+                      {}
+                      {:most-called sample-most-called}))]
+        (is (= "" output))))))
+
+(deftest most-called-vega-lite-spec-test
+  ;; Tests the Vega-Lite spec generation for most-called bar chart.
+  (testing "most-called-vega-lite-spec"
+    (testing "generates valid Vega-Lite spec"
+      (let [spec (charts/most-called-vega-lite-spec sample-most-called {})]
+        (is (str/includes? (:$schema spec) "vega-lite"))
+        (is (= 600 (:width spec)))
+        (is (contains? spec :data))
+        (is (contains? spec :mark))
+        (is (contains? spec :encoding))
+        ;; Check data was converted
+        (let [data (get-in spec [:data :values])]
+          (is (vector? data))
+          (is (= 3 (count data)))
+          (is (= "myapp.Helper.compute" (get (first data) "method")))
+          (is (= 100 (get (first data) "calls"))))))
+
+    (testing "respects width option"
+      (let [spec (charts/most-called-vega-lite-spec sample-most-called {:width 800})]
+        (is (= 800 (:width spec)))))
+
+    (testing "includes location in tooltip data"
+      (let [spec (charts/most-called-vega-lite-spec sample-most-called {})
+            first-item (first (get-in spec [:data :values]))]
+        (is (= "Helper.java:30" (get first-item "location")))))))
+
+(deftest most-called-view-portal-test
+  ;; Tests the :portal viewer integration for most-called.
+  (testing "most-called* :portal"
+    (testing "outputs heading and bar chart"
+      (let [outputs (with-tap-out
+                      (view/most-called*
+                       :portal
+                       {}
+                       {:most-called sample-most-called}))]
+        (is (= 2 (count outputs))
+            "Expected 2 outputs: heading and bar chart")
+        (let [[heading chart-spec] outputs]
+          (is (= :b (first heading)))
+          (is (str/includes? (second heading) "Most Called"))
+          (is (str/includes? (second heading) "top 3"))
+          ;; Chart spec
+          (is (str/includes? (:$schema chart-spec) "vega-lite"))
+          (is (= :portal.viewer/vega-lite (:portal.viewer/default (meta chart-spec)))))))
+
+    (testing "handles missing most-called gracefully"
+      (let [v (volatile! [])
+            f (fn [x] (when-not (= ::portal/_ x) (vswap! v conj x)))]
+        (try
+          (add-tap f)
+          (view/most-called* :portal {} {})
+          (portal/flush)
+          (is (empty? @v))
+          (finally
+            (remove-tap f)))))))
+
+(deftest most-called-view-kindly-test
+  ;; Tests the :kindly viewer integration for most-called.
+  (testing "most-called* :kindly"
+    (testing "outputs heading and bar chart"
+      (reset! kindly/accumulated [])
+      (view/most-called*
+       :kindly
+       {}
+       {:most-called sample-most-called})
+      (let [result (kindly/flush)]
+        (is (= :kind/fragment (:kindly/kind (meta result))))
+        (is (= 2 (count result))
+            "Expected 2 elements: heading and bar chart")
+        (let [[heading chart-spec] result]
+          ;; Heading
+          (is (= :kind/md (:kindly/kind (meta heading))))
+          (is (str/includes? (first heading) "Most Called"))
+          ;; Chart spec
+          (is (= :kind/vega-lite (:kindly/kind (meta chart-spec))))
+          (is (str/includes? (:$schema chart-spec) "vega-lite")))))
+
+    (testing "handles missing most-called gracefully"
+      (reset! kindly/accumulated [])
+      (view/most-called* :kindly {} {})
+      (is (nil? (kindly/flush))))))

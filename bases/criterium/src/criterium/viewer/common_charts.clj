@@ -1851,3 +1851,87 @@
                     ;; Only show text if bar is wide enough
                     :text {:signal "(datum.x1 - datum.x0) > 60 ? datum.name : ''"}
                     :limit {:signal "datum.x1 - datum.x0 - 4"}}}}]}))))
+
+;;; Most-Called Bar Chart
+
+(defn- clojure-invoke-method?
+  "Check if a method name is a Clojure function invocation method."
+  [method]
+  (contains? #{"invoke" "invokeStatic" "invokePrim" "doInvoke"} method))
+
+(defn- extract-clojure-fn-name
+  "Extract Clojure function name from class name like 'myns.core$my_fn'.
+  Returns the part after the last $ converted from underscores to hyphens."
+  [class-name]
+  (when class-name
+    (when-let [idx (str/last-index-of class-name "$")]
+      (-> (subs class-name (inc idx))
+          (str/replace "_" "-")
+          (str/replace "BANG" "!")
+          (str/replace "QMARK" "?")
+          (str/replace "STAR" "*")
+          (str/replace "PLUS" "+")
+          (str/replace "GT" ">")
+          (str/replace "LT" "<")
+          (str/replace "EQ" "=")))))
+
+(defn- most-called-display-name
+  "Get display name for a most-called entry.
+  For Clojure invoke methods, shows the function name.
+  For Java methods, shows class.method."
+  [class-name method]
+  (if (and (clojure-invoke-method? method)
+           (str/includes? (or class-name "") "$"))
+    (or (extract-clojure-fn-name class-name)
+        (str class-name "." method))
+    (str (or class-name "<unknown>") "." (or method "<unknown>"))))
+
+(defn most-called-vega-lite-spec
+  "Build a Vega-Lite horizontal bar chart spec for most-called methods.
+
+  Parameters:
+    most-called-data - The :most-called analysis result map
+    opts - Display options:
+      :width (default 600)
+      :height (default: computed from number of items)
+
+  Returns a Vega-Lite spec with:
+    - Horizontal bars showing call counts
+    - Methods sorted by call count descending
+    - Tooltip showing full class.method, calls, and location"
+  [most-called-data opts]
+  (let [width (or (:width opts) 600)
+        methods (:most-called most-called-data)
+        n (count methods)
+        bar-height 20
+        height (or (:height opts) (+ 50 (* n bar-height)))
+        data (mapv (fn [{:keys [class method file line total-calls]}]
+                     (let [display-name (most-called-display-name class method)
+                           location (if (and file (pos? (or line 0)))
+                                      (str file ":" line)
+                                      "")]
+                       {"method" display-name
+                        "fullName" (str class "." method)
+                        "calls" total-calls
+                        "location" location}))
+                   methods)]
+    {:$schema "https://vega.github.io/schema/vega-lite/v5.json"
+     :width width
+     :height height
+     :data {:values data}
+     :mark {:type "bar"}
+     :encoding {:y {:field "method"
+                    :type "nominal"
+                    :title "Method"
+                    :sort {:field "calls" :order "descending"}
+                    :axis {:labelLimit 300}}
+                :x {:field "calls"
+                    :type "quantitative"
+                    :title "Call Count"}
+                :color {:field "calls"
+                        :type "quantitative"
+                        :scale {:scheme "blues"}
+                        :legend nil}
+                :tooltip [{:field "fullName" :type "nominal" :title "Full Name"}
+                          {:field "calls" :type "quantitative" :title "Calls"}
+                          {:field "location" :type "nominal" :title "Location"}]}}))

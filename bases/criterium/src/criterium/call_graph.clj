@@ -136,17 +136,29 @@
 
   Options:
   - :viewer  - Output format [:print, :pprint, :portal, :kindly]
-  - :analyse - Vector of analysis steps (default: [])
-  - :view    - Vector of view components (default: [:call-tree :call-flame])
+  - :analyse - Vector of analysis steps (default: [:most-called])
+  - :view    - Vector of view components (default: [:call-tree :call-flame :most-called])
+  - :limit   - Maximum methods for most-called analysis (default: 20)
 
-  Returns a plan map with :viewer, :analyse, and :view keys."
+  Returns a plan map with :viewer, :analyse, :view, and :limit keys."
   [& {:as options}]
   (let [viewer (or (:viewer options) *default-viewer* :print)]
     {:viewer viewer
      :analyse (or (:analyse options) (:analyse plans/default))
-     :view (or (:view options) (:view plans/default))}))
+     :view (or (:view options) (:view plans/default))
+     :limit (or (:limit options) 20)}))
 
 ;;; Core Implementation
+
+(defn- expand-analyse-spec
+  "Expand an analysis spec with plan options.
+  For :most-called, adds the :limit option from the plan."
+  [spec plan]
+  (if (= spec :most-called)
+    (if-let [limit (:limit plan)]
+      [:most-called {:limit limit}]
+      spec)
+    spec))
 
 (defn bench-call-graph
   "Trace method calls during execution of a function and display the call graph.
@@ -157,6 +169,7 @@
   - :viewer  - Output format
   - :analyse - Analysis steps to apply
   - :view    - View components to display
+  - :limit   - Maximum methods for most-called analysis (default: 20)
 
   Returns the value from calling f.
   The complete trace data is available via (last-bench)."
@@ -164,8 +177,11 @@
   (let [[call-tree result] (agent/with-call-tracing (f))
         ;; Build data map
         data-map {:call-tree call-tree}
+        ;; Expand analysis specs with plan options
+        analyse-specs (mapv #(expand-analyse-spec % call-graph-plan)
+                            (:analyse call-graph-plan))
         ;; Apply analysis pipeline
-        analyse-fn (benchmark/->analyse (:analyse call-graph-plan))
+        analyse-fn (benchmark/->analyse analyse-specs)
         data-map (if analyse-fn
                    (analyse-fn data-map)
                    data-map)
@@ -191,8 +207,9 @@
     options - Keyword/value pairs for configuration:
       :viewer  - Output format [:print, :pprint, :portal, :kindly]
                  Default can be set via (set-default-viewer! :kindly)
-      :analyse - Vector of analysis steps (default: [])
-      :view    - Vector of view components (default: [:call-tree :call-flame])
+      :analyse - Vector of analysis steps (default: [:most-called])
+      :view    - Vector of view components (default: [:call-tree :call-flame :most-called])
+      :limit   - Maximum methods for most-called analysis (default: 20)
 
   Returns:
   The value from evaluating the expression.
