@@ -1458,10 +1458,11 @@
   [:gamma :lognormal :inverse-gaussian :weibull])
 
 (def ^:private distribution-colors
-  "Color palette for fitted distributions."
-  {:gamma "#e41a1c"
-   :lognormal "#377eb8"
-   :inverse-gaussian "#4daf4a"
+  "Color palette for fitted distributions.
+  Colors chosen to avoid conflict with histogram blue (#4682b4 steelblue)."
+  {:gamma "#e41a1c"           ; red
+   :lognormal "#ff7f00"       ; orange (was blue, conflicted with histogram)
+   :inverse-gaussian "#4daf4a" ; green
    :weibull "#984ea3"})
 
 (def ^:private distribution-labels
