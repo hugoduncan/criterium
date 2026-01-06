@@ -241,6 +241,10 @@
 
   Once k is found, scale is: λ = (Σxᵏ/n)^(1/k)
 
+  To avoid numerical overflow with large sample values, the algorithm normalizes
+  samples by their geometric mean before fitting, then transforms the scale back.
+  The shape parameter is invariant under this transformation.
+
   Parameters:
     samples - sequence of positive sample values
     opts - optional map with:
@@ -273,9 +277,17 @@
                                          (str "weibull requires positive samples, got: " x))))
                                (Math/log x)))
                            samples)
+         ;; Normalize by geometric mean to avoid overflow with large values
+         ;; If X ~ Weibull(k, λ), then X/c ~ Weibull(k, λ/c)
          mean-log-x (/ ^double (reduce + 0.0 log-samples) (double n))
+         geo-mean (Math/exp mean-log-x)
+         norm-samples (mapv #(/ (double %) geo-mean) samples)
+         norm-log-samples (mapv #(- (double %) mean-log-x) log-samples)
+         ;; Mean of normalized log samples is 0 by construction
+         norm-mean-log-x 0.0
          ;; Initial shape estimate using method of moments if not provided
          ;; Use CV-based approximation: k ≈ 1.2785 / CV for CV < 1
+         ;; CV is invariant under scaling, so use original samples
          init-k (double
                  (or init-shape
                      (let [mean-x (/ ^double (reduce + 0.0 samples) (double n))
@@ -290,7 +302,7 @@
                        (if (and (pos? cv) (< cv 2.0))
                          (/ 1.2785 cv)
                          1.0))))
-         ;; Newton-Raphson iteration
+         ;; Newton-Raphson iteration on normalized samples
          ;; f(k) = 1/k + mean(log(x)) - (Σxᵏlog(x))/(Σxᵏ)
          ;; f'(k) = -1/k² - [(Σxᵏ(log(x))²)(Σxᵏ) - (Σxᵏlog(x))²] / (Σxᵏ)²
          [shape iterations]
@@ -300,8 +312,8 @@
              [k iter]
              (let [;; Compute sums: Σxᵏ, Σxᵏlog(x), Σxᵏ(log(x))²
                    sums (reduce (fn [[^double s1 ^double s2 ^double s3] i]
-                                  (let [x (double (samples i))
-                                        log-x (double (log-samples i))
+                                  (let [x (double (norm-samples i))
+                                        log-x (double (norm-log-samples i))
                                         x-k (Math/pow x k)
                                         x-k-logx (* x-k log-x)
                                         x-k-logx2 (* x-k-logx log-x)]
@@ -315,7 +327,7 @@
                    sum-xk-logx2 (double (sums 2))
                    ;; f(k) = 1/k + mean(log(x)) - (Σxᵏlog(x))/(Σxᵏ)
                    f-k (+ (/ 1.0 k)
-                          (double mean-log-x)
+                          norm-mean-log-x
                           (- (/ sum-xk-logx sum-xk)))
                    ;; f'(k) = -1/k² - [(Σxᵏ(log(x))²)(Σxᵏ) - (Σxᵏlog(x))²] / (Σxᵏ)²
                    f-prime-k (- (- (/ 1.0 (* k k)))
@@ -325,17 +337,23 @@
                    k-new (- k (/ f-k f-prime-k))]
                ;; Ensure k stays positive and check convergence
                (if (or (<= k-new 0.0)
+                       (Double/isNaN k-new)
                        (< (Math/abs (- k-new k)) tol))
-                 [(Math/max 1e-10 k-new) (inc iter)]
+                 [(if (or (<= k-new 0.0) (Double/isNaN k-new))
+                    k  ;; Keep current k if update is invalid
+                    k-new)
+                  (inc iter)]
                  (recur k-new (inc iter))))))
          shape (double shape)
-         ;; Scale: λ = (Σxᵏ/n)^(1/k)
+         ;; Scale for normalized samples: λ' = (Σx'ᵏ/n)^(1/k)
          sum-xk (double
                  (reduce (fn [^double acc x]
                            (+ acc (Math/pow (double x) shape)))
                          0.0
-                         samples))
-         scale (Math/pow (/ sum-xk (double n)) (/ 1.0 shape))
+                         norm-samples))
+         norm-scale (Math/pow (/ sum-xk (double n)) (/ 1.0 shape))
+         ;; Transform scale back: λ = λ' * geo-mean
+         scale (* norm-scale geo-mean)
          log-lik (weibull-log-likelihood samples shape scale)]
      {:params {:shape shape :scale scale}
       :log-likelihood log-lik
