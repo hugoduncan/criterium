@@ -539,9 +539,11 @@
                      :batch-size 1
                      :eval-count 1
                      :elapsed-time 1}}
+                   ;; Use min-samples 3 to suppress warning for this degenerate test
                    bootstrap-fn (bootstrap/bootstrap-stats
                                  {:quantiles [0.025 0.975]
-                                  :estimate-quantiles [0.025 0.975]})
+                                  :estimate-quantiles [0.025 0.975]
+                                  :min-samples 3})
                    view-fn (view/bootstrap-stats {})]
                (trimmed-lines
                 (with-out-str

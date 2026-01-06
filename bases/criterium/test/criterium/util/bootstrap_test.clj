@@ -149,6 +149,66 @@
         (is (< l m u))
         (is (< l 858.5 u))))))
 
+;; Test minimum sample size check for bootstrap reliability
+(deftest bootstrap-stats-for-min-samples-test
+  (testing "bootstrap-stats-for"
+    (testing "when sample count is at or above default threshold"
+      (testing "does not set :low-sample-count?"
+        (let [samples (mapv double (range 30))
+              stats (bootstrap/bootstrap-stats-for
+                     samples
+                     {:estimate-quantiles [0.025 0.975] :quantiles [0.99]}
+                     sampled-stats-test/identity-transforms)]
+          (is (nil? (:low-sample-count? stats))))))
+
+    (testing "when sample count is below default threshold"
+      (testing "sets :low-sample-count? true"
+        (let [samples (mapv double (range 20))
+              stats (with-out-str
+                      (bootstrap/bootstrap-stats-for
+                       samples
+                       {:estimate-quantiles [0.025 0.975] :quantiles [0.99]}
+                       sampled-stats-test/identity-transforms))]
+          ;; Re-run to capture return value
+          (let [result (bootstrap/bootstrap-stats-for
+                        samples
+                        {:estimate-quantiles [0.025 0.975] :quantiles [0.99]}
+                        sampled-stats-test/identity-transforms)]
+            (is (true? (:low-sample-count? result))))))
+
+      (testing "prints warning"
+        (let [samples (mapv double (range 20))
+              output (with-out-str
+                       (bootstrap/bootstrap-stats-for
+                        samples
+                        {:estimate-quantiles [0.025 0.975] :quantiles [0.99]}
+                        sampled-stats-test/identity-transforms))]
+          (is (re-find #"Warning.*bootstrap sample count.*20.*below minimum.*30"
+                       output)))))
+
+    (testing "when custom :min-samples is specified"
+      (testing "uses custom threshold"
+        (let [samples (mapv double (range 15))
+              ;; With min-samples=10, 15 samples should be fine
+              result (bootstrap/bootstrap-stats-for
+                      samples
+                      {:estimate-quantiles [0.025 0.975]
+                       :quantiles [0.99]
+                       :min-samples 10}
+                      sampled-stats-test/identity-transforms)]
+          (is (nil? (:low-sample-count? result)))))
+
+      (testing "warns when below custom threshold"
+        (let [samples (mapv double (range 5))
+              output (with-out-str
+                       (bootstrap/bootstrap-stats-for
+                        samples
+                        {:estimate-quantiles [0.025 0.975]
+                         :quantiles [0.99]
+                         :min-samples 10}
+                        sampled-stats-test/identity-transforms))]
+          (is (re-find #"Warning.*5.*below minimum.*10" output)))))))
+
 ;; todo add helpers for constant samples
 ;; integration test of time with bootstrap
 (defn sample-values
