@@ -82,7 +82,10 @@
   "Compute bootstrap statistics for samples with given options and transforms.
 
   Computes mean, variance, and quantiles with BCa confidence intervals.
-  Does not include min-val, max-val, or 3-sigma bounds."
+  Does not include min-val, max-val, or 3-sigma bounds.
+
+  The :bootstrap-size option controls the number of bootstrap resamples.
+  Defaults to the number of samples if not specified."
   [samples opts transforms]
   {:pre [(:quantiles opts)
          (:estimate-quantiles opts)]}
@@ -92,7 +95,7 @@
         stats     (stats/bootstrap-bca
                    vs
                    stats-fn
-                   (:bootstrap-size opts 2000)
+                   (:bootstrap-size opts (count vs))
                    (into [0.5] (:estimate-quantiles opts))
                    random/well-rng-1024a)
         scale-1   (fn [v] (util/transform-sample-> v transforms))
@@ -144,7 +147,7 @@
       :metric-ids    - Set of metric ids to analyze (default: all quantitative)
       :quantiles     - Additional quantiles to compute (default: none)
       :estimate-quantiles - Confidence interval quantiles (default: [0.025 0.975])
-      :bootstrap-size     - Number of bootstrap resamples (default: 2000)
+      :bootstrap-size     - Number of bootstrap resamples (default: sample count)
 
   When :outliers-id is provided, outliers identified in the outlier analysis
   are removed from samples before bootstrap resampling. This prevents outliers
