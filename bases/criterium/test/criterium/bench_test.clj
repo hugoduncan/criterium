@@ -116,8 +116,10 @@
           (let [tables (filter #(= :kind/table (:kindly/kind (meta %))) fragment)]
             (is (pos? (count tables))
                 "has at least one table")
-            (is (every? sequential? tables)
-                "tables are sequences"))
+            (is (every? #(or (sequential? %)
+                             (and (map? %) (contains? % :row-maps)))
+                        tables)
+                "tables are sequences or maps with :row-maps"))
 
           (let [charts (filter #(= :kind/vega-lite (:kindly/kind (meta %))) fragment)]
             (is (pos? (count charts))
