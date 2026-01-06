@@ -225,6 +225,34 @@
                       {:call-tree nil}))]
         (is (= "" output))))))
 
+(deftest call-flame-view-print-test
+  ;; Tests the :print viewer integration for call-flame.
+  (testing "call-flame* :print"
+    (testing "prints message directing to visual viewers"
+      (let [output (with-out-str
+                     (view/call-flame*
+                      :print
+                      {}
+                      {:call-tree simple-call-tree}))]
+        (is (str/includes? output "Flame Chart"))
+        (is (str/includes? output ":portal"))))
+
+    (testing "handles missing call-tree gracefully"
+      (let [output (with-out-str
+                     (view/call-flame*
+                      :print
+                      {}
+                      {}))]
+        (is (= "" output))))
+
+    (testing "handles nil call-tree gracefully"
+      (let [output (with-out-str
+                     (view/call-flame*
+                      :print
+                      {}
+                      {:call-tree nil}))]
+        (is (= "" output))))))
+
 (deftest call-tree-view-none-test
   ;; Tests the :none viewer does nothing.
   (testing "call-tree* :none"
@@ -319,28 +347,21 @@
 (deftest call-tree-view-portal-test
   ;; Tests the :portal viewer integration for call-tree.
   (testing "call-tree* :portal"
-    (testing "outputs heading, tree diagram, and flame chart"
+    (testing "outputs heading and tree diagram"
       (let [outputs (with-tap-out
                       (view/call-tree*
                        :portal
                        {}
                        {:call-tree nested-call-tree}))]
-        (is (>= (count outputs) 4)
-            "Expected at least 4 outputs: heading, tree, heading, flame")
-        ;; First is heading
-        (let [[heading tree-spec flame-heading flame-spec] outputs]
+        (is (= 2 (count outputs))
+            "Expected 2 outputs: heading and tree")
+        (let [[heading tree-spec] outputs]
           (is (= :b (first heading)))
           (is (str/includes? (second heading) "Call Tree"))
           (is (str/includes? (second heading) "166"))
           ;; Tree spec
           (is (str/includes? (:$schema tree-spec) "vega"))
-          (is (= :portal.viewer/vega (:portal.viewer/default (meta tree-spec))))
-          ;; Flame heading
-          (is (= :b (first flame-heading)))
-          (is (str/includes? (second flame-heading) "Flame"))
-          ;; Flame spec
-          (is (str/includes? (:$schema flame-spec) "vega"))
-          (is (= :portal.viewer/vega (:portal.viewer/default (meta flame-spec)))))))
+          (is (= :portal.viewer/vega (:portal.viewer/default (meta tree-spec)))))))
 
     (testing "uses custom call-tree-id"
       (let [outputs (with-tap-out
@@ -348,7 +369,7 @@
                        :portal
                        {:call-tree-id :my-tree}
                        {:my-tree simple-call-tree}))]
-        (is (>= (count outputs) 2))
+        (is (= 2 (count outputs)))
         (let [[heading _] outputs]
           (is (str/includes? (second heading) "6")))))
 
@@ -374,12 +395,41 @@
           (finally
             (remove-tap f)))))))
 
+(deftest call-flame-view-portal-test
+  ;; Tests the :portal viewer integration for call-flame.
+  (testing "call-flame* :portal"
+    (testing "outputs heading and flame chart"
+      (let [outputs (with-tap-out
+                      (view/call-flame*
+                       :portal
+                       {}
+                       {:call-tree nested-call-tree}))]
+        (is (= 2 (count outputs))
+            "Expected 2 outputs: heading and flame chart")
+        (let [[heading flame-spec] outputs]
+          (is (= :b (first heading)))
+          (is (str/includes? (second heading) "Flame"))
+          ;; Flame spec
+          (is (str/includes? (:$schema flame-spec) "vega"))
+          (is (= :portal.viewer/vega (:portal.viewer/default (meta flame-spec)))))))
+
+    (testing "handles missing call-tree gracefully"
+      (let [v (volatile! [])
+            f (fn [x] (when-not (= ::portal/_ x) (vswap! v conj x)))]
+        (try
+          (add-tap f)
+          (view/call-flame* :portal {} {})
+          (portal/flush)
+          (is (empty? @v))
+          (finally
+            (remove-tap f)))))))
+
 ;;; Kindly Tests
 
 (deftest call-tree-view-kindly-test
   ;; Tests the :kindly viewer integration for call-tree.
   (testing "call-tree* :kindly"
-    (testing "outputs heading, tree diagram, and flame chart"
+    (testing "outputs heading and tree diagram"
       (reset! kindly/accumulated [])
       (view/call-tree*
        :kindly
@@ -387,22 +437,16 @@
        {:call-tree nested-call-tree})
       (let [result (kindly/flush)]
         (is (= :kind/fragment (:kindly/kind (meta result))))
-        (is (= 4 (count result))
-            "Expected 4 elements: heading, tree, heading, flame")
-        (let [[heading tree-spec flame-heading flame-spec] result]
+        (is (= 2 (count result))
+            "Expected 2 elements: heading and tree")
+        (let [[heading tree-spec] result]
           ;; Heading
           (is (= :kind/md (:kindly/kind (meta heading))))
           (is (str/includes? (first heading) "Call Tree"))
           (is (str/includes? (first heading) "166"))
           ;; Tree spec
           (is (= :kind/vega (:kindly/kind (meta tree-spec))))
-          (is (str/includes? (:$schema tree-spec) "vega"))
-          ;; Flame heading
-          (is (= :kind/md (:kindly/kind (meta flame-heading))))
-          (is (str/includes? (first flame-heading) "Flame"))
-          ;; Flame spec
-          (is (= :kind/vega (:kindly/kind (meta flame-spec))))
-          (is (str/includes? (:$schema flame-spec) "vega")))))
+          (is (str/includes? (:$schema tree-spec) "vega")))))
 
     (testing "uses custom call-tree-id"
       (reset! kindly/accumulated [])
@@ -422,4 +466,35 @@
     (testing "handles nil call-tree gracefully"
       (reset! kindly/accumulated [])
       (view/call-tree* :kindly {} {:call-tree nil})
+      (is (nil? (kindly/flush))))))
+
+(deftest call-flame-view-kindly-test
+  ;; Tests the :kindly viewer integration for call-flame.
+  (testing "call-flame* :kindly"
+    (testing "outputs heading and flame chart"
+      (reset! kindly/accumulated [])
+      (view/call-flame*
+       :kindly
+       {}
+       {:call-tree nested-call-tree})
+      (let [result (kindly/flush)]
+        (is (= :kind/fragment (:kindly/kind (meta result))))
+        (is (= 2 (count result))
+            "Expected 2 elements: heading and flame")
+        (let [[heading flame-spec] result]
+          ;; Heading
+          (is (= :kind/md (:kindly/kind (meta heading))))
+          (is (str/includes? (first heading) "Flame"))
+          ;; Flame spec
+          (is (= :kind/vega (:kindly/kind (meta flame-spec))))
+          (is (str/includes? (:$schema flame-spec) "vega")))))
+
+    (testing "handles missing call-tree gracefully"
+      (reset! kindly/accumulated [])
+      (view/call-flame* :kindly {} {})
+      (is (nil? (kindly/flush))))
+
+    (testing "handles nil call-tree gracefully"
+      (reset! kindly/accumulated [])
+      (view/call-flame* :kindly {} {:call-tree nil})
       (is (nil? (kindly/flush))))))

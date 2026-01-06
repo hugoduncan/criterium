@@ -447,7 +447,14 @@
     (when call-tree
       (let [total-calls (call-graph/total-call-count call-tree)]
         (heading (format "Call Tree (%d total calls)" total-calls))
-        (portal-vega (charts/call-tree-tree-vega-spec call-tree {}))
+        (portal-vega (charts/call-tree-tree-vega-spec call-tree {}))))))
+
+(defmethod view/call-flame* :portal
+  [_ {:keys [call-tree-id]} data-map]
+  (let [call-tree-id (or call-tree-id :call-tree)
+        call-tree (get data-map call-tree-id)]
+    (when call-tree
+      (let [total-calls (call-graph/total-call-count call-tree)]
         (heading "Call Flame Chart")
         (portal-vega (charts/call-tree-flame-vega-spec call-tree total-calls {}))))))
 

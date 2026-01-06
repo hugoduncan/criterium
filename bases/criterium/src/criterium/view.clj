@@ -53,6 +53,7 @@
 ;;; Call Tracing Views
 
 (def-multi-view call-tree)
+(def-multi-view call-flame)
 
 ;;; Domain Views
 
@@ -96,6 +97,7 @@
 
 ;; Call Tracing Null Viewer
 (defmethod call-tree* :none [_ _ _])
+(defmethod call-flame* :none [_ _ _])
 
 ;; Domain Null Viewer
 (defmethod domain-extract* :none [_ _ _])

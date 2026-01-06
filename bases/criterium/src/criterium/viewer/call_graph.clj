@@ -90,3 +90,10 @@
 (defmethod view/call-tree* :print
   [_ options data-map]
   (print-call-tree options data-map))
+
+(defmethod view/call-flame* :print
+  [_ {:keys [call-tree-id]} data-map]
+  (let [call-tree-id (or call-tree-id :call-tree)
+        call-tree (get data-map call-tree-id)]
+    (when call-tree
+      (println "Call Flame Chart (use :portal or :kindly viewer for visual display)"))))
