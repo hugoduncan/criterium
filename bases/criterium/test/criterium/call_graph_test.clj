@@ -25,8 +25,8 @@
     (testing "returns default plan when no options provided"
       (let [plan (cg/options->call-graph-plan)]
         (is (= :print (:viewer plan)))
-        (is (= [] (:analyse plan)))
-        (is (= [:call-tree :call-flame] (:view plan)))))
+        (is (= [:most-called] (:analyse plan)))
+        (is (= [:call-tree :call-flame :most-called] (:view plan)))))
 
     (testing "respects explicit viewer option"
       (let [plan (cg/options->call-graph-plan :viewer :portal)]
