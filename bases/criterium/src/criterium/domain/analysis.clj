@@ -174,16 +174,15 @@
   domain must have an :implementations key.
 
   Options:
-    :metric-ids          - When metric-path is nil, filter to only these metric-ids.
-    :with-error-bounds   - When true and extracting :mean values, also
-                           extracts :mean-plus-3sigma and :mean-minus-3sigma
-                           as error bounds. Values become maps with :value,
-                           :lower, and :upper keys.
-    :with-bootstrap-stats - When true (multi-metric mode only), extracts
-                            bootstrap quantile statistics instead of mean.
-                            Values become maps with :median, :p10, :p90, and
-                            optionally :ci-lower, :ci-upper keys. Requires
-                            bootstrap-stats analysis to have been run.
+    :metric-ids        - When metric-path is nil, filter to only these metric-ids.
+    :with-error-bounds - When true and extracting :mean values, also
+                         extracts :mean-plus-3sigma and :mean-minus-3sigma
+                         as error bounds. Values become maps with :value,
+                         :lower, and :upper keys.
+
+  In multi-metric mode, bootstrap quantile statistics (:median, :p10, :p90,
+  :ci-lower, :ci-upper) are automatically included when available. This
+  enables box plot visualization alongside the default bar charts.
 
   Single metric example:
   (compare-by domain :impl [:stats :elapsed-time :mean])
@@ -203,42 +202,10 @@
   ;;               :thread-allocation {:metric [...] :data {...}}}}"
   ([domain axis-key metric-path]
    (compare-by domain axis-key metric-path {}))
-  ([domain axis-key metric-path {:keys [metric-ids with-error-bounds
-                                        with-bootstrap-stats]}]
+  ([domain axis-key metric-path {:keys [metric-ids with-error-bounds]}]
    (let [runs (types/runs domain)
          impls (:implementations domain)
-         grouped (:data (group-by-axis domain axis-key))
-         compare-single
-         (fn [metric-path]
-           (let [[stats-id metric-id value-key] metric-path
-                 extract-bounds? (and with-error-bounds
-                                      (= value-key :mean))]
-             {:metric metric-path
-              :with-error-bounds (boolean extract-bounds?)
-              :data (into {}
-                          (map (fn [[axis-val sub-domain]]
-                                 [axis-val
-                                  (mapv (fn [{:keys [coord data]}]
-                                          (let [value (util/stats-value
-                                                       data stats-id
-                                                       metric-id value-key)]
-                                            {:coord coord
-                                             :value (if extract-bounds?
-                                                      (let [lower (util/stats-value
-                                                                   data stats-id
-                                                                   metric-id
-                                                                   :mean-minus-3sigma)
-                                                            upper (util/stats-value
-                                                                   data stats-id
-                                                                   metric-id
-                                                                   :mean-plus-3sigma)]
-                                                        (when value
-                                                          {:value value
-                                                           :lower lower
-                                                           :upper upper}))
-                                                      value)}))
-                                        (types/runs sub-domain))]))
-                          grouped)}))]
+         grouped (:data (group-by-axis domain axis-key))]
      (if metric-path
        ;; Single metric mode
        (let [[stats-id metric-id value-key] metric-path
@@ -280,41 +247,55 @@
              metric-ids-to-extract (if metric-ids
                                      (filter (set metric-ids) discovered)
                                      discovered)
-             ;; Function to extract bootstrap stats for a metric
-             compare-bootstrap
+             ;; Function to extract both mean and bootstrap stats for a metric
+             compare-with-bootstrap
              (fn [metric-id]
-               {:metric [:bootstrap-stats metric-id :quantiles]
-                :with-bootstrap-stats true
-                :data (into {}
-                            (map (fn [[axis-val sub-domain]]
-                                   [axis-val
-                                    (mapv (fn [{:keys [coord data]}]
-                                            {:coord coord
-                                             :value (util/bootstrap-box-plot-stats
-                                                     data metric-id)})
-                                          (types/runs sub-domain))]))
-                            grouped)})]
-         (if with-bootstrap-stats
-           ;; Bootstrap stats mode - extract quantiles
-           (cond-> {:type :criterium/domain-comparison
-                    :axis axis-key
-                    :with-bootstrap-stats true
-                    :metrics (into {}
-                                   (map (fn [metric-id]
-                                          [metric-id (compare-bootstrap metric-id)]))
-                                   metric-ids-to-extract)}
-             impls (assoc :implementations impls))
-           ;; Standard mode - extract mean values
-           (let [metric-paths (into {}
-                                    (map (fn [mid] [mid [:stats mid :mean]]))
-                                    metric-ids-to-extract)]
-             (cond-> {:type :criterium/domain-comparison
-                      :axis axis-key
-                      :metrics (into {}
-                                     (map (fn [[metric-id mpath]]
-                                            [metric-id (compare-single mpath)]))
-                                     metric-paths)}
-               impls (assoc :implementations impls)))))))))
+               (let [metric-path [:stats metric-id :mean]
+                     extract-bounds? with-error-bounds]
+                 {:metric metric-path
+                  :with-error-bounds (boolean extract-bounds?)
+                  :data (into {}
+                              (map (fn [[axis-val sub-domain]]
+                                     [axis-val
+                                      (mapv (fn [{:keys [coord data]}]
+                                              (let [mean-value (util/stats-value
+                                                                data :stats
+                                                                metric-id :mean)
+                                                    ;; Base value with mean
+                                                    base-value
+                                                    (if extract-bounds?
+                                                      (let [lower (util/stats-value
+                                                                   data :stats
+                                                                   metric-id
+                                                                   :mean-minus-3sigma)
+                                                            upper (util/stats-value
+                                                                   data :stats
+                                                                   metric-id
+                                                                   :mean-plus-3sigma)]
+                                                        (when mean-value
+                                                          {:value mean-value
+                                                           :lower lower
+                                                           :upper upper}))
+                                                      mean-value)
+                                                    ;; Bootstrap stats (when available)
+                                                    bootstrap (util/bootstrap-box-plot-stats
+                                                               data metric-id)]
+                                                {:coord coord
+                                                 :value (if bootstrap
+                                                          (merge (if (map? base-value)
+                                                                   base-value
+                                                                   {:value base-value})
+                                                                 bootstrap)
+                                                          base-value)}))
+                                            (types/runs sub-domain))]))
+                              grouped)}))]
+         (cond-> {:type :criterium/domain-comparison
+                  :axis axis-key
+                  :metrics (into {}
+                                 (map (fn [metric-id]
+                                        [metric-id (compare-with-bootstrap metric-id)]))
+                                 metric-ids-to-extract)}
+           impls (assoc :implementations impls)))))))
 
 ;;; Analysis Pipeline
 ;;
@@ -394,18 +375,18 @@
 
   Parameters:
     opts - Map with keys:
-      :id                  - Key for result in output (default: :comparison)
-      :domain-id           - Key for source domain in input (default: :domain)
-      :axis-key            - Dimension key to compare across
-      :metric-path         - Vector path to metric, e.g. [:stats :elapsed-time :mean].
-                             When nil, extracts all quantitative metrics.
-      :metric-ids          - When metric-path is nil, filter to these metric-ids.
-                             E.g., [:elapsed-time :thread-allocation].
-      :with-error-bounds   - When true and extracting :mean values, also
-                             extracts error bounds (±3σ) for each value.
-      :with-bootstrap-stats - When true (multi-metric mode only), extracts
-                              bootstrap quantile statistics (median, p10, p90, CI)
-                              instead of mean values. Enables box plot visualization.
+      :id              - Key for result in output (default: :comparison)
+      :domain-id       - Key for source domain in input (default: :domain)
+      :axis-key        - Dimension key to compare across
+      :metric-path     - Vector path to metric, e.g. [:stats :elapsed-time :mean].
+                         When nil, extracts all quantitative metrics.
+      :metric-ids      - When metric-path is nil, filter to these metric-ids.
+                         E.g., [:elapsed-time :thread-allocation].
+      :with-error-bounds - When true and extracting :mean values, also
+                           extracts error bounds (±3σ) for each value.
+
+  In multi-metric mode, bootstrap quantile statistics (median, p10, p90, CI)
+  are automatically included when available, enabling box plot visualization.
 
   The returned function:
   - Takes a data-map containing a domain under :domain-id
@@ -420,15 +401,9 @@
   Example - all metrics:
   (-> {:domain my-domain}
       ((domain-compare-fn {:id :impl-comparison
-                           :axis-key :impl})))
-
-  Example - bootstrap stats for box plots:
-  (-> {:domain my-domain}
-      ((domain-compare-fn {:axis-key :impl
-                           :with-bootstrap-stats true})))"
+                           :axis-key :impl})))"
   ([] (domain-compare-fn {}))
-  ([{:keys [id domain-id axis-key metric-path metric-ids with-error-bounds
-            with-bootstrap-stats]}]
+  ([{:keys [id domain-id axis-key metric-path metric-ids with-error-bounds]}]
    (fn [data-map]
      (let [domain-id (or domain-id :domain)
            id (or id :comparison)
@@ -438,8 +413,7 @@
                    axis-key
                    metric-path
                    {:metric-ids metric-ids
-                    :with-error-bounds with-error-bounds
-                    :with-bootstrap-stats with-bootstrap-stats})]
+                    :with-error-bounds with-error-bounds})]
        (assoc data-map id result)))))
 
 ;;; Regression Analysis
