@@ -313,25 +313,28 @@
   ;; Tests that with-call-tracing returns a tree rooted at the run-traced* wrapper
   ;; and contains the expected user function calls.
   (testing "with-call-tracing wrapper tree"
-    (when (agent/attached?)
-      (testing "returns tree rooted at user's anonymous fn"
-        (let [[call-tree rv] (agent/with-call-tracing
-                               (simple-computation 5))]
-          (is (= 6 rv))
-          (is (map? call-tree)
-              "Should return a call tree")
-          (when (map? call-tree)
-            ;; The root should be the user's anonymous fn (created by the macro)
-            ;; which is inside run-traced* - but run-traced* itself is filtered out
-            (is (string? (:class call-tree))
-                "Root should have :class")
-            ;; The tree should contain simple-computation
-            (letfn [(find-class [node class-prefix]
-                      (or (and (:class node)
-                               (str/starts-with? (:class node) class-prefix))
-                          (some #(find-class % class-prefix) (:children node))))]
-              (is (find-class call-tree "criterium.agent_test$simple_computation")
-                  "Tree should contain simple-computation call"))))))))
+    (testing "returns result and call-tree (or nil without agent)"
+      (let [[call-tree rv] (agent/with-call-tracing
+                             (simple-computation 5))]
+        (is (= 6 rv) "Return value should be correct")
+        (if (agent/attached?)
+          (do
+            (is (map? call-tree)
+                "Should return a call tree when agent attached")
+            (when (map? call-tree)
+              ;; The root should be the user's anonymous fn (created by the macro)
+              ;; which is inside run-traced* - but run-traced* itself is filtered out
+              (is (string? (:class call-tree))
+                  "Root should have :class")
+              ;; The tree should contain simple-computation
+              (letfn [(find-class [node class-prefix]
+                        (or (and (:class node)
+                                 (str/starts-with? (:class node) class-prefix))
+                            (some #(find-class % class-prefix) (:children node))))]
+                (is (find-class call-tree "criterium.agent_test$simple_computation")
+                    "Tree should contain simple-computation call"))))
+          (is (nil? call-tree)
+              "Should return nil call-tree when agent not attached"))))))
 
 (deftest call-tracing-nested-test
   ;; Tests nested call tracing behavior

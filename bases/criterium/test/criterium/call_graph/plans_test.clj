@@ -11,7 +11,7 @@
     (testing "default has required keys"
       (is (vector? (:analyse plans/default)))
       (is (vector? (:view plans/default)))
-      (is (= [:call-tree :call-flame] (:view plans/default))))
+      (is (= [:call-tree :call-flame :most-called] (:view plans/default))))
     (testing "tree-only has required keys"
       (is (vector? (:analyse plans/tree-only)))
       (is (vector? (:view plans/tree-only)))
