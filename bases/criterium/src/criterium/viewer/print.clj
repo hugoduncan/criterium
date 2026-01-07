@@ -615,12 +615,12 @@
   (let [extract-id (or extract-id :extract)
         extract (data-map extract-id)]
     (case (viewer-common/visualization-strategy extract)
-      :single-point-bar
+      :single-point
       (when-let [table (viewer-common/prepare-domain-extract-table-transposed
                         extract)]
         (print-transposed-table table))
 
-      ;; :multi-point-line and :default-table both use the standard format
+      ;; :multi-point and :default-table both use the standard format
       (when extract
         (doseq [[_metric-id {:keys [metric data]}] (:metrics extract)]
           (let [raw-coords (map first data)
@@ -888,12 +888,12 @@
   (let [comparison-id (or comparison-id :comparison)
         comparison (data-map comparison-id)]
     (case (viewer-common/comparison-visualization-strategy comparison)
-      :single-point-bar
+      :single-point
       (when-let [table (viewer-common/prepare-domain-comparison-table-transposed
                         comparison)]
         (print-transposed-table table))
 
-      ;; :multi-point-line and :default-table both use the standard format
+      ;; :multi-point and :default-table both use the standard format
       (when comparison
         (let [{:keys [axis metric metrics implementations data]} comparison]
           (if metrics

@@ -249,7 +249,7 @@
   (let [extract-id (or extract-id :extract)
         extract (data-map extract-id)]
     (case (viewer-common/visualization-strategy extract)
-      :single-point-bar
+      :single-point
       (when-let [{:keys [heading col-headers rows]}
                  (viewer-common/prepare-domain-extract-table-transposed extract)]
         (kindly-heading heading)
@@ -258,7 +258,7 @@
          (charts/single-point-box-chart-spec extract {:width chart-width
                                                       :height chart-height})))
 
-      :multi-point-line
+      :multi-point
       (when-let [{:keys [heading coord-header col-headers rows]}
                  (viewer-common/prepare-domain-extract-table
                   extract {:header-sep "\n"})]
@@ -294,11 +294,11 @@
         (kindly-heading heading)
         (kindly-table rows {:column-names (into [coord-header] col-headers)}))
       (case (viewer-common/comparison-visualization-strategy comparison)
-        :single-point-bar
+        :single-point
         (kindly-vega-lite
          (charts/comparison-box-chart-spec comparison {:width chart-width
                                                        :height chart-height}))
-        :multi-point-line
+        :multi-point
         (kindly-vega-lite
          (charts/comparison-line-chart-spec comparison {:width chart-width
                                                         :height chart-height}))

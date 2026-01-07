@@ -244,7 +244,7 @@
   (let [extract-id (or extract-id :extract)
         extract (data-map extract-id)]
     (case (viewer-common/visualization-strategy extract)
-      :single-point-bar
+      :single-point
       (when-let [{:keys [rows] heading-text :heading}
                  (viewer-common/prepare-domain-extract-table-transposed extract)]
         (heading heading-text)
@@ -252,7 +252,7 @@
         (portal-vega-lite
          (charts/single-point-box-chart-spec extract {:height 400})))
 
-      :multi-point-line
+      :multi-point
       (when-let [table-data (viewer-common/prepare-domain-extract-table
                              extract {:header-sep " "})]
         (heading (:heading table-data))
@@ -285,10 +285,10 @@
         (heading heading-text)
         (portal-table rows))
       (case (viewer-common/comparison-visualization-strategy comparison)
-        :single-point-bar
+        :single-point
         (portal-vega-lite
          (charts/comparison-box-chart-spec comparison {:height 400}))
-        :multi-point-line
+        :multi-point
         (portal-vega-lite
          (charts/comparison-line-chart-spec comparison {:height 400}))
         :default-table nil))))

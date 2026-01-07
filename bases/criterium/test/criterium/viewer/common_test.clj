@@ -128,7 +128,7 @@
 (deftest visualization-strategy-test
   ;; Tests visualization strategy selection for domain-extract
   (testing "visualization-strategy"
-    (testing "returns :single-point-bar for single-point multi-impl"
+    (testing "returns :single-point for single-point multi-impl"
       (let [extract {:type :criterium/domain-extract
                      :impl-axis :impl
                      :implementations [:foo :bar]
@@ -136,9 +136,9 @@
                                {:metric [:stats :elapsed-time :mean]
                                 :data [[{:n 100 :impl :foo} 1.0e-6]
                                        [{:n 100 :impl :bar} 2.0e-6]]}}}]
-        (is (= :single-point-bar (common/visualization-strategy extract)))))
+        (is (= :single-point (common/visualization-strategy extract)))))
 
-    (testing "returns :multi-point-line for multi-point single-axis"
+    (testing "returns :multi-point for multi-point single-axis"
       (let [extract {:type :criterium/domain-extract
                      :impl-axis :impl
                      :implementations [:foo :bar]
@@ -148,7 +148,7 @@
                                        [{:n 100 :impl :bar} 2.0e-6]
                                        [{:n 200 :impl :foo} 1.5e-6]
                                        [{:n 200 :impl :bar} 2.5e-6]]}}}]
-        (is (= :multi-point-line (common/visualization-strategy extract)))))
+        (is (= :multi-point (common/visualization-strategy extract)))))
 
     (testing "returns :default-table for single implementation"
       (let [extract {:type :criterium/domain-extract
@@ -699,17 +699,17 @@
 (deftest comparison-visualization-strategy-test
   ;; Tests visualization strategy selection for domain-comparison
   (testing "comparison-visualization-strategy"
-    (testing "returns :single-point-bar for single-point multi-impl"
+    (testing "returns :single-point for single-point multi-impl"
       (let [comparison {:type :criterium/domain-comparison
                         :axis :n
                         :metric [:stats :elapsed-time :mean]
                         :implementations [:foo :bar]
                         :data {:foo [{:coord {:n 100} :value 1.0e-6}]
                                :bar [{:coord {:n 100} :value 2.0e-6}]}}]
-        (is (= :single-point-bar
+        (is (= :single-point
                (common/comparison-visualization-strategy comparison)))))
 
-    (testing "returns :multi-point-line for multi-point single-axis"
+    (testing "returns :multi-point for multi-point single-axis"
       (let [comparison {:type :criterium/domain-comparison
                         :axis :n
                         :metric [:stats :elapsed-time :mean]
@@ -718,7 +718,7 @@
                                      {:coord {:n 200} :value 1.5e-6}]
                                :bar [{:coord {:n 100} :value 2.0e-6}
                                      {:coord {:n 200} :value 2.5e-6}]}}]
-        (is (= :multi-point-line
+        (is (= :multi-point
                (common/comparison-visualization-strategy comparison)))))
 
     (testing "returns :default-table for single implementation"

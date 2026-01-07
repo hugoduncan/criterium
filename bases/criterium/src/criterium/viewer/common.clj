@@ -246,18 +246,14 @@
   "Determine the visualization strategy for domain extract data.
 
   Returns one of:
-  - :single-point-bar  - single parameter point, multiple implementations
-                         (renders as box plot showing median with CI and percentiles)
-  - :multi-point-line  - multiple parameter points, single axis (line chart)
-  - :default-table     - regular table format (no chart)
-
-  Note: The :single-point-bar keyword is retained for API compatibility, but
-  the actual rendering uses box plots (not bar charts) to show statistical
-  distribution information from bootstrap analysis."
+  - :single-point  - single parameter point, multiple implementations
+                     (box plot showing median with CI and percentiles)
+  - :multi-point   - multiple parameter points, single axis (line chart)
+  - :default-table - regular table format (no chart)"
   [extract]
   (cond
-    (single-point-multi-impl? extract) :single-point-bar
-    (single-axis-multi-point? extract) :multi-point-line
+    (single-point-multi-impl? extract) :single-point
+    (single-axis-multi-point? extract) :multi-point
     :else :default-table))
 
 (defn- comparison-all-entries
@@ -340,18 +336,14 @@
   "Determine the visualization strategy for domain comparison data.
 
   Returns one of:
-  - :single-point-bar  - single parameter point, multiple implementations
-                         (renders as box plot showing median with CI and percentiles)
-  - :multi-point-line  - multiple parameter points, single axis (line chart)
-  - :default-table     - regular table format (no chart)
-
-  Note: The :single-point-bar keyword is retained for API compatibility, but
-  the actual rendering uses box plots (not bar charts) to show statistical
-  distribution information from bootstrap analysis."
+  - :single-point  - single parameter point, multiple implementations
+                     (box plot showing median with CI and percentiles)
+  - :multi-point   - multiple parameter points, single axis (line chart)
+  - :default-table - regular table format (no chart)"
   [comparison]
   (cond
-    (single-point-multi-impl-comparison? comparison) :single-point-bar
-    (single-axis-multi-point-comparison? comparison) :multi-point-line
+    (single-point-multi-impl-comparison? comparison) :single-point
+    (single-axis-multi-point-comparison? comparison) :multi-point
     :else :default-table))
 
 ;;; Domain view helpers
