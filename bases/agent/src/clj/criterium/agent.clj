@@ -379,8 +379,21 @@
                       {:tree-count (count trees)
                        :clean-tree-count (count clean-trees)
                        :root-classes (mapv :class trees)})))
-    ;; Navigate through wrapper frames (invoke -> invokeStatic -> user code)
-    ;; The call tree is: invoke -> invokeStatic -> user$fn.invoke -> ...
+    ;; Navigate through Clojure function call frames to reach user code.
+    ;;
+    ;; Clojure compiles functions to JVM classes with this call structure:
+    ;;   criterium.agent$run_traced$xyz.invoke()        ; IFn.invoke entry point
+    ;;     criterium.agent$run_traced$xyz.invokeStatic() ; static dispatch (may exist)
+    ;;       user$fn$abc.invoke()                        ; user's anonymous fn
+    ;;         user$fn$abc.invokeStatic()                ; user's static dispatch
+    ;;           ... actual user code ...
+    ;;
+    ;; All frames with class matching "criterium.agent$run_traced*" are part
+    ;; of the tracing wrapper (identified by wrapper-tree?). We descend through
+    ;; these frames until we hit a non-wrapper class, which is user code.
+    ;;
+    ;; The first child at each level is followed because Clojure's function
+    ;; dispatch is single-threaded through invoke -> invokeStatic -> target.
     (loop [node wrapper]
       (if (wrapper-tree? node)
         ;; Still in wrapper frames, descend to first child
