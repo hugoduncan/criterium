@@ -1854,27 +1854,6 @@
 
 ;;; Most-Called Bar Chart
 
-(defn- clojure-invoke-method?
-  "Check if a method name is a Clojure function invocation method."
-  [method]
-  (contains? #{"invoke" "invokeStatic" "invokePrim" "doInvoke"} method))
-
-(defn- extract-clojure-fn-name
-  "Extract Clojure function name from class name like 'myns.core$my_fn'.
-  Returns the part after the last $ converted from underscores to hyphens."
-  [class-name]
-  (when class-name
-    (when-let [idx (str/last-index-of class-name "$")]
-      (-> (subs class-name (inc idx))
-          (str/replace "_" "-")
-          (str/replace "BANG" "!")
-          (str/replace "QMARK" "?")
-          (str/replace "STAR" "*")
-          (str/replace "PLUS" "+")
-          (str/replace "GT" ">")
-          (str/replace "LT" "<")
-          (str/replace "EQ" "=")))))
-
 (defn- most-called-display-name
   "Get display name for a most-called entry.
   For Clojure invoke methods, shows the function name.

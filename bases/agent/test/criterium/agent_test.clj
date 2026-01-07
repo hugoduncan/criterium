@@ -440,37 +440,37 @@
       (testing "handles multiple exclude prefixes"
         (let [result (agent/filter-call-tree
                       sample-call-tree
-                      {:exclude-packages #{"java." "sun."}})]
-          (let [root-children (:children result)]
-            ;; sun.misc.Unsafe should be removed
-            (is (not (some #(= "sun.misc.Unsafe" (:class %)) root-children)))))))
+                      {:exclude-packages #{"java." "sun."}})
+              root-children (:children result)]
+          ;; sun.misc.Unsafe should be removed
+          (is (not (some #(= "sun.misc.Unsafe" (:class %)) root-children))))))
 
     (testing ":stop-at-packages"
       (testing "truncates children at matching nodes"
         (let [result (agent/filter-call-tree
                       sample-call-tree
-                      {:stop-at-packages #{"clojure.core"}})]
-          ;; Find the clojure.core$map node
-          (let [service (first (:children result))
-                clj-map (first (filter #(str/starts-with?
-                                         (:class %) "clojure.core")
-                                       (:children service)))]
-            (is (some? clj-map)
-                "clojure.core node should exist")
-            (is (= [] (:children clj-map))
-                "clojure.core node should have no children"))))
+                      {:stop-at-packages #{"clojure.core"}})
+              ;; Find the clojure.core$map node
+              service (first (:children result))
+              clj-map (first (filter #(str/starts-with?
+                                       (:class %) "clojure.core")
+                                     (:children service)))]
+          (is (some? clj-map)
+              "clojure.core node should exist")
+          (is (= [] (:children clj-map))
+              "clojure.core node should have no children")))
 
       (testing "keeps non-matching nodes unchanged"
         (let [result (agent/filter-call-tree
                       sample-call-tree
-                      {:stop-at-packages #{"clojure.core"}})]
-          ;; java.util.ArrayList should still have children
-          (let [service (first (:children result))
-                arraylist (first (filter #(= "java.util.ArrayList" (:class %))
-                                         (:children service)))]
-            (when arraylist
-              (is (seq (:children arraylist))
-                  "Non-matching node should keep children"))))))
+                      {:stop-at-packages #{"clojure.core"}})
+              ;; java.util.ArrayList should still have children
+              service (first (:children result))
+              arraylist (first (filter #(= "java.util.ArrayList" (:class %))
+                                       (:children service)))]
+          (when arraylist
+            (is (seq (:children arraylist))
+                "Non-matching node should keep children")))))
 
     (testing ":max-depth"
       (testing "depth 1 returns only root"
@@ -491,12 +491,12 @@
       (testing "depth 3 includes grandchildren"
         (let [result (agent/filter-call-tree
                       sample-call-tree
-                      {:max-depth 3})]
-          (let [service (first (:children result))]
-            (is (= 2 (count (:children service))))
-            ;; Grandchildren should exist but have no children
-            (is (every? #(= [] (:children %))
-                        (:children service)))))))
+                      {:max-depth 3})
+              service (first (:children result))]
+          (is (= 2 (count (:children service))))
+          ;; Grandchildren should exist but have no children
+          (is (every? #(= [] (:children %))
+                      (:children service))))))
 
     (testing "combined filters"
       (testing ":exclude-packages with :max-depth"
@@ -515,17 +515,17 @@
         (let [result (agent/filter-call-tree
                       sample-call-tree
                       {:exclude-packages #{"java."}
-                       :stop-at-packages #{"clojure.core"}})]
-          ;; java.* nodes excluded
-          (let [service (first (:children result))]
-            (is (not (some #(str/starts-with? (:class %) "java.")
-                           (:children service))))
-            ;; clojure.core node truncated
-            (let [clj-map (first (filter #(str/starts-with?
-                                           (:class %) "clojure.core")
-                                         (:children service)))]
-              (when clj-map
-                (is (= [] (:children clj-map)))))))))))
+                       :stop-at-packages #{"clojure.core"}})
+              ;; java.* nodes excluded
+              service (first (:children result))
+              ;; clojure.core node truncated
+              clj-map (first (filter #(str/starts-with?
+                                       (:class %) "clojure.core")
+                                     (:children service)))]
+          (is (not (some #(str/starts-with? (:class %) "java.")
+                         (:children service))))
+          (when clj-map
+            (is (= [] (:children clj-map)))))))))
 
 (deftest jdk-filter-test
   ;; Tests the predefined JDK filter.
@@ -569,16 +569,16 @@
     (testing "filters sample tree correctly"
       (let [result (agent/filter-call-tree
                     sample-call-tree
-                    agent/clojure-core-boundary-filter)]
-        ;; Find clojure.core$map - it should exist but have no children
-        (let [service (first (:children result))
-              clj-map (first (filter #(str/starts-with?
-                                       (:class %) "clojure.core")
-                                     (:children service)))]
-          (is (some? clj-map)
-              "clojure.core node should exist")
-          (is (= [] (:children clj-map))
-              "clojure.core node should have empty children"))))))
+                    agent/clojure-core-boundary-filter)
+            ;; Find clojure.core$map - it should exist but have no children
+            service (first (:children result))
+            clj-map (first (filter #(str/starts-with?
+                                     (:class %) "clojure.core")
+                                   (:children service)))]
+        (is (some? clj-map)
+            "clojure.core node should exist")
+        (is (= [] (:children clj-map))
+            "clojure.core node should have empty children")))))
 
 (deftest filter-call-tree-validation-test
   ;; Tests input validation for filter-call-tree options.

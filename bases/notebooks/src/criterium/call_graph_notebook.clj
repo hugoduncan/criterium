@@ -29,7 +29,7 @@
 ;; Check if the agent is available:
 
 (do
-  (require '[criterium.agent :as agent])
+  (require 'criterium.agent)
   {:agent-attached? ((resolve 'criterium.agent/attached?))})
 
 ;; ## Basic Usage
