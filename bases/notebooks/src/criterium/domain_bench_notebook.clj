@@ -55,6 +55,19 @@
 ;; The `implementation-comparison` plan groups by implementation and
 ;; shows factors relative to the baseline (first implementation).
 
+;; ## Single-Point Comparison
+;;
+;; Compare implementations at a single point (no parameter range).
+;; Results display as box plots showing median, confidence intervals,
+;; and percentile whiskers.
+
+(domain/bench
+ (domain/domain-expr
+  []
+  {:not-empty (not (empty? (range 5)))
+   :seq       (seq (range 5))})
+ :domain-plan domain-plans/implementation-comparison)
+
 ;; ## Complexity Analysis
 ;;
 ;; Use `complexity-analysis` to fit O(n), O(n log n), etc. models:
