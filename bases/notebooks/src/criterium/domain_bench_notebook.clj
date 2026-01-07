@@ -64,7 +64,8 @@
 (domain/bench
  (domain/domain-expr
   []
-  {:not-empty (not (empty? (range 5)))
+  {;; Intentionally comparing idiomatic vs non-idiomatic forms
+   :not-empty #_:clj-kondo/ignore (not (empty? (range 5)))
    :seq       (seq (range 5))})
  :domain-plan domain-plans/implementation-comparison)
 
