@@ -950,14 +950,26 @@
                 :color {:value "#333"}}}]})
 
 (defn- box-plot-whisker-layer
-  "Build whisker layer for box plot (rule from p10 to p90)."
+  "Build whisker layer for box plot (rule from p10 to p90 with end caps).
+  Returns a layer with sub-layers: the main whisker rule and tick caps at p10/p90."
   [data]
-  {:data {:values data}
-   :mark {:type "rule" :strokeWidth 1.5}
-   :encoding {:x {:field "impl" :type "nominal"}
-              :y {:field "p10" :type "quantitative"}
-              :y2 {:field "p90"}
-              :color {:value "#333"}}})
+  {:layer
+   [{:data {:values data}
+     :mark {:type "rule" :strokeWidth 1.5}
+     :encoding {:x {:field "impl" :type "nominal"}
+                :y {:field "p10" :type "quantitative"}
+                :y2 {:field "p90"}
+                :color {:value "#333"}}}
+    {:data {:values data}
+     :mark {:type "tick" :thickness 1.5 :size 10}
+     :encoding {:x {:field "impl" :type "nominal"}
+                :y {:field "p10" :type "quantitative"}
+                :color {:value "#333"}}}
+    {:data {:values data}
+     :mark {:type "tick" :thickness 1.5 :size 10}
+     :encoding {:x {:field "impl" :type "nominal"}
+                :y {:field "p90" :type "quantitative"}
+                :color {:value "#333"}}}]})
 
 (defn- box-plot-ci-layer
   "Build CI box layer for box plot (rect from ciLower to ciUpper)."

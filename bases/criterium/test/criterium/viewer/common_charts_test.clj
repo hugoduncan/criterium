@@ -1260,15 +1260,22 @@
         ;; 4 layers: whisker, CI box, median, tooltip
         (is (= 4 (count (:layer chart))))))
 
-    (testing "includes whisker layer with rule mark"
+    (testing "includes whisker layer with rule mark and end caps"
       (let [spec (charts/single-point-box-chart-spec
                   single-point-box-extract
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
-            whisker-layer (first (:layer chart))]
-        (is (= "rule" (get-in whisker-layer [:mark :type])))
-        (is (= "p10" (get-in whisker-layer [:encoding :y :field])))
-        (is (= "p90" (get-in whisker-layer [:encoding :y2 :field])))))
+            whisker-layer (first (:layer chart))
+            whisker-rule (first (:layer whisker-layer))
+            whisker-cap-p10 (second (:layer whisker-layer))
+            whisker-cap-p90 (nth (:layer whisker-layer) 2)]
+        (is (= "rule" (get-in whisker-rule [:mark :type])))
+        (is (= "p10" (get-in whisker-rule [:encoding :y :field])))
+        (is (= "p90" (get-in whisker-rule [:encoding :y2 :field])))
+        (is (= "tick" (get-in whisker-cap-p10 [:mark :type]))
+            "p10 cap should be a tick mark")
+        (is (= "tick" (get-in whisker-cap-p90 [:mark :type]))
+            "p90 cap should be a tick mark")))
 
     (testing "includes CI box layer with bar mark"
       (let [spec (charts/single-point-box-chart-spec
@@ -1363,8 +1370,9 @@
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
             whisker-layer (first (:layer chart))
+            whisker-rule (first (:layer whisker-layer))
             median-layer (second (:layer chart))]
-        (is (= "rule" (get-in whisker-layer [:mark :type])))
+        (is (= "rule" (get-in whisker-rule [:mark :type])))
         (is (= "tick" (get-in median-layer [:mark :type])))))
 
     (testing "tooltip excludes CI fields"
