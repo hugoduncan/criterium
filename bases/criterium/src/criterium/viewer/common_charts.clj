@@ -9,7 +9,8 @@
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have have?]]
    [criterium.util.probability :as probability]
-   [criterium.viewer.common :as viewer-common]))
+   [criterium.viewer.common.core :as core]
+   [criterium.viewer.common.domain.comparison :as comparison]))
 
 ;;; Scatter plots
 
@@ -260,7 +261,7 @@
      (let [path (:path metric-config)
            v (get (get events path) index)]
        (if (pos? (long v))
-         (assoc res (viewer-common/composite-key path) v :index index)
+         (assoc res (core/composite-key path) v :index index)
          res)))
    nil
    metrics))
@@ -286,7 +287,7 @@
                              (mapv
                               #(hash-map
                                 :field (name
-                                        (viewer-common/composite-key (:path %)))
+                                        (core/composite-key (:path %)))
                                 :type "quantitative"
                                 :title (str (:label metrics) " " (:label %)))
                               (:values metrics))
@@ -817,16 +818,16 @@
                   ;; Get all values from lookup
                   all-raw-values (keep #(get lookup %) implementations)
                   ;; Check if all values have required box plot fields
-                  all-have-box-data? (every? viewer-common/has-box-plot-data?
+                  all-have-box-data? (every? core/has-box-plot-data?
                                              all-raw-values)]
               (if-not all-have-box-data?
                 (do
-                  (viewer-common/warn-missing-bootstrap-stats metric-id)
+                  (core/warn-missing-bootstrap-stats metric-id)
                   nil)
                 (let [;; Get median values for SI scaling
                       all-medians (map :median all-raw-values)
                       {:keys [^double total-scale unit]}
-                      (viewer-common/compute-si-scaling metric all-medians)
+                      (core/compute-si-scaling metric all-medians)
                       ;; Build y-axis title with unit
                       metric-name (name metric-id)
                       base-title (str "median " metric-name)
@@ -877,12 +878,12 @@
              ;; Get all values from lookup for error bounds check and SI scaling
              all-raw-values (keep #(get lookup %) implementations)
              ;; Check if any values have error bounds
-             has-error-bounds? (viewer-common/values-have-error-bounds?
+             has-error-bounds? (core/values-have-error-bounds?
                                 all-raw-values)
              ;; Get numeric values for SI scaling
-             all-values (map viewer-common/get-numeric-value all-raw-values)
+             all-values (map core/get-numeric-value all-raw-values)
              {:keys [^double total-scale unit]}
-             (viewer-common/compute-si-scaling metric all-values)
+             (core/compute-si-scaling metric all-values)
              ;; Build y-axis title with unit
              metric-name (name metric-id)
              base-title (if has-error-bounds?
@@ -895,7 +896,7 @@
              chart-data (mapv
                          (fn [impl]
                            (let [v (get lookup impl)
-                                 raw-value (viewer-common/get-numeric-value v)]
+                                 raw-value (core/get-numeric-value v)]
                              (cond-> {"impl" (name impl)
                                       "value" (when raw-value
                                                 (* (double raw-value) total-scale))}
@@ -1127,7 +1128,7 @@
 
   Returns a Vega-Lite spec with vconcat of bar charts (one per metric)."
   [comparison chart-options]
-  (let [bar-data (viewer-common/prepare-comparison-bar-data comparison)]
+  (let [bar-data (comparison/prepare-comparison-bar-data comparison)]
     {:data {:values []}
      :vconcat (mapv #(bar-chart-layer % chart-options) bar-data)}))
 
@@ -1148,7 +1149,7 @@
 
   Returns a Vega-Lite spec with vconcat of box plots (one per metric)."
   [comparison chart-options]
-  (let [box-data (viewer-common/prepare-comparison-box-data comparison)]
+  (let [box-data (comparison/prepare-comparison-box-data comparison)]
     {:data {:values []}
      :vconcat (mapv #(box-plot-layer % chart-options) box-data)}))
 
@@ -1214,7 +1215,7 @@
 
   Returns a Vega-Lite spec with vconcat of line charts (one per metric)."
   [extract chart-options]
-  (let [line-data (viewer-common/prepare-line-chart-data extract)]
+  (let [line-data (comparison/prepare-line-chart-data extract)]
     {:data {:values []}
      :vconcat (mapv #(line-chart-layer % chart-options) line-data)}))
 
@@ -1231,7 +1232,7 @@
 
   Returns a Vega-Lite spec with vconcat of line charts (one per metric)."
   [comparison chart-options]
-  (let [line-data (viewer-common/prepare-comparison-line-data comparison)]
+  (let [line-data (comparison/prepare-comparison-line-data comparison)]
     {:data {:values []}
      :vconcat (mapv #(line-chart-layer % chart-options) line-data)}))
 

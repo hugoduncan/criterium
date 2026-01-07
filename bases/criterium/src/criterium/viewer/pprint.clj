@@ -6,7 +6,13 @@
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have]]
    [criterium.view :as view]
-   [criterium.viewer.common :as viewer-common]))
+   [criterium.viewer.common.allocation :as allocation]
+   [criterium.viewer.common.bootstrap :as bootstrap]
+   [criterium.viewer.common.core :as core]
+   [criterium.viewer.common.domain.comparison :as comparison]
+   [criterium.viewer.common.domain.extract :as extract]
+   [criterium.viewer.common.modal :as modal]
+   [criterium.viewer.common.regression :as regression]))
 
 (defmethod view/metrics* :pprint
   [_ {:keys [samples-id]} data-map]
@@ -16,7 +22,7 @@
         metric-configs (metric/all-metric-configs metrics-defs)]
     (pprint/print-table
      [:metric :value]
-     (viewer-common/metrics-map
+     (core/metrics-map
       (util/metric->values metrics-samples)
       metric-configs))))
 
@@ -31,7 +37,7 @@
     (when (seq metric-configs)
       (pprint/print-table
        [:_metric :mean-minus-3sigma :mean :mean-plus-3sigma :min-val :max-val]
-       (viewer-common/stats-map
+       (core/stats-map
         (util/stats stats-map)
         metric-configs
         transforms)))))
@@ -43,7 +49,7 @@
         metrics-defs (:metrics-defs quantiles-map)
         metric-configs (metric/all-metric-configs metrics-defs)
         transforms (util/get-transforms data-map quantiles-id)
-        table (viewer-common/quantiles
+        table (core/quantiles
                metric-configs
                (util/quantiles quantiles-map)
                transforms)]
@@ -58,7 +64,7 @@
         event-stats-map (data-map event-stats-id)]
     (when event-stats-map
       (let [metrics-defs (:metrics-defs event-stats-map)
-            res (viewer-common/event-stats
+            res (core/event-stats
                  metrics-defs
                  (util/event-stats event-stats-map))
             ks (reduce into [] (map keys res))]
@@ -73,7 +79,7 @@
         metric-configs (metric/all-metric-configs metrics-defs)]
     (pprint/print-table
      [:_metric :low-severe :low-mild :high-mild :high-severe]
-     (viewer-common/outlier-counts
+     (core/outlier-counts
       metric-configs
       (util/outliers outliers-map)))))
 
@@ -108,7 +114,7 @@
        (for [m metric-configs
              :let [stat (get-in bootstrap (:path m))]
              :when stat]
-         (viewer-common/bootstrap-stat-row m stat))))))
+         (bootstrap/bootstrap-stat-row m stat))))))
 
 (defn- flatten-events [sample metrics-defs index]
   (reduce-kv
@@ -118,7 +124,7 @@
         (let [v (get (get sample (:path metric-config)) index)]
           (if (pos? (long v))
             (assoc res
-                   (viewer-common/composite-key
+                   (core/composite-key
                     [(if-let [group (:group metric-config)]
                        group
                        k)
@@ -136,14 +142,14 @@
                        (get-in path)
                        :outliers
                        (get index))]
-    [[(viewer-common/composite-key [(last path) :outlier])
+    [[(core/composite-key [(last path) :outlier])
       v]]))
 
 (defmethod view/collect-plan* :pprint
   [_ _view data-map]
   (pprint/print-table
    [:phase :num-samples :batch-size :num-evals]
-   (viewer-common/collect-plan-data data-map)))
+   (core/collect-plan-data data-map)))
 
 (defmethod view/samples* :pprint
   [_ {:keys [] :as view} banech-map]
@@ -172,7 +178,7 @@
                        (reduce
                         (fn [res metric-config]
                           (conj res
-                                (viewer-common/composite-key
+                                (core/composite-key
                                  [(if-let [group (:group metric-config)]
                                     group
                                     k)
@@ -184,7 +190,7 @@
                     event-metrics-defs)
         outlier-keys (when outlier-analysis
                        (mapv
-                        #(viewer-common/composite-key [(last %) :outlier])
+                        #(core/composite-key [(last %) :outlier])
                         (mapv :path metric-configs)))
 
         all-keys (reduce into [:index] [quant-ids outlier-keys event-keys])
@@ -221,7 +227,7 @@
         transforms (util/get-transforms data-map histogram-id)
         histograms (->> metric-configs
                         (mapv
-                         #(viewer-common/histogram
+                         #(core/histogram
                            (have
                             some?
                             ((:histograms histograms) (:path %))
@@ -235,7 +241,7 @@
                        (:unit h)))
       (pprint/print-table
        [:centers :counts :density]
-       (viewer-common/column-data->maps
+       (core/column-data->maps
         h
         [:centers :counts :density]
         {:centers #(format "%-7.3g" %)
@@ -246,12 +252,12 @@
   "Prepare modes data for pprint table display."
   [modes metric-config transforms]
   (mapv (fn [{:keys [location density ci-lower ci-upper]}]
-          {:location (viewer-common/format-mode-location
+          {:location (modal/format-mode-location
                       location metric-config transforms)
            :density (format "%.4g" density)
-           :ci-lower (viewer-common/format-mode-location
+           :ci-lower (modal/format-mode-location
                       ci-lower metric-config transforms)
-           :ci-upper (viewer-common/format-mode-location
+           :ci-upper (modal/format-mode-location
                       ci-upper metric-config transforms)})
         modes))
 
@@ -293,7 +299,7 @@
   (let [extract-id (or extract-id :extract)
         extract (data-map extract-id)]
     (when-let [{:keys [heading coord-header col-headers rows]}
-               (viewer-common/prepare-domain-extract-table extract {:header-sep " "})]
+               (extract/prepare-domain-extract-table extract {:header-sep " "})]
       (println heading)
       ;; Rows already use string keys matching column headers
       (pprint/print-table (into [coord-header] col-headers) rows))))
@@ -302,7 +308,7 @@
   [_ {:keys [grouped-id]} data-map]
   (let [grouped-id (or grouped-id :grouped)
         grouped (data-map grouped-id)]
-    (when-let [{:keys [heading rows]} (viewer-common/prepare-domain-grouped-table
+    (when-let [{:keys [heading rows]} (extract/prepare-domain-grouped-table
                                        grouped)]
       (println heading)
       (pprint/print-table [:axis-value :run-count] rows))))
@@ -311,7 +317,7 @@
   [_ {:keys [comparison-id]} data-map]
   (let [comparison-id (or comparison-id :comparison)
         comparison (data-map comparison-id)]
-    (when-let [tables (viewer-common/prepare-domain-comparison-tables comparison)]
+    (when-let [tables (comparison/prepare-domain-comparison-tables comparison)]
       (doseq [{:keys [heading coord-header col-headers rows]} tables]
         (println heading)
         (pprint/print-table (into [coord-header] col-headers) rows)))))
@@ -334,7 +340,7 @@
                              (name axis) (pr-str metric) (name impl-axis)))
             (if (seq by-impl)
               (let [impl-keys (sort (keys by-impl))
-                    table-rows (viewer-common/prepare-regression-model-table-multi-impl
+                    table-rows (regression/prepare-regression-model-table-multi-impl
                                 by-impl impl-keys table-options)]
                 (pprint/print-table
                  [:implementation :model :r-squared :equation :best-fit]
@@ -347,7 +353,7 @@
             (println (format "Domain Regression (axis: %s, metric: %s)"
                              (name axis) (pr-str metric)))
             (if (seq models)
-              (let [table-rows (viewer-common/prepare-regression-model-table
+              (let [table-rows (regression/prepare-regression-model-table
                                 {:models models :best-fit best-fit}
                                 table-options)]
                 (pprint/print-table [:model :r-squared :equation :best-fit] table-rows))
@@ -399,7 +405,7 @@
                     :freed-count freed-count
                     :freed-bytes freed-bytes
                     :object-type (or object-type "")
-                    :call-site (viewer-common/format-call-site call-site nil)})
+                    :call-site (allocation/format-call-site call-site nil)})
                  hotspots)))))))
 
 (defmethod view/allocation-by-type* :pprint
@@ -427,7 +433,7 @@
         treemap-data (data-map treemap-id)]
     (when (and treemap-data (:root treemap-data))
       (println)
-      (println (viewer-common/render-ascii-treemap treemap-data)))))
+      (println (allocation/render-ascii-treemap treemap-data)))))
 
 ;;; Modal Analysis Views
 
@@ -435,14 +441,14 @@
   "Prepare modes data for pprint table display in warning output."
   [modes metric-config transforms]
   (mapv (fn [{:keys [location density]}]
-          {:location (viewer-common/format-mode-location
+          {:location (modal/format-mode-location
                       location metric-config transforms)
            :density (format "%.4g" density)})
         modes))
 
 (defmethod view/multimodal-warning* :pprint
   [_ {:keys [modes-id]} data-map]
-  (viewer-common/for-each-multimodal-metric
+  (modal/for-each-multimodal-metric
    data-map modes-id
    (fn [{:keys [metric-config n-modes modes transforms]}]
      (println)
