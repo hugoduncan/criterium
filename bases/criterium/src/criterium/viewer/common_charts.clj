@@ -9,7 +9,8 @@
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have have?]]
    [criterium.util.probability :as probability]
-   [criterium.viewer.common :as viewer-common]))
+   [criterium.viewer.common.core :as core]
+   [criterium.viewer.common.domain.comparison :as comparison]))
 
 ;;; Scatter plots
 
@@ -163,11 +164,10 @@
   - Center line: median point estimate
   - Whiskers: 10th and 90th percentiles
 
-  Bootstrap stats values are already scaled by bootstrap-stats-for, so no
-  additional transform is applied here.
+  Transforms are applied to bootstrap values via the source-id chain.
 
   Returns a vector of Vega-Lite layer specs."
-  [_transforms bootstrap-stats metric-config]
+  [transforms bootstrap-stats metric-config]
   (let [quantiles (:quantiles bootstrap-stats)
         p10 (get quantiles 0.1)
         p50 (get quantiles 0.5)
@@ -176,16 +176,17 @@
       (let [path (:path metric-config)
             k (first path)
             field-name (name k)
-            ;; Values are already scaled by bootstrap-stats-for
-            p10-val (:point-estimate p10)
-            p50-val (:point-estimate p50)
-            p90-val (:point-estimate p90)
+            ;; Apply transforms to raw bootstrap values
+            scale (fn [v] (util/transform-sample-> v transforms))
+            p10-val (scale (:point-estimate p10))
+            p50-val (scale (:point-estimate p50))
+            p90-val (scale (:point-estimate p90))
             ;; Extract median CI bounds and alpha for label
             median-ci (:estimate-quantiles p50)
             ci-lower (when (seq median-ci)
-                       (:value (first median-ci)))
+                       (scale (:value (first median-ci))))
             ci-upper (when (seq median-ci)
-                       (:value (second median-ci)))
+                       (scale (:value (second median-ci))))
             ci-alpha (when (seq median-ci)
                        (:alpha (first median-ci)))
             ci-level (when ci-alpha
@@ -260,7 +261,7 @@
      (let [path (:path metric-config)
            v (get (get events path) index)]
        (if (pos? (long v))
-         (assoc res (viewer-common/composite-key path) v :index index)
+         (assoc res (core/composite-key path) v :index index)
          res)))
    nil
    metrics))
@@ -286,7 +287,7 @@
                              (mapv
                               #(hash-map
                                 :field (name
-                                        (viewer-common/composite-key (:path %)))
+                                        (core/composite-key (:path %)))
                                 :type "quantitative"
                                 :title (str (:label metrics) " " (:label %)))
                               (:values metrics))
@@ -376,9 +377,7 @@
         hist-transforms (util/get-transforms data-map histogram-id)
         stats-transforms (util/get-transforms data-map (:source-id stats))
         bootstrap-transforms (when bootstrap-stats-map
-                               (util/get-transforms
-                                data-map
-                                (:source-id bootstrap-stats-map)))
+                               (util/get-transforms data-map bootstrap-stats-id))
         layer-num (volatile! 0)]
     {:data {:values []}
      :resolve {:scale {:x "independent"
@@ -782,7 +781,75 @@
            (regression-loess-layer residual-pts {:color-field color-field})
            (regression-zero-line-layer)]})
 
-;;; Single-point comparison bar charts
+;;; Single-point comparison bar and box charts
+
+(defn prepare-single-point-box-data
+  "Prepare data for single-point box plot from domain extract.
+  Extracts bootstrap statistics (median, CI, percentiles) from embedded data.
+
+  Returns a vector of maps, one per metric, each containing:
+    :metric-id - the metric keyword
+    :metric-path - the metric path vector
+    :y-title - y-axis title with SI unit (uses 'median' prefix)
+    :data - vector of maps with string keys:
+            {\"impl\" string \"median\" number \"ciLower\" number \"ciUpper\" number
+             \"p10\" number \"p90\" number}
+            (ciLower/ciUpper omitted when CI bounds not available)
+
+  If bootstrap stats are missing for a metric, warns to stdout and returns nil
+  for that metric entry (filtered from result)."
+  [extract]
+  (let [impl-axis-key (:impl-axis extract)
+        implementations (:implementations extract)
+        metrics (:metrics extract)]
+    (->> metrics
+         (sort-by key)
+         (keep
+          (fn [[metric-id {:keys [metric data]}]]
+            (let [;; Build lookup: impl -> bootstrap stats value map
+                  lookup (reduce
+                          (fn [acc [coord value]]
+                            (let [impl-val (get coord impl-axis-key)]
+                              (assoc acc impl-val value)))
+                          {}
+                          data)
+                  ;; Get all values from lookup
+                  all-raw-values (keep #(get lookup %) implementations)
+                  ;; Check if all values have required box plot fields
+                  all-have-box-data? (every? core/has-box-plot-data?
+                                             all-raw-values)]
+              (if-not all-have-box-data?
+                (do
+                  (core/warn-missing-bootstrap-stats metric-id)
+                  nil)
+                (let [;; Get median values for SI scaling
+                      all-medians (map :median all-raw-values)
+                      {:keys [^double total-scale unit]}
+                      (core/compute-si-scaling metric all-medians)
+                      ;; Build y-axis title with unit
+                      metric-name (name metric-id)
+                      base-title (str "median " metric-name)
+                      y-title (if (seq unit)
+                                (str base-title " (" unit ")")
+                                base-title)
+                      ;; Build chart data
+                      chart-data (mapv
+                                  (fn [impl]
+                                    (let [v (get lookup impl)]
+                                      (cond-> {"impl" (name impl)
+                                               "median" (* (double (:median v)) total-scale)
+                                               "p10" (* (double (:p10 v)) total-scale)
+                                               "p90" (* (double (:p90 v)) total-scale)}
+                                        (contains? v :ci-lower)
+                                        (assoc "ciLower" (* (double (:ci-lower v)) total-scale))
+                                        (contains? v :ci-upper)
+                                        (assoc "ciUpper" (* (double (:ci-upper v)) total-scale)))))
+                                  implementations)]
+                  {:metric-id metric-id
+                   :metric-path metric
+                   :y-title y-title
+                   :data chart-data})))))
+         vec)))
 
 (defn prepare-single-point-bar-data
   "Prepare data for single-point bar chart from domain extract.
@@ -809,12 +876,12 @@
              ;; Get all values from lookup for error bounds check and SI scaling
              all-raw-values (keep #(get lookup %) implementations)
              ;; Check if any values have error bounds
-             has-error-bounds? (viewer-common/values-have-error-bounds?
+             has-error-bounds? (core/values-have-error-bounds?
                                 all-raw-values)
              ;; Get numeric values for SI scaling
-             all-values (map viewer-common/get-numeric-value all-raw-values)
+             all-values (map core/get-numeric-value all-raw-values)
              {:keys [^double total-scale unit]}
-             (viewer-common/compute-si-scaling metric all-values)
+             (core/compute-si-scaling metric all-values)
              ;; Build y-axis title with unit
              metric-name (name metric-id)
              base-title (if has-error-bounds?
@@ -827,7 +894,7 @@
              chart-data (mapv
                          (fn [impl]
                            (let [v (get lookup impl)
-                                 raw-value (viewer-common/get-numeric-value v)]
+                                 raw-value (core/get-numeric-value v)]
                              (cond-> {"impl" (name impl)
                                       "value" (when raw-value
                                                 (* (double raw-value) total-scale))}
@@ -881,6 +948,104 @@
      :encoding {:x {:field "impl" :type "nominal"}
                 :y {:field "valueUpper" :type "quantitative"}
                 :color {:value "#333"}}}]})
+
+(defn- box-plot-whisker-layer
+  "Build whisker layer for box plot (rule from p10 to p90 with end caps).
+  Returns a layer with sub-layers: the main whisker rule and tick caps at p10/p90."
+  [data]
+  {:layer
+   [{:data {:values data}
+     :mark {:type "rule" :strokeWidth 1.5}
+     :encoding {:x {:field "impl" :type "nominal"}
+                :y {:field "p10" :type "quantitative"}
+                :y2 {:field "p90"}
+                :color {:value "#333"}}}
+    {:data {:values data}
+     :mark {:type "tick" :thickness 1.5 :size 10}
+     :encoding {:x {:field "impl" :type "nominal"}
+                :y {:field "p10" :type "quantitative"}
+                :color {:value "#333"}}}
+    {:data {:values data}
+     :mark {:type "tick" :thickness 1.5 :size 10}
+     :encoding {:x {:field "impl" :type "nominal"}
+                :y {:field "p90" :type "quantitative"}
+                :color {:value "#333"}}}]})
+
+(defn- box-plot-ci-layer
+  "Build CI box layer for box plot (rect from ciLower to ciUpper)."
+  [data]
+  {:data {:values data}
+   :mark {:type "bar" :width 20}
+   :encoding {:x {:field "impl" :type "nominal"}
+              :y {:field "ciLower" :type "quantitative"}
+              :y2 {:field "ciUpper"}
+              :color {:field "impl"
+                      :type "nominal"
+                      :legend {:title "Implementation"}}}})
+
+(defn- box-plot-median-layer
+  "Build median line layer for box plot (tick mark at median)."
+  [data]
+  {:data {:values data}
+   :mark {:type "tick" :thickness 2 :size 20 :color "white"}
+   :encoding {:x {:field "impl" :type "nominal"}
+              :y {:field "median" :type "quantitative"}}})
+
+(defn- box-plot-layer
+  "Build a box plot from prepared box data.
+  Returns a layered spec with:
+  - Whisker rule from p10 to p90
+  - CI box from ciLower to ciUpper (when present)
+  - Median tick mark
+  Used by both single-point-box-chart-spec and comparison-box-chart-spec."
+  [{:keys [y-title data]} chart-options]
+  (let [has-ci? (some #(contains? % "ciLower") data)
+        base-tooltip [{:field "impl"
+                       :type "nominal"
+                       :title "Implementation"}
+                      {:field "median"
+                       :type "quantitative"
+                       :title "Median"
+                       :format ".3g"}
+                      {:field "p10"
+                       :type "quantitative"
+                       :title "10th percentile"
+                       :format ".3g"}
+                      {:field "p90"
+                       :type "quantitative"
+                       :title "90th percentile"
+                       :format ".3g"}]
+        tooltip (if has-ci?
+                  (into base-tooltip
+                        [{:field "ciLower"
+                          :type "quantitative"
+                          :title "CI lower"
+                          :format ".3g"}
+                         {:field "ciUpper"
+                          :type "quantitative"
+                          :title "CI upper"
+                          :format ".3g"}])
+                  base-tooltip)
+        ;; Build layers: whisker, optionally CI box, median
+        layers (cond-> [(box-plot-whisker-layer data)]
+                 has-ci? (conj (box-plot-ci-layer data))
+                 true (conj (box-plot-median-layer data)))
+        ;; Add invisible point layer for tooltip on hover
+        tooltip-layer {:data {:values data}
+                       :mark {:type "point" :opacity 0 :size 400}
+                       :encoding {:x {:field "impl" :type "nominal"}
+                                  :y {:field "median" :type "quantitative"}
+                                  :tooltip tooltip}}]
+    (merge chart-options
+           {:layer (conj layers tooltip-layer)
+            :encoding {:x {:field "impl"
+                           :type "nominal"
+                           :title "Implementation"
+                           :sort nil
+                           :axis {:labelAngle 0}}
+                       :y {:type "quantitative"
+                           :title y-title
+                           :scale {:zero false}}}})))
 
 (defn- bar-chart-layer
   "Build a bar chart from prepared bar data.
@@ -943,6 +1108,27 @@
     {:data {:values []}
      :vconcat (mapv #(bar-chart-layer % chart-options) bar-data)}))
 
+(defn single-point-box-chart-spec
+  "Build a Vega-Lite box plot spec for single-point multi-impl comparison.
+
+  Shows implementations on x-axis with box plots showing:
+  - Whiskers: 10th and 90th percentiles (p10, p90)
+  - Box: Confidence interval on median (ciLower, ciUpper) when available
+  - Center line: Median point estimate
+
+  Requires bootstrap stats in the extract data. If bootstrap stats are missing,
+  the chart will be empty (data prep warns and filters out metrics without stats).
+
+  Parameters:
+    extract - Domain extract with single-point multi-impl data containing bootstrap stats
+    chart-options - Map with :width and/or :height for chart dimensions
+
+  Returns a Vega-Lite spec with vconcat of box plots (one per metric)."
+  [extract chart-options]
+  (let [box-data (prepare-single-point-box-data extract)]
+    {:data {:values []}
+     :vconcat (mapv #(box-plot-layer % chart-options) box-data)}))
+
 (defn comparison-bar-chart-spec
   "Build a Vega-Lite bar chart spec for single-point comparison data.
 
@@ -955,9 +1141,30 @@
 
   Returns a Vega-Lite spec with vconcat of bar charts (one per metric)."
   [comparison chart-options]
-  (let [bar-data (viewer-common/prepare-comparison-bar-data comparison)]
+  (let [bar-data (comparison/prepare-comparison-bar-data comparison)]
     {:data {:values []}
      :vconcat (mapv #(bar-chart-layer % chart-options) bar-data)}))
+
+(defn comparison-box-chart-spec
+  "Build a Vega-Lite box plot spec for single-point comparison data.
+
+  Shows implementations on x-axis with box plots showing:
+  - Whiskers: 10th and 90th percentiles (p10, p90)
+  - Box: Confidence interval on median (ciLower, ciUpper) when available
+  - Center line: Median point estimate
+
+  Requires bootstrap stats in the comparison data. If bootstrap stats are missing,
+  the chart will be empty (data prep warns and filters out metrics without stats).
+
+  Parameters:
+    comparison - Domain comparison with single-point multi-impl data containing bootstrap stats
+    chart-options - Map with :width and/or :height for chart dimensions
+
+  Returns a Vega-Lite spec with vconcat of box plots (one per metric)."
+  [comparison chart-options]
+  (let [box-data (comparison/prepare-comparison-box-data comparison)]
+    {:data {:values []}
+     :vconcat (mapv #(box-plot-layer % chart-options) box-data)}))
 
 ;;; Multi-point line charts
 
@@ -1021,7 +1228,7 @@
 
   Returns a Vega-Lite spec with vconcat of line charts (one per metric)."
   [extract chart-options]
-  (let [line-data (viewer-common/prepare-line-chart-data extract)]
+  (let [line-data (comparison/prepare-line-chart-data extract)]
     {:data {:values []}
      :vconcat (mapv #(line-chart-layer % chart-options) line-data)}))
 
@@ -1038,7 +1245,7 @@
 
   Returns a Vega-Lite spec with vconcat of line charts (one per metric)."
   [comparison chart-options]
-  (let [line-data (viewer-common/prepare-comparison-line-data comparison)]
+  (let [line-data (comparison/prepare-comparison-line-data comparison)]
     {:data {:values []}
      :vconcat (mapv #(line-chart-layer % chart-options) line-data)}))
 

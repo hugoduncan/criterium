@@ -158,6 +158,54 @@
     (when raw-value
       (transform-sample-> raw-value transforms))))
 
+(defn bootstrap-quantile-value
+  "Extract a transformed bootstrap quantile value from a benchmark data map.
+
+  Takes a data map, metric-id (e.g. :elapsed-time), and quantile (e.g. 0.5).
+  Returns the point estimate for that quantile with transforms applied,
+  or nil if bootstrap stats are not available.
+
+  Bootstrap stats structure: [:bootstrap-stats :bootstrap metric-id :quantiles q]
+  where each quantile has :point-estimate and :estimate-quantiles."
+  [data-map metric-id quantile]
+  (when (contains? data-map :bootstrap-stats)
+    (let [transforms (get-transforms data-map :bootstrap-stats)
+          raw-value (get-in data-map [:bootstrap-stats :bootstrap metric-id
+                                      :quantiles quantile :point-estimate])]
+      (when raw-value
+        (transform-sample-> raw-value transforms)))))
+
+(defn bootstrap-quantile-ci
+  "Extract confidence interval bounds for a bootstrap quantile.
+
+  Returns {:ci-lower val :ci-upper val} map with transforms applied,
+  or nil if CI bounds are not available or bootstrap stats are missing."
+  [data-map metric-id quantile]
+  (when (contains? data-map :bootstrap-stats)
+    (let [transforms (get-transforms data-map :bootstrap-stats)
+          estimate-quantiles (get-in data-map [:bootstrap-stats :bootstrap metric-id
+                                               :quantiles quantile
+                                               :estimate-quantiles])]
+      (when (and estimate-quantiles (>= (count estimate-quantiles) 2))
+        (let [lower-raw (-> estimate-quantiles first :value)
+              upper-raw (-> estimate-quantiles second :value)]
+          (when (and lower-raw upper-raw)
+            {:ci-lower (transform-sample-> lower-raw transforms)
+             :ci-upper (transform-sample-> upper-raw transforms)}))))))
+
+(defn bootstrap-box-plot-stats
+  "Extract all stats needed for box plot from bootstrap data.
+
+  Returns a map with :median, :p10, :p90, and optionally :ci-lower, :ci-upper.
+  Returns nil if required quantiles (0.1, 0.5, 0.9) are not available."
+  [data-map metric-id]
+  (let [p10 (bootstrap-quantile-value data-map metric-id 0.1)
+        p50 (bootstrap-quantile-value data-map metric-id 0.5)
+        p90 (bootstrap-quantile-value data-map metric-id 0.9)]
+    (when (and p10 p50 p90)
+      (merge {:median p50 :p10 p10 :p90 p90}
+             (bootstrap-quantile-ci data-map metric-id 0.5)))))
+
 ;;; Thread
 
 (defn valid-thread-priority

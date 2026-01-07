@@ -99,8 +99,7 @@
     (let [samples (mapv double (repeat 100 1))
           stats   (bootstrap/bootstrap-stats-for
                    samples
-                   {:estimate-quantiles [0.025 0.975] :quantiles [0.99]}
-                   sampled-stats-test/identity-transforms)
+                   {:estimate-quantiles [0.025 0.975] :quantiles [0.99]})
           result  (bootstrap/->BcaEstimate
                    1.0
                    [{:value 1.0 :alpha 0.025}
@@ -119,8 +118,7 @@
     (let [samples (mapv double (range 101))
           stats   (bootstrap/bootstrap-stats-for
                    samples
-                   {:estimate-quantiles [0.025 0.975] :quantiles [0.99]}
-                   sampled-stats-test/identity-transforms)]
+                   {:estimate-quantiles [0.025 0.975] :quantiles [0.99]})]
       (let [{m                       :point-estimate
              [{l :value} {u :value}] :estimate-quantiles}
             (-> stats :mean)]
@@ -136,8 +134,7 @@
     (let [samples (mapv double (reverse (range 101)))
           stats   (bootstrap/bootstrap-stats-for
                    samples
-                   {:estimate-quantiles [0.025 0.975] :quantiles [0.99]}
-                   sampled-stats-test/identity-transforms)]
+                   {:estimate-quantiles [0.025 0.975] :quantiles [0.99]})]
       (let [{m                       :point-estimate
              [{l :value} {u :value}] :estimate-quantiles}
             (-> stats :mean)]
@@ -157,8 +154,7 @@
         (let [samples (mapv double (range 30))
               stats (bootstrap/bootstrap-stats-for
                      samples
-                     {:estimate-quantiles [0.025 0.975] :quantiles [0.99]}
-                     sampled-stats-test/identity-transforms)]
+                     {:estimate-quantiles [0.025 0.975] :quantiles [0.99]})]
           (is (nil? (:low-sample-count? stats))))))
 
     (testing "when sample count is below default threshold"
@@ -168,12 +164,10 @@
               _ (with-out-str
                   (bootstrap/bootstrap-stats-for
                    samples
-                   {:estimate-quantiles [0.025 0.975] :quantiles [0.99]}
-                   sampled-stats-test/identity-transforms))
+                   {:estimate-quantiles [0.025 0.975] :quantiles [0.99]}))
               result (bootstrap/bootstrap-stats-for
                       samples
-                      {:estimate-quantiles [0.025 0.975] :quantiles [0.99]}
-                      sampled-stats-test/identity-transforms)]
+                      {:estimate-quantiles [0.025 0.975] :quantiles [0.99]})]
           (is (true? (:low-sample-count? result)))))
 
       (testing "prints warning"
@@ -181,8 +175,7 @@
               output (with-out-str
                        (bootstrap/bootstrap-stats-for
                         samples
-                        {:estimate-quantiles [0.025 0.975] :quantiles [0.99]}
-                        sampled-stats-test/identity-transforms))]
+                        {:estimate-quantiles [0.025 0.975] :quantiles [0.99]}))]
           (is (re-find #"Warning.*bootstrap sample count.*20.*below minimum.*30"
                        output)))))
 
@@ -194,8 +187,7 @@
                       samples
                       {:estimate-quantiles [0.025 0.975]
                        :quantiles [0.99]
-                       :min-samples 10}
-                      sampled-stats-test/identity-transforms)]
+                       :min-samples 10})]
           (is (nil? (:low-sample-count? result)))))
 
       (testing "warns when below custom threshold"
@@ -205,8 +197,7 @@
                         samples
                         {:estimate-quantiles [0.025 0.975]
                          :quantiles [0.99]
-                         :min-samples 10}
-                        sampled-stats-test/identity-transforms))]
+                         :min-samples 10}))]
           (is (re-find #"Warning.*5.*below minimum.*10" output)))))))
 
 ;; todo add helpers for constant samples
@@ -222,6 +213,8 @@
     (mapv #(* (double %) batch-size) values)))
 
 (deftest analyse-bootstrap-test
+  ;; Tests that bootstrap-stats stores raw values and transforms are
+  ;; applied when viewing via the source-id chain.
   (let [batch-size     100
         num-samples    1000
         samples        {[:v] (sample-values batch-size num-samples 123 10.0 1.0)}
@@ -240,13 +233,16 @@
                           :estimate-quantiles [0.025 0.975]
                           :bootstrap-size     100})
                         {:samples metric-samples})
-        point          (have
+        ;; Apply transforms when reading bootstrap result (as viewer would)
+        transforms     (util/get-transforms result :bootstrap-stats)
+        raw-point      (have
                         (-> result
                             :bootstrap-stats
                             util/bootstrap
                             :v
                             :mean
-                            :point-estimate))]
+                            :point-estimate))
+        point          (util/transform-sample-> raw-point transforms)]
     (is (test-max-error 10.0 point 0.1 "mean")
         (str "Value: " point))))
 
@@ -309,18 +305,23 @@
                :outliers-id :outliers})
              {:samples metric-samples
               :outliers outliers-map})
-            mean-with (-> result-with-outliers
-                          :bootstrap-stats
-                          util/bootstrap
-                          :v
-                          :mean
-                          :point-estimate)
-            mean-without (-> result-without-outliers
-                             :bootstrap-stats
-                             util/bootstrap
-                             :v
-                             :mean
-                             :point-estimate)]
+            ;; Apply transforms when reading results (as viewer would)
+            transforms-with (util/get-transforms result-with-outliers :bootstrap-stats)
+            transforms-without (util/get-transforms result-without-outliers :bootstrap-stats)
+            raw-mean-with (-> result-with-outliers
+                              :bootstrap-stats
+                              util/bootstrap
+                              :v
+                              :mean
+                              :point-estimate)
+            raw-mean-without (-> result-without-outliers
+                                 :bootstrap-stats
+                                 util/bootstrap
+                                 :v
+                                 :mean
+                                 :point-estimate)
+            mean-with (util/transform-sample-> raw-mean-with transforms-with)
+            mean-without (util/transform-sample-> raw-mean-without transforms-without)]
         ;; Mean without outliers should be much closer to 10.0
         (is (< mean-without 20.0)
             (str "Mean without outliers should be close to 10: " mean-without))
@@ -357,8 +358,7 @@
            samples
            {:estimate-quantiles [0.025 0.975]
             :quantiles          [0.99]
-            :bootstrap-size     bootstrap-size}
-           sampled-stats-test/identity-transforms))
+            :bootstrap-size     bootstrap-size}))
         ;; The combined stats-fn should be called:
         ;; - Once for the original estimate
         ;; - Once per bootstrap resample (bootstrap-size times)

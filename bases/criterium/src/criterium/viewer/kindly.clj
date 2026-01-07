@@ -13,8 +13,15 @@
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have]]
    [criterium.view :as view]
-   [criterium.viewer.common :as viewer-common]
-   [criterium.viewer.common-charts :as charts]))
+   [criterium.viewer.common-charts :as charts]
+   [criterium.viewer.common.allocation :as allocation]
+   [criterium.viewer.common.bootstrap :as bootstrap]
+   [criterium.viewer.common.core :as core]
+   [criterium.viewer.common.domain.comparison :as comparison]
+   [criterium.viewer.common.domain.detection :as detection]
+   [criterium.viewer.common.domain.extract :as extract]
+   [criterium.viewer.common.modal :as modal]
+   [criterium.viewer.common.regression :as regression]))
 
 (defonce ^{:doc "Accumulator for Kindly-annotated values."}
   accumulated
@@ -98,7 +105,7 @@
     (when (seq metric-configs)
       (kindly-heading "Summary stats")
       (kindly-table
-       (viewer-common/stats-map
+       (core/stats-map
         (util/stats stats-map)
         metric-configs
         transforms)))))
@@ -112,7 +119,7 @@
         transforms (util/get-transforms data-map quantiles-id)]
     (kindly-heading "Quantiles")
     (kindly-table
-     (viewer-common/quantiles
+     (core/quantiles
       metric-configs
       (util/quantiles quantiles-map)
       transforms))))
@@ -125,7 +132,7 @@
         metric-configs (metric/all-metric-configs metrics-defs)]
     (kindly-heading "Outliers")
     (kindly-table
-     (viewer-common/outlier-counts
+     (core/outlier-counts
       metric-configs
       (util/outliers outliers-map)))))
 
@@ -133,7 +140,7 @@
   [_ _view data-map]
   (kindly-heading "Collect plan")
   (kindly-table
-   (viewer-common/collect-plan-data data-map)))
+   (core/collect-plan-data data-map)))
 
 (defmethod view/samples* :kindly
   [_ view data-map]
@@ -192,7 +199,7 @@
         metric-configs (metric/all-metric-configs metrics-defs)]
     (kindly-heading "Metrics")
     (kindly-table
-     (viewer-common/metrics-map
+     (core/metrics-map
       (util/metric->values metrics-samples)
       metric-configs))))
 
@@ -202,7 +209,7 @@
         event-stats-map (data-map event-stats-id)]
     (when event-stats-map
       (let [metrics-defs (have (:metrics-defs event-stats-map))
-            stats (viewer-common/event-stats
+            stats (core/event-stats
                    metrics-defs
                    (util/event-stats event-stats-map))]
         (when (seq stats)
@@ -248,19 +255,24 @@
   [_ {:keys [extract-id]} data-map]
   (let [extract-id (or extract-id :extract)
         extract (data-map extract-id)]
-    (case (viewer-common/visualization-strategy extract)
-      :single-point-bar
+    (case (detection/visualization-strategy extract)
+      :single-point
       (when-let [{:keys [heading col-headers rows]}
-                 (viewer-common/prepare-domain-extract-table-transposed extract)]
+                 (extract/prepare-domain-extract-table-transposed extract)]
         (kindly-heading heading)
         (kindly-table rows {:column-names col-headers})
-        (kindly-vega-lite
-         (charts/single-point-bar-chart-spec extract {:width chart-width
-                                                      :height chart-height})))
+        (let [box-spec (charts/single-point-box-chart-spec extract {:width chart-width
+                                                                    :height chart-height})]
+          ;; Fall back to bar chart if box plot has no data (missing bootstrap stats)
+          (if (seq (:vconcat box-spec))
+            (kindly-vega-lite box-spec)
+            (kindly-vega-lite
+             (charts/single-point-bar-chart-spec extract {:width chart-width
+                                                          :height chart-height})))))
 
-      :multi-point-line
+      :multi-point
       (when-let [{:keys [heading coord-header col-headers rows]}
-                 (viewer-common/prepare-domain-extract-table
+                 (extract/prepare-domain-extract-table
                   extract {:header-sep "\n"})]
         (kindly-heading heading)
         (kindly-table rows {:column-names (into [coord-header] col-headers)})
@@ -270,7 +282,7 @@
 
       :default-table
       (when-let [{:keys [heading coord-header col-headers rows]}
-                 (viewer-common/prepare-domain-extract-table
+                 (extract/prepare-domain-extract-table
                   extract {:header-sep "\n"})]
         (kindly-heading heading)
         (kindly-table rows {:column-names (into [coord-header] col-headers)})))))
@@ -279,7 +291,7 @@
   [_ {:keys [grouped-id]} data-map]
   (let [grouped-id (or grouped-id :grouped)
         grouped (data-map grouped-id)]
-    (when-let [{:keys [heading rows]} (viewer-common/prepare-domain-grouped-table
+    (when-let [{:keys [heading rows]} (extract/prepare-domain-grouped-table
                                        grouped)]
       (kindly-heading heading)
       (kindly-table rows))))
@@ -288,17 +300,22 @@
   [_ {:keys [comparison-id]} data-map]
   (let [comparison-id (or comparison-id :comparison)
         comparison (data-map comparison-id)]
-    (when-let [tables (viewer-common/prepare-domain-comparison-tables
+    (when-let [tables (comparison/prepare-domain-comparison-tables
                        comparison)]
       (doseq [{:keys [heading coord-header col-headers rows]} tables]
         (kindly-heading heading)
         (kindly-table rows {:column-names (into [coord-header] col-headers)}))
-      (case (viewer-common/comparison-visualization-strategy comparison)
-        :single-point-bar
-        (kindly-vega-lite
-         (charts/comparison-bar-chart-spec comparison {:width chart-width
-                                                       :height chart-height}))
-        :multi-point-line
+      (case (detection/comparison-visualization-strategy comparison)
+        :single-point
+        (let [box-spec (charts/comparison-box-chart-spec comparison {:width chart-width
+                                                                     :height chart-height})]
+          ;; Fall back to bar chart if box plot has no data (missing bootstrap stats)
+          (if (seq (:vconcat box-spec))
+            (kindly-vega-lite box-spec)
+            (kindly-vega-lite
+             (charts/comparison-bar-chart-spec comparison {:width chart-width
+                                                           :height chart-height}))))
+        :multi-point
         (kindly-vega-lite
          (charts/comparison-line-chart-spec comparison {:width chart-width
                                                         :height chart-height}))
@@ -310,7 +327,7 @@
         legend-options {:orient "none"
                         :legendX 10
                         :legendY 10}]
-    (viewer-common/with-domain-regression-data
+    (regression/with-domain-regression-data
       data-map
       {:regression-id regression-id
        :extract-id extract-id
@@ -409,7 +426,7 @@
           (kindly-heading "Allocation Hotspots")
           (kindly-table
            (mapv (fn [{:keys [call-site object-type count bytes freed-count freed-bytes]}]
-                   {:call-site (viewer-common/format-call-site call-site nil)
+                   {:call-site (allocation/format-call-site call-site nil)
                     :object-type (or object-type "")
                     :count count
                     :bytes bytes
@@ -460,7 +477,7 @@
             (for [m metric-configs
                   :let [stat (get-in bootstrap (:path m))]
                   :when stat]
-              (viewer-common/bootstrap-stat-row m stat)))
+              (bootstrap/bootstrap-stat-row m stat)))
            {:column-names [:metric :median :median-ci-lower :median-ci-upper
                            :mean :mean-ci-lower :mean-ci-upper
                            :p10 :p90]}))))))
@@ -475,7 +492,7 @@
 
 (defmethod view/multimodal-warning* :kindly
   [_ {:keys [modes-id]} data-map]
-  (viewer-common/for-each-multimodal-metric
+  (modal/for-each-multimodal-metric
    data-map modes-id
    (fn [{:keys [metric-config n-modes modes transforms]}]
      (kindly-heading (str "WARNING: Multimodal distribution - "
@@ -489,7 +506,7 @@
           {:kindly/kind :kind/md}))
        (kindly-table
         (mapv (fn [{:keys [location density]}]
-                {:location (viewer-common/format-mode-location
+                {:location (modal/format-mode-location
                             location metric-config transforms)
                  :density (format "%.4g" density)})
               modes))))))

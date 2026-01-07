@@ -8,7 +8,13 @@
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have have?]]
    [criterium.view :as view]
-   [criterium.viewer.common :as viewer-common]))
+   [criterium.viewer.common.allocation :as allocation]
+   [criterium.viewer.common.core :as core]
+   [criterium.viewer.common.domain.comparison :as comparison]
+   [criterium.viewer.common.domain.detection :as detection]
+   [criterium.viewer.common.domain.extract :as extract]
+   [criterium.viewer.common.modal :as modal]
+   [criterium.viewer.common.regression :as regression]))
 
 (set! *unchecked-math* false)
 
@@ -380,7 +386,7 @@
         transforms (util/get-transforms data-map histogram-id)
         histograms (->> metric-configs
                         (mapv
-                         #(viewer-common/histogram
+                         #(core/histogram
                            (have
                             some?
                             ((:histograms histograms) (:path %))
@@ -473,7 +479,7 @@
         metrics-defs (:metrics-defs quantiles-map)
         metric-configs (metric/all-metric-configs metrics-defs)
         transforms (util/get-transforms data-map quantiles-id)
-        table (viewer-common/quantiles
+        table (core/quantiles
                metric-configs
                (util/quantiles quantiles-map)
                transforms)]
@@ -540,8 +546,8 @@
   [value metric-path]
   (when (some? value)
     (let [base-value (* (double value)
-                        (viewer-common/metric-path->base-scale metric-path))
-          dimension (viewer-common/metric-path->dimension metric-path)]
+                        (core/metric-path->base-scale metric-path))
+          dimension (core/metric-path->dimension metric-path)]
       (if dimension
         (format/format-value dimension base-value)
         (format "%g" base-value)))))
@@ -571,7 +577,7 @@
   [coords]
   (if-not (every? map? coords)
     coords
-    (let [uniform-axes (viewer-common/detect-uniform-axes coords)
+    (let [uniform-axes (core/detect-uniform-axes coords)
           first-coord (first coords)
           remaining-keys (count (apply dissoc first-coord uniform-axes))]
       (if (and (seq uniform-axes) (pos? remaining-keys))
@@ -614,20 +620,20 @@
   [_ {:keys [extract-id]} data-map]
   (let [extract-id (or extract-id :extract)
         extract (data-map extract-id)]
-    (case (viewer-common/visualization-strategy extract)
-      :single-point-bar
-      (when-let [table (viewer-common/prepare-domain-extract-table-transposed
+    (case (detection/visualization-strategy extract)
+      :single-point
+      (when-let [table (extract/prepare-domain-extract-table-transposed
                         extract)]
         (print-transposed-table table))
 
-      ;; :multi-point-line and :default-table both use the standard format
+      ;; :multi-point and :default-table both use the standard format
       (when extract
         (doseq [[_metric-id {:keys [metric data]}] (:metrics extract)]
           (let [raw-coords (map first data)
                 ;; Strip uniform axes (e.g., :impl :default for single-impl scenarios)
                 stripped-coords (strip-uniform-axes raw-coords)
                 coord-map (zipmap raw-coords stripped-coords)
-                single-key-info (viewer-common/single-key-coord-info stripped-coords)
+                single-key-info (core/single-key-coord-info stripped-coords)
                 sorted-data (sort-coords data single-key-info)]
             (println (format "Domain Extract: %s" (pr-str metric)))
             (doseq [[coord value] sorted-data]
@@ -641,7 +647,7 @@
   [_ {:keys [grouped-id]} data-map]
   (let [grouped-id (or grouped-id :grouped)
         grouped (data-map grouped-id)]
-    (when-let [{:keys [heading rows]} (viewer-common/prepare-domain-grouped-table
+    (when-let [{:keys [heading rows]} (extract/prepare-domain-grouped-table
                                        grouped)]
       (println heading)
       (doseq [{:keys [axis-value run-count]} rows]
@@ -887,13 +893,13 @@
   [_ {:keys [comparison-id]} data-map]
   (let [comparison-id (or comparison-id :comparison)
         comparison (data-map comparison-id)]
-    (case (viewer-common/comparison-visualization-strategy comparison)
-      :single-point-bar
-      (when-let [table (viewer-common/prepare-domain-comparison-table-transposed
+    (case (detection/comparison-visualization-strategy comparison)
+      :single-point
+      (when-let [table (comparison/prepare-domain-comparison-table-transposed
                         comparison)]
         (print-transposed-table table))
 
-      ;; :multi-point-line and :default-table both use the standard format
+      ;; :multi-point and :default-table both use the standard format
       (when comparison
         (let [{:keys [axis metric metrics implementations data]} comparison]
           (if metrics
@@ -928,7 +934,7 @@
   "Print log-log regression summary."
   [slope r-squared multi-impl?]
   (when (and slope r-squared)
-    (let [complexity (viewer-common/format-log-log-slope slope)]
+    (let [complexity (regression/format-log-log-slope slope)]
       (if multi-impl?
         (println (format "    Log-log: slope=%.3f ≈ %s (R²=%.4f)"
                          slope complexity r-squared))
@@ -960,7 +966,7 @@
 (defmethod view/domain-regression* :print
   [_ {:keys [regression-id extract-id log-log-id tolerance]} data-map]
   (let [tolerance (double (or tolerance 0.01))]
-    (viewer-common/with-domain-regression-data
+    (regression/with-domain-regression-data
       data-map
       {:regression-id regression-id
        :extract-id extract-id
@@ -1050,7 +1056,7 @@
                              freed-count
                              freed-bytes
                              (truncate-type object-type)
-                             (viewer-common/format-call-site call-site nil)))))))))
+                             (allocation/format-call-site call-site nil)))))))))
 
 (defmethod view/allocation-by-type* :print
   [_ {:keys [by-type-id]} data-map]
@@ -1079,20 +1085,20 @@
         treemap-data (data-map treemap-id)]
     (when (and treemap-data (:root treemap-data))
       (println)
-      (println (viewer-common/render-ascii-treemap treemap-data)))))
+      (println (allocation/render-ascii-treemap treemap-data)))))
 
 ;;; Modal Analysis Views
 
 (defmethod view/multimodal-warning* :print
   [_ {:keys [modes-id]} data-map]
-  (viewer-common/for-each-multimodal-metric
+  (modal/for-each-multimodal-metric
    data-map modes-id
    (fn [{:keys [metric-config modes transforms]}]
      (println
       (format "%32s: Multimodal distribution detected"
               (:label metric-config)))
      (when (seq modes)
-       (let [locations (map #(viewer-common/format-mode-location
+       (let [locations (map #(modal/format-mode-location
                               (:location %)
                               metric-config
                               transforms)

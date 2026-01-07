@@ -5,7 +5,8 @@
    [criterium.domain.analysis :as analysis]
    [criterium.domain.test-util :refer [sample-data sample-data-2
                                        mock-bench-result
-                                       mock-bench-result-with-defs]]))
+                                       mock-bench-result-with-defs
+                                       mock-bench-result-with-bootstrap]]))
 
 ;; Tests for AIC/BIC computation functions.
 ;; Validates information criterion formulas for model selection.
@@ -1539,3 +1540,53 @@
             f (analysis/domain-log-log-fn {:id :log-log :axis :n})
             result (f {:extract extract :other-key "value"})]
         (is (= "value" (:other-key result)))))))
+
+;;; Bootstrap stats extraction tests
+
+(deftest compare-by-bootstrap-stats-test
+  ;; Tests that compare-by correctly extracts bootstrap stats when available.
+  ;; Contracts: merges bootstrap box plot stats into comparison value.
+  (testing "compare-by"
+    (testing "in multi-metric mode"
+      (testing "extracts bootstrap stats when present"
+        (let [d (domain/domain
+                 {:coord {:n 100 :impl :foo}
+                  :data (mock-bench-result-with-bootstrap
+                         {:elapsed-time {:mean 100.0}})}
+                 {:coord {:n 100 :impl :bar}
+                  :data (mock-bench-result-with-bootstrap
+                         {:elapsed-time {:mean 200.0}})})
+              result (analysis/compare-by d :impl nil)
+              elapsed-data (get-in result [:metrics :elapsed-time :data])
+              foo-value (-> elapsed-data :foo first :value)
+              bar-value (-> elapsed-data :bar first :value)]
+          ;; Value should be a map with bootstrap stats merged
+          (is (map? foo-value) "foo value should be a map with bootstrap stats")
+          (is (map? bar-value) "bar value should be a map with bootstrap stats")
+          ;; Check bootstrap box plot keys are present
+          (is (contains? foo-value :median) "should have :median from bootstrap")
+          (is (contains? foo-value :p10) "should have :p10 from bootstrap")
+          (is (contains? foo-value :p90) "should have :p90 from bootstrap")
+          (is (contains? foo-value :ci-lower) "should have :ci-lower from bootstrap CI")
+          (is (contains? foo-value :ci-upper) "should have :ci-upper from bootstrap CI")
+          ;; Verify values are approximately correct
+          ;; (p50 = mean, p10 = 0.9*mean, p90 = 1.1*mean)
+          (is (< (Math/abs (- (:median foo-value) 100.0)) 0.01) "foo median ~100")
+          (is (< (Math/abs (- (:p10 foo-value) 90.0)) 0.01) "foo p10 ~90")
+          (is (< (Math/abs (- (:p90 foo-value) 110.0)) 0.01) "foo p90 ~110")
+          (is (< (Math/abs (- (:median bar-value) 200.0)) 0.01) "bar median ~200")
+          (is (< (Math/abs (- (:p10 bar-value) 180.0)) 0.01) "bar p10 ~180")
+          (is (< (Math/abs (- (:p90 bar-value) 220.0)) 0.01) "bar p90 ~220")))
+      (testing "falls back to basic value when bootstrap stats not present"
+        (let [d (domain/domain
+                 {:coord {:n 100 :impl :foo}
+                  :data (mock-bench-result-with-defs
+                         {:elapsed-time {:mean 100.0}})}
+                 {:coord {:n 100 :impl :bar}
+                  :data (mock-bench-result-with-defs
+                         {:elapsed-time {:mean 200.0}})})
+              result (analysis/compare-by d :impl nil)
+              elapsed-data (get-in result [:metrics :elapsed-time :data])
+              foo-value (-> elapsed-data :foo first :value)]
+          ;; Without bootstrap stats, value is just the mean
+          (is (= 100.0 foo-value) "value should be the mean when no bootstrap"))))))

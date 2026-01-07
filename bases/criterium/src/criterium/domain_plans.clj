@@ -35,7 +35,9 @@
   Groups runs by :impl axis and compares all quantitative metrics.
   Requires map coordinates with an :impl key distinguishing implementations.
 
-  Includes error bounds (±3σ) for each data point when viewed with portal or kindly.
+  Extracts mean values with error bounds (±3σ) for bar chart visualization.
+  When bootstrap stats are available, also includes quantile statistics
+  (median, p10, p90, CI) enabling box plot visualization.
 
   In the output, the baseline implementation (first in :implementations) shows
   absolute values with SI units, while other implementations show factors

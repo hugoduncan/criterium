@@ -6,8 +6,15 @@
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have]]
    [criterium.view :as view]
-   [criterium.viewer.common :as viewer-common]
-   [criterium.viewer.common-charts :as charts]))
+   [criterium.viewer.common-charts :as charts]
+   [criterium.viewer.common.allocation :as allocation]
+   [criterium.viewer.common.bootstrap :as bootstrap]
+   [criterium.viewer.common.core :as core]
+   [criterium.viewer.common.domain.comparison :as comparison]
+   [criterium.viewer.common.domain.detection :as detection]
+   [criterium.viewer.common.domain.extract :as extract]
+   [criterium.viewer.common.modal :as modal]
+   [criterium.viewer.common.regression :as regression]))
 
 (defonce tapped (atom {:values '()}))
 
@@ -73,7 +80,7 @@
         metrics-defs (:metrics-defs metrics-samples)
         metric-configs (metric/all-metric-configs metrics-defs)]
     (portal-table
-     (viewer-common/metrics-map
+     (core/metrics-map
       (util/metric->values metrics-samples)
       metric-configs))))
 
@@ -88,7 +95,7 @@
     (when (seq metric-configs)
       (heading "Summary stats")
       (portal-table
-       (viewer-common/stats-map
+       (core/stats-map
         (util/stats stats-map)
         metric-configs
         transforms)))))
@@ -99,7 +106,7 @@
         event-stats-map (data-map event-stats-id)]
     (when event-stats-map
       (let [metrics-defs (have (:metrics-defs event-stats-map))
-            stats (viewer-common/event-stats
+            stats (core/event-stats
                    metrics-defs
                    (util/event-stats event-stats-map))]
         (when (seq stats)
@@ -115,7 +122,7 @@
         transforms (util/get-transforms data-map quantiles-id)]
     (heading "Quantiles")
     (portal-table
-     (viewer-common/quantiles
+     (core/quantiles
       metric-configs
       (util/quantiles quantiles-map)
       transforms))))
@@ -128,7 +135,7 @@
         metric-configs (metric/all-metric-configs metrics-defs)]
     (heading "Outliers")
     (portal-table
-     (viewer-common/outlier-counts
+     (core/outlier-counts
       metric-configs
       (util/outliers outliers-map)))))
 
@@ -149,7 +156,7 @@
   [_ _view data-map]
   (heading "Collect plan")
   (portal-table
-   (viewer-common/collect-plan-data data-map)))
+   (core/collect-plan-data data-map)))
 
 (defmethod view/samples* :portal
   [_ view data-map]
@@ -229,7 +236,7 @@
         (for [m metric-configs
               :let [stat (get-in bootstrap (:path m))]
               :when stat]
-          (viewer-common/bootstrap-stat-row m stat)))))))
+          (bootstrap/bootstrap-stat-row m stat)))))))
 
 (defmethod view/final-gc-warnings* :portal [_ _ _])
 
@@ -243,17 +250,21 @@
   [_ {:keys [extract-id]} data-map]
   (let [extract-id (or extract-id :extract)
         extract (data-map extract-id)]
-    (case (viewer-common/visualization-strategy extract)
-      :single-point-bar
+    (case (detection/visualization-strategy extract)
+      :single-point
       (when-let [{:keys [rows] heading-text :heading}
-                 (viewer-common/prepare-domain-extract-table-transposed extract)]
+                 (extract/prepare-domain-extract-table-transposed extract)]
         (heading heading-text)
         (portal-table rows)
-        (portal-vega-lite
-         (charts/single-point-bar-chart-spec extract {:height 400})))
+        (let [box-spec (charts/single-point-box-chart-spec extract {:height 400})]
+          ;; Fall back to bar chart if box plot has no data (missing bootstrap stats)
+          (if (seq (:vconcat box-spec))
+            (portal-vega-lite box-spec)
+            (portal-vega-lite
+             (charts/single-point-bar-chart-spec extract {:height 400})))))
 
-      :multi-point-line
-      (when-let [table-data (viewer-common/prepare-domain-extract-table
+      :multi-point
+      (when-let [table-data (extract/prepare-domain-extract-table
                              extract {:header-sep " "})]
         (heading (:heading table-data))
         (portal-table (:rows table-data))
@@ -261,7 +272,7 @@
          (charts/domain-line-chart-spec extract {:height 400})))
 
       :default-table
-      (when-let [table-data (viewer-common/prepare-domain-extract-table
+      (when-let [table-data (extract/prepare-domain-extract-table
                              extract {:header-sep " "})]
         (heading (:heading table-data))
         (portal-table (:rows table-data))))))
@@ -271,7 +282,7 @@
   (let [grouped-id (or grouped-id :grouped)
         grouped (data-map grouped-id)]
     (when-let [{:keys [rows] heading-text :heading}
-               (viewer-common/prepare-domain-grouped-table grouped)]
+               (extract/prepare-domain-grouped-table grouped)]
       (heading heading-text)
       (portal-table rows))))
 
@@ -279,16 +290,20 @@
   [_ {:keys [comparison-id]} data-map]
   (let [comparison-id (or comparison-id :comparison)
         comparison (data-map comparison-id)]
-    (when-let [tables (viewer-common/prepare-domain-comparison-tables
+    (when-let [tables (comparison/prepare-domain-comparison-tables
                        comparison)]
       (doseq [{:keys [rows] heading-text :heading} tables]
         (heading heading-text)
         (portal-table rows))
-      (case (viewer-common/comparison-visualization-strategy comparison)
-        :single-point-bar
-        (portal-vega-lite
-         (charts/comparison-bar-chart-spec comparison {:height 400}))
-        :multi-point-line
+      (case (detection/comparison-visualization-strategy comparison)
+        :single-point
+        (let [box-spec (charts/comparison-box-chart-spec comparison {:height 400})]
+          ;; Fall back to bar chart if box plot has no data (missing bootstrap stats)
+          (if (seq (:vconcat box-spec))
+            (portal-vega-lite box-spec)
+            (portal-vega-lite
+             (charts/comparison-bar-chart-spec comparison {:height 400}))))
+        :multi-point
         (portal-vega-lite
          (charts/comparison-line-chart-spec comparison {:height 400}))
         :default-table nil))))
@@ -298,7 +313,7 @@
   (let [tolerance (double (or tolerance 0.01))
         chart-width 600
         chart-height 400]
-    (viewer-common/with-domain-regression-data
+    (regression/with-domain-regression-data
       data-map
       {:regression-id regression-id
        :extract-id extract-id
@@ -388,7 +403,7 @@
           (heading "Allocation Hotspots")
           (portal-table
            (mapv (fn [{:keys [call-site object-type count bytes freed-count freed-bytes]}]
-                   {:call-site (viewer-common/format-call-site call-site nil)
+                   {:call-site (allocation/format-call-site call-site nil)
                     :object-type (or object-type "")
                     :count count
                     :bytes bytes
@@ -426,7 +441,7 @@
 
 (defmethod view/multimodal-warning* :portal
   [_ {:keys [modes-id]} data-map]
-  (viewer-common/for-each-multimodal-metric
+  (modal/for-each-multimodal-metric
    data-map modes-id
    (fn [{:keys [metric-config n-modes modes transforms]}]
      (heading (str "WARNING: Multimodal distribution - "
@@ -437,7 +452,7 @@
        (portal-heading [:em "Mode locations:"])
        (portal-table
         (mapv (fn [{:keys [location density]}]
-                {:location (viewer-common/format-mode-location
+                {:location (modal/format-mode-location
                             location metric-config transforms)
                  :density (format "%.4g" density)})
               modes))))))
