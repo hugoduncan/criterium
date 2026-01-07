@@ -38,3 +38,55 @@
            :batch-size 1
            :source-id nil
            :outliers-id nil}})
+
+(defn- make-bca-estimate
+  "Create a BCa estimate structure for a given point value.
+  Derives CI from +/- 5% of the point value."
+  [point-val]
+  {:point-estimate point-val
+   :estimate-quantiles [{:value (* point-val 0.95) :alpha 0.025}
+                        {:value (* point-val 1.05) :alpha 0.975}]})
+
+(defn mock-bench-result-with-bootstrap
+  "Create a mock bench result with bootstrap stats for box plot testing.
+
+  stats-data is a map of {metric-id {value-key value}}.
+  For each metric-id, creates bootstrap stats with quantiles 0.1, 0.5, 0.9
+  derived from the mean value in stats-data."
+  [stats-data]
+  (let [metrics-defs (into {}
+                           (map (fn [k] [k {:type :quantitative}]))
+                           (keys stats-data))
+        bootstrap-data
+        (into {}
+              (map (fn [[metric-id values]]
+                     (let [mean-val (:mean values 100.0)
+                           p10 (* mean-val 0.9)
+                           p50 mean-val
+                           p90 (* mean-val 1.1)]
+                       [metric-id
+                        {:mean (make-bca-estimate mean-val)
+                         :variance (make-bca-estimate (* mean-val 0.01))
+                         :quantiles {0.1 (make-bca-estimate p10)
+                                     0.25 (make-bca-estimate (* mean-val 0.95))
+                                     0.5 (make-bca-estimate p50)
+                                     0.75 (make-bca-estimate (* mean-val 1.05))
+                                     0.9 (make-bca-estimate p90)}}])))
+              stats-data)]
+    {:stats {:type :criterium/stats
+             :transform collect-plan/identity-transforms
+             :stats stats-data
+             :metrics-defs metrics-defs
+             :batch-size 1
+             :source-id :samples
+             :outliers-id nil}
+     :bootstrap-stats {:type :criterium/bootstrap
+                       :bootstrap bootstrap-data
+                       :metrics-defs metrics-defs
+                       :transform collect-plan/identity-transforms
+                       :batch-size 1
+                       :source-id :samples
+                       :outliers-id nil}
+     :samples {:type :criterium/metrics-samples
+               :transform collect-plan/identity-transforms
+               :batch-size 1}}))

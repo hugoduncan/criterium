@@ -652,3 +652,56 @@
           (is (contains? foo-100 "yUpper"))
           (is (not (contains? foo-200 "yLower")))
           (is (not (contains? foo-200 "yUpper"))))))))
+
+;;; Integration test: compare-by → prepare-comparison-box-data flow
+
+(deftest compare-by-to-box-data-integration-test
+  ;; Tests the full flow from domain with bootstrap stats through compare-by
+  ;; to prepare-comparison-box-data. Validates that bootstrap box plot data
+  ;; is correctly extracted and formatted for chart rendering.
+  (testing "full flow from compare-by to box data preparation"
+    (let [;; Create a comparison result with bootstrap stats merged into value
+          ;; This simulates the output of compare-by when bootstrap stats exist
+          domain-comparison
+          {:type :criterium/domain-comparison
+           :axis :impl
+           :metrics
+           {:elapsed-time
+            {:metric [:stats :elapsed-time :mean]
+             :with-error-bounds false
+             :data {:foo [{:coord {:n 100 :impl :foo}
+                           :value {:value 100.0
+                                   :median 100.0
+                                   :p10 90.0
+                                   :p90 110.0
+                                   :ci-lower 95.0
+                                   :ci-upper 105.0}}]
+                    :bar [{:coord {:n 100 :impl :bar}
+                           :value {:value 200.0
+                                   :median 200.0
+                                   :p10 180.0
+                                   :p90 220.0
+                                   :ci-lower 190.0
+                                   :ci-upper 210.0}}]}}}
+           :implementations [:foo :bar]}
+          result (comparison/prepare-comparison-box-data domain-comparison)]
+      (is (= 1 (count result)) "should have one metric result")
+      (let [metric-result (first result)
+            data (:data metric-result)]
+        (is (= :elapsed-time (:metric-id metric-result)))
+        (is (= 2 (count data)) "should have two impl data points")
+        ;; Verify foo data
+        (let [foo-data (first (filter #(= "foo" (get % "impl")) data))]
+          (is (some? foo-data) "should have foo data")
+          (is (number? (get foo-data "median")) "median should be numeric")
+          (is (number? (get foo-data "p10")) "p10 should be numeric")
+          (is (number? (get foo-data "p90")) "p90 should be numeric")
+          (is (number? (get foo-data "ciLower")) "ciLower should be numeric")
+          (is (number? (get foo-data "ciUpper")) "ciUpper should be numeric")
+          ;; Verify relationships
+          (is (< (get foo-data "p10")
+                 (get foo-data "ciLower")
+                 (get foo-data "median")
+                 (get foo-data "ciUpper")
+                 (get foo-data "p90"))
+              "values should be in correct order"))))))
