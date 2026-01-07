@@ -164,11 +164,10 @@
   - Center line: median point estimate
   - Whiskers: 10th and 90th percentiles
 
-  Bootstrap stats values are already scaled by bootstrap-stats-for, so no
-  additional transform is applied here.
+  Transforms are applied to bootstrap values via the source-id chain.
 
   Returns a vector of Vega-Lite layer specs."
-  [_transforms bootstrap-stats metric-config]
+  [transforms bootstrap-stats metric-config]
   (let [quantiles (:quantiles bootstrap-stats)
         p10 (get quantiles 0.1)
         p50 (get quantiles 0.5)
@@ -177,16 +176,17 @@
       (let [path (:path metric-config)
             k (first path)
             field-name (name k)
-            ;; Values are already scaled by bootstrap-stats-for
-            p10-val (:point-estimate p10)
-            p50-val (:point-estimate p50)
-            p90-val (:point-estimate p90)
+            ;; Apply transforms to raw bootstrap values
+            scale (fn [v] (util/transform-sample-> v transforms))
+            p10-val (scale (:point-estimate p10))
+            p50-val (scale (:point-estimate p50))
+            p90-val (scale (:point-estimate p90))
             ;; Extract median CI bounds and alpha for label
             median-ci (:estimate-quantiles p50)
             ci-lower (when (seq median-ci)
-                       (:value (first median-ci)))
+                       (scale (:value (first median-ci))))
             ci-upper (when (seq median-ci)
-                       (:value (second median-ci)))
+                       (scale (:value (second median-ci))))
             ci-alpha (when (seq median-ci)
                        (:alpha (first median-ci)))
             ci-level (when ci-alpha
@@ -377,9 +377,7 @@
         hist-transforms (util/get-transforms data-map histogram-id)
         stats-transforms (util/get-transforms data-map (:source-id stats))
         bootstrap-transforms (when bootstrap-stats-map
-                               (util/get-transforms
-                                data-map
-                                (:source-id bootstrap-stats-map)))
+                               (util/get-transforms data-map bootstrap-stats-id))
         layer-num (volatile! 0)]
     {:data {:values []}
      :resolve {:scale {:x "independent"
@@ -969,7 +967,9 @@
    :encoding {:x {:field "impl" :type "nominal"}
               :y {:field "ciLower" :type "quantitative"}
               :y2 {:field "ciUpper"}
-              :color {:field "impl" :type "nominal" :legend nil}}})
+              :color {:field "impl"
+                      :type "nominal"
+                      :legend {:title "Implementation"}}}})
 
 (defn- box-plot-median-layer
   "Build median line layer for box plot (tick mark at median)."

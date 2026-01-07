@@ -73,21 +73,19 @@
 
 ;;; Criterium-specific bootstrap functions
 
-(defn- scale-bootstrap-stat
-  "Scale a bootstrap stat using the given scale function."
-  [scale-f stat]
-  (stats/scale-bootstrap-stat scale-f stat))
-
 (def ^:private default-min-samples
   "Default minimum sample size for bootstrap resampling.
   Below this threshold, BCa confidence intervals may be unreliable."
   30)
 
 (defn bootstrap-stats-for
-  "Compute bootstrap statistics for samples with given options and transforms.
+  "Compute bootstrap statistics for samples with given options.
 
   Computes mean, variance, and quantiles with BCa confidence intervals.
   Does not include min-val, max-val, or 3-sigma bounds.
+
+  Raw values are returned without transform application. Transforms are
+  applied later via the source-id chain when viewing results.
 
   Options:
     :bootstrap-size - Number of bootstrap resamples (default: sample count)
@@ -97,7 +95,7 @@
 
   The :bootstrap-size option controls the number of bootstrap resamples.
   Defaults to the number of samples if not specified."
-  [samples opts transforms]
+  [samples opts]
   {:pre [(:quantiles opts)
          (:estimate-quantiles opts)]}
   (let [vs            (mapv double samples)
@@ -116,14 +114,11 @@
                        (:bootstrap-size opts n)
                        (into [0.5] (:estimate-quantiles opts))
                        random/well-rng-1024a)
-        scale-1       (fn [v] (util/transform-sample-> v transforms))
-        scale-f       (partial scale-bootstrap-stat scale-1)
         ks            (keys stats/stats-fn-map)]
     (cond-> (-> (zipmap ks stats)
                 (dissoc :min-val :max-val)
-                (stats/scale-bootstrap-values scale-f)
                 (assoc :quantiles
-                       (zipmap quantiles (map scale-f (drop (count ks) stats)))))
+                       (zipmap quantiles (drop (count ks) stats))))
       low-samples? (assoc :low-sample-count? true))))
 
 (defn- filter-outliers
@@ -142,7 +137,7 @@
 (defn bootstrap-stats*
   "Compute bootstrap stats for all metric paths.
   When outliers is non-nil, removes outlier samples before bootstrap resampling."
-  [metric->values outliers metric-configs transforms config]
+  [metric->values outliers metric-configs config]
   (reduce
    (fn [res path]
      (let [values (get metric->values path)
@@ -150,7 +145,7 @@
        (if (seq filtered-values)
          (assoc-in
           res path
-          (bootstrap-stats-for filtered-values config transforms))
+          (bootstrap-stats-for filtered-values config))
          res)))
    {}
    (map :path metric-configs)))
@@ -189,12 +184,10 @@
                                (metric/filter-metrics
                                 (metric/type-pred :quantitative)))
            metric-configs  (metric/all-metric-configs metrics-defs)
-           transforms      (util/get-transforms data-map samples-id)
            result          (bootstrap-stats*
                             (util/metric->values metrics-samples)
                             outliers
                             metric-configs
-                            transforms
                             analysis)]
        (assoc
         data-map
