@@ -10,6 +10,7 @@
 #include "include/utils.h"
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <condition_variable>
 #include <cstdlib>
 #include <cstring>
