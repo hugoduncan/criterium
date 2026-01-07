@@ -35,7 +35,9 @@
   Groups runs by :impl axis and compares all quantitative metrics.
   Requires map coordinates with an :impl key distinguishing implementations.
 
-  Includes error bounds (±3σ) for each data point when viewed with portal or kindly.
+  Extracts bootstrap quantile statistics (median, p10, p90, CI) for box plot
+  visualization. Falls back to bar charts with mean values and error bounds
+  (±3σ) if bootstrap stats are not available.
 
   In the output, the baseline implementation (first in :implementations) shows
   absolute values with SI units, while other implementations show factors
@@ -43,7 +45,7 @@
 
   Example:
     (analyse-domain implementation-comparison my-domain)"
-  {:analyse [[:domain-compare-fn {:axis-key :impl :with-error-bounds true}]]
+  {:analyse [[:domain-compare-fn {:axis-key :impl :with-bootstrap-stats true}]]
    :view [[:domain-comparison {}]]})
 
 (def extract-metrics
