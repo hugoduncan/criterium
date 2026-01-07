@@ -21,11 +21,11 @@
       (is (vector? (:view plans/flame-only)))
       (is (= [:call-flame] (:view plans/flame-only))))))
 
-(deftest plans-analyse-empty-test
-  ;; Call graph plans currently have empty :analyse vectors.
-  ;; This test documents the current behavior.
+(deftest plans-analyse-test
+  ;; Tests that analyse vectors have expected contents.
   (testing "call-graph plans analyse vectors"
-    (testing "are empty (reserved for future use)"
-      (is (empty? (:analyse plans/default)))
+    (testing "default includes most-called analysis"
+      (is (= [:most-called] (:analyse plans/default))))
+    (testing "tree-only and flame-only have empty analyse"
       (is (empty? (:analyse plans/tree-only)))
       (is (empty? (:analyse plans/flame-only))))))
