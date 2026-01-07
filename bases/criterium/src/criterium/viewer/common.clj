@@ -2271,7 +2271,7 @@
           ci-lower (when (seq quantiles) (-> quantiles first :value))
           ci-upper (when (seq quantiles) (-> quantiles second :value))
           point-est (:point-estimate estimate)
-          fmt-val (fn [v] (when v (format/format-value dimension (* scale v))))]
+          fmt-val (fn [v] (when v (format/format-value dimension (* (double scale) (double v)))))]
       {:value (fmt-val point-est)
        :ci-lower (fmt-val ci-lower)
        :ci-upper (fmt-val ci-upper)})))
