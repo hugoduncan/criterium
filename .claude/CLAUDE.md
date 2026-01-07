@@ -125,6 +125,9 @@ With timeout (milliseconds)
 The REPL session persists between evaluations - namespaces and state are maintained.
 Always use `:reload` when requiring namespaces to pick up changes.
 
+When completing a story, kill any nREPL processes that are running in the story's worktree.
+
+
 ## Architecture
 
 ### Polylith Structure
