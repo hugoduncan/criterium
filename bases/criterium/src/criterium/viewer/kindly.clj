@@ -254,9 +254,14 @@
                  (viewer-common/prepare-domain-extract-table-transposed extract)]
         (kindly-heading heading)
         (kindly-table rows {:column-names col-headers})
-        (kindly-vega-lite
-         (charts/single-point-box-chart-spec extract {:width chart-width
-                                                      :height chart-height})))
+        (let [box-spec (charts/single-point-box-chart-spec extract {:width chart-width
+                                                                    :height chart-height})]
+          ;; Fall back to bar chart if box plot has no data (missing bootstrap stats)
+          (if (seq (:vconcat box-spec))
+            (kindly-vega-lite box-spec)
+            (kindly-vega-lite
+             (charts/single-point-bar-chart-spec extract {:width chart-width
+                                                          :height chart-height})))))
 
       :multi-point
       (when-let [{:keys [heading coord-header col-headers rows]}
@@ -295,9 +300,14 @@
         (kindly-table rows {:column-names (into [coord-header] col-headers)}))
       (case (viewer-common/comparison-visualization-strategy comparison)
         :single-point
-        (kindly-vega-lite
-         (charts/comparison-box-chart-spec comparison {:width chart-width
-                                                       :height chart-height}))
+        (let [box-spec (charts/comparison-box-chart-spec comparison {:width chart-width
+                                                                     :height chart-height})]
+          ;; Fall back to bar chart if box plot has no data (missing bootstrap stats)
+          (if (seq (:vconcat box-spec))
+            (kindly-vega-lite box-spec)
+            (kindly-vega-lite
+             (charts/comparison-bar-chart-spec comparison {:width chart-width
+                                                           :height chart-height}))))
         :multi-point
         (kindly-vega-lite
          (charts/comparison-line-chart-spec comparison {:width chart-width

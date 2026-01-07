@@ -249,8 +249,12 @@
                  (viewer-common/prepare-domain-extract-table-transposed extract)]
         (heading heading-text)
         (portal-table rows)
-        (portal-vega-lite
-         (charts/single-point-box-chart-spec extract {:height 400})))
+        (let [box-spec (charts/single-point-box-chart-spec extract {:height 400})]
+          ;; Fall back to bar chart if box plot has no data (missing bootstrap stats)
+          (if (seq (:vconcat box-spec))
+            (portal-vega-lite box-spec)
+            (portal-vega-lite
+             (charts/single-point-bar-chart-spec extract {:height 400})))))
 
       :multi-point
       (when-let [table-data (viewer-common/prepare-domain-extract-table
@@ -286,8 +290,12 @@
         (portal-table rows))
       (case (viewer-common/comparison-visualization-strategy comparison)
         :single-point
-        (portal-vega-lite
-         (charts/comparison-box-chart-spec comparison {:height 400}))
+        (let [box-spec (charts/comparison-box-chart-spec comparison {:height 400})]
+          ;; Fall back to bar chart if box plot has no data (missing bootstrap stats)
+          (if (seq (:vconcat box-spec))
+            (portal-vega-lite box-spec)
+            (portal-vega-lite
+             (charts/comparison-bar-chart-spec comparison {:height 400}))))
         :multi-point
         (portal-vega-lite
          (charts/comparison-line-chart-spec comparison {:height 400}))
