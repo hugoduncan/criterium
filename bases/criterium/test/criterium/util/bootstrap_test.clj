@@ -2,6 +2,7 @@
   (:require
    [clojure.test :refer [deftest is testing]]
    [criterium.analyse-test :refer [metrics-samples]]
+   [criterium.collect-plan :as collect-plan]
    [criterium.test-utils :refer [test-max-error]]
    [criterium.util.bootstrap :as bootstrap]
    [criterium.util.helpers :as util]
@@ -148,6 +149,66 @@
         (is (< l m u))
         (is (< l 858.5 u))))))
 
+;; Test minimum sample size check for bootstrap reliability
+(deftest bootstrap-stats-for-min-samples-test
+  (testing "bootstrap-stats-for"
+    (testing "when sample count is at or above default threshold"
+      (testing "does not set :low-sample-count?"
+        (let [samples (mapv double (range 30))
+              stats (bootstrap/bootstrap-stats-for
+                     samples
+                     {:estimate-quantiles [0.025 0.975] :quantiles [0.99]}
+                     sampled-stats-test/identity-transforms)]
+          (is (nil? (:low-sample-count? stats))))))
+
+    (testing "when sample count is below default threshold"
+      (testing "sets :low-sample-count? true"
+        (let [samples (mapv double (range 20))
+              ;; First run suppresses stdout, second captures return value
+              _ (with-out-str
+                  (bootstrap/bootstrap-stats-for
+                   samples
+                   {:estimate-quantiles [0.025 0.975] :quantiles [0.99]}
+                   sampled-stats-test/identity-transforms))
+              result (bootstrap/bootstrap-stats-for
+                      samples
+                      {:estimate-quantiles [0.025 0.975] :quantiles [0.99]}
+                      sampled-stats-test/identity-transforms)]
+          (is (true? (:low-sample-count? result)))))
+
+      (testing "prints warning"
+        (let [samples (mapv double (range 20))
+              output (with-out-str
+                       (bootstrap/bootstrap-stats-for
+                        samples
+                        {:estimate-quantiles [0.025 0.975] :quantiles [0.99]}
+                        sampled-stats-test/identity-transforms))]
+          (is (re-find #"Warning.*bootstrap sample count.*20.*below minimum.*30"
+                       output)))))
+
+    (testing "when custom :min-samples is specified"
+      (testing "uses custom threshold"
+        (let [samples (mapv double (range 15))
+              ;; With min-samples=10, 15 samples should be fine
+              result (bootstrap/bootstrap-stats-for
+                      samples
+                      {:estimate-quantiles [0.025 0.975]
+                       :quantiles [0.99]
+                       :min-samples 10}
+                      sampled-stats-test/identity-transforms)]
+          (is (nil? (:low-sample-count? result)))))
+
+      (testing "warns when below custom threshold"
+        (let [samples (mapv double (range 5))
+              output (with-out-str
+                       (bootstrap/bootstrap-stats-for
+                        samples
+                        {:estimate-quantiles [0.025 0.975]
+                         :quantiles [0.99]
+                         :min-samples 10}
+                        sampled-stats-test/identity-transforms))]
+          (is (re-find #"Warning.*5.*below minimum.*10" output)))))))
+
 ;; todo add helpers for constant samples
 ;; integration test of time with bootstrap
 (defn sample-values
@@ -188,6 +249,88 @@
                             :point-estimate))]
     (is (test-max-error 10.0 point 0.1 "mean")
         (str "Value: " point))))
+
+;; Test that outlier filtering removes outlier samples before bootstrap resampling.
+;; This prevents extreme values from propagating through bootstrap resamples.
+(deftest bootstrap-stats-outlier-filtering-test
+  (testing "bootstrap-stats"
+    (testing "filters outliers when outliers-id is provided"
+      (let [batch-size 100
+            num-samples 100
+            ;; Create samples with extreme outliers at indices 0 and 1
+            ;; Normal values around 10.0 * batch-size = 1000, outliers at 1000000.0
+            base-samples (sample-values batch-size (- num-samples 2) 123 10.0 1.0)
+            outlier-samples (into [1000000.0 1000000.0] base-samples)
+            samples {[:v] outlier-samples}
+            metric-samples (assoc
+                            (metrics-samples samples batch-size)
+                            :metrics-defs
+                            {:v
+                             {:type :quantitative
+                              :values [{:path [:v]
+                                        :type :quantitative
+                                        :dimension :time
+                                        :scale 1
+                                        :label "v"}]}})
+            ;; Create outliers map marking indices 0 and 1 as outliers
+            outliers-map {:type :criterium/outliers
+                          :outliers {:v {:outliers {0 :high-severe
+                                                    1 :high-severe}
+                                         :outlier-counts {:low-severe 0
+                                                          :low-mild 0
+                                                          :high-mild 0
+                                                          :high-severe 2}}}
+                          :metrics-defs {:v
+                                         {:type :quantitative
+                                          :values [{:path [:v]
+                                                    :type :quantitative
+                                                    :dimension :time
+                                                    :scale 1
+                                                    :label "v"}]}}
+                          :num-samples num-samples
+                          :source-id :samples
+                          :quantiles-id :quantiles
+                          :transform collect-plan/identity-transforms}
+            ;; Test without outlier filtering - mean will be affected by outliers
+            ;; Put outliers data under a different key so default :outliers won't find it
+            result-with-outliers
+            ((bootstrap/bootstrap-stats
+              {:quantiles [0.99]
+               :estimate-quantiles [0.025 0.975]
+               :bootstrap-size 100
+               :outliers-id :my-outliers}) ; Use a key that doesn't exist
+             {:samples metric-samples})   ; No outliers data
+            ;; Test with outlier filtering - outliers should be removed
+            result-without-outliers
+            ((bootstrap/bootstrap-stats
+              {:quantiles [0.99]
+               :estimate-quantiles [0.025 0.975]
+               :bootstrap-size 100
+               :outliers-id :outliers})
+             {:samples metric-samples
+              :outliers outliers-map})
+            mean-with (-> result-with-outliers
+                          :bootstrap-stats
+                          util/bootstrap
+                          :v
+                          :mean
+                          :point-estimate)
+            mean-without (-> result-without-outliers
+                             :bootstrap-stats
+                             util/bootstrap
+                             :v
+                             :mean
+                             :point-estimate)]
+        ;; Mean without outliers should be much closer to 10.0
+        (is (< mean-without 20.0)
+            (str "Mean without outliers should be close to 10: " mean-without))
+        ;; Mean with outliers (no filtering) will be significantly higher
+        (is (> mean-with 100.0)
+            (str "Mean with outliers should be affected by extremes: " mean-with))
+        ;; The filtered result should record the outliers-id used
+        (is (= :outliers (-> result-without-outliers :bootstrap-stats :outliers-id)))
+        ;; No outliers data available, so outliers-id is nil
+        (is (nil? (-> result-with-outliers :bootstrap-stats :outliers-id)))))))
 
 ;; Verifies that all quantiles computed by bootstrap-stats-for share the same
 ;; bootstrap resamples. This is critical for statistical validity - if quantiles

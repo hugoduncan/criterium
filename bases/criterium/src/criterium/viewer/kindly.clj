@@ -443,9 +443,30 @@
       (kindly-heading "Allocation Treemap")
       (kindly-vega (charts/treemap-vega-spec treemap-data {})))))
 
+;;; Bootstrap statistics view
+
+(defmethod view/bootstrap-stats* :kindly
+  [_ {:keys [bootstrap-stats-id]} data-map]
+  (let [bootstrap-stats-id (or bootstrap-stats-id :bootstrap-stats)
+        bootstrap-map (data-map bootstrap-stats-id)]
+    (when bootstrap-map
+      (let [metrics-defs (:metrics-defs bootstrap-map)
+            metric-configs (metric/all-metric-configs metrics-defs)
+            bootstrap (util/bootstrap bootstrap-map)]
+        (when (seq metric-configs)
+          (kindly-heading "Bootstrap Statistics")
+          (kindly-table
+           (vec
+            (for [m metric-configs
+                  :let [stat (get-in bootstrap (:path m))]
+                  :when stat]
+              (viewer-common/bootstrap-stat-row m stat)))
+           {:column-names [:metric :median :median-ci-lower :median-ci-upper
+                           :mean :mean-ci-lower :mean-ci-upper
+                           :p10 :p90]}))))))
+
 ;;; Noop implementations for views not applicable to Kindly output
 
-(defmethod view/bootstrap-stats* :kindly [_ _ _])
 (defmethod view/final-gc-warnings* :kindly [_ _ _])
 (defmethod view/os* :kindly [_ _ _])
 (defmethod view/runtime* :kindly [_ _ _])

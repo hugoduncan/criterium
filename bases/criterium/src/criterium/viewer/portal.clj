@@ -215,7 +215,21 @@
              (util/metric->values quant-samples)
              (first metric-configs))]))}])})))
 
-(defmethod view/bootstrap-stats* :portal [_ _ _])
+(defmethod view/bootstrap-stats* :portal
+  [_ {:keys [bootstrap-stats-id]} data-map]
+  (let [bootstrap-stats-id (or bootstrap-stats-id :bootstrap-stats)
+        bootstrap-map (data-map bootstrap-stats-id)
+        metrics-defs (:metrics-defs bootstrap-map)
+        metric-configs (metric/all-metric-configs metrics-defs)
+        bootstrap (util/bootstrap bootstrap-map)]
+    (when (seq metric-configs)
+      (heading "Bootstrap Statistics")
+      (portal-table
+       (vec
+        (for [m metric-configs
+              :let [stat (get-in bootstrap (:path m))]
+              :when stat]
+          (viewer-common/bootstrap-stat-row m stat)))))))
 
 (defmethod view/final-gc-warnings* :portal [_ _ _])
 
