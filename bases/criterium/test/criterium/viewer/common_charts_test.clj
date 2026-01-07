@@ -1299,6 +1299,15 @@
         (is (= "nominal" (:type x-encoding)))
         (is (= "Implementation" (:title x-encoding)))))
 
+    (testing "sets y-axis scale to exclude zero"
+      (let [spec (charts/single-point-box-chart-spec
+                  single-point-box-extract
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            y-encoding (get-in chart [:encoding :y])]
+        (is (false? (get-in y-encoding [:scale :zero]))
+            "y-axis scale :zero should be false to fit data range")))
+
     (testing "preserves implementation order from data"
       (let [spec (charts/single-point-box-chart-spec
                   single-point-box-extract
@@ -1465,6 +1474,15 @@
         (is (= "impl" (:field x-encoding)))
         (is (= "nominal" (:type x-encoding)))
         (is (= "Implementation" (:title x-encoding)))))
+
+    (testing "sets y-axis scale to exclude zero"
+      (let [spec (charts/comparison-box-chart-spec
+                  single-point-box-comparison
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            y-encoding (get-in chart [:encoding :y])]
+        (is (false? (get-in y-encoding [:scale :zero]))
+            "y-axis scale :zero should be false to fit data range")))
 
     (testing "preserves implementation order from data"
       (let [spec (charts/comparison-box-chart-spec

@@ -1032,7 +1032,8 @@
                            :sort nil
                            :axis {:labelAngle 0}}
                        :y {:type "quantitative"
-                           :title y-title}}})))
+                           :title y-title
+                           :scale {:zero false}}}})))
 
 (defn- bar-chart-layer
   "Build a bar chart from prepared bar data.
