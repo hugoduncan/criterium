@@ -250,6 +250,21 @@
               filtered-children (flatten-promoted raw-children)]
           (assoc node :children (vec filtered-children)))))))
 
+(defn- validate-prefix-set
+  "Validates that prefix-set is nil, empty, or contains only strings.
+  Returns the prefix-set if valid, throws if invalid."
+  [prefix-set opt-name]
+  (when prefix-set
+    (when-not (set? prefix-set)
+      (throw (ex-info (str opt-name " must be a set, got: " (type prefix-set))
+                      {:option opt-name :value prefix-set})))
+    (doseq [prefix prefix-set]
+      (when-not (string? prefix)
+        (throw (ex-info (str opt-name " must contain only strings, found: "
+                             (type prefix) " = " (pr-str prefix))
+                        {:option opt-name :value prefix :all-values prefix-set})))))
+  prefix-set)
+
 (defn filter-call-tree
   "Filter a call tree according to filter options.
 
@@ -263,6 +278,8 @@
   Returns the filtered call tree, or nil if the root is excluded.
   If multiple children are promoted, returns the one containing user code."
   [call-tree opts]
+  (validate-prefix-set (:exclude-packages opts) :exclude-packages)
+  (validate-prefix-set (:stop-at-packages opts) :stop-at-packages)
   (when call-tree
     (let [result (filter-node call-tree opts 1)]
       (cond

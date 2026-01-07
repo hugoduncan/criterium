@@ -580,6 +580,68 @@
           (is (= [] (:children clj-map))
               "clojure.core node should have empty children"))))))
 
+(deftest filter-call-tree-validation-test
+  ;; Tests input validation for filter-call-tree options.
+  ;; Validates that :exclude-packages and :stop-at-packages must be sets of strings.
+  (testing "filter-call-tree"
+    (testing "validates :exclude-packages"
+      (testing "accepts nil"
+        (is (= sample-call-tree
+               (agent/filter-call-tree sample-call-tree {:exclude-packages nil}))))
+
+      (testing "accepts empty set"
+        (is (= sample-call-tree
+               (agent/filter-call-tree sample-call-tree {:exclude-packages #{}}))))
+
+      (testing "accepts set of strings"
+        (is (some? (agent/filter-call-tree sample-call-tree
+                                           {:exclude-packages #{"java."}}))))
+
+      (testing "rejects non-set values"
+        (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                              #":exclude-packages must be a set"
+                              (agent/filter-call-tree sample-call-tree
+                                                      {:exclude-packages ["java."]})))
+        (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                              #":exclude-packages must be a set"
+                              (agent/filter-call-tree sample-call-tree
+                                                      {:exclude-packages "java."}))))
+
+      (testing "rejects non-string elements"
+        (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                              #":exclude-packages must contain only strings"
+                              (agent/filter-call-tree sample-call-tree
+                                                      {:exclude-packages #{:java}})))
+        (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                              #":exclude-packages must contain only strings"
+                              (agent/filter-call-tree sample-call-tree
+                                                      {:exclude-packages #{'java}})))))
+
+    (testing "validates :stop-at-packages"
+      (testing "accepts nil"
+        (is (= sample-call-tree
+               (agent/filter-call-tree sample-call-tree {:stop-at-packages nil}))))
+
+      (testing "accepts empty set"
+        (is (= sample-call-tree
+               (agent/filter-call-tree sample-call-tree {:stop-at-packages #{}}))))
+
+      (testing "accepts set of strings"
+        (is (some? (agent/filter-call-tree sample-call-tree
+                                           {:stop-at-packages #{"clojure.core"}}))))
+
+      (testing "rejects non-set values"
+        (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                              #":stop-at-packages must be a set"
+                              (agent/filter-call-tree sample-call-tree
+                                                      {:stop-at-packages ["clojure.core"]}))))
+
+      (testing "rejects non-string elements"
+        (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                              #":stop-at-packages must contain only strings"
+                              (agent/filter-call-tree sample-call-tree
+                                                      {:stop-at-packages #{:clojure.core}})))))))
+
 ;; Warmup for allocation tests
 (dotimes [_ 100]
   (agent/with-allocation-tracing 1))
