@@ -71,6 +71,30 @@
       (is (= 5 (stats/quantile 0.05 (range 0 101))))
       (is (= 95 (stats/quantile 0.95 (range 0 101)))))))
 
+(deftest skewness-test
+  ;; Tests the skewness function returns 0.0 for constant data (zero variance).
+  ;; This prevents NaN values that would break bootstrap sorting.
+  (testing "skewness"
+    (testing "returns 0.0 for constant data"
+      (is (= 0.0 (stats/skewness (repeat 50 1.0))))
+      (is (= 0.0 (stats/skewness (repeat 50 1.0) 1)))
+      (is (= 0.0 (stats/skewness (repeat 50 1.0) 2)))
+      (is (= 0.0 (stats/skewness (repeat 50 1.0) 3))))
+    (testing "returns finite value for non-constant data"
+      (is (Double/isFinite (stats/skewness [1 2 3 4 5 6 7 8 9 10]))))))
+
+(deftest kurtosis-test
+  ;; Tests the kurtosis function returns 0.0 for constant data (zero variance).
+  ;; This prevents NaN values that would break bootstrap sorting.
+  (testing "kurtosis"
+    (testing "returns 0.0 for constant data"
+      (is (= 0.0 (stats/kurtosis (repeat 50 1.0))))
+      (is (= 0.0 (stats/kurtosis (repeat 50 1.0) 1)))
+      (is (= 0.0 (stats/kurtosis (repeat 50 1.0) 2)))
+      (is (= 0.0 (stats/kurtosis (repeat 50 1.0) 3))))
+    (testing "returns finite value for non-constant data"
+      (is (Double/isFinite (stats/kurtosis [1 2 3 4 5 6 7 8 9 10]))))))
+
 (deftest cv-test
   (testing "cv"
     (testing "returns coefficient of variation (std dev / mean)"
