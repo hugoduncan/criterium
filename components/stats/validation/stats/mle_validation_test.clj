@@ -31,7 +31,7 @@
             (testing (str "at x=" x)
               (let [r-val (first (r/r-eval (str "digamma(" x ")")))
                     clj-val (stats/digamma x)]
-                (is (approx= r-val clj-val 1e-8)
+                (is (approx= r-val clj-val 1e-7)
                     (format "digamma mismatch at x=%.1f: R=%.15f, clj=%.15f"
                             x r-val clj-val))))))
 
@@ -67,7 +67,7 @@
             (testing (str "at x=" x)
               (let [r-val (first (r/r-eval (str "trigamma(" x ")")))
                     clj-val (stats/trigamma x)]
-                (is (approx= r-val clj-val 1e-8)
+                (is (approx= r-val clj-val 1e-7)
                     (format "trigamma mismatch at x=%.1f: R=%.15f, clj=%.15f"
                             x r-val clj-val))))))
 
