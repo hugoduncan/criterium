@@ -141,25 +141,17 @@
 
 ;;; Cramér-von Mises Test Validation
 
-(defn- goftest-available?
-  "Check if R's goftest package is available."
-  []
-  (when (r/r-available?)
-    (try
-      (r/r-eval "library(goftest)")
-      true
-      (catch Exception _
-        false))))
-
 (deftest cvm-test-statistic-validation-test
   ;; Validates stats.interface/cvm-test-statistic against R's goftest::cvm.test().
   ;; R: goftest::cvm.test(x, "pnorm", mean, sd)$statistic
+  ;; Requires goftest package (installed by CI workflow).
   (testing "cvm-test-statistic"
-    (if-not (goftest-available?)
+    (if-not (r/r-available?)
       (do
-        (println "Skipping CvM statistic validation: R/goftest not available")
-        (is true "Skipped - R/goftest unavailable"))
+        (println "Skipping CvM statistic validation: R/Rserve not available")
+        (is true "Skipped - R unavailable"))
       (do
+        (r/r-eval "library(goftest)")
         (testing "against R's cvm.test for uniform distribution"
           (let [data-str (str "c(" (str/join "," uniform-test-data) ")")
                 r-result (r/r-eval (str "cvm.test(" data-str
@@ -195,12 +187,14 @@
 
 (deftest cvm-test-pvalue-validation-test
   ;; Validates that CvM p-values are in reasonable agreement with R.
+  ;; Requires goftest package (installed by CI workflow).
   (testing "cvm-test p-value"
-    (if-not (goftest-available?)
+    (if-not (r/r-available?)
       (do
-        (println "Skipping CvM p-value validation: R/goftest not available")
-        (is true "Skipped - R/goftest unavailable"))
+        (println "Skipping CvM p-value validation: R/Rserve not available")
+        (is true "Skipped - R unavailable"))
       (do
+        (r/r-eval "library(goftest)")
         (testing "is reasonable for well-fitting data"
           (let [data-str (str "c(" (str/join "," uniform-test-data) ")")
                 r-result (r/r-eval (str "cvm.test(" data-str ", 'punif')$p.value"))

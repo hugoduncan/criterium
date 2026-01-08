@@ -149,6 +149,7 @@
   ;; Tests information criteria using a fitted normal distribution.
   ;; This validates the complete workflow: compute log-likelihood from data,
   ;; then compute IC values.
+  ;; Requires MASS package (installed by CI workflow).
   (testing "information criteria"
     (if-not (r/r-available?)
       (do
@@ -156,32 +157,24 @@
         (is true "Skipped - R unavailable"))
       (testing "for fitted normal distribution"
         ;; Generate data in R, fit model, compute IC
-        (let [_ (r/r-eval "
-              set.seed(42)
-              x <- rnorm(100, mean=5, sd=2)
-              fit <- fitdistr(x, 'normal')  # requires MASS package
-              ")
-              ;; If MASS is available, compare full IC values
-              has-mass? (try
-                          (r/r-eval "library(MASS)")
-                          true
-                          (catch Exception _ false))]
-          (if-not has-mass?
-            (do
-              (println "Skipping model-based IC: MASS package not available")
-              (is true "Skipped - MASS unavailable"))
-            (let [r-loglik (first (r/r-eval "logLik(fit)"))
-                  r-k 2  ; normal has 2 parameters (mean, sd)
-                  r-n 100
-                  ;; Compute IC in R for comparison
-                  r-aic (first (r/r-eval "AIC(fit)"))
-                  r-bic (first (r/r-eval "BIC(fit)"))
-                  ;; Compute using our functions
-                  clj-aic (stats/aic r-k r-loglik)
-                  clj-bic (stats/bic r-k r-n r-loglik)]
-              (testing "AIC matches R's AIC()"
-                (is (approx= r-aic clj-aic 1e-8)
-                    (format "AIC mismatch: R=%.10f, clj=%.10f" r-aic clj-aic)))
-              (testing "BIC matches R's BIC()"
-                (is (approx= r-bic clj-bic 1e-8)
-                    (format "BIC mismatch: R=%.10f, clj=%.10f" r-bic clj-bic))))))))))
+        (r/r-eval "library(MASS)")
+        (r/r-eval "
+          set.seed(42)
+          x <- rnorm(100, mean=5, sd=2)
+          fit <- fitdistr(x, 'normal')
+          ")
+        (let [r-loglik (first (r/r-eval "logLik(fit)"))
+              r-k 2  ; normal has 2 parameters (mean, sd)
+              r-n 100
+              ;; Compute IC in R for comparison
+              r-aic (first (r/r-eval "AIC(fit)"))
+              r-bic (first (r/r-eval "BIC(fit)"))
+              ;; Compute using our functions
+              clj-aic (stats/aic r-k r-loglik)
+              clj-bic (stats/bic r-k r-n r-loglik)]
+          (testing "AIC matches R's AIC()"
+            (is (approx= r-aic clj-aic 1e-8)
+                (format "AIC mismatch: R=%.10f, clj=%.10f" r-aic clj-aic)))
+          (testing "BIC matches R's BIC()"
+            (is (approx= r-bic clj-bic 1e-8)
+                (format "BIC mismatch: R=%.10f, clj=%.10f" r-bic clj-bic))))))))

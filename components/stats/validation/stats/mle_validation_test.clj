@@ -229,25 +229,17 @@
 
 ;;; Inverse Gaussian MLE Validation
 
-(defn statmod-available?
-  "Check if R's statmod package is available."
-  []
-  (when (r/r-available?)
-    (try
-      (r/r-eval "library(statmod)")
-      true
-      (catch Exception _
-        false))))
-
 (deftest inverse-gaussian-mle-validation-test
   ;; Validates stats.interface/inverse-gaussian-mle against R's statmod package.
-  ;; R uses fitdistr with dinvgauss from statmod
+  ;; R uses fitdistr with dinvgauss from statmod.
+  ;; Requires statmod package (installed by CI workflow).
   (testing "inverse-gaussian-mle"
-    (if-not (statmod-available?)
+    (if-not (r/r-available?)
       (do
-        (println "Skipping inverse-gaussian-mle validation: R/statmod not available")
-        (is true "Skipped - R/statmod unavailable"))
+        (println "Skipping inverse-gaussian-mle validation: R/Rserve not available")
+        (is true "Skipped - R unavailable"))
       (do
+        (r/r-eval "library(statmod)")
         (testing "against R's closed-form MLE"
           (let [data-str (str "c(" (clojure.string/join "," inverse-gaussian-test-data) ")")
                 ;; Inverse Gaussian MLE: mu = mean(x), lambda = n / sum(1/x - 1/mu)

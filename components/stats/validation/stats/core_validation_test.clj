@@ -300,25 +300,17 @@
 ;;; Skewed test dataset for skewness/kurtosis testing
 (def right-skewed [1.0 1.5 2.0 2.5 3.0 3.5 4.0 5.0 7.0 15.0])
 
-(defn e1071-available?
-  "Check if R's e1071 package is available."
-  []
-  (when (r/r-available?)
-    (try
-      (r/r-eval "library(e1071)")
-      true
-      (catch Exception _
-        false))))
-
 (deftest skewness-validation-test
   ;; Validates stats.interface/skewness against R's e1071::skewness() function.
   ;; Tests all three types defined in Joanes & Gill (1998).
+  ;; Requires e1071 package (installed by CI workflow).
   (testing "skewness"
-    (if-not (e1071-available?)
+    (if-not (r/r-available?)
       (do
-        (println "Skipping skewness validation: R/e1071 not available")
-        (is true "Skipped - R/e1071 unavailable"))
+        (println "Skipping skewness validation: R/Rserve not available")
+        (is true "Skipped - R unavailable"))
       (do
+        (r/r-eval "library(e1071)")
 
         (testing "type 1"
           (testing "with simple integers"
@@ -417,12 +409,14 @@
   ;; Tests all three types defined in Joanes & Gill (1998).
   ;; Note: e1071::kurtosis returns excess kurtosis (normal = 0), which matches
   ;; our implementation.
+  ;; Requires e1071 package (installed by CI workflow).
   (testing "kurtosis"
-    (if-not (e1071-available?)
+    (if-not (r/r-available?)
       (do
-        (println "Skipping kurtosis validation: R/e1071 not available")
-        (is true "Skipped - R/e1071 unavailable"))
+        (println "Skipping kurtosis validation: R/Rserve not available")
+        (is true "Skipped - R unavailable"))
       (do
+        (r/r-eval "library(e1071)")
 
         (testing "type 1"
           (testing "with simple integers"

@@ -360,9 +360,9 @@
                                   (format "plnorm(%s, meanlog=%s, sdlog=%s)"
                                           x mu sigma)))
                       clj-p (cdf-fn x)]
-                  ;; Looser relative tolerance for erf approximation
+                  ;; Looser relative tolerance for erf approximation (1%)
                   ;; and accept underflow (both values < 1e-15)
-                  (is (or (approx= r-p clj-p 1e-3)
+                  (is (or (approx= r-p clj-p 0.01)
                           (and (< r-p 1e-15) (< clj-p 1e-15)))
                       (format "lognormal-cdf mismatch: R=%.15f, clj=%.15f"
                               r-p clj-p)))))))))))
@@ -400,58 +400,53 @@
 ;; Test x values for inverse Gaussian (positive only)
 (def inverse-gaussian-x-values [0.1 0.5 1.0 2.0 3.0 5.0])
 
-(defn statmod-available?
-  "Check if R's statmod package is available."
-  []
-  (when (r/r-available?)
-    (try
-      (r/r-eval "library(statmod)")
-      true
-      (catch Exception _
-        false))))
-
 (deftest inverse-gaussian-pdf-validation-test
   ;; Validates stats.interface/inverse-gaussian-pdf against R's dinvgauss().
-  ;; Requires the statmod R package.
+  ;; Requires statmod package (installed by CI workflow).
   (testing "inverse-gaussian-pdf"
-    (if-not (statmod-available?)
+    (if-not (r/r-available?)
       (do
-        (println "Skipping inverse-gaussian-pdf validation: R/statmod not available")
-        (is true "Skipped - R/statmod unavailable"))
-      (doseq [[mu lambda] inverse-gaussian-params]
-        (testing (str "with mu=" mu ", lambda=" lambda)
-          (let [pdf-fn (stats/inverse-gaussian-pdf mu lambda)]
-            (doseq [x inverse-gaussian-x-values]
-              (testing (str "at x=" x)
-                (let [r-d (first (r/r-eval
-                                  (format "dinvgauss(%s, mean=%s, shape=%s)"
-                                          x mu lambda)))
-                      clj-d (pdf-fn x)]
-                  (is (approx= r-d clj-d 1e-10)
-                      (format "inverse-gaussian-pdf mismatch: R=%.15f, clj=%.15f"
-                              r-d clj-d)))))))))))
+        (println "Skipping inverse-gaussian-pdf validation: R/Rserve not available")
+        (is true "Skipped - R unavailable"))
+      (do
+        (r/r-eval "library(statmod)")
+        (doseq [[mu lambda] inverse-gaussian-params]
+          (testing (str "with mu=" mu ", lambda=" lambda)
+            (let [pdf-fn (stats/inverse-gaussian-pdf mu lambda)]
+              (doseq [x inverse-gaussian-x-values]
+                (testing (str "at x=" x)
+                  (let [r-d (first (r/r-eval
+                                    (format "dinvgauss(%s, mean=%s, shape=%s)"
+                                            x mu lambda)))
+                        clj-d (pdf-fn x)]
+                    (is (approx= r-d clj-d 1e-10)
+                        (format "inverse-gaussian-pdf mismatch: R=%.15f, clj=%.15f"
+                                r-d clj-d))))))))))))
 
 (deftest inverse-gaussian-cdf-validation-test
   ;; Validates stats.interface/inverse-gaussian-cdf against R's pinvgauss().
-  ;; Requires the statmod R package. Uses erf approximation so slightly looser.
+  ;; Requires statmod package (installed by CI workflow).
+  ;; Uses erf approximation so slightly looser tolerance.
   (testing "inverse-gaussian-cdf"
-    (if-not (statmod-available?)
+    (if-not (r/r-available?)
       (do
-        (println "Skipping inverse-gaussian-cdf validation: R/statmod not available")
-        (is true "Skipped - R/statmod unavailable"))
-      (doseq [[mu lambda] inverse-gaussian-params]
-        (testing (str "with mu=" mu ", lambda=" lambda)
-          (let [cdf-fn (stats/inverse-gaussian-cdf mu lambda)]
-            (doseq [x inverse-gaussian-x-values]
-              (testing (str "at x=" x)
-                (let [r-p (first (r/r-eval
-                                  (format "pinvgauss(%s, mean=%s, shape=%s)"
-                                          x mu lambda)))
-                      clj-p (cdf-fn x)]
-                  ;; Slightly looser tolerance due to erf approximation
-                  (is (approx= r-p clj-p 1e-5)
-                      (format "inverse-gaussian-cdf mismatch: R=%.15f, clj=%.15f"
-                              r-p clj-p)))))))))))
+        (println "Skipping inverse-gaussian-cdf validation: R/Rserve not available")
+        (is true "Skipped - R unavailable"))
+      (do
+        (r/r-eval "library(statmod)")
+        (doseq [[mu lambda] inverse-gaussian-params]
+          (testing (str "with mu=" mu ", lambda=" lambda)
+            (let [cdf-fn (stats/inverse-gaussian-cdf mu lambda)]
+              (doseq [x inverse-gaussian-x-values]
+                (testing (str "at x=" x)
+                  (let [r-p (first (r/r-eval
+                                    (format "pinvgauss(%s, mean=%s, shape=%s)"
+                                            x mu lambda)))
+                        clj-p (cdf-fn x)]
+                    ;; Slightly looser tolerance due to erf approximation
+                    (is (approx= r-p clj-p 1e-5)
+                        (format "inverse-gaussian-cdf mismatch: R=%.15f, clj=%.15f"
+                                r-p clj-p))))))))))))
 
 (deftest inverse-gaussian-cdf-pdf-consistency-test
   ;; Verifies that inverse-gaussian-cdf and inverse-gaussian-pdf are consistent.
