@@ -303,13 +303,12 @@
   [_ {:keys [comparison-id]} data-map]
   (let [comparison-id (or comparison-id :comparison)
         comparison (data-map comparison-id)]
-    (when-let [tables (comparison/prepare-domain-comparison-tables
-                       comparison)]
-      (doseq [{:keys [heading coord-header col-headers rows]} tables]
+    (case (detection/comparison-visualization-strategy comparison)
+      :single-point
+      (when-let [{:keys [heading col-headers rows]}
+                 (comparison/prepare-domain-comparison-table-transposed comparison)]
         (kindly-heading heading)
-        (kindly-table rows {:column-names (into [coord-header] col-headers)}))
-      (case (detection/comparison-visualization-strategy comparison)
-        :single-point
+        (kindly-table rows {:column-names col-headers})
         (let [box-spec (charts/comparison-box-chart-spec comparison {:width chart-width
                                                                      :height chart-height})]
           ;; Fall back to bar chart if box plot has no data (missing bootstrap stats)
@@ -317,12 +316,22 @@
             (kindly-vega-lite box-spec)
             (kindly-vega-lite
              (charts/comparison-bar-chart-spec comparison {:width chart-width
-                                                           :height chart-height}))))
-        :multi-point
+                                                           :height chart-height})))))
+
+      :multi-point
+      (when-let [tables (comparison/prepare-domain-comparison-tables comparison)]
+        (doseq [{:keys [heading coord-header col-headers rows]} tables]
+          (kindly-heading heading)
+          (kindly-table rows {:column-names (into [coord-header] col-headers)}))
         (kindly-vega-lite
          (charts/comparison-line-chart-spec comparison {:width chart-width
-                                                        :height chart-height}))
-        :default-table nil))))
+                                                        :height chart-height})))
+
+      :default-table
+      (when-let [tables (comparison/prepare-domain-comparison-tables comparison)]
+        (doseq [{:keys [heading coord-header col-headers rows]} tables]
+          (kindly-heading heading)
+          (kindly-table rows {:column-names (into [coord-header] col-headers)}))))))
 
 (defmethod view/domain-regression* :kindly
   [_ {:keys [regression-id extract-id log-log-id tolerance]} data-map]

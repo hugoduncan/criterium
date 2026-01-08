@@ -449,23 +449,32 @@
   [_ {:keys [comparison-id]} data-map]
   (let [comparison-id (or comparison-id :comparison)
         comparison (data-map comparison-id)]
-    (when-let [tables (comparison/prepare-domain-comparison-tables
-                       comparison)]
-      (doseq [{:keys [rows] heading-text :heading} tables]
-        (heading heading-text)
-        (portal-table rows))
-      (case (detection/comparison-visualization-strategy comparison)
-        :single-point
+    (case (detection/comparison-visualization-strategy comparison)
+      :single-point
+      (when-let [{:keys [heading rows]}
+                 (comparison/prepare-domain-comparison-table-transposed comparison)]
+        (heading heading)
+        (portal-table rows)
         (let [box-spec (charts/comparison-box-chart-spec comparison {:height 400})]
           ;; Fall back to bar chart if box plot has no data (missing bootstrap stats)
           (if (seq (:vconcat box-spec))
             (portal-vega-lite box-spec)
             (portal-vega-lite
-             (charts/comparison-bar-chart-spec comparison {:height 400}))))
-        :multi-point
+             (charts/comparison-bar-chart-spec comparison {:height 400})))))
+
+      :multi-point
+      (when-let [tables (comparison/prepare-domain-comparison-tables comparison)]
+        (doseq [{:keys [rows] heading-text :heading} tables]
+          (heading heading-text)
+          (portal-table rows))
         (portal-vega-lite
-         (charts/comparison-line-chart-spec comparison {:height 400}))
-        :default-table nil))))
+         (charts/comparison-line-chart-spec comparison {:height 400})))
+
+      :default-table
+      (when-let [tables (comparison/prepare-domain-comparison-tables comparison)]
+        (doseq [{:keys [rows] heading-text :heading} tables]
+          (heading heading-text)
+          (portal-table rows))))))
 
 (defmethod view/domain-regression* :portal
   [_ {:keys [regression-id extract-id log-log-id tolerance]} data-map]
