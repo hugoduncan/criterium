@@ -4,7 +4,7 @@
   Provides ISJ (Improved Sheather-Jones) bandwidth selection, Gaussian kernel
   density estimation, bootstrap confidence bands, and mode finding."
   (:require
-   [random.interface :as random]
+   [criterium.random.interface :as random]
    [stats.core :as core]
    [stats.sampling :as sampling]))
 

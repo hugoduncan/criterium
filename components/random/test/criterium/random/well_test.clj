@@ -1,18 +1,18 @@
-(ns random.well-test
+(ns criterium.random.well-test
   (:require
    [clojure.pprint :as pprint]
    [clojure.test :refer [deftest is testing]]
    [clojure.test.check.clojure-test :refer [defspec]]
    [clojure.test.check.generators :as gen]
    [clojure.test.check.properties :as prop]
+   [criterium.random.well :as well]
    [criterium.test-utils :refer [autocorrelation
                                  gen-bounded
                                  make-xoshiro-rng
                                  test-max-error
                                  variance-ratio-uniform
                                  xoshiro-available?]]
-   [criterium.util.stats :as stats]
-   [random.well :as well]))
+   [criterium.util.stats :as stats]))
 
 ;; Tests for WELL RNG 1024a algorithm.
 ;; Verifies correctness, statistical properties, and independence of samples.

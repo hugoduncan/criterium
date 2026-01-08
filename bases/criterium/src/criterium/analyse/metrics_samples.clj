@@ -2,13 +2,13 @@
   (:require
    [criterium.analyse.methods :as methods]
    [criterium.collect-plan :as collect-plan]
+   [criterium.random.interface :as random]
    [criterium.util.helpers :as util]
    [criterium.util.histogram :as histogram]
    [criterium.util.invariant :refer [have]]
    [criterium.util.kde :as kde]
    [criterium.util.sampled-stats :as sampled-stats]
    [criterium.util.stats :as stats]
-   [random.interface :as random]
    [stats.interface :as si]))
 
 (def ^:private metrics-samples-keys

@@ -1,10 +1,10 @@
-(ns random.ziggurat
+(ns criterium.random.ziggurat
   "Ziggurat algorithm for generating normal random variates.
 
   See: An improved Ziggurat method to generate normal random samples,
   Doornik, 2005"
   (:require
-   [random.well :as well]))
+   [criterium.random.well :as well]))
 
 (def ^:dynamic ^Long *zignor-c* 128) ; "Number of blocks."
 ;; "Start of the right tail" (R * phi(R) + Pr(X>=R)) * sqrt(2\pi)

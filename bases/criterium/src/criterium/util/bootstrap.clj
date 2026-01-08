@@ -6,8 +6,8 @@
   (:require
    [criterium.collect-plan :as collect-plan]
    [criterium.metric :as metric]
+   [criterium.random.interface :as random]
    [criterium.util.helpers :as util]
-   [random.interface :as random]
    [stats.interface :as stats]))
 
 ;;; Re-exports from stats.interface for backward compatibility

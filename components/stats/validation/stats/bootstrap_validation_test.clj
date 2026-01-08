@@ -10,9 +10,9 @@
   Tests skip gracefully when R/Rserve is unavailable."
   (:require
    [clojure.test :refer [deftest is testing]]
+   [criterium.random.interface :as random]
    [criterium.test.assert :refer [approx=]]
    [r-validation.r :as r :refer [vec->r-str]]
-   [random.interface :as random]
    [stats.interface :as stats])
   (:import
    [stats.bootstrap BcaEstimate]))

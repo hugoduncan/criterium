@@ -11,7 +11,7 @@
 ;; F. Panneton, P. L'Ecuyer and M. Matsumoto
 ;; http://www.iro.umontreal.ca/~panneton/WELLRNG.html
 
-(ns random.well)
+(ns criterium.random.well)
 
 ;;; Macros to help convert unsigned algorithm to our implementation with signed
 ;;; integers.

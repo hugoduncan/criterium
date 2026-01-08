@@ -1,18 +1,18 @@
-(ns random.ziggurat-test
+(ns criterium.random.ziggurat-test
   (:require
    [clojure.pprint :as pprint]
    [clojure.test :refer [deftest is testing]]
    [clojure.test.check.clojure-test :refer [defspec]]
    [clojure.test.check.generators :as gen]
    [clojure.test.check.properties :as prop]
+   [criterium.random.well :as well]
+   [criterium.random.ziggurat :as ziggurat]
    [criterium.test-utils :refer [abs-error
                                  autocorrelation
                                  make-xoshiro-rng
                                  variance-ratio
                                  xoshiro-available?]]
-   [criterium.util.stats :as stats]
-   [random.well :as well]
-   [random.ziggurat :as ziggurat]))
+   [criterium.util.stats :as stats]))
 
 ;; Tests for ziggurat algorithm for generating normal random variates.
 ;; Verifies correct distribution and independence of samples when using WELL RNG.

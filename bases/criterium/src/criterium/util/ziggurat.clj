@@ -1,13 +1,13 @@
 (ns criterium.util.ziggurat
   "Ziggurat algorithm for generating normal random variates.
 
-  Re-exports from random.interface for backward compatibility.
-  New code should use random.interface directly.
+  Re-exports from criterium.random.interface for backward compatibility.
+  New code should use criterium.random.interface directly.
 
   See: An improved Ziggurat method to generate normal random samples,
   Doornik, 2005"
   (:require
-   [random.ziggurat :as ziggurat]))
+   [criterium.random.ziggurat :as ziggurat]))
 
 ;;; Re-export from random.ziggurat for backward compatibility
 

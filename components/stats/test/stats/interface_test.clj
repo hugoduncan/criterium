@@ -4,7 +4,7 @@
    [clojure.test.check.clojure-test :refer [defspec]]
    [clojure.test.check.generators :as gen]
    [clojure.test.check.properties :as prop]
-   [random.interface :as random]
+   [criterium.random.interface :as random]
    [stats.interface :as stats]))
 
 ;; Tests for stats component functions.

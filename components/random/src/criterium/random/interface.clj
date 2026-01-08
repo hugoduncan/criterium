@@ -1,4 +1,4 @@
-(ns random.interface
+(ns criterium.random.interface
   "Public API for the random component.
 
   Provides pseudo-random number generation:
@@ -12,8 +12,8 @@
   - Ziggurat: An improved Ziggurat method to generate normal random samples,
     Doornik, 2005"
   (:require
-   [random.well :as well]
-   [random.ziggurat :as ziggurat]))
+   [criterium.random.well :as well]
+   [criterium.random.ziggurat :as ziggurat]))
 
 ;;; WELL RNG
 
