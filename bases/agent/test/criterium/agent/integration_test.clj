@@ -177,3 +177,35 @@
              "All threads should get a path")
          (is (apply = paths)
              "All threads should get the same path"))))))
+
+(deftest ^:requires-agent method-tracing-smoke-test
+  ;; Verifies method tracing produces a call tree with expected structure.
+  (testing "method tracing"
+    (when-agent-binary-available
+     (when-agent-not-attached
+      (runtime/load-agent!))
+
+     (if (agent-core/attached?)
+       (testing "captures call tree for simple expression"
+         (agent-core/method-tracing-start!)
+         (try
+           ;; Execute a simple expression that will invoke clojure.lang.Numbers
+           (+ 1 2)
+           (finally
+             (agent-core/method-tracing-stop!)))
+
+         (let [tree (agent-core/collect-method-call-tree)]
+           (is (some? tree)
+               "Should produce a call tree")
+           (when tree
+             (is (map? tree)
+                 "Call tree should be a map")
+             (is (contains? tree :class)
+                 "Call tree node should have :class")
+             (is (contains? tree :method)
+                 "Call tree node should have :method")
+             (is (contains? tree :children)
+                 "Call tree node should have :children")
+             (is (vector? (:children tree))
+                 "Children should be a vector"))))
+       (is true "no agent attached")))))

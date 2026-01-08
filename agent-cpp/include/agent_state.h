@@ -41,6 +41,36 @@ struct ObjectFreeEvent {
 /// Command sent from Java to the agent.
 struct Command {
   jlong cmd;
+  jthread calling_thread = nullptr;  // Thread that sent the command (as global ref)
+  jint caller_frame_count = 0;       // Stack depth of caller (for method tracing)
+
+  void delete_global_refs(JNIEnv* env, IJniOperations& jni_ops) const {
+    if (calling_thread != nullptr) {
+      jni_ops.delete_global_ref(env, calling_thread);
+    }
+  }
+};
+
+/// Method entry event from JVMTI callback, queued for processing.
+struct MethodEntryEvent {
+  jthread thread;
+  jmethodID method;
+  jint frame_count;  // JVM stack depth at time of entry
+
+  void delete_global_refs(JNIEnv* env, IJniOperations& jni_ops) const {
+    jni_ops.delete_global_ref(env, thread);
+  }
+};
+
+/// Method exit event from JVMTI callback, queued for processing.
+struct MethodExitEvent {
+  jthread thread;
+  jmethodID method;
+  jint frame_count;  // JVM stack depth at time of exit
+
+  void delete_global_refs(JNIEnv* env, IJniOperations& jni_ops) const {
+    jni_ops.delete_global_ref(env, thread);
+  }
 };
 
 } // namespace criterium

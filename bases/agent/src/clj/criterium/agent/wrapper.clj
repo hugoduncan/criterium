@@ -30,6 +30,18 @@
   []
   (Agent/allocation_finish_marker))
 
+(defn method-tracing-start-marker
+  "Call Agent.method_tracing_start_marker directly.
+  Generates a method entry event that triggers transition to active state."
+  []
+  (Agent/method_tracing_start_marker))
+
+(defn method-tracing-finish-marker
+  "Call Agent.method_tracing_finish_marker directly.
+  Generates a method entry event that triggers completion of tracing."
+  []
+  (Agent/method_tracing_finish_marker))
+
 (defn set-handler
   "Call Agent.set_handler directly."
   [handler-fn]

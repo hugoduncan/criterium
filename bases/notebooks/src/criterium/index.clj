@@ -21,6 +21,7 @@
 ;; - [Sampled Functions](./criterium.sampled_fn_notebook.html) - Memory-efficient function sampling with t-digest aggregation
 ;; - [Instrumented Functions](./criterium.instrument_fn_notebook.html) - Instrument functions for continuous performance sampling
 ;; - [Allocation Tracking](./criterium.allocation_tracking_notebook.html) - Memory allocation analysis with the native agent
+;; - [Call Tracing](./criterium.call_tracing_notebook.html) - Method call tracing with call graph visualization
 ;; - [Allocation Bench](./criterium.allocation_bench_notebook.html) - Benchmarking with integrated allocation analysis
 ;; - [Domain Bench](./criterium.domain_bench_notebook.html) - Simplified domain benchmarking with domain/bench
 ;; - [Domain Analysis](./criterium.analyse_domain_notebook.html) - Manual domain construction and analysis

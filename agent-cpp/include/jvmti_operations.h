@@ -31,6 +31,9 @@ public:
                                      jint* count, jobject** objects,
                                      jlong** object_tags) = 0;
 
+  // Thread operations
+  virtual bool get_current_thread(jthread* thread) = 0;
+
   // Sampling and event control
   virtual bool set_heap_sampling_interval(jint sampling_interval) = 0;
   virtual bool set_event_notification_mode(jvmtiEventMode mode,
@@ -92,6 +95,11 @@ public:
                              jobject** objects, jlong** object_tags) override {
     auto err =
         jvmti_->GetObjectsWithTags(tag_count, tags, count, objects, object_tags);
+    return err == JVMTI_ERROR_NONE;
+  }
+
+  bool get_current_thread(jthread* thread) override {
+    auto err = jvmti_->GetCurrentThread(thread);
     return err == JVMTI_ERROR_NONE;
   }
 

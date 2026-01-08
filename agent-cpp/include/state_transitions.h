@@ -12,6 +12,13 @@ inline constexpr char const* ALLOCATION_START_MARKER =
 inline constexpr char const* ALLOCATION_FINISH_MARKER =
     "Lcriterium/agent/Agent$AllocationFinishMarker;";
 
+/// Method tracing marker class/method signatures.
+inline constexpr char const* METHOD_TRACING_START_MARKER_CLASS =
+    "Lcriterium/agent/Agent$MethodTracingStartMarker;";
+inline constexpr char const* METHOD_TRACING_FINISH_MARKER_CLASS =
+    "Lcriterium/agent/Agent$MethodTracingFinishMarker;";
+inline constexpr char const* METHOD_TRACING_MARKER_METHOD = "mark";
+
 /// Pure functions for state machine transitions.
 /// These can be tested without mocking JVMTI/JNI.
 namespace state_transitions {
@@ -74,6 +81,76 @@ inline jlong next_state_for_command(jlong cmd) {
 }
 
 } // namespace state_transitions
+
+/// Pure functions for method tracing state machine transitions.
+/// Method tracing uses markers to synchronize state transitions with actual
+/// traced code, ensuring all user code events are captured.
+namespace method_tracing_transitions {
+
+/// Returns true if this is a method tracing start marker event.
+inline bool is_start_marker(const char* class_sig, const char* method_name) {
+  return std::strcmp(class_sig, METHOD_TRACING_START_MARKER_CLASS) == 0 &&
+         std::strcmp(method_name, METHOD_TRACING_MARKER_METHOD) == 0;
+}
+
+/// Returns true if this is a method tracing finish marker event.
+inline bool is_finish_marker(const char* class_sig, const char* method_name) {
+  return std::strcmp(class_sig, METHOD_TRACING_FINISH_MARKER_CLASS) == 0 &&
+         std::strcmp(method_name, METHOD_TRACING_MARKER_METHOD) == 0;
+}
+
+/// Returns the next state after processing a method tracing command.
+/// Returns -1 if the command doesn't cause a state change.
+inline jlong next_state_for_command(jlong cmd) {
+  switch (cmd) {
+  case start_method_tracing:
+    return method_tracing_starting;
+  case stop_method_tracing:
+    return method_tracing_stopping;
+  case report_method_tracing:
+    return method_tracing_reporting;
+  default:
+    return -1; // No state change
+  }
+}
+
+/// Returns true if the given state is a method tracing state.
+inline bool is_method_tracing_state(jlong state) {
+  return state >= method_tracing_starting && state <= method_tracing_reported;
+}
+
+/// Returns true if method tracing is active and should process events.
+inline bool is_method_tracing_active(jlong state) {
+  return state == method_tracing_active;
+}
+
+/// Returns the next state after enabling method tracing events.
+/// Called after start command when events are enabled.
+inline jlong next_state_after_events_enabled(jlong state) {
+  if (state == method_tracing_starting) {
+    return method_tracing_active;
+  }
+  return state;
+}
+
+/// Returns the next state after disabling method tracing events.
+/// Called after stop command when events are disabled.
+inline jlong next_state_after_events_disabled(jlong state) {
+  if (state == method_tracing_stopping) {
+    return method_tracing_stopped;
+  }
+  return state;
+}
+
+/// Returns the next state after method tracing report is complete.
+inline jlong next_state_after_report_complete(jlong state) {
+  if (state == method_tracing_reporting) {
+    return method_tracing_reported;
+  }
+  return state;
+}
+
+} // namespace method_tracing_transitions
 } // namespace criterium
 
 #endif // CRITERIUM_STATE_TRANSITIONS_H

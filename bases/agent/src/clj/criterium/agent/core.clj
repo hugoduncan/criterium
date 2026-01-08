@@ -64,6 +64,20 @@
       (requiring-resolve 'criterium.agent.wrapper/set-handler)
       (catch Exception _ nil))))
 
+(def ^:private wrapper-method-tracing-start-marker
+  "Lazily resolved wrapper/method-tracing-start-marker, or nil if wrapper can't load."
+  (delay
+    (try
+      (requiring-resolve 'criterium.agent.wrapper/method-tracing-start-marker)
+      (catch Exception _ nil))))
+
+(def ^:private wrapper-method-tracing-finish-marker
+  "Lazily resolved wrapper/method-tracing-finish-marker, or nil if wrapper can't load."
+  (delay
+    (try
+      (requiring-resolve 'criterium.agent.wrapper/method-tracing-finish-marker)
+      (catch Exception _ nil))))
+
 ;;; Agent Class Access via Reflection
 
 (def ^:private allocation-class
@@ -71,6 +85,14 @@
   (delay
     (try
       (Class/forName "criterium.agent.Allocation")
+      (catch ClassNotFoundException _
+        nil))))
+
+(def ^:private method-call-class
+  "Lazily resolved MethodCall class, or nil if not available."
+  (delay
+    (try
+      (Class/forName "criterium.agent.MethodCall")
       (catch ClassNotFoundException _
         nil))))
 
@@ -92,26 +114,73 @@
   - :freed        - GC status"
   (atom []))
 
+(def ^:internal method-call-tree
+  "Atom containing the method call tree roots from the last tracing session.
+
+  The value is a vector of tree nodes. Each tree node is a map:
+  {:class       - Class name (JVM internal format converted to standard)
+   :method      - Method name
+   :file        - Source file name (may be nil)
+   :line        - Line number (-1 if unknown)
+   :call-count  - Number of times this call path was executed
+   :children    - Vector of child call nodes}
+
+  Multiple roots occur when separate call chains are traced (e.g., user code
+  followed by the tracing infrastructure's stop function)."
+  (atom []))
+
 (defn internal->class-name
   "Convert an internal JVM class name to standard Java/Clojure class name.
 
   Parameter:
     internal-name - String in JVM internal format (e.g. 'Ljava/lang/String;')
+                   Also handles primitive arrays ('[B', '[I', etc.) and
+                   object arrays ('[Ljava/lang/String;')
 
   Return:
     Standard class name with dot notation (e.g. 'java.lang.String')
+    or array notation (e.g. 'byte[]', 'String[]')
 
   Example:
     (internal->class-name \"Ljava/util/List;\")
-    => \"java.util.List\""
+    => \"java.util.List\"
+    (internal->class-name \"[B\")
+    => \"byte[]\"
+    (internal->class-name \"[Ljava/lang/String;\")
+    => \"java.lang.String[]\""
   [internal-name]
-  {:pre [(have? string? internal-name)
-         (have? #(str/starts-with? % "L") internal-name)
-         (have? #(str/includes? % "/") internal-name)
-         (have? #(str/ends-with? % ";") internal-name)]}
-  (-> internal-name
-      (subs 1 (dec (count internal-name)))
-      (str/replace "/" ".")))
+  {:pre [(have? string? internal-name)]}
+  (cond
+    ;; Primitive array types
+    (= internal-name "[B") "byte[]"
+    (= internal-name "[C") "char[]"
+    (= internal-name "[D") "double[]"
+    (= internal-name "[F") "float[]"
+    (= internal-name "[I") "int[]"
+    (= internal-name "[J") "long[]"
+    (= internal-name "[S") "short[]"
+    (= internal-name "[Z") "boolean[]"
+
+    ;; Object array type: [Lclassname;
+    (str/starts-with? internal-name "[L")
+    (str (-> internal-name
+             (subs 2 (dec (count internal-name)))
+             (str/replace "/" "."))
+         "[]")
+
+    ;; Multi-dimensional arrays (just return as-is for now)
+    (str/starts-with? internal-name "[[")
+    internal-name
+
+    ;; Standard object type: Lclassname;
+    (and (str/starts-with? internal-name "L")
+         (str/ends-with? internal-name ";"))
+    (-> internal-name
+        (subs 1 (dec (count internal-name)))
+        (str/replace "/" "."))
+
+    ;; Unknown format - return as-is
+    :else internal-name))
 
 (def ^:private allocation-start-marker-jvm-type
   "Lcriterium/agent/Agent$AllocationStartMarker;")
@@ -124,16 +193,45 @@
   ^Class []
   @allocation-class)
 
+(defn- get-method-call-class
+  "Returns the MethodCall class with proper type hint to avoid reflection."
+  ^Class []
+  @method-call-class)
+
 (defn- blank->nil [s]
   (when-not (str/blank? s)
     s))
 
-(defn- data-fn
-  "Callback function invoked by the native agent for allocation events.
+(defn- method-call->map
+  "Recursively convert a MethodCall Java object to a Clojure map.
 
-  Processes allocation events from the native agent and stores them in
-  the records atom. Handles both object and primitive allocation
-  records.
+  Transforms the tree structure into nested maps with:
+  - :class converted from JVM internal format to standard class names
+  - :children as a vector of child call maps"
+  [method-call]
+  (when method-call
+    (let [^Class klass (get-method-call-class)
+          class-field (.getField klass "class_name")
+          method-field (.getField klass "method_name")
+          source-field (.getField klass "source_file")
+          line-field (.getField klass "line_number")
+          count-field (.getField klass "call_count")
+          children-field (.getField klass "children")
+          class-name (.get class-field method-call)
+          children ^objects (.get children-field method-call)]
+      {:class (when class-name (internal->class-name class-name))
+       :method (.get method-field method-call)
+       :file (blank->nil (.get source-field method-call))
+       :line (.get line-field method-call)
+       :call-count (.get count-field method-call)
+       :children (mapv method-call->map children)})))
+
+(defn- data-fn
+  "Callback function invoked by the native agent for data events.
+
+  Processes data from the native agent and stores in appropriate atoms:
+  - Allocation objects -> records atom
+  - MethodCall objects -> method-call-tree atom
 
   Implementation Notes:
   - Called from native code via JNI
@@ -142,11 +240,16 @@
   - Filters out internal marker allocations
 
   Called in two forms:
-  1. Single object form for complex allocations
+  1. Single object form for complex allocations and method call trees
   2. Multi-argument form for primitive allocations"
   ([object]
    (cond
-     ;; Use reflection to check instance type
+     ;; Handle MethodCall objects for method tracing
+     ;; Accumulate multiple roots (each top-level call chain is sent separately)
+     (and @method-call-class (.isInstance (get-method-call-class) object))
+     (swap! method-call-tree conj (method-call->map object))
+
+     ;; Handle Allocation objects for allocation tracing
      (and @allocation-class (.isInstance (get-allocation-class) object))
      (let [object-type (.getField (get-allocation-class) "object_type")
            object-size (.getField (get-allocation-class) "object_size")
@@ -224,13 +327,19 @@
   - :start-allocation-tracing - Begin allocation tracking
   - :stop-allocation-tracing - End allocation tracking
   - :report-allocation-tracing - Retrieve allocation data
+  - :start-method-tracing - Begin method call tracing
+  - :stop-method-tracing - End method call tracing
+  - :report-method-tracing - Retrieve method call tree
 
   Values correspond to the native agent protocol constants."
   {:ping 0
    :sync-state 1
    :start-allocation-tracing 10
    :stop-allocation-tracing 11
-   :report-allocation-tracing 12})
+   :report-allocation-tracing 12
+   :start-method-tracing 20
+   :stop-method-tracing 21
+   :report-method-tracing 22})
 
 (def ^:private states
   "Map of numeric state codes to their keyword representations.
@@ -238,11 +347,21 @@
   Agent States and Transitions:
   :not-attached (-1) - Agent not loaded or initialized
   :passive (0) - Agent loaded but inactive
+
+  Allocation Tracing States:
   :allocation-tracing-starting (10) -> :allocation-tracing-active
   :allocation-tracing-active (11) - Collecting allocation data
   :allocation-tracing-stopping (15) -> :allocation-tracing-flushing
   :allocation-tracing-flushing (16) -> :allocation-tracing-flushed
   :allocation-tracing-flushed (17) - Data ready for collection
+
+  Method Tracing States:
+  :method-tracing-starting (20) -> :method-tracing-active
+  :method-tracing-active (21) - Capturing method entry/exit events
+  :method-tracing-stopping (25) -> :method-tracing-stopped
+  :method-tracing-stopped (26) - Events captured, ready to report
+  :method-tracing-reporting (27) -> :method-tracing-reported
+  :method-tracing-reported (28) - Call tree data sent to handler
 
   State transitions are managed by agent commands."
   {-1 :not-attached
@@ -253,7 +372,13 @@
    16 :allocation-tracing-flushing
    17 :allocation-tracing-flushed
    18 :allocation-tracing-reporting
-   19 :allocation-tracing-reported})
+   19 :allocation-tracing-reported
+   20 :method-tracing-starting
+   21 :method-tracing-active
+   25 :method-tracing-stopping
+   26 :method-tracing-stopped
+   27 :method-tracing-reporting
+   28 :method-tracing-reported})
 
 (defn ^:internal agent-command
   "Send a command to the native agent.
@@ -471,3 +596,117 @@
      :num-freed (count freed)
      :allocated-bytes (reduce + (map :object_size records))
      :freed-bytes (reduce + (map :object_size freed))}))
+
+;;; Method Tracing Control
+
+(defn ^:internal method-tracing-active?
+  "Test if method tracing is currently active.
+
+  Returns true only when the agent is in the :method-tracing-active state."
+  []
+  (= (agent-state) :method-tracing-active))
+
+(defn ^:internal method-tracing-starting?
+  "Test if method tracing is in starting state (waiting for start marker)."
+  []
+  (= (agent-state) :method-tracing-starting))
+
+(defn ^:internal method-tracing-start-marker
+  "Call the method tracing start marker.
+
+  This generates a MethodEntry event that the agent uses to transition
+  from :method-tracing-starting to :method-tracing-active state."
+  []
+  (assert @wrapper-method-tracing-start-marker "Agent not loaded")
+  (@wrapper-method-tracing-start-marker))
+
+(defn ^:internal method-tracing-finish-marker
+  "Call the method tracing finish marker.
+
+  This generates a MethodEntry event that the agent uses to transition
+  from :method-tracing-stopping to :method-tracing-stopped state."
+  []
+  (assert @wrapper-method-tracing-finish-marker "Agent not loaded")
+  (@wrapper-method-tracing-finish-marker))
+
+(defn ^:internal method-tracing-start!
+  "Initialize and start method call tracing.
+
+  Sends the start command to the agent, waits for events to be enabled,
+  then calls the start marker to synchronize the transition to active state.
+  This ensures all method events after the marker are captured.
+
+  Implementation Notes:
+  - Blocks until tracing is active
+  - Uses marker-based synchronization for precise event capture
+  - May timeout if agent doesn't respond
+  - Thread-safe but should not be called concurrently"
+  []
+  (agent-command :start-method-tracing)
+  ;; Wait for starting state (events are enabled but not yet recording)
+  (loop [i 1000]
+    (when (and (pos? i) (not (method-tracing-starting?)))
+      (Thread/sleep 1)
+      (recur (unchecked-dec i))))
+  (when (not (method-tracing-starting?))
+    (println "WARNING method tracing failed to reach starting state"))
+  ;; Call start marker to trigger transition to active
+  (method-tracing-start-marker)
+  ;; Wait for active state
+  (loop [i 1000]
+    (when (and (pos? i) (not (method-tracing-active?)))
+      (Thread/sleep 1)
+      (method-tracing-start-marker)
+      (recur (unchecked-dec i))))
+  (when (not (method-tracing-active?))
+    (println "WARNING method tracing failed to start promptly")))
+
+(defn ^:internal method-tracing-stop!
+  "Stop method call tracing.
+
+  Sends the stop command to the agent, then calls the finish marker to
+  ensure all user code events are captured before transitioning to stopped.
+
+  Implementation Notes:
+  - Blocks until processing complete
+  - Uses marker-based synchronization for precise event capture
+  - Thread-safe but should not be called concurrently
+  - May timeout if agent doesn't respond"
+  []
+  (agent-command :stop-method-tracing)
+  ;; Wait for stopping state
+  (loop [i 1000]
+    (when (and (pos? i) (not= (agent-state) :method-tracing-stopping))
+      (Thread/sleep 1)
+      (recur (unchecked-dec i))))
+  ;; Call finish marker to trigger transition to stopped
+  (method-tracing-finish-marker)
+  ;; Wait for stopped state
+  (loop [i 1000]
+    (when (and (pos? i) (not= (agent-state) :method-tracing-stopped))
+      (Thread/sleep 1)
+      (recur (unchecked-dec i))))
+  (when (not= (agent-state) :method-tracing-stopped)
+    (println "WARNING method tracing failed to stop promptly")))
+
+(defn ^:internal collect-method-call-tree
+  "Retrieve the method call tree from the agent.
+
+  Sends the report command and waits for the agent to send the MethodCall
+  trees via the data callback. The trees are accumulated in the
+  method-call-tree atom.
+
+  Returns a vector of call tree root nodes."
+  []
+  (reset! method-call-tree [])
+  (agent-command :report-method-tracing)
+  ;; Method tracing can capture many events (10000s), so use a real sleep
+  ;; rather than yield to give the consumer thread time to process.
+  (loop [i 1000]
+    (when (and (pos? i)
+               (not= (agent-state) :method-tracing-reported))
+      (Thread/sleep 1)
+      (recur (unchecked-dec i))))
+  (when (not= (agent-state) :method-tracing-reported)
+    (println "WARNING method tracing failed to collect results promptly"))
+  @method-call-tree)

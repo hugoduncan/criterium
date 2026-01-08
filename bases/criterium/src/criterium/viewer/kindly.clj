@@ -13,6 +13,7 @@
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have]]
    [criterium.view :as view]
+   [criterium.viewer.call-graph :as call-graph]
    [criterium.viewer.common-charts :as charts]
    [criterium.viewer.common.allocation :as allocation]
    [criterium.viewer.common.bootstrap :as bootstrap]
@@ -481,6 +482,37 @@
            {:column-names [:metric :median :median-ci-lower :median-ci-upper
                            :mean :mean-ci-lower :mean-ci-upper
                            :p10 :p90]}))))))
+
+;;; Call Tree Views
+
+(defmethod view/call-tree* :kindly
+  [_ {:keys [call-tree-id]} data-map]
+  (let [call-tree-id (or call-tree-id :call-tree)
+        call-tree (get data-map call-tree-id)]
+    (when call-tree
+      (let [total-calls (call-graph/total-call-count call-tree)]
+        (kindly-heading (clojure.core/format "Call Tree (%d total calls)" total-calls))
+        (kindly-vega (charts/call-tree-tree-vega-spec call-tree {}))))))
+
+(defmethod view/call-flame* :kindly
+  [_ {:keys [call-tree-id]} data-map]
+  (let [call-tree-id (or call-tree-id :call-tree)
+        call-tree (get data-map call-tree-id)]
+    (when call-tree
+      (let [total-calls (call-graph/total-call-count call-tree)]
+        (kindly-heading "Call Flame Chart")
+        (kindly-vega (charts/call-tree-flame-vega-spec call-tree total-calls {}))))))
+
+(defmethod view/most-called* :kindly
+  [_ {:keys [most-called-id]} data-map]
+  (let [most-called-id (or most-called-id :most-called)
+        most-called-data (get data-map most-called-id)]
+    (when most-called-data
+      (let [methods (:most-called most-called-data)
+            total-in-list (reduce + 0 (map :total-calls methods))]
+        (kindly-heading (clojure.core/format "Most Called Methods (top %d, %d total calls)"
+                                             (count methods) total-in-list))
+        (kindly-vega-lite (charts/most-called-vega-lite-spec most-called-data {}))))))
 
 ;;; Noop implementations for views not applicable to Kindly output
 

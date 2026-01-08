@@ -296,6 +296,43 @@
    [:axis :any]
    [:regressions map?]])
 
+;;; Call Graph Types
+
+(def call-tree-node
+  "Schema for a call tree node from method tracing.
+  Recursive structure with children."
+  [:map
+   [:class [:maybe string?]]
+   [:method [:maybe string?]]
+   [:file {:optional true} [:maybe string?]]
+   [:line {:optional true} [:maybe int?]]
+   [:call-count nat-int?]
+   [:children {:optional true} [:vector [:ref :criterium/call-tree-node]]]])
+
+(def call-graph-data-map
+  "Schema for data maps from call graph tracing.
+  Contains :call-tree and optionally :most-called after analysis."
+  [:map
+   [:call-tree {:optional true} [:maybe [:ref :criterium/call-tree-node]]]
+   [:most-called {:optional true} [:ref :criterium/most-called-map]]])
+
+(def most-called-entry
+  "Schema for an entry in the most-called analysis result."
+  [:map
+   [:class [:maybe string?]]
+   [:method [:maybe string?]]
+   [:file {:optional true} [:maybe string?]]
+   [:line {:optional true} [:maybe int?]]
+   [:total-calls pos-int?]])
+
+(def most-called-map
+  "Schema for most-called analysis results."
+  [:map
+   [:type [:= :criterium/most-called]]
+   [:source-id keyword?]
+   [:limit pos-int?]
+   [:most-called [:vector [:ref :criterium/most-called-entry]]]])
+
 ;;; Registry
 
 (def registry
@@ -338,7 +375,12 @@
     :criterium/domain-extract-map     domain-extract-map
     :criterium/domain-grouped-map     domain-grouped-map
     :criterium/domain-comparison-map  domain-comparison-map
-    :criterium/domain-regression-map  domain-regression-map}))
+    :criterium/domain-regression-map  domain-regression-map
+    ;; Call graph type schemas
+    :criterium/call-tree-node         call-tree-node
+    :criterium/call-graph-data-map    call-graph-data-map
+    :criterium/most-called-entry      most-called-entry
+    :criterium/most-called-map        most-called-map}))
 
 (defn validator
   "Create a validator function for a schema.
