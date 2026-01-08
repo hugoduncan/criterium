@@ -4,7 +4,9 @@
  :hooks
  {:analyze-call
   {criterium.view/def-multi-view       hooks.impl/def-multi-view
-   criterium.util.forms/cond*          hooks.impl/cond*}}
+   criterium.util.forms/cond*          hooks.impl/cond*
+   criterium.utils.forms/cond*         hooks.impl/cond*
+   criterium.utils.interface/cond*     hooks.impl/cond*}}
  :lint-as {babashka.fs/with-temp-dir                 clojure.core/with-open
            build-test/with-cached-agent-build      clj-kondo.lint-as/def-catch-all
            clojure.test.check.clojure-test/defspec clojure.core/def

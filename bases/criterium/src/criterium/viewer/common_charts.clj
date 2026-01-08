@@ -6,12 +6,12 @@
   (:require
    [clojure.string :as str]
    [criterium.metric :as metric]
+   [criterium.stats.interface :as si]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have have?]]
    [criterium.util.probability :as probability]
    [criterium.viewer.common.core :as core]
-   [criterium.viewer.common.domain.comparison :as comparison]
-   [stats.interface :as si]))
+   [criterium.viewer.common.domain.comparison :as comparison]))
 
 ;;; Scatter plots
 

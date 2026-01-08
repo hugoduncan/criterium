@@ -2,7 +2,7 @@
   "Criterium domain helpers and backward-compatible re-exports from utils."
   (:refer-clojure :exclude [update-vals])
   (:require
-   [utils.interface :as utils :refer [have have?]]))
+   [criterium.utils.interface :as utils :refer [have have?]]))
 
 ;;; Re-exports from utils component for backward compatibility
 

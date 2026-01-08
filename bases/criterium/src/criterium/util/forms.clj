@@ -1,10 +1,10 @@
 (ns criterium.util.forms
   "Control flow macros.
 
-  This namespace delegates to utils.interface for the core implementation
+  This namespace delegates to criterium.utils.interface for the core implementation
   and is retained for backward compatibility."
   (:require
-   [utils.interface :as utils]))
+   [criterium.utils.interface :as utils]))
 
 (defmacro cond*
   "A cond variant that allows :let bindings visible to subsequent clauses.

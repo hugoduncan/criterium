@@ -4,9 +4,9 @@
    Implements optimal bin count selection by maximizing a log-posterior
    based on Knuth (2019) DOI: 10.1016/j.dsp.2019.102581
 
-   Re-exports from stats.interface for backward compatibility."
+   Re-exports from criterium.stats.interface for backward compatibility."
   (:require
-   [stats.interface :as stats]))
+   [criterium.stats.interface :as stats]))
 
 (def log-posterior
   "Compute Knuth's log-posterior for M bins given sample count and bin counts.

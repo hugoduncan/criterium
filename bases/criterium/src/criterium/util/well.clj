@@ -10,10 +10,10 @@
 (ns criterium.util.well
   "WELL RNG 1024a implementation.
 
-  Re-exports from random.interface for backward compatibility.
-  New code should use random.interface directly."
+  Re-exports from criterium.random.interface for backward compatibility.
+  New code should use criterium.random.interface directly."
   (:require
-   [random.well :as well]))
+   [criterium.random.well :as well]))
 
 ;;; Re-export from random.well for backward compatibility
 
