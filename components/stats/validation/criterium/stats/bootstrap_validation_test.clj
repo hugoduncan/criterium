@@ -13,7 +13,7 @@
    [criterium.random.interface :as random]
    [criterium.stats.interface :as stats]
    [criterium.test.assert :refer [approx=]]
-   [r-validation.r :as r :refer [vec->r-str]])
+   [criterium.r-validation.r :as r :refer [vec->r-str]])
   (:import
    [criterium.stats.bootstrap BcaEstimate]))
 

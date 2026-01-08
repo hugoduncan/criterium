@@ -1,10 +1,10 @@
-(ns r-validation.r-test
+(ns criterium.r-validation.r-test
   "Tests for the R connection helper.
 
   Verifies the R connection helper handles both available and unavailable cases."
   (:require
    [clojure.test :refer [deftest is testing]]
-   [r-validation.r :as r]))
+   [criterium.r-validation.r :as r]))
 
 (deftest r-connection-test
   ;; Verifies the R connection helper handles both available and unavailable cases.

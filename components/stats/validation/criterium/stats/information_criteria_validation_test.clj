@@ -15,7 +15,7 @@
    [clojure.test :refer [deftest is testing]]
    [criterium.stats.interface :as stats]
    [criterium.test.assert :refer [approx=]]
-   [r-validation.r :as r]))
+   [criterium.r-validation.r :as r]))
 
 ;;; Test cases for information criteria
 ;; Each case: [k n log-likelihood description]

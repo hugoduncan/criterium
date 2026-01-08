@@ -13,7 +13,7 @@
    [clojure.test :refer [deftest is testing]]
    [criterium.stats.interface :as stats]
    [criterium.test.assert :refer [approx=]]
-   [r-validation.r :as r]))
+   [criterium.r-validation.r :as r]))
 
 ;;; Test quantiles
 ;; Standard quantile points to test across the distribution

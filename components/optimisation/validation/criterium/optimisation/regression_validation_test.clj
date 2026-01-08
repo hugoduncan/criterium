@@ -6,7 +6,7 @@
    [clojure.test :refer [deftest is testing]]
    [criterium.optimisation.interface :as optimisation]
    [criterium.test.assert :refer [approx=]]
-   [r-validation.r :as r :refer [vec->r-str]]))
+   [criterium.r-validation.r :as r :refer [vec->r-str]]))
 
 (defn near-zero=
   "Check if both values are essentially zero (within abs-tol of 0).
