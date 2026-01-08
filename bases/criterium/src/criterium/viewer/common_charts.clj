@@ -1631,11 +1631,8 @@
   When scale-by-jacobian? is true, the PDF is multiplied by x to convert from
   density-per-original-unit to density-per-log-unit (for overlay on log-transformed KDE).
 
-  When show-legend? is true, this layer will display the color legend. Only one
-  layer should have show-legend? true to avoid duplicate legends.
-
   Returns a Vega-Lite layer spec or nil if the distribution couldn't be fitted."
-  [dist fit-result grid field-name transforms scale-by-jacobian? show-legend?]
+  [dist fit-result grid field-name transforms scale-by-jacobian?]
   (when (and (:params fit-result)
              (not (:error fit-result))
              (not (:skipped fit-result)))
@@ -1694,9 +1691,7 @@
              grid
              field-name
              transforms
-             scale-by-jacobian?
-             ;; Legend shown on KDE layer, not distribution layers
-             false)))
+             scale-by-jacobian?)))
          (filterv some?))))
 
 (defn distribution-pdf-vega-spec
@@ -2071,21 +2066,6 @@
                   samples
                   transforms)))
          (filterv some?))))
-
-(defn- qq-observed-data-range
-  "Extract the min and max observed values from Q-Q layer data points.
-
-  Returns [min-val max-val] covering only the observed (sample) values.
-  The reference line should span the observed range, not the theoretical
-  quantiles which can be extreme for poorly-fitting distributions."
-  [qq-layers]
-  (let [observed-values (for [layer qq-layers
-                              point (get-in layer [:data :values])
-                              :let [v (get point "observed")]
-                              :when (and v (not (Double/isNaN v)) (Double/isFinite v))]
-                          v)]
-    (when (seq observed-values)
-      [(apply min observed-values) (apply max observed-values)])))
 
 (defn- qq-subplot-spec
   "Build a single Q-Q subplot for one distribution.

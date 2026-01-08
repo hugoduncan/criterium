@@ -1686,7 +1686,9 @@
                   {:width 600 :height 200 :axis-name "n"})
             result (schema/validate-vega-lite-spec spec)]
         (is (:valid? result)
-            (str "log-log-residual-spec validation failed: "))))));;; Distribution PDF overlay tests.
+            "log-log-residual-spec validation failed")))))
+
+;;; Distribution PDF overlay tests.
 ;;; Verifies PDF overlay layer generation for fitted distributions.
 
 (def sample-fit-result
@@ -1707,7 +1709,7 @@
     (testing "produces valid layer for fitted distribution"
       (let [layer (charts/distribution-pdf-layer
                    :gamma sample-fit-result sample-grid "elapsed-time"
-                   identity-transforms false true)]
+                   identity-transforms false)]
         (is (map? layer))
         (is (contains? layer :data))
         (is (contains? layer :mark))
@@ -1716,7 +1718,7 @@
     (testing "includes PDF density values in data"
       (let [layer (charts/distribution-pdf-layer
                    :gamma sample-fit-result sample-grid "elapsed-time"
-                   identity-transforms false true)
+                   identity-transforms false)
             data (get-in layer [:data :values])]
         (is (= 5 (count data)))
         (is (every? #(contains? % "elapsed-time") data))
@@ -1727,14 +1729,14 @@
     (testing "uses line mark"
       (let [layer (charts/distribution-pdf-layer
                    :gamma sample-fit-result sample-grid "elapsed-time"
-                   identity-transforms false true)]
+                   identity-transforms false)]
         (is (= "line" (get-in layer [:mark :type])))))
 
     (testing "best model has solid line"
       (let [best-result (assoc sample-fit-result :best-model :gamma)
             layer (charts/distribution-pdf-layer
                    :gamma best-result sample-grid "elapsed-time"
-                   identity-transforms false true)]
+                   identity-transforms false)]
         (is (= [1 0] (get-in layer [:mark :strokeDash])))
         (is (= 2.5 (get-in layer [:mark :strokeWidth])))))
 
@@ -1742,7 +1744,7 @@
       (let [non-best-result (assoc sample-fit-result :best-model :lognormal)
             layer (charts/distribution-pdf-layer
                    :gamma non-best-result sample-grid "elapsed-time"
-                   identity-transforms false true)]
+                   identity-transforms false)]
         (is (= [4 4] (get-in layer [:mark :strokeDash])))
         (is (= 1.5 (get-in layer [:mark :strokeWidth])))))
 
@@ -1750,14 +1752,14 @@
       (let [failed-result {:error "Fitting failed"}
             layer (charts/distribution-pdf-layer
                    :gamma failed-result sample-grid "elapsed-time"
-                   identity-transforms false true)]
+                   identity-transforms false)]
         (is (nil? layer))))
 
     (testing "returns nil for skipped distribution"
       (let [skipped-result {:skipped :moment-match-failed}
             layer (charts/distribution-pdf-layer
                    :gamma skipped-result sample-grid "elapsed-time"
-                   identity-transforms false true)]
+                   identity-transforms false)]
         (is (nil? layer))))
 
     (testing "works for all distribution types"
@@ -1768,24 +1770,11 @@
         (let [result {:params params}
               layer (charts/distribution-pdf-layer
                      dist result sample-grid "elapsed-time"
-                     identity-transforms false true)]
+                     identity-transforms false)]
           (is (map? layer)
               (str "Failed for distribution: " dist))
           (is (seq (get-in layer [:data :values]))
-              (str "No data for distribution: " dist)))))
-
-    (testing "shows legend when show-legend? is true"
-      (let [layer (charts/distribution-pdf-layer
-                   :gamma sample-fit-result sample-grid "elapsed-time"
-                   identity-transforms false true)]
-        (is (some? (get-in layer [:encoding :color :legend])))))
-
-    (testing "hides legend when show-legend? is false"
-      (let [layer (charts/distribution-pdf-layer
-                   :gamma sample-fit-result sample-grid "elapsed-time"
-                   identity-transforms false false)]
-        ;; Legend is either nil or false (Vega-Lite accepts both to hide legend)
-        (is (not (get-in layer [:encoding :color :legend])))))))
+              (str "No data for distribution: " dist)))))))
 
 (deftest distribution-pdf-overlay-layers-test
   ;; Tests overlay layer generation for multiple distributions.
