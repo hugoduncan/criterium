@@ -56,6 +56,12 @@
   (core/transpose
    (map #(statistic (drop-at %1 data)) (range (count data)))))
 
+(defn- nan-safe-compare
+  "Comparator that handles NaN values by sorting them to the end.
+  Uses Java's Double/compare which treats NaN as greater than all other values."
+  ^long [^double a ^double b]
+  (Double/compare a b))
+
 (defn bca-nonparametric-eval
   "Calculate bootstrap values for given estimate and samples.
 
@@ -82,7 +88,7 @@
         ooo                   (map
                                (fn [^double x] (utils/trunc (* x ^long size)))
                                tt)
-        sorted-samples        (sort samples)
+        sorted-samples        (sort nan-safe-compare samples)
         confpoints            (map (partial nth sorted-samples) ooo)]
     [confpoints z0 acc jack-mean jack-samples]))
 
