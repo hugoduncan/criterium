@@ -334,7 +334,8 @@
       :metrics-defs metrics-defs
       :transform collect-plan/identity-transforms
       :batch-size 1
-      :source-id :samples}}))
+      :source-id :samples
+      :outliers-id nil}}))
 
 (defn distribution-fit-data-map
   "Create a data-map with KDE, samples and distribution-fit data for testing

@@ -1686,7 +1686,7 @@
                   {:width 600 :height 200 :axis-name "n"})
             result (schema/validate-vega-lite-spec spec)]
         (is (:valid? result)
-            (str "log-log-residual-spec validation failed: ";;; Distribution PDF overlay tests.
+            (str "log-log-residual-spec validation failed: "))))));;; Distribution PDF overlay tests.
 ;;; Verifies PDF overlay layer generation for fitted distributions.
 
 (def sample-fit-result

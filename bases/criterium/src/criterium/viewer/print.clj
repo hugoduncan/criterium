@@ -14,7 +14,8 @@
    [criterium.viewer.common.domain.detection :as detection]
    [criterium.viewer.common.domain.extract :as extract]
    [criterium.viewer.common.modal :as modal]
-   [criterium.viewer.common.regression :as regression]))
+   [criterium.viewer.common.regression :as regression]
+   [criterium.viewer.common.shape :as shape]))
 
 (set! *unchecked-math* false)
 
@@ -558,7 +559,7 @@
                               (metric/type-pred :quantitative)))
             metric-configs (metric/all-metric-configs metrics-defs)
             bootstrap (util/bootstrap bootstrap-map)
-            shape-data (viewer-common/shape-stats-data metric-configs bootstrap)]
+            shape-data (shape/shape-stats-data metric-configs bootstrap)]
         (when (seq shape-data)
           (println "Shape Statistics:")
           (doseq [{:keys [metric skewness skewness-class
