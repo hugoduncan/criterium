@@ -65,14 +65,15 @@
 (defmethod view/stats* :print
   [_ {:keys [stats-id metric-ids]} data-map]
   (let [stats-id (or stats-id :stats)
-        stats-map (data-map stats-id)
-        metrics-defs (-> (:metrics-defs stats-map)
-                         (metric/select-metrics metric-ids))
-        metric-configs (metric/all-metric-configs metrics-defs)]
-    (print-stats
-     metric-configs
-     (util/stats stats-map)
-     (util/get-transforms data-map stats-id))))
+        stats-map (data-map stats-id)]
+    (when stats-map
+      (let [metrics-defs (-> (:metrics-defs stats-map)
+                             (metric/select-metrics metric-ids))
+            metric-configs (metric/all-metric-configs metrics-defs)]
+        (print-stats
+         metric-configs
+         (util/stats stats-map)
+         (util/get-transforms data-map stats-id))))))
 
 (defn print-event-stats-metrics
   [event-stats metric ms]

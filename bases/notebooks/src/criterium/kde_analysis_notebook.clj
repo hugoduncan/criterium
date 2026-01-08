@@ -209,6 +209,7 @@
               [:stats {:samples-id :log-samples :id :log-stats}]
               :histogram
               [:kde {:n-points 256 :n-bootstrap 100}]
+              :kde-stats
               [:modes {:max-modes 3 :n-bootstrap 100 :method :acr}]
               :event-stats])))
 
@@ -231,6 +232,7 @@
               [:stats {:samples-id :log-samples :id :log-stats}]
               :histogram
               [:kde {:n-points 512}]
+              :kde-stats
               [:modes {:max-modes 3 :mode-method :critical}]
               :event-stats])))
 
