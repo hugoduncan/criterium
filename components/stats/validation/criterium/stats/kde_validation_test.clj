@@ -4,9 +4,9 @@
   Tests skip gracefully when R/Rserve is unavailable."
   (:require
    [clojure.test :refer [deftest is testing]]
+   [criterium.r-validation.r :as r :refer [vec->r-str]]
    [criterium.stats.interface :as stats]
-   [criterium.test.assert :refer [approx=]]
-   [criterium.r-validation.r :as r :refer [vec->r-str]]))
+   [criterium.test.assert :refer [approx=]]))
 
 ;;; Test data sets
 ;; Fixed datasets for reproducible validation

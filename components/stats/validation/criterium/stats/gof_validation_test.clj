@@ -12,9 +12,9 @@
   (:require
    [clojure.string :as str]
    [clojure.test :refer [deftest is testing]]
+   [criterium.r-validation.r :as r]
    [criterium.stats.interface :as stats]
-   [criterium.test.assert :refer [approx=]]
-   [criterium.r-validation.r :as r]))
+   [criterium.test.assert :refer [approx=]]))
 
 ;;; Test Data
 ;; Using fixed data for reproducibility

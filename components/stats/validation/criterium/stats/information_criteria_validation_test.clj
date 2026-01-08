@@ -13,9 +13,9 @@
     AICc = AIC + (2*k*(k+1))/(n-k-1)"
   (:require
    [clojure.test :refer [deftest is testing]]
+   [criterium.r-validation.r :as r]
    [criterium.stats.interface :as stats]
-   [criterium.test.assert :refer [approx=]]
-   [criterium.r-validation.r :as r]))
+   [criterium.test.assert :refer [approx=]]))
 
 ;;; Test cases for information criteria
 ;; Each case: [k n log-likelihood description]

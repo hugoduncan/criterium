@@ -11,9 +11,9 @@
   - Inverse Gaussian: dinvgauss, pinvgauss (requires statmod package)"
   (:require
    [clojure.test :refer [deftest is testing]]
+   [criterium.r-validation.r :as r]
    [criterium.stats.interface :as stats]
-   [criterium.test.assert :refer [approx=]]
-   [criterium.r-validation.r :as r]))
+   [criterium.test.assert :refer [approx=]]))
 
 ;;; Test quantiles
 ;; Standard quantile points to test across the distribution

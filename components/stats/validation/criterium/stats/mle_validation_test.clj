@@ -11,10 +11,11 @@
 
   Also validates digamma and trigamma functions."
   (:require
+   [clojure.string :as str]
    [clojure.test :refer [deftest is testing]]
+   [criterium.r-validation.r :as r]
    [criterium.stats.interface :as stats]
-   [criterium.test.assert :refer [approx=]]
-   [criterium.r-validation.r :as r]))
+   [criterium.test.assert :refer [approx=]]))
 
 ;;; Digamma and Trigamma Validation
 
@@ -126,7 +127,7 @@
         (is true "Skipped - R unavailable"))
       (do
         (testing "against R's MASS::fitdistr"
-          (let [data-str (str "c(" (clojure.string/join "," gamma-test-data) ")")
+          (let [data-str (str "c(" (str/join "," gamma-test-data) ")")
                 ;; Load MASS and fit gamma distribution
                 _ (r/r-eval "library(MASS)")
                 r-result (r/r-eval (str "fit <- fitdistr(" data-str ", 'gamma'); "
@@ -151,11 +152,11 @@
 
         (testing "with different shape values"
           ;; Test with data that has known gamma parameters
-          (doseq [[desc data expected-shape expected-scale]
-                  [["low shape (k~1)" [0.5 1.2 0.8 1.5 0.3 2.1 0.9 1.1 0.6 1.8] 1.0 1.0]
-                   ["high shape (k~5)" [4.2 5.1 4.8 5.5 4.0 5.8 4.5 5.2 4.3 5.6] 5.0 1.0]]]
+          (doseq [[desc data]
+                  [["low shape (k~1)" [0.5 1.2 0.8 1.5 0.3 2.1 0.9 1.1 0.6 1.8]]
+                   ["high shape (k~5)" [4.2 5.1 4.8 5.5 4.0 5.8 4.5 5.2 4.3 5.6]]]]
             (testing desc
-              (let [data-str (str "c(" (clojure.string/join "," data) ")")
+              (let [data-str (str "c(" (str/join "," data) ")")
                     r-result (r/r-eval (str "fit <- fitdistr(" data-str ", 'gamma'); "
                                             "c(fit$estimate['shape'], fit$estimate['rate'])"))
                     r-shape (first r-result)
@@ -183,7 +184,7 @@
         (is true "Skipped - R unavailable"))
       (do
         (testing "against R's MASS::fitdistr"
-          (let [data-str (str "c(" (clojure.string/join "," lognormal-test-data) ")")
+          (let [data-str (str "c(" (str/join "," lognormal-test-data) ")")
                 _ (r/r-eval "library(MASS)")
                 r-result (r/r-eval (str "fit <- fitdistr(" data-str ", 'lognormal'); "
                                         "c(fit$estimate['meanlog'], fit$estimate['sdlog'], fit$loglik)"))
@@ -241,7 +242,7 @@
       (do
         (r/r-eval "library(statmod)")
         (testing "against R's closed-form MLE"
-          (let [data-str (str "c(" (clojure.string/join "," inverse-gaussian-test-data) ")")
+          (let [data-str (str "c(" (str/join "," inverse-gaussian-test-data) ")")
                 ;; Inverse Gaussian MLE: mu = mean(x), lambda = n / sum(1/x - 1/mu)
                 r-result (r/r-eval (str "x <- " data-str "; "
                                         "n <- length(x); "
@@ -261,7 +262,7 @@
                   (format "lambda mismatch: R=%.10f, clj=%.10f" r-lambda clj-lambda)))))
 
         (testing "log-likelihood matches R's dinvgauss"
-          (let [data-str (str "c(" (clojure.string/join "," inverse-gaussian-test-data) ")")
+          (let [data-str (str "c(" (str/join "," inverse-gaussian-test-data) ")")
                 clj-result (stats/inverse-gaussian-mle inverse-gaussian-test-data)
                 clj-mu (get-in clj-result [:params :mu])
                 clj-lambda (get-in clj-result [:params :lambda])
@@ -277,7 +278,7 @@
                   [["narrow distribution" [1.9 2.0 2.1 1.95 2.05 1.98 2.02 1.97 2.03 2.0]]
                    ["wide distribution" [0.5 3.5 1.2 2.8 0.8 3.2 1.5 2.5 1.0 3.0]]]]
             (testing desc
-              (let [data-str (str "c(" (clojure.string/join "," data) ")")
+              (let [data-str (str "c(" (str/join "," data) ")")
                     r-result (r/r-eval (str "x <- " data-str "; "
                                             "n <- length(x); "
                                             "mu <- mean(x); "
@@ -303,7 +304,7 @@
         (is true "Skipped - R unavailable"))
       (do
         (testing "against R's MASS::fitdistr"
-          (let [data-str (str "c(" (clojure.string/join "," weibull-test-data) ")")
+          (let [data-str (str "c(" (str/join "," weibull-test-data) ")")
                 ;; Load MASS and fit weibull distribution
                 _ (r/r-eval "library(MASS)")
                 r-result (r/r-eval (str "fit <- fitdistr(" data-str ", 'weibull'); "
@@ -331,7 +332,7 @@
                   [["low shape (k~1)" [0.5 1.2 0.8 1.5 0.3 2.1 0.9 1.1 0.6 1.8]]
                    ["high shape (k~5)" [4.8 5.0 4.9 5.1 4.7 5.2 4.85 5.05 4.95 5.15]]]]
             (testing desc
-              (let [data-str (str "c(" (clojure.string/join "," data) ")")
+              (let [data-str (str "c(" (str/join "," data) ")")
                     r-result (r/r-eval (str "fit <- fitdistr(" data-str ", 'weibull'); "
                                             "c(fit$estimate['shape'], fit$estimate['scale'])"))
                     r-shape (first r-result)
@@ -347,7 +348,7 @@
                             desc r-scale clj-scale))))))
 
         (testing "log-likelihood matches R's dweibull"
-          (let [data-str (str "c(" (clojure.string/join "," weibull-test-data) ")")
+          (let [data-str (str "c(" (str/join "," weibull-test-data) ")")
                 clj-result (stats/weibull-mle weibull-test-data)
                 clj-shape (get-in clj-result [:params :shape])
                 clj-scale (get-in clj-result [:params :scale])
