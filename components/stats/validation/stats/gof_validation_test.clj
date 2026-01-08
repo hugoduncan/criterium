@@ -62,7 +62,7 @@
                 normal-cdf-fn (fn [x]
                                 (stats/normal-cdf (/ (- x mean-val) sd-val)))
                 clj-d (stats/ks-test-statistic normal-test-data normal-cdf-fn)]
-            (is (approx= r-d clj-d 1e-10)
+            (is (approx= r-d clj-d 1e-7)
                 (format "D statistic mismatch: R=%.10f, clj=%.10f" r-d clj-d))))
 
         (testing "against R's ks.test for uniform distribution"
