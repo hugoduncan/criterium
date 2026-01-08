@@ -14,7 +14,8 @@
    [criterium.viewer.common.domain.detection :as detection]
    [criterium.viewer.common.domain.extract :as extract]
    [criterium.viewer.common.modal :as modal]
-   [criterium.viewer.common.regression :as regression]))
+   [criterium.viewer.common.regression :as regression]
+   [criterium.viewer.common.shape :as shape]))
 
 (set! *unchecked-math* false)
 
@@ -64,14 +65,15 @@
 (defmethod view/stats* :print
   [_ {:keys [stats-id metric-ids]} data-map]
   (let [stats-id (or stats-id :stats)
-        stats-map (data-map stats-id)
-        metrics-defs (-> (:metrics-defs stats-map)
-                         (metric/select-metrics metric-ids))
-        metric-configs (metric/all-metric-configs metrics-defs)]
-    (print-stats
-     metric-configs
-     (util/stats stats-map)
-     (util/get-transforms data-map stats-id))))
+        stats-map (data-map stats-id)]
+    (when stats-map
+      (let [metrics-defs (-> (:metrics-defs stats-map)
+                             (metric/select-metrics metric-ids))
+            metric-configs (metric/all-metric-configs metrics-defs)]
+        (print-stats
+         metric-configs
+         (util/stats stats-map)
+         (util/get-transforms data-map stats-id))))))
 
 (defn print-event-stats-metrics
   [event-stats metric ms]
@@ -513,6 +515,216 @@
 (defmethod view/sample-percentiles* :print
   [_ _view _sampled])
   ;; TODO
+
+;;; Shape Statistics Views
+
+(defn- format-skewness-class
+  "Format skewness classification for display."
+  [classification]
+  (case classification
+    :highly-left-skewed "highly left-skewed"
+    :moderately-left-skewed "moderately left-skewed"
+    :slightly-left-skewed "slightly left-skewed"
+    :symmetric "symmetric"
+    :slightly-right-skewed "slightly right-skewed"
+    :moderately-right-skewed "moderately right-skewed"
+    :highly-right-skewed "highly right-skewed"
+    (name classification)))
+
+(defn- format-kurtosis-class
+  "Format kurtosis classification for display."
+  [classification]
+  (case classification
+    :heavy-tails "heavy tails (leptokurtic)"
+    :light-tails "light tails (platykurtic)"
+    :normal-tails "normal tails (mesokurtic)"
+    (name classification)))
+
+(defn- format-cv-class
+  "Format CV classification for display."
+  [classification]
+  (case classification
+    :low-variability "low variability"
+    :moderate-variability "moderate variability"
+    :high-variability "high variability"
+    (name classification)))
+
+(defn print-shape-stats
+  "Print shape statistics (skewness, kurtosis, CV) for bootstrap results."
+  [{:keys [bootstrap-stats-id] :as _view} data-map]
+  (let [bootstrap-stats-id (or bootstrap-stats-id :bootstrap-stats)
+        bootstrap-map (data-map bootstrap-stats-id)]
+    (when bootstrap-map
+      (let [metrics-defs (-> (:metrics-defs bootstrap-map)
+                             (metric/filter-metrics
+                              (metric/type-pred :quantitative)))
+            metric-configs (metric/all-metric-configs metrics-defs)
+            bootstrap (util/bootstrap bootstrap-map)
+            shape-data (shape/shape-stats-data metric-configs bootstrap)]
+        (when (seq shape-data)
+          (println "Shape Statistics:")
+          (doseq [{:keys [metric skewness skewness-class
+                          kurtosis kurtosis-class
+                          cv cv-class]} shape-data]
+            (println
+             (format "%32s: skewness %s (%s)"
+                     metric skewness (format-skewness-class skewness-class)))
+            (println
+             (format "%32s  kurtosis %s (%s)"
+                     "" kurtosis (format-kurtosis-class kurtosis-class)))
+            (println
+             (format "%32s  CV %s (%s)"
+                     "" cv (format-cv-class cv-class)))))))))
+
+(defmethod view/shape-stats* :print
+  [_ view data-map]
+  (print-shape-stats view data-map))
+
+;;; Distribution Fit Views
+
+(def ^:private distribution-labels
+  "Human-readable labels for distributions."
+  {:gamma "Gamma"
+   :lognormal "Log-normal"
+   :inverse-gaussian "Inverse Gaussian"
+   :weibull "Weibull"})
+
+(defn- format-gof-result
+  "Format a goodness-of-fit test result."
+  [{:keys [statistic p-value]}]
+  (when (and statistic p-value)
+    (format "D=%.4f p=%.4f" statistic p-value)))
+
+(defn- format-param-ci
+  "Format a parameter confidence interval."
+  [{:keys [point-estimate ci-lower ci-upper]}]
+  (when point-estimate
+    (format "%.4g [%.4g, %.4g]" point-estimate ci-lower ci-upper)))
+
+(defn- print-distribution-result
+  "Print a single distribution's fit result."
+  [dist result is-best?]
+  (let [label (get distribution-labels dist (name dist))
+        marker (if is-best? " <- BEST" "")]
+    (cond
+      (:error result)
+      (println (format "%20s: error - %s" label (:error result)))
+
+      (:skipped result)
+      (println (format "%20s: skipped (%s)" label (name (:skipped result))))
+
+      :else
+      (let [{:keys [aic delta-aic bic ks cvm]} result]
+        (println (format "%20s: AIC=%.1f (Δ%.1f) BIC=%.1f%s"
+                         label aic (or delta-aic 0.0) bic marker))
+        (when ks
+          (println (format "%20s  K-S: %s"
+                           "" (format-gof-result ks))))
+        (when cvm
+          (println (format "%20s  CvM: %s"
+                           "" (format-gof-result cvm))))))))
+
+(defn- print-parameter-cis
+  "Print parameter confidence intervals for best model."
+  [dist cis]
+  (when (seq cis)
+    (let [label (get distribution-labels dist (name dist))]
+      (println (format "%20s  Parameter CIs:" label))
+      (doseq [[param ci-data] cis]
+        (println (format "%20s    %s: %s"
+                         "" (name param) (format-param-ci ci-data)))))))
+
+(defn- print-distribution-models-for-metric
+  "Print distribution model comparison for a single metric."
+  [metric-config fit-data]
+  (let [{:keys [n warning distributions best-model]} fit-data
+        {:keys [label]} metric-config]
+    (println (format "%32s: Distribution Models (n=%d%s)"
+                     label n
+                     (if warning " - WARNING: small sample" "")))
+    ;; Print each distribution result, best model first
+    (when best-model
+      (print-distribution-result best-model (get distributions best-model) true))
+    (doseq [[dist result] (sort-by (fn [[_ r]] (or (:delta-aic r) Double/MAX_VALUE))
+                                   distributions)]
+      (when (not= dist best-model)
+        (print-distribution-result dist result false)))
+    (println)))
+
+(defn print-distribution-models
+  "Print distribution model comparison for all metrics."
+  [{:keys [distribution-fit-id] :as _view} data-map]
+  (let [distribution-fit-id (or distribution-fit-id :distribution-fit)
+        distribution-fit-map (data-map distribution-fit-id)]
+    (when distribution-fit-map
+      (let [fits (:fits distribution-fit-map)
+            metrics-defs (:metrics-defs (data-map :samples))
+            metric-configs (when metrics-defs
+                             (metric/all-metric-configs
+                              (metric/filter-metrics
+                               metrics-defs
+                               (metric/type-pred :quantitative))))]
+        (when (seq fits)
+          (println "Distribution Model Comparison:")
+          (if metric-configs
+            (doseq [mc metric-configs]
+              (when-let [fit-data (get fits (:path mc))]
+                (print-distribution-models-for-metric mc fit-data)))
+            ;; Fallback if no metric-configs available
+            (doseq [[path fit-data] fits]
+              (print-distribution-models-for-metric
+               {:label (str path) :path path}
+               fit-data))))))))
+
+(defmethod view/distribution-models* :print
+  [_ view data-map]
+  (print-distribution-models view data-map))
+
+(defn- print-distribution-parameter-cis-for-metric
+  "Print parameter CIs for a single metric's best model."
+  [metric-config fit-data]
+  (let [{:keys [best-model parameter-cis]} fit-data
+        {:keys [label]} metric-config]
+    (when (and best-model (get parameter-cis best-model))
+      (println (format "%32s: %s Parameter CIs"
+                       label
+                       (get distribution-labels best-model (name best-model))))
+      (print-parameter-cis best-model (get parameter-cis best-model))
+      (println))))
+
+(defn print-distribution-parameter-cis
+  "Print parameter CIs for best models across all metrics."
+  [{:keys [distribution-fit-id] :as _view} data-map]
+  (let [distribution-fit-id (or distribution-fit-id :distribution-fit)
+        distribution-fit-map (data-map distribution-fit-id)]
+    (when distribution-fit-map
+      (let [fits (:fits distribution-fit-map)
+            metrics-defs (:metrics-defs (data-map :samples))
+            metric-configs (when metrics-defs
+                             (metric/all-metric-configs
+                              (metric/filter-metrics
+                               metrics-defs
+                               (metric/type-pred :quantitative))))]
+        (when (seq fits)
+          (println "Distribution Parameter Confidence Intervals:")
+          (if metric-configs
+            (doseq [mc metric-configs]
+              (when-let [fit-data (get fits (:path mc))]
+                (print-distribution-parameter-cis-for-metric mc fit-data)))
+            ;; Fallback if no metric-configs available
+            (doseq [[path fit-data] fits]
+              (print-distribution-parameter-cis-for-metric
+               {:label (str path) :path path}
+               fit-data))))))))
+
+(defmethod view/distribution-parameter-cis* :print
+  [_ view data-map]
+  (print-distribution-parameter-cis view data-map))
+
+;; Chart views are no-ops for print viewer
+(defmethod view/distribution-pdf* :print [_ _ _])
+(defmethod view/distribution-cdf* :print [_ _ _])
+(defmethod view/distribution-qq* :print [_ _ _])
 
 ;;; Domain Views
 

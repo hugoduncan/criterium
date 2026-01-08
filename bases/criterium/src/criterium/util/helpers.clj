@@ -322,3 +322,8 @@
   "Identity wrapper for outlier-significance-map construction.
   Validation handled by malli instrumentation during development."
   [x] x)
+
+(defn ->distribution-fit-map
+  "Identity wrapper for distribution-fit-map construction.
+  Validation handled by malli instrumentation during development."
+  [x] x)

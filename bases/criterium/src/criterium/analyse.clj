@@ -780,6 +780,90 @@
   ([opts]
    (allocation-analysis/treemap-fn opts)))
 
+(defn distribution-fit
+  "Fits parametric distributions to sample data using MLE.
+
+  Returns a function that computes maximum likelihood estimates for
+  gamma, log-normal, inverse-gaussian, and Weibull distributions,
+  with model selection via AIC/BIC and goodness-of-fit testing.
+
+  Parameters:
+    opts - Optional map with keys:
+      :id           - Key for fit results in output (default: :distribution-fit)
+      :samples-id   - Key for source samples (default: :samples)
+      :outliers-id  - Key for outlier analysis to filter (default: :outliers)
+      :metric-ids   - Set of metric ids to analyze (default: all quantitative)
+      :distributions - Vector of distributions to fit (default: all four)
+                      Options: :gamma, :lognormal, :inverse-gaussian, :weibull
+      :n-bootstrap  - Bootstrap samples for parameter CIs (default: 200)
+      :alpha        - Significance level for CIs (default: 0.05)
+
+  The returned function:
+  - Takes a sampled data map containing samples
+  - Returns the map with distribution fits added under :id key
+  - For each metric provides:
+    - :n - sample size
+    - :warning - :small-sample if n < 30
+    - :distributions - map of distribution to fit results:
+      - :params - fitted parameters
+      - :log-likelihood - maximized log-likelihood
+      - :aic, :bic, :aicc - information criteria
+      - :delta-aic - difference from best model's AIC
+      - :ks-test, :cvm-test - goodness-of-fit test results
+      - Or :error/:skipped if fitting failed
+    - :best-model - distribution with lowest AIC
+    - :parameter-cis - bootstrap CIs for best model parameters
+
+  Uses moment-matching prefilter to skip distributions with invalid
+  initial parameter estimates. Bootstraps parameter CIs only for
+  the best model by AIC.
+
+  Example:
+  (let [analyze (distribution-fit {:distributions [:gamma :lognormal]})
+        result (analyze {:samples {...} :outliers {...}})]
+    (get-in result [:distribution-fit :elapsed-time :best-model]))
+  ;; Returns :gamma or :lognormal"
+  ([] (distribution-fit {}))
+  ([{:keys [id samples-id metric-ids distributions n-bootstrap alpha]
+     :as options}]
+   (let [samples-id (or samples-id :samples)
+         id (or id :distribution-fit)
+         ;; Use :outliers as default only if key not provided
+         ;; Explicit nil means no outlier filtering
+         outliers-id (if (contains? options :outliers-id)
+                       (:outliers-id options)
+                       :outliers)]
+     (fn [data-map]
+       (let [metrics-samples (get data-map samples-id)]
+         (if-not metrics-samples
+           data-map
+           (let [outliers (when outliers-id (get data-map outliers-id))
+                 metrics-defs (-> (have (:metrics-defs metrics-samples))
+                                  (metric/select-metrics metric-ids)
+                                  (metric/filter-metrics
+                                   (metric/type-pred :quantitative)))
+                 metric-configs (metric/all-metric-configs metrics-defs)
+                 fit-options (cond-> {}
+                               distributions (assoc :distributions distributions)
+                               n-bootstrap (assoc :n-bootstrap n-bootstrap)
+                               alpha (assoc :alpha alpha))
+                 fit-result (methods/distribution-fit
+                             metrics-samples
+                             outliers
+                             metric-configs
+                             fit-options)]
+             (if fit-result
+               (let [fit-map (util/->distribution-fit-map
+                              (merge
+                               {:type :criterium/distribution-fit
+                                :metrics-defs metrics-defs
+                                :source-id samples-id
+                                :outliers-id outliers-id
+                                :batch-size (:batch-size metrics-samples)}
+                               fit-result))]
+                 (assoc data-map id fit-map))
+               data-map))))))))
+
 (def bootstrap-stats
   "Analysis function that adds bootstrap statistics to the result.
 

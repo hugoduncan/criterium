@@ -148,6 +148,19 @@ When completing a story, kill any nREPL processes that are running in the story'
 2. **Analysis** - Apply statistical analysis to raw metrics
 3. **Viewing** - Format and present results through viewers
 
+Each of these must be usable independently. e.g the collection can be
+replaced by the instrument-fn or sampled-fn results.
+
+**Analysis vs View Separation** (critical design constraint):
+- **Analysis** (`criterium.analyse`) contains ALL non-visualization computation. Users must be able to access all criterium analysis results without using viewers. Analysis functions transform data maps and produce computed results (statistics, fits, tests, etc.).
+- **View** (`criterium.view`, `criterium.viewer.*`) contains ONLY visualization-specific functionality. Viewers format and display analysis results but must not perform analysis-type computation. Different viewers should render the same pre-computed analysis data.
+
+**Bench Plans** (`criterium.bench-plans`):
+- Compose collection, analysis, and view stages into reusable configurations
+- Define which collectors to use, which analyses to run, and which views to display
+- Users select a bench plan to get a complete benchmarking workflow
+- Custom bench plans allow tailored analysis pipelines (e.g., distribution fitting, allocation profiling)
+
 **Key Abstractions**:
 - `measured` - Wraps expressions/functions for measurement
 - `collector` - Captures various metrics during execution
@@ -177,10 +190,36 @@ When completing a story, kill any nREPL processes that are running in the story'
 - `criterium.core/bench` - Deprecated but still available
 - `criterium.core/quick-bench` - Fast benchmarking variant
 
+### Domain Analysis
+
+Domain analysis enables benchmarking across a parameter space (varying input sizes, comparing implementations) rather than at a single point.
+
+**Main API** (`criterium.domain`):
+- `domain-expr` - Macro to define axes and implementations concisely
+- `bench` - Run benchmarks across a domain and analyze results
+- `domain`, `add-run`, `runs`, `select` - Domain data structure operations
+
+**Domain Plans** (`criterium.domain-plans`):
+- `complexity-analysis` - Fit O(log n), O(n), O(n log n), O(n²) models
+- `implementation-comparison` - Compare implementations across an :impl axis
+- `extract-metrics` - Extract all quantitative metrics from runs
+
+**Analysis Functions** (`criterium.domain.analysis`):
+- `extract` - Extract metric values from all runs
+- `compare-by` - Compare metrics across an axis dimension
+- `group-by-axis` - Partition runs by axis values
+- `fit-complexity` - Fit complexity models to extracted data
+- `analyse-domain` - Execute a domain plan
+
+**Builder** (`criterium.domain.builder`):
+- `domain-builder` - Build domain by running benchmarks across axes
+- `log-range`, `linear-range` - Generate coordinate ranges
+
 ### Viewers
 - `:print` - Default human-readable text output
 - `:pprint` - Pretty-printed structured output
 - `:portal` - Interactive charts and visualizations (requires Portal)
+- `:kindly` - Notebook charts and visualizations using kindly
 
 ## Testing Strategy
 

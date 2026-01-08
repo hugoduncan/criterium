@@ -2,10 +2,16 @@
   "Public API for the stats component.
 
   Provides statistical functions including:
-  - Core stats: min, max, mean, sum, variance, median, quartiles, quantile
+  - Core stats: min, max, mean, sum, variance, median, quartiles, quantile,
+                skewness, kurtosis
   - Outlier detection: boxplot-outlier-thresholds
   - Sampling: uniform-distribution, sample-uniform, sample, confidence-interval
-  - Probability: log-gamma, erf, normal-cdf, normal-pdf, normal-quantile
+  - Probability: log-gamma, digamma, trigamma, erf, normal-cdf, normal-pdf, normal-quantile
+  - Distributions: gamma, weibull, lognormal, inverse-gaussian (PDF and CDF)
+  - Model selection: aic, bic, aicc (information criteria)
+  - Goodness-of-fit tests: ks-test, cvm-test (Kolmogorov-Smirnov, Cramér-von Mises)
+  - Moment matching: parameter estimation, distribution suitability prefilter
+  - MLE fitting: gamma-mle, lognormal-mle, inverse-gaussian-mle, weibull-mle
   - Histogram: histogram (Freedman-Diaconis or Knuth Bayesian binning)
   - Knuth: optimal-bins, log-posterior (Bayesian histogram binning)
   - T-digest: streaming quantile estimation
@@ -20,6 +26,8 @@
    [stats.kde :as kde]
    [stats.kernel :as kernel]
    [stats.knuth :as knuth]
+   [stats.mle :as mle]
+   [stats.moment-match :as moment-match]
    [stats.outliers :as outliers]
    [stats.probability :as probability]
    [stats.sampling :as sampling]
@@ -93,6 +101,50 @@
   "Calculate the quantile of a sorted data set."
   [^double quantile data]
   (core/quantile quantile data))
+
+(defn central-moment
+  "Compute the r-th central moment: (1/n) * Σ(xᵢ - μ)^r"
+  ^double [data ^double mean ^long r]
+  (core/central-moment data mean r))
+
+(defn skewness
+  "Compute sample skewness using one of three methods.
+
+  Type 1: g₁ = m₃ / m₂^(3/2) - typical textbook definition
+  Type 2: G₁ = g₁ × √(n(n-1)) / (n-2) - unbiased under normality (SAS/SPSS)
+  Type 3: b₁ = g₁ × ((n-1)/n)^(3/2) - used in MINITAB/BMDP
+
+  Default is type 2 (unbiased under normality).
+
+  Reference: Joanes & Gill (1998), Comparing measures of sample skewness
+             and kurtosis. The Statistician, 47, 183-189."
+  (^double [data] (core/skewness data))
+  (^double [data type] (core/skewness data type)))
+
+(defn kurtosis
+  "Compute sample excess kurtosis using one of three methods.
+
+  Type 1: g₂ = m₄ / m₂² - 3 - typical textbook definition
+  Type 2: G₂ = ((n+1)g₂ + 6)(n-1) / ((n-2)(n-3)) - unbiased under normality (SAS/SPSS)
+  Type 3: b₂ = (g₂ + 3)((n-1)/n)² - 3 - used in MINITAB/BMDP
+
+  Default is type 2 (unbiased under normality). Returns excess kurtosis
+  (normal distribution has excess kurtosis of 0).
+
+  Reference: Joanes & Gill (1998), Comparing measures of sample skewness
+             and kurtosis. The Statistician, 47, 183-189."
+  (^double [data] (core/kurtosis data))
+  (^double [data type] (core/kurtosis data type)))
+
+(defn cv
+  "Coefficient of variation (CV), also known as relative standard deviation.
+  Computed as σ/μ (standard deviation divided by mean).
+
+  Returns Double/NaN if mean is zero or data has fewer than 2 elements.
+  CV is dimensionless and useful for comparing variability across datasets
+  with different units or scales."
+  ^double [data]
+  (core/cv data))
 
 ;;; Outliers
 
@@ -186,6 +238,395 @@
   approximately 15 digits of precision. Matches R's lgamma() behavior."
   ^double [^double x]
   (probability/log-gamma x))
+
+(defn digamma
+  "Compute the digamma function ψ(x) = d/dx ln(Γ(x)) = Γ'(x)/Γ(x).
+
+  Uses the asymptotic expansion for large x and recurrence relation for small x.
+  Accurate to ~15 digits for x > 0. Matches R's digamma() behavior."
+  ^double [^double x]
+  (probability/digamma x))
+
+(defn trigamma
+  "Compute the trigamma function ψ'(x) = d²/dx² ln(Γ(x)).
+
+  Uses the asymptotic expansion for large x and recurrence relation for small x.
+  Accurate to ~15 digits for x > 0. Matches R's trigamma() behavior."
+  ^double [^double x]
+  (probability/trigamma x))
+
+(defn regularized-gamma-p
+  "Regularized lower incomplete gamma function P(a, x) = γ(a,x) / Γ(a).
+  Uses series expansion for small x, continued fraction for large x.
+  This is the CDF of the gamma distribution with shape=a and scale=1."
+  ^double [^double a ^double x]
+  (probability/regularized-gamma-p a x))
+
+;;; Gamma Distribution
+
+(defn gamma-pdf
+  "Probability density function for the gamma distribution.
+  Returns a function f(x) that computes the density at x."
+  [^double shape ^double scale]
+  (probability/gamma-pdf shape scale))
+
+(defn gamma-cdf
+  "Cumulative distribution function for the gamma distribution.
+  Returns a function F(x) that computes P(X ≤ x)."
+  [^double shape ^double scale]
+  (probability/gamma-cdf shape scale))
+
+;;; Weibull Distribution
+
+(defn weibull-pdf
+  "Probability density function for the Weibull distribution.
+  Returns a function f(x) that computes the density at x."
+  [^double shape ^double scale]
+  (probability/weibull-pdf shape scale))
+
+(defn weibull-cdf
+  "Cumulative distribution function for the Weibull distribution.
+  Returns a function F(x) that computes P(X ≤ x)."
+  [^double shape ^double scale]
+  (probability/weibull-cdf shape scale))
+
+;;; Log-normal Distribution
+
+(defn lognormal-pdf
+  "Probability density function for the log-normal distribution.
+  Returns a function f(x) that computes the density at x."
+  [^double mu ^double sigma]
+  (probability/lognormal-pdf mu sigma))
+
+(defn lognormal-cdf
+  "Cumulative distribution function for the log-normal distribution.
+  Returns a function F(x) that computes P(X ≤ x)."
+  [^double mu ^double sigma]
+  (probability/lognormal-cdf mu sigma))
+
+;;; Inverse Gaussian Distribution
+
+(defn inverse-gaussian-pdf
+  "Probability density function for the inverse Gaussian distribution.
+  Returns a function f(x) that computes the density at x."
+  [^double mu ^double lambda]
+  (probability/inverse-gaussian-pdf mu lambda))
+
+(defn inverse-gaussian-cdf
+  "Cumulative distribution function for the inverse Gaussian distribution.
+  Returns a function F(x) that computes P(X ≤ x)."
+  [^double mu ^double lambda]
+  (probability/inverse-gaussian-cdf mu lambda))
+
+;;; Information Criteria for Model Selection
+
+(defn aic
+  "Akaike Information Criterion.
+
+  AIC = 2k - 2·ln(L)
+
+  Parameters:
+    k - number of estimated parameters
+    log-likelihood - log-likelihood value (log(L))
+
+  Lower AIC indicates better model fit."
+  ^double [^long k ^double log-likelihood]
+  (probability/aic k log-likelihood))
+
+(defn bic
+  "Bayesian Information Criterion (Schwarz criterion).
+
+  BIC = k·ln(n) - 2·ln(L)
+
+  Parameters:
+    k - number of estimated parameters
+    n - sample size
+    log-likelihood - log-likelihood value (log(L))
+
+  Lower BIC indicates better model fit."
+  ^double [^long k ^long n ^double log-likelihood]
+  (probability/bic k n log-likelihood))
+
+(defn aicc
+  "Corrected Akaike Information Criterion for small samples.
+
+  AICc = AIC + (2k² + 2k) / (n - k - 1)
+
+  Parameters:
+    k - number of estimated parameters
+    n - sample size
+    log-likelihood - log-likelihood value (log(L))
+
+  For small samples (n/k < 40), AICc should be used instead of AIC.
+  Requires n > k + 1."
+  ^double [^long k ^long n ^double log-likelihood]
+  (probability/aicc k n log-likelihood))
+
+;;; Goodness-of-Fit Tests
+
+(defn ks-test-statistic
+  "Compute the Kolmogorov-Smirnov D statistic.
+
+  D = max|Fₙ(x) - F(x)|
+
+  Parameters:
+    samples - sequence of sample values
+    cdf-fn - theoretical CDF function (e.g., from gamma-cdf, weibull-cdf)
+
+  Returns the D statistic."
+  ^double [samples cdf-fn]
+  (probability/ks-test-statistic samples cdf-fn))
+
+(defn ks-pvalue
+  "Compute asymptotic p-value for Kolmogorov-Smirnov test.
+
+  Uses the asymptotic distribution with continuity correction.
+
+  Parameters:
+    d-statistic - the D statistic from ks-test-statistic
+    n - sample size
+
+  Returns the two-sided p-value."
+  ^double [^double d-statistic ^long n]
+  (probability/ks-pvalue d-statistic n))
+
+(defn ks-test
+  "One-sample Kolmogorov-Smirnov goodness-of-fit test.
+
+  Tests whether the sample comes from the specified distribution.
+
+  Parameters:
+    samples - sequence of sample values
+    cdf-fn - theoretical CDF function (e.g., (gamma-cdf shape scale))
+
+  Returns map with:
+    :statistic - the D statistic
+    :p-value - asymptotic two-sided p-value
+    :n - sample size
+
+  A small p-value suggests the sample does not come from the specified distribution."
+  [samples cdf-fn]
+  (probability/ks-test samples cdf-fn))
+
+(defn cvm-test-statistic
+  "Compute the Cramér-von Mises W² statistic.
+
+  W² = (1/12n) + Σᵢ₌₁ⁿ [F(xᵢ) - (2i-1)/(2n)]²
+
+  Parameters:
+    samples - sequence of sample values
+    cdf-fn - theoretical CDF function
+
+  Returns the W² statistic."
+  ^double [samples cdf-fn]
+  (probability/cvm-test-statistic samples cdf-fn))
+
+(defn cvm-pvalue
+  "Compute asymptotic p-value for Cramér-von Mises test.
+
+  Parameters:
+    w2-statistic - the W² statistic from cvm-test-statistic
+    n - sample size
+
+  Returns the p-value."
+  ^double [^double w2-statistic ^long n]
+  (probability/cvm-pvalue w2-statistic n))
+
+(defn cvm-test
+  "One-sample Cramér-von Mises goodness-of-fit test.
+
+  Tests whether the sample comes from the specified distribution.
+  W² is more sensitive to differences in the tails than K-S.
+
+  Parameters:
+    samples - sequence of sample values
+    cdf-fn - theoretical CDF function (e.g., (gamma-cdf shape scale))
+
+  Returns map with:
+    :statistic - the W² statistic
+    :p-value - asymptotic p-value
+    :n - sample size
+
+  A small p-value suggests the sample does not come from the specified distribution."
+  [samples cdf-fn]
+  (probability/cvm-test samples cdf-fn))
+
+;;; Moment-Based Parameter Estimation
+
+(defn gamma-moment-estimate
+  "Estimate gamma distribution parameters using method of moments.
+
+  Parameters (returned):
+    shape (k) = mean² / variance
+    scale (θ) = variance / mean
+
+  Returns nil if estimates are invalid (non-positive mean or variance)."
+  [^double mean ^double variance]
+  (moment-match/gamma-moment-estimate mean variance))
+
+(defn lognormal-moment-estimate
+  "Estimate log-normal distribution parameters using method of moments.
+
+  Parameters (log-space):
+    sigma² = log(1 + variance/mean²)
+    mu = log(mean) - sigma²/2
+
+  Returns nil if mean is non-positive or variance is negative."
+  [^double mean ^double variance]
+  (moment-match/lognormal-moment-estimate mean variance))
+
+(defn inverse-gaussian-moment-estimate
+  "Estimate inverse Gaussian distribution parameters using method of moments.
+
+  Parameters:
+    mu = mean
+    lambda = mean³ / variance
+
+  Returns nil if mean or variance is non-positive."
+  [^double mean ^double variance]
+  (moment-match/inverse-gaussian-moment-estimate mean variance))
+
+(defn weibull-moment-estimate
+  "Estimate Weibull distribution parameters using method of moments.
+
+  Uses the coefficient of variation to estimate shape, then derives scale.
+  Returns nil if mean/variance non-positive or CV > 2."
+  [^double mean ^double variance]
+  (moment-match/weibull-moment-estimate mean variance))
+
+(def all-distributions
+  "Set of all distributions supported by the moment-match prefilter."
+  moment-match/all-distributions)
+
+(defn moment-match-prefilter
+  "Screen distributions for suitability based on sample moments.
+
+  Takes sample mean and variance and returns a map of distributions with
+  their moment-based parameter estimates. Distributions where moment
+  matching yields invalid parameters are excluded.
+
+  Parameters:
+    mean - sample mean
+    variance - sample variance
+    distributions - (optional) set of distributions to check, defaults to all
+
+  Returns map from distribution keyword to {:params {...} :suitable? true/false}."
+  ([^double mean ^double variance]
+   (moment-match/moment-match-prefilter mean variance))
+  ([^double mean ^double variance distributions]
+   (moment-match/moment-match-prefilter mean variance distributions)))
+
+(defn suitable-distributions
+  "Return the set of distributions suitable for the given sample statistics.
+
+  Parameters:
+    mean - sample mean
+    variance - sample variance
+    distributions - (optional) set of distributions to check, defaults to all
+
+  Returns set of suitable distribution keywords."
+  ([^double mean ^double variance]
+   (moment-match/suitable-distributions mean variance))
+  ([^double mean ^double variance distributions]
+   (moment-match/suitable-distributions mean variance distributions)))
+
+(defn unsuitable-distributions
+  "Return the set of distributions unsuitable for the given sample statistics.
+
+  Parameters:
+    mean - sample mean
+    variance - sample variance
+    distributions - (optional) set of distributions to check, defaults to all
+
+  Returns set of unsuitable distribution keywords."
+  ([^double mean ^double variance]
+   (moment-match/unsuitable-distributions mean variance))
+  ([^double mean ^double variance distributions]
+   (moment-match/unsuitable-distributions mean variance distributions)))
+
+;;; Maximum Likelihood Estimation
+
+(defn gamma-mle
+  "Maximum likelihood estimation for the gamma distribution.
+
+  Uses Minka's fast fixed-point iteration for shape parameter.
+  Scale is then: θ = mean(x) / k
+
+  Parameters:
+    samples - sequence of positive sample values
+    opts - optional map with:
+      :max-iter - maximum iterations (default 100)
+      :tol - convergence tolerance (default 1e-10)
+      :init-shape - initial shape estimate (default: method of moments)
+
+  Returns map with:
+    :params {:shape k, :scale θ}
+    :log-likelihood - the maximized log-likelihood value
+    :iterations - number of iterations used
+
+  Throws if any sample is non-positive."
+  ([samples] (mle/gamma-mle samples))
+  ([samples opts] (mle/gamma-mle samples opts)))
+
+(defn lognormal-mle
+  "Maximum likelihood estimation for the log-normal distribution.
+
+  The MLE for log-normal has a closed-form solution:
+    μ = mean(log(x))
+    σ = sqrt(variance(log(x)))  ; using population variance
+
+  Parameters:
+    samples - sequence of positive sample values
+
+  Returns map with:
+    :params {:mu μ, :sigma σ}
+    :log-likelihood - the maximized log-likelihood value
+
+  Throws if any sample is non-positive."
+  [samples]
+  (mle/lognormal-mle samples))
+
+(defn inverse-gaussian-mle
+  "Maximum likelihood estimation for the inverse Gaussian distribution.
+
+  The MLE for inverse Gaussian has a closed-form solution:
+    μ = mean(x)
+    λ = n / Σ(1/xᵢ - 1/μ)
+
+  Parameters:
+    samples - sequence of positive sample values
+
+  Returns map with:
+    :params {:mu μ, :lambda λ}
+    :log-likelihood - the maximized log-likelihood value
+
+  Throws if any sample is non-positive."
+  [samples]
+  (mle/inverse-gaussian-mle samples))
+
+(defn weibull-mle
+  "Maximum likelihood estimation for the Weibull distribution.
+
+  Uses Newton-Raphson iteration to find the shape parameter k that solves:
+    1/k + mean(log(x)) - (Σxᵏlog(x))/(Σxᵏ) = 0
+
+  Once k is found, scale is: λ = (Σxᵏ/n)^(1/k)
+
+  Parameters:
+    samples - sequence of positive sample values
+    opts - optional map with:
+      :max-iter - maximum iterations (default 100)
+      :tol - convergence tolerance (default 1e-10)
+      :init-shape - initial shape estimate (default: method of moments)
+
+  Returns map with:
+    :params {:shape k, :scale λ}
+    :log-likelihood - the maximized log-likelihood value
+    :iterations - number of iterations used
+
+  Throws if any sample is non-positive."
+  ([samples] (mle/weibull-mle samples))
+  ([samples opts] (mle/weibull-mle samples opts)))
 
 ;;; Knuth Bayesian histogram binning
 

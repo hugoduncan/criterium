@@ -22,7 +22,8 @@
    [criterium.viewer.common.domain.detection :as detection]
    [criterium.viewer.common.domain.extract :as extract]
    [criterium.viewer.common.modal :as modal]
-   [criterium.viewer.common.regression :as regression]))
+   [criterium.viewer.common.regression :as regression]
+   [criterium.viewer.common.shape :as shape]))
 
 (defonce ^{:doc "Accumulator for Kindly-annotated values."}
   accumulated
@@ -98,18 +99,19 @@
 (defmethod view/stats* :kindly
   [_ {:keys [stats-id metric-ids]} data-map]
   (let [stats-id (or stats-id :stats)
-        stats-map (data-map stats-id)
-        metrics-defs (-> (:metrics-defs stats-map)
-                         (metric/select-metrics metric-ids))
-        metric-configs (metric/all-metric-configs metrics-defs)
-        transforms (util/get-transforms data-map stats-id)]
-    (when (seq metric-configs)
-      (kindly-heading "Summary stats")
-      (kindly-table
-       (core/stats-map
-        (util/stats stats-map)
-        metric-configs
-        transforms)))))
+        stats-map (data-map stats-id)]
+    (when stats-map
+      (let [metrics-defs (-> (:metrics-defs stats-map)
+                             (metric/select-metrics metric-ids))
+            metric-configs (metric/all-metric-configs metrics-defs)
+            transforms (util/get-transforms data-map stats-id)]
+        (when (seq metric-configs)
+          (kindly-heading "Summary stats")
+          (kindly-table
+           (core/stats-map
+            (util/stats stats-map)
+            metric-configs
+            transforms)))))))
 
 (defmethod view/quantiles* :kindly
   [_ {:keys [quantiles-id]} data-map]
@@ -483,6 +485,33 @@
                            :mean :mean-ci-lower :mean-ci-upper
                            :p10 :p90]}))))))
 
+;;; Shape statistics view
+
+(defmethod view/shape-stats* :kindly
+  [_ {:keys [bootstrap-stats-id] :as _view} data-map]
+  (let [bootstrap-stats-id (or bootstrap-stats-id :bootstrap-stats)
+        bootstrap-map (data-map bootstrap-stats-id)]
+    (when bootstrap-map
+      (let [metrics-defs (-> (:metrics-defs bootstrap-map)
+                             (metric/filter-metrics
+                              (metric/type-pred :quantitative)))
+            metric-configs (metric/all-metric-configs metrics-defs)
+            bootstrap (util/bootstrap bootstrap-map)
+            shape-data (shape/shape-stats-data metric-configs bootstrap)]
+        (when (seq shape-data)
+          (kindly-heading "Shape Statistics")
+          (kindly-table
+           (mapv (fn [{:keys [metric skewness skewness-class
+                              kurtosis kurtosis-class cv cv-class]}]
+                   {:metric metric
+                    :skewness skewness
+                    :skewness-interpretation (name skewness-class)
+                    :kurtosis kurtosis
+                    :kurtosis-interpretation (name kurtosis-class)
+                    :cv cv
+                    :cv-interpretation (name cv-class)})
+                 shape-data)))))))
+
 ;;; Call Tree Views
 
 (defmethod view/call-tree* :kindly
@@ -513,6 +542,140 @@
         (kindly-heading (clojure.core/format "Most Called Methods (top %d, %d total calls)"
                                              (count methods) total-in-list))
         (kindly-vega-lite (charts/most-called-vega-lite-spec most-called-data {}))))))
+
+;;; Distribution Fit Views
+
+(def ^:private distribution-labels
+  "Human-readable labels for distributions."
+  {:gamma "Gamma"
+   :lognormal "Log-normal"
+   :inverse-gaussian "Inverse Gaussian"
+   :weibull "Weibull"})
+
+(defn- format-distribution-table-row
+  "Format a distribution fit result as a table row."
+  [dist result best-model]
+  (let [label (get distribution-labels dist (name dist))
+        is-best? (= dist best-model)]
+    (cond
+      (:error result)
+      {:distribution label
+       :status "error"
+       :aic "-"
+       :delta-aic "-"
+       :bic "-"
+       :ks-stat "-"
+       :ks-pvalue "-"
+       :cvm-stat "-"
+       :cvm-pvalue "-"
+       :best? false}
+
+      (:skipped result)
+      {:distribution label
+       :status (name (:skipped result))
+       :aic "-"
+       :delta-aic "-"
+       :bic "-"
+       :ks-stat "-"
+       :ks-pvalue "-"
+       :cvm-stat "-"
+       :cvm-pvalue "-"
+       :best? false}
+
+      :else
+      {:distribution label
+       :status "fitted"
+       :aic (clojure.core/format "%.1f" (:aic result))
+       :delta-aic (clojure.core/format "%.1f" (or (:delta-aic result) 0.0))
+       :bic (clojure.core/format "%.1f" (:bic result))
+       :ks-stat (if-let [ks (:ks-test result)]
+                  (clojure.core/format "%.4f" (:statistic ks)) "-")
+       :ks-pvalue (if-let [ks (:ks-test result)]
+                    (clojure.core/format "%.4f" (:p-value ks)) "-")
+       :cvm-stat (if-let [cvm (:cvm-test result)]
+                   (clojure.core/format "%.4f" (:statistic cvm)) "-")
+       :cvm-pvalue (if-let [cvm (:cvm-test result)]
+                     (clojure.core/format "%.4f" (:p-value cvm)) "-")
+       :best? is-best?})))
+
+(defn- format-parameter-ci-rows
+  "Format parameter CIs as table rows."
+  [best-model parameter-cis]
+  (when (and best-model (get parameter-cis best-model))
+    (let [label (get distribution-labels best-model (name best-model))
+          cis (get parameter-cis best-model)]
+      (mapv (fn [[param {:keys [point-estimate ci-lower ci-upper]}]]
+              {:distribution label
+               :parameter (name param)
+               :estimate (clojure.core/format "%.4g" point-estimate)
+               :ci-lower (clojure.core/format "%.4g" ci-lower)
+               :ci-upper (clojure.core/format "%.4g" ci-upper)})
+            cis))))
+
+(defmethod view/distribution-models* :kindly
+  [_ {:keys [distribution-fit-id] :as _view} data-map]
+  (let [distribution-fit-id (or distribution-fit-id :distribution-fit)
+        distribution-fit-map (data-map distribution-fit-id)]
+    (when distribution-fit-map
+      (let [fits (:fits distribution-fit-map)]
+        (when (seq fits)
+          (doseq [[path fit-data] fits]
+            (let [{:keys [n warning distributions best-model]} fit-data
+                  metric-label (name (first path))]
+              (kindly-heading (str "Distribution Models: " metric-label
+                                   " (n=" n (when warning " - small sample") ")"))
+              (kindly-table
+               (mapv (fn [[dist result]]
+                       (format-distribution-table-row dist result best-model))
+                     (sort-by (fn [[_ r]] (or (:delta-aic r) Double/MAX_VALUE))
+                              distributions))))))))))
+
+(defmethod view/distribution-parameter-cis* :kindly
+  [_ {:keys [distribution-fit-id] :as _view} data-map]
+  (let [distribution-fit-id (or distribution-fit-id :distribution-fit)
+        distribution-fit-map (data-map distribution-fit-id)]
+    (when distribution-fit-map
+      (let [fits (:fits distribution-fit-map)]
+        (when (seq fits)
+          (doseq [[path fit-data] fits]
+            (let [{:keys [best-model parameter-cis]} fit-data
+                  metric-label (name (first path))]
+              (when-let [ci-rows (format-parameter-ci-rows best-model parameter-cis)]
+                (kindly-heading (str "Parameter CIs: " metric-label))
+                (kindly-table ci-rows)))))))))
+
+(defmethod view/distribution-pdf* :kindly
+  [_ {:keys [kde-id] :as view} data-map]
+  (let [kde-id (or kde-id :kde)
+        kde-map (data-map kde-id)]
+    (when kde-map
+      (kindly-heading "Distribution PDF")
+      (kindly-vega-lite
+       (charts/distribution-pdf-vega-spec
+        data-map
+        (assoc view :histogram-id :histograms)
+        {:width chart-width
+         :height chart-height})))))
+
+(defmethod view/distribution-cdf* :kindly
+  [_ {:keys [kde-id] :as view} data-map]
+  (let [kde-id (or kde-id :kde)
+        kde-map (data-map kde-id)]
+    (when kde-map
+      (kindly-heading "Distribution CDF")
+      (kindly-vega-lite
+       (charts/distribution-cdf-vega-spec data-map view {:width chart-width
+                                                         :height chart-height})))))
+
+(defmethod view/distribution-qq* :kindly
+  [_ {:keys [kde-id] :as view} data-map]
+  (let [kde-id (or kde-id :kde)
+        kde-map (data-map kde-id)]
+    (when kde-map
+      (kindly-heading "Q-Q Plot")
+      (kindly-vega-lite
+       (charts/distribution-qq-vega-spec data-map view {:width chart-width
+                                                        :height chart-height})))))
 
 ;;; Noop implementations for views not applicable to Kindly output
 

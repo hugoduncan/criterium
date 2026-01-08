@@ -15,7 +15,8 @@
    [criterium.viewer.common.domain.detection :as detection]
    [criterium.viewer.common.domain.extract :as extract]
    [criterium.viewer.common.modal :as modal]
-   [criterium.viewer.common.regression :as regression]))
+   [criterium.viewer.common.regression :as regression]
+   [criterium.viewer.common.shape :as shape]))
 
 (defonce tapped (atom {:values '()}))
 
@@ -88,18 +89,19 @@
 (defmethod view/stats* :portal
   [_ {:keys [stats-id metric-ids]} data-map]
   (let [stats-id (or stats-id :stats)
-        stats-map (data-map stats-id)
-        metrics-defs (-> (:metrics-defs stats-map)
-                         (metric/select-metrics metric-ids))
-        metric-configs (metric/all-metric-configs metrics-defs)
-        transforms (util/get-transforms data-map stats-id)]
-    (when (seq metric-configs)
-      (heading "Summary stats")
-      (portal-table
-       (core/stats-map
-        (util/stats stats-map)
-        metric-configs
-        transforms)))))
+        stats-map (data-map stats-id)]
+    (when stats-map
+      (let [metrics-defs (-> (:metrics-defs stats-map)
+                             (metric/select-metrics metric-ids))
+            metric-configs (metric/all-metric-configs metrics-defs)
+            transforms (util/get-transforms data-map stats-id)]
+        (when (seq metric-configs)
+          (heading "Summary stats")
+          (portal-table
+           (core/stats-map
+            (util/stats stats-map)
+            metric-configs
+            transforms)))))))
 
 (defmethod view/event-stats* :portal
   [_ {:keys [event-stats-id]} data-map]
@@ -238,6 +240,162 @@
               :let [stat (get-in bootstrap (:path m))]
               :when stat]
           (bootstrap/bootstrap-stat-row m stat)))))))
+
+(defmethod view/shape-stats* :portal
+  [_ {:keys [bootstrap-stats-id] :as _view} data-map]
+  (let [bootstrap-stats-id (or bootstrap-stats-id :bootstrap-stats)
+        bootstrap-map (data-map bootstrap-stats-id)]
+    (when bootstrap-map
+      (let [metrics-defs (-> (:metrics-defs bootstrap-map)
+                             (metric/filter-metrics
+                              (metric/type-pred :quantitative)))
+            metric-configs (metric/all-metric-configs metrics-defs)
+            bootstrap (util/bootstrap bootstrap-map)
+            shape-data (shape/shape-stats-data metric-configs bootstrap)]
+        (when (seq shape-data)
+          (heading "Shape Statistics")
+          (portal-table
+           (mapv (fn [{:keys [metric skewness skewness-class
+                              kurtosis kurtosis-class cv cv-class]}]
+                   {:metric metric
+                    :skewness skewness
+                    :skewness-interpretation (name skewness-class)
+                    :kurtosis kurtosis
+                    :kurtosis-interpretation (name kurtosis-class)
+                    :cv cv
+                    :cv-interpretation (name cv-class)})
+                 shape-data)))))))
+
+;;; Distribution Fit Views
+
+(def ^:private distribution-labels
+  "Human-readable labels for distributions."
+  {:gamma "Gamma"
+   :lognormal "Log-normal"
+   :inverse-gaussian "Inverse Gaussian"
+   :weibull "Weibull"})
+
+(defn- format-distribution-table-row
+  "Format a distribution fit result as a table row."
+  [dist result best-model]
+  (let [label (get distribution-labels dist (name dist))
+        is-best? (= dist best-model)]
+    (cond
+      (:error result)
+      {:distribution label
+       :status "error"
+       :aic "-"
+       :delta-aic "-"
+       :bic "-"
+       :ks-stat "-"
+       :ks-pvalue "-"
+       :cvm-stat "-"
+       :cvm-pvalue "-"
+       :best? false}
+
+      (:skipped result)
+      {:distribution label
+       :status (name (:skipped result))
+       :aic "-"
+       :delta-aic "-"
+       :bic "-"
+       :ks-stat "-"
+       :ks-pvalue "-"
+       :cvm-stat "-"
+       :cvm-pvalue "-"
+       :best? false}
+
+      :else
+      {:distribution label
+       :status "fitted"
+       :aic (format "%.1f" (:aic result))
+       :delta-aic (format "%.1f" (or (:delta-aic result) 0.0))
+       :bic (format "%.1f" (:bic result))
+       :ks-stat (if-let [ks (:ks-test result)]
+                  (format "%.4f" (:statistic ks)) "-")
+       :ks-pvalue (if-let [ks (:ks-test result)]
+                    (format "%.4f" (:p-value ks)) "-")
+       :cvm-stat (if-let [cvm (:cvm-test result)]
+                   (format "%.4f" (:statistic cvm)) "-")
+       :cvm-pvalue (if-let [cvm (:cvm-test result)]
+                     (format "%.4f" (:p-value cvm)) "-")
+       :best? is-best?})))
+
+(defn- format-parameter-ci-rows
+  "Format parameter CIs as table rows."
+  [best-model parameter-cis]
+  (when (and best-model (get parameter-cis best-model))
+    (let [label (get distribution-labels best-model (name best-model))
+          cis (get parameter-cis best-model)]
+      (mapv (fn [[param {:keys [point-estimate ci-lower ci-upper]}]]
+              {:distribution label
+               :parameter (name param)
+               :estimate (format "%.4g" point-estimate)
+               :ci-lower (format "%.4g" ci-lower)
+               :ci-upper (format "%.4g" ci-upper)})
+            cis))))
+
+(defmethod view/distribution-models* :portal
+  [_ {:keys [distribution-fit-id] :as _view} data-map]
+  (let [distribution-fit-id (or distribution-fit-id :distribution-fit)
+        distribution-fit-map (data-map distribution-fit-id)]
+    (when distribution-fit-map
+      (let [fits (:fits distribution-fit-map)]
+        (when (seq fits)
+          (doseq [[path fit-data] fits]
+            (let [{:keys [n warning distributions best-model]} fit-data
+                  metric-label (name (first path))]
+              (heading (str "Distribution Models: " metric-label
+                            " (n=" n (when warning " - small sample") ")"))
+              (portal-table
+               (mapv (fn [[dist result]]
+                       (format-distribution-table-row dist result best-model))
+                     (sort-by (fn [[_ r]] (or (:delta-aic r) Double/MAX_VALUE))
+                              distributions))))))))))
+
+(defmethod view/distribution-parameter-cis* :portal
+  [_ {:keys [distribution-fit-id] :as _view} data-map]
+  (let [distribution-fit-id (or distribution-fit-id :distribution-fit)
+        distribution-fit-map (data-map distribution-fit-id)]
+    (when distribution-fit-map
+      (let [fits (:fits distribution-fit-map)]
+        (when (seq fits)
+          (doseq [[path fit-data] fits]
+            (let [{:keys [best-model parameter-cis]} fit-data
+                  metric-label (name (first path))]
+              (when-let [ci-rows (format-parameter-ci-rows best-model parameter-cis)]
+                (heading (str "Parameter CIs: " metric-label))
+                (portal-table ci-rows)))))))))
+
+(defmethod view/distribution-pdf* :portal
+  [_ {:keys [kde-id] :as view} data-map]
+  (let [kde-id (or kde-id :kde)
+        kde-map (data-map kde-id)]
+    (when kde-map
+      (heading "Distribution PDF")
+      (portal-vega-lite
+       (charts/distribution-pdf-vega-spec
+        data-map
+        (assoc view :histogram-id :histograms)
+        {:height 400})))))
+
+(defmethod view/distribution-cdf* :portal
+  [_ {:keys [kde-id] :as view} data-map]
+  (let [kde-id (or kde-id :kde)
+        kde-map (data-map kde-id)]
+    (when kde-map
+      (heading "Distribution CDF")
+      (portal-vega-lite
+       (charts/distribution-cdf-vega-spec data-map view {:height 400})))))
+
+(defmethod view/distribution-qq* :portal
+  [_ {:keys [kde-id] :as view} data-map]
+  (let [kde-id (or kde-id :kde)
+        kde-map (data-map kde-id)]
+    (when kde-map
+      (heading "Q-Q Plot")
+      (portal-vega-lite
+       (charts/distribution-qq-vega-spec data-map view {:height 400})))))
 
 (defmethod view/final-gc-warnings* :portal [_ _ _])
 

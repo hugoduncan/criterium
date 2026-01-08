@@ -298,4 +298,198 @@
                    :upper-band [0.12 0.30 0.35 0.30 0.12]
                    :n 100}}}}))
 
+(defn bootstrap-stats-with-shape-map
+  "Create a data-map with bootstrap-stats including skewness, kurtosis, and CV.
+  Used for testing shape-stats views."
+  []
+  (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])]
+    {:bootstrap-stats
+     {:type :criterium/bootstrap
+      :bootstrap
+      {:elapsed-time
+       {:mean {:point-estimate 100.0
+               :estimate-quantiles [{:value 95.0 :alpha 0.025}
+                                    {:value 105.0 :alpha 0.975}]}
+        :variance {:point-estimate 16.0
+                   :estimate-quantiles [{:value 12.0 :alpha 0.025}
+                                        {:value 20.0 :alpha 0.975}]}
+        :min-val {:point-estimate 80.0
+                  :estimate-quantiles [{:value 75.0 :alpha 0.025}
+                                       {:value 85.0 :alpha 0.975}]}
+        :max-val {:point-estimate 120.0
+                  :estimate-quantiles [{:value 115.0 :alpha 0.025}
+                                       {:value 125.0 :alpha 0.975}]}
+        :skewness {:point-estimate 0.35
+                   :estimate-quantiles [{:value 0.20 :alpha 0.025}
+                                        {:value 0.50 :alpha 0.975}]}
+        :kurtosis {:point-estimate 2.8
+                   :estimate-quantiles [{:value 2.5 :alpha 0.025}
+                                        {:value 3.1 :alpha 0.975}]}
+        :cv {:point-estimate 0.04
+             :estimate-quantiles [{:value 0.03 :alpha 0.025}
+                                  {:value 0.05 :alpha 0.975}]}
+        :mean-plus-3sigma {:point-estimate 112.0}
+        :mean-minus-3sigma {:point-estimate 88.0}
+        :quantiles {}}}
+      :metrics-defs metrics-defs
+      :transform collect-plan/identity-transforms
+      :batch-size 1
+      :source-id :samples
+      :outliers-id nil}}))
 
+(defn distribution-fit-data-map
+  "Create a data-map with KDE, samples and distribution-fit data for testing
+  PDF overlays. Includes successfully fitted distributions and one that was
+  skipped."
+  []
+  (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])]
+    {:samples
+     {:type :criterium/metrics-samples
+      :metrics-defs metrics-defs
+      :metric->values {[:elapsed-time] [1.0 1.5 2.0 2.5 3.0 3.5 4.0 4.5 5.0]}
+      :transform {:sample-> identity :->sample identity}
+      :batch-size 1
+      :eval-count 9
+      :num-samples 9}
+     :kde {:type :criterium/kde
+           :metrics-defs metrics-defs
+           :transform {:sample-> identity :->sample identity}
+           :kdes {[:elapsed-time]
+                  {:type :criterium/kde
+                   :bandwidth 0.5
+                   :grid [1.0 2.0 3.0 4.0 5.0]
+                   :density [0.1 0.25 0.3 0.25 0.1]
+                   :lower-band [0.08 0.20 0.25 0.20 0.08]
+                   :upper-band [0.12 0.30 0.35 0.30 0.12]
+                   :n 100}}}
+     :distribution-fit
+     {:type :criterium/distribution-fit
+      :transform collect-plan/identity-transforms
+      :fits {[:elapsed-time]
+             {:n 100
+              :best-model :gamma
+              :sample-range [1.0 5.0]
+              :distributions
+              {:gamma {:params {:shape 2.0 :scale 1.5}
+                       :log-likelihood -150.0
+                       :aic 304.0
+                       :bic 309.2
+                       :aicc 304.1
+                       :delta-aic 0.0
+                       :ks-test {:statistic 0.05 :p-value 0.85}
+                       :cvm-test {:statistic 0.02 :p-value 0.90}}
+               :lognormal {:params {:mu 0.5 :sigma 0.8}
+                           :log-likelihood -155.0
+                           :aic 314.0
+                           :bic 319.2
+                           :aicc 314.1
+                           :delta-aic 10.0
+                           :ks-test {:statistic 0.08 :p-value 0.45}
+                           :cvm-test {:statistic 0.05 :p-value 0.50}}
+               :weibull {:params {:shape 1.8 :scale 3.2}
+                         :log-likelihood -152.0
+                         :aic 308.0
+                         :bic 313.2
+                         :aicc 308.1
+                         :delta-aic 4.0
+                         :ks-test {:statistic 0.06 :p-value 0.70}
+                         :cvm-test {:statistic 0.03 :p-value 0.75}}
+               :inverse-gaussian {:skipped :moment-match-failed
+                                  :prefilter-result {:valid? false
+                                                     :reason :negative-lambda}}}
+              :parameter-cis {:gamma {:shape {:point-estimate 2.0
+                                              :ci-lower 1.7
+                                              :ci-upper 2.3}
+                                      :scale {:point-estimate 1.5
+                                              :ci-lower 1.2
+                                              :ci-upper 1.8}}}}}}}))
+
+(defn distribution-cdf-data-map
+  "Create a data-map with samples and distribution-fit data for testing CDF overlays.
+  Includes sample data for ECDF and fitted distributions for CDF curves."
+  []
+  (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])]
+    {:samples
+     {:type :criterium/metrics-samples
+      :metrics-defs metrics-defs
+      :metric->values {[:elapsed-time] [1.0 1.5 2.0 2.5 3.0 3.5 4.0 4.5 5.0]}
+      :transform {:sample-> identity :->sample identity}
+      :batch-size 1
+      :eval-count 9
+      :num-samples 9}
+     :distribution-fit
+     {:type :criterium/distribution-fit
+      :transform {:sample-> identity :->sample identity}
+      :fits {[:elapsed-time]
+             {:n 9
+              :best-model :gamma
+              :distributions
+              {:gamma {:params {:shape 2.0 :scale 1.5}
+                       :log-likelihood -15.0
+                       :aic 34.0
+                       :bic 34.6
+                       :aicc 36.0
+                       :delta-aic 0.0
+                       :ks-test {:statistic 0.1 :p-value 0.9}
+                       :cvm-test {:statistic 0.05 :p-value 0.85}}
+               :lognormal {:params {:mu 0.5 :sigma 0.6}
+                           :log-likelihood -16.0
+                           :aic 36.0
+                           :bic 36.6
+                           :aicc 38.0
+                           :delta-aic 2.0
+                           :ks-test {:statistic 0.12 :p-value 0.8}
+                           :cvm-test {:statistic 0.06 :p-value 0.75}}
+               :weibull {:params {:shape 2.0 :scale 3.0}
+                         :log-likelihood -15.5
+                         :aic 35.0
+                         :bic 35.6
+                         :aicc 37.0
+                         :delta-aic 1.0
+                         :ks-test {:statistic 0.11 :p-value 0.85}
+                         :cvm-test {:statistic 0.055 :p-value 0.8}}}}}}}))
+
+(defn distribution-qq-data-map
+  "Create a data-map with samples and distribution-fit data for testing Q-Q plots.
+  Includes sample data and fitted distributions for Q-Q scatter overlays."
+  []
+  (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])]
+    {:samples
+     {:type :criterium/metrics-samples
+      :metrics-defs metrics-defs
+      :metric->values {[:elapsed-time] [1.0 1.5 2.0 2.5 3.0 3.5 4.0 4.5 5.0]}
+      :transform {:sample-> identity :->sample identity}
+      :batch-size 1
+      :eval-count 9
+      :num-samples 9}
+     :distribution-fit
+     {:type :criterium/distribution-fit
+      :transform {:sample-> identity :->sample identity}
+      :fits {[:elapsed-time]
+             {:n 9
+              :best-model :gamma
+              :distributions
+              {:gamma {:params {:shape 2.0 :scale 1.5}
+                       :log-likelihood -15.0
+                       :aic 34.0
+                       :bic 34.6
+                       :aicc 36.0
+                       :delta-aic 0.0
+                       :ks-test {:statistic 0.1 :p-value 0.9}
+                       :cvm-test {:statistic 0.05 :p-value 0.85}}
+               :lognormal {:params {:mu 0.5 :sigma 0.6}
+                           :log-likelihood -16.0
+                           :aic 36.0
+                           :bic 36.6
+                           :aicc 38.0
+                           :delta-aic 2.0
+                           :ks-test {:statistic 0.12 :p-value 0.8}
+                           :cvm-test {:statistic 0.06 :p-value 0.75}}
+               :weibull {:params {:shape 2.0 :scale 3.0}
+                         :log-likelihood -15.5
+                         :aic 35.0
+                         :bic 35.6
+                         :aicc 37.0
+                         :delta-aic 1.0
+                         :ks-test {:statistic 0.11 :p-value 0.85}
+                         :cvm-test {:statistic 0.055 :p-value 0.8}}}}}}}))

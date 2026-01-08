@@ -296,3 +296,257 @@
                   (is (approx= r-q clj-q 1e-10)
                       (format "quantile mismatch at q=%.2f: R=%.15f, clj=%.15f"
                               q r-q clj-q)))))))))))
+
+;;; Skewed test dataset for skewness/kurtosis testing
+(def right-skewed [1.0 1.5 2.0 2.5 3.0 3.5 4.0 5.0 7.0 15.0])
+
+(deftest skewness-validation-test
+  ;; Validates stats.interface/skewness against R's e1071::skewness() function.
+  ;; Tests all three types defined in Joanes & Gill (1998).
+  ;; Requires e1071 package (installed by CI workflow).
+  (testing "skewness"
+    (if-not (r/r-available?)
+      (do
+        (println "Skipping skewness validation: R/Rserve not available")
+        (is true "Skipped - R unavailable"))
+      (do
+        (r/r-eval "library(e1071)")
+
+        (testing "type 1"
+          (testing "with simple integers"
+            (let [r-skew (first (r/r-eval
+                                 (str "e1071::skewness(" (vec->r-str simple-integers)
+                                      ", type=1)")))
+                  clj-skew (stats/skewness simple-integers 1)]
+              (is (approx= r-skew clj-skew 1e-10)
+                  (format "skewness mismatch: R=%.15f, clj=%.15f" r-skew clj-skew))))
+
+          (testing "with simple doubles"
+            (let [r-skew (first (r/r-eval
+                                 (str "e1071::skewness(" (vec->r-str simple-doubles)
+                                      ", type=1)")))
+                  clj-skew (stats/skewness simple-doubles 1)]
+              (is (approx= r-skew clj-skew 1e-10)
+                  (format "skewness mismatch: R=%.15f, clj=%.15f" r-skew clj-skew))))
+
+          (testing "with right-skewed data"
+            (let [r-skew (first (r/r-eval
+                                 (str "e1071::skewness(" (vec->r-str right-skewed)
+                                      ", type=1)")))
+                  clj-skew (stats/skewness right-skewed 1)]
+              (is (approx= r-skew clj-skew 1e-10)
+                  (format "skewness mismatch: R=%.15f, clj=%.15f" r-skew clj-skew))))
+
+          (testing "with mixed positive and negative values"
+            (let [r-skew (first (r/r-eval
+                                 (str "e1071::skewness(" (vec->r-str mixed-signs)
+                                      ", type=1)")))
+                  clj-skew (stats/skewness mixed-signs 1)]
+              (is (approx= r-skew clj-skew 1e-10)
+                  (format "skewness mismatch: R=%.15f, clj=%.15f" r-skew clj-skew)))))
+
+        (testing "type 2 (default, unbiased under normality)"
+          (testing "with simple integers"
+            (let [r-skew (first (r/r-eval
+                                 (str "e1071::skewness(" (vec->r-str simple-integers)
+                                      ", type=2)")))
+                  clj-skew (stats/skewness simple-integers 2)]
+              (is (approx= r-skew clj-skew 1e-10)
+                  (format "skewness mismatch: R=%.15f, clj=%.15f" r-skew clj-skew))))
+
+          (testing "with simple doubles"
+            (let [r-skew (first (r/r-eval
+                                 (str "e1071::skewness(" (vec->r-str simple-doubles)
+                                      ", type=2)")))
+                  clj-skew (stats/skewness simple-doubles 2)]
+              (is (approx= r-skew clj-skew 1e-10)
+                  (format "skewness mismatch: R=%.15f, clj=%.15f" r-skew clj-skew))))
+
+          (testing "with right-skewed data"
+            (let [r-skew (first (r/r-eval
+                                 (str "e1071::skewness(" (vec->r-str right-skewed)
+                                      ", type=2)")))
+                  clj-skew (stats/skewness right-skewed 2)]
+              (is (approx= r-skew clj-skew 1e-10)
+                  (format "skewness mismatch: R=%.15f, clj=%.15f" r-skew clj-skew))))
+
+          (testing "uses type 2 by default"
+            (let [r-skew (first (r/r-eval
+                                 (str "e1071::skewness(" (vec->r-str simple-doubles)
+                                      ", type=2)")))
+                  clj-skew (stats/skewness simple-doubles)]
+              (is (approx= r-skew clj-skew 1e-10)
+                  (format "default skewness mismatch: R=%.15f, clj=%.15f"
+                          r-skew clj-skew)))))
+
+        (testing "type 3"
+          (testing "with simple integers"
+            (let [r-skew (first (r/r-eval
+                                 (str "e1071::skewness(" (vec->r-str simple-integers)
+                                      ", type=3)")))
+                  clj-skew (stats/skewness simple-integers 3)]
+              (is (approx= r-skew clj-skew 1e-10)
+                  (format "skewness mismatch: R=%.15f, clj=%.15f" r-skew clj-skew))))
+
+          (testing "with simple doubles"
+            (let [r-skew (first (r/r-eval
+                                 (str "e1071::skewness(" (vec->r-str simple-doubles)
+                                      ", type=3)")))
+                  clj-skew (stats/skewness simple-doubles 3)]
+              (is (approx= r-skew clj-skew 1e-10)
+                  (format "skewness mismatch: R=%.15f, clj=%.15f" r-skew clj-skew))))
+
+          (testing "with right-skewed data"
+            (let [r-skew (first (r/r-eval
+                                 (str "e1071::skewness(" (vec->r-str right-skewed)
+                                      ", type=3)")))
+                  clj-skew (stats/skewness right-skewed 3)]
+              (is (approx= r-skew clj-skew 1e-10)
+                  (format "skewness mismatch: R=%.15f, clj=%.15f" r-skew clj-skew)))))))))
+
+(deftest kurtosis-validation-test
+  ;; Validates stats.interface/kurtosis against R's e1071::kurtosis() function.
+  ;; Tests all three types defined in Joanes & Gill (1998).
+  ;; Note: e1071::kurtosis returns excess kurtosis (normal = 0), which matches
+  ;; our implementation.
+  ;; Requires e1071 package (installed by CI workflow).
+  (testing "kurtosis"
+    (if-not (r/r-available?)
+      (do
+        (println "Skipping kurtosis validation: R/Rserve not available")
+        (is true "Skipped - R unavailable"))
+      (do
+        (r/r-eval "library(e1071)")
+
+        (testing "type 1"
+          (testing "with simple integers"
+            (let [r-kurt (first (r/r-eval
+                                 (str "e1071::kurtosis(" (vec->r-str simple-integers)
+                                      ", type=1)")))
+                  clj-kurt (stats/kurtosis simple-integers 1)]
+              (is (approx= r-kurt clj-kurt 1e-10)
+                  (format "kurtosis mismatch: R=%.15f, clj=%.15f" r-kurt clj-kurt))))
+
+          (testing "with simple doubles"
+            (let [r-kurt (first (r/r-eval
+                                 (str "e1071::kurtosis(" (vec->r-str simple-doubles)
+                                      ", type=1)")))
+                  clj-kurt (stats/kurtosis simple-doubles 1)]
+              (is (approx= r-kurt clj-kurt 1e-10)
+                  (format "kurtosis mismatch: R=%.15f, clj=%.15f" r-kurt clj-kurt))))
+
+          (testing "with right-skewed data"
+            (let [r-kurt (first (r/r-eval
+                                 (str "e1071::kurtosis(" (vec->r-str right-skewed)
+                                      ", type=1)")))
+                  clj-kurt (stats/kurtosis right-skewed 1)]
+              (is (approx= r-kurt clj-kurt 1e-10)
+                  (format "kurtosis mismatch: R=%.15f, clj=%.15f" r-kurt clj-kurt))))
+
+          (testing "with mixed positive and negative values"
+            (let [r-kurt (first (r/r-eval
+                                 (str "e1071::kurtosis(" (vec->r-str mixed-signs)
+                                      ", type=1)")))
+                  clj-kurt (stats/kurtosis mixed-signs 1)]
+              (is (approx= r-kurt clj-kurt 1e-10)
+                  (format "kurtosis mismatch: R=%.15f, clj=%.15f" r-kurt clj-kurt)))))
+
+        (testing "type 2 (default, unbiased under normality)"
+          (testing "with simple integers"
+            (let [r-kurt (first (r/r-eval
+                                 (str "e1071::kurtosis(" (vec->r-str simple-integers)
+                                      ", type=2)")))
+                  clj-kurt (stats/kurtosis simple-integers 2)]
+              (is (approx= r-kurt clj-kurt 1e-10)
+                  (format "kurtosis mismatch: R=%.15f, clj=%.15f" r-kurt clj-kurt))))
+
+          (testing "with simple doubles"
+            (let [r-kurt (first (r/r-eval
+                                 (str "e1071::kurtosis(" (vec->r-str simple-doubles)
+                                      ", type=2)")))
+                  clj-kurt (stats/kurtosis simple-doubles 2)]
+              (is (approx= r-kurt clj-kurt 1e-10)
+                  (format "kurtosis mismatch: R=%.15f, clj=%.15f" r-kurt clj-kurt))))
+
+          (testing "with right-skewed data"
+            (let [r-kurt (first (r/r-eval
+                                 (str "e1071::kurtosis(" (vec->r-str right-skewed)
+                                      ", type=2)")))
+                  clj-kurt (stats/kurtosis right-skewed 2)]
+              (is (approx= r-kurt clj-kurt 1e-10)
+                  (format "kurtosis mismatch: R=%.15f, clj=%.15f" r-kurt clj-kurt))))
+
+          (testing "uses type 2 by default"
+            (let [r-kurt (first (r/r-eval
+                                 (str "e1071::kurtosis(" (vec->r-str simple-doubles)
+                                      ", type=2)")))
+                  clj-kurt (stats/kurtosis simple-doubles)]
+              (is (approx= r-kurt clj-kurt 1e-10)
+                  (format "default kurtosis mismatch: R=%.15f, clj=%.15f"
+                          r-kurt clj-kurt)))))
+
+        (testing "type 3"
+          (testing "with simple integers"
+            (let [r-kurt (first (r/r-eval
+                                 (str "e1071::kurtosis(" (vec->r-str simple-integers)
+                                      ", type=3)")))
+                  clj-kurt (stats/kurtosis simple-integers 3)]
+              (is (approx= r-kurt clj-kurt 1e-10)
+                  (format "kurtosis mismatch: R=%.15f, clj=%.15f" r-kurt clj-kurt))))
+
+          (testing "with simple doubles"
+            (let [r-kurt (first (r/r-eval
+                                 (str "e1071::kurtosis(" (vec->r-str simple-doubles)
+                                      ", type=3)")))
+                  clj-kurt (stats/kurtosis simple-doubles 3)]
+              (is (approx= r-kurt clj-kurt 1e-10)
+                  (format "kurtosis mismatch: R=%.15f, clj=%.15f" r-kurt clj-kurt))))
+
+          (testing "with right-skewed data"
+            (let [r-kurt (first (r/r-eval
+                                 (str "e1071::kurtosis(" (vec->r-str right-skewed)
+                                      ", type=3)")))
+                  clj-kurt (stats/kurtosis right-skewed 3)]
+              (is (approx= r-kurt clj-kurt 1e-10)
+                  (format "kurtosis mismatch: R=%.15f, clj=%.15f" r-kurt clj-kurt)))))))))
+
+(deftest cv-validation-test
+  ;; Validates stats.interface/cv against R's sd(x)/mean(x) formula.
+  ;; Coefficient of variation is computed as standard deviation / mean.
+  (testing "cv"
+    (if-not (r/r-available?)
+      (do
+        (println "Skipping cv validation: R/Rserve not available")
+        (is true "Skipped - R unavailable"))
+      (do
+        (testing "with simple integers"
+          (let [r-cv (first (r/r-eval
+                             (str "sd(" (vec->r-str simple-integers)
+                                  ") / mean(" (vec->r-str simple-integers) ")")))
+                clj-cv (stats/cv simple-integers)]
+            (is (approx= r-cv clj-cv 1e-10)
+                (format "cv mismatch: R=%.15f, clj=%.15f" r-cv clj-cv))))
+
+        (testing "with simple doubles"
+          (let [r-cv (first (r/r-eval
+                             (str "sd(" (vec->r-str simple-doubles)
+                                  ") / mean(" (vec->r-str simple-doubles) ")")))
+                clj-cv (stats/cv simple-doubles)]
+            (is (approx= r-cv clj-cv 1e-10)
+                (format "cv mismatch: R=%.15f, clj=%.15f" r-cv clj-cv))))
+
+        (testing "with right-skewed data"
+          (let [r-cv (first (r/r-eval
+                             (str "sd(" (vec->r-str right-skewed)
+                                  ") / mean(" (vec->r-str right-skewed) ")")))
+                clj-cv (stats/cv right-skewed)]
+            (is (approx= r-cv clj-cv 1e-10)
+                (format "cv mismatch: R=%.15f, clj=%.15f" r-cv clj-cv))))
+
+        (testing "with large range of values"
+          (let [r-cv (first (r/r-eval
+                             (str "sd(" (vec->r-str large-range)
+                                  ") / mean(" (vec->r-str large-range) ")")))
+                clj-cv (stats/cv large-range)]
+            (is (approx= r-cv clj-cv 1e-10)
+                (format "cv mismatch: R=%.15f, clj=%.15f" r-cv clj-cv))))))))

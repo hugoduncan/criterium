@@ -71,6 +71,45 @@
       (is (= 5 (stats/quantile 0.05 (range 0 101))))
       (is (= 95 (stats/quantile 0.95 (range 0 101)))))))
 
+(deftest skewness-test
+  ;; Tests the skewness function returns 0.0 for constant data (zero variance).
+  ;; This prevents NaN values that would break bootstrap sorting.
+  (testing "skewness"
+    (testing "returns 0.0 for constant data"
+      (is (= 0.0 (stats/skewness (repeat 50 1.0))))
+      (is (= 0.0 (stats/skewness (repeat 50 1.0) 1)))
+      (is (= 0.0 (stats/skewness (repeat 50 1.0) 2)))
+      (is (= 0.0 (stats/skewness (repeat 50 1.0) 3))))
+    (testing "returns finite value for non-constant data"
+      (is (Double/isFinite (stats/skewness [1 2 3 4 5 6 7 8 9 10]))))))
+
+(deftest kurtosis-test
+  ;; Tests the kurtosis function returns 0.0 for constant data (zero variance).
+  ;; This prevents NaN values that would break bootstrap sorting.
+  (testing "kurtosis"
+    (testing "returns 0.0 for constant data"
+      (is (= 0.0 (stats/kurtosis (repeat 50 1.0))))
+      (is (= 0.0 (stats/kurtosis (repeat 50 1.0) 1)))
+      (is (= 0.0 (stats/kurtosis (repeat 50 1.0) 2)))
+      (is (= 0.0 (stats/kurtosis (repeat 50 1.0) 3))))
+    (testing "returns finite value for non-constant data"
+      (is (Double/isFinite (stats/kurtosis [1 2 3 4 5 6 7 8 9 10]))))))
+
+(deftest cv-test
+  (testing "cv"
+    (testing "returns coefficient of variation (std dev / mean)"
+      ;; For data [2 4 6 8]: mean=5, var=20/3, sd=sqrt(20/3)≈2.582
+      ;; CV = 2.582/5 ≈ 0.5164
+      (is (< (Math/abs (- (stats/cv [2 4 6 8])
+                          (/ (Math/sqrt (/ 20.0 3)) 5.0)))
+             1e-10)))
+    (testing "returns NaN for single element"
+      (is (Double/isNaN (stats/cv [5.0]))))
+    (testing "returns NaN for empty collection"
+      (is (Double/isNaN (stats/cv []))))
+    (testing "returns NaN when mean is zero"
+      (is (Double/isNaN (stats/cv [-1.0 1.0]))))))
+
 (deftest boxplot-outlier-thresholds-test
   (testing "boxplot-outlier-thresholds"
     (testing "returns [severe-low mild-low mild-high severe-high]"
