@@ -1,9 +1,9 @@
-(ns utils.invariant-test
+(ns criterium.utils.invariant-test
   (:require
    [clojure.test :refer [deftest is testing]]
-   [utils.interface :refer [have have?]]))
+   [criterium.utils.interface :refer [have have?]]))
 
-;; Tests for the have and have? assertion macros from utils.interface.
+;; Tests for the have and have? assertion macros from criterium.utils.interface.
 ;; These macros are inspired by truss and provide concise assertion checking.
 
 (deftest have?-test

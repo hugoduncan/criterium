@@ -1,7 +1,7 @@
 (ns optimisation.regression
   "Linear regression algorithms."
   (:require
-   [utils.interface :as utils]))
+   [criterium.utils.interface :as utils]))
 
 (defn- muld
   ^double [^double a ^double b]

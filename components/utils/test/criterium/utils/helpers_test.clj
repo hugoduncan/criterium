@@ -1,9 +1,9 @@
-(ns utils.helpers-test
+(ns criterium.utils.helpers-test
   (:require
    [clojure.test :refer [deftest is testing]]
-   [utils.interface :as utils]))
+   [criterium.utils.interface :as utils]))
 
-;; Tests for the generic utility functions extracted to utils.interface.
+;; Tests for the generic utility functions extracted to criterium.utils.interface.
 ;; These are math utilities, collection helpers, and tree walking functions.
 
 (deftest sqr-test

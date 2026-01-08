@@ -12,10 +12,10 @@
   - Efron, B., & Tibshirani, R. J. (1993). An introduction to the bootstrap.
   - http://lib.stat.cmu.edu/S/bootstrap.funs"
   (:require
+   [criterium.utils.interface :as utils]
    [stats.core :as core]
    [stats.probability :as probability]
-   [stats.sampling :as sampling]
-   [utils.interface :as utils]))
+   [stats.sampling :as sampling]))
 
 (defn bootstrap-sample
   "Bootstrap sampling of a statistic, using resampling with replacement.

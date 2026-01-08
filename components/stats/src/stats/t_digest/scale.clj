@@ -1,7 +1,7 @@
 (ns stats.t-digest.scale
   "Scale functions for t-digest algorithm.
    These control how cluster sizes are determined and affect accuracy in different ways."
-  (:require [utils.interface :refer [have?]]))
+  (:require [criterium.utils.interface :refer [have?]]))
 
 (defn finite? [^double x]
   (and (not (NaN? x)) (not (infinite? x))))

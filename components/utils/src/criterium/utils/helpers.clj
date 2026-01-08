@@ -1,4 +1,4 @@
-(ns utils.helpers
+(ns criterium.utils.helpers
   "Generic utility functions."
   (:refer-clojure :exclude [update-vals]))
 

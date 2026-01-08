@@ -1,9 +1,9 @@
-(ns utils.forms-test
+(ns criterium.utils.forms-test
   (:require
    [clojure.test :refer [deftest is testing]]
-   [utils.interface :refer [cond*]]))
+   [criterium.utils.interface :refer [cond*]]))
 
-;; Tests for the cond* macro from utils.interface.
+;; Tests for the cond* macro from criterium.utils.interface.
 ;; cond* extends standard cond with :let bindings visible to subsequent clauses.
 
 (deftest cond*-test

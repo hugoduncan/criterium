@@ -2,7 +2,7 @@
   "Core statistical functions: min, max, mean, sum, variance, median, quartiles, quantile."
   (:refer-clojure :exclude [min max])
   (:require
-   [utils.interface :as utils]))
+   [criterium.utils.interface :as utils]))
 
 (defn transpose
   "Transpose a vector of vectors."

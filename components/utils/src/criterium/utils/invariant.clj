@@ -1,4 +1,4 @@
-(ns utils.invariant
+(ns criterium.utils.invariant
   "Assertion macros inspired by truss.")
 
 (defn truthy? [x]
@@ -15,7 +15,7 @@
 (defn- have* [x args truthy? &form]
   (let [[f x data] (if (seq args)
                      (into [x] args)
-                     ['utils.invariant/truthy? x])
+                     ['criterium.utils.invariant/truthy? x])
         ns-sym     (ns-name *ns*)
         line       (:line (meta &form))
         column     (:column (meta &form) -1)

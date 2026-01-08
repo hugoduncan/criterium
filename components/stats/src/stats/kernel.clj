@@ -4,7 +4,7 @@
   Provides kernel weight functions and basic kernel density estimators
   for modal estimation and bandwidth selection."
   (:require
-   [utils.interface :as utils]))
+   [criterium.utils.interface :as utils]))
 
 (defn modal-estimation-constant
   "Kernel function for estimation of multi-modality.

@@ -2,8 +2,8 @@
   "Implementation of the t-digest algorithm for streaming quantile estimation.
    Based on the MergingDigest variant from https://github.com/tdunning/t-digest"
   (:require
-   [stats.t-digest.scale :as scale :refer [finite?]]
-   [utils.interface :refer [cond* have have? reduce-double-vector]])
+   [criterium.utils.interface :refer [cond* have have? reduce-double-vector]]
+   [stats.t-digest.scale :as scale :refer [finite?]])
   (:import
    [clojure.lang
     IPersistentVector]

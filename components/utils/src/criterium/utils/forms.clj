@@ -1,4 +1,4 @@
-(ns utils.forms)
+(ns criterium.utils.forms)
 
 (defmacro cond*
   "A cond variant that allows :let bindings visible to subsequent clauses.

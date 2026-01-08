@@ -1,10 +1,10 @@
 (ns criterium.util.invariant
   "Assertion macros inspired by truss.
 
-  This namespace delegates to utils.interface for the core implementation
+  This namespace delegates to criterium.utils.interface for the core implementation
   and is retained for backward compatibility."
   (:require
-   [utils.interface :as utils]))
+   [criterium.utils.interface :as utils]))
 
 (def truthy? utils/truthy?)
 (def assertion-error utils/assertion-error)

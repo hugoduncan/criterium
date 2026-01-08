@@ -1,4 +1,4 @@
-(ns utils.interface
+(ns criterium.utils.interface
   "Public API for the utils component.
 
   Provides generic utilities including:
@@ -10,9 +10,9 @@
   - Debugging (spy, report)"
   (:refer-clojure :exclude [update-vals])
   (:require
-   [utils.forms :as forms]
-   [utils.helpers :as helpers]
-   [utils.invariant :as invariant]))
+   [criterium.utils.forms :as forms]
+   [criterium.utils.helpers :as helpers]
+   [criterium.utils.invariant :as invariant]))
 
 ;;; Invariant macros
 
