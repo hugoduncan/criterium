@@ -1,5 +1,5 @@
-(ns stats.probability-validation-test
-  "Validation tests for stats.interface probability functions against R reference.
+(ns criterium.stats.probability-validation-test
+  "Validation tests for criterium.stats.interface probability functions against R reference.
 
   Tests skip gracefully when R/Rserve is unavailable.
 
@@ -11,9 +11,9 @@
   - Inverse Gaussian: dinvgauss, pinvgauss (requires statmod package)"
   (:require
    [clojure.test :refer [deftest is testing]]
+   [criterium.stats.interface :as stats]
    [criterium.test.assert :refer [approx=]]
-   [r-validation.r :as r]
-   [stats.interface :as stats]))
+   [r-validation.r :as r]))
 
 ;;; Test quantiles
 ;; Standard quantile points to test across the distribution

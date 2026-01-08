@@ -4,7 +4,7 @@
   All functions are delegated to the stats component.
   This namespace provides backward compatibility."
   (:require
-   [stats.interface :as stats]))
+   [criterium.stats.interface :as stats]))
 
 ;;; Excess Mass computation
 

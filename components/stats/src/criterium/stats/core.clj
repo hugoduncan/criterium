@@ -1,4 +1,4 @@
-(ns stats.core
+(ns criterium.stats.core
   "Core statistical functions: min, max, mean, sum, variance, median, quartiles, quantile."
   (:refer-clojure :exclude [min max])
   (:require

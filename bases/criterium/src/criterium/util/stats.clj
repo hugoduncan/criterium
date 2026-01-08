@@ -4,8 +4,8 @@
   All functions are delegated to stats and optimisation components."
   (:refer-clojure :exclude [min max])
   (:require
-   [optimisation.interface :as optimisation]
-   [stats.interface :as stats]))
+   [criterium.stats.interface :as stats]
+   [optimisation.interface :as optimisation]))
 
 ;;; Core statistics (delegated to stats component)
 

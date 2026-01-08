@@ -1,4 +1,4 @@
-(ns stats.bootstrap
+(ns criterium.stats.bootstrap
   "Bootstrap resampling and confidence interval estimation.
 
   Provides core bootstrap algorithms for statistical inference:
@@ -12,10 +12,10 @@
   - Efron, B., & Tibshirani, R. J. (1993). An introduction to the bootstrap.
   - http://lib.stat.cmu.edu/S/bootstrap.funs"
   (:require
-   [criterium.utils.interface :as utils]
-   [stats.core :as core]
-   [stats.probability :as probability]
-   [stats.sampling :as sampling]))
+   [criterium.stats.core :as core]
+   [criterium.stats.probability :as probability]
+   [criterium.stats.sampling :as sampling]
+   [criterium.utils.interface :as utils]))
 
 (defn bootstrap-sample
   "Bootstrap sampling of a statistic, using resampling with replacement.

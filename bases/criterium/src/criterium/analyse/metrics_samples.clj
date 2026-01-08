@@ -3,13 +3,13 @@
    [criterium.analyse.methods :as methods]
    [criterium.collect-plan :as collect-plan]
    [criterium.random.interface :as random]
+   [criterium.stats.interface :as si]
    [criterium.util.helpers :as util]
    [criterium.util.histogram :as histogram]
    [criterium.util.invariant :refer [have]]
    [criterium.util.kde :as kde]
    [criterium.util.sampled-stats :as sampled-stats]
-   [criterium.util.stats :as stats]
-   [stats.interface :as si]))
+   [criterium.util.stats :as stats]))
 
 (def ^:private metrics-samples-keys
   "Keys for :criterium/metrics-samples type, used for select-keys."

@@ -1,4 +1,4 @@
-(ns stats.sampling
+(ns criterium.stats.sampling
   "Sampling utilities: uniform distribution, sample functions, confidence intervals.")
 
 (defn uniform-distribution

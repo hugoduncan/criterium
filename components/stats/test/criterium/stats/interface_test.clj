@@ -1,11 +1,11 @@
-(ns stats.interface-test
+(ns criterium.stats.interface-test
   (:require
    [clojure.test :refer [deftest is testing]]
    [clojure.test.check.clojure-test :refer [defspec]]
    [clojure.test.check.generators :as gen]
    [clojure.test.check.properties :as prop]
    [criterium.random.interface :as random]
-   [stats.interface :as stats]))
+   [criterium.stats.interface :as stats]))
 
 ;; Tests for stats component functions.
 ;; Tests verify contract: each function computes expected statistical values.

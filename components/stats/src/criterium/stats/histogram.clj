@@ -1,4 +1,4 @@
-(ns stats.histogram
+(ns criterium.stats.histogram
   "Histogram computation utilities with multiple binning methods.
 
   Supports:
@@ -6,7 +6,7 @@
   - :knuth - Bayesian optimal bin count selection"
   (:require
    [clojure.math :as math]
-   [stats.knuth :as knuth]))
+   [criterium.stats.knuth :as knuth]))
 
 (defn- quartiles
   "Calculate quartiles Q1 and Q3 from sorted data.

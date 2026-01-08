@@ -1,4 +1,4 @@
-(ns stats.interface
+(ns criterium.stats.interface
   "Public API for the stats component.
 
   Provides statistical functions including:
@@ -20,18 +20,18 @@
   - Bootstrap: resampling, BCa confidence intervals, jacknife"
   (:refer-clojure :exclude [min max])
   (:require
-   [stats.bootstrap :as bootstrap]
-   [stats.core :as core]
-   [stats.histogram :as histogram]
-   [stats.kde :as kde]
-   [stats.kernel :as kernel]
-   [stats.knuth :as knuth]
-   [stats.mle :as mle]
-   [stats.moment-match :as moment-match]
-   [stats.outliers :as outliers]
-   [stats.probability :as probability]
-   [stats.sampling :as sampling]
-   [stats.t-digest :as t-digest]))
+   [criterium.stats.bootstrap :as bootstrap]
+   [criterium.stats.core :as core]
+   [criterium.stats.histogram :as histogram]
+   [criterium.stats.kde :as kde]
+   [criterium.stats.kernel :as kernel]
+   [criterium.stats.knuth :as knuth]
+   [criterium.stats.mle :as mle]
+   [criterium.stats.moment-match :as moment-match]
+   [criterium.stats.outliers :as outliers]
+   [criterium.stats.probability :as probability]
+   [criterium.stats.sampling :as sampling]
+   [criterium.stats.t-digest :as t-digest]))
 
 ;;; Core statistics
 

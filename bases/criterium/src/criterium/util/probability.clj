@@ -1,9 +1,9 @@
 (ns criterium.util.probability
   "Probability functions including log-gamma and error function approximations.
 
-  Re-exports from stats.interface for backward compatibility."
+  Re-exports from criterium.stats.interface for backward compatibility."
   (:require
-   [stats.interface :as stats]))
+   [criterium.stats.interface :as stats]))
 
 (def polynomial-value
   "Evaluate a polynomial at the given value x, for the coefficients given in

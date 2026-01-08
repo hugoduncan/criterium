@@ -5,9 +5,9 @@
   - :freedman-diaconis (default) - Uses IQR-based bin width calculation
   - :knuth - Bayesian optimal bin count selection
 
-  Re-exports from stats.interface for backward compatibility."
+  Re-exports from criterium.stats.interface for backward compatibility."
   (:require
-   [stats.interface :as stats]))
+   [criterium.stats.interface :as stats]))
 
 (defn histogram
   "Compute histogram from vector of numeric values.

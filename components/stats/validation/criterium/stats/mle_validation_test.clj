@@ -1,5 +1,5 @@
-(ns stats.mle-validation-test
-  "Validation tests for stats.interface MLE functions against R reference.
+(ns criterium.stats.mle-validation-test
+  "Validation tests for criterium.stats.interface MLE functions against R reference.
 
   Tests skip gracefully when R/Rserve is unavailable.
 
@@ -12,9 +12,9 @@
   Also validates digamma and trigamma functions."
   (:require
    [clojure.test :refer [deftest is testing]]
+   [criterium.stats.interface :as stats]
    [criterium.test.assert :refer [approx=]]
-   [r-validation.r :as r]
-   [stats.interface :as stats]))
+   [r-validation.r :as r]))
 
 ;;; Digamma and Trigamma Validation
 

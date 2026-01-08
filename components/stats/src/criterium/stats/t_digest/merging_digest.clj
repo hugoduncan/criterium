@@ -1,13 +1,13 @@
-(ns stats.t-digest.merging-digest
+(ns criterium.stats.t-digest.merging-digest
   "Implementation of the t-digest algorithm for streaming quantile estimation.
    Based on the MergingDigest variant from https://github.com/tdunning/t-digest"
   (:require
-   [criterium.utils.interface :refer [cond* have have? reduce-double-vector]]
-   [stats.t-digest.scale :as scale :refer [finite?]])
+   [criterium.stats.t-digest.scale :as scale :refer [finite?]]
+   [criterium.utils.interface :refer [cond* have have? reduce-double-vector]])
   (:import
    [clojure.lang
     IPersistentVector]
-   [stats.t_digest.scale
+   [criterium.stats.t_digest.scale
     Scale]))
 
 (defrecord Centroid

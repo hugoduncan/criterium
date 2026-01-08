@@ -1,7 +1,7 @@
 (ns criterium.util.t-digest
   "Re-exports t-digest functionality from stats component for backward compatibility."
   (:require
-   [stats.t-digest :as t-digest]))
+   [criterium.stats.t-digest :as t-digest]))
 
 (def new-digest
   "Creates a new t-digest with optional compression factor."

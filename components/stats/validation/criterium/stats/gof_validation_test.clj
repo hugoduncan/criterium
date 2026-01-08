@@ -1,4 +1,4 @@
-(ns stats.gof-validation-test
+(ns criterium.stats.gof-validation-test
   "Validation tests for goodness-of-fit tests against R reference.
 
   Tests skip gracefully when R/Rserve is unavailable.
@@ -12,9 +12,9 @@
   (:require
    [clojure.string :as str]
    [clojure.test :refer [deftest is testing]]
+   [criterium.stats.interface :as stats]
    [criterium.test.assert :refer [approx=]]
-   [r-validation.r :as r]
-   [stats.interface :as stats]))
+   [r-validation.r :as r]))
 
 ;;; Test Data
 ;; Using fixed data for reproducibility

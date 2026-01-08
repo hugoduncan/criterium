@@ -1,8 +1,8 @@
-(ns stats.t-digest
+(ns criterium.stats.t-digest
   "T-digest streaming quantile estimation.
    Provides a wrapper API over the merging-digest implementation."
   (:require
-   [stats.t-digest.merging-digest :as md]))
+   [criterium.stats.t-digest.merging-digest :as md]))
 
 (defn new-digest
   "Creates a new t-digest with optional compression factor."

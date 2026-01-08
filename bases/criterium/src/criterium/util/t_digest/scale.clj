@@ -1,6 +1,6 @@
 (ns criterium.util.t-digest.scale
   "Re-exports scale functions from stats component for backward compatibility."
-  (:require [stats.t-digest.scale :as scale]))
+  (:require [criterium.stats.t-digest.scale :as scale]))
 
 (def finite? scale/finite?)
 

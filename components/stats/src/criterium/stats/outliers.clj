@@ -1,10 +1,10 @@
-(ns stats.outliers
+(ns criterium.stats.outliers
   "Outlier detection using boxplot thresholds.
 
   Provides both standard symmetric boxplot and adjusted boxplot for
   skewed distributions using the medcouple statistic."
   (:require
-   [stats.core :as core]))
+   [criterium.stats.core :as core]))
 
 (defn boxplot-outlier-thresholds
   "Outlier thresholds for given quartiles.

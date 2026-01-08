@@ -1,4 +1,4 @@
-(ns stats.moment-match
+(ns criterium.stats.moment-match
   "Moment-based parameter estimation and distribution suitability screening.
 
   Provides method-of-moments initial parameter estimates for distributions
@@ -8,7 +8,7 @@
   This is used before MLE fitting to quickly eliminate distributions where
   moment-based estimates yield invalid parameters (e.g., negative shape)."
   (:require
-   [stats.probability :as probability]))
+   [criterium.stats.probability :as probability]))
 
 ;;; Method-of-Moments Parameter Estimation
 ;; These provide initial estimates that can also be used to screen distributions

@@ -1,7 +1,7 @@
-(ns stats.moment-match-test
+(ns criterium.stats.moment-match-test
   (:require
    [clojure.test :refer [deftest is testing]]
-   [stats.moment-match :as mm]))
+   [criterium.stats.moment-match :as mm]))
 
 ;; Tests for moment-based parameter estimation and distribution suitability
 ;; screening. These functions provide initial estimates for MLE fitting and

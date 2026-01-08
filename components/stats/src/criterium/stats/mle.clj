@@ -1,4 +1,4 @@
-(ns stats.mle
+(ns criterium.stats.mle
   "Maximum Likelihood Estimation for statistical distributions.
 
   Provides MLE fitting functions that return both parameter estimates
@@ -12,7 +12,7 @@
 
   All functions return maps with :params and :log-likelihood keys."
   (:require
-   [stats.probability :as probability]))
+   [criterium.stats.probability :as probability]))
 
 ;;; Log-normal MLE (closed-form)
 

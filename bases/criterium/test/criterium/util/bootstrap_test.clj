@@ -3,14 +3,14 @@
    [clojure.test :refer [deftest is testing]]
    [criterium.analyse-test :refer [metrics-samples]]
    [criterium.collect-plan :as collect-plan]
+   [criterium.stats.interface :as stats-interface]
    [criterium.test-utils :refer [test-max-error]]
    [criterium.util.bootstrap :as bootstrap]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have]]
    [criterium.util.sampled-stats-test :as sampled-stats-test]
    [criterium.util.stats :as stats]
-   [criterium.util.well :as well]
-   [stats.interface :as stats-interface]))
+   [criterium.util.well :as well]))
 
 (deftest bootstrap-estimate-test
   (is (= [1.0 0.0 [1.0 1.0]]

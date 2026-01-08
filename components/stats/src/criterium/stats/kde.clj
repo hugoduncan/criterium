@@ -1,12 +1,12 @@
-(ns stats.kde
+(ns criterium.stats.kde
   "Kernel Density Estimation utilities.
 
   Provides ISJ (Improved Sheather-Jones) bandwidth selection, Gaussian kernel
   density estimation, bootstrap confidence bands, and mode finding."
   (:require
    [criterium.random.interface :as random]
-   [stats.core :as core]
-   [stats.sampling :as sampling]))
+   [criterium.stats.core :as core]
+   [criterium.stats.sampling :as sampling]))
 
 ;;; Excess Mass computation (Müller-Sawitzki 1991)
 

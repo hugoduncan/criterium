@@ -1,4 +1,4 @@
-(ns stats.t-digest.scale
+(ns criterium.stats.t-digest.scale
   "Scale functions for t-digest algorithm.
    These control how cluster sizes are determined and affect accuracy in different ways."
   (:require [criterium.utils.interface :refer [have?]]))

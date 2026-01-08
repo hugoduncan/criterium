@@ -1,4 +1,4 @@
-(ns stats.kernel
+(ns criterium.stats.kernel
   "Kernel functions for density estimation.
 
   Provides kernel weight functions and basic kernel density estimators

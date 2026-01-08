@@ -1,4 +1,4 @@
-(ns stats.information-criteria-validation-test
+(ns criterium.stats.information-criteria-validation-test
   "Validation tests for AIC, BIC, and AICc against R reference.
 
   Tests skip gracefully when R/Rserve is unavailable.
@@ -13,9 +13,9 @@
     AICc = AIC + (2*k*(k+1))/(n-k-1)"
   (:require
    [clojure.test :refer [deftest is testing]]
+   [criterium.stats.interface :as stats]
    [criterium.test.assert :refer [approx=]]
-   [r-validation.r :as r]
-   [stats.interface :as stats]))
+   [r-validation.r :as r]))
 
 ;;; Test cases for information criteria
 ;; Each case: [k n log-likelihood description]

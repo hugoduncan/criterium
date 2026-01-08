@@ -1,4 +1,4 @@
-(ns stats.knuth
+(ns criterium.stats.knuth
   "Knuth's Bayesian histogram binning algorithm.
 
    Implements optimal bin count selection by maximizing a log-posterior
@@ -9,7 +9,7 @@
 
    where n = sample count, nₖ = count in bin k."
   (:require
-   [stats.probability :as prob]))
+   [criterium.stats.probability :as prob]))
 
 ;;; Constants
 

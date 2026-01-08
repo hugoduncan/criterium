@@ -1,4 +1,4 @@
-(ns stats.probability
+(ns criterium.stats.probability
   "Probability functions: log-gamma, error function, normal distribution,
   and common statistical distributions (gamma, weibull, lognormal, inverse-gaussian).")
 

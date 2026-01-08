@@ -1,5 +1,5 @@
-(ns stats.bootstrap-validation-test
-  "Validation tests for stats.interface bootstrap functions against R's boot package.
+(ns criterium.stats.bootstrap-validation-test
+  "Validation tests for criterium.stats.interface bootstrap functions against R's boot package.
 
   Bootstrap methods involve random sampling, so exact matching is not possible.
   Instead, we validate:
@@ -11,11 +11,11 @@
   (:require
    [clojure.test :refer [deftest is testing]]
    [criterium.random.interface :as random]
+   [criterium.stats.interface :as stats]
    [criterium.test.assert :refer [approx=]]
-   [r-validation.r :as r :refer [vec->r-str]]
-   [stats.interface :as stats])
+   [r-validation.r :as r :refer [vec->r-str]])
   (:import
-   [stats.bootstrap BcaEstimate]))
+   [criterium.stats.bootstrap BcaEstimate]))
 
 ;;; Test data sets
 ;; Fixed datasets for reproducible validation

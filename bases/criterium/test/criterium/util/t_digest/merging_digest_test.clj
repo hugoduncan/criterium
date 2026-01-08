@@ -5,13 +5,13 @@
    [clojure.test.check.clojure-test :refer [defspec]]
    [clojure.test.check.generators :as gen]
    [clojure.test.check.properties :as prop]
+   [criterium.stats.t-digest.merging-digest :as stats-md]
    [criterium.test-utils :refer [approx= gen-double]]
    [criterium.util.probability :as probability]
    [criterium.util.t-digest.merging-digest :as md]
    [criterium.util.t-digest.scale :as scale]
    [criterium.util.well :as well]
-   [criterium.util.ziggurat :as ziggurat]
-   [stats.t-digest.merging-digest :as stats-md]))
+   [criterium.util.ziggurat :as ziggurat]))
 
 #_(deftest merge-centroids-invariants
     (let [compression 100.0]
