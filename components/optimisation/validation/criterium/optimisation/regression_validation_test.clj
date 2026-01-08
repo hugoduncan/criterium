@@ -1,12 +1,12 @@
-(ns optimisation.regression-validation-test
-  "Validation tests for optimisation.interface/linear-regression against R's lm().
+(ns criterium.optimisation.regression-validation-test
+  "Validation tests for criterium.optimisation.interface/linear-regression against R's lm().
 
   Tests skip gracefully when R/Rserve is unavailable."
   (:require
    [clojure.test :refer [deftest is testing]]
+   [criterium.optimisation.interface :as optimisation]
    [criterium.test.assert :refer [approx=]]
-   [r-validation.r :as r :refer [vec->r-str]]
-   [optimisation.interface :as optimisation]))
+   [r-validation.r :as r :refer [vec->r-str]]))
 
 (defn near-zero=
   "Check if both values are essentially zero (within abs-tol of 0).
@@ -34,7 +34,7 @@
 (def linear-small-ys [0.0021 0.0039 0.0061 0.0078 0.0102])  ; small values with noise
 
 (deftest linear-regression-validation-test
-  ;; Validates optimisation.interface/linear-regression against R's lm() function.
+  ;; Validates criterium.optimisation.interface/linear-regression against R's lm() function.
   ;; R's lm() computes ordinary least squares regression. linear-regression
   ;; returns {:coeffs [intercept slope] :variance residual-variance :r-sqr r-squared}.
   (testing "linear-regression"

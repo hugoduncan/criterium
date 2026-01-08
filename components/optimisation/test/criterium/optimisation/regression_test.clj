@@ -1,9 +1,9 @@
-(ns optimisation.regression-test
+(ns criterium.optimisation.regression-test
   ;; Tests for linear regression algorithm.
   ;; Validates coefficient calculation, variance, and R-squared.
   (:require
    [clojure.test :refer [deftest is testing]]
-   [optimisation.interface :as opt]))
+   [criterium.optimisation.interface :as opt]))
 
 (deftest linear-regression-test
   (testing "linear-regression"

@@ -1,10 +1,10 @@
-(ns optimisation.interface
+(ns criterium.optimisation.interface
   "Public API for the optimisation component.
 
   Provides numerical optimisation algorithms:
   - Linear regression for fitting linear models to data"
   (:require
-   [optimisation.regression :as regression]))
+   [criterium.optimisation.regression :as regression]))
 
 (defn linear-regression
   "Perform simple linear regression: y = a0 + a1*x.

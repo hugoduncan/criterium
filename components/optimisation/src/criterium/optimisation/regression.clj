@@ -1,4 +1,4 @@
-(ns optimisation.regression
+(ns criterium.optimisation.regression
   "Linear regression algorithms."
   (:require
    [criterium.utils.interface :as utils]))
