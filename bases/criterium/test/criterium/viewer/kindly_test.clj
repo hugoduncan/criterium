@@ -6,7 +6,9 @@
    [clojure.string :as str]
    [clojure.test :refer [deftest is testing]]
    [criterium.analyse :as analyse]
+   [criterium.collect-plan :as collect-plan]
    [criterium.collector.metrics :as metrics]
+   [criterium.domain.types :as domain.types]
    [criterium.test-data :as test-data]
    [criterium.view :as view]
    [criterium.viewer.kindly :as kindly]))
@@ -1546,3 +1548,123 @@
         (let [result (kindly/flush)]
           (is (= 4 (count result))
               "Expected output with custom modes-id"))))))
+
+;;; Domain Apply View Tests
+
+(defn- make-bench-data
+  "Create minimal benchmark data with stats for testing domain-apply.
+  Unlike print viewer, kindly stats view also requires :max-val in stats."
+  [mean-ns]
+  (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])]
+    {:samples {:type :criterium/collected-metrics-samples
+               :metrics-defs metrics-defs
+               :metric->values {[:elapsed-time] [mean-ns]}
+               :transform collect-plan/identity-transforms
+               :batch-size 1
+               :num-samples 1
+               :eval-count 1
+               :elapsed-time mean-ns}
+     :stats {:type :criterium/stats
+             :metrics-defs metrics-defs
+             :transform collect-plan/identity-transforms
+             :batch-size 1
+             :source-id :samples
+             :outliers-id nil
+             :stats {:elapsed-time {:mean mean-ns
+                                    :variance 1.0
+                                    :mean-plus-3sigma (+ mean-ns 3)
+                                    :mean-minus-3sigma (- mean-ns 3)
+                                    :min-val mean-ns
+                                    :max-val (+ mean-ns 10)}}}}))
+
+(deftest domain-apply-kindly-test
+  ;; Tests the view/domain-apply* multimethod for :kindly viewer.
+  ;; Verifies that each run is rendered with a heading showing the coord
+  ;; and the view-spec is applied to produce output in the accumulator.
+  (testing "view/domain-apply* :kindly"
+    (testing "renders heading and applies view-spec to each run"
+      (reset! kindly/accumulated [])
+      (let [domain (-> (domain.types/domain)
+                       (domain.types/add-run {:n 100} (make-bench-data 100))
+                       (domain.types/add-run {:n 200} (make-bench-data 200)))]
+        (view/domain-apply*
+         :kindly
+         {:view-spec [:stats {}]}
+         {:domain domain})
+        (let [result (kindly/flush)]
+          (is (= :kind/fragment (:kindly/kind (meta result))))
+          ;; Each run produces: heading + stats heading + stats table = 3 items
+          ;; 2 runs = 6 items total
+          (is (= 6 (count result))
+              "Expected 6 items: 2 runs × (coord heading + stats heading + stats table)")
+          ;; First item should be the coord heading for first run
+          (let [first-heading (first result)]
+            (is (= :kind/md (:kindly/kind (meta first-heading))))
+            (is (str/includes? (first first-heading) "Run:")
+                "First item should be run heading")
+            (is (str/includes? (first first-heading) "{:n 100}")
+                "Run heading should contain coord"))
+          ;; Fourth item should be the coord heading for second run
+          (let [second-heading (nth result 3)]
+            (is (= :kind/md (:kindly/kind (meta second-heading))))
+            (is (str/includes? (first second-heading) "{:n 200}")
+                "Second run heading should contain coord")))))
+
+    (testing "handles keyword coord"
+      (reset! kindly/accumulated [])
+      (let [domain (domain.types/domain
+                    {:coord :baseline :data (make-bench-data 50)})]
+        (view/domain-apply*
+         :kindly
+         {:view-spec [:stats {}]}
+         {:domain domain})
+        (let [result (kindly/flush)]
+          (is (= :kind/fragment (:kindly/kind (meta result))))
+          (let [first-heading (first result)]
+            (is (str/includes? (first first-heading) ":baseline")
+                "Coord heading should contain keyword coord")))))
+
+    (testing "uses custom domain-id"
+      (reset! kindly/accumulated [])
+      (let [domain (domain.types/domain
+                    {:coord {:impl :foo} :data (make-bench-data 150)})]
+        (view/domain-apply*
+         :kindly
+         {:domain-id :my-domain
+          :view-spec [:stats {}]}
+         {:my-domain domain})
+        (let [result (kindly/flush)]
+          (is (= :kind/fragment (:kindly/kind (meta result))))
+          (let [first-heading (first result)]
+            (is (str/includes? (first first-heading) "{:impl :foo}")
+                "Should use custom domain-id")))))
+
+    (testing "handles empty domain gracefully"
+      (reset! kindly/accumulated [])
+      (let [domain (domain.types/domain)]
+        (view/domain-apply*
+         :kindly
+         {:view-spec [:stats {}]}
+         {:domain domain})
+        (is (nil? (kindly/flush))
+            "Should produce no output for empty domain")))
+
+    (testing "handles missing domain gracefully"
+      (reset! kindly/accumulated [])
+      (view/domain-apply*
+       :kindly
+       {:view-spec [:stats {}]}
+       {})
+      (is (nil? (kindly/flush))
+          "Should produce no output when domain is missing"))
+
+    (testing "handles missing view-spec gracefully"
+      (reset! kindly/accumulated [])
+      (let [domain (domain.types/domain
+                    {:coord :test :data (make-bench-data 100)})]
+        (view/domain-apply*
+         :kindly
+         {}
+         {:domain domain})
+        (is (nil? (kindly/flush))
+            "Should produce no output when view-spec is missing")))))
