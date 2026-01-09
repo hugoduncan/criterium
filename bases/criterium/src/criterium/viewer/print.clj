@@ -1329,5 +1329,5 @@
     (when (and domain view-spec)
       (let [view-fn (benchmark/->view [view-spec])]
         (doseq [{:keys [coord data]} (domain.types/runs domain)]
-          (println (format "--- %s ---" (pr-str coord)))
+          (println (format "Run: %s" (pr-str coord)))
           (view-fn viewer data))))))

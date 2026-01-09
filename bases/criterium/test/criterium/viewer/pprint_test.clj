@@ -602,7 +602,7 @@
         (is (some #(str/includes? % "200") lines)
             "Should show stats for second run")))
 
-    (testing "formats coord with separator"
+    (testing "formats coord with Run: prefix"
       (let [domain (domain.types/domain
                     {:coord :baseline :data (make-bench-data 50)})
             output (with-out-str
@@ -611,8 +611,8 @@
                       {:view-spec [:stats {}]}
                       {:domain domain}))
             lines (trimmed-lines output)]
-        (is (some #(str/includes? % "--- :baseline ---") lines)
-            "Should format coord with separators")))
+        (is (some #(str/includes? % "Run: :baseline") lines)
+            "Should format coord with Run: prefix")))
 
     (testing "uses custom domain-id"
       (let [domain (domain.types/domain
