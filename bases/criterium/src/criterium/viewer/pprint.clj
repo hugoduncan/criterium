@@ -323,6 +323,20 @@
         (println heading)
         (pprint/print-table (into [coord-header] col-headers) rows)))))
 
+(defmethod view/domain-comparison-table* :pprint
+  [_ {:keys [comparison-id]} data-map]
+  (let [comparison-id (or comparison-id :comparison)
+        comparison (data-map comparison-id)]
+    (when-let [tables (comparison/prepare-domain-comparison-tables comparison)]
+      (doseq [{:keys [heading coord-header col-headers rows]} tables]
+        (println heading)
+        (pprint/print-table (into [coord-header] col-headers) rows)))))
+
+(defmethod view/domain-comparison-chart* :pprint
+  [_ _ _]
+  ;; Pprint viewer doesn't render charts
+  nil)
+
 (defmethod view/domain-regression* :pprint
   [_ {:keys [regression-id tolerance]} data-map]
   (let [regression-id (or regression-id :regression)

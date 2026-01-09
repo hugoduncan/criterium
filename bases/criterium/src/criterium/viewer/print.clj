@@ -1144,6 +1144,83 @@
               (println (format "Domain Comparison by %s: %s (no data)"
                                (name axis) (pr-str metric))))))))))
 
+(defmethod view/domain-comparison-table* :print
+  [_ {:keys [comparison-id]} data-map]
+  (let [comparison-id (or comparison-id :comparison)
+        comparison (data-map comparison-id)]
+    (case (detection/comparison-visualization-strategy comparison)
+      :single-point
+      (when-let [table (comparison/prepare-domain-comparison-table-transposed
+                        comparison)]
+        (print-transposed-table table))
+
+      :multi-point
+      (when comparison
+        (let [{:keys [axis metric metrics implementations data]} comparison]
+          (if metrics
+            ;; Multi-metric mode with factor display
+            (if implementations
+              (print-multi-metric-comparison-table axis implementations metrics)
+              ;; Multi-metric mode without implementations - show all values
+              (doseq [[_metric-id {:keys [metric data]}] metrics]
+                (when (and (seq data) (some #(seq (second %)) data))
+                  (print-comparison-table axis metric data))))
+            ;; Single-metric mode
+            (if (and (seq data) (some #(seq (second %)) data))
+              (if implementations
+                (let [data-keys (set (keys data))
+                      missing (remove data-keys implementations)]
+                  (when (seq missing)
+                    (throw
+                     (ex-info
+                      "Domain :implementations do not match comparison data keys"
+                      {:implementations implementations
+                       :data-keys (keys data)
+                       :missing missing})))
+                  (print-single-metric-factor-table
+                   axis
+                   metric
+                   implementations data))
+                (print-comparison-table axis metric data))
+              (println (format "Domain Comparison by %s: %s (no data)"
+                               (name axis) (pr-str metric)))))))
+
+      :default-table
+      (when comparison
+        (let [{:keys [axis metric metrics implementations data]} comparison]
+          (if metrics
+            ;; Multi-metric mode with factor display
+            (if implementations
+              (print-multi-metric-comparison-table axis implementations metrics)
+              ;; Multi-metric mode without implementations - show all values
+              (doseq [[_metric-id {:keys [metric data]}] metrics]
+                (when (and (seq data) (some #(seq (second %)) data))
+                  (print-comparison-table axis metric data))))
+            ;; Single-metric mode
+            (if (and (seq data) (some #(seq (second %)) data))
+              (if implementations
+                (let [data-keys (set (keys data))
+                      missing (remove data-keys implementations)]
+                  (when (seq missing)
+                    (throw
+                     (ex-info
+                      "Domain :implementations do not match comparison data keys"
+                      {:implementations implementations
+                       :data-keys (keys data)
+                       :missing missing})))
+                  (print-single-metric-factor-table
+                   axis
+                   metric
+                   implementations data))
+                (print-comparison-table axis metric data))
+              (println (format "Domain Comparison by %s: %s (no data)"
+                               (name axis) (pr-str metric))))))))))
+
+(defmethod view/domain-comparison-chart* :print
+  [_ _ _]
+  ;; Print viewer doesn't render charts
+  nil)
+
 (defn- print-log-log-info
   "Print log-log regression summary."
   [slope r-squared multi-impl?]
