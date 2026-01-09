@@ -3,7 +3,9 @@
    [clojure.string :as str]
    [clojure.test :refer [deftest is testing]]
    [criterium.analyse :as analyse]
-   [criterium.collector.metrics]
+   [criterium.collect-plan :as collect-plan]
+   [criterium.collector.metrics :as metrics]
+   [criterium.domain.types :as domain.types]
    [criterium.test-data :as test-data]
    [criterium.view :as view]
    [criterium.viewer.portal :as portal])
@@ -1144,3 +1146,124 @@
           (is (contains? row :mean-ci-upper))
           (is (contains? row :p10))
           (is (contains? row :p90)))))))
+
+;;; Domain Apply View Tests
+
+(defn- make-bench-data
+  "Create minimal benchmark data with stats for testing domain-apply."
+  [mean-ns]
+  (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])]
+    {:samples {:type :criterium/collected-metrics-samples
+               :metrics-defs metrics-defs
+               :metric->values {[:elapsed-time] [mean-ns]}
+               :transform collect-plan/identity-transforms
+               :batch-size 1
+               :num-samples 1
+               :eval-count 1
+               :elapsed-time mean-ns}
+     :stats {:type :criterium/stats
+             :metrics-defs metrics-defs
+             :transform collect-plan/identity-transforms
+             :batch-size 1
+             :source-id :samples
+             :outliers-id nil
+             :stats {:elapsed-time {:mean mean-ns
+                                    :variance 1.0
+                                    :mean-plus-3sigma (+ mean-ns 3)
+                                    :mean-minus-3sigma (- mean-ns 3)
+                                    :min-val mean-ns
+                                    :max-val (+ mean-ns 3)}}}}))
+
+(deftest domain-apply-portal-test
+  ;; Tests the portal viewer for domain-apply.
+  ;; Verifies that each run's coord is tapped with heading and view-spec applied.
+  (testing "domain-apply*"
+    (testing "taps coord heading and applies view-spec to each run"
+      (let [domain (-> (domain.types/domain)
+                       (domain.types/add-run {:n 100} (make-bench-data 100))
+                       (domain.types/add-run {:n 200} (make-bench-data 200)))
+            outputs (with-tap-out
+                      (view/domain-apply*
+                       :portal
+                       {:view-spec [:stats {}]}
+                       {:domain domain}))]
+        (is (>= (count outputs) 4)
+            "Expected at least 2 headings and 2 tables (one per run)")
+        (let [headings (filter #(and (vector? %) (= :b (first %))) outputs)]
+          (is (some #(str/includes? (second %) "{:n 100}") headings)
+              "Should tap heading with first coord")
+          (is (some #(str/includes? (second %) "{:n 200}") headings)
+              "Should tap heading with second coord"))))
+
+    (testing "formats keyword coord in heading"
+      (let [domain (domain.types/domain
+                    {:coord :baseline :data (make-bench-data 50)})
+            outputs (with-tap-out
+                      (view/domain-apply*
+                       :portal
+                       {:view-spec [:stats {}]}
+                       {:domain domain}))
+            headings (filter #(and (vector? %) (= :b (first %))) outputs)]
+        (is (some #(str/includes? (second %) ":baseline") headings)
+            "Should format keyword coord in heading")))
+
+    (testing "uses custom domain-id"
+      (let [domain (domain.types/domain
+                    {:coord {:impl :foo} :data (make-bench-data 150)})
+            outputs (with-tap-out
+                      (view/domain-apply*
+                       :portal
+                       {:domain-id :my-domain
+                        :view-spec [:stats {}]}
+                       {:my-domain domain}))
+            headings (filter #(and (vector? %) (= :b (first %))) outputs)]
+        (is (some #(str/includes? (second %) "{:impl :foo}") headings)
+            "Should use custom domain-id")))
+
+    (testing "handles empty domain gracefully"
+      (let [domain (domain.types/domain)
+            v (volatile! [])
+            f (fn [x] (when-not (= ::portal/_ x) (vswap! v conj x)))]
+        (try
+          (add-tap f)
+          (view/domain-apply*
+           :portal
+           {:view-spec [:stats {}]}
+           {:domain domain})
+          (portal/flush)
+          (is (empty? @v)
+              "Should produce no output for empty domain")
+          (finally
+            (remove-tap f)))))
+
+    (testing "handles missing domain gracefully"
+      (let [v (volatile! [])
+            f (fn [x] (when-not (= ::portal/_ x) (vswap! v conj x)))]
+        (try
+          (add-tap f)
+          (view/domain-apply*
+           :portal
+           {:view-spec [:stats {}]}
+           {})
+          (portal/flush)
+          (is (empty? @v)
+              "Should produce no output when domain is missing")
+          (finally
+            (remove-tap f)))))
+
+    (testing "handles missing view-spec gracefully"
+      (let [domain (domain.types/domain
+                    {:coord :test :data (make-bench-data 100)})
+            v (volatile! [])
+            f (fn [x] (when-not (= ::portal/_ x) (vswap! v conj x)))]
+        (try
+          (add-tap f)
+          (view/domain-apply*
+           :portal
+           {}
+           {:domain domain})
+          (portal/flush)
+          (is (empty? @v)
+              "Should produce no output when view-spec is missing")
+          (finally
+            (remove-tap f)))))))
