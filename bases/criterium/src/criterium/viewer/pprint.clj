@@ -305,6 +305,21 @@
       ;; Rows already use string keys matching column headers
       (pprint/print-table (into [coord-header] col-headers) rows))))
 
+(defmethod view/domain-extract-table* :pprint
+  [_ {:keys [extract-id]} data-map]
+  (let [extract-id (or extract-id :extract)
+        extract (data-map extract-id)]
+    (when-let [{:keys [heading coord-header col-headers rows]}
+               (extract/prepare-domain-extract-table extract {:header-sep " "})]
+      (println heading)
+      ;; Rows already use string keys matching column headers
+      (pprint/print-table (into [coord-header] col-headers) rows))))
+
+(defmethod view/domain-extract-chart* :pprint
+  [_ _ _]
+  ;; Pprint viewer doesn't render charts
+  nil)
+
 (defmethod view/domain-grouped* :pprint
   [_ {:keys [grouped-id]} data-map]
   (let [grouped-id (or grouped-id :grouped)

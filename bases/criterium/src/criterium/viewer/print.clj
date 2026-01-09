@@ -857,6 +857,53 @@
                                  (format-extract-value value metric)))))
             (println)))))))
 
+(defmethod view/domain-extract-table* :print
+  [_ {:keys [extract-id]} data-map]
+  (let [extract-id (or extract-id :extract)
+        extract (data-map extract-id)]
+    (case (detection/visualization-strategy extract)
+      :single-point
+      (when-let [table (extract/prepare-domain-extract-table-transposed
+                        extract)]
+        (print-transposed-table table))
+
+      :multi-point
+      (when extract
+        (doseq [[_metric-id {:keys [metric data]}] (:metrics extract)]
+          (let [raw-coords (map first data)
+                stripped-coords (strip-uniform-axes raw-coords)
+                coord-map (zipmap raw-coords stripped-coords)
+                single-key-info (core/single-key-coord-info stripped-coords)
+                sorted-data (sort-coords data single-key-info)]
+            (println (format "Domain Extract: %s" (pr-str metric)))
+            (doseq [[coord value] sorted-data]
+              (let [display-coord (get coord-map coord coord)]
+                (println (format "  %24s: %s"
+                                 (format-coord-value display-coord single-key-info)
+                                 (format-extract-value value metric)))))
+            (println))))
+
+      :default-table
+      (when extract
+        (doseq [[_metric-id {:keys [metric data]}] (:metrics extract)]
+          (let [raw-coords (map first data)
+                stripped-coords (strip-uniform-axes raw-coords)
+                coord-map (zipmap raw-coords stripped-coords)
+                single-key-info (core/single-key-coord-info stripped-coords)
+                sorted-data (sort-coords data single-key-info)]
+            (println (format "Domain Extract: %s" (pr-str metric)))
+            (doseq [[coord value] sorted-data]
+              (let [display-coord (get coord-map coord coord)]
+                (println (format "  %24s: %s"
+                                 (format-coord-value display-coord single-key-info)
+                                 (format-extract-value value metric)))))
+            (println)))))))
+
+(defmethod view/domain-extract-chart* :print
+  [_ _ _]
+  ;; Print viewer doesn't render charts
+  nil)
+
 (defmethod view/domain-grouped* :print
   [_ {:keys [grouped-id]} data-map]
   (let [grouped-id (or grouped-id :grouped)
