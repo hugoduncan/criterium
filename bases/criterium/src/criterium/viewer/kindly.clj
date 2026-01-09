@@ -334,6 +334,54 @@
           (kindly-heading heading)
           (kindly-table rows {:column-names (into [coord-header] col-headers)}))))))
 
+(defmethod view/domain-comparison-table* :kindly
+  [_ {:keys [comparison-id]} data-map]
+  (let [comparison-id (or comparison-id :comparison)
+        comparison (data-map comparison-id)]
+    (case (detection/comparison-visualization-strategy comparison)
+      :single-point
+      (when-let [{:keys [heading col-headers rows]}
+                 (comparison/prepare-domain-comparison-table-transposed comparison)]
+        (kindly-heading heading)
+        (kindly-table rows {:column-names col-headers}))
+
+      :multi-point
+      (when-let [tables (comparison/prepare-domain-comparison-tables comparison)]
+        (doseq [{:keys [heading coord-header col-headers rows]} tables]
+          (kindly-heading heading)
+          (kindly-table rows {:column-names (into [coord-header] col-headers)})))
+
+      :default-table
+      (when-let [tables (comparison/prepare-domain-comparison-tables comparison)]
+        (doseq [{:keys [heading coord-header col-headers rows]} tables]
+          (kindly-heading heading)
+          (kindly-table rows {:column-names (into [coord-header] col-headers)}))))))
+
+(defmethod view/domain-comparison-chart* :kindly
+  [_ {:keys [comparison-id]} data-map]
+  (let [comparison-id (or comparison-id :comparison)
+        comparison (data-map comparison-id)]
+    (case (detection/comparison-visualization-strategy comparison)
+      :single-point
+      (when comparison
+        (let [box-spec (charts/comparison-box-chart-spec comparison {:width chart-width
+                                                                     :height chart-height})]
+          ;; Fall back to bar chart if box plot has no data (missing bootstrap stats)
+          (if (seq (:vconcat box-spec))
+            (kindly-vega-lite box-spec)
+            (kindly-vega-lite
+             (charts/comparison-bar-chart-spec comparison {:width chart-width
+                                                           :height chart-height})))))
+
+      :multi-point
+      (when comparison
+        (kindly-vega-lite
+         (charts/comparison-line-chart-spec comparison {:width chart-width
+                                                        :height chart-height})))
+
+      ;; :default-table - no chart output
+      nil)))
+
 (defmethod view/domain-regression* :kindly
   [_ {:keys [regression-id extract-id log-log-id tolerance]} data-map]
   (let [tolerance (double (or tolerance 0.01))

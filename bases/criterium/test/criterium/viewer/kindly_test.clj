@@ -783,6 +783,114 @@
       (view/domain-comparison* :kindly {} {:comparison nil})
       (is (nil? (kindly/flush))))))
 
+(deftest domain-comparison-table-view-test
+  ;; Tests the view/domain-comparison-table* multimethod for :kindly viewer.
+  ;; Verifies that domain comparison table data is rendered as heading and table
+  ;; without any chart output.
+  (testing "view/domain-comparison-table* :kindly"
+    (testing "renders table only for single-point comparison"
+      (reset! kindly/accumulated [])
+      (let [data-map {:comparison
+                      {:type :criterium/domain-comparison
+                       :axis :impl
+                       :metric [:stats :elapsed-time :mean]
+                       :implementations [:foo :bar]
+                       :data
+                       {:foo [{:coord {:impl :foo} :value 1e6}]
+                        :bar [{:coord {:impl :bar} :value 2e6}]}}}]
+        (view/domain-comparison-table* :kindly {} data-map)
+        (let [result (kindly/flush)]
+          (is (= :kind/fragment (:kindly/kind (meta result))))
+          (is (= 2 (count result)) "Expected heading and table only")
+          (let [[heading table-data] result]
+            (is (= :kind/md (:kindly/kind (meta heading))))
+            (is (str/includes? (first heading) "Domain Comparison"))
+            (is (= :kind/table (:kindly/kind (meta table-data))))))))
+
+    (testing "renders tables only for multi-point comparison"
+      (reset! kindly/accumulated [])
+      (let [data-map {:comparison
+                      {:type :criterium/domain-comparison
+                       :axis :impl
+                       :metric [:stats :elapsed-time :mean]
+                       :implementations [:foo :bar]
+                       :data
+                       {:foo [{:coord {:n 100 :impl :foo} :value 1e6}
+                              {:coord {:n 1000 :impl :foo} :value 1e7}]
+                        :bar [{:coord {:n 100 :impl :bar} :value 2e6}
+                              {:coord {:n 1000 :impl :bar} :value 2e7}]}}}]
+        (view/domain-comparison-table* :kindly {} data-map)
+        (let [result (kindly/flush)]
+          (is (= :kind/fragment (:kindly/kind (meta result))))
+          (is (= 2 (count result)) "Expected heading and table only")
+          (let [[heading table-data] result]
+            (is (= :kind/md (:kindly/kind (meta heading))))
+            (is (= :kind/table (:kindly/kind (meta table-data))))))))
+
+    (testing "handles nil comparison gracefully"
+      (reset! kindly/accumulated [])
+      (view/domain-comparison-table* :kindly {} {:comparison nil})
+      (is (nil? (kindly/flush))))))
+
+(deftest domain-comparison-chart-view-test
+  ;; Tests the view/domain-comparison-chart* multimethod for :kindly viewer.
+  ;; Verifies that domain comparison chart is rendered without table output.
+  (testing "view/domain-comparison-chart* :kindly"
+    (testing "renders bar chart for single-point comparison without bootstrap"
+      (reset! kindly/accumulated [])
+      (let [data-map {:comparison
+                      {:type :criterium/domain-comparison
+                       :axis :impl
+                       :metric [:stats :elapsed-time :mean]
+                       :implementations [:foo :bar]
+                       :data
+                       {:foo [{:coord {:impl :foo} :value 1e6}]
+                        :bar [{:coord {:impl :bar} :value 2e6}]}}}]
+        (view/domain-comparison-chart* :kindly {} data-map)
+        (let [result (kindly/flush)]
+          (is (= :kind/fragment (:kindly/kind (meta result))))
+          (is (= 1 (count result)) "Expected chart only")
+          (let [[chart] result]
+            (is (= :kind/vega-lite (:kindly/kind (meta chart))))
+            (is (string? (:$schema chart)))))))
+
+    (testing "renders line chart for multi-point comparison"
+      (reset! kindly/accumulated [])
+      (let [data-map {:comparison
+                      {:type :criterium/domain-comparison
+                       :axis :impl
+                       :metric [:stats :elapsed-time :mean]
+                       :implementations [:foo :bar]
+                       :data
+                       {:foo [{:coord {:n 100 :impl :foo} :value 1e6}
+                              {:coord {:n 1000 :impl :foo} :value 1e7}]
+                        :bar [{:coord {:n 100 :impl :bar} :value 2e6}
+                              {:coord {:n 1000 :impl :bar} :value 2e7}]}}}]
+        (view/domain-comparison-chart* :kindly {} data-map)
+        (let [result (kindly/flush)]
+          (is (= :kind/fragment (:kindly/kind (meta result))))
+          (is (= 1 (count result)) "Expected chart only")
+          (let [[chart] result]
+            (is (= :kind/vega-lite (:kindly/kind (meta chart))))
+            (is (string? (:$schema chart)))))))
+
+    (testing "outputs nothing for default-table strategy"
+      (reset! kindly/accumulated [])
+      (let [data-map {:comparison
+                      {:type :criterium/domain-comparison
+                       :axis :impl
+                       :metric [:stats :elapsed-time :mean]
+                       :data
+                       {:foo [{:coord {:n 100 :impl :foo} :value 1e6}]
+                        :bar [{:coord {:n 100 :impl :bar} :value 2e6}]}}}]
+        (view/domain-comparison-chart* :kindly {} data-map)
+        (is (nil? (kindly/flush)))))
+
+    (testing "handles nil comparison gracefully"
+      (reset! kindly/accumulated [])
+      (view/domain-comparison-chart* :kindly {} {:comparison nil})
+      (is (nil? (kindly/flush))))))
+
 (deftest domain-regression-view-test
   ;; Tests the view/domain-regression* multimethod for :kindly viewer.
   ;; Verifies that domain regression data is rendered as heading, model table,
