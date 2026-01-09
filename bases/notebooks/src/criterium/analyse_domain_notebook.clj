@@ -179,7 +179,7 @@
 
 ;; ### Extract View
 
-((view/domain-extract {:extract-id :extract})
+((view/domain-extract-table {:extract-id :extract})
  :print
  {:extract (analysis/extract sort-domain [:stats :elapsed-time :mean])})
 
@@ -187,7 +187,7 @@
 ;;
 ;; The comparison view shows a table with axis values as columns:
 
-((view/domain-comparison {:comparison-id :comparison})
+((view/domain-comparison-table {:comparison-id :comparison})
  :print
  {:comparison (analysis/compare-by impl-domain :impl [:stats :elapsed-time :mean])})
 
@@ -298,7 +298,7 @@
 ;; - **Queries** — `runs`, `coords`, `axes`, `select`
 ;; - **Analysis** — `extract`, `compare-by`, `group-by-axis`
 ;; - **Generators** — `powers-of-2`, `log-range`, `linear-range`, `n-log-n-range`
-;; - **Viewing** — `domain-extract`, `domain-comparison`, `domain-regression`
+;; - **Viewing** — `domain-extract-table`, `domain-extract-chart`, `domain-comparison-table`, `domain-comparison-chart`, `domain-regression`
 ;; - **Regression** — `fit-complexity` for algorithmic complexity analysis
 ;; - **Pipelines** — `domain-extract-fn`, `domain-compare-fn`, `domain-regression-fn`
 ;;
