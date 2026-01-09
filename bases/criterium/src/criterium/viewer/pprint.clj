@@ -2,6 +2,8 @@
   "A pretty print viewer"
   (:require
    [clojure.pprint :as pprint]
+   [criterium.benchmark :as benchmark]
+   [criterium.domain.types :as domain.types]
    [criterium.metric :as metric]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have]]
@@ -463,3 +465,15 @@
        (pprint/print-table
         [:location :density]
         (modes-table modes metric-config transforms))))))
+
+;;; Domain Apply View
+
+(defmethod view/domain-apply* :pprint
+  [viewer {:keys [domain-id view-spec]} data-map]
+  (let [domain-id (or domain-id :domain)
+        domain (get data-map domain-id)]
+    (when (and domain view-spec)
+      (let [view-fn (benchmark/->view [view-spec])]
+        (doseq [{:keys [coord data]} (domain.types/runs domain)]
+          (println (format "--- %s ---" (pr-str coord)))
+          (view-fn viewer data))))))
