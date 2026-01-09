@@ -438,6 +438,51 @@
         (heading (:heading table-data))
         (portal-table (:rows table-data))))))
 
+(defmethod view/domain-extract-table* :portal
+  [_ {:keys [extract-id]} data-map]
+  (let [extract-id (or extract-id :extract)
+        extract (data-map extract-id)]
+    (case (detection/visualization-strategy extract)
+      :single-point
+      (when-let [{:keys [rows] heading-text :heading}
+                 (extract/prepare-domain-extract-table-transposed extract)]
+        (heading heading-text)
+        (portal-table rows))
+
+      :multi-point
+      (when-let [table-data (extract/prepare-domain-extract-table
+                             extract {:header-sep " "})]
+        (heading (:heading table-data))
+        (portal-table (:rows table-data)))
+
+      :default-table
+      (when-let [table-data (extract/prepare-domain-extract-table
+                             extract {:header-sep " "})]
+        (heading (:heading table-data))
+        (portal-table (:rows table-data))))))
+
+(defmethod view/domain-extract-chart* :portal
+  [_ {:keys [extract-id]} data-map]
+  (let [extract-id (or extract-id :extract)
+        extract (data-map extract-id)]
+    (case (detection/visualization-strategy extract)
+      :single-point
+      (when extract
+        (let [box-spec (charts/single-point-box-chart-spec extract {:height 400})]
+          ;; Fall back to bar chart if box plot has no data (missing bootstrap stats)
+          (if (seq (:vconcat box-spec))
+            (portal-vega-lite box-spec)
+            (portal-vega-lite
+             (charts/single-point-bar-chart-spec extract {:height 400})))))
+
+      :multi-point
+      (when extract
+        (portal-vega-lite
+         (charts/domain-line-chart-spec extract {:height 400})))
+
+      ;; :default-table - no chart output
+      nil)))
+
 (defmethod view/domain-grouped* :portal
   [_ {:keys [grouped-id]} data-map]
   (let [grouped-id (or grouped-id :grouped)

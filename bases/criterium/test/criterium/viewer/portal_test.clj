@@ -313,6 +313,115 @@
                                            :data [[{:n 100} 1e-9]]}}}}))]
         (is (= [:b "Domain Extract"] title))))))
 
+(deftest portal-domain-extract-table-test
+  ;; Tests the portal viewer output for domain-extract-table results.
+  ;; Verifies table generation without chart output.
+  (testing "domain-extract-table*"
+    (testing "renders table only for single-point extract"
+      (let [outputs (with-tap-out
+                      (view/domain-extract-table*
+                       :portal
+                       {}
+                       {:extract
+                        {:type :criterium/domain-extract
+                         :metrics {:elapsed-time
+                                   {:metric [:stats :elapsed-time :mean]
+                                    :data [[{:n 100} 1e-7]]}}}}))]
+        (is (= 2 (count outputs)) "Expected heading and table only")
+        (let [[title table] outputs]
+          (is (= [:b "Domain Extract"] title))
+          (is (vector? table) "Expected table data"))))
+
+    (testing "renders table only for multi-point extract"
+      (let [outputs (with-tap-out
+                      (view/domain-extract-table*
+                       :portal
+                       {}
+                       {:extract
+                        {:type :criterium/domain-extract
+                         :metrics {:elapsed-time
+                                   {:metric [:stats :elapsed-time :mean]
+                                    :data [[{:n 100} 1e-7]
+                                           [{:n 200} 2e-7]
+                                           [{:n 400} 4e-7]]}}}}))]
+        (is (= 2 (count outputs)) "Expected heading and table only")
+        (let [[title table] outputs]
+          (is (= [:b "Domain Extract"] title))
+          (is (= 3 (count table)) "Expected 3 rows"))))
+
+    (testing "handles nil extract gracefully"
+      (let [v (volatile! [])
+            f (fn [x] (when-not (= ::portal/_ x) (vswap! v conj x)))]
+        (try
+          (add-tap f)
+          (view/domain-extract-table* :portal {} {:extract nil})
+          (portal/flush)
+          (is (empty? @v))
+          (finally
+            (remove-tap f)))))))
+
+(deftest portal-domain-extract-chart-test
+  ;; Tests the portal viewer output for domain-extract-chart results.
+  ;; Verifies chart generation without table output.
+  (testing "domain-extract-chart*"
+    (testing "renders bar chart for single-point extract without bootstrap"
+      (let [[chart] (with-tap-out
+                      (view/domain-extract-chart*
+                       :portal
+                       {}
+                       {:extract
+                        {:type :criterium/domain-extract
+                         :metrics {:elapsed-time
+                                   {:metric [:stats :elapsed-time :mean]
+                                    :data [[{:n 100} 1e-7]]}}}}))]
+        (is (map? chart) "Expected chart output")
+        (is (str/includes? (:$schema chart) "vega-lite"))))
+
+    (testing "renders line chart for multi-point extract"
+      (let [[chart] (with-tap-out
+                      (view/domain-extract-chart*
+                       :portal
+                       {}
+                       {:extract
+                        {:type :criterium/domain-extract
+                         :metrics {:elapsed-time
+                                   {:metric [:stats :elapsed-time :mean]
+                                    :data [[{:n 100} 1e-7]
+                                           [{:n 200} 2e-7]
+                                           [{:n 400} 4e-7]]}}}}))]
+        (is (map? chart) "Expected chart output")
+        (is (str/includes? (:$schema chart) "vega-lite"))))
+
+    (testing "outputs nothing for default-table strategy"
+      (let [v (volatile! [])
+            f (fn [x] (when-not (= ::portal/_ x) (vswap! v conj x)))]
+        (try
+          (add-tap f)
+          (view/domain-extract-chart*
+           :portal
+           {}
+           {:extract
+            {:type :criterium/domain-extract
+             :metrics {:elapsed-time
+                       {:metric [:stats :elapsed-time :mean]
+                        :data [[{:n 100 :m 1} 1e-7]
+                               [{:n 100 :m 2} 2e-7]]}}}})
+          (portal/flush)
+          (is (empty? @v))
+          (finally
+            (remove-tap f)))))
+
+    (testing "handles nil extract gracefully"
+      (let [v (volatile! [])
+            f (fn [x] (when-not (= ::portal/_ x) (vswap! v conj x)))]
+        (try
+          (add-tap f)
+          (view/domain-extract-chart* :portal {} {:extract nil})
+          (portal/flush)
+          (is (empty? @v))
+          (finally
+            (remove-tap f)))))))
+
 (deftest portal-domain-grouped-test
   ;; Tests the portal viewer output for domain-grouped results.
   ;; Verifies table generation with axis values and run counts.
