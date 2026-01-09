@@ -2,6 +2,8 @@
   "A viewer that outputs to portal using tap>."
   (:refer-clojure :exclude [flush])
   (:require
+   [criterium.benchmark :as benchmark]
+   [criterium.domain.types :as domain.types]
    [criterium.metric :as metric]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have]]
@@ -655,3 +657,23 @@
                             location metric-config transforms)
                  :density (format "%.4g" density)})
               modes))))))
+
+;;; Domain Apply View
+
+(defmethod view/domain-apply* :portal
+  [viewer {:keys [domain-id view-spec]} data-map]
+  (let [domain-id (or domain-id :domain)
+        domain (get data-map domain-id)]
+    (cond
+      (nil? view-spec)
+      (binding [*out* *err*]
+        (println "WARNING: domain-apply requires :view-spec option"))
+
+      (nil? domain)
+      nil
+
+      :else
+      (let [view-fn (benchmark/->view [view-spec])]
+        (doseq [{:keys [coord data]} (domain.types/runs domain)]
+          (heading (format "Run: %s" (pr-str coord)))
+          (view-fn viewer data))))))

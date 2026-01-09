@@ -9,6 +9,7 @@
   appropriate `:kindly/kind` metadata."
   (:refer-clojure :exclude [flush])
   (:require
+   [criterium.domain.types :as domain.types]
    [criterium.metric :as metric]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have]]
@@ -714,3 +715,41 @@
                             location metric-config transforms)
                  :density (format "%.4g" density)})
               modes))))))
+
+;;; Domain Apply View
+
+(defn- resolve-view-fn-without-flush
+  "Resolve a view spec to a function without automatic flushing.
+  Returns nil and logs a warning if the view-spec cannot be resolved.
+  Used by domain-apply to accumulate all run outputs before flushing."
+  [view-spec]
+  (let [[view-kw opts] (if (sequential? view-spec)
+                         [(first view-spec) (second view-spec)]
+                         [view-spec {}])
+        view-fn-var (ns-resolve 'criterium.view (symbol (name view-kw)))]
+    (if view-fn-var
+      (view-fn-var (or opts {}))
+      (binding [*out* *err*]
+        (println (format "WARNING: Unknown view-spec '%s' - no such view function in criterium.view"
+                         view-kw))))))
+
+(defmethod view/domain-apply* :kindly
+  [viewer {:keys [domain-id view-spec]} data-map]
+  (let [domain-id (or domain-id :domain)
+        domain (get data-map domain-id)]
+    (cond
+      (nil? view-spec)
+      (binding [*out* *err*]
+        (println "WARNING: domain-apply requires :view-spec option"))
+
+      (nil? domain)
+      nil
+
+      :else
+      ;; Use direct view function resolution to avoid automatic flush
+      ;; that benchmark/->view performs after each call.
+      ;; For kindly, we want to accumulate all runs' output first.
+      (when-let [view-fn (resolve-view-fn-without-flush view-spec)]
+        (doseq [{:keys [coord data]} (domain.types/runs domain)]
+          (kindly-heading (format "Run: %s" (pr-str coord)))
+          (view-fn viewer data))))))

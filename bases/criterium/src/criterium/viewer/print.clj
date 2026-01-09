@@ -2,6 +2,8 @@
   "A print viewer"
   (:require
    [clojure.string :as str]
+   [criterium.benchmark :as benchmark]
+   [criterium.domain.types :as domain.types]
    [criterium.jvm :as jvm]
    [criterium.metric :as metric]
    [criterium.util.format :as format]
@@ -1317,3 +1319,23 @@
                             modes)]
          (println (format "%32s  Mode locations: %s" ""
                           (str/join ", " locations))))))))
+
+;;; Domain Apply View
+
+(defmethod view/domain-apply* :print
+  [viewer {:keys [domain-id view-spec]} data-map]
+  (let [domain-id (or domain-id :domain)
+        domain (get data-map domain-id)]
+    (cond
+      (nil? view-spec)
+      (binding [*out* *err*]
+        (println "WARNING: domain-apply requires :view-spec option"))
+
+      (nil? domain)
+      nil
+
+      :else
+      (let [view-fn (benchmark/->view [view-spec])]
+        (doseq [{:keys [coord data]} (domain.types/runs domain)]
+          (println (format "Run: %s" (pr-str coord)))
+          (view-fn viewer data))))))

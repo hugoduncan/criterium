@@ -463,3 +463,10 @@
        (pprint/print-table
         [:location :density]
         (modes-table modes metric-config transforms))))))
+
+;;; Domain Apply View
+
+;; Delegates to :print since the output format is identical
+(defmethod view/domain-apply* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/domain-apply* :print) viewer view-opts data-map))

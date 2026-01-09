@@ -5,6 +5,7 @@
    [criterium.analyse :as analyse]
    [criterium.collect-plan :as collect-plan]
    [criterium.collector.metrics]
+   [criterium.domain.types :as domain.types]
    [criterium.test-data :as test-data]
    [criterium.test-utils :refer [trimmed-lines]]
    [criterium.util.bootstrap :as bootstrap]
@@ -550,3 +551,113 @@
                   (->> data-map
                        bootstrap-fn
                        (view-fn :pprint))))))))))
+
+;;; Domain Apply View Tests
+
+(defn- make-bench-data
+  "Create minimal benchmark data with stats for testing domain-apply."
+  [mean-ns]
+  (let [metrics-defs (select-keys (criterium.collector.metrics/metrics) [:elapsed-time])]
+    {:samples {:type :criterium/collected-metrics-samples
+               :metrics-defs metrics-defs
+               :metric->values {[:elapsed-time] [mean-ns]}
+               :transform collect-plan/identity-transforms
+               :batch-size 1
+               :num-samples 1
+               :eval-count 1
+               :elapsed-time mean-ns}
+     :stats {:type :criterium/stats
+             :metrics-defs metrics-defs
+             :transform collect-plan/identity-transforms
+             :batch-size 1
+             :source-id :samples
+             :outliers-id nil
+             :stats {:elapsed-time {:mean mean-ns
+                                    :variance 1.0
+                                    :mean-plus-3sigma (+ mean-ns 3)
+                                    :mean-minus-3sigma (- mean-ns 3)
+                                    :min-val mean-ns
+                                    :max-val (+ mean-ns 10)}}}}))
+
+(deftest domain-apply-pprint-test
+  ;; Tests the pprint viewer for domain-apply.
+  ;; Verifies that each run's coord is printed and the view-spec is applied.
+  (testing "domain-apply*"
+    (testing "prints coord and applies view-spec to each run"
+      (let [domain (-> (domain.types/domain)
+                       (domain.types/add-run {:n 100} (make-bench-data 100))
+                       (domain.types/add-run {:n 200} (make-bench-data 200)))
+            output (with-out-str
+                     (view/domain-apply*
+                      :pprint
+                      {:view-spec [:stats {}]}
+                      {:domain domain}))
+            lines (trimmed-lines output)]
+        (is (some #(str/includes? % "{:n 100}") lines)
+            "Should print first coord")
+        (is (some #(str/includes? % "{:n 200}") lines)
+            "Should print second coord")
+        (is (some #(str/includes? % "100") lines)
+            "Should show stats for first run")
+        (is (some #(str/includes? % "200") lines)
+            "Should show stats for second run")))
+
+    (testing "formats coord with Run: prefix"
+      (let [domain (domain.types/domain
+                    {:coord :baseline :data (make-bench-data 50)})
+            output (with-out-str
+                     (view/domain-apply*
+                      :pprint
+                      {:view-spec [:stats {}]}
+                      {:domain domain}))
+            lines (trimmed-lines output)]
+        (is (some #(str/includes? % "Run: :baseline") lines)
+            "Should format coord with Run: prefix")))
+
+    (testing "uses custom domain-id"
+      (let [domain (domain.types/domain
+                    {:coord {:impl :foo} :data (make-bench-data 150)})
+            output (with-out-str
+                     (view/domain-apply*
+                      :pprint
+                      {:domain-id :my-domain
+                       :view-spec [:stats {}]}
+                      {:my-domain domain}))
+            lines (trimmed-lines output)]
+        (is (some #(str/includes? % "{:impl :foo}") lines)
+            "Should use custom domain-id")))
+
+    (testing "handles empty domain gracefully"
+      (let [domain (domain.types/domain)
+            output (with-out-str
+                     (view/domain-apply*
+                      :pprint
+                      {:view-spec [:stats {}]}
+                      {:domain domain}))]
+        (is (str/blank? output)
+            "Should produce no output for empty domain")))
+
+    (testing "handles missing domain gracefully"
+      (let [output (with-out-str
+                     (view/domain-apply*
+                      :pprint
+                      {:view-spec [:stats {}]}
+                      {}))]
+        (is (str/blank? output)
+            "Should produce no output when domain is missing")))
+
+    (testing "warns when view-spec is missing"
+      (let [domain (domain.types/domain
+                    {:coord :test :data (make-bench-data 100)})
+            stderr-output (java.io.StringWriter.)
+            stdout-output (with-out-str
+                            (binding [*err* stderr-output]
+                              (view/domain-apply*
+                               :pprint
+                               {}
+                               {:domain domain})))]
+        (is (str/blank? stdout-output)
+            "Should produce no stdout output")
+        (is (str/includes? (str stderr-output)
+                           "WARNING: domain-apply requires :view-spec option")
+            "Should warn on stderr when view-spec is missing")))))

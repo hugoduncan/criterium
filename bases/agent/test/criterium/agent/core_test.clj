@@ -60,7 +60,10 @@
                      :allocation-tracing-starting :allocation-tracing-active
                      :allocation-tracing-stopping :allocation-tracing-flushing
                      :allocation-tracing-flushed :allocation-tracing-reporting
-                     :allocation-tracing-reported}
+                     :allocation-tracing-reported
+                     :method-tracing-starting :method-tracing-active
+                     :method-tracing-stopping :method-tracing-stopped
+                     :method-tracing-reporting :method-tracing-reported}
                    (agent-core/agent-state))
         "Agent state should be a valid state keyword"))
 
