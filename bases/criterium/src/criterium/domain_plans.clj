@@ -26,7 +26,8 @@
   {:analyse [[:domain-extract-fn {:with-error-bounds true}]
              [:domain-log-log-fn {:axis :n}]
              [:domain-regression-fn {:axis :n}]]
-   :view [[:domain-extract {}]
+   :view [[:domain-extract-table {}]
+          [:domain-extract-chart {}]
           [:domain-regression {}]]})
 
 (def implementation-comparison
@@ -46,7 +47,8 @@
   Example:
     (analyse-domain implementation-comparison my-domain)"
   {:analyse [[:domain-compare-fn {:axis-key :impl :with-error-bounds true}]]
-   :view [[:domain-comparison {}]]})
+   :view [[:domain-comparison-table {}]
+          [:domain-comparison-chart {}]]})
 
 (def extract-metrics
   "Extract all quantitative metrics from all runs.
@@ -59,7 +61,8 @@
   Example:
     (analyse-domain extract-metrics my-domain)"
   {:analyse [[:domain-extract-fn {:with-error-bounds true}]]
-   :view [[:domain-extract {}]]})
+   :view [[:domain-extract-table {}]
+          [:domain-extract-chart {}]]})
 
 (def extract-elapsed-time
   "Extract elapsed time mean values from all runs.
@@ -70,4 +73,5 @@
   Example:
     (analyse-domain extract-elapsed-time my-domain)"
   {:analyse [[:domain-extract-fn {:metric-path [:stats :elapsed-time :mean]}]]
-   :view [[:domain-extract {}]]})
+   :view [[:domain-extract-table {}]
+          [:domain-extract-chart {}]]})

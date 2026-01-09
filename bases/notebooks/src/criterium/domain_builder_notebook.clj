@@ -291,7 +291,8 @@
  {:analyse [[:domain-compare-fn {:id :alloc
                                  :axis-key :impl
                                  :metric-path [:stats :thread-allocation :mean]}]]
-  :view [[:domain-comparison {:comparison-id :alloc}]]}
+  :view [[:domain-comparison-table {:comparison-id :alloc}]
+         [:domain-comparison-chart {:comparison-id :alloc}]]}
  builder-domain-with-alloc)
 
 ;; ## Summary

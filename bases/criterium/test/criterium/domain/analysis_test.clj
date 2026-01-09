@@ -1181,15 +1181,15 @@
   ;; Validates spec resolution, viewer dispatch, and side effects.
   (testing "->domain-view"
     (testing "creates view function from single spec"
-      (let [view-fn (analysis/->domain-view [[:domain-extract {}]])]
+      (let [view-fn (analysis/->domain-view [[:domain-extract-table {}]])]
         (is (fn? view-fn))))
     (testing "creates view function from multiple specs"
       (let [view-fn (analysis/->domain-view
-                     [[:domain-extract {}]
+                     [[:domain-extract-table {}]
                       [:domain-regression {}]])]
         (is (fn? view-fn))))
     (testing "view function returns viewer output (nil for :none viewer)"
-      (let [view-fn (analysis/->domain-view [[:domain-extract {}]])
+      (let [view-fn (analysis/->domain-view [[:domain-extract-table {}]])
             data-map {:domain (domain/domain)
                       :extract {:type :criterium/domain-extract
                                 :metric [:stats :elapsed-time :mean]
@@ -1214,7 +1214,7 @@
   (testing "options->domain-plan"
     (testing "returns base plan when no options"
       (let [base {:analyse [[:domain-extract-fn {}]]
-                  :view [[:domain-extract {}]]
+                  :view [[:domain-extract-table {}]]
                   :viewer :print}]
         (is (= base (analysis/options->domain-plan base)))))
     (testing "overrides viewer option"
@@ -1227,8 +1227,8 @@
             result (analysis/options->domain-plan base :analyse new-analyse)]
         (is (= new-analyse (:analyse result)))))
     (testing "overrides view option"
-      (let [base {:analyse [] :view [[:domain-extract {}]] :viewer :print}
-            new-view [[:domain-comparison {}]]
+      (let [base {:analyse [] :view [[:domain-extract-table {}]] :viewer :print}
+            new-view [[:domain-comparison-table {}]]
             result (analysis/options->domain-plan base :view new-view)]
         (is (= new-view (:view result)))))
     (testing "combines multiple overrides"
@@ -1251,7 +1251,7 @@
             plan {:analyse [[:domain-extract-fn
                              {:id :extract
                               :metric-path [:stats :elapsed-time :mean]}]]
-                  :view [[:domain-extract {:extract-id :extract}]]
+                  :view [[:domain-extract-table {:extract-id :extract}]]
                   :viewer :none}
             result (analysis/analyse-domain plan d)]
         (is (map? result))

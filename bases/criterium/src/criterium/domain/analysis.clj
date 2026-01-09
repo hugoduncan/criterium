@@ -1204,7 +1204,7 @@
   View functions are resolved from the criterium.view namespace.
   They are called in order with the data-map, producing side effects.
 
-  Example specs: [[:domain-extract {}]
+  Example specs: [[:domain-extract-table {}]
                   [:domain-regression {}]]
 
   Returns a function that takes a viewer keyword and data-map, returns
