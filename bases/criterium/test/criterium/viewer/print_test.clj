@@ -630,12 +630,13 @@
                  "  separator: " (pr-str separator)))))
     (testing "with :implementations and single point uses transposed table"
       ;; Single-point multi-impl scenarios use transposed format where
-      ;; each row is an implementation with value and factor columns
+      ;; each row is an implementation with value and factor columns.
+      ;; Column header shows "median" prefix per task 627.
       (is (= ["Domain Comparison by impl"
-              "Implementation │ elapsed-time (ns) │ elapsed-time ×"
-              "───────────────┼───────────────────┼───────────────"
-              "foo │               100 │           1.00"
-              "bar │               200 │           2.00"]
+              "Implementation │ median elapsed-time (ns) │ elapsed-time ×"
+              "───────────────┼──────────────────────────┼───────────────"
+              "foo │                      100 │           1.00"
+              "bar │                      200 │           2.00"]
              (trimmed-lines
               (with-out-str
                 (view/domain-comparison*

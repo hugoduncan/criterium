@@ -705,3 +705,155 @@
                  (get foo-data "ciUpper")
                  (get foo-data "p90"))
               "values should be in correct order"))))))
+
+;;; Tests for prepare-domain-comparison-table-transposed helper.
+;;; Verifies transposed table preparation with bootstrapped median values.
+
+(deftest prepare-domain-comparison-table-transposed-test
+  ;; Tests transposed table data preparation for single-point domain comparison.
+  ;; Verifies correct extraction of median values, CI bounds display, and factor calculation.
+  (testing "prepare-domain-comparison-table-transposed"
+    (testing "extracts median values from bootstrap stats"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :impl
+                        :implementations [:foo :bar]
+                        :metrics {:elapsed-time
+                                  {:metric [:stats :elapsed-time :mean]
+                                   :data {:foo [{:coord {:impl :foo}
+                                                 :value {:median 1.0e-6
+                                                         :value 1.1e-6}}]
+                                          :bar [{:coord {:impl :bar}
+                                                 :value {:median 2.0e-6
+                                                         :value 2.2e-6}}]}}}}
+            result (comparison/prepare-domain-comparison-table-transposed comparison)
+            rows (:rows result)]
+        (is (= 2 (count rows)))
+        ;; The median column header should contain "median"
+        (is (some #(str/includes? % "median") (:col-headers result)))))
+
+    (testing "includes CI columns when CI bounds present"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :impl
+                        :implementations [:foo :bar]
+                        :metrics {:elapsed-time
+                                  {:metric [:stats :elapsed-time :mean]
+                                   :data {:foo [{:coord {:impl :foo}
+                                                 :value {:median 1.0e-6
+                                                         :ci-lower 0.9e-6
+                                                         :ci-upper 1.1e-6}}]
+                                          :bar [{:coord {:impl :bar}
+                                                 :value {:median 2.0e-6
+                                                         :ci-lower 1.8e-6
+                                                         :ci-upper 2.2e-6}}]}}}}
+            result (comparison/prepare-domain-comparison-table-transposed comparison)
+            col-headers (:col-headers result)]
+        ;; Should have CI column
+        (is (some #(str/includes? % "CI") col-headers))
+        ;; Implementation + median + CI + factor = 4 columns
+        (is (= 4 (count col-headers)))))
+
+    (testing "omits CI columns when CI bounds absent"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :impl
+                        :implementations [:foo :bar]
+                        :metrics {:elapsed-time
+                                  {:metric [:stats :elapsed-time :mean]
+                                   :data {:foo [{:coord {:impl :foo}
+                                                 :value {:median 1.0e-6}}]
+                                          :bar [{:coord {:impl :bar}
+                                                 :value {:median 2.0e-6}}]}}}}
+            result (comparison/prepare-domain-comparison-table-transposed comparison)
+            col-headers (:col-headers result)]
+        ;; Should not have CI column
+        (is (not (some #(str/includes? % "CI") col-headers)))
+        ;; Implementation + median + factor = 3 columns
+        (is (= 3 (count col-headers)))))
+
+    (testing "calculates factor using median values"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :impl
+                        :implementations [:foo :bar]
+                        :metrics {:elapsed-time
+                                  {:metric [:stats :elapsed-time :mean]
+                                   :data {:foo [{:coord {:impl :foo}
+                                                 :value {:median 1.0e-6
+                                                         :value 1.5e-6}}]
+                                          :bar [{:coord {:impl :bar}
+                                                 :value {:median 2.0e-6
+                                                         :value 3.0e-6}}]}}}}
+            result (comparison/prepare-domain-comparison-table-transposed comparison)
+            rows (:rows result)
+            foo-row (first (filter #(= "foo" (get % "Implementation")) rows))
+            bar-row (first (filter #(= "bar" (get % "Implementation")) rows))
+            factor-header (first (filter #(str/includes? % "×") (:col-headers result)))]
+        ;; Baseline (foo) factor should be 1.00
+        (is (= "1.00" (get foo-row factor-header)))
+        ;; Bar factor should be 2.0 (2.0e-6 / 1.0e-6) based on median, not 2.0 (3.0e-6 / 1.5e-6)
+        (is (= "2.00" (get bar-row factor-header)))))
+
+    (testing "formats CI bounds as range"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :impl
+                        :implementations [:foo]
+                        :metrics {:elapsed-time
+                                  {:metric [:stats :elapsed-time :mean]
+                                   :data {:foo [{:coord {:impl :foo}
+                                                 :value {:median 1.0e-6
+                                                         :ci-lower 0.9e-6
+                                                         :ci-upper 1.1e-6}}]}}}}
+            result (comparison/prepare-domain-comparison-table-transposed comparison)
+            rows (:rows result)
+            foo-row (first rows)
+            ci-header (first (filter #(str/includes? % "CI") (:col-headers result)))
+            ci-value (get foo-row ci-header)]
+        ;; CI should be formatted as "lower - upper"
+        (is (string? ci-value))
+        (is (str/includes? ci-value " - "))))
+
+    (testing "falls back to :value when :median absent"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :impl
+                        :implementations [:foo :bar]
+                        :metrics {:elapsed-time
+                                  {:metric [:stats :elapsed-time :mean]
+                                   :data {:foo [{:coord {:impl :foo}
+                                                 :value {:value 1.0e-6}}]
+                                          :bar [{:coord {:impl :bar}
+                                                 :value {:value 2.0e-6}}]}}}}
+            result (comparison/prepare-domain-comparison-table-transposed comparison)
+            rows (:rows result)
+            bar-row (first (filter #(= "bar" (get % "Implementation")) rows))
+            factor-header (first (filter #(str/includes? % "×") (:col-headers result)))]
+        ;; Factor should still work using :value fallback
+        (is (= "2.00" (get bar-row factor-header)))))
+
+    (testing "handles plain numeric values (backward compatibility)"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :impl
+                        :implementations [:foo :bar]
+                        :metrics {:elapsed-time
+                                  {:metric [:stats :elapsed-time :mean]
+                                   :data {:foo [{:coord {:impl :foo}
+                                                 :value 1.0e-6}]
+                                          :bar [{:coord {:impl :bar}
+                                                 :value 2.0e-6}]}}}}
+            result (comparison/prepare-domain-comparison-table-transposed comparison)
+            rows (:rows result)
+            bar-row (first (filter #(= "bar" (get % "Implementation")) rows))
+            factor-header (first (filter #(str/includes? % "×") (:col-headers result)))]
+        ;; Factor should work with plain numeric values
+        (is (= "2.00" (get bar-row factor-header)))))
+
+    (testing "handles single-metric mode"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :impl
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo :bar]
+                        :data {:foo [{:coord {:impl :foo}
+                                      :value {:median 1.0e-6}}]
+                               :bar [{:coord {:impl :bar}
+                                      :value {:median 2.0e-6}}]}}
+            result (comparison/prepare-domain-comparison-table-transposed comparison)]
+        (is (map? result))
+        (is (= 2 (count (:rows result))))
+        (is (some #(str/includes? % "median") (:col-headers result)))))))

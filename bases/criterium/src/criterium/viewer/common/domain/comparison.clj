@@ -696,12 +696,29 @@
           (when-let [table (build-absolute-value-table axis metric data)]
             [table]))))))
 
+(defn- extract-median-value
+  "Extract median value from a bootstrap stats value map.
+  Falls back to :value then raw value for backward compatibility."
+  [value]
+  (cond
+    (and (map? value) (contains? value :median)) (:median value)
+    (and (map? value) (contains? value :value)) (:value value)
+    :else value))
+
+(defn- has-ci-bounds?
+  "Check if a value map has confidence interval bounds."
+  [value]
+  (and (map? value)
+       (contains? value :ci-lower)
+       (contains? value :ci-upper)))
+
 (defn prepare-domain-comparison-table-transposed
   "Prepare transposed domain-comparison table for single-point multi-impl scenarios.
   Returns {:heading :col-headers :rows} where each row is one implementation.
 
-  Columns include implementation name, then for each metric: value and factor.
-  Factor is relative to baseline (first implementation)."
+  Columns include implementation name, then for each metric: median value,
+  CI bounds (when available), and factor. Factor is relative to baseline
+  (first implementation), calculated using median values."
   [comparison]
   (when comparison
     (let [{:keys [axis metric metrics implementations data]} comparison
@@ -713,18 +730,16 @@
                             {metric-id {:metric metric :data data}}))
           metric-ids (sort (keys metrics-map))
 
-          ;; Build lookup: {[impl metric-id] -> raw-value}
-          lookup
+          ;; Build lookup: {[impl metric-id] -> full-value-map}
+          ;; Keep the full value map so we can extract CI bounds
+          value-lookup
           (reduce
            (fn [acc [metric-id {:keys [data]}]]
              (reduce
               (fn [acc2 [impl-val entries]]
                 (reduce
                  (fn [acc3 {:keys [value]}]
-                   (let [raw-value (if (and (map? value) (contains? value :value))
-                                     (:value value)
-                                     value)]
-                     (assoc acc3 [impl-val metric-id] raw-value)))
+                   (assoc acc3 [impl-val metric-id] value))
                  acc2
                  entries))
               acc
@@ -732,27 +747,48 @@
            {}
            metrics-map)
 
-          ;; Compute SI scaling per metric (using all values for that metric)
+          ;; Build median lookup for SI scaling and factor calculation
+          median-lookup
+          (into {}
+                (map (fn [[k v]] [k (extract-median-value v)]))
+                value-lookup)
+
+          ;; Check which metrics have CI bounds available
+          metric-has-ci
+          (into {}
+                (map (fn [metric-id]
+                       [metric-id
+                        (some (fn [impl]
+                                (has-ci-bounds? (get value-lookup [impl metric-id])))
+                              implementations)]))
+                metric-ids)
+
+          ;; Compute SI scaling per metric (using median values)
           metric-scales
           (into {}
                 (map (fn [metric-id]
                        (let [metric-path (get-in metrics-map [metric-id :metric])
                              all-values (keep (fn [impl]
-                                                (get lookup [impl metric-id]))
+                                                (get median-lookup [impl metric-id]))
                                               implementations)]
                          [metric-id (core/compute-si-scaling metric-path all-values)])))
                 metric-ids)
 
-          ;; Build column headers: Implementation, then for each metric: value and ×
+          ;; Build column headers: Implementation, then for each metric:
+          ;; median value, CI (when available), and factor
           col-headers
           (into ["Implementation"]
                 (mapcat (fn [metric-id]
                           (let [{:keys [unit]} (get metric-scales metric-id)
                                 metric-name (name metric-id)
                                 value-header (if (seq unit)
-                                               (str metric-name " (" unit ")")
-                                               metric-name)]
-                            [value-header (str metric-name " ×")]))
+                                               (str "median " metric-name " (" unit ")")
+                                               (str "median " metric-name))
+                                ci-header (str metric-name " CI")
+                                factor-header (str metric-name " ×")]
+                            (if (get metric-has-ci metric-id)
+                              [value-header ci-header factor-header]
+                              [value-header factor-header])))
                         metric-ids))
 
           ;; Build table rows: one per implementation
@@ -766,22 +802,35 @@
                             (get metric-scales metric-id)
                             metric-name (name metric-id)
                             value-header (if (seq unit)
-                                           (str metric-name " (" unit ")")
-                                           metric-name)
+                                           (str "median " metric-name " (" unit ")")
+                                           (str "median " metric-name))
+                            ci-header (str metric-name " CI")
                             factor-header (str metric-name " ×")
-                            raw-value (get lookup [impl metric-id])
-                            baseline-value (get lookup [baseline-impl metric-id])
-                            formatted-value (when raw-value
+                            full-value (get value-lookup [impl metric-id])
+                            median-value (get median-lookup [impl metric-id])
+                            baseline-median (get median-lookup [baseline-impl metric-id])
+                            formatted-value (when median-value
                                               (format "%.3g"
-                                                      (* (double raw-value)
+                                                      (* (double median-value)
                                                          total-scale)))
-                            factor (when (and raw-value baseline-value
-                                              (not (zero? (double baseline-value))))
+                            ;; Format CI as "lower - upper" when available
+                            formatted-ci (when (has-ci-bounds? full-value)
+                                           (format "%.3g - %.3g"
+                                                   (* (double (:ci-lower full-value))
+                                                      total-scale)
+                                                   (* (double (:ci-upper full-value))
+                                                      total-scale)))
+                            factor (when (and median-value baseline-median
+                                              (not (zero? (double baseline-median))))
                                      (format "%.2f"
-                                             (/ (double raw-value)
-                                                (double baseline-value))))]
-                        [[value-header formatted-value]
-                         [factor-header factor]]))
+                                             (/ (double median-value)
+                                                (double baseline-median))))]
+                        (if (get metric-has-ci metric-id)
+                          [[value-header formatted-value]
+                           [ci-header formatted-ci]
+                           [factor-header factor]]
+                          [[value-header formatted-value]
+                           [factor-header factor]])))
                     metric-ids)))
            implementations)]
 
