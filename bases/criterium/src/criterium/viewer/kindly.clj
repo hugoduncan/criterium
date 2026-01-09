@@ -737,7 +737,15 @@
   [viewer {:keys [domain-id view-spec]} data-map]
   (let [domain-id (or domain-id :domain)
         domain (get data-map domain-id)]
-    (when (and domain view-spec)
+    (cond
+      (nil? view-spec)
+      (binding [*out* *err*]
+        (println "WARNING: domain-apply requires :view-spec option"))
+
+      (nil? domain)
+      nil
+
+      :else
       ;; Use direct view function resolution to avoid automatic flush
       ;; that benchmark/->view performs after each call.
       ;; For kindly, we want to accumulate all runs' output first.

@@ -1251,19 +1251,24 @@
           (finally
             (remove-tap f)))))
 
-    (testing "handles missing view-spec gracefully"
+    (testing "warns when view-spec is missing"
       (let [domain (domain.types/domain
                     {:coord :test :data (make-bench-data 100)})
             v (volatile! [])
-            f (fn [x] (when-not (= ::portal/_ x) (vswap! v conj x)))]
+            f (fn [x] (when-not (= ::portal/_ x) (vswap! v conj x)))
+            stderr-output (java.io.StringWriter.)]
         (try
           (add-tap f)
-          (view/domain-apply*
-           :portal
-           {}
-           {:domain domain})
+          (binding [*err* stderr-output]
+            (view/domain-apply*
+             :portal
+             {}
+             {:domain domain}))
           (portal/flush)
           (is (empty? @v)
-              "Should produce no output when view-spec is missing")
+              "Should produce no tap output")
+          (is (str/includes? (str stderr-output)
+                             "WARNING: domain-apply requires :view-spec option")
+              "Should warn on stderr when view-spec is missing")
           (finally
             (remove-tap f)))))))

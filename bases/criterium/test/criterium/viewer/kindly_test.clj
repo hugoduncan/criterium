@@ -1658,13 +1658,18 @@
       (is (nil? (kindly/flush))
           "Should produce no output when domain is missing"))
 
-    (testing "handles missing view-spec gracefully"
+    (testing "warns when view-spec is missing"
       (reset! kindly/accumulated [])
       (let [domain (domain.types/domain
-                    {:coord :test :data (make-bench-data 100)})]
-        (view/domain-apply*
-         :kindly
-         {}
-         {:domain domain})
+                    {:coord :test :data (make-bench-data 100)})
+            stderr-output (java.io.StringWriter.)]
+        (binding [*err* stderr-output]
+          (view/domain-apply*
+           :kindly
+           {}
+           {:domain domain}))
         (is (nil? (kindly/flush))
-            "Should produce no output when view-spec is missing")))))
+            "Should produce no kindly output")
+        (is (str/includes? (str stderr-output)
+                           "WARNING: domain-apply requires :view-spec option")
+            "Should warn on stderr when view-spec is missing")))))

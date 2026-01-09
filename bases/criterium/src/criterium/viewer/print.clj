@@ -1326,7 +1326,15 @@
   [viewer {:keys [domain-id view-spec]} data-map]
   (let [domain-id (or domain-id :domain)
         domain (get data-map domain-id)]
-    (when (and domain view-spec)
+    (cond
+      (nil? view-spec)
+      (binding [*out* *err*]
+        (println "WARNING: domain-apply requires :view-spec option"))
+
+      (nil? domain)
+      nil
+
+      :else
       (let [view-fn (benchmark/->view [view-spec])]
         (doseq [{:keys [coord data]} (domain.types/runs domain)]
           (println (format "Run: %s" (pr-str coord)))

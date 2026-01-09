@@ -1397,13 +1397,18 @@
         (is (str/blank? output)
             "Should produce no output when domain is missing")))
 
-    (testing "handles missing view-spec gracefully"
+    (testing "warns when view-spec is missing"
       (let [domain (domain.types/domain
                     {:coord :test :data (make-bench-data 100)})
-            output (with-out-str
-                     (view/domain-apply*
-                      :print
-                      {}
-                      {:domain domain}))]
-        (is (str/blank? output)
-            "Should produce no output when view-spec is missing")))))
+            stderr-output (java.io.StringWriter.)
+            stdout-output (with-out-str
+                            (binding [*err* stderr-output]
+                              (view/domain-apply*
+                               :print
+                               {}
+                               {:domain domain})))]
+        (is (str/blank? stdout-output)
+            "Should produce no stdout output")
+        (is (str/includes? (str stderr-output)
+                           "WARNING: domain-apply requires :view-spec option")
+            "Should warn on stderr when view-spec is missing")))))
