@@ -295,16 +295,6 @@
   [_ _view _banch-map]
   ;; TODO
   )
-(defmethod view/domain-extract* :pprint
-  [_ {:keys [extract-id]} data-map]
-  (let [extract-id (or extract-id :extract)
-        extract (data-map extract-id)]
-    (when-let [{:keys [heading coord-header col-headers rows]}
-               (extract/prepare-domain-extract-table extract {:header-sep " "})]
-      (println heading)
-      ;; Rows already use string keys matching column headers
-      (pprint/print-table (into [coord-header] col-headers) rows))))
-
 (defmethod view/domain-extract-table* :pprint
   [_ {:keys [extract-id]} data-map]
   (let [extract-id (or extract-id :extract)
@@ -328,15 +318,6 @@
                                        grouped)]
       (println heading)
       (pprint/print-table [:axis-value :run-count] rows))))
-
-(defmethod view/domain-comparison* :pprint
-  [_ {:keys [comparison-id]} data-map]
-  (let [comparison-id (or comparison-id :comparison)
-        comparison (data-map comparison-id)]
-    (when-let [tables (comparison/prepare-domain-comparison-tables comparison)]
-      (doseq [{:keys [heading coord-header col-headers rows]} tables]
-        (println heading)
-        (pprint/print-table (into [coord-header] col-headers) rows)))))
 
 (defmethod view/domain-comparison-table* :pprint
   [_ {:keys [comparison-id]} data-map]

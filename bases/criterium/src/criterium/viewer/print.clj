@@ -830,33 +830,6 @@
         (print (format (str "%" (nth col-widths i) "s") (or (get row header) "-"))))
       (println))))
 
-(defmethod view/domain-extract* :print
-  [_ {:keys [extract-id]} data-map]
-  (let [extract-id (or extract-id :extract)
-        extract (data-map extract-id)]
-    (case (detection/visualization-strategy extract)
-      :single-point
-      (when-let [table (extract/prepare-domain-extract-table-transposed
-                        extract)]
-        (print-transposed-table table))
-
-      ;; :multi-point and :default-table both use the standard format
-      (when extract
-        (doseq [[_metric-id {:keys [metric data]}] (:metrics extract)]
-          (let [raw-coords (map first data)
-                ;; Strip uniform axes (e.g., :impl :default for single-impl scenarios)
-                stripped-coords (strip-uniform-axes raw-coords)
-                coord-map (zipmap raw-coords stripped-coords)
-                single-key-info (core/single-key-coord-info stripped-coords)
-                sorted-data (sort-coords data single-key-info)]
-            (println (format "Domain Extract: %s" (pr-str metric)))
-            (doseq [[coord value] sorted-data]
-              (let [display-coord (get coord-map coord coord)]
-                (println (format "  %24s: %s"
-                                 (format-coord-value display-coord single-key-info)
-                                 (format-extract-value value metric)))))
-            (println)))))))
-
 (defmethod view/domain-extract-table* :print
   [_ {:keys [extract-id]} data-map]
   (let [extract-id (or extract-id :extract)
@@ -1149,47 +1122,6 @@
       (doseq [[i v] (map-indexed vector vals)]
         (print (format " │ %s" (format (str "%" (nth col-widths i) "s") v))))
       (println))))
-
-(defmethod view/domain-comparison* :print
-  [_ {:keys [comparison-id]} data-map]
-  (let [comparison-id (or comparison-id :comparison)
-        comparison (data-map comparison-id)]
-    (case (detection/comparison-visualization-strategy comparison)
-      :single-point
-      (when-let [table (comparison/prepare-domain-comparison-table-transposed
-                        comparison)]
-        (print-transposed-table table))
-
-      ;; :multi-point and :default-table both use the standard format
-      (when comparison
-        (let [{:keys [axis metric metrics implementations data]} comparison]
-          (if metrics
-            ;; Multi-metric mode with factor display
-            (if implementations
-              (print-multi-metric-comparison-table axis implementations metrics)
-              ;; Multi-metric mode without implementations - show all values
-              (doseq [[_metric-id {:keys [metric data]}] metrics]
-                (when (and (seq data) (some #(seq (second %)) data))
-                  (print-comparison-table axis metric data))))
-            ;; Single-metric mode
-            (if (and (seq data) (some #(seq (second %)) data))
-              (if implementations
-                (let [data-keys (set (keys data))
-                      missing (remove data-keys implementations)]
-                  (when (seq missing)
-                    (throw
-                     (ex-info
-                      "Domain :implementations do not match comparison data keys"
-                      {:implementations implementations
-                       :data-keys (keys data)
-                       :missing missing})))
-                  (print-single-metric-factor-table
-                   axis
-                   metric
-                   implementations data))
-                (print-comparison-table axis metric data))
-              (println (format "Domain Comparison by %s: %s (no data)"
-                               (name axis) (pr-str metric))))))))))
 
 (defmethod view/domain-comparison-table* :print
   [_ {:keys [comparison-id]} data-map]

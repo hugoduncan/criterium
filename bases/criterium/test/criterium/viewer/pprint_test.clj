@@ -124,64 +124,6 @@
                  {}
                  (:data (test-data/samples-with-non-numeric-value-map))))))))))
 
-(deftest domain-extract-pprint-test
-  ;; Tests the pprint viewer table output for domain-extract results.
-  ;; Verifies table formatting with single-key coordinate simplification.
-  (testing "domain-extract*"
-    (testing "displays table with metric columns"
-      (is (= ["Domain Extract"
-              ""
-              "|   n | elapsed-time (ns) |"
-              "|-----+-------------------|"
-              "| 100 |               100 |"
-              "| 200 |               200 |"]
-             (trimmed-lines
-              (with-out-str
-                (view/domain-extract*
-                 :pprint
-                 {}
-                 {:extract
-                  {:type :criterium/domain-extract
-                   :metrics {:elapsed-time
-                             {:metric [:stats :elapsed-time :mean]
-                              :data [[{:n 100} 100]
-                                     [{:n 200} 200]]}}}}))))))
-    (testing "handles multiple metrics"
-      (is (= ["Domain Extract"
-              ""
-              "|   n | elapsed-time (ns) | thread-allocation (Kb) |"
-              "|-----+-------------------+------------------------|"
-              "| 100 |               100 |                   1.00 |"]
-             (trimmed-lines
-              (with-out-str
-                (view/domain-extract*
-                 :pprint
-                 {}
-                 {:extract
-                  {:type :criterium/domain-extract
-                   :metrics {:elapsed-time
-                             {:metric [:stats :elapsed-time :mean]
-                              :data [[{:n 100} 100]]}
-                             :thread-allocation
-                             {:metric [:stats :thread-allocation :mean]
-                              :data [[{:n 100} 1024]]}}}}))))))
-    (testing "uses custom extract-id"
-      (is (= ["Domain Extract"
-              ""
-              "|   n | elapsed-time (ns) |"
-              "|-----+-------------------|"
-              "| 100 |              1.00 |"]
-             (trimmed-lines
-              (with-out-str
-                (view/domain-extract*
-                 :pprint
-                 {:extract-id :my-extract}
-                 {:my-extract
-                  {:type :criterium/domain-extract
-                   :metrics {:elapsed-time
-                             {:metric [:stats :elapsed-time :mean]
-                              :data [[{:n 100} 1]]}}}}))))))))
-
 (deftest domain-grouped-pprint-test
   ;; Tests the pprint viewer table output for domain-grouped results.
   (testing "domain-grouped*"
@@ -223,60 +165,6 @@
                                 :runs [{}]}
                           nil {:type :criterium/domain
                                :runs [{}]}}}}))))))))
-
-(deftest domain-comparison-pprint-test
-  ;; Tests the pprint viewer table output for domain-comparison results.
-  ;; Verifies factor display and SI units.
-  (testing "domain-comparison*"
-    (testing "with :implementations shows factors for non-baseline"
-      (is (= ["Domain Comparison by impl: [:stats :elapsed-time :mean]"
-              ""
-              "|   n |    foo |    bar | bar × |"
-              "|-----+--------+--------+-------|"
-              "| 100 | 100 ns | 200 ns |  2.00 |"]
-             (trimmed-lines
-              (with-out-str
-                (view/domain-comparison*
-                 :pprint
-                 {}
-                 {:comparison
-                  {:type :criterium/domain-comparison
-                   :axis :impl
-                   :metric [:stats :elapsed-time :mean]
-                   :implementations [:foo :bar]
-                   :data {:foo [{:coord {:impl :foo :n 100} :value 100}]
-                          :bar [{:coord {:impl :bar :n 100} :value 200}]}}}))))))
-    (testing "without :implementations shows absolute values"
-      (is (= ["Domain Comparison by impl: [:stats :elapsed-time :mean] (ns)"
-              ""
-              "|   n | :bar | :foo |"
-              "|-----+------+------|"
-              "| 100 |  200 |  100 |"]
-             (trimmed-lines
-              (with-out-str
-                (view/domain-comparison*
-                 :pprint
-                 {}
-                 {:comparison
-                  {:type :criterium/domain-comparison
-                   :axis :impl
-                   :metric [:stats :elapsed-time :mean]
-                   :data {:foo [{:coord {:impl :foo :n 100} :value 100}]
-                          :bar [{:coord {:impl :bar :n 100} :value 200}]}}}))))))
-    (testing "with mismatched :implementations throws error"
-      (is (thrown-with-msg?
-           clojure.lang.ExceptionInfo
-           #"implementations do not match"
-           (view/domain-comparison*
-            :pprint
-            {}
-            {:comparison
-             {:type :criterium/domain-comparison
-              :axis :impl
-              :metric [:stats :elapsed-time :mean]
-              :implementations [:default]
-              :data {:foo [{:coord {:impl :foo :n 100} :value 100}]
-                     :bar [{:coord {:impl :bar :n 100} :value 200}]}}}))))))
 
 (deftest domain-regression-pprint-test
   ;; Tests the pprint viewer table output for domain-regression results.

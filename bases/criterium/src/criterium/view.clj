@@ -67,11 +67,9 @@
 
 ;;; Domain Views
 
-(def-multi-view domain-extract)
 (def-multi-view domain-extract-table)
 (def-multi-view domain-extract-chart)
 (def-multi-view domain-grouped)
-(def-multi-view domain-comparison)
 (def-multi-view domain-comparison-table)
 (def-multi-view domain-comparison-chart)
 (def-multi-view domain-regression)
@@ -124,11 +122,9 @@
 (defmethod most-called* :none [_ _ _])
 
 ;; Domain Null Viewer
-(defmethod domain-extract* :none [_ _ _])
 (defmethod domain-extract-table* :none [_ _ _])
 (defmethod domain-extract-chart* :none [_ _ _])
 (defmethod domain-grouped* :none [_ _ _])
-(defmethod domain-comparison* :none [_ _ _])
 (defmethod domain-comparison-table* :none [_ _ _])
 (defmethod domain-comparison-chart* :none [_ _ _])
 (defmethod domain-regression* :none [_ _ _])
