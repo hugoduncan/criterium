@@ -697,6 +697,127 @@
       (view/domain-grouped* :kindly {} {:grouped nil})
       (is (nil? (kindly/flush))))))
 
+(deftest domain-extract-table-view-test
+  ;; Tests the view/domain-extract-table* multimethod for :kindly viewer.
+  ;; Verifies that domain extract table data is rendered as heading and table
+  ;; without any chart output.
+  (testing "view/domain-extract-table* :kindly"
+    (testing "renders table only for single-point extract"
+      (reset! kindly/accumulated [])
+      (let [data-map {:extract
+                      {:type :criterium/domain-extract
+                       :impl-axis :impl
+                       :implementations [:foo :bar]
+                       :metrics {:elapsed-time
+                                 {:metric [:stats :elapsed-time :mean]
+                                  :data [[{:n 100 :impl :foo} 1e6]
+                                         [{:n 100 :impl :bar} 2e6]]}}}}]
+        (view/domain-extract-table* :kindly {} data-map)
+        (let [result (kindly/flush)]
+          (is (= :kind/fragment (:kindly/kind (meta result))))
+          (is (= 2 (count result)) "Expected heading and table only")
+          (let [[heading table-data] result]
+            (is (= :kind/md (:kindly/kind (meta heading))))
+            (is (str/includes? (first heading) "Domain Extract"))
+            (is (= :kind/table (:kindly/kind (meta table-data))))))))
+
+    (testing "renders table only for multi-point extract"
+      (reset! kindly/accumulated [])
+      (let [data-map {:extract
+                      {:type :criterium/domain-extract
+                       :impl-axis :impl
+                       :implementations [:foo :bar]
+                       :metrics {:elapsed-time
+                                 {:metric [:stats :elapsed-time :mean]
+                                  :data [[{:n 100 :impl :foo} 1e6]
+                                         [{:n 1000 :impl :foo} 1e7]
+                                         [{:n 100 :impl :bar} 2e6]
+                                         [{:n 1000 :impl :bar} 2e7]]}}}}]
+        (view/domain-extract-table* :kindly {} data-map)
+        (let [result (kindly/flush)]
+          (is (= :kind/fragment (:kindly/kind (meta result))))
+          (is (= 2 (count result)) "Expected heading and table only")
+          (let [[heading table-data] result]
+            (is (= :kind/md (:kindly/kind (meta heading))))
+            (is (= :kind/table (:kindly/kind (meta table-data))))))))
+
+    (testing "renders table for default-table strategy"
+      (reset! kindly/accumulated [])
+      (let [data-map {:extract {:type :criterium/domain-extract
+                                :metrics {:elapsed-time
+                                          {:metric [:stats :elapsed-time :mean]
+                                           :data [[{:n 100} 1e6]
+                                                  [{:n 1000} 1e7]]}}}}]
+        (view/domain-extract-table* :kindly {} data-map)
+        (let [result (kindly/flush)]
+          (is (= :kind/fragment (:kindly/kind (meta result))))
+          (is (= 2 (count result)) "Expected heading and table")
+          (let [[heading table-data] result]
+            (is (= :kind/md (:kindly/kind (meta heading))))
+            (is (= :kind/table (:kindly/kind (meta table-data))))))))
+
+    (testing "handles nil extract gracefully"
+      (reset! kindly/accumulated [])
+      (view/domain-extract-table* :kindly {} {:extract nil})
+      (is (nil? (kindly/flush))))))
+
+(deftest domain-extract-chart-view-test
+  ;; Tests the view/domain-extract-chart* multimethod for :kindly viewer.
+  ;; Verifies that domain extract chart is rendered without table output.
+  (testing "view/domain-extract-chart* :kindly"
+    (testing "renders bar chart for single-point extract without bootstrap"
+      (reset! kindly/accumulated [])
+      (let [data-map {:extract
+                      {:type :criterium/domain-extract
+                       :impl-axis :impl
+                       :implementations [:foo :bar]
+                       :metrics {:elapsed-time
+                                 {:metric [:stats :elapsed-time :mean]
+                                  :data [[{:n 100 :impl :foo} 1e6]
+                                         [{:n 100 :impl :bar} 2e6]]}}}}]
+        (view/domain-extract-chart* :kindly {} data-map)
+        (let [result (kindly/flush)]
+          (is (= :kind/fragment (:kindly/kind (meta result))))
+          (is (= 1 (count result)) "Expected chart only")
+          (let [[chart] result]
+            (is (= :kind/vega-lite (:kindly/kind (meta chart))))
+            (is (string? (:$schema chart)))))))
+
+    (testing "renders line chart for multi-point extract"
+      (reset! kindly/accumulated [])
+      (let [data-map {:extract
+                      {:type :criterium/domain-extract
+                       :impl-axis :impl
+                       :implementations [:foo :bar]
+                       :metrics {:elapsed-time
+                                 {:metric [:stats :elapsed-time :mean]
+                                  :data [[{:n 100 :impl :foo} 1e6]
+                                         [{:n 1000 :impl :foo} 1e7]
+                                         [{:n 100 :impl :bar} 2e6]
+                                         [{:n 1000 :impl :bar} 2e7]]}}}}]
+        (view/domain-extract-chart* :kindly {} data-map)
+        (let [result (kindly/flush)]
+          (is (= :kind/fragment (:kindly/kind (meta result))))
+          (is (= 1 (count result)) "Expected chart only")
+          (let [[chart] result]
+            (is (= :kind/vega-lite (:kindly/kind (meta chart))))
+            (is (string? (:$schema chart)))))))
+
+    (testing "outputs nothing for default-table strategy"
+      (reset! kindly/accumulated [])
+      (let [data-map {:extract {:type :criterium/domain-extract
+                                :metrics {:elapsed-time
+                                          {:metric [:stats :elapsed-time :mean]
+                                           :data [[{:n 100} 1e6]
+                                                  [{:n 1000} 1e7]]}}}}]
+        (view/domain-extract-chart* :kindly {} data-map)
+        (is (nil? (kindly/flush)))))
+
+    (testing "handles nil extract gracefully"
+      (reset! kindly/accumulated [])
+      (view/domain-extract-chart* :kindly {} {:extract nil})
+      (is (nil? (kindly/flush))))))
+
 (deftest domain-comparison-view-test
   ;; Tests the view/domain-comparison* multimethod for :kindly viewer.
   ;; Verifies that domain comparison data is rendered as heading and comparison

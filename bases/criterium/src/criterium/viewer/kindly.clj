@@ -291,6 +291,56 @@
         (kindly-heading heading)
         (kindly-table rows {:column-names (into [coord-header] col-headers)})))))
 
+(defmethod view/domain-extract-table* :kindly
+  [_ {:keys [extract-id]} data-map]
+  (let [extract-id (or extract-id :extract)
+        extract (data-map extract-id)]
+    (case (detection/visualization-strategy extract)
+      :single-point
+      (when-let [{:keys [heading col-headers rows]}
+                 (extract/prepare-domain-extract-table-transposed extract)]
+        (kindly-heading heading)
+        (kindly-table rows {:column-names col-headers}))
+
+      :multi-point
+      (when-let [{:keys [heading coord-header col-headers rows]}
+                 (extract/prepare-domain-extract-table
+                  extract {:header-sep "\n"})]
+        (kindly-heading heading)
+        (kindly-table rows {:column-names (into [coord-header] col-headers)}))
+
+      :default-table
+      (when-let [{:keys [heading coord-header col-headers rows]}
+                 (extract/prepare-domain-extract-table
+                  extract {:header-sep "\n"})]
+        (kindly-heading heading)
+        (kindly-table rows {:column-names (into [coord-header] col-headers)})))))
+
+(defmethod view/domain-extract-chart* :kindly
+  [_ {:keys [extract-id]} data-map]
+  (let [extract-id (or extract-id :extract)
+        extract (data-map extract-id)]
+    (case (detection/visualization-strategy extract)
+      :single-point
+      (when extract
+        (let [box-spec (charts/single-point-box-chart-spec extract {:width chart-width
+                                                                    :height chart-height})]
+          ;; Fall back to bar chart if box plot has no data (missing bootstrap stats)
+          (if (seq (:vconcat box-spec))
+            (kindly-vega-lite box-spec)
+            (kindly-vega-lite
+             (charts/single-point-bar-chart-spec extract {:width chart-width
+                                                          :height chart-height})))))
+
+      :multi-point
+      (when extract
+        (kindly-vega-lite
+         (charts/domain-line-chart-spec extract {:width chart-width
+                                                 :height chart-height})))
+
+      ;; :default-table - no chart output
+      nil)))
+
 (defmethod view/domain-grouped* :kindly
   [_ {:keys [grouped-id]} data-map]
   (let [grouped-id (or grouped-id :grouped)
