@@ -720,14 +720,18 @@
 
 (defn- resolve-view-fn-without-flush
   "Resolve a view spec to a function without automatic flushing.
+  Returns nil and logs a warning if the view-spec cannot be resolved.
   Used by domain-apply to accumulate all run outputs before flushing."
   [view-spec]
   (let [[view-kw opts] (if (sequential? view-spec)
                          [(first view-spec) (second view-spec)]
                          [view-spec {}])
         view-fn-var (ns-resolve 'criterium.view (symbol (name view-kw)))]
-    (when view-fn-var
-      (view-fn-var (or opts {})))))
+    (if view-fn-var
+      (view-fn-var (or opts {}))
+      (binding [*out* *err*]
+        (println (format "WARNING: Unknown view-spec '%s' - no such view function in criterium.view"
+                         view-kw))))))
 
 (defmethod view/domain-apply* :kindly
   [viewer {:keys [domain-id view-spec]} data-map]
