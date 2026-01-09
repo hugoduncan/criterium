@@ -71,6 +71,7 @@
 (def-multi-view domain-grouped)
 (def-multi-view domain-comparison)
 (def-multi-view domain-regression)
+(def-multi-view domain-apply)
 
 (defmulti flush-viewer (fn [viewer] viewer))
 (defmethod flush-viewer :default [_])
@@ -123,3 +124,4 @@
 (defmethod domain-grouped* :none [_ _ _])
 (defmethod domain-comparison* :none [_ _ _])
 (defmethod domain-regression* :none [_ _ _])
+(defmethod domain-apply* :none [_ _ _])
