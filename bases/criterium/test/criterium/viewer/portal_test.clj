@@ -285,9 +285,12 @@
                        {}
                        {:extract
                         {:type :criterium/domain-extract
+                         :impl-axis :impl
+                         :implementations [:foo :bar]
                          :metrics {:elapsed-time
                                    {:metric [:stats :elapsed-time :mean]
-                                    :data [[{:n 100} 1e-7]]}}}}))]
+                                    :data [[{:n 100 :impl :foo} 1e6]
+                                           [{:n 100 :impl :bar} 2e6]]}}}}))]
         (is (map? chart) "Expected chart output")
         (is (str/includes? (:$schema chart) "vega-lite"))))
 
@@ -298,11 +301,14 @@
                        {}
                        {:extract
                         {:type :criterium/domain-extract
+                         :impl-axis :impl
+                         :implementations [:foo :bar]
                          :metrics {:elapsed-time
                                    {:metric [:stats :elapsed-time :mean]
-                                    :data [[{:n 100} 1e-7]
-                                           [{:n 200} 2e-7]
-                                           [{:n 400} 4e-7]]}}}}))]
+                                    :data [[{:n 100 :impl :foo} 1e6]
+                                           [{:n 1000 :impl :foo} 1e7]
+                                           [{:n 100 :impl :bar} 2e6]
+                                           [{:n 1000 :impl :bar} 2e7]]}}}}))]
         (is (map? chart) "Expected chart output")
         (is (str/includes? (:$schema chart) "vega-lite"))))
 
