@@ -105,10 +105,10 @@
                samples {:quantiles [0.05 0.95]})
         mean-hat (-> stats :mean)
         variance-hat (-> stats :variance)
-        mean (stats/mean values)
-        variance (stats/variance values)]
-    (test-max-error (* mean batch-size) mean-hat 1e-5)
-    (is (approx= (* variance batch-size) variance-hat 2e-1))))
+        mean (double (stats/mean values))
+        variance (double (stats/variance values))]
+    (test-max-error (* mean (double batch-size)) mean-hat 1e-5)
+    (is (approx= (* variance (double batch-size)) variance-hat 2e-1))))
 
 (defn random-values
   "Return a sequence of values with the given mean an standard deviation."
@@ -173,8 +173,8 @@
                {:quantiles [0.05 0.95]})
         mean-hat (-> stats :mean)
         variance-hat (-> stats :variance)
-        mean (stats/mean values)
-        variance (* (stats/variance values) 1)]
+        mean (double (stats/mean values))
+        variance (double (stats/variance values))]
     {:mean mean
      :variance variance
      :mean-hat mean-hat
@@ -187,16 +187,19 @@
    [^long batch-size (gen-bounded 10 1000)
     random-seed gen/nat]
    (let [num-samples    (long (quot 20000 batch-size))
-         mean           10
-         sigma          3
-         {:keys [^double mean ^double variance mean-hat variance-hat]}
-         (stats-values batch-size num-samples random-seed mean sigma)
-         mean-error     (abs-error (* batch-size mean) mean-hat)
-         variance-error (abs-error (* batch-size variance) variance-hat)
+         mean-arg       10.0
+         sigma          3.0
+         {:keys [mean variance mean-hat variance-hat]}
+         (stats-values batch-size num-samples random-seed mean-arg sigma)
+         mean           (double mean)
+         variance       (double variance)
+         batch-size-d   (double batch-size)
+         mean-error     (double (abs-error (* batch-size-d mean) mean-hat))
+         variance-error (double (abs-error (* batch-size-d variance) variance-hat))
          mean-tol       (max (* sigma 1e-1) 1e-2)
           ;; Use 3-sigma tolerance based on sample variance standard error:
           ;; SE(variance) ≈ variance * sqrt(2/(n-1))
-         variance-se    (* batch-size
+         variance-se    (* batch-size-d
                            variance
                            (Math/sqrt (/ 2.0 (dec num-samples))))
          variance-tol   (* 3.0 variance-se)]

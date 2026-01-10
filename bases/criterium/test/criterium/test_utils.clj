@@ -79,7 +79,7 @@
       (is (nil? (compare-doubles 0.3 x)))))
 
   (testing "ulp-based failure"
-    (let [x (+ 0.1 (* 3 (ulp 0.1)))]
+    (let [x (+ 0.1 (* 3.0 (double (ulp 0.1))))]
       (is (compare-doubles 0.3 x))))
 
   (testing "relative tolerance"
@@ -166,8 +166,8 @@
          batch-sums   (mapv #(reduce + %) batches)
          ;; Expected variance for sum of batch-size independent samples
          ;; Var(sum) = batch-size * expected-individual-variance
-         expected-var (* batch-size expected-individual-variance)
-         observed-var (stats/variance batch-sums)]
+         expected-var (* (double batch-size) expected-individual-variance)
+         observed-var (double (stats/variance batch-sums))]
      (/ observed-var expected-var))))
 
 (defn variance-ratio-uniform

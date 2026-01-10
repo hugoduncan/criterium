@@ -1724,7 +1724,7 @@
         (is (every? #(contains? % "elapsed-time") data))
         (is (every? #(contains? % "pdf-density") data))
         ;; PDF values should be positive
-        (is (every? #(pos? (get % "pdf-density")) data))))
+        (is (every? #(pos? (double (get % "pdf-density"))) data))))
 
     (testing "uses line mark"
       (let [layer (charts/distribution-pdf-layer
@@ -2108,9 +2108,9 @@
             points (charts/qq-points samples quantile-fn identity-transforms)]
         ;; Hazen: (i - 0.5) / n for i = 1, 2, 3 and n = 3
         ;; p1 = 0.5/3 = 0.167, p2 = 1.5/3 = 0.5, p3 = 2.5/3 = 0.833
-        (is (< (Math/abs (- (/ 0.5 3.0) (get (nth points 0) "theoretical"))) 0.001))
-        (is (< (Math/abs (- 0.5 (get (nth points 1) "theoretical"))) 0.001))
-        (is (< (Math/abs (- (/ 2.5 3.0) (get (nth points 2) "theoretical"))) 0.001))))
+        (is (< (Math/abs (- (/ 0.5 3.0) (double (get (nth points 0) "theoretical")))) 0.001))
+        (is (< (Math/abs (- 0.5 (double (get (nth points 1) "theoretical")))) 0.001))
+        (is (< (Math/abs (- (/ 2.5 3.0) (double (get (nth points 2) "theoretical")))) 0.001))))
 
     (testing "preserves sorted sample values"
       (let [samples [3.0 1.0 2.0]  ; unsorted input
@@ -2124,7 +2124,8 @@
     (testing "applies transforms"
       (let [samples [1.0 2.0 3.0]
             quantile-fn identity
-            transforms {:sample-> (list #(* 1000.0 %)) :->sample [#(/ % 1000.0)]}
+            transforms {:sample-> (list #(* 1000.0 (double %)))
+                        :->sample [#(/ (double %) 1000.0)]}
             points (charts/qq-points samples quantile-fn transforms)]
         ;; Values should be transformed to ns from s
         (is (= 1000.0 (get (nth points 0) "observed")))))))
@@ -2200,8 +2201,8 @@
         ;; Range 1.0-5.0, margin = 0.05 * 4 = 0.2
         ;; Start = 1.0 - 0.2 = 0.8, End = 5.0 + 0.2 = 5.2
         (is (= 2 (count values)))
-        (is (< (Math/abs (- 0.8 (get (first values) "x"))) 0.001))
-        (is (< (Math/abs (- 5.2 (get (second values) "x"))) 0.001))))))
+        (is (< (Math/abs (- 0.8 (double (get (first values) "x")))) 0.001))
+        (is (< (Math/abs (- 5.2 (double (get (second values) "x")))) 0.001))))))
 
 (deftest distribution-qq-overlay-layers-test
   ;; Tests building Q-Q overlay layers for all fitted distributions.

@@ -43,9 +43,10 @@
   "Create a BCa estimate structure for a given point value.
   Derives CI from +/- 5% of the point value."
   [point-val]
-  {:point-estimate point-val
-   :estimate-quantiles [{:value (* point-val 0.95) :alpha 0.025}
-                        {:value (* point-val 1.05) :alpha 0.975}]})
+  (let [pv (double point-val)]
+    {:point-estimate pv
+     :estimate-quantiles [{:value (* pv 0.95) :alpha 0.025}
+                          {:value (* pv 1.05) :alpha 0.975}]}))
 
 (defn mock-bench-result-with-bootstrap
   "Create a mock bench result with bootstrap stats for box plot testing.
@@ -60,7 +61,7 @@
         bootstrap-data
         (into {}
               (map (fn [[metric-id values]]
-                     (let [mean-val (:mean values 100.0)
+                     (let [mean-val (double (:mean values 100.0))
                            p10 (* mean-val 0.9)
                            p50 mean-val
                            p90 (* mean-val 1.1)]

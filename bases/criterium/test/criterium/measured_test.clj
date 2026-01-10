@@ -492,7 +492,10 @@
 
 (defn- double-it ^long [^long x] (* x 2))
 (defn- triple-it ^long [^long x] (* x 3))
-(defn public-add "A public function for qualified symbol testing." [a b] (+ a b))
+(defn public-add
+  "A public function for qualified symbol testing."
+  ^long [^long a ^long b]
+  (+ a b))
 
 (deftest local-operator-ac4-test
   ;; AC4: Nested local function calls.

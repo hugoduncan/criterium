@@ -23,11 +23,11 @@
 
     (testing "with doubled slope (y = 2x)"
       (let [xs     (range 1 11)
-            ys     (map #(* 2 %) xs)
+            ys     (map (fn [^long x] (* 2 x)) xs)
             result (opt/linear-regression xs ys)]
-        (is (< (Math/abs (- 0.0 (first (:coeffs result)))) 1e-10)
+        (is (< (Math/abs (- 0.0 (double (first (:coeffs result))))) 1e-10)
             "intercept should be ~0")
-        (is (< (Math/abs (- 2.0 (second (:coeffs result)))) 1e-10)
+        (is (< (Math/abs (- 2.0 (double (second (:coeffs result))))) 1e-10)
             "slope should be ~2")
         (is (> (:r-sqr result) 0.999)
             "R-squared should be ~1.0")))
@@ -36,7 +36,7 @@
       (let [xs     [1 2 3 4 5]
             ys     [2.1 3.9 6.2 7.8 10.1]
             result (opt/linear-regression xs ys)]
-        (is (< (Math/abs (- 2.0 (second (:coeffs result)))) 0.2)
+        (is (< (Math/abs (- 2.0 (double (second (:coeffs result))))) 0.2)
             "slope should be approximately 2")
         (is (> (:r-sqr result) 0.99)
             "R-squared should be high for near-linear data")

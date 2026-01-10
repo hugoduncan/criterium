@@ -119,8 +119,8 @@
     (testing "is symmetric under reflection"
       (let [data     [1 2 3 4 5 10 15 20]
             reflected (mapv (fn [^long x] (- x)) (reverse data))
-            mc-orig (stats/medcouple (vec (sort data)))
-            mc-ref (stats/medcouple (vec (sort reflected)))]
+            mc-orig (double (stats/medcouple (vec (sort data))))
+            mc-ref (double (stats/medcouple (vec (sort reflected))))]
         (is (< (Math/abs (+ mc-orig mc-ref)) 1e-10)
             "mc(-x) should equal -mc(x)")))
 
@@ -128,9 +128,9 @@
       (let [data       [1 2 3 4 5 10 15 20]
             shifted    (mapv (fn [^long x] (+ x 100)) data)
             scaled     (mapv (fn [^long x] (* x 10)) data)
-            mc-orig (stats/medcouple (vec (sort data)))
-            mc-shifted (stats/medcouple (vec (sort shifted)))
-            mc-scaled (stats/medcouple (vec (sort scaled)))]
+            mc-orig (double (stats/medcouple (vec (sort data))))
+            mc-shifted (double (stats/medcouple (vec (sort shifted))))
+            mc-scaled (double (stats/medcouple (vec (sort scaled))))]
         (is (< (Math/abs (- mc-orig mc-shifted)) 1e-10)
             "Medcouple should be location invariant")
         (is (< (Math/abs (- mc-orig mc-scaled)) 1e-10)
@@ -142,7 +142,7 @@
       (prop/for-all
        [data (gen/vector gen/small-integer 3 100)]
        (let [sorted (vec (sort data))
-             mc     (stats/medcouple sorted)]
+             mc     (double (stats/medcouple sorted))]
          (and (<= -1.0 mc) (<= mc 1.0)))))))
 
 ;;; Adjusted boxplot outlier threshold tests

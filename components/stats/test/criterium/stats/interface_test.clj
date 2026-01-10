@@ -135,7 +135,9 @@
 (deftest confidence-interval-test
   (testing "confidence-interval"
     (testing "returns 95% confidence interval around mean"
-      (let [[low high] (stats/confidence-interval 100.0 25.0)]
+      (let [[low high] (stats/confidence-interval 100.0 25.0)
+            low (double low)
+            high (double high)]
         (is (< low 100.0))
         (is (> high 100.0))
         (is (< (- 100.0 low) 10.0))

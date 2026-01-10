@@ -557,7 +557,8 @@
 (defn- make-bench-data
   "Create minimal benchmark data with stats for testing domain-apply."
   [mean-ns]
-  (let [metrics-defs (select-keys (criterium.collector.metrics/metrics) [:elapsed-time])]
+  (let [metrics-defs (select-keys (criterium.collector.metrics/metrics) [:elapsed-time])
+        mean-ns (double mean-ns)]
     {:samples {:type :criterium/collected-metrics-samples
                :metrics-defs metrics-defs
                :metric->values {[:elapsed-time] [mean-ns]}
@@ -574,10 +575,10 @@
              :outliers-id nil
              :stats {:elapsed-time {:mean mean-ns
                                     :variance 1.0
-                                    :mean-plus-3sigma (+ mean-ns 3)
-                                    :mean-minus-3sigma (- mean-ns 3)
+                                    :mean-plus-3sigma (+ mean-ns 3.0)
+                                    :mean-minus-3sigma (- mean-ns 3.0)
                                     :min-val mean-ns
-                                    :max-val (+ mean-ns 10)}}}}))
+                                    :max-val (+ mean-ns 10.0)}}}}))
 
 (deftest domain-apply-pprint-test
   ;; Tests the pprint viewer for domain-apply.

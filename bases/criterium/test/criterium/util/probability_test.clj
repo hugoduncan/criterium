@@ -8,8 +8,8 @@
 (deftest normal-quantile-test
   (is (pos? (probability/normal-quantile 0.5001)))
   (is (neg? (probability/normal-quantile 0.4999)))
-  (is (< 2e-8 (- (probability/normal-quantile 0.999)
-                 (probability/normal-quantile 0.001))))
+  (is (< 2e-8 (- (double (probability/normal-quantile 0.999))
+                 (double (probability/normal-quantile 0.001)))))
   (let [max-error 1.0e-7]
     (is (= 0.0 (probability/normal-quantile 0.5)))
     (is (test-max-error
