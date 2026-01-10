@@ -973,10 +973,11 @@
                 :color {:value "#333"}}}]})
 
 (defn- box-plot-ci-layer
-  "Build CI box layer for box plot (rect from ciLower to ciUpper)."
+  "Build CI box layer for box plot (rect from ciLower to ciUpper).
+  Includes stroke styling for visibility when CI is tight."
   [data]
   {:data {:values data}
-   :mark {:type "bar" :width 20}
+   :mark {:type "bar" :width 20 :stroke "#333" :strokeWidth 1}
    :encoding {:x {:field "impl" :type "nominal"}
               :y {:field "ciLower" :type "quantitative"}
               :y2 {:field "ciUpper"}
