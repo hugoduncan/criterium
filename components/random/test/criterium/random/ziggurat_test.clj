@@ -17,7 +17,7 @@
 ;; Tests for ziggurat algorithm for generating normal random variates.
 ;; Verifies correct distribution and independence of samples when using WELL RNG.
 
-(defspec random-normal-zig-test-property 10
+(defspec ^:slow random-normal-zig-test-property 10
   (prop/for-all
    [random-seed gen/small-integer]
    (let [rng            (well/well-rng-1024a random-seed)
@@ -41,7 +41,7 @@
 ;; autocorrelation and correct marginal distribution. The ziggurat algorithm
 ;; consumes 2-3+ uniform values per output, which can amplify RNG correlations.
 
-(deftest ziggurat-well-rng-autocorrelation-test
+(deftest ^:slow ziggurat-well-rng-autocorrelation-test
   ;; Verify ziggurat produces independent normal samples when using WELL RNG.
   ;; With n=100,000, SE approx 1/sqrt(n) approx 0.003, so threshold of 0.02 is conservative.
   (testing "random-normal-zig with WELL RNG"

@@ -181,7 +181,7 @@
      :variance-hat variance-hat
      :samples samples}))
 
-(defspec stats-for-test-property
+(defspec ^:slow stats-for-test-property
   {:num-tests 10}
   (prop/for-all
    [^long batch-size (gen-bounded 10 1000)

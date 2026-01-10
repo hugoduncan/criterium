@@ -8,7 +8,7 @@
    [criterium.bench.impl :as bench-impl]
    [criterium.viewer.kindly :as kindly]))
 
-(deftest bench-test
+(deftest ^:slow bench-test
   (testing "bench"
     (bench-impl/last-bench! nil)
     (is (nil? (bench/last-bench)))
@@ -175,7 +175,7 @@
 ;; Validates integration of allocation tracing into the bench pipeline.
 ;; Agent may or may not be attached in test environment.
 
-(deftest with-allocation-trace-test
+(deftest ^:slow with-allocation-trace-test
   (testing ":with-allocation-trace option"
     (testing "returns expression value"
       (let [result (with-out-str
@@ -239,7 +239,7 @@
     (let [config (bench-config/config-map {:with-allocation-trace true})]
       (is (true? (:with-allocation-trace config))))))
 
-(deftest knuth-histogram-bench-plan-test
+(deftest ^:slow knuth-histogram-bench-plan-test
   ;; Integration test verifying the knuth-histogram bench plan produces
   ;; correct histogram output with Bayesian optimal binning.
   (testing "knuth-histogram bench plan"
@@ -274,7 +274,7 @@
           (is (re-find #"Histogram" out)
               "stdout should contain histogram output"))))))
 
-(deftest default-with-warmup-kde-modes-test
+(deftest ^:slow default-with-warmup-kde-modes-test
   ;; Integration test verifying that default-with-warmup includes KDE and modes
   ;; analysis, and that multimodal-warning view is present in the pipeline.
   ;; This test validates the full pipeline from bench to view output.
