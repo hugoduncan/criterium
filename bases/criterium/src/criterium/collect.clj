@@ -4,7 +4,8 @@
    [criterium.collector :as collector]
    [criterium.jvm :as jvm]
    [criterium.measured :as measured]
-   [criterium.metric :as metric]))
+   [criterium.metric :as metric]
+   [criterium.typed-samples :as typed-samples]))
 
 ;;; Transform of samples
 
@@ -12,11 +13,48 @@
   [sample-arrays collector]
   (mapv (partial collector/transform collector) sample-arrays))
 
+(defn- extract-double-samples
+  "Extract samples at path into a DoubleSamples wrapper."
+  [samples path]
+  (let [n   (count samples)
+        arr (double-array n)]
+    (dotimes [i n]
+      (aset arr i (double (get-in (samples i) path))))
+    (typed-samples/double-samples arr)))
+
+(defn- extract-long-samples
+  "Extract samples at path into a LongSamples wrapper."
+  [samples path]
+  (let [n   (count samples)
+        arr (long-array n)]
+    (dotimes [i n]
+      (aset arr i (long (get-in (samples i) path))))
+    (typed-samples/long-samples arr)))
+
+(defn- extract-object-samples
+  "Extract samples at path into an ObjectSamples wrapper."
+  [samples path]
+  (let [n   (count samples)
+        arr (object-array n)]
+    (dotimes [i n]
+      (aset arr i (get-in (samples i) path)))
+    (typed-samples/object-samples arr)))
+
 (defn sample-maps->map-of-samples
+  "Transform a sequence of sample maps into a map of typed sample arrays.
+
+  Takes a vector of sample maps (each containing metrics at various paths)
+  and a metrics-defs configuration. Returns a map from metric path to a
+  typed samples wrapper (DoubleSamples, LongSamples, or ObjectSamples)
+  based on the metric type."
   [samples metrics-defs]
   (reduce
-   (fn [res {:keys [path]}]
-     (assoc res path (mapv #(get-in % path) samples)))
+   (fn [res {:keys [path type]}]
+     (assoc res path
+            (case type
+              :quantitative (extract-double-samples samples path)
+              :event        (extract-long-samples samples path)
+              :nominal      (extract-object-samples samples path))))
    {}
    (metric/all-metric-configs metrics-defs)))
 
