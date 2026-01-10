@@ -45,7 +45,7 @@
                             :class-loader])]
         (is (= 1 v))))))
 
-(deftest kindly-viewer-integration-test
+(deftest ^:slow kindly-viewer-integration-test
   ;; Integration test for :kindly viewer with actual benchmark execution.
   ;; Verifies that :viewer :kindly produces Kindly-annotated output
   ;; suitable for Clay notebook rendering.

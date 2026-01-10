@@ -106,12 +106,25 @@ jobs:
         set -x
         if [[ "${{ matrix.with-agent }}" == "true" ]]; then
           if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-            clojure -M:kaocha:dev:test:with-agent-linux --reporter dots
+            clojure -M:kaocha:dev:test:with-agent-linux :all --reporter dots
           else
-            clojure -M:kaocha:dev:test:with-agent-mac --reporter dots
+            clojure -M:kaocha:dev:test:with-agent-mac :all --reporter dots
           fi
         else
-          clojure -M:kaocha:dev:test --reporter dots
+          clojure -M:kaocha:dev:test :all --reporter dots
+        fi
+
+    - name: slow tests
+      run: |
+        set -x
+        if [[ "${{ matrix.with-agent }}" == "true" ]]; then
+          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            clojure -M:kaocha:dev:test:with-agent-linux :slow --reporter dots
+          else
+            clojure -M:kaocha:dev:test:with-agent-mac :slow --reporter dots
+          fi
+        else
+          clojure -M:kaocha:dev:test :slow --reporter dots
         fi
 
     - name: Install R (Ubuntu)
