@@ -1285,7 +1285,11 @@
             ci-layer (second (:layer chart))]
         (is (= "bar" (get-in ci-layer [:mark :type])))
         (is (= "ciLower" (get-in ci-layer [:encoding :y :field])))
-        (is (= "ciUpper" (get-in ci-layer [:encoding :y2 :field])))))
+        (is (= "ciUpper" (get-in ci-layer [:encoding :y2 :field])))
+        (is (= "#333" (get-in ci-layer [:mark :stroke]))
+            "CI box should have stroke for visibility when CI is tight")
+        (is (= 1 (get-in ci-layer [:mark :strokeWidth]))
+            "CI box should have 1px stroke width")))
 
     (testing "includes median layer with tick mark"
       (let [spec (charts/single-point-box-chart-spec
