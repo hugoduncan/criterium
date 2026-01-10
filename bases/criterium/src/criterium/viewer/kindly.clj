@@ -255,7 +255,7 @@
 
 ;;; Domain view implementations
 
-(defmethod view/domain-extract* :kindly
+(defmethod view/domain-extract-table* :kindly
   [_ {:keys [extract-id]} data-map]
   (let [extract-id (or extract-id :extract)
         extract (data-map extract-id)]
@@ -264,7 +264,29 @@
       (when-let [{:keys [heading col-headers rows]}
                  (extract/prepare-domain-extract-table-transposed extract)]
         (kindly-heading heading)
-        (kindly-table rows {:column-names col-headers})
+        (kindly-table rows {:column-names col-headers}))
+
+      :multi-point
+      (when-let [{:keys [heading coord-header col-headers rows]}
+                 (extract/prepare-domain-extract-table
+                  extract {:header-sep "\n"})]
+        (kindly-heading heading)
+        (kindly-table rows {:column-names (into [coord-header] col-headers)}))
+
+      :default-table
+      (when-let [{:keys [heading coord-header col-headers rows]}
+                 (extract/prepare-domain-extract-table
+                  extract {:header-sep "\n"})]
+        (kindly-heading heading)
+        (kindly-table rows {:column-names (into [coord-header] col-headers)})))))
+
+(defmethod view/domain-extract-chart* :kindly
+  [_ {:keys [extract-id]} data-map]
+  (let [extract-id (or extract-id :extract)
+        extract (data-map extract-id)]
+    (case (detection/visualization-strategy extract)
+      :single-point
+      (when extract
         (let [box-spec (charts/single-point-box-chart-spec extract {:width chart-width
                                                                     :height chart-height})]
           ;; Fall back to bar chart if box plot has no data (missing bootstrap stats)
@@ -275,21 +297,13 @@
                                                           :height chart-height})))))
 
       :multi-point
-      (when-let [{:keys [heading coord-header col-headers rows]}
-                 (extract/prepare-domain-extract-table
-                  extract {:header-sep "\n"})]
-        (kindly-heading heading)
-        (kindly-table rows {:column-names (into [coord-header] col-headers)})
+      (when extract
         (kindly-vega-lite
          (charts/domain-line-chart-spec extract {:width chart-width
                                                  :height chart-height})))
 
-      :default-table
-      (when-let [{:keys [heading coord-header col-headers rows]}
-                 (extract/prepare-domain-extract-table
-                  extract {:header-sep "\n"})]
-        (kindly-heading heading)
-        (kindly-table rows {:column-names (into [coord-header] col-headers)})))))
+      ;; :default-table - no chart output
+      nil)))
 
 (defmethod view/domain-grouped* :kindly
   [_ {:keys [grouped-id]} data-map]
@@ -300,7 +314,7 @@
       (kindly-heading heading)
       (kindly-table rows))))
 
-(defmethod view/domain-comparison* :kindly
+(defmethod view/domain-comparison-table* :kindly
   [_ {:keys [comparison-id]} data-map]
   (let [comparison-id (or comparison-id :comparison)
         comparison (data-map comparison-id)]
@@ -309,7 +323,27 @@
       (when-let [{:keys [heading col-headers rows]}
                  (comparison/prepare-domain-comparison-table-transposed comparison)]
         (kindly-heading heading)
-        (kindly-table rows {:column-names col-headers})
+        (kindly-table rows {:column-names col-headers}))
+
+      :multi-point
+      (when-let [tables (comparison/prepare-domain-comparison-tables comparison)]
+        (doseq [{:keys [heading coord-header col-headers rows]} tables]
+          (kindly-heading heading)
+          (kindly-table rows {:column-names (into [coord-header] col-headers)})))
+
+      :default-table
+      (when-let [tables (comparison/prepare-domain-comparison-tables comparison)]
+        (doseq [{:keys [heading coord-header col-headers rows]} tables]
+          (kindly-heading heading)
+          (kindly-table rows {:column-names (into [coord-header] col-headers)}))))))
+
+(defmethod view/domain-comparison-chart* :kindly
+  [_ {:keys [comparison-id]} data-map]
+  (let [comparison-id (or comparison-id :comparison)
+        comparison (data-map comparison-id)]
+    (case (detection/comparison-visualization-strategy comparison)
+      :single-point
+      (when comparison
         (let [box-spec (charts/comparison-box-chart-spec comparison {:width chart-width
                                                                      :height chart-height})]
           ;; Fall back to bar chart if box plot has no data (missing bootstrap stats)
@@ -320,19 +354,13 @@
                                                            :height chart-height})))))
 
       :multi-point
-      (when-let [tables (comparison/prepare-domain-comparison-tables comparison)]
-        (doseq [{:keys [heading coord-header col-headers rows]} tables]
-          (kindly-heading heading)
-          (kindly-table rows {:column-names (into [coord-header] col-headers)}))
+      (when comparison
         (kindly-vega-lite
          (charts/comparison-line-chart-spec comparison {:width chart-width
                                                         :height chart-height})))
 
-      :default-table
-      (when-let [tables (comparison/prepare-domain-comparison-tables comparison)]
-        (doseq [{:keys [heading coord-header col-headers rows]} tables]
-          (kindly-heading heading)
-          (kindly-table rows {:column-names (into [coord-header] col-headers)}))))))
+      ;; :default-table - no chart output
+      nil)))
 
 (defmethod view/domain-regression* :kindly
   [_ {:keys [regression-id extract-id log-log-id tolerance]} data-map]

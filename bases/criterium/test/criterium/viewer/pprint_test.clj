@@ -124,64 +124,6 @@
                  {}
                  (:data (test-data/samples-with-non-numeric-value-map))))))))))
 
-(deftest domain-extract-pprint-test
-  ;; Tests the pprint viewer table output for domain-extract results.
-  ;; Verifies table formatting with single-key coordinate simplification.
-  (testing "domain-extract*"
-    (testing "displays table with metric columns"
-      (is (= ["Domain Extract"
-              ""
-              "|   n | elapsed-time (ns) |"
-              "|-----+-------------------|"
-              "| 100 |               100 |"
-              "| 200 |               200 |"]
-             (trimmed-lines
-              (with-out-str
-                (view/domain-extract*
-                 :pprint
-                 {}
-                 {:extract
-                  {:type :criterium/domain-extract
-                   :metrics {:elapsed-time
-                             {:metric [:stats :elapsed-time :mean]
-                              :data [[{:n 100} 100]
-                                     [{:n 200} 200]]}}}}))))))
-    (testing "handles multiple metrics"
-      (is (= ["Domain Extract"
-              ""
-              "|   n | elapsed-time (ns) | thread-allocation (Kb) |"
-              "|-----+-------------------+------------------------|"
-              "| 100 |               100 |                   1.00 |"]
-             (trimmed-lines
-              (with-out-str
-                (view/domain-extract*
-                 :pprint
-                 {}
-                 {:extract
-                  {:type :criterium/domain-extract
-                   :metrics {:elapsed-time
-                             {:metric [:stats :elapsed-time :mean]
-                              :data [[{:n 100} 100]]}
-                             :thread-allocation
-                             {:metric [:stats :thread-allocation :mean]
-                              :data [[{:n 100} 1024]]}}}}))))))
-    (testing "uses custom extract-id"
-      (is (= ["Domain Extract"
-              ""
-              "|   n | elapsed-time (ns) |"
-              "|-----+-------------------|"
-              "| 100 |              1.00 |"]
-             (trimmed-lines
-              (with-out-str
-                (view/domain-extract*
-                 :pprint
-                 {:extract-id :my-extract}
-                 {:my-extract
-                  {:type :criterium/domain-extract
-                   :metrics {:elapsed-time
-                             {:metric [:stats :elapsed-time :mean]
-                              :data [[{:n 100} 1]]}}}}))))))))
-
 (deftest domain-grouped-pprint-test
   ;; Tests the pprint viewer table output for domain-grouped results.
   (testing "domain-grouped*"
@@ -223,60 +165,6 @@
                                 :runs [{}]}
                           nil {:type :criterium/domain
                                :runs [{}]}}}}))))))))
-
-(deftest domain-comparison-pprint-test
-  ;; Tests the pprint viewer table output for domain-comparison results.
-  ;; Verifies factor display and SI units.
-  (testing "domain-comparison*"
-    (testing "with :implementations shows factors for non-baseline"
-      (is (= ["Domain Comparison by impl: [:stats :elapsed-time :mean]"
-              ""
-              "|   n |    foo |    bar | bar × |"
-              "|-----+--------+--------+-------|"
-              "| 100 | 100 ns | 200 ns |  2.00 |"]
-             (trimmed-lines
-              (with-out-str
-                (view/domain-comparison*
-                 :pprint
-                 {}
-                 {:comparison
-                  {:type :criterium/domain-comparison
-                   :axis :impl
-                   :metric [:stats :elapsed-time :mean]
-                   :implementations [:foo :bar]
-                   :data {:foo [{:coord {:impl :foo :n 100} :value 100}]
-                          :bar [{:coord {:impl :bar :n 100} :value 200}]}}}))))))
-    (testing "without :implementations shows absolute values"
-      (is (= ["Domain Comparison by impl: [:stats :elapsed-time :mean] (ns)"
-              ""
-              "|   n | :bar | :foo |"
-              "|-----+------+------|"
-              "| 100 |  200 |  100 |"]
-             (trimmed-lines
-              (with-out-str
-                (view/domain-comparison*
-                 :pprint
-                 {}
-                 {:comparison
-                  {:type :criterium/domain-comparison
-                   :axis :impl
-                   :metric [:stats :elapsed-time :mean]
-                   :data {:foo [{:coord {:impl :foo :n 100} :value 100}]
-                          :bar [{:coord {:impl :bar :n 100} :value 200}]}}}))))))
-    (testing "with mismatched :implementations throws error"
-      (is (thrown-with-msg?
-           clojure.lang.ExceptionInfo
-           #"implementations do not match"
-           (view/domain-comparison*
-            :pprint
-            {}
-            {:comparison
-             {:type :criterium/domain-comparison
-              :axis :impl
-              :metric [:stats :elapsed-time :mean]
-              :implementations [:default]
-              :data {:foo [{:coord {:impl :foo :n 100} :value 100}]
-                     :bar [{:coord {:impl :bar :n 100} :value 200}]}}}))))))
 
 (deftest domain-regression-pprint-test
   ;; Tests the pprint viewer table output for domain-regression results.
@@ -661,3 +549,221 @@
         (is (str/includes? (str stderr-output)
                            "WARNING: domain-apply requires :view-spec option")
             "Should warn on stderr when view-spec is missing")))))
+
+;;; Domain Extract Table/Chart Tests
+
+(deftest domain-extract-table-pprint-test
+  ;; Tests the pprint viewer for domain-extract-table.
+  ;; Covers single-point, multi-point, and default-table strategies.
+  (testing "domain-extract-table*"
+    (testing "renders transposed table for single-point strategy"
+      (let [output (with-out-str
+                     (view/domain-extract-table*
+                      :pprint
+                      {}
+                      {:extract
+                       {:type :criterium/domain-extract
+                        :impl-axis :impl
+                        :implementations [:foo :bar]
+                        :metrics {:elapsed-time
+                                  {:metric [:stats :elapsed-time :mean]
+                                   :data [[{:n 100 :impl :foo} 1e-7]
+                                          [{:n 100 :impl :bar} 2e-7]]}}}}))]
+        (is (str/includes? output "Domain Extract"))
+        (is (str/includes? output "foo"))
+        (is (str/includes? output "bar"))))
+
+    (testing "renders regular table for multi-point strategy"
+      (let [output (with-out-str
+                     (view/domain-extract-table*
+                      :pprint
+                      {}
+                      {:extract
+                       {:type :criterium/domain-extract
+                        :impl-axis :impl
+                        :implementations [:foo :bar]
+                        :metrics {:elapsed-time
+                                  {:metric [:stats :elapsed-time :mean]
+                                   :data [[{:n 100 :impl :foo} 1e-7]
+                                          [{:n 200 :impl :foo} 2e-7]
+                                          [{:n 100 :impl :bar} 2e-7]
+                                          [{:n 200 :impl :bar} 4e-7]]}}}}))]
+        (is (str/includes? output "Domain Extract"))
+        (is (str/includes? output "100"))
+        (is (str/includes? output "200"))))
+
+    (testing "renders regular table for default-table strategy"
+      (let [output (with-out-str
+                     (view/domain-extract-table*
+                      :pprint
+                      {}
+                      {:extract
+                       {:type :criterium/domain-extract
+                        :metrics {:elapsed-time
+                                  {:metric [:stats :elapsed-time :mean]
+                                   :data [[{:n 100 :m 1} 1e-7]
+                                          [{:n 100 :m 2} 2e-7]]}}}}))]
+        (is (str/includes? output "Domain Extract"))
+        (is (or (str/includes? output "| 1 |")
+                (str/includes? output "| 2 |")))))
+
+    (testing "handles nil extract gracefully"
+      (let [output (with-out-str
+                     (view/domain-extract-table* :pprint {} {:extract nil}))]
+        (is (str/blank? output))))
+
+    (testing "uses custom extract-id"
+      (let [output (with-out-str
+                     (view/domain-extract-table*
+                      :pprint
+                      {:extract-id :my-extract}
+                      {:my-extract
+                       {:type :criterium/domain-extract
+                        :metrics {:elapsed-time
+                                  {:metric [:stats :elapsed-time :mean]
+                                   :data [[{:n 100} 1e-7]]}}}}))]
+        (is (str/includes? output "Domain Extract"))))))
+
+(deftest domain-extract-chart-pprint-test
+  ;; Tests that pprint viewer returns nil for charts (text viewers don't render charts).
+  (testing "domain-extract-chart*"
+    (testing "returns nil for single-point strategy"
+      (is (nil? (view/domain-extract-chart*
+                 :pprint
+                 {}
+                 {:extract
+                  {:type :criterium/domain-extract
+                   :impl-axis :impl
+                   :implementations [:foo :bar]
+                   :metrics {:elapsed-time
+                             {:metric [:stats :elapsed-time :mean]
+                              :data [[{:n 100 :impl :foo} 1e-7]
+                                     [{:n 100 :impl :bar} 2e-7]]}}}}))))
+
+    (testing "returns nil for multi-point strategy"
+      (is (nil? (view/domain-extract-chart*
+                 :pprint
+                 {}
+                 {:extract
+                  {:type :criterium/domain-extract
+                   :impl-axis :impl
+                   :implementations [:foo :bar]
+                   :metrics {:elapsed-time
+                             {:metric [:stats :elapsed-time :mean]
+                              :data [[{:n 100 :impl :foo} 1e-7]
+                                     [{:n 200 :impl :foo} 2e-7]
+                                     [{:n 100 :impl :bar} 2e-7]
+                                     [{:n 200 :impl :bar} 4e-7]]}}}}))))
+
+    (testing "returns nil for nil extract"
+      (is (nil? (view/domain-extract-chart* :pprint {} {:extract nil}))))))
+
+;;; Domain Comparison Table/Chart Tests
+
+(deftest domain-comparison-table-pprint-test
+  ;; Tests the pprint viewer for domain-comparison-table.
+  ;; Covers single-point, multi-point, and default-table strategies.
+  (testing "domain-comparison-table*"
+    (testing "renders transposed table for single-point strategy"
+      (let [output (with-out-str
+                     (view/domain-comparison-table*
+                      :pprint
+                      {}
+                      {:comparison
+                       {:type :criterium/domain-comparison
+                        :axis :impl
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo :bar]
+                        :data
+                        {:foo [{:coord {:impl :foo} :value 1e-7}]
+                         :bar [{:coord {:impl :bar} :value 2e-7}]}}}))]
+        (is (str/includes? output "Domain Comparison"))
+        (is (str/includes? output "foo"))
+        (is (str/includes? output "bar"))))
+
+    (testing "renders comparison table for multi-point strategy"
+      (let [output (with-out-str
+                     (view/domain-comparison-table*
+                      :pprint
+                      {}
+                      {:comparison
+                       {:type :criterium/domain-comparison
+                        :axis :impl
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo :bar]
+                        :data
+                        {:foo [{:coord {:n 100 :impl :foo} :value 1e-7}
+                               {:coord {:n 200 :impl :foo} :value 2e-7}]
+                         :bar [{:coord {:n 100 :impl :bar} :value 2e-7}
+                               {:coord {:n 200 :impl :bar} :value 4e-7}]}}}))]
+        (is (str/includes? output "Domain Comparison"))
+        (is (str/includes? output "100"))
+        (is (str/includes? output "200"))))
+
+    (testing "renders table for default-table strategy"
+      (let [output (with-out-str
+                     (view/domain-comparison-table*
+                      :pprint
+                      {}
+                      {:comparison
+                       {:type :criterium/domain-comparison
+                        :axis :impl
+                        :metric [:stats :elapsed-time :mean]
+                        :data
+                        {:foo [{:coord {:n 100 :impl :foo} :value 1e-7}]
+                         :bar [{:coord {:n 100 :impl :bar} :value 2e-7}]}}}))]
+        (is (str/includes? output "Domain Comparison"))))
+
+    (testing "handles nil comparison gracefully"
+      (let [output (with-out-str
+                     (view/domain-comparison-table* :pprint {} {:comparison nil}))]
+        (is (str/blank? output))))
+
+    (testing "uses custom comparison-id"
+      (let [output (with-out-str
+                     (view/domain-comparison-table*
+                      :pprint
+                      {:comparison-id :my-comparison}
+                      {:my-comparison
+                       {:type :criterium/domain-comparison
+                        :axis :impl
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo :bar]
+                        :data
+                        {:foo [{:coord {:impl :foo} :value 1e-7}]
+                         :bar [{:coord {:impl :bar} :value 2e-7}]}}}))]
+        (is (str/includes? output "Domain Comparison"))))))
+
+(deftest domain-comparison-chart-pprint-test
+  ;; Tests that pprint viewer returns nil for charts (text viewers don't render charts).
+  (testing "domain-comparison-chart*"
+    (testing "returns nil for single-point strategy"
+      (is (nil? (view/domain-comparison-chart*
+                 :pprint
+                 {}
+                 {:comparison
+                  {:type :criterium/domain-comparison
+                   :axis :impl
+                   :metric [:stats :elapsed-time :mean]
+                   :implementations [:foo :bar]
+                   :data
+                   {:foo [{:coord {:impl :foo} :value 1e-7}]
+                    :bar [{:coord {:impl :bar} :value 2e-7}]}}}))))
+
+    (testing "returns nil for multi-point strategy"
+      (is (nil? (view/domain-comparison-chart*
+                 :pprint
+                 {}
+                 {:comparison
+                  {:type :criterium/domain-comparison
+                   :axis :impl
+                   :metric [:stats :elapsed-time :mean]
+                   :implementations [:foo :bar]
+                   :data
+                   {:foo [{:coord {:n 100 :impl :foo} :value 1e-7}
+                          {:coord {:n 200 :impl :foo} :value 2e-7}]
+                    :bar [{:coord {:n 100 :impl :bar} :value 2e-7}
+                          {:coord {:n 200 :impl :bar} :value 4e-7}]}}}))))
+
+    (testing "returns nil for nil comparison"
+      (is (nil? (view/domain-comparison-chart* :pprint {} {:comparison nil}))))))

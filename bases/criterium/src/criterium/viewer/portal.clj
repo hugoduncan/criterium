@@ -407,7 +407,7 @@
 
 ;;; Domain Views
 
-(defmethod view/domain-extract* :portal
+(defmethod view/domain-extract-table* :portal
   [_ {:keys [extract-id]} data-map]
   (let [extract-id (or extract-id :extract)
         extract (data-map extract-id)]
@@ -416,7 +416,27 @@
       (when-let [{:keys [rows] heading-text :heading}
                  (extract/prepare-domain-extract-table-transposed extract)]
         (heading heading-text)
-        (portal-table rows)
+        (portal-table rows))
+
+      :multi-point
+      (when-let [table-data (extract/prepare-domain-extract-table
+                             extract {:header-sep " "})]
+        (heading (:heading table-data))
+        (portal-table (:rows table-data)))
+
+      :default-table
+      (when-let [table-data (extract/prepare-domain-extract-table
+                             extract {:header-sep " "})]
+        (heading (:heading table-data))
+        (portal-table (:rows table-data))))))
+
+(defmethod view/domain-extract-chart* :portal
+  [_ {:keys [extract-id]} data-map]
+  (let [extract-id (or extract-id :extract)
+        extract (data-map extract-id)]
+    (case (detection/visualization-strategy extract)
+      :single-point
+      (when extract
         (let [box-spec (charts/single-point-box-chart-spec extract {:height 400})]
           ;; Fall back to bar chart if box plot has no data (missing bootstrap stats)
           (if (seq (:vconcat box-spec))
@@ -425,18 +445,12 @@
              (charts/single-point-bar-chart-spec extract {:height 400})))))
 
       :multi-point
-      (when-let [table-data (extract/prepare-domain-extract-table
-                             extract {:header-sep " "})]
-        (heading (:heading table-data))
-        (portal-table (:rows table-data))
+      (when extract
         (portal-vega-lite
          (charts/domain-line-chart-spec extract {:height 400})))
 
-      :default-table
-      (when-let [table-data (extract/prepare-domain-extract-table
-                             extract {:header-sep " "})]
-        (heading (:heading table-data))
-        (portal-table (:rows table-data))))))
+      ;; :default-table - no chart output
+      nil)))
 
 (defmethod view/domain-grouped* :portal
   [_ {:keys [grouped-id]} data-map]
@@ -447,16 +461,36 @@
       (heading heading-text)
       (portal-table rows))))
 
-(defmethod view/domain-comparison* :portal
+(defmethod view/domain-comparison-table* :portal
   [_ {:keys [comparison-id]} data-map]
   (let [comparison-id (or comparison-id :comparison)
         comparison (data-map comparison-id)]
     (case (detection/comparison-visualization-strategy comparison)
       :single-point
-      (when-let [{:keys [heading rows]}
+      (when-let [{:keys [rows] heading-text :heading}
                  (comparison/prepare-domain-comparison-table-transposed comparison)]
-        (heading heading)
-        (portal-table rows)
+        (heading heading-text)
+        (portal-table rows))
+
+      :multi-point
+      (when-let [tables (comparison/prepare-domain-comparison-tables comparison)]
+        (doseq [{:keys [rows] heading-text :heading} tables]
+          (heading heading-text)
+          (portal-table rows)))
+
+      :default-table
+      (when-let [tables (comparison/prepare-domain-comparison-tables comparison)]
+        (doseq [{:keys [rows] heading-text :heading} tables]
+          (heading heading-text)
+          (portal-table rows))))))
+
+(defmethod view/domain-comparison-chart* :portal
+  [_ {:keys [comparison-id]} data-map]
+  (let [comparison-id (or comparison-id :comparison)
+        comparison (data-map comparison-id)]
+    (case (detection/comparison-visualization-strategy comparison)
+      :single-point
+      (when comparison
         (let [box-spec (charts/comparison-box-chart-spec comparison {:height 400})]
           ;; Fall back to bar chart if box plot has no data (missing bootstrap stats)
           (if (seq (:vconcat box-spec))
@@ -465,18 +499,12 @@
              (charts/comparison-bar-chart-spec comparison {:height 400})))))
 
       :multi-point
-      (when-let [tables (comparison/prepare-domain-comparison-tables comparison)]
-        (doseq [{:keys [rows] heading-text :heading} tables]
-          (heading heading-text)
-          (portal-table rows))
+      (when comparison
         (portal-vega-lite
          (charts/comparison-line-chart-spec comparison {:height 400})))
 
-      :default-table
-      (when-let [tables (comparison/prepare-domain-comparison-tables comparison)]
-        (doseq [{:keys [rows] heading-text :heading} tables]
-          (heading heading-text)
-          (portal-table rows))))))
+      ;; :default-table - no chart output
+      nil)))
 
 (defmethod view/domain-regression* :portal
   [_ {:keys [regression-id extract-id log-log-id tolerance]} data-map]

@@ -830,7 +830,7 @@
         (print (format (str "%" (nth col-widths i) "s") (or (get row header) "-"))))
       (println))))
 
-(defmethod view/domain-extract* :print
+(defmethod view/domain-extract-table* :print
   [_ {:keys [extract-id]} data-map]
   (let [extract-id (or extract-id :extract)
         extract (data-map extract-id)]
@@ -840,11 +840,10 @@
                         extract)]
         (print-transposed-table table))
 
-      ;; :multi-point and :default-table both use the standard format
+      (:multi-point :default-table)
       (when extract
         (doseq [[_metric-id {:keys [metric data]}] (:metrics extract)]
           (let [raw-coords (map first data)
-                ;; Strip uniform axes (e.g., :impl :default for single-impl scenarios)
                 stripped-coords (strip-uniform-axes raw-coords)
                 coord-map (zipmap raw-coords stripped-coords)
                 single-key-info (core/single-key-coord-info stripped-coords)
@@ -856,6 +855,11 @@
                                  (format-coord-value display-coord single-key-info)
                                  (format-extract-value value metric)))))
             (println)))))))
+
+(defmethod view/domain-extract-chart* :print
+  [_ _ _]
+  ;; Print viewer doesn't render charts
+  nil)
 
 (defmethod view/domain-grouped* :print
   [_ {:keys [grouped-id]} data-map]
@@ -1103,7 +1107,7 @@
         (print (format " │ %s" (format (str "%" (nth col-widths i) "s") v))))
       (println))))
 
-(defmethod view/domain-comparison* :print
+(defmethod view/domain-comparison-table* :print
   [_ {:keys [comparison-id]} data-map]
   (let [comparison-id (or comparison-id :comparison)
         comparison (data-map comparison-id)]
@@ -1113,7 +1117,7 @@
                         comparison)]
         (print-transposed-table table))
 
-      ;; :multi-point and :default-table both use the standard format
+      (:multi-point :default-table)
       (when comparison
         (let [{:keys [axis metric metrics implementations data]} comparison]
           (if metrics
@@ -1143,6 +1147,11 @@
                 (print-comparison-table axis metric data))
               (println (format "Domain Comparison by %s: %s (no data)"
                                (name axis) (pr-str metric))))))))))
+
+(defmethod view/domain-comparison-chart* :print
+  [_ _ _]
+  ;; Print viewer doesn't render charts
+  nil)
 
 (defn- print-log-log-info
   "Print log-log regression summary."

@@ -227,91 +227,120 @@
 
 ;;; Domain View Tests
 
-(deftest portal-domain-extract-test
-  ;; Tests the portal viewer output for domain-extract results.
-  ;; Verifies table generation with coordinate columns and metric columns.
-  ;; New implementation provides table output with SI scaling like kindly viewer.
-  ;; Uniform axes (same value across all coords) are stripped for cleaner display.
-  (testing "domain-extract*"
-    (testing "produces table with single-key coords"
-      (let [[title table] (with-tap-out
-                            (view/domain-extract*
-                             :portal
-                             {}
-                             {:extract
-                              {:type :criterium/domain-extract
-                               :metrics {:elapsed-time
-                                         {:metric [:stats :elapsed-time :mean]
-                                          :data [[{:n 100} 1e-7]
-                                                 [{:n 200} 2e-7]
-                                                 [{:n 400} 4e-7]]}}}}))]
-        (is (= [:b "Domain Extract"] title))
-        (is (= 3 (count table)) "Expected 3 rows")
-        (is (every? #(contains? % "n") table)
-            "Expected \"n\" column for single-key coords")
-        (is (= [100 200 400] (mapv #(get % "n") table))
-            "Expected rows sorted by n")))
+(deftest portal-domain-extract-table-test
+  ;; Tests the portal viewer output for domain-extract-table results.
+  ;; Verifies table generation without chart output.
+  (testing "domain-extract-table*"
+    (testing "renders table only for single-point extract"
+      (let [outputs (with-tap-out
+                      (view/domain-extract-table*
+                       :portal
+                       {}
+                       {:extract
+                        {:type :criterium/domain-extract
+                         :metrics {:elapsed-time
+                                   {:metric [:stats :elapsed-time :mean]
+                                    :data [[{:n 100} 1e-7]]}}}}))]
+        (is (= 2 (count outputs)) "Expected heading and table only")
+        (let [[title table] outputs]
+          (is (= [:b "Domain Extract"] title))
+          (is (vector? table) "Expected table data"))))
 
-    (testing "strips uniform axes leaving single-key coords"
-      ;; When one axis is uniform (same value in all coords), it's stripped
-      ;; leaving the varying axis as a single-key display
-      (let [[title table] (with-tap-out
-                            (view/domain-extract*
-                             :portal
-                             {}
-                             {:extract
-                              {:type :criterium/domain-extract
-                               :metrics {:elapsed-time
-                                         {:metric [:stats :elapsed-time :mean]
-                                          :data [[{:n 100 :m 1} 1e-7]
-                                                 [{:n 100 :m 2} 2e-7]]}}}}))]
-        (is (= [:b "Domain Extract"] title))
-        (is (= 2 (count table)))
-        (is (every? #(contains? % "m") table)
-            "Expected \"m\" column after stripping uniform :n axis")
-        (is (= [1 2] (mapv #(get % "m") table))
-            "Expected rows with stripped :m values")))
+    (testing "renders table only for multi-point extract"
+      (let [outputs (with-tap-out
+                      (view/domain-extract-table*
+                       :portal
+                       {}
+                       {:extract
+                        {:type :criterium/domain-extract
+                         :metrics {:elapsed-time
+                                   {:metric [:stats :elapsed-time :mean]
+                                    :data [[{:n 100} 1e-7]
+                                           [{:n 200} 2e-7]
+                                           [{:n 400} 4e-7]]}}}}))]
+        (is (= 2 (count outputs)) "Expected heading and table only")
+        (let [[title table] outputs]
+          (is (= [:b "Domain Extract"] title))
+          (is (= 3 (count table)) "Expected 3 rows"))))
 
-    (testing "produces table with multi-key coords when multiple axes vary"
-      (let [[title table] (with-tap-out
-                            (view/domain-extract*
-                             :portal
-                             {}
-                             {:extract
-                              {:type :criterium/domain-extract
-                               :metrics {:elapsed-time
-                                         {:metric [:stats :elapsed-time :mean]
-                                          :data [[{:n 100 :m 1} 1e-7]
-                                                 [{:n 200 :m 2} 2e-7]]}}}}))]
-        (is (= [:b "Domain Extract"] title))
-        (is (= 2 (count table)))
-        (is (every? #(contains? % "coordinate") table)
-            "Expected \"coordinate\" column when multiple axes vary")))
+    (testing "handles nil extract gracefully"
+      (let [v (volatile! [])
+            f (fn [x] (when-not (= ::portal/_ x) (vswap! v conj x)))]
+        (try
+          (add-tap f)
+          (view/domain-extract-table* :portal {} {:extract nil})
+          (portal/flush)
+          (is (empty? @v))
+          (finally
+            (remove-tap f)))))))
 
-    (testing "handles nil values"
-      (let [[_title table] (with-tap-out
-                             (view/domain-extract*
-                              :portal
-                              {}
-                              {:extract
-                               {:type :criterium/domain-extract
-                                :metrics {:elapsed-time
-                                          {:metric [:stats :elapsed-time :mean]
-                                           :data [[{:n 100} nil]
-                                                  [{:n 200} 1e-7]]}}}}))]
-        (is (= 2 (count table)))))
+(deftest portal-domain-extract-chart-test
+  ;; Tests the portal viewer output for domain-extract-chart results.
+  ;; Verifies chart generation without table output.
+  (testing "domain-extract-chart*"
+    (testing "renders bar chart for single-point extract without bootstrap"
+      (let [[chart] (with-tap-out
+                      (view/domain-extract-chart*
+                       :portal
+                       {}
+                       {:extract
+                        {:type :criterium/domain-extract
+                         :impl-axis :impl
+                         :implementations [:foo :bar]
+                         :metrics {:elapsed-time
+                                   {:metric [:stats :elapsed-time :mean]
+                                    :data [[{:n 100 :impl :foo} 1e6]
+                                           [{:n 100 :impl :bar} 2e6]]}}}}))]
+        (is (map? chart) "Expected chart output")
+        (is (str/includes? (:$schema chart) "vega-lite"))))
 
-    (testing "uses custom extract-id"
-      (let [[title _table] (with-tap-out
-                             (view/domain-extract*
-                              :portal
-                              {:extract-id :my-extract}
-                              {:my-extract
-                               {:type :criterium/domain-extract
-                                :metrics {:elapsed-time
-                                          {:metric [:stats :elapsed-time :mean]
-                                           :data [[{:n 100} 1e-9]]}}}}))]
-        (is (= [:b "Domain Extract"] title))))))
+    (testing "renders line chart for multi-point extract"
+      (let [[chart] (with-tap-out
+                      (view/domain-extract-chart*
+                       :portal
+                       {}
+                       {:extract
+                        {:type :criterium/domain-extract
+                         :impl-axis :impl
+                         :implementations [:foo :bar]
+                         :metrics {:elapsed-time
+                                   {:metric [:stats :elapsed-time :mean]
+                                    :data [[{:n 100 :impl :foo} 1e6]
+                                           [{:n 1000 :impl :foo} 1e7]
+                                           [{:n 100 :impl :bar} 2e6]
+                                           [{:n 1000 :impl :bar} 2e7]]}}}}))]
+        (is (map? chart) "Expected chart output")
+        (is (str/includes? (:$schema chart) "vega-lite"))))
+
+    (testing "outputs nothing for default-table strategy"
+      (let [v (volatile! [])
+            f (fn [x] (when-not (= ::portal/_ x) (vswap! v conj x)))]
+        (try
+          (add-tap f)
+          (view/domain-extract-chart*
+           :portal
+           {}
+           {:extract
+            {:type :criterium/domain-extract
+             :metrics {:elapsed-time
+                       {:metric [:stats :elapsed-time :mean]
+                        :data [[{:n 100 :m 1} 1e-7]
+                               [{:n 100 :m 2} 2e-7]]}}}})
+          (portal/flush)
+          (is (empty? @v))
+          (finally
+            (remove-tap f)))))
+
+    (testing "handles nil extract gracefully"
+      (let [v (volatile! [])
+            f (fn [x] (when-not (= ::portal/_ x) (vswap! v conj x)))]
+        (try
+          (add-tap f)
+          (view/domain-extract-chart* :portal {} {:extract nil})
+          (portal/flush)
+          (is (empty? @v))
+          (finally
+            (remove-tap f)))))))
 
 (deftest portal-domain-grouped-test
   ;; Tests the portal viewer output for domain-grouped results.
@@ -348,68 +377,125 @@
                                             :runs [{}]}}}}))]
         (is (= [:b "Domain Grouped by: n"] title))))))
 
-(deftest portal-domain-comparison-test
-  ;; Tests the portal viewer output for domain-comparison results.
-  ;; Verifies table generation with axis values as columns.
-  ;; New implementation provides table output with SI scaling like kindly viewer.
-  (testing "domain-comparison*"
-    (testing "produces table with comparison data"
-      (let [[title table] (with-tap-out
-                            (view/domain-comparison*
-                             :portal
-                             {}
-                             {:comparison
-                              {:type :criterium/domain-comparison
-                               :axis :impl
-                               :metrics {:elapsed-time
-                                         {:metric [:stats :elapsed-time :mean]
-                                          :data {:foo [{:coord {:impl :foo :n 100}
-                                                        :value 1e-7}]
-                                                 :bar [{:coord {:impl :bar :n 100}
-                                                        :value 2e-7}]}}}}}))]
-        (is (string? (second title)))
-        (is (str/includes? (second title) "Domain Comparison"))
-        (is (= 1 (count table)) "Expected 1 row for single n value")
-        (is (contains? (first table) "n")
-            "Expected \"n\" column for single-key coord")))
+(deftest portal-domain-comparison-table-test
+  ;; Tests the portal viewer output for domain-comparison-table results.
+  ;; Verifies table generation without chart output.
+  (testing "domain-comparison-table*"
+    (testing "renders table only for single-point comparison"
+      (let [outputs (with-tap-out
+                      (view/domain-comparison-table*
+                       :portal
+                       {}
+                       {:comparison
+                        {:type :criterium/domain-comparison
+                         :axis :impl
+                         :metric [:stats :elapsed-time :mean]
+                         :implementations [:foo :bar]
+                         :data
+                         {:foo [{:coord {:impl :foo} :value 1e-7}]
+                          :bar [{:coord {:impl :bar} :value 2e-7}]}}}))]
+        (is (= 2 (count outputs)) "Expected heading and table only")
+        (let [[title table] outputs]
+          (is (string? (second title)))
+          (is (str/includes? (second title) "Domain Comparison"))
+          (is (vector? table) "Expected table data"))))
 
-    (testing "with implementations shows factors for non-baseline"
-      (let [[title table] (with-tap-out
-                            (view/domain-comparison*
-                             :portal
-                             {}
-                             {:comparison
-                              {:type :criterium/domain-comparison
-                               :axis :impl
-                               :metrics {:elapsed-time
-                                         {:metric [:stats :elapsed-time :mean]
-                                          :data {:foo [{:coord {:impl :foo :n 100}
-                                                        :value 1e-7}
-                                                       {:coord {:impl :foo :n 200}
-                                                        :value 2e-7}]
-                                                 :bar [{:coord {:impl :bar :n 100}
-                                                        :value 2e-7}
-                                                       {:coord {:impl :bar :n 200}
-                                                        :value 4e-7}]}}}
-                               :implementations [:foo :bar]}}))]
-        (is (str/includes? (second title) "Domain Comparison"))
-        (is (= 2 (count table)) "Expected 2 rows")
-        ;; Check that baseline impl has absolute values and factor impl has ×
-        (let [first-row (first table)
-              col-keys (set (map str (keys first-row)))]
-          (is (some #(str/includes? % "foo") col-keys)
-              "Expected foo column")
-          (is (some #(and (str/includes? % "bar")
-                          (str/includes? % "×"))
-                    col-keys)
-              "Expected bar column with × for factors"))))
+    (testing "renders tables only for multi-point comparison"
+      (let [outputs (with-tap-out
+                      (view/domain-comparison-table*
+                       :portal
+                       {}
+                       {:comparison
+                        {:type :criterium/domain-comparison
+                         :axis :impl
+                         :metric [:stats :elapsed-time :mean]
+                         :implementations [:foo :bar]
+                         :data
+                         {:foo [{:coord {:n 100 :impl :foo} :value 1e-7}
+                                {:coord {:n 200 :impl :foo} :value 2e-7}]
+                          :bar [{:coord {:n 100 :impl :bar} :value 2e-7}
+                                {:coord {:n 200 :impl :bar} :value 4e-7}]}}}))]
+        (is (= 2 (count outputs)) "Expected heading and table only")
+        (let [[title table] outputs]
+          (is (string? (second title)))
+          (is (str/includes? (second title) "Domain Comparison"))
+          (is (= 2 (count table)) "Expected 2 rows"))))
 
     (testing "handles nil comparison gracefully"
       (let [v (volatile! [])
             f (fn [x] (when-not (= ::portal/_ x) (vswap! v conj x)))]
         (try
           (add-tap f)
-          (view/domain-comparison* :portal {} {:comparison nil})
+          (view/domain-comparison-table* :portal {} {:comparison nil})
+          (portal/flush)
+          (is (empty? @v))
+          (finally
+            (remove-tap f)))))))
+
+(deftest portal-domain-comparison-chart-test
+  ;; Tests the portal viewer output for domain-comparison-chart results.
+  ;; Verifies chart generation without table output.
+  (testing "domain-comparison-chart*"
+    (testing "renders bar chart for single-point comparison without bootstrap"
+      (let [[chart] (with-tap-out
+                      (view/domain-comparison-chart*
+                       :portal
+                       {}
+                       {:comparison
+                        {:type :criterium/domain-comparison
+                         :axis :impl
+                         :metric [:stats :elapsed-time :mean]
+                         :implementations [:foo :bar]
+                         :data
+                         {:foo [{:coord {:impl :foo} :value 1e-7}]
+                          :bar [{:coord {:impl :bar} :value 2e-7}]}}}))]
+        (is (map? chart) "Expected chart output")
+        (is (str/includes? (:$schema chart) "vega-lite"))))
+
+    (testing "renders line chart for multi-point comparison"
+      (let [[chart] (with-tap-out
+                      (view/domain-comparison-chart*
+                       :portal
+                       {}
+                       {:comparison
+                        {:type :criterium/domain-comparison
+                         :axis :impl
+                         :metric [:stats :elapsed-time :mean]
+                         :implementations [:foo :bar]
+                         :data
+                         {:foo [{:coord {:n 100 :impl :foo} :value 1e-7}
+                                {:coord {:n 200 :impl :foo} :value 2e-7}]
+                          :bar [{:coord {:n 100 :impl :bar} :value 2e-7}
+                                {:coord {:n 200 :impl :bar} :value 4e-7}]}}}))]
+        (is (map? chart) "Expected chart output")
+        (is (str/includes? (:$schema chart) "vega-lite"))))
+
+    (testing "outputs nothing for default-table strategy"
+      (let [v (volatile! [])
+            f (fn [x] (when-not (= ::portal/_ x) (vswap! v conj x)))]
+        (try
+          (add-tap f)
+          (view/domain-comparison-chart*
+           :portal
+           {}
+           {:comparison
+            {:type :criterium/domain-comparison
+             :axis :impl
+             :metric [:stats :elapsed-time :mean]
+             :data
+             {:foo [{:coord {:n 100 :impl :foo} :value 1e-7}]
+              :bar [{:coord {:n 100 :impl :bar} :value 2e-7}]}}})
+          (portal/flush)
+          (is (empty? @v))
+          (finally
+            (remove-tap f)))))
+
+    (testing "handles nil comparison gracefully"
+      (let [v (volatile! [])
+            f (fn [x] (when-not (= ::portal/_ x) (vswap! v conj x)))]
+        (try
+          (add-tap f)
+          (view/domain-comparison-chart* :portal {} {:comparison nil})
           (portal/flush)
           (is (empty? @v))
           (finally

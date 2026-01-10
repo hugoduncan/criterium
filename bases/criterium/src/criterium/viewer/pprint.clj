@@ -295,7 +295,7 @@
   [_ _view _banch-map]
   ;; TODO
   )
-(defmethod view/domain-extract* :pprint
+(defmethod view/domain-extract-table* :pprint
   [_ {:keys [extract-id]} data-map]
   (let [extract-id (or extract-id :extract)
         extract (data-map extract-id)]
@@ -304,6 +304,11 @@
       (println heading)
       ;; Rows already use string keys matching column headers
       (pprint/print-table (into [coord-header] col-headers) rows))))
+
+(defmethod view/domain-extract-chart* :pprint
+  [_ _ _]
+  ;; Pprint viewer doesn't render charts
+  nil)
 
 (defmethod view/domain-grouped* :pprint
   [_ {:keys [grouped-id]} data-map]
@@ -314,7 +319,7 @@
       (println heading)
       (pprint/print-table [:axis-value :run-count] rows))))
 
-(defmethod view/domain-comparison* :pprint
+(defmethod view/domain-comparison-table* :pprint
   [_ {:keys [comparison-id]} data-map]
   (let [comparison-id (or comparison-id :comparison)
         comparison (data-map comparison-id)]
@@ -322,6 +327,11 @@
       (doseq [{:keys [heading coord-header col-headers rows]} tables]
         (println heading)
         (pprint/print-table (into [coord-header] col-headers) rows)))))
+
+(defmethod view/domain-comparison-chart* :pprint
+  [_ _ _]
+  ;; Pprint viewer doesn't render charts
+  nil)
 
 (defmethod view/domain-regression* :pprint
   [_ {:keys [regression-id tolerance]} data-map]
