@@ -72,7 +72,7 @@
   (testing "postwalk"
     (testing "applies function to all nodes"
       (is (= [2 [3 4]]
-             (utils/postwalk #(if (number? %) (inc %) %) [1 [2 3]]))))
+             (utils/postwalk #(if (number? %) (inc (long %)) %) [1 [2 3]]))))
     (testing "preserves structure"
       (is (= {:a [1 2]}
              (utils/postwalk identity {:a [1 2]}))))))

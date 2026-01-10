@@ -97,9 +97,9 @@
   ([opts]
    (let [platform (current-platform)
          ^java.io.File agent-dir (agent-cpp-dir)
-         build-dir (or (:build-dir opts) (io/file agent-dir "build"))
+         ^java.io.File build-dir (or (:build-dir opts) (io/file agent-dir "build"))
          lib-name (library-name platform)
-         lib-file (io/file build-dir lib-name)]
+         ^java.io.File lib-file (io/file build-dir lib-name)]
      (when-not (.isDirectory agent-dir)
        (throw (ex-info "agent-cpp directory not found"
                        {:agent-dir (.getAbsolutePath agent-dir)})))

@@ -103,7 +103,7 @@
 (defn- format-location
   "Format file:line location, or return nil if not available."
   [file line]
-  (when (and file (pos? (or line 0)))
+  (when (and file (pos? (long (or line 0))))
     (str file ":" line)))
 
 (defn- clojure-invoke-method?
@@ -117,7 +117,7 @@
   [class-name]
   (when class-name
     (when-let [idx (str/last-index-of class-name "$")]
-      (-> (subs class-name (inc idx))
+      (-> (subs class-name (inc (long idx)))
           (str/replace "_" "-")
           (str/replace "BANG" "!")
           (str/replace "QMARK" "?")
@@ -155,7 +155,7 @@
           (let [display-name (format-method-name class method)
                 location (or (format-location file line) "")]
             (println (format "%-4d %-40s %10d  %s"
-                             (inc idx)
+                             (inc (long idx))
                              (if (> (count display-name) 40)
                                (str (subs display-name 0 37) "...")
                                display-name)

@@ -307,7 +307,7 @@
           ;; Check first node (root) - uses short class name for readability
           (let [root (first flame-data)]
             (is (= "Core.main" (:name root)))
-            (is (= 0 (:x0 root)))
+            (is (= 0.0 (:x0 root)))
             (is (= 0 (:depth root)))))))
 
     (testing "respects width option"

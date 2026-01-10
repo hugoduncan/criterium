@@ -490,7 +490,8 @@
 (defn- compute-information-criteria
   "Compute AIC, BIC, and AICc for a fitted model."
   [dist n log-likelihood]
-  (let [k (get distribution-num-params dist 2)]
+  (let [k (long (get distribution-num-params dist 2))
+        n (long n)]
     {:aic (si/aic k log-likelihood)
      :bic (si/bic k n log-likelihood)
      :aicc (when (> n (inc k))
@@ -502,6 +503,8 @@
   [dist samples {:keys [n-bootstrap alpha]
                  :or {n-bootstrap 200 alpha 0.05}}]
   (let [n (count samples)
+        n-bootstrap (long n-bootstrap)
+        alpha (double alpha)
         bootstrap-size (max 50 (long (* n 0.8)))
         quantiles [(/ alpha 2.0) (- 1.0 (/ alpha 2.0))]
         ;; Bootstrap the MLE fitting
@@ -509,7 +512,7 @@
         rng-factory random/well-rng-1024a
         ;; Run bootstrap
         bootstrap-fits
-        (loop [i 0
+        (loop [i (long 0)
                results []]
           (if (>= i n-bootstrap)
             results
@@ -538,9 +541,9 @@
                 (when (>= n-boot 10)
                   [param-key
                    {:point-estimate (get-in original-fit [:params param-key])
-                    :ci-lower (nth sorted-vals (long (* n-boot (first quantiles))))
+                    :ci-lower (nth sorted-vals (long (* n-boot (double (first quantiles)))))
                     :ci-upper (nth sorted-vals (min (dec n-boot)
-                                                    (long (* n-boot (second quantiles)))))}])))))))
+                                                    (long (* n-boot (double (second quantiles))))))}])))))))
 
 (defn- fit-distributions-for-metric
   "Fit all applicable distributions to samples for a single metric.
@@ -589,7 +592,8 @@
         (into {}
               (for [[dist result] fit-results]
                 [dist (if (and (:aic result) best-aic)
-                        (assoc result :delta-aic (- (:aic result) best-aic))
+                        (assoc result :delta-aic (- (double (:aic result))
+                                                    (double best-aic)))
                         result)]))
         ;; Bootstrap parameter CIs for best model only
         parameter-cis (when best-model

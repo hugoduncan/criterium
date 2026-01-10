@@ -216,7 +216,7 @@
                         vec)]
     (mapv #(* (double %) batch-size) values)))
 
-(deftest analyse-bootstrap-test
+(deftest ^:slow analyse-bootstrap-test
   ;; Tests that bootstrap-stats stores raw values and transforms are
   ;; applied when viewing via the source-id chain.
   (let [batch-size     100

@@ -28,7 +28,7 @@
       (is (every? vector? (vals (:metric->values (:samples data-map)))))
       (is (= 1 (:expr-value (:samples data-map)))))))
 
-(deftest full-test
+(deftest ^:slow full-test
   (testing "full sampling"
     (let [measured  (measured/measured
                      (fn [] [])

@@ -17,7 +17,7 @@
 ;; Tests for ziggurat algorithm for generating normal random variates.
 ;; Verifies correct distribution and independence of samples when using WELL RNG.
 
-(defspec random-normal-zig-test-property 10
+(defspec ^:slow random-normal-zig-test-property 10
   (prop/for-all
    [random-seed gen/small-integer]
    (let [rng            (well/well-rng-1024a random-seed)
@@ -25,10 +25,10 @@
                              ziggurat/random-normal-zig
                              (take 10000)
                              vec)
-         mean           (stats/mean values)
-         variance       (stats/variance values)
-         mean-error     (abs-error mean 0.0)
-         variance-error (abs-error variance 1.0)
+         mean           (double (stats/mean values))
+         variance       (double (stats/variance values))
+         mean-error     (double (abs-error mean 0.0))
+         variance-error (double (abs-error variance 1.0))
          mean-tol       1e-1
          variance-tol   1e-1]
      (is (< mean-error mean-tol))
@@ -41,7 +41,7 @@
 ;; autocorrelation and correct marginal distribution. The ziggurat algorithm
 ;; consumes 2-3+ uniform values per output, which can amplify RNG correlations.
 
-(deftest ziggurat-well-rng-autocorrelation-test
+(deftest ^:slow ziggurat-well-rng-autocorrelation-test
   ;; Verify ziggurat produces independent normal samples when using WELL RNG.
   ;; With n=100,000, SE approx 1/sqrt(n) approx 0.003, so threshold of 0.02 is conservative.
   (testing "random-normal-zig with WELL RNG"
@@ -65,8 +65,8 @@
               (format "variance ratio %.3f outside [0.9, 1.1]" ratio))))
 
       (testing "has correct marginal distribution"
-        (let [mean     (stats/mean samples)
-              variance (stats/variance samples)]
+        (let [mean     (double (stats/mean samples))
+              variance (double (stats/variance samples))]
           (is (< (Math/abs mean) 0.02)
               (format "mean %.4f exceeds tolerance 0.02" mean))
           (is (< (Math/abs (- variance 1.0)) 0.1)

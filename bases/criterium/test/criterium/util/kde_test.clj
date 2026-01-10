@@ -158,13 +158,13 @@
   (testing "dct-ii"
     (testing "first coefficient equals sum of inputs"
       (let [data (double-array [1.0 2.0 3.0 4.0])
-            result (kde/dct-ii data)]
+            ^doubles result (kde/dct-ii data)]
         (is (< (Math/abs (- (aget result 0) 10.0)) 0.001)
             "DC component should equal sum of inputs")))
 
     (testing "returns array of same size"
       (let [data (double-array [1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0])
-            result (kde/dct-ii data)]
+            ^doubles result (kde/dct-ii data)]
         (is (= 8 (alength result)))))))
 
 (deftest linear-bin-test
@@ -173,7 +173,7 @@
     (testing "weights sum to 1"
       (let [data          [1.0 2.0 3.0 4.0 5.0]
             grid          (double-array [0.0 2.0 4.0 6.0])
-            weights       (kde/linear-bin data grid)
+            ^doubles weights (kde/linear-bin data grid)
             ^double total (reduce + weights)]
         (is (< (Math/abs (- total 1.0)) 0.0001)
             "weights should sum to 1")))
@@ -181,7 +181,7 @@
     (testing "data at grid point goes to that bin"
       (let [data    [2.0]
             grid    (double-array [0.0 2.0 4.0 6.0])
-            weights (kde/linear-bin data grid)]
+            ^doubles weights (kde/linear-bin data grid)]
         (is (> (aget weights 1) 0.9)
             "weight should be concentrated at matching grid point")))))
 

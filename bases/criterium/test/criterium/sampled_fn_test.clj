@@ -11,7 +11,7 @@
   []
   (jvm/wait 10000))
 
-(deftest sampled-fn-test
+(deftest ^:slow sampled-fn-test
   (with-redefs
    [ten-micros (sampled-fn/sample-fn
                 ten-micros

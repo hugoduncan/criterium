@@ -1555,18 +1555,17 @@
         (>= p 1.0) Double/POSITIVE_INFINITY
         :else
         ;; Newton-Raphson: x_{n+1} = x_n - (F(x_n) - p) / f(x_n)
-        (let [max-iter 50
-              tol 1e-10]
-          (loop [x (max (initial-guess p) 1e-10)
-                 iter 0]
+        (let [max-iter (long 50)
+              tol (double 1e-10)]
+          (loop [x (Math/max (double (initial-guess p)) 1e-10)
+                 iter (long 0)]
             (if (>= iter max-iter)
               x
-              (let [fx (cdf-fn x)
-                    fpx (pdf-fn x)]
+              (let [fx (double (cdf-fn x))
+                    fpx (double (pdf-fn x))]
                 (if (< fpx 1e-100)
                   x
-                  (let [x-new (- x (/ (- fx p) fpx))
-                        x-new (max x-new 1e-10)]
+                  (let [x-new (double (Math/max (- x (/ (- fx p) fpx)) 1e-10))]
                     (if (< (Math/abs (- x-new x)) (* tol x))
                       x-new
                       (recur x-new (inc iter)))))))))))))
@@ -1583,18 +1582,17 @@
         (>= p 1.0) Double/POSITIVE_INFINITY
         :else
         ;; Newton-Raphson with mu as initial guess
-        (let [max-iter 50
-              tol 1e-10]
-          (loop [x mu
-                 iter 0]
+        (let [max-iter (long 50)
+              tol (double 1e-10)]
+          (loop [x (double mu)
+                 iter (long 0)]
             (if (>= iter max-iter)
               x
-              (let [fx (cdf-fn x)
-                    fpx (pdf-fn x)]
+              (let [fx (double (cdf-fn x))
+                    fpx (double (pdf-fn x))]
                 (if (< fpx 1e-100)
                   x
-                  (let [x-new (- x (/ (- fx p) fpx))
-                        x-new (max x-new 1e-10)]
+                  (let [x-new (double (Math/max (- x (/ (- fx p) fpx)) 1e-10))]
                     (if (< (Math/abs (- x-new x)) (* tol x))
                       x-new
                       (recur x-new (inc iter)))))))))))))
@@ -1642,7 +1640,7 @@
           is-best? (= dist (:best-model fit-result))
           data (->> grid
                     (mapv (fn [x]
-                            (let [p (pdf-fn x)
+                            (let [p (double (pdf-fn x))
                                   ;; Scale by Jacobian if KDE is on log-transformed data
                                   ;; Converts density-per-original-unit to density-per-log-unit
                                   scaled-p (if scale-by-jacobian?
@@ -1833,7 +1831,7 @@
         ;; For step function, we need points at each sample value
         data (mapv (fn [i x]
                      {"x" (util/transform-sample-> x transforms)
-                      "cdf" (/ (double (inc i)) n)})
+                      "cdf" (/ (double (inc (long i))) n)})
                    (range n)
                    sorted-samples)]
     {:data {:values data}
@@ -1946,10 +1944,10 @@
               ;; Extend range slightly for better visualization
               range-val (when (and min-val max-val)
                           (- (double max-val) (double min-val)))
-              grid-min (when range-val (- (double min-val) (* 0.05 range-val)))
-              grid-max (when range-val (+ (double max-val) (* 0.05 range-val)))
+              grid-min (when range-val (- (double min-val) (* 0.05 (double range-val))))
+              grid-max (when range-val (+ (double max-val) (* 0.05 (double range-val))))
               grid (when (and grid-min grid-max)
-                     (let [step (/ (- grid-max grid-min) 100.0)]
+                     (let [step (/ (- (double grid-max) (double grid-min)) 100.0)]
                        (vec (range grid-min grid-max step))))]
           (when (seq samples)
             (merge
@@ -1986,7 +1984,7 @@
         n (count sorted-samples)]
     (->> (mapv (fn [i x]
                  (let [;; Hazen plotting position: (i - 0.5) / n
-                       p (/ (- (double (inc i)) 0.5) (double n))
+                       p (/ (- (double (inc (long i))) 0.5) (double n))
                        theoretical (quantile-fn p)]
                    {"theoretical" (util/transform-sample-> theoretical transforms)
                     "observed" (util/transform-sample-> x transforms)}))
@@ -2156,9 +2154,9 @@
         samples-transforms (util/get-transforms data-map samples-id)
         ;; Subplot dimensions - smaller since we have multiple
         subplot-width (or (:subplot-width chart-options)
-                          (quot (or (:width chart-options) 400) 2))
+                          (quot (long (or (:width chart-options) 400)) 2))
         subplot-height (or (:subplot-height chart-options)
-                           (quot (or (:height chart-options) 300) 2))
+                           (quot (long (or (:height chart-options) 300)) 2))
         subplot-options {:width subplot-width :height subplot-height}]
     {:data {:values []}
      :vconcat
@@ -2304,7 +2302,7 @@
   [class-name]
   (when class-name
     (when-let [idx (str/last-index-of class-name "$")]
-      (-> (subs class-name (inc idx))
+      (-> (subs class-name (inc (long idx)))
           (str/replace "_" "-")
           (str/replace "BANG" "!")
           (str/replace "QMARK" "?")
@@ -2320,7 +2318,7 @@
   [class-name]
   (when class-name
     (if-let [idx (str/last-index-of class-name ".")]
-      (subs class-name (inc idx))
+      (subs class-name (inc (long idx)))
       class-name)))
 
 (defn- call-tree-display-name
@@ -2389,9 +2387,9 @@
   (let [width (or (:width opts) 700)
         height (or (:height opts) 500)
         flat-data (when call-tree (vec (flatten-call-tree-node call-tree)))
-        max-calls (if (seq flat-data)
-                    (apply max (map :call-count flat-data))
-                    1)]
+        max-calls (long (if (seq flat-data)
+                          (apply max (map :call-count flat-data))
+                          1))]
     {:$schema "https://vega.github.io/schema/vega/v5.json"
      :width width
      :height height
@@ -2493,18 +2491,21 @@
     - Color by class for visual grouping
     - tooltip showing method, call count, percentage"
   [call-tree total-calls opts]
-  (let [width (or (:width opts) 700)
-        height (or (:height opts) 400)
-        row-height 24
-        total-calls (double (if (pos? total-calls) total-calls 1))]
+  (let [width (long (or (:width opts) 700))
+        height (long (or (:height opts) 400))
+        width-d (double width)
+        height-d (double height)
+        row-height (double 24)
+        total-calls-d (double (if (pos? (long total-calls)) total-calls 1))]
+    ;; Type hints eliminate boxed math warnings in this tight loop
     (letfn [(compute-flame-data
-              [node x0 node-width depth]
+              [node ^double x0 ^double node-width ^long depth]
               (when node
-                (let [call-count (or (:call-count node) 0)
+                (let [call-count (long (or (:call-count node) 0))
                       class-name (or (:class node) "<unknown>")
                       method (or (:method node) "<unknown>")
                       display-name (call-tree-display-name class-name method)
-                      percentage (* 100.0 (/ (double call-count) total-calls))
+                      percentage (* 100.0 (/ (double call-count) total-calls-d))
                       x1 (+ x0 node-width)
                       node-record {:name display-name
                                    :class class-name
@@ -2516,8 +2517,8 @@
                                    :depth depth
                                    :x0 x0
                                    :x1 x1
-                                   :y0 (* depth row-height)
-                                   :y1 (* (inc depth) row-height)}
+                                   :y0 (* (double depth) row-height)
+                                   :y1 (* (double (inc depth)) row-height)}
                       children (:children node)
                       ;; Children are sized proportionally within parent's width
                       children-total (double
@@ -2542,11 +2543,11 @@
                       (cons node-record child-data))
                     [node-record]))))]
       (let [flame-data (when call-tree
-                         (vec (compute-flame-data call-tree 0 width 0)))
-            max-depth (if (seq flame-data)
-                        (apply max (map :depth flame-data))
-                        0)
-            computed-height (max height (* (inc max-depth) row-height 1.2))]
+                         (vec (compute-flame-data call-tree 0.0 width-d 0)))
+            max-depth (long (if (seq flame-data)
+                              (apply max (map :depth flame-data))
+                              0))
+            computed-height (long (Math/max height-d (* (double (inc max-depth)) row-height 1.2)))]
         {:$schema "https://vega.github.io/schema/vega/v5.json"
          :width width
          :height computed-height
@@ -2634,7 +2635,7 @@
         height (or (:height opts) (+ 50 (* n bar-height)))
         data (mapv (fn [{:keys [class method file line total-calls]}]
                      (let [display-name (most-called-display-name class method)
-                           location (if (and file (pos? (or line 0)))
+                           location (if (and file (pos? (long (or line 0))))
                                       (str file ":" line)
                                       "")]
                        {"method" display-name

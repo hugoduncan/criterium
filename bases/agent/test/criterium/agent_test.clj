@@ -246,12 +246,12 @@
 
 (defn simple-computation
   "A simple function to trace."
-  [x]
+  ^long [^long x]
   (+ x 1))
 
 (defn nested-computation
   "A function that calls other functions."
-  [x]
+  ^long [^long x]
   (simple-computation (simple-computation x)))
 
 (deftest with-call-tracing-test

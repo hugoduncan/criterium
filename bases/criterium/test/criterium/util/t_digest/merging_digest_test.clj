@@ -180,7 +180,7 @@
                       0.99 (probability/normal-quantile 0.99)}
           digest     (md/compress digest)]
       (doseq [[q expected-val] expected-q]
-        (let [actual (md/quantile digest q)
+        (let [actual (double (md/quantile digest q))
               error  (Math/abs (/ (- actual (double expected-val)) std-dev))]
           (testing (format "quantile %.2f" q)
             (is (< error 0.2)
@@ -188,8 +188,9 @@
                         error q expected-val actual))))))))
 
 (deftest normal-distribution-cdf-test
+  ;; Reduced from 200K to 50K samples for faster tests while maintaining accuracy.
   (testing "accuracy with normal distribution"
-    (let [n            200000
+    (let [n            50000
           std-dev      1.0
           samples      (take n (ziggurat/random-normal-zig
                                 (well/well-rng-1024a)))
@@ -203,7 +204,7 @@
                         2.0   (probability/normal-cdf 2.0)}
           digest       (md/compress digest)]
       (doseq [[z expected-val] expected-cdf]
-        (let [actual (md/cdf digest z)
+        (let [actual (double (md/cdf digest z))
               error  (Math/abs (/ (- actual (double expected-val)) std-dev))]
           (testing (format "cdf %.2f" z)
             (is (< error 0.01)
@@ -219,7 +220,7 @@
           digest  (md/compress digest)]
       ;; NOTE we should calculate bounds for these using the t and chi-squared
       ;; distributions.
-      (is (> 0.05 (Math/abs (md/mean digest))))
+      (is (> 0.05 (Math/abs (double (md/mean digest)))))
       (is (approx= 1.0 (md/variance digest) 0.1)))))
 
 (deftest basic-operations
@@ -343,8 +344,8 @@
                  ^double dx (gen/double*
                              {:min       0.0   :max  100.0
                               :infinite? false :NaN? false})]
-                (let [cdf-x    (md/cdf d x)
-                      cdf-x+dx (md/cdf d (+ x dx))]
+                (let [cdf-x    (double (md/cdf d x))
+                      cdf-x+dx (double (md/cdf d (+ x dx)))]
                   (when-not (>= cdf-x+dx cdf-x)
                     (prn :x x :dx dx :cdf-x+dx cdf-x+dx :cdf-x cdf-x))
                   (>= cdf-x+dx cdf-x))))

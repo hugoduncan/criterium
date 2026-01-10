@@ -1571,12 +1571,12 @@
           (is (contains? foo-value :ci-upper) "should have :ci-upper from bootstrap CI")
           ;; Verify values are approximately correct
           ;; (p50 = mean, p10 = 0.9*mean, p90 = 1.1*mean)
-          (is (< (Math/abs (- (:median foo-value) 100.0)) 0.01) "foo median ~100")
-          (is (< (Math/abs (- (:p10 foo-value) 90.0)) 0.01) "foo p10 ~90")
-          (is (< (Math/abs (- (:p90 foo-value) 110.0)) 0.01) "foo p90 ~110")
-          (is (< (Math/abs (- (:median bar-value) 200.0)) 0.01) "bar median ~200")
-          (is (< (Math/abs (- (:p10 bar-value) 180.0)) 0.01) "bar p10 ~180")
-          (is (< (Math/abs (- (:p90 bar-value) 220.0)) 0.01) "bar p90 ~220")))
+          (is (< (Math/abs (- (double (:median foo-value)) 100.0)) 0.01) "foo median ~100")
+          (is (< (Math/abs (- (double (:p10 foo-value)) 90.0)) 0.01) "foo p10 ~90")
+          (is (< (Math/abs (- (double (:p90 foo-value)) 110.0)) 0.01) "foo p90 ~110")
+          (is (< (Math/abs (- (double (:median bar-value)) 200.0)) 0.01) "bar median ~200")
+          (is (< (Math/abs (- (double (:p10 bar-value)) 180.0)) 0.01) "bar p10 ~180")
+          (is (< (Math/abs (- (double (:p90 bar-value)) 220.0)) 0.01) "bar p90 ~220")))
       (testing "falls back to basic value when bootstrap stats not present"
         (let [d (domain/domain
                  {:coord {:n 100 :impl :foo}

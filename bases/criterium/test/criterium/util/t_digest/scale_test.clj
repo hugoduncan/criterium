@@ -58,8 +58,8 @@
   [scale]
   (prop/for-all [^double q      (gen-double {:min 1e-15 :max (- 0.5 (ulp 0.5))})
                  norm   (gen-double {:min 1.0 :max 1000.0})]
-                (let [k  (scale/k scale q norm)
-                      k' (- (scale/k scale (- 1.0 q) norm))]
+                (let [k  (double (scale/k scale q norm))
+                      k' (- (double (scale/k scale (- 1.0 q) norm)))]
       ;; k1 should be symmetric around q=0.5
                   (approx= k k' 1e-4 5))))
 
@@ -67,9 +67,9 @@
   [scale]
   (prop/for-all [^double q      (gen-double {:min 0.0 :max 0.5})
                  norm   (gen-double {:min 1.0 :max 1000.0})]
-                (let [k (scale/k scale q norm)]
+                (let [k (double (scale/k scale q norm))]
       ;; k1 should increase monotonically with q
-                  (> (scale/k scale (+ q 0.1) norm) k))))
+                  (> (double (scale/k scale (+ q 0.1) norm)) k))))
 
 (defspec k0-inverse-property-test
   (inverse-property scale/k0))

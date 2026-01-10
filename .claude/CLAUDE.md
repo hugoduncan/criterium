@@ -15,17 +15,20 @@ This is currently version 0.5.x (ALPHA) which represents a significant architect
 # Build agent and prepare dependencies (required once after checkout or deps.edn changes)
 make dev
 
-# Run tests with Kaocha
-clojure -M:kaocha:dev:test --reporter dots
+# Run tests with Kaocha (excludes slow tests)
+clojure -M:kaocha:dev:test :all --reporter dots
 
 # For agent development: Test with locally-built agent (macOS)
-clojure -M:kaocha:dev:test:with-agent-mac --reporter dots
+clojure -M:kaocha:dev:test:with-agent-mac :all --reporter dots
 
 # For agent development: Test with locally-built agent (Linux)
-clojure -M:kaocha:dev:test:with-agent-linux --reporter dots
+clojure -M:kaocha:dev:test:with-agent-linux :all --reporter dots
 
 # Run tests for a namespace with Kaocha
 clojure -M:kaocha:dev:test --reporter dots --focus the.namespace.name
+
+# Run slow tests (marked with ^:slow metadata, skipped by default)
+clojure -M:kaocha:dev:test :slow --reporter dots
 
 # Run validation tests against R (requires R + Rserve installed)
 clojure -M:validation
@@ -234,7 +237,7 @@ Tests use Kaocha with the following structure:
 The test suite uses several strategies to maintain fast execution:
 
 **Slow Test Marking:**
-Tests that take significant time (>30s) are marked with `^:slow` metadata and excluded from default runs via `:skip-meta [:slow]` in `tests.edn`. Run slow tests explicitly with `--focus-meta :slow`.
+Tests that take significant time (>30s) are marked with `^:slow` metadata and excluded from default runs via `:skip-meta [:slow]` in `tests.edn`. Run slow tests explicitly using the `:slow` test suite: `clojure -M:kaocha:dev:test :slow`.
 
 **Minimal Iterations for API Tests:**
 Tests that validate API behavior (not benchmark accuracy) use reduced time limits:
