@@ -13,3 +13,9 @@
 
 (definterface ILongFold
   (^long fold [^clojure.lang.IFn$LLL f ^long init]))
+
+(definterface IDoubleObjectFold
+  (foldObject [^clojure.lang.IFn$ODO f init]))
+
+(definterface ILongObjectFold
+  (foldObject [^clojure.lang.IFn$OLO f init]))

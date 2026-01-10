@@ -130,3 +130,51 @@
                                (fn ^long [^long cnt ^long v]
                                  (if (zero? v) cnt (unchecked-inc cnt)))
                                0)))))))
+
+(deftest dfold-test
+  (testing "dfold"
+    (testing "collects doubles into a vector"
+      (let [samples (ts/double-samples (double-array [1.0 2.0 3.0]))]
+        (is (= [1.0 2.0 3.0]
+               (ts/dfold samples
+                         (fn [acc ^double v] (conj acc v))
+                         [])))))
+    (testing "works with empty array"
+      (let [samples (ts/double-samples (double-array []))]
+        (is (= []
+               (ts/dfold samples
+                         (fn [acc ^double v] (conj acc v))
+                         [])))))
+    (testing "accumulates into a map"
+      (let [samples (ts/double-samples (double-array [1.0 2.0 3.0]))]
+        (is (= {:sum 6.0 :count 3}
+               (ts/dfold samples
+                         (fn [acc ^double v]
+                           (-> acc
+                               (update :sum + v)
+                               (update :count inc)))
+                         {:sum 0.0 :count 0})))))))
+
+(deftest lfold-test
+  (testing "lfold"
+    (testing "collects longs into a vector"
+      (let [samples (ts/long-samples (long-array [10 20 30]))]
+        (is (= [10 20 30]
+               (ts/lfold samples
+                         (fn [acc ^long v] (conj acc v))
+                         [])))))
+    (testing "works with empty array"
+      (let [samples (ts/long-samples (long-array []))]
+        (is (= []
+               (ts/lfold samples
+                         (fn [acc ^long v] (conj acc v))
+                         [])))))
+    (testing "accumulates into a map"
+      (let [samples (ts/long-samples (long-array [10 20 30]))]
+        (is (= {:sum 60 :count 3}
+               (ts/lfold samples
+                         (fn [acc ^long v]
+                           (-> acc
+                               (update :sum + v)
+                               (update :count inc)))
+                         {:sum 0 :count 0})))))))

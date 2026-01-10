@@ -11,7 +11,7 @@
    [criterium.typed-samples.interface])
   (:import
    [criterium.typed_samples.interface
-    ITypedSamples IFold IDoubleFold ILongFold]))
+    ITypedSamples IFold IDoubleFold ILongFold IDoubleObjectFold ILongObjectFold]))
 
 (deftype DoubleSamples [^doubles array]
   ITypedSamples
@@ -20,6 +20,16 @@
 
   IDoubleFold
   (^double fold [_ ^clojure.lang.IFn$DDD f ^double init]
+    (let [len (alength array)]
+      (loop [i   0
+             acc init]
+        (if (< i len)
+          (recur (unchecked-inc i)
+                 (.invokePrim f acc (aget array i)))
+          acc))))
+
+  IDoubleObjectFold
+  (foldObject [_ ^clojure.lang.IFn$ODO f init]
     (let [len (alength array)]
       (loop [i   0
              acc init]
@@ -40,6 +50,16 @@
 
   ILongFold
   (^long fold [_ ^clojure.lang.IFn$LLL f ^long init]
+    (let [len (alength array)]
+      (loop [i   0
+             acc init]
+        (if (< i len)
+          (recur (unchecked-inc i)
+                 (.invokePrim f acc (aget array i)))
+          acc))))
+
+  ILongObjectFold
+  (foldObject [_ ^clojure.lang.IFn$OLO f init]
     (let [len (alength array)]
       (loop [i   0
              acc init]
@@ -75,23 +95,38 @@
 
 (defn fold
   "Reduces over the samples with function f and initial value init.
-  f is called as (f acc sample) for each sample."
+  f is called as (f acc sample) for each sample.
+  This is the generic version that boxes primitive values."
   [^IFold samples f init]
   (.fold samples f init))
 
 (defn fold-double
   "Reduces over double samples with a primitive double function.
-  f must be a function of (^double [^double acc ^double val]).
+  f must be (fn ^double [^double acc ^double val] ...).
   Returns a primitive double."
   ^double [^IDoubleFold samples f ^double init]
   (.fold samples f init))
 
 (defn fold-long
   "Reduces over long samples with a primitive long function.
-  f must be a function of (^long [^long acc ^long val]).
+  f must be (fn ^long [^long acc ^long val] ...).
   Returns a primitive long."
   ^long [^ILongFold samples f ^long init]
   (.fold samples f init))
+
+(defn dfold
+  "Reduces over double samples with an object-returning function.
+  f must be (fn [acc ^double val] ...) - receives primitive double, returns Object.
+  Use this when accumulating into a collection from DoubleSamples."
+  [^IDoubleObjectFold samples f init]
+  (.foldObject samples f init))
+
+(defn lfold
+  "Reduces over long samples with an object-returning function.
+  f must be (fn [acc ^long val] ...) - receives primitive long, returns Object.
+  Use this when accumulating into a collection from LongSamples."
+  [^ILongObjectFold samples f init]
+  (.foldObject samples f init))
 
 (defn double-samples
   "Creates a DoubleSamples from a double-array."
