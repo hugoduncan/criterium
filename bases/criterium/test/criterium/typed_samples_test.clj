@@ -1,8 +1,8 @@
 (ns criterium.typed-samples-test
-  ;; Tests the TypedSamples protocol and record types that provide
+  ;; Tests the TypedSamples interfaces and types that provide
   ;; primitive array storage for benchmark samples.
-  ;; Contracts: record construction, protocol method implementations,
-  ;; and metric type -> element type mapping.
+  ;; Contracts: type construction, interface method implementations,
+  ;; primitive fold operations, and metric type -> element type mapping.
   (:require
    [clojure.test :refer [deftest is testing]]
    [criterium.typed-samples :as ts]))
@@ -89,17 +89,44 @@
         (is (= 3 (ts/sample-count samples)))
         (is (= [:x :y :z] (ts/fold samples #(conj %1 %2) [])))))))
 
-(deftest record-field-access-test
-  (testing "direct field access"
-    (testing "DoubleSamples array field is accessible"
-      (let [arr     (double-array [1.0 2.0])
-            samples (ts/double-samples arr)]
-        (is (identical? arr (:array samples)))))
-    (testing "LongSamples array field is accessible"
-      (let [arr     (long-array [1 2])
-            samples (ts/long-samples arr)]
-        (is (identical? arr (:array samples)))))
-    (testing "ObjectSamples array field is accessible"
-      (let [arr     (object-array [:a :b])
-            samples (ts/object-samples arr)]
-        (is (identical? arr (:array samples)))))))
+(deftest fold-double-test
+  (testing "fold-double"
+    (testing "sums doubles without boxing"
+      (let [samples (ts/double-samples (double-array [1.0 2.0 3.0 4.0 5.0]))]
+        (is (= 15.0 (ts/fold-double samples
+                                    (fn ^double [^double a ^double b]
+                                      (+ a b))
+                                    0.0)))))
+    (testing "works with empty array"
+      (let [samples (ts/double-samples (double-array []))]
+        (is (= 0.0 (ts/fold-double samples
+                                   (fn ^double [^double a ^double b]
+                                     (+ a b))
+                                   0.0)))))
+    (testing "finds maximum value"
+      (let [samples (ts/double-samples (double-array [3.0 1.0 4.0 1.0 5.0]))]
+        (is (= 5.0 (ts/fold-double samples
+                                   (fn ^double [^double a ^double b]
+                                     (Math/max a b))
+                                   Double/NEGATIVE_INFINITY)))))))
+
+(deftest fold-long-test
+  (testing "fold-long"
+    (testing "sums longs without boxing"
+      (let [samples (ts/long-samples (long-array [10 20 30 40]))]
+        (is (= 100 (ts/fold-long samples
+                                 (fn ^long [^long a ^long b]
+                                   (+ a b))
+                                 0)))))
+    (testing "works with empty array"
+      (let [samples (ts/long-samples (long-array []))]
+        (is (= 0 (ts/fold-long samples
+                               (fn ^long [^long a ^long b]
+                                 (+ a b))
+                               0)))))
+    (testing "counts non-zero values"
+      (let [samples (ts/long-samples (long-array [0 1 0 2 3 0]))]
+        (is (= 3 (ts/fold-long samples
+                               (fn ^long [^long cnt ^long v]
+                                 (if (zero? v) cnt (unchecked-inc cnt)))
+                               0)))))))
