@@ -6,20 +6,12 @@
   Three record types are provided for the three metric types:
     - DoubleSamples for :quantitative metrics
     - LongSamples for :event metrics
-    - ObjectSamples for :nominal metrics")
-
-(defprotocol TypedSamples
-  "Protocol for typed sample collections."
-  (elem-type [this]
-    "Returns the element type keyword: :double, :long, or :object.")
-  (sample-count [this]
-    "Returns the number of samples in the collection.")
-  (fold [this f init]
-    "Reduces over the samples with function f and initial value init.
-    f is called as (f acc sample) for each sample."))
+    - ObjectSamples for :nominal metrics"
+  (:require
+   [criterium.typed-samples.protocol :as p]))
 
 (defrecord DoubleSamples [^doubles array]
-  TypedSamples
+  p/TypedSamples
   (elem-type [_] :double)
   (sample-count [_] (alength array))
   (fold [_ f init]
@@ -27,7 +19,7 @@
                  (f acc (aget array i)))))
 
 (defrecord LongSamples [^longs array]
-  TypedSamples
+  p/TypedSamples
   (elem-type [_] :long)
   (sample-count [_] (alength array))
   (fold [_ f init]
@@ -35,12 +27,28 @@
                  (f acc (aget array i)))))
 
 (defrecord ObjectSamples [^objects array]
-  TypedSamples
+  p/TypedSamples
   (elem-type [_] :object)
   (sample-count [_] (alength array))
   (fold [_ f init]
         (areduce array i acc init
                  (f acc (aget array i)))))
+
+(defn elem-type
+  "Returns the element type keyword: :double, :long, or :object."
+  [samples]
+  (p/elem-type samples))
+
+(defn sample-count
+  "Returns the number of samples in the collection."
+  [samples]
+  (p/sample-count samples))
+
+(defn fold
+  "Reduces over the samples with function f and initial value init.
+  f is called as (f acc sample) for each sample."
+  [samples f init]
+  (p/fold samples f init))
 
 (defn double-samples
   "Creates a DoubleSamples from a double-array."
