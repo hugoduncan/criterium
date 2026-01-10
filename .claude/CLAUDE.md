@@ -19,10 +19,10 @@ make dev
 clojure -M:kaocha:dev:test :all --reporter dots
 
 # For agent development: Test with locally-built agent (macOS)
-clojure -M:kaocha:dev:test:with-agent-mac --reporter dots
+clojure -M:kaocha:dev:test:with-agent-mac :all --reporter dots
 
 # For agent development: Test with locally-built agent (Linux)
-clojure -M:kaocha:dev:test:with-agent-linux --reporter dots
+clojure -M:kaocha:dev:test:with-agent-linux :all --reporter dots
 
 # Run tests for a namespace with Kaocha
 clojure -M:kaocha:dev:test --reporter dots --focus the.namespace.name
