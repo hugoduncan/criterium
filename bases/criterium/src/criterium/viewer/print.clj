@@ -840,23 +840,7 @@
                         extract)]
         (print-transposed-table table))
 
-      :multi-point
-      (when extract
-        (doseq [[_metric-id {:keys [metric data]}] (:metrics extract)]
-          (let [raw-coords (map first data)
-                stripped-coords (strip-uniform-axes raw-coords)
-                coord-map (zipmap raw-coords stripped-coords)
-                single-key-info (core/single-key-coord-info stripped-coords)
-                sorted-data (sort-coords data single-key-info)]
-            (println (format "Domain Extract: %s" (pr-str metric)))
-            (doseq [[coord value] sorted-data]
-              (let [display-coord (get coord-map coord coord)]
-                (println (format "  %24s: %s"
-                                 (format-coord-value display-coord single-key-info)
-                                 (format-extract-value value metric)))))
-            (println))))
-
-      :default-table
+      (:multi-point :default-table)
       (when extract
         (doseq [[_metric-id {:keys [metric data]}] (:metrics extract)]
           (let [raw-coords (map first data)
@@ -1133,38 +1117,7 @@
                         comparison)]
         (print-transposed-table table))
 
-      :multi-point
-      (when comparison
-        (let [{:keys [axis metric metrics implementations data]} comparison]
-          (if metrics
-            ;; Multi-metric mode with factor display
-            (if implementations
-              (print-multi-metric-comparison-table axis implementations metrics)
-              ;; Multi-metric mode without implementations - show all values
-              (doseq [[_metric-id {:keys [metric data]}] metrics]
-                (when (and (seq data) (some #(seq (second %)) data))
-                  (print-comparison-table axis metric data))))
-            ;; Single-metric mode
-            (if (and (seq data) (some #(seq (second %)) data))
-              (if implementations
-                (let [data-keys (set (keys data))
-                      missing (remove data-keys implementations)]
-                  (when (seq missing)
-                    (throw
-                     (ex-info
-                      "Domain :implementations do not match comparison data keys"
-                      {:implementations implementations
-                       :data-keys (keys data)
-                       :missing missing})))
-                  (print-single-metric-factor-table
-                   axis
-                   metric
-                   implementations data))
-                (print-comparison-table axis metric data))
-              (println (format "Domain Comparison by %s: %s (no data)"
-                               (name axis) (pr-str metric)))))))
-
-      :default-table
+      (:multi-point :default-table)
       (when comparison
         (let [{:keys [axis metric metrics implementations data]} comparison]
           (if metrics
