@@ -2496,6 +2496,7 @@
         height-d (double height)
         row-height (double 24)
         total-calls-d (double (if (pos? (long total-calls)) total-calls 1))]
+    ;; Type hints eliminate boxed math warnings in this tight loop
     (letfn [(compute-flame-data
               [node ^double x0 ^double node-width ^long depth]
               (when node
