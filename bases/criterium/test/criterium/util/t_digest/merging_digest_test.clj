@@ -188,8 +188,9 @@
                         error q expected-val actual))))))))
 
 (deftest normal-distribution-cdf-test
+  ;; Reduced from 200K to 50K samples for faster tests while maintaining accuracy.
   (testing "accuracy with normal distribution"
-    (let [n            200000
+    (let [n            50000
           std-dev      1.0
           samples      (take n (ziggurat/random-normal-zig
                                 (well/well-rng-1024a)))

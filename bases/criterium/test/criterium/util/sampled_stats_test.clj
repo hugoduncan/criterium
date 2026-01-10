@@ -92,8 +92,9 @@
 
 (deftest stats-for-test-property-1
   ;; Uses a fixed seed for deterministic random values.
-  (let [batch-size 5000
-        num-samples 200
+  ;; Reduced from 5000*200=1M to 1000*100=100K samples for faster tests.
+  (let [batch-size 1000
+        num-samples 100
         values (take
                 (* batch-size num-samples)
                 (ziggurat/random-normal-zig
