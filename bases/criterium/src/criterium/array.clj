@@ -8,17 +8,24 @@
     - LongArray for :event metrics
     - ObjectArray for :nominal metrics"
   (:require
+   criterium.array-core.interface
    [criterium.array.interface])
   (:import
-   [criterium.array.interface
+   [criterium.array_core.interface
     ITypedArray IFold IDoubleFold ILongFold IDoubleObjectFold ILongObjectFold
-    IArrayOps]
+    IIndexed]
+   [criterium.array.interface IArrayOps]
    [java.util Arrays]))
 
 (deftype DoubleArray [^doubles array]
   ITypedArray
   (elemType [_] :double)
   (length [_] (alength array))
+
+  IIndexed
+  (^double getDouble [_ ^long index] (aget array index))
+  (^long getLong [_ ^long index] (long (aget array index)))
+  (getObject [_ ^long index] (aget array index))
 
   IDoubleFold
   (^double fold [_ ^clojure.lang.IFn$DDD f ^double init]

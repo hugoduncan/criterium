@@ -2,9 +2,14 @@
   "Outlier detection using boxplot thresholds.
 
   Provides both standard symmetric boxplot and adjusted boxplot for
-  skewed distributions using the medcouple statistic."
+  skewed distributions using the medcouple statistic.
+
+  Functions accept both sequences and typed arrays (ITypedArray)."
   (:require
-   [criterium.stats.core :as core]))
+   criterium.array-core.interface
+   [criterium.stats.core :as core])
+  (:import
+   [criterium.array_core.interface ITypedArray IIndexed]))
 
 (defn boxplot-outlier-thresholds
   "Outlier thresholds for given quartiles.
@@ -55,6 +60,35 @@
       0.0
       (/ (- (- xj med) (- med xi)) diff))))
 
+(defn- typed-array?
+  "Returns true if data is a typed array."
+  [data]
+  (instance? ITypedArray data))
+
+(defn- typed-array-length
+  "Returns the length of a typed array."
+  ^long [^ITypedArray arr]
+  (.length arr))
+
+(defn- typed-array-get-double
+  "Get element at index as double from typed array."
+  ^double [^IIndexed arr ^long index]
+  (.getDouble arr index))
+
+(defn- data-length
+  "Returns the count of elements in data."
+  ^long [data]
+  (if (typed-array? data)
+    (typed-array-length data)
+    (count data)))
+
+(defn- data-get-double
+  "Get element at index as double."
+  ^double [data ^long index]
+  (if (typed-array? data)
+    (typed-array-get-double data index)
+    (double (nth data index))))
+
 (defn medcouple
   "Compute the medcouple, a robust measure of skewness.
   Returns a value in [-1, 1] where positive indicates right-skew
@@ -66,24 +100,24 @@
   Uses the naive O(n²) algorithm. For criterium's typical sample sizes
   (hundreds to low thousands), this is acceptable.
 
+  Accepts sequences and typed arrays (ITypedArray).
   Takes sorted data as input. Returns 0.0 for constant data or n < 3."
   ^double [sorted-data]
-  (let [n (count sorted-data)]
+  (let [n (data-length sorted-data)]
     (if (< n 3)
       0.0
-      (let [[med _ _] (core/median sorted-data)
-            med       (double med)
-            first-val (double (first sorted-data))
-            last-val  (double (nth sorted-data (dec n)))]
+      (let [med       (double (core/median-value sorted-data))
+            first-val (data-get-double sorted-data 0)
+            last-val  (data-get-double sorted-data (dec n))]
         (if (== first-val last-val)
           0.0
           (let [h-values (java.util.ArrayList.)]
             (dotimes [i n]
-              (let [xi (double (nth sorted-data i))]
+              (let [xi (data-get-double sorted-data i)]
                 (when (<= xi med)
                   (loop [j i]
                     (when (< j n)
-                      (let [xj (double (nth sorted-data j))]
+                      (let [xj (data-get-double sorted-data j)]
                         (when (>= xj med)
                           (.add h-values (medcouple-kernel xi xj med)))
                         (recur (inc j))))))))

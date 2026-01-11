@@ -1,5 +1,8 @@
-(ns criterium.array.interface
+(ns criterium.array-core.interface
   "Interfaces for typed array collections with primitive support.
+
+  These interfaces define the contract for typed array wrappers that
+  avoid boxing overhead when working with primitive arrays.
 
   Interface hierarchy:
   - ITypedArray: basic array metadata (element type, length)
@@ -31,9 +34,3 @@
   (^double getDouble [^long index])
   (^long getLong [^long index])
   (getObject [^long index]))
-
-(definterface IArrayOps
-  (^double sum [^criterium.array.DoubleArray arr])
-  (^long sum [^criterium.array.LongArray arr])
-  (^long getAt [^criterium.array.LongArray arr ^long index])
-  (^double getAt [^criterium.array.DoubleArray arr ^long index]))

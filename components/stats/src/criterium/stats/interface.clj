@@ -86,9 +86,17 @@
   ([data] (core/variance data))
   ([data df] (core/variance data df)))
 
+(defn median-value
+  "Calculate the median value of a sorted data set.
+  Returns just the median value (not the lower/upper partitions).
+  Accepts sequences and typed arrays (ITypedArray)."
+  ^double [data]
+  (core/median-value data))
+
 (defn median
   "Calculate the median of a sorted data set.
-  Return [median, [vals less than median] [vals greater than median]]"
+  Return [median, [vals less than median] [vals greater than median]]
+  For typed arrays, returns [median nil nil] (partitions not supported)."
   [data]
   (core/median data))
 

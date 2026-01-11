@@ -60,16 +60,16 @@
 (deftest quantile-test
   (testing "quantile"
     (testing "returns exact data points at quantile boundaries"
-      (is (= 2 (stats/quantile 0.25 [1 2 5 7 8])))
-      (is (= 5 (stats/quantile 0.5 [1 2 5 7 8])))
-      (is (= 7 (stats/quantile 0.75 [1 2 5 7 8]))))
+      (is (== 2 (stats/quantile 0.25 [1 2 5 7 8])))
+      (is (== 5 (stats/quantile 0.5 [1 2 5 7 8])))
+      (is (== 7 (stats/quantile 0.75 [1 2 5 7 8]))))
     (testing "interpolates between data points"
       (is (= 2.0 (stats/quantile 0.25 [1 2 2 5 7 8])))
       (is (= 3.5 (stats/quantile 0.5 [1 2 2 5 7 8])))
       (is (= 6.5 (stats/quantile 0.75 [1 2 2 5 7 8]))))
     (testing "handles edge quantiles"
-      (is (= 5 (stats/quantile 0.05 (range 0 101))))
-      (is (= 95 (stats/quantile 0.95 (range 0 101)))))))
+      (is (== 5 (stats/quantile 0.05 (range 0 101))))
+      (is (== 95 (stats/quantile 0.95 (range 0 101)))))))
 
 (deftest skewness-test
   ;; Tests the skewness function returns 0.0 for constant data (zero variance).

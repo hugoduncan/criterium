@@ -49,9 +49,10 @@
 (deftest quantile-test
   (testing "exact data points"
     ;; R: quantile(c(1,2,5,7,8), prob=c(.25,0.5,.75))
-    (is (= 2 (stats/quantile 0.25 [1 2 5 7 8])))
-    (is (= 5 (stats/quantile 0.5 [1 2 5 7 8])))
-    (is (= 7 (stats/quantile 0.75 [1 2 5 7 8]))))
+    ;; quantile returns doubles even for integer inputs
+    (is (== 2 (stats/quantile 0.25 [1 2 5 7 8])))
+    (is (== 5 (stats/quantile 0.5 [1 2 5 7 8])))
+    (is (== 7 (stats/quantile 0.75 [1 2 5 7 8]))))
   (testing "interpolated data points"
     ;; R: quantile(c(1,2,2,5,7,8), prob=c(.25,0.5,.75))
     (is (= 2.0 (stats/quantile 0.25 [1 2 2 5 7 8])))
@@ -84,8 +85,9 @@
     (test-max-error 1.5 (stats/quantile 0.5 [0 1 2 3]) max-error)
     (test-max-error 1.0 (stats/quantile 0.25 [0 1 1.5 2 3]) max-error)
     (test-max-error 2.0 (stats/quantile 0.75 [0 1 1.5 2 3]) max-error))
-  (is (= 5 (stats/quantile 0.05 (range 0 101))))
-  (is (= 95 (stats/quantile 0.95 (range 0 101)))))
+  ;; quantile returns doubles even for integer inputs
+  (is (== 5 (stats/quantile 0.05 (range 0 101))))
+  (is (== 95 (stats/quantile 0.95 (range 0 101)))))
 
 ;;; Medcouple tests
 ;; Tests the medcouple function, a robust measure of skewness.

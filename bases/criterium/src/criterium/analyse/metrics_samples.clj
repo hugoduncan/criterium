@@ -2,6 +2,7 @@
   (:require
    [criterium.analyse.methods :as methods]
    [criterium.array :as arr]
+   criterium.array-core.interface
    [criterium.collect-plan :as collect-plan]
    [criterium.random.interface :as random]
    [criterium.stats.interface :as si]
@@ -93,7 +94,7 @@
              q1 (get quantiles 0.25)
              q3 (get quantiles 0.75)
              sample-values (get samples path)
-             sorted-samples (arr/to-double-vec (arr/sorted sample-values))
+             sorted-samples (arr/sorted sample-values)
              mc (when use-adjusted?
                   (stats/medcouple sorted-samples))
              thresholds (if use-adjusted?
@@ -553,14 +554,23 @@
 
 (defn- fit-distributions-for-metric
   "Fit all applicable distributions to samples for a single metric.
-  Returns fit results including best model selection."
+  Returns fit results including best model selection.
+  Accepts both vectors and typed arrays."
   [samples options]
   (let [{:keys [distributions n-bootstrap alpha]
          :or {n-bootstrap 200 alpha 0.05}} options
-        n (count samples)
+        ;; Support both typed arrays and vectors
+        n (if (instance? criterium.array_core.interface.ITypedArray samples)
+            (arr/length samples)
+            (count samples))
         ;; Compute sample statistics for moment-match prefilter
+        ;; si/mean and si/variance work with typed arrays directly
         mean-val (si/mean samples)
         var-val (si/variance samples)
+        ;; Convert to vector for MLE functions (they use sequence operations)
+        samples-vec (if (instance? criterium.array_core.interface.ITypedArray samples)
+                      (arr/to-double-vec samples)
+                      samples)
         ;; Determine which distributions to fit
         requested-dists (if distributions
                           (set distributions)
@@ -568,17 +578,17 @@
         ;; Use moment-match prefilter to screen distributions
         prefilter-results (si/moment-match-prefilter mean-val var-val requested-dists)
         suitable-dists (si/suitable-distributions mean-val var-val requested-dists)
-        ;; Fit each distribution
+        ;; Fit each distribution (using vector for MLE/GOF functions)
         fit-results
         (into {}
               (for [dist requested-dists]
                 (if (contains? suitable-dists dist)
-                  (let [fit (fit-distribution dist samples)]
+                  (let [fit (fit-distribution dist samples-vec)]
                     (if (:error fit)
                       [dist {:error (:error fit)}]
                       (let [{:keys [params log-likelihood]} fit
                             cdf-fn (make-cdf-fn dist params)
-                            gof (compute-gof-tests samples cdf-fn)
+                            gof (compute-gof-tests samples-vec cdf-fn)
                             ic (compute-information-criteria dist n log-likelihood)]
                         [dist (merge {:params params
                                       :log-likelihood log-likelihood}
@@ -601,10 +611,10 @@
                         (assoc result :delta-aic (- (double (:aic result))
                                                     (double best-aic)))
                         result)]))
-        ;; Bootstrap parameter CIs for best model only
+        ;; Bootstrap parameter CIs for best model only (using vector)
         parameter-cis (when best-model
                         {best-model (bootstrap-parameter-ci
-                                     best-model samples
+                                     best-model samples-vec
                                      {:n-bootstrap n-bootstrap :alpha alpha})})]
     {:n n
      :warning (when (< n 30) :small-sample)
@@ -625,13 +635,12 @@
           samples-arr (if-let [ols (:outliers outliers-data)]
                         (remove-outliers samples-arr ols)
                         samples-arr)
-          ;; Convert to vector for stats functions
-          samples (arr/to-double-vec samples-arr)
-          n (count samples)]
+          n (arr/length samples-arr)]
       (when (> n 2)
-        (let [sample-min (reduce min samples)
-              sample-max (reduce max samples)]
-          (assoc (fit-distributions-for-metric samples options)
+        ;; Use stats functions that accept typed arrays for min/max
+        (let [sample-min (si/min samples-arr)
+              sample-max (si/max samples-arr)]
+          (assoc (fit-distributions-for-metric samples-arr options)
                  :sample-range [sample-min sample-max]))))
     (catch Exception e
       {:error (.getMessage e)})))

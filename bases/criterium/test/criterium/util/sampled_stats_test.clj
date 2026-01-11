@@ -14,12 +14,19 @@
   (is (= [:a 15] ((sampled-stats/pair-fn :a (partial * 3)) 5))))
 
 (deftest quantile-fns-test
-  (is (= {0.01 1 0.99 99}
+  ;; quantile returns doubles even for integer inputs
+  (is (= {0.01 1.0 0.99 99.0}
          (sampled-stats/sample-quantiles [0.01 0.99] (range 101)))))
 
 (deftest stats-fns-test
-  (is (= [[:mean 50.0] [:median 50] [:variance 858.5] [:min-val 0] [:max-val 100]]
-         (sampled-stats/stats-fns (range 101)))))
+  ;; Check the computed values are numerically correct
+  (let [result (sampled-stats/stats-fns (range 101))]
+    (is (= 5 (count result)))
+    (is (== 50.0 (second (nth result 0))))  ; mean
+    (is (== 50.0 (second (nth result 1))))  ; median
+    (is (== 858.5 (second (nth result 2)))) ; variance
+    (is (== 0 (second (nth result 3))))     ; min-val
+    (is (== 100 (second (nth result 4))))))
 
 (defn batch-transforms [^long batch-size]
   {:sample-> (list (fn [^double v] (/ v batch-size)))

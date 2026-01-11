@@ -1,3 +1,4 @@
 {:paths ["src"]
  :deps {poly/utils {:local/root "../utils"}
-        poly/random {:local/root "../random"}}}
+        poly/random {:local/root "../random"}
+        poly/array-core {:local/root "../array-core"}}}
