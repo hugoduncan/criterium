@@ -1,6 +1,7 @@
 (ns criterium.analyse.metrics-samples
   (:require
    [criterium.analyse.methods :as methods]
+   [criterium.array :as arr]
    [criterium.collect-plan :as collect-plan]
    [criterium.random.interface :as random]
    [criterium.stats.interface :as si]
@@ -32,7 +33,7 @@
                            (assoc
                             result
                             path
-                            (mapv f (metric->values path))))
+                            (arr/dmap (metric->values path) f)))
                          {}
                          (mapv :path metric-configs))]
     (->
@@ -92,7 +93,7 @@
              q1 (get quantiles 0.25)
              q3 (get quantiles 0.75)
              sample-values (get samples path)
-             sorted-samples (vec (sort sample-values))
+             sorted-samples (arr/to-double-vec (arr/sorted sample-values))
              mc (when use-adjusted?
                   (stats/medcouple sorted-samples))
              thresholds (if use-adjusted?
@@ -100,10 +101,13 @@
                           (stats/boxplot-outlier-thresholds q1 q3))
              classifier (classifier thresholds)
              outliers (when (apply not= thresholds)
-                        (into {}
-                              (mapv classifier
-                                    sample-values
-                                    (range))))
+                        (arr/indexed-dfold
+                         sample-values
+                         (fn [m ^long i ^double v]
+                           (if-let [[idx class] (classifier v i)]
+                             (assoc m idx class)
+                             m))
+                         {}))
              outlier-counts (reduce-kv
                              (fn [counts _i v]
                                (update counts v inc))
@@ -227,12 +231,9 @@
      :transform collect-plan/identity-transforms}))
 
 (defn- remove-outliers
+  "Removes samples at outlier indices. Returns a DoubleArray."
   [samples outliers]
-  (into [] (comp
-            (map-indexed
-             (fn [i s] (when-not (outliers i) s)))
-            (filter some?))
-        samples))
+  (arr/filter-indices samples (set (keys outliers))))
 
 (defn histogram
   [metric->values quantiles outliers metric-config options]
@@ -252,7 +253,8 @@
                       ;; For freedman-diaconis, pass IQR if available
                       (and (not= :knuth (:method options)) iqr)
                       (assoc :iqr iqr))]
-      (histogram/histogram samples hist-opts))
+      ;; Convert typed array to vector for histogram computation
+      (histogram/histogram (arr/to-double-vec samples) hist-opts))
     (catch clojure.lang.ExceptionInfo e
       (let [data (ex-data e)]
         (when-not (#{:histogram/no-values :histogram/same-values}
@@ -281,11 +283,13 @@
   [metric->values outliers metric-config options]
   (try
     (let [p (:path metric-config)
-          samples (metric->values p)
+          samples-arr (metric->values p)
           outliers (get-in outliers p)
-          samples (if-let [ols (:outliers outliers)]
-                    (remove-outliers samples ols)
-                    samples)]
+          samples-arr (if-let [ols (:outliers outliers)]
+                        (remove-outliers samples-arr ols)
+                        samples-arr)
+          ;; Convert to vector for KDE computation
+          samples (arr/to-double-vec samples-arr)]
       (when (seq samples)
         (kde/kde samples options)))
     (catch clojure.lang.ExceptionInfo e
@@ -320,7 +324,7 @@
     - :isj (default) - find modes from KDE density at ISJ bandwidth
     - :critical - find modes at critical bandwidth for validated k modes
   - :max-modes, :n-bootstrap, :alpha, :n-points - as usual"
-  [kde-data samples outliers metric-config options]
+  [kde-data samples-arr outliers metric-config options]
   (try
     (let [{:keys [grid density bandwidth]} kde-data
           {:keys [max-modes n-bootstrap alpha n-points method mode-method]
@@ -334,9 +338,11 @@
           p (:path metric-config)
           ;; Filter outliers from samples
           outliers-data (get-in outliers p)
-          samples (if-let [ols (:outliers outliers-data)]
-                    (remove-outliers samples ols)
-                    samples)
+          samples-arr (if-let [ols (:outliers outliers-data)]
+                        (remove-outliers samples-arr ols)
+                        samples-arr)
+          ;; Convert to vector for KDE functions
+          samples (arr/to-double-vec samples-arr)
           ;; Find modes from existing KDE density (for initial mode count)
           grid-arr (double-array grid)
           density-arr (double-array density)
@@ -614,12 +620,15 @@
   [metric->values outliers metric-config options]
   (try
     (let [p (:path metric-config)
-          samples (metric->values p)
+          samples-arr (metric->values p)
           outliers-data (get-in outliers p)
-          samples (if-let [ols (:outliers outliers-data)]
-                    (remove-outliers samples ols)
-                    samples)]
-      (when (and (seq samples) (> (count samples) 2))
+          samples-arr (if-let [ols (:outliers outliers-data)]
+                        (remove-outliers samples-arr ols)
+                        samples-arr)
+          ;; Convert to vector for stats functions
+          samples (arr/to-double-vec samples-arr)
+          n (count samples)]
+      (when (> n 2)
         (let [sample-min (reduce min samples)
               sample-max (reduce max samples)]
           (assoc (fit-distributions-for-metric samples options)

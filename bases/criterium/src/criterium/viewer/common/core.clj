@@ -6,6 +6,7 @@
   basic statistical data for display."
   (:require
    [clojure.string :as str]
+   [criterium.array :as arr]
    [criterium.metric :as metric]
    [criterium.util.format :as format]
    [criterium.util.helpers :as util]
@@ -17,7 +18,8 @@
   [sample metrics]
   (reduce
    (fn [res metric]
-     (let [v (first (sample (:path metric)))]
+     (let [arr (sample (:path metric))
+           v (when arr (arr/first-element arr))]
        (conj res
              {:metric (:label metric)
               :value (if (number? v)

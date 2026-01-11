@@ -2,6 +2,7 @@
   "A print viewer"
   (:require
    [clojure.string :as str]
+   [criterium.array :as arr]
    [criterium.benchmark :as benchmark]
    [criterium.domain.types :as domain.types]
    [criterium.jvm :as jvm]
@@ -24,14 +25,15 @@
 (defn print-metrics
   [metrics metrics->values]
   (doseq [m metrics]
-    (when-let [v (first (metrics->values (:path m)))]
-      (println
-       (format
-        "%36s: %s"
-        (:label m)
-        (if (number? v)
-          (format/format-value (:dimension m) (* v (:scale m)))
-          v))))))
+    (when-let [a (metrics->values (:path m))]
+      (when-let [v (arr/first-element a)]
+        (println
+         (format
+          "%36s: %s"
+          (:label m)
+          (if (number? v)
+            (format/format-value (:dimension m) (* v (:scale m)))
+            v)))))))
 
 (defmethod view/metrics* :print
   [_ {:keys [samples-id]} data-map]
@@ -190,13 +192,13 @@
                              (filterv #(= :time (:dimension %))))
         metric->values (util/metric->values metrics-samples)
         total (* (:scale metric)
-                 (reduce + (metric->values [:elapsed-time])))
+                 (arr/sum (metric->values [:elapsed-time])))
         gc-samples (-> data-map final-gc-id util/metric->values)
         total-gc (reduce
                   +
                   (mapv
                    (fn [m]
-                     (* (:scale m) (reduce + (gc-samples (:path m)))))
+                     (* (:scale m) (arr/sum (gc-samples (:path m)))))
                    gc-time-metrics))
         frac (/ total-gc total)]
     (when (and total-gc (> frac warn-threshold))
@@ -325,7 +327,7 @@
                (format/format-value
                 (:dimension metric)
                 (* (:scale metric)
-                   (util/transform-sample-> (values i) transforms)))
+                   (util/transform-sample-> (arr/get-at values i) transforms)))
                (name v))))))
 
 (defmethod view/samples* :print

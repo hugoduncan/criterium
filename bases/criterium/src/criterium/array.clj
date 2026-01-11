@@ -294,12 +294,24 @@
 
 (defn sorted
   "Returns a new sorted DoubleArray.
-  Uses Java's Arrays.sort for efficient primitive sorting."
-  ^DoubleArray [^DoubleArray arr]
-  (let [^doubles a   (.array arr)
-        ^doubles cpy (Arrays/copyOf a (alength a))]
-    (Arrays/sort cpy)
-    (DoubleArray. cpy)))
+  Uses Java's Arrays.sort for efficient primitive sorting.
+  LongArray is converted to DoubleArray during sorting."
+  ^DoubleArray [arr]
+  (cond
+    (instance? DoubleArray arr)
+    (let [^doubles a   (.array ^DoubleArray arr)
+          ^doubles cpy (Arrays/copyOf a (alength a))]
+      (Arrays/sort cpy)
+      (DoubleArray. cpy))
+
+    (instance? LongArray arr)
+    (let [^longs a   (.array ^LongArray arr)
+          len        (alength a)
+          ^doubles cpy (double-array len)]
+      (dotimes [i len]
+        (aset cpy i (double (aget a i))))
+      (Arrays/sort cpy)
+      (DoubleArray. cpy))))
 
 (defn fold-double-skip
   "Fold over elements skipping the element at skip-idx.
@@ -352,3 +364,126 @@
             (aset out j (aget a i))
             (recur (unchecked-inc i) (unchecked-inc j))))
         (DoubleArray. out)))))
+
+(defn to-double-vec
+  "Converts a typed array to a vector of doubles.
+  Works with DoubleArray and LongArray (longs are converted to doubles)."
+  [arr]
+  (fold arr conj []))
+
+(defn indexed-dfold
+  "Fold over elements with index, receiving primitive doubles.
+  f is called as (f acc idx val) for each element.
+  Works with both DoubleArray and LongArray."
+  [arr f init]
+  (cond
+    (instance? DoubleArray arr)
+    (let [^doubles a (.array ^DoubleArray arr)
+          len        (alength a)]
+      (loop [i   (long 0)
+             acc init]
+        (if (< i len)
+          (recur (unchecked-inc i)
+                 (f acc i (aget a i)))
+          acc)))
+
+    (instance? LongArray arr)
+    (let [^longs a (.array ^LongArray arr)
+          len      (alength a)]
+      (loop [i   (long 0)
+             acc init]
+        (if (< i len)
+          (recur (unchecked-inc i)
+                 (f acc i (double (aget a i))))
+          acc)))))
+
+(defn sum
+  "Returns the sum of elements.
+  For DoubleArray returns double, for LongArray returns long."
+  [arr]
+  (cond
+    (instance? DoubleArray arr) (sum-double arr)
+    (instance? LongArray arr)   (sum-long arr)))
+
+(defn get-at
+  "Returns the element at index.
+  Works with DoubleArray, LongArray, and ObjectArray."
+  [arr ^long index]
+  (cond
+    (instance? DoubleArray arr)
+    (get-double arr index)
+
+    (instance? LongArray arr)
+    (get-long arr index)
+
+    (instance? ObjectArray arr)
+    (aget ^objects (.array ^ObjectArray arr) index)))
+
+(defn dmap
+  "Maps f over elements, returning a new DoubleArray.
+  f receives a primitive double and should return a double.
+  Works with DoubleArray and LongArray."
+  ^DoubleArray [arr f]
+  (cond
+    (instance? DoubleArray arr)
+    (let [^doubles a   (.array ^DoubleArray arr)
+          len          (alength a)
+          ^doubles out (double-array len)]
+      (dotimes [i len]
+        (aset out i (double (f (aget a i)))))
+      (DoubleArray. out))
+
+    (instance? LongArray arr)
+    (let [^longs a     (.array ^LongArray arr)
+          len          (alength a)
+          ^doubles out (double-array len)]
+      (dotimes [i len]
+        (aset out i (double (f (double (aget a i))))))
+      (DoubleArray. out))))
+
+(defn dmap-indexed
+  "Maps f over elements with index, returning a new DoubleArray.
+  f receives (index, value) and should return a double.
+  Works with DoubleArray and LongArray."
+  ^DoubleArray [arr f]
+  (cond
+    (instance? DoubleArray arr)
+    (let [^doubles a   (.array ^DoubleArray arr)
+          len          (alength a)
+          ^doubles out (double-array len)]
+      (dotimes [i len]
+        (aset out i (double (f i (aget a i)))))
+      (DoubleArray. out))
+
+    (instance? LongArray arr)
+    (let [^longs a     (.array ^LongArray arr)
+          len          (alength a)
+          ^doubles out (double-array len)]
+      (dotimes [i len]
+        (aset out i (double (f i (double (aget a i))))))
+      (DoubleArray. out))))
+
+(defn any-positive?
+  "Returns true if any element is positive (> 0).
+  Works with DoubleArray and LongArray."
+  [arr]
+  (cond
+    (instance? DoubleArray arr)
+    (let [^doubles a (.array ^DoubleArray arr)
+          len        (alength a)]
+      (loop [i 0]
+        (if (< i len)
+          (if (pos? (aget a i))
+            true
+            (recur (unchecked-inc i)))
+          false)))
+
+    (instance? LongArray arr)
+    (let [^longs a (.array ^LongArray arr)
+          len      (alength a)]
+      (loop [i 0]
+        (if (< i len)
+          (if (pos? (aget a i))
+            true
+            (recur (unchecked-inc i)))
+          false)))))

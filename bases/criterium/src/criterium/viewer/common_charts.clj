@@ -5,6 +5,7 @@
   for generating histograms, scatter plots, percentile charts, and treemaps."
   (:require
    [clojure.string :as str]
+   [criterium.array :as arr]
    [criterium.metric :as metric]
    [criterium.stats.interface :as si]
    [criterium.util.helpers :as util]
@@ -24,22 +25,18 @@
   (let [path (:path metric)
         k (first path)
         field-name (name k)
-        data (mapv
-              #(let [outlier (get
-                              (:outliers (get-in outliers path))
-                              %2
-                              "")]
-                 (assoc
-                  {k
-                   (util/transform-sample->
-                    %1
-                    transforms)}
-                  :index %2
-                  :outlier outlier))
-              (have some?
-                    (metric->values path)
-                    {:path path :available (keys metric->values)})
-              (range))]
+        samples (have some?
+                      (metric->values path)
+                      {:path path :available (keys metric->values)})
+        outlier-map (:outliers (get-in outliers path))
+        data (arr/indexed-dfold
+              samples
+              (fn [acc ^long idx ^double val]
+                (conj acc
+                      {:index idx
+                       :outlier (get outlier-map idx "")
+                       k (util/transform-sample-> val transforms)}))
+              [])]
     {:data {:values data}
      :encoding {:x {:field "index" :type "quantitative"}
                 :y {:field field-name
@@ -260,7 +257,7 @@
   (reduce
    (fn [res metric-config]
      (let [path (:path metric-config)
-           v (get (get events path) index)]
+           v (arr/get-at (get events path) index)]
        (if (pos? (long v))
          (assoc res (core/composite-key path) v :index index)
          res)))
@@ -274,9 +271,8 @@
   [events [_k metrics]]
   (let [data (->> (map
                    (partial event-occurrence events (:values metrics))
-                   (range (-> events
-                              (get (:path (first (:values metrics))))
-                              count)))
+                   (range (arr/length
+                           (get events (:path (first (:values metrics)))))))
                   (filterv some?))]
     (when (seq data)
       [{:data {:values data}
@@ -322,9 +318,9 @@
         metric-configs (metric/all-metric-configs q-metrics-defs)
         event-metric->values (util/metric->values event-samples)
         e-metric-configs (->> (metric/all-metric-configs e-metrics-defs)
-                              (filterv #(not-every? zero?
-                                                    (get event-metric->values
-                                                         (:path %)))))
+                              (filterv #(arr/any-positive?
+                                         (get event-metric->values
+                                              (:path %)))))
 
         transforms (util/get-transforms data-map quant-samples-id)]
     {:data {:values [{}]}
@@ -430,10 +426,11 @@
   (let [path (:path metric)
         k (first path)
         field-name (name k)
-        vs (->> (metric->values path)
-                (map #(util/transform-sample-> % transforms))
-                sort
-                vec)
+        samples (metric->values path)
+        ;; Transform and sort samples
+        transformed (arr/dmap samples #(util/transform-sample-> % transforms))
+        sorted-arr (arr/sorted transformed)
+        vs (arr/to-double-vec sorted-arr)
         n (count vs)
         max-val (Math/log10 (double n))
         xs (mapv
@@ -481,9 +478,7 @@
   (let [path (:path metric)
         k (first path)
         field-name (name k)
-        vs (->> (get samples path)
-                sort
-                vec)
+        vs (arr/to-double-vec (arr/sorted (get samples path)))
         min-v (double (first vs))
         diffs (-> (mapv
                    #(- (double %) min-v)

@@ -3,6 +3,7 @@
    [clojure.test :refer [deftest is testing]]
    [criterium.analyse :as analyse]
    [criterium.analyse.methods]
+   [criterium.array :as arr]
    [criterium.benchmark :as benchmark]
    [criterium.collect-plan :as collect-plan]
    [criterium.collector.metrics :as metrics]
@@ -22,11 +23,26 @@
                  batch-size)
               batch-size))))))
 
+(defn- path->typed-array
+  "Convert a vector to the appropriate typed array for a metric path."
+  [path values]
+  (let [metric-key (first path)]
+    ;; Quantitative metrics: elapsed-time
+    ;; Event metrics: compilation, garbage-collector, class-loader
+    (if (= :elapsed-time metric-key)
+      (arr/->double-array (double-array values))
+      ;; All other metrics (event types) use long arrays
+      (arr/->long-array (long-array values)))))
+
 (defn metrics-samples
   [data ^long batch-size]
-  (let [n (count (first (vals data)))]
+  (let [n (count (first (vals data)))
+        typed-data (into {}
+                         (map (fn [[path values]]
+                                [path (path->typed-array path values)]))
+                         data)]
     {:type :criterium/metrics-samples
-     :metric->values data
+     :metric->values typed-data
      :transform (if (= batch-size 1)
                   collect-plan/identity-transforms
                   (#'collect-plan/batch-transforms batch-size))
@@ -42,10 +58,11 @@
 (defn transformed-metric-values
   [data-map id p]
   (let [m (-> data-map id)
-        transforms (util/get-transforms data-map id)]
+        transforms (util/get-transforms data-map id)
+        values (arr/to-double-vec (get (:metric->values m) p))]
     (mapv
      #(util/transform-sample-> % transforms)
-     (get (:metric->values m) p))))
+     values)))
 
 (defn transformed-values
   [data-map id vs]
@@ -66,10 +83,11 @@
           result ((analyse/transform-log) data-map)]
       (testing "puts the log transformed metrics into the result-path"
         (is (= [1.0 2.0 3.0]
-               (-> result
-                   :log-samples
-                   :metric->values
-                   (get [:elapsed-time])))))
+               (arr/to-double-vec
+                (-> result
+                    :log-samples
+                    :metric->values
+                    (get [:elapsed-time]))))))
       (testing "doesnot change original samples"
         (is (= samples (:samples result))))
       (testing "adds transfprms for the values"
@@ -131,7 +149,7 @@
     (let [data-map
           {:samples
            {:type :criterium/collected-metrics-samples
-            :metric->values {[:elapsed-time] [1 1 1 1000]}
+            :metric->values {[:elapsed-time] (arr/->double-array (double-array [1 1 1 1000]))}
             :transform collect-plan/identity-transforms
             :batch-size 1
             :eval-count 4
@@ -467,12 +485,12 @@
                       :label "GC total time"
                       :type :event}]
                     :label "Garbage Collector"}}}))
-            :metric->values {[:elapsed-time] [1 2 3]
-                             [:compilation :time-ms] [3 5 0]
-                             [:garbage-collector :total :time-ms] [1 1 1]
-                             [:garbage-collector :total :count] [2 1 1]
-                             [:class-loader :loaded-count] [2 2 0]
-                             [:class-loader :unloaded-count] [0 0 0]}
+            :metric->values {[:elapsed-time] (arr/->double-array (double-array [1 2 3]))
+                             [:compilation :time-ms] (arr/->long-array (long-array [3 5 0]))
+                             [:garbage-collector :total :time-ms] (arr/->long-array (long-array [1 1 1]))
+                             [:garbage-collector :total :count] (arr/->long-array (long-array [2 1 1]))
+                             [:class-loader :loaded-count] (arr/->long-array (long-array [2 2 0]))
+                             [:class-loader :unloaded-count] (arr/->long-array (long-array [0 0 0]))}
             :batch-size 1
             :eval-count 3}}
           result ((analyse/event-stats) data-map)]
@@ -504,7 +522,7 @@
     (let [data-map
           {:samples
            {:type :criterium/collected-metrics-samples
-            :metric->values {[:elapsed-time] [1 1 1 1000]}
+            :metric->values {[:elapsed-time] (arr/->double-array (double-array [1 1 1 1000]))}
             :transform collect-plan/identity-transforms
             :batch-size 1
             :eval-count 4

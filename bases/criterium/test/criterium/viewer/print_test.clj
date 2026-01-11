@@ -4,6 +4,7 @@
    [clojure.test :refer [deftest is testing]]
    [criterium.analyse :as analyse]
    [criterium.analyse.metrics-samples :as metrics-samples]
+   [criterium.array :as arr]
    [criterium.collect-plan :as collect-plan]
    [criterium.collector.metrics :as metrics]
    [criterium.domain.types :as domain.types]
@@ -366,7 +367,7 @@
                    {:samples
                     {:type :criterium/collected-metrics-samples
                      :metric->values
-                     {[:elapsed-time] [99999999]}
+                     {[:elapsed-time] (arr/->long-array (long-array [99999999]))}
                      :metrics-deps metrics-defs
                      :batch-size 1
                      :eval-count 1
@@ -374,9 +375,9 @@
                     :final-gc
                     {:type :criterium/collected-metrics-samples
                      :metric->values
-                     {[:compilation :time-ms] [3]
-                      [:garbage-collector :total :time-ms] [1]
-                      [:elapsed-time] [1]}
+                     {[:compilation :time-ms] (arr/->long-array (long-array [3]))
+                      [:garbage-collector :total :time-ms] (arr/->long-array (long-array [1]))
+                      [:elapsed-time] (arr/->long-array (long-array [1]))}
                      :metrics-deps metrics-defs
                      :batch-size 1
                      :eval-count 1
