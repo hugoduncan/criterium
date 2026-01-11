@@ -2,12 +2,12 @@
   (:require
    [clojure.test :refer [deftest is testing]]
    [criterium.agent :as agent]
+   [criterium.array :as arr]
    [criterium.collect :as collect]
    [criterium.collector :as collector]
-   [criterium.measured :as measured]
-   [criterium.typed-samples :as typed-samples])
+   [criterium.measured :as measured])
   (:import
-   [criterium.typed_samples DoubleSamples LongSamples ObjectSamples]))
+   [criterium.array DoubleArray LongArray ObjectArray]))
 
 (deftest full-zero-garbage-test
   (testing "full sampling"
@@ -43,7 +43,7 @@
       (is (some? sampled) "hold onto samples reference until this point"))))
 
 ;; Tests that sample-maps->map-of-samples produces correctly typed
-;; primitive arrays based on metric type configuration.
+;; arrays (DoubleArray, LongArray, ObjectArray) based on metric type.
 (deftest sample-maps->map-of-samples-test
   (testing "sample-maps->map-of-samples"
     (let [metrics-defs {:elapsed-time
@@ -78,31 +78,31 @@
       (testing "returns correct keys for each metric path"
         (is (= #{[:elapsed-time] [:expr-value] [:class-loader :loaded-count]}
                (set (keys result)))))
-      (testing "produces DoubleSamples for :quantitative metrics"
-        (is (instance? DoubleSamples (result [:elapsed-time])))
-        (is (= :double (typed-samples/elem-type (result [:elapsed-time]))))
-        (is (= 3 (typed-samples/sample-count (result [:elapsed-time])))))
-      (testing "produces LongSamples for :event metrics"
-        (is (instance? LongSamples (result [:class-loader :loaded-count])))
-        (is (= :long (typed-samples/elem-type (result [:class-loader :loaded-count]))))
-        (is (= 3 (typed-samples/sample-count (result [:class-loader :loaded-count])))))
-      (testing "produces ObjectSamples for :nominal metrics"
-        (is (instance? ObjectSamples (result [:expr-value])))
-        (is (= :object (typed-samples/elem-type (result [:expr-value]))))
-        (is (= 3 (typed-samples/sample-count (result [:expr-value])))))
+      (testing "produces DoubleArray for :quantitative metrics"
+        (is (instance? DoubleArray (result [:elapsed-time])))
+        (is (= :double (arr/elem-type (result [:elapsed-time]))))
+        (is (= 3 (arr/length (result [:elapsed-time])))))
+      (testing "produces LongArray for :event metrics"
+        (is (instance? LongArray (result [:class-loader :loaded-count])))
+        (is (= :long (arr/elem-type (result [:class-loader :loaded-count]))))
+        (is (= 3 (arr/length (result [:class-loader :loaded-count])))))
+      (testing "produces ObjectArray for :nominal metrics"
+        (is (instance? ObjectArray (result [:expr-value])))
+        (is (= :object (arr/elem-type (result [:expr-value]))))
+        (is (= 3 (arr/length (result [:expr-value])))))
       (testing "preserves values correctly via fold"
         (is (= 4500000.0
-               (typed-samples/fold-double
+               (arr/fold-double
                 (result [:elapsed-time])
                 (fn ^double [^double acc ^double v] (+ acc v))
                 0.0)))
         (is (= 8
-               (typed-samples/fold-long
+               (arr/fold-long
                 (result [:class-loader :loaded-count])
                 (fn ^long [^long acc ^long v] (+ acc v))
                 0)))
         (is (= [:a :b :c]
-               (typed-samples/fold
+               (arr/fold
                 (result [:expr-value])
                 conj
                 [])))))))

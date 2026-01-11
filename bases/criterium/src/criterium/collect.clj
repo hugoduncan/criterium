@@ -1,11 +1,11 @@
 (ns criterium.collect
   "Collect samples using a metrics collector."
   (:require
+   [criterium.array :as arr]
    [criterium.collector :as collector]
    [criterium.jvm :as jvm]
    [criterium.measured :as measured]
-   [criterium.metric :as metric]
-   [criterium.typed-samples :as typed-samples]))
+   [criterium.metric :as metric]))
 
 ;;; Transform of samples
 
@@ -14,39 +14,39 @@
   (mapv (partial collector/transform collector) sample-arrays))
 
 (defn- extract-double-samples
-  "Extract samples at path into a DoubleSamples wrapper."
+  "Extract samples at path into a DoubleArray wrapper."
   [samples path]
-  (let [n   (count samples)
-        arr (double-array n)]
+  (let [n (count samples)
+        a (double-array n)]
     (dotimes [i n]
-      (aset arr i (double (get-in (samples i) path))))
-    (typed-samples/double-samples arr)))
+      (aset a i (double (get-in (samples i) path))))
+    (arr/->double-array a)))
 
 (defn- extract-long-samples
-  "Extract samples at path into a LongSamples wrapper."
+  "Extract samples at path into a LongArray wrapper."
   [samples path]
-  (let [n   (count samples)
-        arr (long-array n)]
+  (let [n (count samples)
+        a (long-array n)]
     (dotimes [i n]
-      (aset arr i (long (get-in (samples i) path))))
-    (typed-samples/long-samples arr)))
+      (aset a i (long (get-in (samples i) path))))
+    (arr/->long-array a)))
 
 (defn- extract-object-samples
-  "Extract samples at path into an ObjectSamples wrapper."
+  "Extract samples at path into an ObjectArray wrapper."
   [samples path]
-  (let [n   (count samples)
-        arr (object-array n)]
+  (let [n (count samples)
+        a (object-array n)]
     (dotimes [i n]
-      (aset arr i (get-in (samples i) path)))
-    (typed-samples/object-samples arr)))
+      (aset a i (get-in (samples i) path)))
+    (arr/->object-array a)))
 
 (defn sample-maps->map-of-samples
-  "Transform a sequence of sample maps into a map of typed sample arrays.
+  "Transform a sequence of sample maps into a map of typed arrays.
 
   Takes a vector of sample maps (each containing metrics at various paths)
   and a metrics-defs configuration. Returns a map from metric path to a
-  typed samples wrapper (DoubleSamples, LongSamples, or ObjectSamples)
-  based on the metric type."
+  typed array wrapper (DoubleArray, LongArray, or ObjectArray) based on
+  the metric type."
   [samples metrics-defs]
   (reduce
    (fn [res {:keys [path type]}]

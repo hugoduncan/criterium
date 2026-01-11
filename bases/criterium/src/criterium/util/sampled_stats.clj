@@ -1,11 +1,11 @@
 (ns criterium.util.sampled-stats
   (:require
-   [criterium.typed-samples :as typed-samples]
+   [criterium.array :as arr]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have have?]]
    [criterium.util.stats :as stats])
   (:import
-   [criterium.typed_samples DoubleSamples LongSamples ObjectSamples]))
+   [criterium.array DoubleArray LongArray ObjectArray]))
 
 (defn pair-fn [k f]
   (fn [x] [k (f x)]))
@@ -38,30 +38,30 @@
 
 (defn samples-for-path
   "Extract samples for path from metric->values, returning a vector of doubles.
-  Handles both TypedSamples (DoubleSamples, LongSamples) and legacy vectors."
+  Handles both TypedArray (DoubleArray, LongArray) and legacy vectors."
   [metric->values path]
   {:pre [(have? map? metric->values)]}
   (let [samples (have some? (metric->values path)
                       {:path path :metric->values metric->values})]
     (persistent!
      (cond
-       ;; DoubleSamples and LongSamples both implement IDoubleObjectFold
-       (or (instance? DoubleSamples samples)
-           (instance? LongSamples samples))
-       (typed-samples/dfold samples
-                            (fn [acc ^double v]
-                              (if (Double/isNaN v)
-                                acc
-                                (conj! acc v)))
-                            (transient []))
+       ;; DoubleArray and LongArray both implement IDoubleObjectFold
+       (or (instance? DoubleArray samples)
+           (instance? LongArray samples))
+       (arr/dfold samples
+                  (fn [acc ^double v]
+                    (if (Double/isNaN v)
+                      acc
+                      (conj! acc v)))
+                  (transient []))
 
-       (instance? ObjectSamples samples)
-       (typed-samples/fold samples
-                           (fn [acc v]
-                             (if (some? v)
-                               (conj! acc (double v))
-                               acc))
-                           (transient []))
+       (instance? ObjectArray samples)
+       (arr/fold samples
+                 (fn [acc v]
+                   (if (some? v)
+                     (conj! acc (double v))
+                     acc))
+                 (transient []))
 
        ;; Legacy vector support
        :else
@@ -122,10 +122,10 @@
    (mapv :path metric-configs)))
 
 (defn- sum-event-samples
-  "Sum values in LongSamples or legacy vector."
+  "Sum values in LongArray or legacy vector."
   ^long [samples]
-  (if (instance? LongSamples samples)
-    (typed-samples/sum-long samples)
+  (if (instance? LongArray samples)
+    (arr/sum-long samples)
     (reduce + 0 samples)))
 
 (defn- count-positive-samples
@@ -134,16 +134,15 @@
   (if (empty? all-vs)
     0
     (let [first-sample (first all-vs)
-          n (long (if (instance? LongSamples first-sample)
-                    (typed-samples/sample-count first-sample)
+          n (long (if (instance? LongArray first-sample)
+                    (arr/length first-sample)
                     (count first-sample)))]
       (loop [i   (long 0)
              cnt (long 0)]
         (if (< i n)
           (let [has-pos? (some (fn [samples]
-                                 (if (instance? LongSamples samples)
-                                   (typed-samples/lpos?
-                                    (typed-samples/get-long samples i))
+                                 (if (instance? LongArray samples)
+                                   (arr/lpos? (arr/get-long samples i))
                                    (pos? (long (nth samples i)))))
                                all-vs)]
             (recur (unchecked-inc i)

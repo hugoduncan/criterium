@@ -1,6 +1,7 @@
 (ns criterium.collect-plan
   "Collection plan to control the collection of metrics from a measured."
   (:require
+   [criterium.array :as arr]
    [criterium.collect :as collect]
    [criterium.collect-plan.impl :as impl]
    [criterium.collector :as collector]
@@ -68,7 +69,7 @@
       collection-map
       {:metric->values metric->values
        :metrics-defs (have (:metrics-defs (:collector collection-map)))
-       :expr-value (last (metric->values [:expr-value]))
+       :expr-value (arr/last-element (metric->values [:expr-value]))
        :type :criterium/metrics-samples
        :transform (if (= 1 batch-size)
                     identity-transforms

@@ -4,11 +4,14 @@
   Core bootstrap algorithms are provided by criterium.stats.interface. This namespace
   provides criterium-specific integration with metrics and collect plans."
   (:require
+   [criterium.array :as arr]
    [criterium.collect-plan :as collect-plan]
    [criterium.metric :as metric]
    [criterium.random.interface :as random]
    [criterium.stats.interface :as stats]
-   [criterium.util.helpers :as util]))
+   [criterium.util.helpers :as util])
+  (:import
+   [criterium.array DoubleArray LongArray ObjectArray]))
 
 ;;; Re-exports from stats.interface for backward compatibility
 
@@ -73,6 +76,52 @@
 
 ;;; Criterium-specific bootstrap functions
 
+(defn- ensure-double-array
+  "Convert input to a DoubleArray if not already one.
+  Handles DoubleArray, LongArray, ObjectArray, and legacy vectors."
+  ^DoubleArray [samples]
+  (cond
+    (instance? DoubleArray samples)
+    samples
+
+    (instance? LongArray samples)
+    (let [n   (arr/length samples)
+          out (double-array n)]
+      (dotimes [i n]
+        (aset out i (double (arr/get-long samples i))))
+      (arr/->double-array out))
+
+    (instance? ObjectArray samples)
+    (arr/->double-array
+     (double-array
+      (arr/fold samples
+                (fn [acc v] (conj acc (double v)))
+                [])))
+
+    :else
+    (arr/->double-array (double-array samples))))
+
+(defn- typed-array->double-vec
+  "Convert a typed array to a vector of doubles.
+  Handles DoubleArray, LongArray, ObjectArray, and legacy vectors."
+  [samples]
+  (cond
+    (or (instance? DoubleArray samples)
+        (instance? LongArray samples))
+    (persistent!
+     (arr/dfold samples
+                (fn [acc ^double v] (conj! acc v))
+                (transient [])))
+
+    (instance? ObjectArray samples)
+    (persistent!
+     (arr/fold samples
+               (fn [acc v] (conj! acc (double v)))
+               (transient [])))
+
+    :else
+    (mapv double samples)))
+
 (def ^:private default-min-samples
   "Default minimum sample size for bootstrap resampling.
   Below this threshold, BCa confidence intervals may be unreliable."
@@ -81,6 +130,7 @@
 (defn bootstrap-stats-for
   "Compute bootstrap statistics for samples with given options.
 
+  Accepts DoubleArray or vector of samples.
   Computes mean, variance, and quantiles with BCa confidence intervals.
   Does not include min-val, max-val, or 3-sigma bounds.
 
@@ -98,8 +148,10 @@
   [samples opts]
   {:pre [(:quantiles opts)
          (:estimate-quantiles opts)]}
-  (let [vs            (mapv double samples)
-        n             (count vs)
+  (let [darr          (ensure-double-array samples)
+        n             (arr/length darr)
+        ;; Convert to vector for stats functions that need sequences
+        vs            (typed-array->double-vec darr)
         min-samples   (long (:min-samples opts default-min-samples))
         low-samples?  (< n min-samples)
         _             (when low-samples?
@@ -122,17 +174,15 @@
       low-samples? (assoc :low-sample-count? true))))
 
 (defn- filter-outliers
-  "Remove outlier samples from values vector based on outlier indices.
-  Returns values unchanged if no outliers for this path."
-  [values outliers path]
-  (let [ols (:outliers (get-in outliers path) {})]
+  "Remove outlier samples from values based on outlier indices.
+  Handles typed arrays (DoubleArray, LongArray) and legacy vectors.
+  Returns a DoubleArray with outliers removed."
+  ^DoubleArray [values outliers path]
+  (let [ols      (:outliers (get-in outliers path) {})
+        darr     (ensure-double-array values)]
     (if (seq ols)
-      (into []
-            (comp
-             (map-indexed (fn [i v] (when-not (ols i) v)))
-             (filter some?))
-            values)
-      values)))
+      (arr/filter-indices darr (set (keys ols)))
+      darr)))
 
 (defn bootstrap-stats*
   "Compute bootstrap stats for all metric paths.
@@ -140,9 +190,9 @@
   [metric->values outliers metric-configs config]
   (reduce
    (fn [res path]
-     (let [values (get metric->values path)
+     (let [values          (get metric->values path)
            filtered-values (filter-outliers values outliers path)]
-       (if (seq filtered-values)
+       (if (pos? (arr/length filtered-values))
          (assoc-in
           res path
           (bootstrap-stats-for filtered-values config))

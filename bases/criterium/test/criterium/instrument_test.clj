@@ -3,6 +3,7 @@
    [clojure.set :as set]
    [clojure.test :refer [deftest is testing]]
    [criterium.analyse :as analyse]
+   [criterium.array :as arr]
    [criterium.collector :as collector]
    [criterium.instrument :as instrument]
    [criterium.jvm :as jvm]
@@ -45,7 +46,7 @@
 
       (busy-wait 1)
       (is (= 1 @seen) "original function called")
-      (is (= 1 (count
+      (is (= 1 (arr/length
                 (-> @v
                     (sampler/samples-map)
                     :metric->values
@@ -104,7 +105,7 @@
                sampler/samples-map
                :metric->values
                (get [:elapsed-time])
-               count))
+               arr/length))
         "one sample added")
     (busy-wait 2)
     (is (= 2
@@ -112,7 +113,7 @@
                sampler/samples-map
                :metric->values
                (get [:elapsed-time])
-               count))
+               arr/length))
         "two samples added")
     (let [finish     (jvm/timestamp)
           elapsed    (unchecked-subtract finish start)
@@ -121,13 +122,16 @@
 
       ;; (is result "result returned")
       (is (= :criterium/metrics-samples (:type sample-map)) "sample map returned")
-      (is (= 2 (count ((:metric->values sample-map) [:elapsed-time])))
+      (is (= 2 (arr/length ((:metric->values sample-map) [:elapsed-time])))
           "samples returned")
-      (is (= (count ((:metric->values sample-map) [:elapsed-time]))
+      (is (= (arr/length ((:metric->values sample-map) [:elapsed-time]))
              (:eval-count sample-map))
           "eval-count correct")
       (is (= 1  (:batch-size sample-map)) "batch-size is correct")
-      (is (>= elapsed (reduce + ((:metric->values sample-map) [:elapsed-time])))
+      (is (>= elapsed (arr/fold-double
+                       ((:metric->values sample-map) [:elapsed-time])
+                       (fn ^double [^double a ^double b] (+ a b))
+                       0.0))
           "elapsed time is sane")
       (let [data-map  ((analyse/stats) {:samples sample-map})
             mean-time (-> data-map
