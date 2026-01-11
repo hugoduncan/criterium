@@ -38,7 +38,7 @@
 
 (defn samples-for-path
   "Extract samples for path from metric->values, returning a vector of doubles.
-  Handles both TypedArray (DoubleArray, LongArray) and legacy vectors."
+  Handles TypedArray (DoubleArray, LongArray, ObjectArray)."
   [metric->values path]
   {:pre [(have? map? metric->values)]}
   (let [samples (have some? (metric->values path)
@@ -63,14 +63,9 @@
                      acc))
                  (transient []))
 
-       ;; Legacy vector support
        :else
-       (reduce (fn [acc v]
-                 (if (some? v)
-                   (conj! acc (double v))
-                   acc))
-               (transient [])
-               samples)))))
+       (throw (ex-info "Expected TypedArray, got unexpected type"
+                       {:type (type samples) :path path}))))))
 
 (defn scale-vals [m scale-1]
   (util/update-vals m scale-1))
@@ -122,28 +117,21 @@
    (mapv :path metric-configs)))
 
 (defn- sum-event-samples
-  "Sum values in LongArray or legacy vector."
+  "Sum values in LongArray."
   ^long [samples]
-  (if (instance? LongArray samples)
-    (arr/sum-long samples)
-    (reduce + 0 samples)))
+  (arr/sum-long samples))
 
 (defn- count-positive-samples
   "Count samples where at least one sample has a positive value at that index."
   ^long [all-vs]
   (if (empty? all-vs)
     0
-    (let [first-sample (first all-vs)
-          n (long (if (instance? LongArray first-sample)
-                    (arr/length first-sample)
-                    (count first-sample)))]
+    (let [n (arr/length (first all-vs))]
       (loop [i   (long 0)
              cnt (long 0)]
         (if (< i n)
           (let [has-pos? (some (fn [samples]
-                                 (if (instance? LongArray samples)
-                                   (arr/lpos? (arr/get-long samples i))
-                                   (pos? (long (nth samples i)))))
+                                 (arr/lpos? (arr/get-long samples i)))
                                all-vs)]
             (recur (unchecked-inc i)
                    (if has-pos? (unchecked-inc cnt) cnt)))

@@ -78,7 +78,7 @@
 
 (defn- ensure-double-array
   "Convert input to a DoubleArray if not already one.
-  Handles DoubleArray, LongArray, ObjectArray, and legacy vectors."
+  Handles DoubleArray, LongArray, and ObjectArray."
   ^DoubleArray [samples]
   (cond
     (instance? DoubleArray samples)
@@ -99,11 +99,12 @@
                 [])))
 
     :else
-    (arr/->double-array (double-array samples))))
+    (throw (ex-info "Expected TypedArray, got unexpected type"
+                    {:type (type samples)}))))
 
 (defn- typed-array->double-vec
   "Convert a typed array to a vector of doubles.
-  Handles DoubleArray, LongArray, ObjectArray, and legacy vectors."
+  Handles DoubleArray, LongArray, and ObjectArray."
   [samples]
   (cond
     (or (instance? DoubleArray samples)
@@ -120,7 +121,8 @@
                (transient [])))
 
     :else
-    (mapv double samples)))
+    (throw (ex-info "Expected TypedArray, got unexpected type"
+                    {:type (type samples)}))))
 
 (def ^:private default-min-samples
   "Default minimum sample size for bootstrap resampling.
@@ -175,7 +177,7 @@
 
 (defn- filter-outliers
   "Remove outlier samples from values based on outlier indices.
-  Handles typed arrays (DoubleArray, LongArray) and legacy vectors.
+  Accepts DoubleArray, LongArray, or ObjectArray.
   Returns a DoubleArray with outliers removed."
   ^DoubleArray [values outliers path]
   (let [ols      (:outliers (get-in outliers path) {})

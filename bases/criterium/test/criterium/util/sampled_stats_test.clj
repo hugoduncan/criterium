@@ -4,6 +4,7 @@
    [clojure.test.check.clojure-test :refer [defspec]]
    [clojure.test.check.generators :as gen]
    [clojure.test.check.properties :as prop]
+   [criterium.array :as arr]
    [criterium.test-utils :refer [abs-error approx= gen-bounded test-max-error]]
    [criterium.util.sampled-stats :as sampled-stats]
    [criterium.util.stats :as stats]
@@ -75,14 +76,14 @@
       (is (= 10.0 (-> stats :max-val))))))
 
 (deftest quantiles-for-test
-  (let [samples {[:v] (repeat 100 1)}
+  (let [samples {[:v] (arr/->double-array (double-array (repeat 100 1)))}
         quantiles (sampled-stats/quantiles-for
                    [:v] samples {:quantiles [0.05 0.95]})]
     (is (= {0.1 1.0, 0.25 1.0, 0.5 1.0, 0.75 1.0, 0.9 1.0, 0.05 1.0, 0.95 1.0}
            quantiles)))
 
   (testing "quantiles on [0..100]"
-    (let [samples {[:v] (range 101)}
+    (let [samples {[:v] (arr/->double-array (double-array (range 101)))}
           quantiles (sampled-stats/quantiles-for
                      [:v] samples {:quantiles [0.05 0.95]})]
       (is (= {0.1 10.0, 0.25 25.0, 0.5 50.0, 0.75 75.0, 0.9 90.0,
@@ -90,7 +91,7 @@
              quantiles))))
 
   (testing "quantiles on (reverse [0..100])"
-    (let [samples {[:v] (range 101)}
+    (let [samples {[:v] (arr/->double-array (double-array (range 101)))}
           quantiles (sampled-stats/quantiles-for
                      [:v] samples {:quantiles [0.05 0.95]})]
       (is (= {0.1 10.0, 0.25 25.0, 0.5 50.0, 0.75 75.0, 0.9 90.0,

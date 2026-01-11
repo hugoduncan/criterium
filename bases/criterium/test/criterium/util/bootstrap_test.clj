@@ -2,6 +2,7 @@
   (:require
    [clojure.test :refer [deftest is testing]]
    [criterium.analyse-test :refer [metrics-samples]]
+   [criterium.array :as arr]
    [criterium.collect-plan :as collect-plan]
    [criterium.stats.interface :as stats-interface]
    [criterium.test-utils :refer [test-max-error]]
@@ -96,7 +97,7 @@
 
 (deftest bootstrap-stats-for-test
   (testing "constant input"
-    (let [samples (mapv double (repeat 100 1))
+    (let [samples (arr/->double-array (double-array (repeat 100 1)))
           stats   (bootstrap/bootstrap-stats-for
                    samples
                    {:estimate-quantiles [0.025 0.975] :quantiles [0.99]})
@@ -119,7 +120,7 @@
         (is (contains? stats :cv)))))
 
   (testing "sequential input"
-    (let [samples (mapv double (range 101))
+    (let [samples (arr/->double-array (double-array (range 101)))
           stats   (bootstrap/bootstrap-stats-for
                    samples
                    {:estimate-quantiles [0.025 0.975] :quantiles [0.99]})]
@@ -135,7 +136,7 @@
         (is (< l 858.5 u)))))
 
   (testing "reverse sequential input"
-    (let [samples (mapv double (reverse (range 101)))
+    (let [samples (arr/->double-array (double-array (reverse (range 101))))
           stats   (bootstrap/bootstrap-stats-for
                    samples
                    {:estimate-quantiles [0.025 0.975] :quantiles [0.99]})]
@@ -155,7 +156,7 @@
   (testing "bootstrap-stats-for"
     (testing "when sample count is at or above default threshold"
       (testing "does not set :low-sample-count?"
-        (let [samples (mapv double (range 30))
+        (let [samples (arr/->double-array (double-array (range 30)))
               stats (bootstrap/bootstrap-stats-for
                      samples
                      {:estimate-quantiles [0.025 0.975] :quantiles [0.99]})]
@@ -163,7 +164,7 @@
 
     (testing "when sample count is below default threshold"
       (testing "sets :low-sample-count? true"
-        (let [samples (mapv double (range 20))
+        (let [samples (arr/->double-array (double-array (range 20)))
               ;; First run suppresses stdout, second captures return value
               _ (with-out-str
                   (bootstrap/bootstrap-stats-for
@@ -175,7 +176,7 @@
           (is (true? (:low-sample-count? result)))))
 
       (testing "prints warning"
-        (let [samples (mapv double (range 20))
+        (let [samples (arr/->double-array (double-array (range 20)))
               output (with-out-str
                        (bootstrap/bootstrap-stats-for
                         samples
@@ -185,7 +186,7 @@
 
     (testing "when custom :min-samples is specified"
       (testing "uses custom threshold"
-        (let [samples (mapv double (range 15))
+        (let [samples (arr/->double-array (double-array (range 15)))
               ;; With min-samples=10, 15 samples should be fine
               result (bootstrap/bootstrap-stats-for
                       samples
@@ -195,7 +196,7 @@
           (is (nil? (:low-sample-count? result)))))
 
       (testing "warns when below custom threshold"
-        (let [samples (mapv double (range 5))
+        (let [samples (arr/->double-array (double-array (range 5)))
               output (with-out-str
                        (bootstrap/bootstrap-stats-for
                         samples
@@ -349,7 +350,8 @@
       ;; called exactly bootstrap-size times (once per resample).
       (let [invocation-count  (atom 0)
             bootstrap-size    50
-            samples           (mapv double (range 101))
+            samples           (arr/->double-array (double-array (range 101)))
+            num-samples       (arr/length samples)
             ;; Wrap stats-fn to track invocations
             original-stats-fn stats-interface/stats-fn
             tracking-stats-fn (fn [fs]
@@ -368,9 +370,9 @@
         ;; - Once per bootstrap resample (bootstrap-size times)
         ;; - Once per jackknife sample (n times, where n = sample count)
         ;; Total = 1 + bootstrap-size + n
-        (let [expected-calls (+ 1 bootstrap-size (count samples))]
+        (let [expected-calls (+ 1 bootstrap-size num-samples)]
           (is (= expected-calls @invocation-count)
               (str "Expected " expected-calls " stats-fn calls "
                    "(1 estimate + " bootstrap-size " bootstrap + "
-                   (count samples) " jackknife), got " @invocation-count
+                   num-samples " jackknife), got " @invocation-count
                    ". If higher, quantiles may be bootstrapped separately.")))))))

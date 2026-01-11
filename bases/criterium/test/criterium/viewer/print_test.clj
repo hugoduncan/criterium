@@ -167,7 +167,8 @@
              (let [data-map
                    {:samples
                     {:type :criterium/collected-metrics-samples
-                     :metric->values {[:elapsed-time] [1 1 1]}
+                     :metric->values {[:elapsed-time]
+                                      (arr/->double-array (double-array [1 1 1]))}
                      :metrics-defs (select-keys
                                     (metrics/metrics)
                                     [:elapsed-time])
