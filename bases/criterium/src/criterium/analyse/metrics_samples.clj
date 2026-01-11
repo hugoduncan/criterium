@@ -2,7 +2,7 @@
   (:require
    [criterium.analyse.methods :as methods]
    [criterium.array :as arr]
-   criterium.array-core.interface
+   criterium.array.interface
    [criterium.collect-plan :as collect-plan]
    [criterium.random.interface :as random]
    [criterium.stats.interface :as si]
@@ -254,8 +254,8 @@
                       ;; For freedman-diaconis, pass IQR if available
                       (and (not= :knuth (:method options)) iqr)
                       (assoc :iqr iqr))]
-      ;; Convert typed array to vector for histogram computation
-      (histogram/histogram (arr/to-double-vec samples) hist-opts))
+      ;; Histogram accepts typed arrays directly
+      (histogram/histogram samples hist-opts))
     (catch clojure.lang.ExceptionInfo e
       (let [data (ex-data e)]
         (when-not (#{:histogram/no-values :histogram/same-values}
@@ -560,7 +560,7 @@
   (let [{:keys [distributions n-bootstrap alpha]
          :or {n-bootstrap 200 alpha 0.05}} options
         ;; Support both typed arrays and vectors
-        n (if (instance? criterium.array_core.interface.ITypedArray samples)
+        n (if (instance? criterium.array.interface.ITypedArray samples)
             (arr/length samples)
             (count samples))
         ;; Compute sample statistics for moment-match prefilter
@@ -568,7 +568,7 @@
         mean-val (si/mean samples)
         var-val (si/variance samples)
         ;; Convert to vector for MLE functions (they use sequence operations)
-        samples-vec (if (instance? criterium.array_core.interface.ITypedArray samples)
+        samples-vec (if (instance? criterium.array.interface.ITypedArray samples)
                       (arr/to-double-vec samples)
                       samples)
         ;; Determine which distributions to fit

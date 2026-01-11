@@ -672,11 +672,13 @@
 ;;; Histogram
 
 (defn histogram
-  "Compute histogram from vector of numeric values.
+  "Compute histogram from data (sequence or typed array).
 
   Supports multiple binning methods via the :method option:
   - :freedman-diaconis (default) - Uses IQR-based bin width calculation
   - :knuth - Bayesian optimal bin count selection
+
+  Accepts sequences, vectors, or typed arrays (DoubleArray, LongArray).
 
   Options:
     :method   - Binning method (:freedman-diaconis or :knuth)
@@ -703,10 +705,10 @@
   Throws:
     ex-info {:error :histogram/no-values} for empty input
     ex-info {:error :histogram/same-values} when all values are the same"
-  ([values]
-   (histogram/histogram values))
-  ([values opts-or-iqr]
-   (histogram/histogram values opts-or-iqr)))
+  ([data]
+   (histogram/histogram data))
+  ([data opts-or-iqr]
+   (histogram/histogram data opts-or-iqr)))
 
 ;;; T-digest streaming quantile estimation
 

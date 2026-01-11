@@ -7,9 +7,52 @@
    The algorithm finds the optimal number of equal-width bins M by maximizing:
    F(M|x,I) = n·log(M) + logΓ(M/2) - M·logΓ(1/2) - logΓ((2n+M)/2) + Σₖ₌₁ᴹ logΓ(nₖ + 1/2)
 
-   where n = sample count, nₖ = count in bin k."
+   where n = sample count, nₖ = count in bin k.
+
+   Accepts both sequences/vectors and typed arrays (DoubleArray, LongArray)."
   (:require
-   [criterium.stats.probability :as prob]))
+   [criterium.array :as arr]
+   [criterium.array.interface :as iarr]
+   [criterium.stats.probability :as prob])
+  (:import
+   [criterium.array DoubleArray LongArray]
+   [criterium.array.interface ITypedArray]))
+
+;;; Type detection
+
+(defn- typed-array?
+  "Returns true if x is a typed array (DoubleArray or LongArray)."
+  [x]
+  (or (instance? DoubleArray x)
+      (instance? LongArray x)))
+
+(defn- data-length
+  "Returns the length of data, supporting both sequences and typed arrays."
+  ^long [data]
+  (if (typed-array? data)
+    (.length ^ITypedArray data)
+    (count data)))
+
+(defn- data-empty?
+  "Returns true if data is empty, supporting both sequences and typed arrays."
+  [data]
+  (if (typed-array? data)
+    (zero? (.length ^ITypedArray data))
+    (empty? data)))
+
+(defn- data-min-max
+  "Returns [min max] for data, supporting both sequences and typed arrays."
+  [data]
+  (if (typed-array? data)
+    (let [init-min Double/POSITIVE_INFINITY
+          init-max Double/NEGATIVE_INFINITY
+          [mn mx] (arr/dfold data
+                             (fn [acc ^double v]
+                               (let [[^double min-v ^double max-v] acc]
+                                 [(min min-v v) (max max-v v)]))
+                             [init-min init-max])]
+      [(double mn) (double mx)])
+    [(reduce clojure.core/min data) (reduce clojure.core/max data)]))
 
 ;;; Constants
 
@@ -19,8 +62,8 @@
 
 ;;; Binning
 
-(defn- bin-counts
-  "Compute bin counts for M equal-width bins.
+(defn- bin-counts-seq
+  "Compute bin counts for M equal-width bins from a sequence.
   Returns a long array of counts for each bin."
   ^longs [samples ^long num-bins ^double min-val ^double max-val]
   (let [counts    (long-array num-bins)
@@ -29,10 +72,35 @@
         last-bin  (dec num-bins)]
     (doseq [^double x samples]
       (let [bin-idx (long (/ (- x min-val) width))
-            ;; Clamp to valid range (handles edge case where x == max-val)
             bin-idx (min last-bin (max 0 bin-idx))]
         (aset counts bin-idx (inc (aget counts bin-idx)))))
     counts))
+
+(defn- bin-counts-typed
+  "Compute bin counts for M equal-width bins from a typed array.
+  Returns a long array of counts for each bin."
+  ^longs [data ^long num-bins ^double min-val ^double max-val]
+  (let [counts    (long-array num-bins)
+        range-val (- max-val min-val)
+        width     (/ range-val (double num-bins))
+        last-bin  (dec num-bins)]
+    (arr/dfold data
+               (fn [_ ^double x]
+                 (let [bin-idx (long (/ (- x min-val) width))
+                       bin-idx (min last-bin (max 0 bin-idx))]
+                   (aset counts bin-idx (inc (aget counts bin-idx))))
+                 nil)
+               nil)
+    counts))
+
+(defn- bin-counts
+  "Compute bin counts for M equal-width bins.
+  Accepts sequences or typed arrays.
+  Returns a long array of counts for each bin."
+  ^longs [data ^long num-bins ^double min-val ^double max-val]
+  (if (typed-array? data)
+    (bin-counts-typed data num-bins min-val max-val)
+    (bin-counts-seq data num-bins min-val max-val)))
 
 ;;; Log-posterior
 
@@ -75,7 +143,7 @@
   Searches M ∈ [1, max-bins] for the value that maximizes the log-posterior.
 
   Parameters:
-    samples - sequence of numeric values
+    data - sequence or typed array (DoubleArray, LongArray) of numeric values
     opts - optional map with:
       :max-bins - maximum M to search (default: 50)
       :min - pre-computed minimum value (avoids redundant scan)
@@ -88,20 +156,21 @@
   Throws:
     ex-info {:error :knuth/no-samples} for empty input
     ex-info {:error :knuth/same-values} when all values are identical"
-  ([samples] (optimal-bins samples {}))
-  ([samples {:keys [max-bins min max] :or {max-bins 50}}]
-   (when (empty? samples)
+  ([data] (optimal-bins data {}))
+  ([data {:keys [max-bins min max] :or {max-bins 50}}]
+   (when (data-empty? data)
      (throw (ex-info "Input samples cannot be empty"
                      {:error :knuth/no-samples})))
-   (let [min-val (double (or min (reduce clojure.core/min samples)))
-         max-val (double (or max (reduce clojure.core/max samples)))]
+   (let [[computed-min computed-max] (when-not (and min max)
+                                       (data-min-max data))
+         min-val (double (or min computed-min))
+         max-val (double (or max computed-max))]
      (when (= min-val max-val)
        (throw (ex-info "All sample values are identical - cannot determine optimal bins"
                        {:error   :knuth/same-values
                         :min-val min-val
                         :max-val max-val})))
-     (let [n             (count samples)
-           samples-vec   (vec samples)
+     (let [n             (data-length data)
            max-bins-long (long max-bins)]
        ;; Search over M = 1 to max-bins
        (loop [m       (long 1)
@@ -110,7 +179,7 @@
          (if (> m max-bins-long)
            {:optimal-bins  best-m
             :log-posterior best-lp}
-           (let [counts (bin-counts samples-vec m min-val max-val)
+           (let [counts (bin-counts data m min-val max-val)
                  lp     (log-posterior n counts)]
              (if (> lp best-lp)
                (recur (inc m) m lp)

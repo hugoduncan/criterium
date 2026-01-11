@@ -1,6 +1,7 @@
 (ns criterium.util.histogram-test
   (:require
    [clojure.test :refer [deftest is testing]]
+   [criterium.array :as arr]
    [criterium.test-utils :refer [gaussian-samples]]
    [criterium.util.histogram :as histogram]))
 
@@ -139,3 +140,55 @@
           (is (pos-int? (:optimal-bins result)))
           (is (= 4 (:n result)))
           (is (= 4 (reduce + (:counts result)))))))))
+
+;; Tests for typed array inputs.
+;; Validates histogram computation works correctly with DoubleArray and LongArray.
+
+(deftest typed-array-histogram-test
+  (testing "histogram with typed arrays"
+    (testing "with DoubleArray input"
+      (testing "returns expected structure"
+        (let [samples (arr/->double-array (double-array (range 100)))
+              result  (histogram/histogram samples)]
+          (is (= :criterium/histogram-fixed-width (:type result)))
+          (is (vector? (:counts result)))
+          (is (= 100 (:n result)))
+          (is (= 0.0 (:min result)))
+          (is (= 99.0 (:max result)))))
+
+      (testing "with :method :knuth"
+        (let [samples-vec (gaussian-samples 200 50.0 10.0 123)
+              samples     (arr/->double-array (double-array samples-vec))
+              result      (histogram/histogram samples {:method :knuth})]
+          (is (= :criterium/histogram-knuth (:type result)))
+          (is (= 200 (:n result)))
+          (is (= 200 (reduce + (:counts result)))))))
+
+    (testing "with LongArray input"
+      (testing "returns expected structure"
+        (let [samples (arr/->long-array (long-array (range 100)))
+              result  (histogram/histogram samples)]
+          (is (= :criterium/histogram-fixed-width (:type result)))
+          (is (vector? (:counts result)))
+          (is (= 100 (:n result)))))
+
+      (testing "with :method :knuth"
+        (let [samples (arr/->long-array (long-array (range 1 101)))
+              result  (histogram/histogram samples {:method :knuth})]
+          (is (= :criterium/histogram-knuth (:type result)))
+          (is (= 100 (:n result)))
+          (is (= 100 (reduce + (:counts result)))))))
+
+    (testing "throws for empty DoubleArray"
+      (let [empty-arr (arr/->double-array (double-array 0))]
+        (is (thrown-with-msg?
+             clojure.lang.ExceptionInfo
+             #"empty"
+             (histogram/histogram empty-arr)))))
+
+    (testing "throws for DoubleArray with identical values"
+      (let [same-arr (arr/->double-array (double-array [5.0 5.0 5.0 5.0]))]
+        (is (thrown-with-msg?
+             clojure.lang.ExceptionInfo
+             #"same"
+             (histogram/histogram same-arr)))))))
