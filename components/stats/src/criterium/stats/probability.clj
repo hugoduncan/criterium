@@ -15,12 +15,19 @@
   (or (instance? DoubleArray x)
       (instance? LongArray x)))
 
+(defn- require-typed-array!
+  "Throws if data is not a typed array."
+  [data fn-name]
+  (when-not (typed-array? data)
+    (throw (ex-info (str fn-name " requires a typed array, got: " (type data))
+                    {:fn fn-name
+                     :type (type data)
+                     :data data}))))
+
 (defn- data-length
-  "Returns the length of data, supporting both sequences and typed arrays."
-  ^long [data]
-  (if (typed-array? data)
-    (.length ^ITypedArray data)
-    (count data)))
+  "Returns the length of a typed array."
+  ^long [^ITypedArray data]
+  (.length data))
 
 (defn polynomial-value
   "Evaluate a polynomial at the given value x, for the coefficients given in
@@ -618,45 +625,30 @@
 
   where Fₙ is the empirical CDF and F is the theoretical CDF.
 
+  Requires a typed array (DoubleArray, LongArray).
+
   Parameters:
-    samples - sequence or typed array of sample values
+    samples - typed array of sample values
     cdf-fn - theoretical CDF function (e.g., from gamma-cdf, weibull-cdf)
 
   Returns the D statistic."
   ^double [samples cdf-fn]
+  (require-typed-array! samples "ks-test-statistic")
   (let [n (long (data-length samples))
         _ (when (zero? n)
             (throw (IllegalArgumentException. "samples cannot be empty")))
-        ;; Sort samples - arr/sorted returns a DoubleArray
-        sorted-samples (if (typed-array? samples)
-                         (arr/sorted samples)
-                         (vec (sort samples)))
+        sorted-samples (arr/sorted samples)
         n-d (double n)]
-    (if (typed-array? sorted-samples)
-      ;; Typed array path - use indexed fold
-      (arr/indexed-dfold sorted-samples
-                         (fn [^double d-max ^long i ^double x]
-                           (let [f-x (double (cdf-fn x))
-                                 fn-before (/ (double i) n-d)
-                                 fn-after (/ (double (inc i)) n-d)
-                                 d1 (Math/abs (- fn-before f-x))
-                                 d2 (Math/abs (- fn-after f-x))
-                                 d-new (Math/max d1 d2)]
-                             (Math/max d-max d-new)))
-                         0.0)
-      ;; Sequence path
-      (loop [i 0
-             d-max 0.0]
-        (if (>= i n)
-          d-max
-          (let [x (double (sorted-samples i))
-                f-x (double (cdf-fn x))
-                fn-before (/ (double i) n-d)
-                fn-after (/ (double (inc i)) n-d)
-                d1 (Math/abs (- fn-before f-x))
-                d2 (Math/abs (- fn-after f-x))
-                d-new (Math/max d1 d2)]
-            (recur (inc i) (Math/max d-max d-new))))))))
+    (arr/indexed-dfold sorted-samples
+                       (fn [^double d-max ^long i ^double x]
+                         (let [f-x (double (cdf-fn x))
+                               fn-before (/ (double i) n-d)
+                               fn-after (/ (double (inc i)) n-d)
+                               d1 (Math/abs (- fn-before f-x))
+                               d2 (Math/abs (- fn-after f-x))
+                               d-new (Math/max d1 d2)]
+                           (Math/max d-max d-new)))
+                       0.0)))
 
 (defn ks-pvalue
   "Compute asymptotic p-value for Kolmogorov-Smirnov test.
@@ -681,8 +673,10 @@
   Tests whether the sample comes from the specified distribution.
   The null hypothesis is that the sample is drawn from the theoretical distribution.
 
+  Requires a typed array (DoubleArray, LongArray).
+
   Parameters:
-    samples - sequence or typed array of sample values
+    samples - typed array of sample values
     cdf-fn - theoretical CDF function (e.g., (gamma-cdf shape scale))
 
   Returns map with:
@@ -696,6 +690,7 @@
              di distribuzione; Smirnov (1948), Table for estimating the
              goodness of fit of empirical distributions."
   [samples cdf-fn]
+  (require-typed-array! samples "ks-test")
   (let [n (long (data-length samples))
         d (ks-test-statistic samples cdf-fn)
         p (ks-pvalue d n)]
@@ -708,45 +703,30 @@
 
   W² = (1/12n) + Σᵢ₌₁ⁿ [F(xᵢ) - (2i-1)/(2n)]²
 
+  Requires a typed array (DoubleArray, LongArray).
+
   Parameters:
-    samples - sequence or typed array of sample values
+    samples - typed array of sample values
     cdf-fn - theoretical CDF function
 
   Returns the W² statistic."
   ^double [samples cdf-fn]
+  (require-typed-array! samples "cvm-test-statistic")
   (let [n (long (data-length samples))
         _ (when (zero? n)
             (throw (IllegalArgumentException. "samples cannot be empty")))
-        ;; Sort samples - arr/sorted returns a DoubleArray
-        sorted-samples (if (typed-array? samples)
-                         (arr/sorted samples)
-                         (vec (sort samples)))
+        sorted-samples (arr/sorted samples)
         n-d (double n)
         base (/ 1.0 (* 12.0 n-d))
-        sum (if (typed-array? sorted-samples)
-              ;; Typed array path - use indexed fold
-              (arr/indexed-dfold sorted-samples
-                                 (fn [^double acc ^long i ^double x]
-                                   (let [f-x (double (cdf-fn x))
-                                         ;; (2i-1)/(2n) where i is 1-indexed
-                                         expected (/ (- (* 2.0 (double (inc i))) 1.0)
-                                                     (* 2.0 n-d))
-                                         diff (- f-x expected)]
-                                     (+ acc (* diff diff))))
-                                 0.0)
-              ;; Sequence path
-              (double
-               (loop [i 0
-                      acc 0.0]
-                 (if (>= i n)
-                   acc
-                   (let [x (double (sorted-samples i))
-                         f-x (double (cdf-fn x))
-                         ;; (2i-1)/(2n) where i is 1-indexed
-                         expected (/ (- (* 2.0 (double (inc i))) 1.0)
-                                     (* 2.0 n-d))
-                         diff (- f-x expected)]
-                     (recur (inc i) (+ acc (* diff diff))))))))]
+        sum (arr/indexed-dfold sorted-samples
+                               (fn [^double acc ^long i ^double x]
+                                 (let [f-x (double (cdf-fn x))
+                                       ;; (2i-1)/(2n) where i is 1-indexed
+                                       expected (/ (- (* 2.0 (double (inc i))) 1.0)
+                                                   (* 2.0 n-d))
+                                       diff (- f-x expected)]
+                                   (+ acc (* diff diff))))
+                               0.0)]
     (+ base (double sum))))
 
 (defn cvm-pvalue
@@ -793,8 +773,10 @@
   W² is more sensitive to differences in the tails than K-S, and gives
   equal weight to all parts of the distribution.
 
+  Requires a typed array (DoubleArray, LongArray).
+
   Parameters:
-    samples - sequence or typed array of sample values
+    samples - typed array of sample values
     cdf-fn - theoretical CDF function (e.g., (gamma-cdf shape scale))
 
   Returns map with:
@@ -807,6 +789,7 @@
   Reference: Cramér (1928), On the composition of elementary errors;
              von Mises (1931), Wahrscheinlichkeitsrechnung."
   [samples cdf-fn]
+  (require-typed-array! samples "cvm-test")
   (let [n (long (data-length samples))
         w2 (cvm-test-statistic samples cdf-fn)
         p (cvm-pvalue w2 n)]

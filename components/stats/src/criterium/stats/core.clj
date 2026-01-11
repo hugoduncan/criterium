@@ -1,8 +1,8 @@
 (ns criterium.stats.core
   "Core statistical functions: min, max, mean, sum, variance, median, quartiles, quantile.
 
-  Functions accept both sequences and typed arrays (ITypedArray).
-  For typed arrays, primitive-optimized implementations are used."
+  All functions require typed arrays (ITypedArray) as input.
+  Primitive-optimized implementations avoid boxing overhead."
   (:refer-clojure :exclude [min max])
   (:require
    criterium.array.interface
@@ -21,6 +21,15 @@
   "Returns true if data is a typed array."
   [data]
   (instance? ITypedArray data))
+
+(defn- require-typed-array!
+  "Throws if data is not a typed array."
+  [data fn-name]
+  (when-not (typed-array? data)
+    (throw (ex-info (str fn-name " requires a typed array, got: " (type data))
+                    {:fn fn-name
+                     :type (type data)
+                     :data data}))))
 
 (defn- typed-array-length
   "Returns the length of a typed array."
@@ -49,21 +58,19 @@
 
 (defn min
   "Minimum value in data.
-  Accepts sequences and typed arrays (ITypedArray)."
+  Requires a typed array (ITypedArray)."
   ([data]
-   (if (typed-array? data)
-     (typed-array-fold-double data dmin Double/MAX_VALUE)
-     (reduce clojure.core/min data)))
+   (require-typed-array! data "min")
+   (typed-array-fold-double data dmin Double/MAX_VALUE))
   ([data _count]
    (min data)))
 
 (defn max
   "Maximum value in data.
-  Accepts sequences and typed arrays (ITypedArray)."
+  Requires a typed array (ITypedArray)."
   ([data]
-   (if (typed-array? data)
-     (typed-array-fold-double data dmax Double/MIN_VALUE)
-     (reduce clojure.core/max data)))
+   (require-typed-array! data "max")
+   (typed-array-fold-double data dmax Double/MIN_VALUE))
   ([data _count]
    (max data)))
 
@@ -74,47 +81,39 @@
 
 (defn mean
   "Arithmetic mean of data.
-  Accepts sequences and typed arrays (ITypedArray)."
+  Requires a typed array (ITypedArray)."
   (^double [data]
-   (if (typed-array? data)
-     (let [c (typed-array-length data)]
-       (when (pos? c)
-         (/ (typed-array-fold-double data unchecked-add-d 0.0) c)))
-     (let [c (count data)]
-       (when (pos? c)
-         (/ (double (reduce unchecked-add-d 0.0 data)) c)))))
+   (require-typed-array! data "mean")
+   (let [c (typed-array-length data)]
+     (when (pos? c)
+       (/ (typed-array-fold-double data unchecked-add-d 0.0) c))))
   (^double [data ^long count]
-   (if (typed-array? data)
-     (/ (typed-array-fold-double data unchecked-add-d 0.0) count)
-     (/ (double (reduce unchecked-add-d 0.0 data)) count))))
+   (require-typed-array! data "mean")
+   (/ (typed-array-fold-double data unchecked-add-d 0.0) count)))
 
 (defn sum
   "Sum of each data point.
-  Accepts sequences and typed arrays (ITypedArray)."
+  Requires a typed array (ITypedArray)."
   [data]
-  (if (typed-array? data)
-    (typed-array-fold-double data unchecked-add-d 0.0)
-    (reduce + data)))
+  (require-typed-array! data "sum")
+  (typed-array-fold-double data unchecked-add-d 0.0))
 
 (defn sum-of-squares
   "Sum of the squares of each data point.
-  Accepts sequences and typed arrays (ITypedArray)."
+  Requires a typed array (ITypedArray)."
   [data]
+  (require-typed-array! data "sum-of-squares")
   (let [f (fn ^double [^double s ^double v] (+ s (* v v)))]
-    (if (typed-array? data)
-      (typed-array-fold-double data f 0.0)
-      (reduce f 0.0 data))))
+    (typed-array-fold-double data f 0.0)))
 
 (defn variance*
   "Variance based on subtracting mean.
-  Accepts sequences and typed arrays (ITypedArray)."
+  Requires a typed array (ITypedArray)."
   ^double [data ^double mean ^long df]
+  (require-typed-array! data "variance*")
   (let [f (fn ^double [^double a ^double b]
             (+ a (utils/sqr (- b mean))))]
-    (/ (if (typed-array? data)
-         (typed-array-fold-double data f 0.0)
-         (double (reduce f 0.0 data)))
-       df)))
+    (/ (typed-array-fold-double data f 0.0) df)))
 
 (defn- variance-typed-array
   "Single-pass variance computation for typed arrays."
@@ -148,114 +147,91 @@
   The population variance can be returned using (variance data 0), which uses
   (count data) degrees of freedom.
 
-  Accepts sequences and typed arrays (ITypedArray).
+  Requires a typed array (ITypedArray).
 
   Ref: Chan et al. Algorithms for computing the sample variance: analysis and
        recommendations. American Statistician (1983)."
   (^double [data] (variance data 1))
   (^double [data ^long df]
-   (if (typed-array? data)
-     (variance-typed-array data df)
-     ;; Uses a single pass, non-pairwise algorithm, without shifting.
-     (letfn [(update-estimates [[^double m ^double q ^long k] ^double x]
-               (let [kp1   (inc k)
-                     delta (- x m)]
-                 [(+ m (/ delta kp1))
-                  (+ q (/ (* k (utils/sqr delta)) kp1))
-                  kp1]))]
-       (let [[_ ^double q ^long k] (reduce update-estimates [0.0 0.0 0] data)]
-         (when (> k df)
-           (/ q (- k df))))))))
+   (require-typed-array! data "variance")
+   (variance-typed-array data df)))
 
 (defn median-value
   "Calculate the median value of a sorted data set.
   Returns just the median value (not the lower/upper partitions).
-  Accepts sequences and typed arrays (ITypedArray).
+  Requires a typed array (ITypedArray).
   References: http://en.wikipedia.org/wiki/Median"
   ^double [data]
-  (let [n (if (typed-array? data)
-            (typed-array-length data)
-            (count data))
-        i (bit-shift-right n 1)
-        get-val (if (typed-array? data)
-                  typed-array-get-double
-                  (fn ^double [data ^long idx] (double (nth data idx))))]
+  (require-typed-array! data "median-value")
+  (let [n (typed-array-length data)
+        i (bit-shift-right n 1)]
     (if (even? n)
-      (/ (+ (get-val data (dec i))
-            (get-val data i))
+      (/ (+ (typed-array-get-double data (dec i))
+            (typed-array-get-double data i))
          2.0)
-      (get-val data (bit-shift-right n 1)))))
+      (typed-array-get-double data (bit-shift-right n 1)))))
 
 (defn median
   "Calculate the median of a sorted data set.
-  Return [median, [vals less than median] [vals greater than median]]
-  For typed arrays, returns [median nil nil] (partitions not supported).
+  Return [median nil nil] (partitions not supported for typed arrays).
+  Requires a typed array (ITypedArray).
   References: http://en.wikipedia.org/wiki/Median"
   [data]
-  (if (typed-array? data)
-    [(median-value data) nil nil]
-    (let [n (count data)
-          i (bit-shift-right n 1)]
-      (if (even? n)
-        [(/ (+ (double (nth data (dec i)))
-               (double (nth data i)))
-            2.0)
-         (take i data)
-         (drop i data)]
-        [(nth data (bit-shift-right n 1))
-         (take i data)
-         (drop (inc i) data)]))))
+  (require-typed-array! data "median")
+  [(median-value data) nil nil])
 
 (defn quartiles
   "Calculate the quartiles of a sorted data set.
-   References: http://en.wikipedia.org/wiki/Quartile"
+  Returns [q1 median q3].
+  Requires a typed array (ITypedArray).
+  References: http://en.wikipedia.org/wiki/Quartile"
   [data]
-  (let [[m lower upper] (median data)]
-    [(first (median lower)) m (first (median upper))]))
+  (require-typed-array! data "quartiles")
+  (let [n (typed-array-length data)
+        q1-idx (quot n 4)
+        q3-idx (quot (* 3 n) 4)
+        i (bit-shift-right n 1)
+        med (if (even? n)
+              (/ (+ (typed-array-get-double data (dec i))
+                    (typed-array-get-double data i))
+                 2.0)
+              (typed-array-get-double data i))]
+    [(typed-array-get-double data q1-idx)
+     med
+     (typed-array-get-double data q3-idx)]))
 
 (defn quantile
   "Calculate the quantile of a sorted data set.
-  Accepts sequences and typed arrays (ITypedArray).
+  Requires a typed array (ITypedArray).
   References: http://en.wikipedia.org/wiki/Quantile"
   [^double quantile data]
-  (let [n (dec (if (typed-array? data)
-                 (typed-array-length data)
-                 (count data)))
-        get-val (if (typed-array? data)
-                  typed-array-get-double
-                  (fn ^double [data ^long idx] (double (nth data idx))))
+  (require-typed-array! data "quantile")
+  (let [n (dec (typed-array-length data))
         interp (fn [^double x]
                  (let [f (Math/floor x)
                        i (long f)
                        p (- x f)]
                    (cond
-                     (zero? p) (get-val data i)
-                     (= 1.0 p) (get-val data (inc i))
-                     :else     (+ (* p (get-val data (inc i)))
-                                  (* (- 1.0 p) (get-val data i))))))]
+                     (zero? p) (typed-array-get-double data i)
+                     (= 1.0 p) (typed-array-get-double data (inc i))
+                     :else     (+ (* p (typed-array-get-double data (inc i)))
+                                  (* (- 1.0 p) (typed-array-get-double data i))))))]
     (interp (* quantile n))))
 
 (defn central-moment
   "Compute the r-th central moment: (1/n) * Σ(xᵢ - μ)^r
-  Accepts sequences and typed arrays (ITypedArray)."
+  Requires a typed array (ITypedArray)."
   ^double [data ^double mean ^long r]
-  (let [n (if (typed-array? data)
-            (typed-array-length data)
-            (count data))
+  (require-typed-array! data "central-moment")
+  (let [n (typed-array-length data)
         f (fn ^double [^double acc ^double x]
             (+ acc (Math/pow (- x mean) r)))]
-    (/ (if (typed-array? data)
-         (typed-array-fold-double data f 0.0)
-         (double (reduce f 0.0 data)))
-       n)))
+    (/ (typed-array-fold-double data f 0.0) n)))
 
 (defn- data-count
-  "Returns the count of elements in data.
-  Accepts sequences and typed arrays (ITypedArray)."
+  "Returns the count of elements in a typed array."
   ^long [data]
-  (if (typed-array? data)
-    (typed-array-length data)
-    (count data)))
+  (typed-array-length data))
 
 (defn skewness
   "Compute sample skewness using one of three methods.
@@ -268,7 +244,7 @@
 
   Default is type 2 (unbiased under normality).
   Returns 0.0 for constant data (zero variance), since constant data is symmetric.
-  Accepts sequences and typed arrays (ITypedArray).
+  Requires a typed array (ITypedArray).
 
   Reference: Joanes & Gill (1998), Comparing measures of sample skewness
              and kurtosis. The Statistician, 47, 183-189."
@@ -302,7 +278,7 @@
   Default is type 2 (unbiased under normality). Returns excess kurtosis
   (normal distribution has excess kurtosis of 0).
   Returns 0.0 for constant data (zero variance).
-  Accepts sequences and typed arrays (ITypedArray).
+  Requires a typed array (ITypedArray).
 
   Reference: Joanes & Gill (1998), Comparing measures of sample skewness
              and kurtosis. The Statistician, 47, 183-189."
@@ -332,7 +308,7 @@
   Returns Double/NaN if mean is zero or data has fewer than 2 elements.
   CV is dimensionless and useful for comparing variability across datasets
   with different units or scales.
-  Accepts sequences and typed arrays (ITypedArray)."
+  Requires a typed array (ITypedArray)."
   ^double [data]
   (let [n (data-count data)]
     (if (< n 2)

@@ -4,9 +4,15 @@
   Tests skip gracefully when R/Rserve is unavailable."
   (:require
    [clojure.test :refer [deftest is testing]]
+   [criterium.array :as arr]
    [criterium.r-validation.r :as r :refer [vec->r-str]]
    [criterium.stats.interface :as stats]
    [criterium.test.assert :refer [approx=]]))
+
+(defn- darr
+  "Create a DoubleArray from a sequence."
+  [coll]
+  (arr/->double-array (double-array coll)))
 
 ;;; Test data sets
 ;; Fixed datasets for reproducible validation
@@ -36,37 +42,37 @@
       (do
         (testing "with simple integers"
           (let [r-mean (first (r/r-eval (str "mean(" (vec->r-str simple-integers) ")")))
-                clj-mean (stats/mean simple-integers)]
+                clj-mean (stats/mean (darr simple-integers))]
             (is (approx= r-mean clj-mean 1e-10)
                 (format "mean mismatch: R=%.15f, clj=%.15f" r-mean clj-mean))))
 
         (testing "with simple doubles"
           (let [r-mean (first (r/r-eval (str "mean(" (vec->r-str simple-doubles) ")")))
-                clj-mean (stats/mean simple-doubles)]
+                clj-mean (stats/mean (darr simple-doubles))]
             (is (approx= r-mean clj-mean 1e-10)
                 (format "mean mismatch: R=%.15f, clj=%.15f" r-mean clj-mean))))
 
         (testing "with mixed positive and negative values"
           (let [r-mean (first (r/r-eval (str "mean(" (vec->r-str mixed-signs) ")")))
-                clj-mean (stats/mean mixed-signs)]
+                clj-mean (stats/mean (darr mixed-signs))]
             (is (approx= r-mean clj-mean 1e-10)
                 (format "mean mismatch: R=%.15f, clj=%.15f" r-mean clj-mean))))
 
         (testing "with a single value"
           (let [r-mean (first (r/r-eval (str "mean(" (vec->r-str single-value) ")")))
-                clj-mean (stats/mean single-value)]
+                clj-mean (stats/mean (darr single-value))]
             (is (approx= r-mean clj-mean 1e-10)
                 (format "mean mismatch: R=%.15f, clj=%.15f" r-mean clj-mean))))
 
         (testing "with two values"
           (let [r-mean (first (r/r-eval (str "mean(" (vec->r-str two-values) ")")))
-                clj-mean (stats/mean two-values)]
+                clj-mean (stats/mean (darr two-values))]
             (is (approx= r-mean clj-mean 1e-10)
                 (format "mean mismatch: R=%.15f, clj=%.15f" r-mean clj-mean))))
 
         (testing "with large range of values"
           (let [r-mean (first (r/r-eval (str "mean(" (vec->r-str large-range) ")")))
-                clj-mean (stats/mean large-range)]
+                clj-mean (stats/mean (darr large-range))]
             (is (approx= r-mean clj-mean 1e-10)
                 (format "mean mismatch: R=%.15f, clj=%.15f" r-mean clj-mean))))))))
 
@@ -83,31 +89,31 @@
         (testing "sample variance (df=1)"
           (testing "with simple integers"
             (let [r-var (first (r/r-eval (str "var(" (vec->r-str simple-integers) ")")))
-                  clj-var (stats/variance simple-integers)]
+                  clj-var (stats/variance (darr simple-integers))]
               (is (approx= r-var clj-var 1e-10)
                   (format "variance mismatch: R=%.15f, clj=%.15f" r-var clj-var))))
 
           (testing "with simple doubles"
             (let [r-var (first (r/r-eval (str "var(" (vec->r-str simple-doubles) ")")))
-                  clj-var (stats/variance simple-doubles)]
+                  clj-var (stats/variance (darr simple-doubles))]
               (is (approx= r-var clj-var 1e-10)
                   (format "variance mismatch: R=%.15f, clj=%.15f" r-var clj-var))))
 
           (testing "with mixed positive and negative values"
             (let [r-var (first (r/r-eval (str "var(" (vec->r-str mixed-signs) ")")))
-                  clj-var (stats/variance mixed-signs)]
+                  clj-var (stats/variance (darr mixed-signs))]
               (is (approx= r-var clj-var 1e-10)
                   (format "variance mismatch: R=%.15f, clj=%.15f" r-var clj-var))))
 
           (testing "with two values"
             (let [r-var (first (r/r-eval (str "var(" (vec->r-str two-values) ")")))
-                  clj-var (stats/variance two-values)]
+                  clj-var (stats/variance (darr two-values))]
               (is (approx= r-var clj-var 1e-10)
                   (format "variance mismatch: R=%.15f, clj=%.15f" r-var clj-var))))
 
           (testing "with large range of values"
             (let [r-var (first (r/r-eval (str "var(" (vec->r-str large-range) ")")))
-                  clj-var (stats/variance large-range)]
+                  clj-var (stats/variance (darr large-range))]
               (is (approx= r-var clj-var 1e-10)
                   (format "variance mismatch: R=%.15f, clj=%.15f" r-var clj-var)))))
 
@@ -120,7 +126,7 @@
                   r-var (first (r/r-eval
                                 (str "var(" (vec->r-str simple-integers) ") * "
                                      (dec n) " / " n)))
-                  clj-var (stats/variance simple-integers 0)]
+                  clj-var (stats/variance (darr simple-integers) 0)]
               (is (approx= r-var clj-var 1e-10)
                   (format "population variance mismatch: R=%.15f, clj=%.15f"
                           r-var clj-var))))
@@ -130,7 +136,7 @@
                   r-var (first (r/r-eval
                                 (str "var(" (vec->r-str simple-doubles) ") * "
                                      (dec n) " / " n)))
-                  clj-var (stats/variance simple-doubles 0)]
+                  clj-var (stats/variance (darr simple-doubles) 0)]
               (is (approx= r-var clj-var 1e-10)
                   (format "population variance mismatch: R=%.15f, clj=%.15f"
                           r-var clj-var))))
@@ -140,7 +146,7 @@
                   r-var (first (r/r-eval
                                 (str "var(" (vec->r-str mixed-signs) ") * "
                                      (dec n) " / " n)))
-                  clj-var (stats/variance mixed-signs 0)]
+                  clj-var (stats/variance (darr mixed-signs) 0)]
               (is (approx= r-var clj-var 1e-10)
                   (format "population variance mismatch: R=%.15f, clj=%.15f"
                           r-var clj-var)))))))))
@@ -157,56 +163,56 @@
         (testing "with simple integers"
           (let [sorted (vec (sort simple-integers))
                 r-med (first (r/r-eval (str "median(" (vec->r-str sorted) ")")))
-                clj-med (double (first (stats/median sorted)))]
+                clj-med (double (first (stats/median (darr sorted))))]
             (is (approx= r-med clj-med 1e-10)
                 (format "median mismatch: R=%.15f, clj=%.15f" r-med clj-med))))
 
         (testing "with simple doubles"
           (let [sorted (vec (sort simple-doubles))
                 r-med (first (r/r-eval (str "median(" (vec->r-str sorted) ")")))
-                clj-med (double (first (stats/median sorted)))]
+                clj-med (double (first (stats/median (darr sorted))))]
             (is (approx= r-med clj-med 1e-10)
                 (format "median mismatch: R=%.15f, clj=%.15f" r-med clj-med))))
 
         (testing "with mixed positive and negative values"
           (let [sorted (vec (sort mixed-signs))
                 r-med (first (r/r-eval (str "median(" (vec->r-str sorted) ")")))
-                clj-med (double (first (stats/median sorted)))]
+                clj-med (double (first (stats/median (darr sorted))))]
             (is (approx= r-med clj-med 1e-10)
                 (format "median mismatch: R=%.15f, clj=%.15f" r-med clj-med))))
 
         (testing "with a single value"
           (let [sorted (vec (sort single-value))
                 r-med (first (r/r-eval (str "median(" (vec->r-str sorted) ")")))
-                clj-med (double (first (stats/median sorted)))]
+                clj-med (double (first (stats/median (darr sorted))))]
             (is (approx= r-med clj-med 1e-10)
                 (format "median mismatch: R=%.15f, clj=%.15f" r-med clj-med))))
 
         (testing "with two values"
           (let [sorted (vec (sort two-values))
                 r-med (first (r/r-eval (str "median(" (vec->r-str sorted) ")")))
-                clj-med (double (first (stats/median sorted)))]
+                clj-med (double (first (stats/median (darr sorted))))]
             (is (approx= r-med clj-med 1e-10)
                 (format "median mismatch: R=%.15f, clj=%.15f" r-med clj-med))))
 
         (testing "with large range of values"
           (let [sorted (vec (sort large-range))
                 r-med (first (r/r-eval (str "median(" (vec->r-str sorted) ")")))
-                clj-med (double (first (stats/median sorted)))]
+                clj-med (double (first (stats/median (darr sorted))))]
             (is (approx= r-med clj-med 1e-10)
                 (format "median mismatch: R=%.15f, clj=%.15f" r-med clj-med))))
 
         (testing "with odd number of elements"
           (let [sorted [1 2 3 4 5]
                 r-med (first (r/r-eval (str "median(" (vec->r-str sorted) ")")))
-                clj-med (double (first (stats/median sorted)))]
+                clj-med (double (first (stats/median (darr sorted))))]
             (is (approx= r-med clj-med 1e-10)
                 (format "median mismatch: R=%.15f, clj=%.15f" r-med clj-med))))
 
         (testing "with even number of elements"
           (let [sorted [1 2 3 4 5 6]
                 r-med (first (r/r-eval (str "median(" (vec->r-str sorted) ")")))
-                clj-med (double (first (stats/median sorted)))]
+                clj-med (double (first (stats/median (darr sorted))))]
             (is (approx= r-med clj-med 1e-10)
                 (format "median mismatch: R=%.15f, clj=%.15f" r-med clj-med))))))))
 
@@ -226,7 +232,7 @@
               (testing (str "at quantile " q)
                 (let [r-q (first (r/r-eval
                                   (str "quantile(" (vec->r-str sorted) ", " q ", type=7)")))
-                      clj-q (double (stats/quantile q sorted))]
+                      clj-q (double (stats/quantile q (darr sorted)))]
                   (is (approx= r-q clj-q 1e-10)
                       (format "quantile mismatch at q=%.2f: R=%.15f, clj=%.15f"
                               q r-q clj-q)))))))
@@ -237,7 +243,7 @@
               (testing (str "at quantile " q)
                 (let [r-q (first (r/r-eval
                                   (str "quantile(" (vec->r-str sorted) ", " q ", type=7)")))
-                      clj-q (double (stats/quantile q sorted))]
+                      clj-q (double (stats/quantile q (darr sorted)))]
                   (is (approx= r-q clj-q 1e-10)
                       (format "quantile mismatch at q=%.2f: R=%.15f, clj=%.15f"
                               q r-q clj-q)))))))
@@ -248,7 +254,7 @@
               (testing (str "at quantile " q)
                 (let [r-q (first (r/r-eval
                                   (str "quantile(" (vec->r-str sorted) ", " q ", type=7)")))
-                      clj-q (double (stats/quantile q sorted))]
+                      clj-q (double (stats/quantile q (darr sorted)))]
                   (is (approx= r-q clj-q 1e-10)
                       (format "quantile mismatch at q=%.2f: R=%.15f, clj=%.15f"
                               q r-q clj-q)))))))
@@ -259,7 +265,7 @@
               (testing (str "at quantile " q)
                 (let [r-q (first (r/r-eval
                                   (str "quantile(" (vec->r-str sorted) ", " q ", type=7)")))
-                      clj-q (double (stats/quantile q sorted))]
+                      clj-q (double (stats/quantile q (darr sorted)))]
                   (is (approx= r-q clj-q 1e-10)
                       (format "quantile mismatch at q=%.2f: R=%.15f, clj=%.15f"
                               q r-q clj-q)))))))
@@ -270,7 +276,7 @@
               (testing (str "at quantile " q)
                 (let [r-q (first (r/r-eval
                                   (str "quantile(" (vec->r-str sorted) ", " q ", type=7)")))
-                      clj-q (double (stats/quantile q sorted))]
+                      clj-q (double (stats/quantile q (darr sorted)))]
                   (is (approx= r-q clj-q 1e-10)
                       (format "quantile mismatch at q=%.2f: R=%.15f, clj=%.15f"
                               q r-q clj-q)))))))
@@ -281,7 +287,7 @@
               (testing (str "at quantile " q)
                 (let [r-q (first (r/r-eval
                                   (str "quantile(" (vec->r-str sorted) ", " q ", type=7)")))
-                      clj-q (double (stats/quantile q sorted))]
+                      clj-q (double (stats/quantile q (darr sorted)))]
                   (is (approx= r-q clj-q 1e-10)
                       (format "quantile mismatch at q=%.2f: R=%.15f, clj=%.15f"
                               q r-q clj-q)))))))
@@ -292,7 +298,7 @@
               (testing (str "at quantile " q)
                 (let [r-q (first (r/r-eval
                                   (str "quantile(" (vec->r-str sorted) ", " q ", type=7)")))
-                      clj-q (double (stats/quantile q sorted))]
+                      clj-q (double (stats/quantile q (darr sorted)))]
                   (is (approx= r-q clj-q 1e-10)
                       (format "quantile mismatch at q=%.2f: R=%.15f, clj=%.15f"
                               q r-q clj-q)))))))))))
@@ -317,7 +323,7 @@
             (let [r-skew (first (r/r-eval
                                  (str "e1071::skewness(" (vec->r-str simple-integers)
                                       ", type=1)")))
-                  clj-skew (stats/skewness simple-integers 1)]
+                  clj-skew (stats/skewness (darr simple-integers) 1)]
               (is (approx= r-skew clj-skew 1e-10)
                   (format "skewness mismatch: R=%.15f, clj=%.15f" r-skew clj-skew))))
 
@@ -325,7 +331,7 @@
             (let [r-skew (first (r/r-eval
                                  (str "e1071::skewness(" (vec->r-str simple-doubles)
                                       ", type=1)")))
-                  clj-skew (stats/skewness simple-doubles 1)]
+                  clj-skew (stats/skewness (darr simple-doubles) 1)]
               (is (approx= r-skew clj-skew 1e-10)
                   (format "skewness mismatch: R=%.15f, clj=%.15f" r-skew clj-skew))))
 
@@ -333,7 +339,7 @@
             (let [r-skew (first (r/r-eval
                                  (str "e1071::skewness(" (vec->r-str right-skewed)
                                       ", type=1)")))
-                  clj-skew (stats/skewness right-skewed 1)]
+                  clj-skew (stats/skewness (darr right-skewed) 1)]
               (is (approx= r-skew clj-skew 1e-10)
                   (format "skewness mismatch: R=%.15f, clj=%.15f" r-skew clj-skew))))
 
@@ -341,7 +347,7 @@
             (let [r-skew (first (r/r-eval
                                  (str "e1071::skewness(" (vec->r-str mixed-signs)
                                       ", type=1)")))
-                  clj-skew (stats/skewness mixed-signs 1)]
+                  clj-skew (stats/skewness (darr mixed-signs) 1)]
               (is (approx= r-skew clj-skew 1e-10)
                   (format "skewness mismatch: R=%.15f, clj=%.15f" r-skew clj-skew)))))
 
@@ -350,7 +356,7 @@
             (let [r-skew (first (r/r-eval
                                  (str "e1071::skewness(" (vec->r-str simple-integers)
                                       ", type=2)")))
-                  clj-skew (stats/skewness simple-integers 2)]
+                  clj-skew (stats/skewness (darr simple-integers) 2)]
               (is (approx= r-skew clj-skew 1e-10)
                   (format "skewness mismatch: R=%.15f, clj=%.15f" r-skew clj-skew))))
 
@@ -358,7 +364,7 @@
             (let [r-skew (first (r/r-eval
                                  (str "e1071::skewness(" (vec->r-str simple-doubles)
                                       ", type=2)")))
-                  clj-skew (stats/skewness simple-doubles 2)]
+                  clj-skew (stats/skewness (darr simple-doubles) 2)]
               (is (approx= r-skew clj-skew 1e-10)
                   (format "skewness mismatch: R=%.15f, clj=%.15f" r-skew clj-skew))))
 
@@ -366,7 +372,7 @@
             (let [r-skew (first (r/r-eval
                                  (str "e1071::skewness(" (vec->r-str right-skewed)
                                       ", type=2)")))
-                  clj-skew (stats/skewness right-skewed 2)]
+                  clj-skew (stats/skewness (darr right-skewed) 2)]
               (is (approx= r-skew clj-skew 1e-10)
                   (format "skewness mismatch: R=%.15f, clj=%.15f" r-skew clj-skew))))
 
@@ -374,7 +380,7 @@
             (let [r-skew (first (r/r-eval
                                  (str "e1071::skewness(" (vec->r-str simple-doubles)
                                       ", type=2)")))
-                  clj-skew (stats/skewness simple-doubles)]
+                  clj-skew (stats/skewness (darr simple-doubles))]
               (is (approx= r-skew clj-skew 1e-10)
                   (format "default skewness mismatch: R=%.15f, clj=%.15f"
                           r-skew clj-skew)))))
@@ -384,7 +390,7 @@
             (let [r-skew (first (r/r-eval
                                  (str "e1071::skewness(" (vec->r-str simple-integers)
                                       ", type=3)")))
-                  clj-skew (stats/skewness simple-integers 3)]
+                  clj-skew (stats/skewness (darr simple-integers) 3)]
               (is (approx= r-skew clj-skew 1e-10)
                   (format "skewness mismatch: R=%.15f, clj=%.15f" r-skew clj-skew))))
 
@@ -392,7 +398,7 @@
             (let [r-skew (first (r/r-eval
                                  (str "e1071::skewness(" (vec->r-str simple-doubles)
                                       ", type=3)")))
-                  clj-skew (stats/skewness simple-doubles 3)]
+                  clj-skew (stats/skewness (darr simple-doubles) 3)]
               (is (approx= r-skew clj-skew 1e-10)
                   (format "skewness mismatch: R=%.15f, clj=%.15f" r-skew clj-skew))))
 
@@ -400,7 +406,7 @@
             (let [r-skew (first (r/r-eval
                                  (str "e1071::skewness(" (vec->r-str right-skewed)
                                       ", type=3)")))
-                  clj-skew (stats/skewness right-skewed 3)]
+                  clj-skew (stats/skewness (darr right-skewed) 3)]
               (is (approx= r-skew clj-skew 1e-10)
                   (format "skewness mismatch: R=%.15f, clj=%.15f" r-skew clj-skew)))))))))
 
@@ -423,7 +429,7 @@
             (let [r-kurt (first (r/r-eval
                                  (str "e1071::kurtosis(" (vec->r-str simple-integers)
                                       ", type=1)")))
-                  clj-kurt (stats/kurtosis simple-integers 1)]
+                  clj-kurt (stats/kurtosis (darr simple-integers) 1)]
               (is (approx= r-kurt clj-kurt 1e-10)
                   (format "kurtosis mismatch: R=%.15f, clj=%.15f" r-kurt clj-kurt))))
 
@@ -431,7 +437,7 @@
             (let [r-kurt (first (r/r-eval
                                  (str "e1071::kurtosis(" (vec->r-str simple-doubles)
                                       ", type=1)")))
-                  clj-kurt (stats/kurtosis simple-doubles 1)]
+                  clj-kurt (stats/kurtosis (darr simple-doubles) 1)]
               (is (approx= r-kurt clj-kurt 1e-10)
                   (format "kurtosis mismatch: R=%.15f, clj=%.15f" r-kurt clj-kurt))))
 
@@ -439,7 +445,7 @@
             (let [r-kurt (first (r/r-eval
                                  (str "e1071::kurtosis(" (vec->r-str right-skewed)
                                       ", type=1)")))
-                  clj-kurt (stats/kurtosis right-skewed 1)]
+                  clj-kurt (stats/kurtosis (darr right-skewed) 1)]
               (is (approx= r-kurt clj-kurt 1e-10)
                   (format "kurtosis mismatch: R=%.15f, clj=%.15f" r-kurt clj-kurt))))
 
@@ -447,7 +453,7 @@
             (let [r-kurt (first (r/r-eval
                                  (str "e1071::kurtosis(" (vec->r-str mixed-signs)
                                       ", type=1)")))
-                  clj-kurt (stats/kurtosis mixed-signs 1)]
+                  clj-kurt (stats/kurtosis (darr mixed-signs) 1)]
               (is (approx= r-kurt clj-kurt 1e-10)
                   (format "kurtosis mismatch: R=%.15f, clj=%.15f" r-kurt clj-kurt)))))
 
@@ -456,7 +462,7 @@
             (let [r-kurt (first (r/r-eval
                                  (str "e1071::kurtosis(" (vec->r-str simple-integers)
                                       ", type=2)")))
-                  clj-kurt (stats/kurtosis simple-integers 2)]
+                  clj-kurt (stats/kurtosis (darr simple-integers) 2)]
               (is (approx= r-kurt clj-kurt 1e-10)
                   (format "kurtosis mismatch: R=%.15f, clj=%.15f" r-kurt clj-kurt))))
 
@@ -464,7 +470,7 @@
             (let [r-kurt (first (r/r-eval
                                  (str "e1071::kurtosis(" (vec->r-str simple-doubles)
                                       ", type=2)")))
-                  clj-kurt (stats/kurtosis simple-doubles 2)]
+                  clj-kurt (stats/kurtosis (darr simple-doubles) 2)]
               (is (approx= r-kurt clj-kurt 1e-10)
                   (format "kurtosis mismatch: R=%.15f, clj=%.15f" r-kurt clj-kurt))))
 
@@ -472,7 +478,7 @@
             (let [r-kurt (first (r/r-eval
                                  (str "e1071::kurtosis(" (vec->r-str right-skewed)
                                       ", type=2)")))
-                  clj-kurt (stats/kurtosis right-skewed 2)]
+                  clj-kurt (stats/kurtosis (darr right-skewed) 2)]
               (is (approx= r-kurt clj-kurt 1e-10)
                   (format "kurtosis mismatch: R=%.15f, clj=%.15f" r-kurt clj-kurt))))
 
@@ -480,7 +486,7 @@
             (let [r-kurt (first (r/r-eval
                                  (str "e1071::kurtosis(" (vec->r-str simple-doubles)
                                       ", type=2)")))
-                  clj-kurt (stats/kurtosis simple-doubles)]
+                  clj-kurt (stats/kurtosis (darr simple-doubles))]
               (is (approx= r-kurt clj-kurt 1e-10)
                   (format "default kurtosis mismatch: R=%.15f, clj=%.15f"
                           r-kurt clj-kurt)))))
@@ -490,7 +496,7 @@
             (let [r-kurt (first (r/r-eval
                                  (str "e1071::kurtosis(" (vec->r-str simple-integers)
                                       ", type=3)")))
-                  clj-kurt (stats/kurtosis simple-integers 3)]
+                  clj-kurt (stats/kurtosis (darr simple-integers) 3)]
               (is (approx= r-kurt clj-kurt 1e-10)
                   (format "kurtosis mismatch: R=%.15f, clj=%.15f" r-kurt clj-kurt))))
 
@@ -498,7 +504,7 @@
             (let [r-kurt (first (r/r-eval
                                  (str "e1071::kurtosis(" (vec->r-str simple-doubles)
                                       ", type=3)")))
-                  clj-kurt (stats/kurtosis simple-doubles 3)]
+                  clj-kurt (stats/kurtosis (darr simple-doubles) 3)]
               (is (approx= r-kurt clj-kurt 1e-10)
                   (format "kurtosis mismatch: R=%.15f, clj=%.15f" r-kurt clj-kurt))))
 
@@ -506,7 +512,7 @@
             (let [r-kurt (first (r/r-eval
                                  (str "e1071::kurtosis(" (vec->r-str right-skewed)
                                       ", type=3)")))
-                  clj-kurt (stats/kurtosis right-skewed 3)]
+                  clj-kurt (stats/kurtosis (darr right-skewed) 3)]
               (is (approx= r-kurt clj-kurt 1e-10)
                   (format "kurtosis mismatch: R=%.15f, clj=%.15f" r-kurt clj-kurt)))))))))
 
@@ -523,7 +529,7 @@
           (let [r-cv (first (r/r-eval
                              (str "sd(" (vec->r-str simple-integers)
                                   ") / mean(" (vec->r-str simple-integers) ")")))
-                clj-cv (stats/cv simple-integers)]
+                clj-cv (stats/cv (darr simple-integers))]
             (is (approx= r-cv clj-cv 1e-10)
                 (format "cv mismatch: R=%.15f, clj=%.15f" r-cv clj-cv))))
 
@@ -531,7 +537,7 @@
           (let [r-cv (first (r/r-eval
                              (str "sd(" (vec->r-str simple-doubles)
                                   ") / mean(" (vec->r-str simple-doubles) ")")))
-                clj-cv (stats/cv simple-doubles)]
+                clj-cv (stats/cv (darr simple-doubles))]
             (is (approx= r-cv clj-cv 1e-10)
                 (format "cv mismatch: R=%.15f, clj=%.15f" r-cv clj-cv))))
 
@@ -539,7 +545,7 @@
           (let [r-cv (first (r/r-eval
                              (str "sd(" (vec->r-str right-skewed)
                                   ") / mean(" (vec->r-str right-skewed) ")")))
-                clj-cv (stats/cv right-skewed)]
+                clj-cv (stats/cv (darr right-skewed))]
             (is (approx= r-cv clj-cv 1e-10)
                 (format "cv mismatch: R=%.15f, clj=%.15f" r-cv clj-cv))))
 
@@ -547,6 +553,6 @@
           (let [r-cv (first (r/r-eval
                              (str "sd(" (vec->r-str large-range)
                                   ") / mean(" (vec->r-str large-range) ")")))
-                clj-cv (stats/cv large-range)]
+                clj-cv (stats/cv (darr large-range))]
             (is (approx= r-cv clj-cv 1e-10)
                 (format "cv mismatch: R=%.15f, clj=%.15f" r-cv clj-cv))))))))

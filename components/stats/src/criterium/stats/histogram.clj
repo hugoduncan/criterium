@@ -5,7 +5,7 @@
   - :freedman-diaconis (default) - Uses IQR-based bin width calculation
   - :knuth - Bayesian optimal bin count selection
 
-  Accepts both sequences/vectors and typed arrays (DoubleArray, LongArray)."
+  All functions require typed arrays (DoubleArray, LongArray)."
   (:require
    [clojure.math :as math]
    [criterium.array :as arr]
@@ -23,33 +23,36 @@
   (or (instance? DoubleArray x)
       (instance? LongArray x)))
 
+(defn- require-typed-array!
+  "Throws if data is not a typed array."
+  [data fn-name]
+  (when-not (typed-array? data)
+    (throw (ex-info (str fn-name " requires a typed array, got: " (type data))
+                    {:fn fn-name
+                     :type (type data)
+                     :data data}))))
+
 (defn- data-length
-  "Returns the length of data, supporting both sequences and typed arrays."
-  ^long [data]
-  (if (typed-array? data)
-    (.length ^ITypedArray data)
-    (count data)))
+  "Returns the length of a typed array."
+  ^long [^ITypedArray data]
+  (.length data))
 
 (defn- data-empty?
-  "Returns true if data is empty, supporting both sequences and typed arrays."
-  [data]
-  (if (typed-array? data)
-    (zero? (.length ^ITypedArray data))
-    (empty? data)))
+  "Returns true if typed array is empty."
+  [^ITypedArray data]
+  (zero? (.length data)))
 
 (defn- data-min-max
-  "Returns [min max] for data, supporting both sequences and typed arrays."
+  "Returns [min max] for typed array data."
   [data]
-  (if (typed-array? data)
-    (let [init-min Double/POSITIVE_INFINITY
-          init-max Double/NEGATIVE_INFINITY
-          [mn mx] (arr/dfold data
-                             (fn [acc ^double v]
-                               (let [[^double min-v ^double max-v] acc]
-                                 [(min min-v v) (max max-v v)]))
-                             [init-min init-max])]
-      [(double mn) (double mx)])
-    [(reduce min data) (reduce max data)]))
+  (let [init-min Double/POSITIVE_INFINITY
+        init-max Double/NEGATIVE_INFINITY
+        [mn mx] (arr/dfold data
+                           (fn [acc ^double v]
+                             (let [[^double min-v ^double max-v] acc]
+                               [(min min-v v) (max max-v v)]))
+                           [init-min init-max])]
+    [(double mn) (double mx)]))
 
 ;;; Quartile computation
 
@@ -64,12 +67,9 @@
      (aget sorted-data q3-idx)]))
 
 (defn- compute-iqr
-  "Compute Interquartile Range (IQR) from data.
-   Accepts sequences or typed arrays."
+  "Compute Interquartile Range (IQR) from typed array data."
   ^double [data]
-  (let [sorted  (if (typed-array? data)
-                  (.array ^DoubleArray (arr/sorted data))
-                  (double-array (sort data)))
+  (let [sorted  (.array ^DoubleArray (arr/sorted data))
         [q1 q3] (quartiles sorted)]
     (- (double q3) (double q1))))
 
@@ -113,26 +113,8 @@
      :width    width
      :num-bins num-bins}))
 
-(defn- count-values-in-bins-seq
-  "Count number of sequence values falling into each bin"
-  [values edges]
-  (let [bins     (int-array (dec (count edges)))
-        last-idx (dec (alength bins))]
-    (doseq [v values]
-      (loop [idx 0]
-        (when (< idx (count bins))
-          (let [v     (double v)
-                lower (double (nth edges idx))
-                upper (double  (nth edges (inc idx)))]
-            (if (or (and (<= lower v) (< v upper))
-                    (and (= idx last-idx) (<= lower v) (<= v upper)))
-              (aset bins idx (inc (aget bins idx)))
-              (when (< idx last-idx)
-                (recur (inc idx))))))))
-    (vec bins)))
-
-(defn- count-values-in-bins-typed
-  "Count number of typed array values falling into each bin"
+(defn- count-values-in-bins
+  "Count number of typed array values falling into each bin."
   [data edges]
   (let [bins     (int-array (dec (count edges)))
         last-idx (dec (alength bins))
@@ -151,14 +133,6 @@
                  nil)
                nil)
     (vec bins)))
-
-(defn- count-values-in-bins
-  "Count number of values falling into each bin.
-   Accepts sequences or typed arrays."
-  [data edges]
-  (if (typed-array? data)
-    (count-values-in-bins-typed data edges)
-    (count-values-in-bins-seq data edges)))
 
 (defn- compute-density
   "Compute probability density for each bin"
@@ -208,13 +182,13 @@
      :log-posterior log-posterior}))
 
 (defn histogram
-  "Compute histogram from data (sequence or typed array).
+  "Compute histogram from typed array data.
 
   Supports multiple binning methods via the :method option:
   - :freedman-diaconis (default) - Uses IQR-based bin width calculation
   - :knuth - Bayesian optimal bin count selection
 
-  Accepts sequences, vectors, or typed arrays (DoubleArray, LongArray).
+  Requires a typed array (DoubleArray, LongArray).
 
   Options:
     :method   - Binning method (:freedman-diaconis or :knuth)
@@ -244,6 +218,7 @@
   ([data]
    (histogram data {}))
   ([data opts-or-iqr]
+   (require-typed-array! data "histogram")
    (when (data-empty? data)
      (throw (ex-info
              "Input cannot be empty"
