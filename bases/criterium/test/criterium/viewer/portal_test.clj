@@ -87,7 +87,7 @@
                              :portal
                              {}
                              (:data (test-data/samples-with-2-values-map))))]
-        (is (= [{:elapsed-time 1.0, :x 0.0, :p 0}
+        (is (= [{:elapsed-time 1.0, :x 0.0, :p 0.0}
                 {:elapsed-time 1.0, :x 1.0, :p 100.0}]
                (-> chart :vconcat first :layer first :data :values)))
         (is (= [:b "Percentiles"] title))))))

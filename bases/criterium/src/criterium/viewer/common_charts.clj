@@ -430,21 +430,17 @@
         ;; Transform and sort samples
         transformed (arr/dmap samples #(util/transform-sample-> % transforms))
         sorted-arr (arr/sorted transformed)
-        vs (arr/to-double-vec sorted-arr)
-        n (count vs)
+        n (arr/length sorted-arr)
         max-val (Math/log10 (double n))
-        xs (mapv
-            #(/ (- max-val (Math/log10 (- n (double %)))) max-val)
-            (range 0 n))
         delta (/ 100.0 (dec n))
-        percentiles (take n
-                          (iterate
-                           #(+ delta (double %)) 0))
-        data (mapv
-              #(hash-map k %1 :p %2 :x %3)
-              vs
-              percentiles
-              xs)]
+        ;; Build data directly from typed array
+        data (arr/indexed-dfold
+              sorted-arr
+              (fn [acc ^long i ^double v]
+                (let [x (/ (- max-val (Math/log10 (- n (double i)))) max-val)
+                      p (* delta (double i))]
+                  (conj acc {k v :p p :x x})))
+              [])]
     {:data {:values data
             :name "vals"}
 
@@ -478,12 +474,14 @@
   (let [path (:path metric)
         k (first path)
         field-name (name k)
-        vs (arr/to-double-vec (arr/sorted (get samples path)))
-        min-v (double (first vs))
-        diffs (-> (mapv
-                   #(- (double %) min-v)
-                   vs)
-                  sort
+        sorted-arr (arr/sorted (get samples path))
+        min-v (double (arr/first-element sorted-arr))
+        ;; Build diffs directly from typed array
+        diffs (-> (arr/dfold
+                   sorted-arr
+                   (fn [acc ^double v]
+                     (conj acc (- v min-v)))
+                   [])
                   distinct
                   vec)
         data (mapv
