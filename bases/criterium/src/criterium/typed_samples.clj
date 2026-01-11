@@ -11,7 +11,8 @@
    [criterium.typed-samples.interface])
   (:import
    [criterium.typed_samples.interface
-    ITypedSamples IFold IDoubleFold ILongFold IDoubleObjectFold ILongObjectFold]))
+    ITypedSamples IFold IDoubleFold ILongFold IDoubleObjectFold ILongObjectFold
+    ISampleOps]))
 
 (deftype DoubleSamples [^doubles array]
   ITypedSamples
@@ -58,6 +59,16 @@
                  (.invokePrim f acc (aget array i)))
           acc))))
 
+  IDoubleFold
+  (^double fold [_ ^clojure.lang.IFn$DDD f ^double init]
+    (let [len (alength array)]
+      (loop [i   0
+             acc init]
+        (if (< i len)
+          (recur (unchecked-inc i)
+                 (.invokePrim f acc (double (aget array i))))
+          acc))))
+
   ILongObjectFold
   (foldObject [_ ^clojure.lang.IFn$OLO f init]
     (let [len (alength array)]
@@ -66,6 +77,16 @@
         (if (< i len)
           (recur (unchecked-inc i)
                  (.invokePrim f acc (aget array i)))
+          acc))))
+
+  IDoubleObjectFold
+  (foldObject [_ ^clojure.lang.IFn$ODO f init]
+    (let [len (alength array)]
+      (loop [i   0
+             acc init]
+        (if (< i len)
+          (recur (unchecked-inc i)
+                 (.invokePrim f acc (double (aget array i))))
           acc))))
 
   IFold
@@ -93,6 +114,65 @@
   ^long [^ITypedSamples samples]
   (.sampleCount samples))
 
+(deftype SampleOps []
+  ISampleOps
+  (^double sum [_ ^DoubleSamples samples]
+    (let [arr (.array samples)
+          len (alength arr)]
+      (loop [i   0
+             acc 0.0]
+        (if (< i len)
+          (recur (unchecked-inc i)
+                 (+ acc (aget arr i)))
+          acc))))
+  (^long sum [_ ^LongSamples samples]
+    (let [arr (.array samples)
+          len (alength arr)]
+      (loop [i   0
+             acc (long 0)]
+        (if (< i len)
+          (recur (unchecked-inc i)
+                 (+ acc (aget arr i)))
+          acc))))
+  (^long getAt [_ ^LongSamples samples ^long index]
+    (aget ^longs (.array samples) index))
+  (^double getAt [_ ^DoubleSamples samples ^long index]
+    (aget ^doubles (.array samples) index)))
+
+(def ^:private ^ISampleOps sample-ops (SampleOps.))
+
+(defn sum-double
+  "Returns the sum of samples as a primitive double.
+  Works with DoubleSamples."
+  ^double [^DoubleSamples samples]
+  (.sum sample-ops samples))
+
+(defn sum-long
+  "Returns the sum of samples as a primitive long.
+  Only works with LongSamples."
+  ^long [^LongSamples samples]
+  (.sum sample-ops samples))
+
+(defn get-long
+  "Returns the value at index as a primitive long."
+  ^long [^LongSamples samples ^long index]
+  (.getAt sample-ops samples index))
+
+(defn get-double
+  "Returns the value at index as a primitive double."
+  ^double [^DoubleSamples samples ^long index]
+  (.getAt sample-ops samples index))
+
+(defn lpos?
+  "Primitive long positive check."
+  [^long v]
+  (pos? v))
+
+(defn dpos?
+  "Primitive double positive check."
+  [^double v]
+  (pos? v))
+
 (defn fold
   "Reduces over the samples with function f and initial value init.
   f is called as (f acc sample) for each sample.
@@ -101,11 +181,22 @@
   (.fold samples f init))
 
 (defn fold-double
-  "Reduces over double samples with a primitive double function.
+  "Reduces over samples with a primitive double function.
+  Works with both DoubleSamples and LongSamples (longs are converted to doubles).
   f must be (fn ^double [^double acc ^double val] ...).
   Returns a primitive double."
   ^double [^IDoubleFold samples f ^double init]
   (.fold samples f init))
+
+(defn dplus
+  "Primitive double addition for use with fold-double."
+  ^double [^double a ^double b]
+  (+ a b))
+
+(defn lplus
+  "Primitive long addition for use with fold-long."
+  ^long [^long a ^long b]
+  (+ a b))
 
 (defn fold-long
   "Reduces over long samples with a primitive long function.
@@ -115,9 +206,10 @@
   (.fold samples f init))
 
 (defn dfold
-  "Reduces over double samples with an object-returning function.
+  "Reduces over samples with an object-returning function, receiving primitive doubles.
+  Works with both DoubleSamples and LongSamples (longs are converted to doubles).
   f must be (fn [acc ^double val] ...) - receives primitive double, returns Object.
-  Use this when accumulating into a collection from DoubleSamples."
+  Use this when accumulating into a collection."
   [^IDoubleObjectFold samples f init]
   (.foldObject samples f init))
 

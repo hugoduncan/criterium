@@ -19,3 +19,9 @@
 
 (definterface ILongObjectFold
   (foldObject [^clojure.lang.IFn$OLO f init]))
+
+(definterface ISampleOps
+  (^double sum [^criterium.typed_samples.DoubleSamples samples])
+  (^long sum [^criterium.typed_samples.LongSamples samples])
+  (^long getAt [^criterium.typed_samples.LongSamples samples ^long index])
+  (^double getAt [^criterium.typed_samples.DoubleSamples samples ^long index]))

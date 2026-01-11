@@ -1,8 +1,11 @@
 (ns criterium.util.sampled-stats
   (:require
+   [criterium.typed-samples :as typed-samples]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have have?]]
-   [criterium.util.stats :as stats]))
+   [criterium.util.stats :as stats])
+  (:import
+   [criterium.typed_samples DoubleSamples LongSamples ObjectSamples]))
 
 (defn pair-fn [k f]
   (fn [x] [k (f x)]))
@@ -33,12 +36,41 @@
              :mean-plus-3sigma mean-plus-3sigma
              :mean-minus-3sigma mean-minus-3sigma))))
 
-(defn samples-for-path [metric->values path]
+(defn samples-for-path
+  "Extract samples for path from metric->values, returning a vector of doubles.
+  Handles both TypedSamples (DoubleSamples, LongSamples) and legacy vectors."
+  [metric->values path]
   {:pre [(have? map? metric->values)]}
-  (->> (have seq (metric->values path)
-             {:path path :metric->values metric->values})
-       (filterv some?)
-       (mapv double)))
+  (let [samples (have some? (metric->values path)
+                      {:path path :metric->values metric->values})]
+    (persistent!
+     (cond
+       ;; DoubleSamples and LongSamples both implement IDoubleObjectFold
+       (or (instance? DoubleSamples samples)
+           (instance? LongSamples samples))
+       (typed-samples/dfold samples
+                            (fn [acc ^double v]
+                              (if (Double/isNaN v)
+                                acc
+                                (conj! acc v)))
+                            (transient []))
+
+       (instance? ObjectSamples samples)
+       (typed-samples/fold samples
+                           (fn [acc v]
+                             (if (some? v)
+                               (conj! acc (double v))
+                               acc))
+                           (transient []))
+
+       ;; Legacy vector support
+       :else
+       (reduce (fn [acc v]
+                 (if (some? v)
+                   (conj! acc (double v))
+                   acc))
+               (transient [])
+               samples)))))
 
 (defn scale-vals [m scale-1]
   (util/update-vals m scale-1))
@@ -89,6 +121,35 @@
    {}
    (mapv :path metric-configs)))
 
+(defn- sum-event-samples
+  "Sum values in LongSamples or legacy vector."
+  ^long [samples]
+  (if (instance? LongSamples samples)
+    (typed-samples/sum-long samples)
+    (reduce + 0 samples)))
+
+(defn- count-positive-samples
+  "Count samples where at least one sample has a positive value at that index."
+  ^long [all-vs]
+  (if (empty? all-vs)
+    0
+    (let [first-sample (first all-vs)
+          n (long (if (instance? LongSamples first-sample)
+                    (typed-samples/sample-count first-sample)
+                    (count first-sample)))]
+      (loop [i   (long 0)
+             cnt (long 0)]
+        (if (< i n)
+          (let [has-pos? (some (fn [samples]
+                                 (if (instance? LongSamples samples)
+                                   (typed-samples/lpos?
+                                    (typed-samples/get-long samples i))
+                                   (pos? (long (nth samples i)))))
+                               all-vs)]
+            (recur (unchecked-inc i)
+                   (if has-pos? (unchecked-inc cnt) cnt)))
+          cnt)))))
+
 (defn event-stats
   "Return the stats for events like JIT compilation and garbage-collector."
   [metrics-defs samples]
@@ -98,13 +159,8 @@
        (merge stats (event-stats groups samples))
        (let [ms           (:values metric)
              all-vs       (mapv #(get samples (:path %)) ms)
-             all-vals     (mapv (fn [vs] (reduce + 0 vs)) all-vs)
-             sample-count (reduce
-                           +
-                           0
-                           (apply mapv
-                                  (fn [& vs] (if (some pos? vs) 1 0))
-                                  all-vs))]
+             all-vals     (mapv sum-event-samples all-vs)
+             sample-count (count-positive-samples all-vs)]
          (merge stats
                 (-> (zipmap
                      (map :path ms)
