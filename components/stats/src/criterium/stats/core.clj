@@ -5,10 +5,10 @@
   For typed arrays, primitive-optimized implementations are used."
   (:refer-clojure :exclude [min max])
   (:require
-   criterium.array-core.interface
+   criterium.array.interface
    [criterium.utils.interface :as utils])
   (:import
-   [criterium.array_core.interface ITypedArray IDoubleFold IIndexed]))
+   [criterium.array.interface ITypedArray IDoubleFold IIndexed]))
 
 (defn transpose
   "Transpose a vector of vectors."

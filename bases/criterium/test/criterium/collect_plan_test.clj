@@ -2,13 +2,13 @@
   (:require
    [clojure.test :refer [deftest is testing]]
    [criterium.array :as arr]
-   criterium.array-core.interface
+   criterium.array.interface
    [criterium.collect-plan :as collect-plan]
    [criterium.collect-plan.config :as collect-plan-config]
    [criterium.collector :as collector]
    [criterium.measured :as measured])
   (:import
-   [criterium.array_core.interface ITypedArray]))
+   [criterium.array.interface ITypedArray]))
 
 (deftest one-shot-test
   (testing "one-shot"

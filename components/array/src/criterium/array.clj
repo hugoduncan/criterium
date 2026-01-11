@@ -8,13 +8,11 @@
     - LongArray for :event metrics
     - ObjectArray for :nominal metrics"
   (:require
-   criterium.array-core.interface
    [criterium.array.interface])
   (:import
-   [criterium.array_core.interface
+   [criterium.array.interface
     ITypedArray IFold IDoubleFold ILongFold IDoubleObjectFold ILongObjectFold
-    IIndexed]
-   [criterium.array.interface IArrayOps]
+    IIndexed IArrayOps]
    [java.util Arrays]))
 
 (deftype DoubleArray [^doubles array]

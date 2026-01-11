@@ -508,10 +508,14 @@
 
 (defn- bootstrap-parameter-ci
   "Bootstrap confidence intervals for distribution parameters.
-  Returns map of parameter name to {:point-estimate :ci-lower :ci-upper}."
+  Returns map of parameter name to {:point-estimate :ci-lower :ci-upper}.
+  Accepts both vectors and typed arrays."
   [dist samples {:keys [n-bootstrap alpha]
                  :or {n-bootstrap 200 alpha 0.05}}]
-  (let [n (count samples)
+  (let [typed? (instance? criterium.array.interface.ITypedArray samples)
+        n (if typed?
+            (arr/length samples)
+            (count samples))
         n-bootstrap (long n-bootstrap)
         alpha (double alpha)
         bootstrap-size (max 50 (long (* n 0.8)))
@@ -519,6 +523,15 @@
         ;; Bootstrap the MLE fitting
         fit-fn (fn [s] (fit-distribution dist s))
         rng-factory random/well-rng-1024a
+        ;; Resample function - creates a double-array for bootstrap sample
+        resample-fn (if typed?
+                      (fn [indices]
+                        (let [^doubles boot-arr (double-array (count indices))]
+                          (dotimes [i (count indices)]
+                            (aset boot-arr i (arr/get-double samples (int (nth indices i)))))
+                          (arr/->double-array boot-arr)))
+                      (fn [indices]
+                        (mapv #(nth samples (int %)) indices)))
         ;; Run bootstrap
         bootstrap-fits
         (loop [i (long 0)
@@ -527,7 +540,7 @@
             results
             (let [rng (rng-factory)
                   indices (si/sample-uniform bootstrap-size n rng)
-                  boot-samples (mapv #(nth samples (int %)) indices)
+                  boot-samples (resample-fn indices)
                   fit (fit-fn boot-samples)]
               (recur (inc i)
                      (if (:error fit)
@@ -569,10 +582,6 @@
         ;; si/mean and si/variance work with typed arrays directly
         mean-val (si/mean samples)
         var-val (si/variance samples)
-        ;; Convert to vector for MLE functions (they use sequence operations)
-        samples-vec (if (instance? criterium.array.interface.ITypedArray samples)
-                      (arr/to-double-vec samples)
-                      samples)
         ;; Determine which distributions to fit
         requested-dists (if distributions
                           (set distributions)
@@ -580,17 +589,17 @@
         ;; Use moment-match prefilter to screen distributions
         prefilter-results (si/moment-match-prefilter mean-val var-val requested-dists)
         suitable-dists (si/suitable-distributions mean-val var-val requested-dists)
-        ;; Fit each distribution (using vector for MLE/GOF functions)
+        ;; Fit each distribution - MLE/GOF functions now accept typed arrays
         fit-results
         (into {}
               (for [dist requested-dists]
                 (if (contains? suitable-dists dist)
-                  (let [fit (fit-distribution dist samples-vec)]
+                  (let [fit (fit-distribution dist samples)]
                     (if (:error fit)
                       [dist {:error (:error fit)}]
                       (let [{:keys [params log-likelihood]} fit
                             cdf-fn (make-cdf-fn dist params)
-                            gof (compute-gof-tests samples-vec cdf-fn)
+                            gof (compute-gof-tests samples cdf-fn)
                             ic (compute-information-criteria dist n log-likelihood)]
                         [dist (merge {:params params
                                       :log-likelihood log-likelihood}
@@ -613,10 +622,10 @@
                         (assoc result :delta-aic (- (double (:aic result))
                                                     (double best-aic)))
                         result)]))
-        ;; Bootstrap parameter CIs for best model only (using vector)
+        ;; Bootstrap parameter CIs for best model only
         parameter-cis (when best-model
                         {best-model (bootstrap-parameter-ci
-                                     best-model samples-vec
+                                     best-model samples
                                      {:n-bootstrap n-bootstrap :alpha alpha})})]
     {:n n
      :warning (when (< n 30) :small-sample)

@@ -1,12 +1,16 @@
 (ns criterium.array.interface
   "Interfaces for typed array collections with primitive support.
 
+  These interfaces define the contract for typed array wrappers that
+  avoid boxing overhead when working with primitive arrays.
+
   Interface hierarchy:
   - ITypedArray: basic array metadata (element type, length)
   - IFold: generic object-returning fold
   - IDoubleFold/ILongFold: primitive-in, primitive-out folds
   - IDoubleObjectFold/ILongObjectFold: primitive-in, object-out folds
-  - IIndexed: indexed access to elements")
+  - IIndexed: indexed access to elements
+  - IArrayOps: type-specific operations (sum, getAt)")
 
 (definterface ITypedArray
   (^clojure.lang.Keyword elemType [])

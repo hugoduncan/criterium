@@ -10,9 +10,29 @@
   - Inverse Gaussian: Closed-form MLE
   - Weibull: Newton-Raphson iteration for shape
 
-  All functions return maps with :params and :log-likelihood keys."
+  All functions return maps with :params and :log-likelihood keys.
+  Accepts both sequences/vectors and typed arrays (DoubleArray, LongArray)."
   (:require
-   [criterium.stats.probability :as probability]))
+   [criterium.array :as arr]
+   [criterium.stats.probability :as probability])
+  (:import
+   [criterium.array DoubleArray LongArray]
+   [criterium.array.interface ITypedArray]))
+
+;;; Type detection helpers
+
+(defn- typed-array?
+  "Returns true if x is a typed array (DoubleArray or LongArray)."
+  [x]
+  (or (instance? DoubleArray x)
+      (instance? LongArray x)))
+
+(defn- data-length
+  "Returns the length of data, supporting both sequences and typed arrays."
+  ^long [data]
+  (if (typed-array? data)
+    (.length ^ITypedArray data)
+    (count data)))
 
 ;;; Log-normal MLE (closed-form)
 
@@ -24,7 +44,7 @@
     σ = sqrt(variance(log(x)))  ; using population variance (n denominator)
 
   Parameters:
-    samples - sequence of positive sample values
+    samples - sequence or typed array of positive sample values
 
   Returns map with:
     :params {:mu μ, :sigma σ}
@@ -32,35 +52,65 @@
 
   Throws if any sample is non-positive."
   [samples]
-  (let [samples (vec samples)
-        n (long (count samples))
+  (let [n (long (data-length samples))
         _ (when (zero? n)
             (throw (IllegalArgumentException. "samples cannot be empty")))
-        ;; Transform to log space
-        log-samples (mapv #(let [x (double %)]
-                             (when (<= x 0.0)
-                               (throw (IllegalArgumentException.
-                                       (str "lognormal requires positive samples, got: " x))))
-                             (Math/log x))
-                          samples)
+        ;; Transform to log space and compute sum
+        ;; For typed arrays, validate and compute in one pass
+        sum-log
+        (if (typed-array? samples)
+          (arr/dfold samples
+                     (fn [^double acc ^double x]
+                       (when (<= x 0.0)
+                         (throw (IllegalArgumentException.
+                                 (str "lognormal requires positive samples, got: " x))))
+                       (+ acc (Math/log x)))
+                     0.0)
+          (reduce (fn [^double acc x]
+                    (let [x (double x)]
+                      (when (<= x 0.0)
+                        (throw (IllegalArgumentException.
+                                (str "lognormal requires positive samples, got: " x))))
+                      (+ acc (Math/log x))))
+                  0.0
+                  samples))
         ;; MLE estimates
-        mu (/ ^double (reduce + 0.0 log-samples) (double n))
+        mu (/ (double sum-log) (double n))
         ;; Use population variance (divide by n, not n-1) for MLE
-        sum-sq (double
-                (reduce (fn [^double acc ^double lx]
-                          (let [diff (- lx (double mu))]
-                            (+ acc (* diff diff))))
-                        0.0
-                        log-samples))
-        sigma (Math/sqrt (/ sum-sq (double n)))
+        ;; Second pass to compute variance
+        sum-sq
+        (if (typed-array? samples)
+          (arr/fold-double samples
+                           (fn ^double [^double acc ^double x]
+                             (let [lx  (Math/log x)
+                                   diff (- lx mu)]
+                               (+ acc (* diff diff))))
+                           0.0)
+          (reduce (fn [^double acc x]
+                    (let [lx   (Math/log (double x))
+                          diff (- lx mu)]
+                      (+ acc (* diff diff))))
+                  0.0
+                  samples))
+        sigma (Math/sqrt (/ (double sum-sq) (double n)))
         ;; Log-likelihood: Σ[-log(x) - log(σ) - 0.5*log(2π) - 0.5*((log(x)-μ)/σ)²]
         half-log-2pi (* 0.5 (Math/log (* 2.0 Math/PI)))
-        log-likelihood (reduce (fn [^double acc ^double lx]
-                                 (let [z (/ (- lx (double mu)) (double sigma))]
-                                   (- acc lx (Math/log (double sigma)) half-log-2pi
-                                      (* 0.5 z z))))
-                               0.0
-                               log-samples)]
+        log-likelihood
+        (if (typed-array? samples)
+          (arr/fold-double samples
+                           (fn ^double [^double acc ^double x]
+                             (let [lx (Math/log x)
+                                   z  (/ (- lx mu) sigma)]
+                               (- acc lx (Math/log sigma) half-log-2pi
+                                  (* 0.5 z z))))
+                           0.0)
+          (reduce (fn [^double acc x]
+                    (let [lx (Math/log (double x))
+                          z  (/ (- lx mu) sigma)]
+                      (- acc lx (Math/log sigma) half-log-2pi
+                         (* 0.5 z z))))
+                  0.0
+                  samples))]
     {:params {:mu mu :sigma sigma}
      :log-likelihood log-likelihood}))
 
@@ -74,7 +124,7 @@
     λ = n / Σ(1/xᵢ - 1/μ)
 
   Parameters:
-    samples - sequence of positive sample values
+    samples - sequence or typed array of positive sample values
 
   Returns map with:
     :params {:mu μ, :lambda λ}
@@ -82,35 +132,52 @@
 
   Throws if any sample is non-positive."
   [samples]
-  (let [samples (vec samples)
-        n (long (count samples))
+  (let [n (long (data-length samples))
         _ (when (zero? n)
             (throw (IllegalArgumentException. "samples cannot be empty")))
         ;; Validate and compute sum and sum of reciprocals
         [sum sum-recip]
-        (reduce (fn [[^double s ^double sr] x]
-                  (let [x (double x)]
-                    (when (<= x 0.0)
-                      (throw (IllegalArgumentException.
-                              (str "inverse-gaussian requires positive samples, got: " x))))
-                    [(+ s x) (+ sr (/ 1.0 x))]))
-                [0.0 0.0]
-                samples)
+        (if (typed-array? samples)
+          (arr/dfold samples
+                     (fn [acc ^double x]
+                       (when (<= x 0.0)
+                         (throw (IllegalArgumentException.
+                                 (str "inverse-gaussian requires positive samples, got: " x))))
+                       (let [[^double s ^double sr] acc]
+                         [(+ s x) (+ sr (/ 1.0 x))]))
+                     [0.0 0.0])
+          (reduce (fn [[^double s ^double sr] x]
+                    (let [x (double x)]
+                      (when (<= x 0.0)
+                        (throw (IllegalArgumentException.
+                                (str "inverse-gaussian requires positive samples, got: " x))))
+                      [(+ s x) (+ sr (/ 1.0 x))]))
+                  [0.0 0.0]
+                  samples))
         ;; MLE estimates
         mu (/ (double sum) (double n))
         ;; λ = n / Σ(1/xᵢ - 1/μ) = n / (Σ(1/xᵢ) - n/μ)
-        lambda (/ (double n) (- (double sum-recip) (/ (double n) (double mu))))
+        lambda (/ (double n) (- (double sum-recip) (/ (double n) mu)))
         ;; Log-likelihood: Σ[0.5*log(λ/(2πx³)) - λ(x-μ)²/(2μ²x)]
-        half-log-lambda-2pi (* 0.5 (- (Math/log (double lambda)) (Math/log (* 2.0 Math/PI))))
-        mu-sq (* (double mu) (double mu))
-        log-likelihood (reduce (fn [^double acc x]
-                                 (let [x (double x)
-                                       diff (- x (double mu))
-                                       term1 (- half-log-lambda-2pi (* 1.5 (Math/log x)))
-                                       term2 (/ (* (double lambda) diff diff) (* 2.0 mu-sq x))]
-                                   (+ acc term1 (- term2))))
-                               0.0
-                               samples)]
+        half-log-lambda-2pi (* 0.5 (- (Math/log lambda) (Math/log (* 2.0 Math/PI))))
+        mu-sq (* mu mu)
+        log-likelihood
+        (if (typed-array? samples)
+          (arr/fold-double samples
+                           (fn ^double [^double acc ^double x]
+                             (let [diff  (- x mu)
+                                   term1 (- half-log-lambda-2pi (* 1.5 (Math/log x)))
+                                   term2 (/ (* lambda diff diff) (* 2.0 mu-sq x))]
+                               (+ acc term1 (- term2))))
+                           0.0)
+          (reduce (fn [^double acc x]
+                    (let [x     (double x)
+                          diff  (- x mu)
+                          term1 (- half-log-lambda-2pi (* 1.5 (Math/log x)))
+                          term2 (/ (* lambda diff diff) (* 2.0 mu-sq x))]
+                      (+ acc term1 (- term2))))
+                  0.0
+                  samples))]
     {:params {:mu mu :lambda lambda}
      :log-likelihood log-likelihood}))
 
@@ -121,14 +188,22 @@
   ^double [samples ^double shape ^double scale]
   (let [log-normalizer (+ (* shape (Math/log scale))
                           (probability/log-gamma shape))]
-    (reduce (fn [^double acc x]
-              (let [x (double x)]
-                (+ acc
-                   (* (- shape 1.0) (Math/log x))
-                   (- (/ x scale))
-                   (- log-normalizer))))
-            0.0
-            samples)))
+    (if (typed-array? samples)
+      (arr/fold-double samples
+                       (fn ^double [^double acc ^double x]
+                         (+ acc
+                            (* (- shape 1.0) (Math/log x))
+                            (- (/ x scale))
+                            (- log-normalizer)))
+                       0.0)
+      (reduce (fn [^double acc x]
+                (let [x (double x)]
+                  (+ acc
+                     (* (- shape 1.0) (Math/log x))
+                     (- (/ x scale))
+                     (- log-normalizer))))
+              0.0
+              samples))))
 
 (defn gamma-mle
   "Maximum likelihood estimation for the gamma distribution.
@@ -142,7 +217,7 @@
   Scale is then: θ = mean(x) / k
 
   Parameters:
-    samples - sequence of positive sample values
+    samples - sequence or typed array of positive sample values
     opts - optional map with:
       :max-iter - maximum iterations (default 100)
       :tol - convergence tolerance (default 1e-10)
@@ -159,36 +234,44 @@
   ([samples] (gamma-mle samples {}))
   ([samples {:keys [max-iter tol init-shape]
              :or {max-iter 100 tol 1e-10}}]
-   (let [samples (vec samples)
-         n (long (count samples))
+   (let [n (long (data-length samples))
          _ (when (zero? n)
              (throw (IllegalArgumentException. "samples cannot be empty")))
          max-iter (long max-iter)
          tol (double tol)
          ;; Compute sufficient statistics
          [sum sum-log]
-         (reduce (fn [[^double s ^double sl] x]
-                   (let [x (double x)]
-                     (when (<= x 0.0)
-                       (throw (IllegalArgumentException.
-                               (str "gamma requires positive samples, got: " x))))
-                     [(+ s x) (+ sl (Math/log x))]))
-                 [0.0 0.0]
-                 samples)
+         (if (typed-array? samples)
+           (arr/dfold samples
+                      (fn [acc ^double x]
+                        (when (<= x 0.0)
+                          (throw (IllegalArgumentException.
+                                  (str "gamma requires positive samples, got: " x))))
+                        (let [[^double s ^double sl] acc]
+                          [(+ s x) (+ sl (Math/log x))]))
+                      [0.0 0.0])
+           (reduce (fn [[^double s ^double sl] x]
+                     (let [x (double x)]
+                       (when (<= x 0.0)
+                         (throw (IllegalArgumentException.
+                                 (str "gamma requires positive samples, got: " x))))
+                       [(+ s x) (+ sl (Math/log x))]))
+                   [0.0 0.0]
+                   samples))
          mean-x (/ (double sum) (double n))
          mean-log-x (/ (double sum-log) (double n))
-         log-mean-x (Math/log (double mean-x))
+         log-mean-x (Math/log mean-x)
          ;; s = log(mean(x)) - mean(log(x)), always positive for valid data
-         s (- log-mean-x (double mean-log-x))
+         s (- log-mean-x mean-log-x)
          ;; Initial shape estimate using method of moments if not provided
          ;; k_init ≈ (3 - s + sqrt((s-3)² + 24s)) / (12s) from Minka
          init-k (double (or init-shape
-                            (if (< (double s) 0.001)
+                            (if (< s 0.001)
                               ;; For very small s, shape is very large
                               100.0
-                              (/ (+ 3.0 (- (double s)) (Math/sqrt (+ (* (- (double s) 3.0) (- (double s) 3.0))
-                                                                     (* 24.0 (double s)))))
-                                 (* 12.0 (double s))))))
+                              (/ (+ 3.0 (- s) (Math/sqrt (+ (* (- s 3.0) (- s 3.0))
+                                                            (* 24.0 s))))
+                                 (* 12.0 s)))))
          ;; Minka's fixed-point iteration
          [shape iterations]
          (loop [k (double init-k)
@@ -199,7 +282,7 @@
                    psi-prime-k (probability/trigamma k)
                    ;; Newton update: k_new = k + (s - log(k) + ψ(k)) / (1/k - ψ'(k))
                    ;; where s = log(mean) - mean(log)
-                   numer (- (double s) (- (Math/log k) psi-k))
+                   numer (- s (- (Math/log k) psi-k))
                    denom (- (/ 1.0 k) psi-prime-k)
                    k-new (+ k (/ numer denom))]
                ;; Ensure k stays positive
@@ -208,7 +291,7 @@
                  [(Math/max 1e-10 k-new) (inc iter)]
                  (recur k-new (inc iter))))))
          shape (double shape)
-         scale (/ (double mean-x) shape)
+         scale (/ mean-x shape)
          log-lik (gamma-log-likelihood samples shape scale)]
      {:params {:shape shape :scale scale}
       :log-likelihood log-lik
@@ -220,18 +303,30 @@
   "Compute log-likelihood for Weibull distribution with given shape and scale."
   ^double [samples ^double shape ^double scale]
   (let [log-scale (Math/log scale)]
-    (reduce (fn [^double acc x]
-              (let [x (double x)
-                    log-x (Math/log x)
-                    x-over-scale (/ x scale)
-                    x-over-scale-k (Math/pow x-over-scale shape)]
-                (+ acc
-                   (Math/log shape)
-                   (- log-scale)
-                   (* (- shape 1.0) (- log-x log-scale))
-                   (- x-over-scale-k))))
-            0.0
-            samples)))
+    (if (typed-array? samples)
+      (arr/fold-double samples
+                       (fn ^double [^double acc ^double x]
+                         (let [log-x (Math/log x)
+                               x-over-scale (/ x scale)
+                               x-over-scale-k (Math/pow x-over-scale shape)]
+                           (+ acc
+                              (Math/log shape)
+                              (- log-scale)
+                              (* (- shape 1.0) (- log-x log-scale))
+                              (- x-over-scale-k))))
+                       0.0)
+      (reduce (fn [^double acc x]
+                (let [x (double x)
+                      log-x (Math/log x)
+                      x-over-scale (/ x scale)
+                      x-over-scale-k (Math/pow x-over-scale shape)]
+                  (+ acc
+                     (Math/log shape)
+                     (- log-scale)
+                     (* (- shape 1.0) (- log-x log-scale))
+                     (- x-over-scale-k))))
+              0.0
+              samples))))
 
 (defn weibull-mle
   "Maximum likelihood estimation for the Weibull distribution.
@@ -246,7 +341,7 @@
   The shape parameter is invariant under this transformation.
 
   Parameters:
-    samples - sequence of positive sample values
+    samples - sequence or typed array of positive sample values
     opts - optional map with:
       :max-iter - maximum iterations (default 100)
       :tol - convergence tolerance (default 1e-10)
@@ -263,42 +358,64 @@
   ([samples] (weibull-mle samples {}))
   ([samples {:keys [max-iter tol init-shape]
              :or {max-iter 100 tol 1e-10}}]
-   (let [samples (vec samples)
-         n (long (count samples))
+   (let [n (long (data-length samples))
          _ (when (zero? n)
              (throw (IllegalArgumentException. "samples cannot be empty")))
          max-iter (long max-iter)
          tol (double tol)
-         ;; Precompute log(x) for all samples and validate positivity
-         log-samples (mapv (fn [x]
-                             (let [x (double x)]
-                               (when (<= x 0.0)
-                                 (throw (IllegalArgumentException.
-                                         (str "weibull requires positive samples, got: " x))))
-                               (Math/log x)))
-                           samples)
+         typed? (typed-array? samples)
+         ;; Compute sum of log(x) and validate positivity
+         sum-log-x
+         (if typed?
+           (arr/dfold samples
+                      (fn [^double acc ^double x]
+                        (when (<= x 0.0)
+                          (throw (IllegalArgumentException.
+                                  (str "weibull requires positive samples, got: " x))))
+                        (+ acc (Math/log x)))
+                      0.0)
+           (reduce (fn [^double acc x]
+                     (let [x (double x)]
+                       (when (<= x 0.0)
+                         (throw (IllegalArgumentException.
+                                 (str "weibull requires positive samples, got: " x))))
+                       (+ acc (Math/log x))))
+                   0.0
+                   samples))
          ;; Normalize by geometric mean to avoid overflow with large values
          ;; If X ~ Weibull(k, λ), then X/c ~ Weibull(k, λ/c)
-         mean-log-x (/ ^double (reduce + 0.0 log-samples) (double n))
+         mean-log-x (/ (double sum-log-x) (double n))
          geo-mean (Math/exp mean-log-x)
-         norm-samples (mapv #(/ (double %) geo-mean) samples)
-         norm-log-samples (mapv #(- (double %) mean-log-x) log-samples)
+         ;; Create normalized samples and their logs
+         ;; For typed arrays, use dmap to create DoubleArrays
+         [norm-samples norm-log-samples]
+         (if typed?
+           [(arr/dmap samples (fn ^double [^double x] (/ x geo-mean)))
+            (arr/dmap samples (fn ^double [^double x] (- (Math/log x) mean-log-x)))]
+           [(mapv #(/ (double %) geo-mean) samples)
+            (mapv (fn [x] (- (Math/log (double x)) mean-log-x)) samples)])
          ;; Mean of normalized log samples is 0 by construction
          norm-mean-log-x 0.0
          ;; Initial shape estimate using method of moments if not provided
          ;; Use CV-based approximation: k ≈ 1.2785 / CV for CV < 1
          ;; CV is invariant under scaling, so use original samples
+         [sum-x sum-sq-x]
+         (if typed?
+           (arr/dfold samples
+                      (fn [acc ^double x]
+                        (let [[^double s ^double ssq] acc]
+                          [(+ s x) (+ ssq (* x x))]))
+                      [0.0 0.0])
+           (reduce (fn [[^double s ^double ssq] x]
+                     (let [x (double x)]
+                       [(+ s x) (+ ssq (* x x))]))
+                   [0.0 0.0]
+                   samples))
+         mean-x (/ (double sum-x) (double n))
+         var-x (- (/ (double sum-sq-x) (double n)) (* mean-x mean-x))
          init-k (double
                  (or init-shape
-                     (let [mean-x (/ ^double (reduce + 0.0 samples) (double n))
-                           sum-sq (double
-                                   (reduce (fn [^double acc x]
-                                             (let [diff (- (double x) mean-x)]
-                                               (+ acc (* diff diff))))
-                                           0.0
-                                           samples))
-                           var-x (/ sum-sq (double n))
-                           cv (/ (Math/sqrt var-x) mean-x)]
+                     (let [cv (/ (Math/sqrt (Math/max 0.0 var-x)) mean-x)]
                        (if (and (pos? cv) (< cv 2.0))
                          (/ 1.2785 cv)
                          1.0))))
@@ -311,17 +428,30 @@
            (if (>= iter max-iter)
              [k iter]
              (let [;; Compute sums: Σxᵏ, Σxᵏlog(x), Σxᵏ(log(x))²
-                   sums (reduce (fn [[^double s1 ^double s2 ^double s3] i]
-                                  (let [x (double (norm-samples i))
-                                        log-x (double (norm-log-samples i))
-                                        x-k (Math/pow x k)
-                                        x-k-logx (* x-k log-x)
-                                        x-k-logx2 (* x-k-logx log-x)]
-                                    [(+ s1 x-k)
-                                     (+ s2 x-k-logx)
-                                     (+ s3 x-k-logx2)]))
-                                [0.0 0.0 0.0]
-                                (range n))
+                   sums
+                   (if typed?
+                     (arr/indexed-dfold norm-samples
+                                        (fn [acc ^long i ^double x]
+                                          (let [[^double s1 ^double s2 ^double s3] acc
+                                                log-x (arr/get-double norm-log-samples i)
+                                                x-k (Math/pow x k)
+                                                x-k-logx (* x-k log-x)
+                                                x-k-logx2 (* x-k-logx log-x)]
+                                            [(+ s1 x-k)
+                                             (+ s2 x-k-logx)
+                                             (+ s3 x-k-logx2)]))
+                                        [0.0 0.0 0.0])
+                     (reduce (fn [[^double s1 ^double s2 ^double s3] i]
+                               (let [x (double (norm-samples i))
+                                     log-x (double (norm-log-samples i))
+                                     x-k (Math/pow x k)
+                                     x-k-logx (* x-k log-x)
+                                     x-k-logx2 (* x-k-logx log-x)]
+                                 [(+ s1 x-k)
+                                  (+ s2 x-k-logx)
+                                  (+ s3 x-k-logx2)]))
+                             [0.0 0.0 0.0]
+                             (range n)))
                    sum-xk (double (sums 0))
                    sum-xk-logx (double (sums 1))
                    sum-xk-logx2 (double (sums 2))
@@ -346,12 +476,16 @@
                  (recur k-new (inc iter))))))
          shape (double shape)
          ;; Scale for normalized samples: λ' = (Σx'ᵏ/n)^(1/k)
-         sum-xk (double
-                 (reduce (fn [^double acc x]
-                           (+ acc (Math/pow (double x) shape)))
-                         0.0
-                         norm-samples))
-         norm-scale (Math/pow (/ sum-xk (double n)) (/ 1.0 shape))
+         sum-xk (if typed?
+                  (arr/fold-double norm-samples
+                                   (fn ^double [^double acc ^double x]
+                                     (+ acc (Math/pow x shape)))
+                                   0.0)
+                  (reduce (fn [^double acc x]
+                            (+ acc (Math/pow (double x) shape)))
+                          0.0
+                          norm-samples))
+         norm-scale (Math/pow (/ (double sum-xk) (double n)) (/ 1.0 shape))
          ;; Transform scale back: λ = λ' * geo-mean
          scale (* norm-scale geo-mean)
          log-lik (weibull-log-likelihood samples shape scale)]

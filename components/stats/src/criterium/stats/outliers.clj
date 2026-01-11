@@ -6,10 +6,10 @@
 
   Functions accept both sequences and typed arrays (ITypedArray)."
   (:require
-   criterium.array-core.interface
+   criterium.array.interface
    [criterium.stats.core :as core])
   (:import
-   [criterium.array_core.interface ITypedArray IIndexed]))
+   [criterium.array.interface ITypedArray IIndexed]))
 
 (defn boxplot-outlier-thresholds
   "Outlier thresholds for given quartiles.

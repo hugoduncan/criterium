@@ -1,6 +1,26 @@
 (ns criterium.stats.probability
   "Probability functions: log-gamma, error function, normal distribution,
-  and common statistical distributions (gamma, weibull, lognormal, inverse-gaussian).")
+  and common statistical distributions (gamma, weibull, lognormal, inverse-gaussian)."
+  (:require
+   [criterium.array :as arr])
+  (:import
+   [criterium.array DoubleArray LongArray]
+   [criterium.array.interface ITypedArray]))
+
+;;; Type detection helpers
+
+(defn- typed-array?
+  "Returns true if x is a typed array (DoubleArray or LongArray)."
+  [x]
+  (or (instance? DoubleArray x)
+      (instance? LongArray x)))
+
+(defn- data-length
+  "Returns the length of data, supporting both sequences and typed arrays."
+  ^long [data]
+  (if (typed-array? data)
+    (.length ^ITypedArray data)
+    (count data)))
 
 (defn polynomial-value
   "Evaluate a polynomial at the given value x, for the coefficients given in
@@ -599,27 +619,40 @@
   where Fₙ is the empirical CDF and F is the theoretical CDF.
 
   Parameters:
-    samples - sequence of sample values
+    samples - sequence or typed array of sample values
     cdf-fn - theoretical CDF function (e.g., from gamma-cdf, weibull-cdf)
 
   Returns the D statistic."
   ^double [samples cdf-fn]
-  (let [samples (vec (sort samples))
-        n (count samples)]
-    (when (zero? n)
-      (throw (IllegalArgumentException. "samples cannot be empty")))
-    (let [n-d (double n)]
+  (let [n (long (data-length samples))
+        _ (when (zero? n)
+            (throw (IllegalArgumentException. "samples cannot be empty")))
+        ;; Sort samples - arr/sorted returns a DoubleArray
+        sorted-samples (if (typed-array? samples)
+                         (arr/sorted samples)
+                         (vec (sort samples)))
+        n-d (double n)]
+    (if (typed-array? sorted-samples)
+      ;; Typed array path - use indexed fold
+      (arr/indexed-dfold sorted-samples
+                         (fn [^double d-max ^long i ^double x]
+                           (let [f-x (double (cdf-fn x))
+                                 fn-before (/ (double i) n-d)
+                                 fn-after (/ (double (inc i)) n-d)
+                                 d1 (Math/abs (- fn-before f-x))
+                                 d2 (Math/abs (- fn-after f-x))
+                                 d-new (Math/max d1 d2)]
+                             (Math/max d-max d-new)))
+                         0.0)
+      ;; Sequence path
       (loop [i 0
              d-max 0.0]
         (if (>= i n)
           d-max
-          (let [x (double (samples i))
+          (let [x (double (sorted-samples i))
                 f-x (double (cdf-fn x))
-                ;; Fₙ(x⁻) = i/n (proportion < x)
-                ;; Fₙ(x) = (i+1)/n (proportion ≤ x)
                 fn-before (/ (double i) n-d)
                 fn-after (/ (double (inc i)) n-d)
-                ;; D = max(|Fₙ(x⁻) - F(x)|, |Fₙ(x) - F(x)|)
                 d1 (Math/abs (- fn-before f-x))
                 d2 (Math/abs (- fn-after f-x))
                 d-new (Math/max d1 d2)]
@@ -649,7 +682,7 @@
   The null hypothesis is that the sample is drawn from the theoretical distribution.
 
   Parameters:
-    samples - sequence of sample values
+    samples - sequence or typed array of sample values
     cdf-fn - theoretical CDF function (e.g., (gamma-cdf shape scale))
 
   Returns map with:
@@ -663,8 +696,7 @@
              di distribuzione; Smirnov (1948), Table for estimating the
              goodness of fit of empirical distributions."
   [samples cdf-fn]
-  (let [samples (vec samples)
-        n (count samples)
+  (let [n (long (data-length samples))
         d (ks-test-statistic samples cdf-fn)
         p (ks-pvalue d n)]
     {:statistic d
@@ -677,30 +709,45 @@
   W² = (1/12n) + Σᵢ₌₁ⁿ [F(xᵢ) - (2i-1)/(2n)]²
 
   Parameters:
-    samples - sequence of sample values
+    samples - sequence or typed array of sample values
     cdf-fn - theoretical CDF function
 
   Returns the W² statistic."
   ^double [samples cdf-fn]
-  (let [samples (vec (sort samples))
-        n (count samples)]
-    (when (zero? n)
-      (throw (IllegalArgumentException. "samples cannot be empty")))
-    (let [n-d (double n)
-          base (/ 1.0 (* 12.0 n-d))
-          sum (double
+  (let [n (long (data-length samples))
+        _ (when (zero? n)
+            (throw (IllegalArgumentException. "samples cannot be empty")))
+        ;; Sort samples - arr/sorted returns a DoubleArray
+        sorted-samples (if (typed-array? samples)
+                         (arr/sorted samples)
+                         (vec (sort samples)))
+        n-d (double n)
+        base (/ 1.0 (* 12.0 n-d))
+        sum (if (typed-array? sorted-samples)
+              ;; Typed array path - use indexed fold
+              (arr/indexed-dfold sorted-samples
+                                 (fn [^double acc ^long i ^double x]
+                                   (let [f-x (double (cdf-fn x))
+                                         ;; (2i-1)/(2n) where i is 1-indexed
+                                         expected (/ (- (* 2.0 (double (inc i))) 1.0)
+                                                     (* 2.0 n-d))
+                                         diff (- f-x expected)]
+                                     (+ acc (* diff diff))))
+                                 0.0)
+              ;; Sequence path
+              (double
                (loop [i 0
                       acc 0.0]
                  (if (>= i n)
                    acc
-                   (let [x (double (samples i))
+                   (let [x (double (sorted-samples i))
                          f-x (double (cdf-fn x))
                          ;; (2i-1)/(2n) where i is 1-indexed
                          expected (/ (- (* 2.0 (double (inc i))) 1.0)
                                      (* 2.0 n-d))
                          diff (- f-x expected)]
-                     (recur (inc i) (+ acc (* diff diff)))))))]
-      (+ base sum))))
+                     (recur (inc i) (+ acc (* diff diff))))))))]
+    (+ base (double sum))))
 
 (defn cvm-pvalue
   "Compute asymptotic p-value for Cramér-von Mises test.
@@ -747,7 +794,7 @@
   equal weight to all parts of the distribution.
 
   Parameters:
-    samples - sequence of sample values
+    samples - sequence or typed array of sample values
     cdf-fn - theoretical CDF function (e.g., (gamma-cdf shape scale))
 
   Returns map with:
@@ -760,8 +807,7 @@
   Reference: Cramér (1928), On the composition of elementary errors;
              von Mises (1931), Wahrscheinlichkeitsrechnung."
   [samples cdf-fn]
-  (let [samples (vec samples)
-        n (count samples)
+  (let [n (long (data-length samples))
         w2 (cvm-test-statistic samples cdf-fn)
         p (cvm-pvalue w2 n)]
     {:statistic w2
