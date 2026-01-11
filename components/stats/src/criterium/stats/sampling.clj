@@ -1,5 +1,9 @@
 (ns criterium.stats.sampling
-  "Sampling utilities: uniform distribution, sample functions, confidence intervals.")
+  "Sampling utilities: uniform distribution, sample functions, confidence intervals."
+  (:require
+   [criterium.array :as arr])
+  (:import
+   [criterium.array DoubleArray]))
 
 (defn uniform-distribution
   "Return uniformly distributed deviates on 0..max-val using the specified rng."
@@ -25,3 +29,19 @@
   (let [n-sigma 1.96 ; use 95% confidence interval
         delta   (* n-sigma (Math/sqrt variance))]
     [(- mean delta) (+ mean delta)]))
+
+(defn sample-doubles
+  "Sample with replacement from a DoubleArray, returning a new DoubleArray.
+  rng is a lazy sequence of random doubles in [0,1)."
+  ^DoubleArray [^DoubleArray arr rng]
+  (let [^doubles a (.array arr)
+        n (alength a)
+        ^doubles result (double-array n)
+        nd (double n)]
+    (loop [i 0
+           rs (seq rng)]
+      (when (< i n)
+        (let [idx (long (* (double (first rs)) nd))]
+          (aset result i (aget a idx))
+          (recur (unchecked-inc i) (rest rs)))))
+    (DoubleArray. result)))

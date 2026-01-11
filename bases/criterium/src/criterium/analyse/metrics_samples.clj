@@ -288,11 +288,9 @@
           outliers (get-in outliers p)
           samples-arr (if-let [ols (:outliers outliers)]
                         (remove-outliers samples-arr ols)
-                        samples-arr)
-          ;; Convert to vector for KDE computation
-          samples (arr/to-double-vec samples-arr)]
-      (when (seq samples)
-        (kde/kde samples options)))
+                        samples-arr)]
+      (when (pos? (arr/length samples-arr))
+        (kde/kde samples-arr options)))
     (catch clojure.lang.ExceptionInfo e
       (let [data (ex-data e)]
         (when-not (#{:kde/no-data :kde/constant-data} (:error data))
@@ -342,8 +340,6 @@
           samples-arr (if-let [ols (:outliers outliers-data)]
                         (remove-outliers samples-arr ols)
                         samples-arr)
-          ;; Convert to vector for KDE functions
-          samples (arr/to-double-vec samples-arr)
           ;; Find modes from existing KDE density (for initial mode count)
           grid-arr (double-array grid)
           density-arr (double-array density)
@@ -353,7 +349,7 @@
           test-results
           (into {}
                 (for [k (range 1 (inc (min max-modes n-all-modes)))]
-                  [k (test-fn samples k
+                  [k (test-fn samples-arr k
                               {:n-bootstrap n-bootstrap
                                :n-points n-points
                                :alpha alpha})]))
@@ -369,19 +365,25 @@
           (case mode-method
             :critical
             ;; Use critical bandwidth to find modes
-            (let [locate-result (kde/locate-modes samples validated-k
+            (let [locate-result (kde/locate-modes samples-arr validated-k
                                                   {:n-points n-points})
                   h-crit (:critical-bandwidth locate-result)
                   ;; Build mode CIs at critical bandwidth
-                  sample-min (double (reduce min samples))
-                  sample-max (double (reduce max samples))
+                  [sample-min sample-max]
+                  (arr/dfold samples-arr
+                             (fn [acc ^double v]
+                               (let [[^double mn ^double mx] acc]
+                                 [(min mn v) (max mx v)]))
+                             [Double/POSITIVE_INFINITY Double/NEGATIVE_INFINITY])
+                  sample-min (double sample-min)
+                  sample-max (double sample-max)
                   sample-range (- sample-max sample-min)
                   grid-step (/ sample-range (double (dec (long n-points))))
                   crit-grid (double-array (range sample-min
                                                  (+ sample-max 0.1)
                                                  grid-step))
                   modes-ci (kde/mode-confidence-intervals
-                            samples h-crit crit-grid validated-k
+                            samples-arr h-crit crit-grid validated-k
                             {:n-bootstrap n-bootstrap
                              :alpha alpha})]
               {:modes-with-ci modes-ci
@@ -390,7 +392,7 @@
 
             ;; :isj - use existing KDE density from ISJ bandwidth
             {:modes-with-ci (kde/mode-confidence-intervals
-                             samples bandwidth grid-arr validated-k
+                             samples-arr bandwidth grid-arr validated-k
                              {:n-bootstrap n-bootstrap
                               :alpha alpha})
              :mode-bandwidth bandwidth
