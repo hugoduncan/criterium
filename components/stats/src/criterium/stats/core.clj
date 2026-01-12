@@ -5,6 +5,7 @@
   Primitive-optimized implementations avoid boxing overhead."
   (:refer-clojure :exclude [min max])
   (:require
+   [criterium.array :as arr]
    criterium.array.interface
    [criterium.utils.interface :as utils])
   (:import
@@ -17,15 +18,10 @@
     (apply map vector data)
     data))
 
-(defn- typed-array?
-  "Returns true if data is a typed array."
-  [data]
-  (instance? ITypedArray data))
-
 (defn- require-typed-array!
   "Throws if data is not a typed array."
   [data fn-name]
-  (when-not (typed-array? data)
+  (when-not (arr/typed-array? data)
     (throw (ex-info (str fn-name " requires a typed array, got: " (type data))
                     {:fn fn-name
                      :type (type data)

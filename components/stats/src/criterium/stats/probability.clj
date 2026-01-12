@@ -4,21 +4,12 @@
   (:require
    [criterium.array :as arr])
   (:import
-   [criterium.array DoubleArray LongArray]
    [criterium.array.interface ITypedArray]))
-
-;;; Type detection helpers
-
-(defn- typed-array?
-  "Returns true if x is a typed array (DoubleArray or LongArray)."
-  [x]
-  (or (instance? DoubleArray x)
-      (instance? LongArray x)))
 
 (defn- require-typed-array!
   "Throws if data is not a typed array."
   [data fn-name]
-  (when-not (typed-array? data)
+  (when-not (arr/typed-array? data)
     (throw (ex-info (str fn-name " requires a typed array, got: " (type data))
                     {:fn fn-name
                      :type (type data)

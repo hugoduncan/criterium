@@ -120,6 +120,11 @@
   ^long [^ITypedArray arr]
   (.length arr))
 
+(defn typed-array?
+  "Returns true if x is a typed array (DoubleArray, LongArray, or ObjectArray)."
+  [x]
+  (instance? ITypedArray x))
+
 (deftype ArrayOps []
   IArrayOps
   (^double sum [_ ^DoubleArray arr]
