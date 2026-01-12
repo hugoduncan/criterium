@@ -268,4 +268,19 @@
       (let [wrapped (arr/->double-array (double-array [1.0 2.0 3.0 4.0]))
             result  (arr/filter-indices wrapped #{2})]
         (is (= [1.0 2.0 4.0]
-               (arr/dfold result (fn [acc ^double v] (conj acc v)) [])))))))
+               (arr/dfold result (fn [acc ^double v] (conj acc v)) [])))))
+    (testing "on LongArray"
+      (testing "excludes specified indices and returns LongArray"
+        (let [wrapped (arr/->long-array (long-array [10 20 30 40 50]))
+              result  (arr/filter-indices wrapped #{1 3})]
+          (is (= :long (arr/elem-type result)))
+          (is (= 3 (arr/length result)))
+          (is (= [10 30 50]
+                 (arr/lfold result (fn [acc ^long v] (conj acc v)) [])))))
+      (testing "returns LongArray copy when exclude set is empty"
+        (let [wrapped (arr/->long-array (long-array [10 20 30]))
+              result  (arr/filter-indices wrapped #{})]
+          (is (= :long (arr/elem-type result)))
+          (is (= 3 (arr/length result)))
+          (is (= [10 20 30]
+                 (arr/lfold result (fn [acc ^long v] (conj acc v)) []))))))))

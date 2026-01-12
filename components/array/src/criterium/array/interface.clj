@@ -71,3 +71,6 @@
   (^long sum [^criterium.array.LongArray arr])
   (^long getAt [^criterium.array.LongArray arr ^long index])
   (^double getAt [^criterium.array.DoubleArray arr ^long index]))
+
+(definterface IFilterIndices
+  (filterIndices [exclude-set]))

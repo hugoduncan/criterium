@@ -15,6 +15,7 @@
     IDoubleMap IDoubleMapIndexed ILongMap ILongMapIndexed
     IDoubleAny ILongAny IArrayEquals ISortable
     IDoubleFoldSkip IDoubleObjectFoldSkip
+    IFilterIndices
     IIndexed IArrayOps]
    [java.util Arrays]))
 
@@ -119,7 +120,23 @@
             (recur (unchecked-inc i) acc)
             (recur (unchecked-inc i)
                    (.invokePrim f acc (aget array i))))
-          acc)))))
+          acc))))
+
+  IFilterIndices
+  (filterIndices [_ exclude-set]
+    (let [len          (alength array)
+          exclude-size (count exclude-set)
+          new-len      (- len exclude-size)
+          ^doubles out (double-array new-len)]
+      (loop [i (long 0)
+             j (long 0)]
+        (if (< i len)
+          (if (contains? exclude-set i)
+            (recur (unchecked-inc i) j)
+            (do
+              (aset out j (aget array i))
+              (recur (unchecked-inc i) (unchecked-inc j))))
+          (DoubleArray. out))))))
 
 (deftype LongArray [^longs array]
   ITypedArray
@@ -266,7 +283,23 @@
             (recur (unchecked-inc i) acc)
             (recur (unchecked-inc i)
                    (.invokePrim f acc (double (aget array i)))))
-          acc)))))
+          acc))))
+
+  IFilterIndices
+  (filterIndices [_ exclude-set]
+    (let [len          (alength array)
+          exclude-size (count exclude-set)
+          new-len      (- len exclude-size)
+          ^longs out   (long-array new-len)]
+      (loop [i (long 0)
+             j (long 0)]
+        (if (< i len)
+          (if (contains? exclude-set i)
+            (recur (unchecked-inc i) j)
+            (do
+              (aset out j (aget array i))
+              (recur (unchecked-inc i) (unchecked-inc j))))
+          (LongArray. out))))))
 
 (deftype ObjectArray [^objects array]
   ITypedArray
@@ -494,23 +527,11 @@
   (.foldObjectSkip arr skip-idx f init))
 
 (defn filter-indices
-  "Creates a new DoubleArray containing only elements at indices NOT in exclude-set.
+  "Returns a new typed array containing only elements at indices NOT in exclude-set.
+  Returns the same type as input: DoubleArray returns DoubleArray, LongArray returns LongArray.
   exclude-set is a set of long indices to exclude."
-  ^DoubleArray [^DoubleArray arr exclude-set]
-  (let [^doubles a   (.array arr)
-        len          (alength a)
-        exclude-size (count exclude-set)
-        new-len      (- len exclude-size)
-        ^doubles out (double-array new-len)]
-    (loop [i   (long 0)
-           j   (long 0)]
-      (if (< i len)
-        (if (contains? exclude-set i)
-          (recur (unchecked-inc i) j)
-          (do
-            (aset out j (aget a i))
-            (recur (unchecked-inc i) (unchecked-inc j))))
-        (DoubleArray. out)))))
+  [^IFilterIndices arr exclude-set]
+  (.filterIndices arr exclude-set))
 
 (defn indexed-dfold
   "Fold over elements with index, receiving primitive doubles.
