@@ -12,10 +12,12 @@
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have]]))
 
-(defn exp [v]
+(defn exp
+  ^double [^double v]
   (Math/exp v))
 
-(defn log [v]
+(defn log
+  ^double [^double v]
   (Math/log v))
 
 (defn transform-log

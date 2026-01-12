@@ -428,7 +428,8 @@
         field-name (name k)
         samples (metric->values path)
         ;; Transform and sort samples
-        transformed (arr/dmap samples #(util/transform-sample-> % transforms))
+        transformed (arr/dmap samples (fn ^double [^double x]
+                                        (util/transform-sample-> x transforms)))
         sorted-arr (arr/sorted transformed)
         n (arr/length sorted-arr)
         max-val (Math/log10 (double n))

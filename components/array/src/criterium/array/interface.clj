@@ -31,6 +31,18 @@
 (definterface ILongObjectFold
   (foldObject [^clojure.lang.IFn$OLO f init]))
 
+(definterface IDoubleMap
+  (dmap [^clojure.lang.IFn$DD f]))
+
+(definterface IDoubleMapIndexed
+  (dmapIndexed [^clojure.lang.IFn$LDD f]))
+
+(definterface ILongMap
+  (lmap [^clojure.lang.IFn$LL f]))
+
+(definterface ILongMapIndexed
+  (lmapIndexed [^clojure.lang.IFn$LLL f]))
+
 (definterface IIndexed
   (^double getDouble [^long index])
   (^long getLong [^long index])

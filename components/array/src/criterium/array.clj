@@ -12,6 +12,7 @@
   (:import
    [criterium.array.interface
     ITypedArray IFold IDoubleFold ILongFold IDoubleObjectFold ILongObjectFold
+    IDoubleMap IDoubleMapIndexed ILongMap ILongMapIndexed
     IIndexed IArrayOps]
    [java.util Arrays]))
 
@@ -48,7 +49,23 @@
   IFold
   (^Object fold [_ f init]
     (areduce array i acc init
-             (f acc (aget array i)))))
+             (f acc (aget array i))))
+
+  IDoubleMap
+  (dmap [_ ^clojure.lang.IFn$DD f]
+    (let [len          (alength array)
+          ^doubles out (double-array len)]
+      (dotimes [i len]
+        (aset out i (.invokePrim f (aget array i))))
+      (DoubleArray. out)))
+
+  IDoubleMapIndexed
+  (dmapIndexed [_ ^clojure.lang.IFn$LDD f]
+    (let [len          (alength array)
+          ^doubles out (double-array len)]
+      (dotimes [i len]
+        (aset out i (.invokePrim f i (aget array i))))
+      (DoubleArray. out))))
 
 (deftype LongArray [^longs array]
   ITypedArray
@@ -98,7 +115,39 @@
   IFold
   (^Object fold [_ f init]
     (areduce array i acc init
-             (f acc (aget array i)))))
+             (f acc (aget array i))))
+
+  IDoubleMap
+  (dmap [_ ^clojure.lang.IFn$DD f]
+    (let [len          (alength array)
+          ^doubles out (double-array len)]
+      (dotimes [i len]
+        (aset out i (.invokePrim f (double (aget array i)))))
+      (DoubleArray. out)))
+
+  IDoubleMapIndexed
+  (dmapIndexed [_ ^clojure.lang.IFn$LDD f]
+    (let [len          (alength array)
+          ^doubles out (double-array len)]
+      (dotimes [i len]
+        (aset out i (.invokePrim f i (double (aget array i)))))
+      (DoubleArray. out)))
+
+  ILongMap
+  (lmap [_ ^clojure.lang.IFn$LL f]
+    (let [len        (alength array)
+          ^longs out (long-array len)]
+      (dotimes [i len]
+        (aset out i (.invokePrim f (aget array i))))
+      (LongArray. out)))
+
+  ILongMapIndexed
+  (lmapIndexed [_ ^clojure.lang.IFn$LLL f]
+    (let [len        (alength array)
+          ^longs out (long-array len)]
+      (dotimes [i len]
+        (aset out i (.invokePrim f i (aget array i))))
+      (LongArray. out))))
 
 (deftype ObjectArray [^objects array]
   ITypedArray
@@ -458,47 +507,31 @@
 
 (defn dmap
   "Maps f over elements, returning a new DoubleArray.
-  f receives a primitive double and should return a double.
+  f must be (fn ^double [^double x] ...).
   Works with DoubleArray and LongArray."
-  ^DoubleArray [arr f]
-  (cond
-    (instance? DoubleArray arr)
-    (let [^doubles a   (.array ^DoubleArray arr)
-          len          (alength a)
-          ^doubles out (double-array len)]
-      (dotimes [i len]
-        (aset out i (double (f (aget a i)))))
-      (DoubleArray. out))
-
-    (instance? LongArray arr)
-    (let [^longs a     (.array ^LongArray arr)
-          len          (alength a)
-          ^doubles out (double-array len)]
-      (dotimes [i len]
-        (aset out i (double (f (double (aget a i))))))
-      (DoubleArray. out))))
+  ^DoubleArray [^IDoubleMap arr f]
+  (.dmap arr f))
 
 (defn dmap-indexed
   "Maps f over elements with index, returning a new DoubleArray.
-  f receives (index, value) and should return a double.
+  f must be (fn ^double [^long idx ^double x] ...).
   Works with DoubleArray and LongArray."
-  ^DoubleArray [arr f]
-  (cond
-    (instance? DoubleArray arr)
-    (let [^doubles a   (.array ^DoubleArray arr)
-          len          (alength a)
-          ^doubles out (double-array len)]
-      (dotimes [i len]
-        (aset out i (double (f i (aget a i)))))
-      (DoubleArray. out))
+  ^DoubleArray [^IDoubleMapIndexed arr f]
+  (.dmapIndexed arr f))
 
-    (instance? LongArray arr)
-    (let [^longs a     (.array ^LongArray arr)
-          len          (alength a)
-          ^doubles out (double-array len)]
-      (dotimes [i len]
-        (aset out i (double (f i (double (aget a i))))))
-      (DoubleArray. out))))
+(defn lmap
+  "Maps f over elements, returning a new LongArray.
+  f must be (fn ^long [^long x] ...).
+  Works only with LongArray."
+  ^LongArray [^ILongMap arr f]
+  (.lmap arr f))
+
+(defn lmap-indexed
+  "Maps f over elements with index, returning a new LongArray.
+  f must be (fn ^long [^long idx ^long x] ...).
+  Works only with LongArray."
+  ^LongArray [^ILongMapIndexed arr f]
+  (.lmapIndexed arr f))
 
 (defn any-positive?
   "Returns true if any element is positive (> 0).
