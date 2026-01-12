@@ -12,30 +12,49 @@
   - Efron, B., & Tibshirani, R. J. (1993). An introduction to the bootstrap.
   - http://lib.stat.cmu.edu/S/bootstrap.funs"
   (:require
+   [criterium.array :as arr]
    [criterium.stats.core :as core]
    [criterium.stats.probability :as probability]
    [criterium.stats.sampling :as sampling]
-   [criterium.utils.interface :as utils]))
+   [criterium.utils.interface :as utils])
+  (:import
+   [criterium.array DoubleArray]))
+
+(defn- ->double-array
+  "Convert data to a DoubleArray."
+  ^DoubleArray [data]
+  (cond
+    (instance? DoubleArray data) data
+    (sequential? data) (arr/->double-array (double-array data))
+    :else (throw (ex-info "Expected DoubleArray or sequence" {:type (type data)}))))
 
 (defn bootstrap-sample
   "Bootstrap sampling of a statistic, using resampling with replacement.
+
+  Data must be a DoubleArray or sequence (converted to DoubleArray).
+  The statistic function receives a sorted DoubleArray.
 
   Returns transposed results: if statistic returns a vector, returns a vector
   of vectors where each inner vector contains all samples for that statistic."
   [data statistic size rng-factory]
   (assert (nat-int? size))
-  (core/transpose
-   (for [_ (range size)] (statistic (sort (sampling/sample data (rng-factory)))))))
+  (let [darr (->double-array data)]
+    (core/transpose
+     (for [_ (range size)]
+       (statistic (arr/sorted (sampling/sample-doubles darr (rng-factory))))))))
 
 (defn bootstrap-estimate
   "Mean, variance and confidence interval from bootstrapped samples.
 
+  sampled-stat is a sequence of statistic values (converted to DoubleArray).
+
   Returns [mean variance [lower upper]] where the confidence interval
   uses the bootstrapped statistic's variance."
   [sampled-stat]
-  (let [n     (count sampled-stat)
-        m     (core/mean sampled-stat n)
-        v     (core/variance* sampled-stat m n)
+  (let [darr  (->double-array sampled-stat)
+        n     (arr/length darr)
+        m     (core/mean darr n)
+        v     (core/variance* darr m n)
         stats [m v]]
     (conj stats
           (apply sampling/confidence-interval stats))))
@@ -47,14 +66,29 @@
    (when-let [s (seq coll)]
      (concat (take n s) (next (drop n s))))))
 
+(defn- drop-at-array
+  "Return a new DoubleArray with element at index n removed."
+  ^DoubleArray [^long n ^DoubleArray darr]
+  (let [^doubles a (.array darr)
+        len (alength a)
+        ^doubles result (double-array (dec len))]
+    (System/arraycopy a 0 result 0 n)
+    (System/arraycopy a (inc n) result n (- len n 1))
+    (DoubleArray. result)))
+
 (defn jacknife
   "Jacknife statistics on data.
+
+  Data must be a DoubleArray or sequence (converted to DoubleArray).
+  The statistic function receives a DoubleArray.
 
   Computes the statistic on each leave-one-out sample of the data.
   Returns transposed results like bootstrap-sample."
   [data statistic]
-  (core/transpose
-   (map #(statistic (drop-at %1 data)) (range (count data)))))
+  (let [darr (->double-array data)
+        n    (arr/length darr)]
+    (core/transpose
+     (map #(statistic (drop-at-array % darr)) (range n)))))
 
 (defn- nan-safe-compare
   "Comparator that handles NaN values by sorting them to the end.
@@ -65,13 +99,15 @@
 (defn bca-nonparametric-eval
   "Calculate bootstrap values for given estimate and samples.
 
-  Internal function used by bca-nonparametric."
+  Internal function used by bca-nonparametric.
+  samples and jack-samples are sequences of statistic values."
   [size z-alpha estimate samples jack-samples]
   {:pre [(> (count jack-samples) 1)]}
-  (let [z0                    (probability/normal-quantile
+  (let [jack-darr             (->double-array jack-samples)
+        z0                    (probability/normal-quantile
                                (/ (count (filter (partial > estimate) samples))
                                   ^long size))
-        jack-mean             (core/mean jack-samples)
+        jack-mean             (core/mean jack-darr)
         jack-deviation        (map #(- jack-mean ^double %1) jack-samples)
         ^double sqr-deviation (reduce + 0.0 (map utils/sqrd jack-deviation))
         acc                   (if (zero? sqr-deviation)
@@ -95,6 +131,9 @@
 (defn bca-nonparametric
   "Non-parametric BCa estimate of a statistic on data.
 
+  Data must be a DoubleArray or sequence (converted to DoubleArray).
+  The statistic function receives a sorted DoubleArray.
+
   Size bootstrap samples are used. Confidence values are returned at the
   alpha normal quantiles. rng-factory is a function that returns a random
   number generator to use for the sampling.
@@ -104,7 +143,7 @@
   - http://lib.stat.cmu.edu/S/bootstrap.funs for Efron's original implementation."
   [data statistic size alpha rng-factory]
   (assert (nat-int? size))
-  (let [data         (sort data)
+  (let [data         (arr/sorted (->double-array data))
         estimate     (statistic data)
         samples      (bootstrap-sample data statistic size rng-factory)
         jack-samples (jacknife data statistic)

@@ -5,6 +5,7 @@
    [clojure.test.check.clojure-test :refer [defspec]]
    [clojure.test.check.generators :as gen]
    [clojure.test.check.properties :as prop]
+   [criterium.array :as arr]
    [criterium.random.well :as well]
    [criterium.test-utils :refer [autocorrelation
                                  gen-bounded
@@ -13,6 +14,11 @@
                                  variance-ratio-uniform
                                  xoshiro-available?]]
    [criterium.util.stats :as stats]))
+
+(defn- darr
+  "Create a DoubleArray from a sequence."
+  [coll]
+  (arr/->double-array (double-array coll)))
 
 ;; Tests for WELL RNG 1024a algorithm.
 ;; Verifies correctness, statistical properties, and independence of samples.
@@ -58,8 +64,8 @@
          values        (->> (well/well-rng-1024a well-state well-index)
                             (take 10000)
                             vec)]
-     (test-max-error (stats/mean values) 0.5 2e-2)
-     (test-max-error (stats/variance values) (/ 1.0 12) 1e-2))))
+     (test-max-error (stats/mean (darr values)) 0.5 2e-2)
+     (test-max-error (stats/variance (darr values)) (/ 1.0 12) 1e-2))))
 
 ;;; Autocorrelation tests
 ;; These tests verify that WELL RNG produces samples with negligible

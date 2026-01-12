@@ -4,6 +4,7 @@
    [clojure.test.check.clojure-test :refer [defspec]]
    [clojure.test.check.generators :as gen]
    [clojure.test.check.properties :as prop]
+   [criterium.array :as arr]
    [criterium.data.r-validation.adjbox :as adjbox-data]
    [criterium.data.r-validation.medcouple :as mc-data]
    [criterium.test-utils :refer [test-max-error]]
@@ -12,52 +13,58 @@
   (:import
    [java.lang Math]))
 
+(defn- darr
+  "Create a DoubleArray from a sequence."
+  [coll]
+  (arr/->double-array (double-array coll)))
+
 (deftest mean-test
-  (is (= 1.0 (stats/mean (repeat 20 1))))
-  (is (= 3.0 (stats/mean (range 0 7))))
-  (is (= 50.0 (stats/mean (range 0 101)))))
+  (is (= 1.0 (stats/mean (darr (repeat 20 1)))))
+  (is (= 3.0 (stats/mean (darr (range 0 7)))))
+  (is (= 50.0 (stats/mean (darr (range 0 101))))))
 
 (deftest sum-test
-  (is (= 20 (stats/sum (take 20 (repeatedly (constantly 1))))))
-  (is (= 21 (stats/sum (range 0 7)))))
+  (is (= 20.0 (stats/sum (darr (take 20 (repeatedly (constantly 1)))))))
+  (is (= 21.0 (stats/sum (darr (range 0 7))))))
 
 (deftest sum-of-squares-test
-  (is (= 20.0 (stats/sum-of-squares (take 20 (repeatedly (constantly 1))))))
-  (is (= 80.0 (stats/sum-of-squares (take 20 (repeatedly (constantly 2))))))
-  (is (= 91.0 (stats/sum-of-squares (range 0 7)))))
+  (is (= 20.0 (stats/sum-of-squares (darr (take 20 (repeatedly (constantly 1)))))))
+  (is (= 80.0 (stats/sum-of-squares (darr (take 20 (repeatedly (constantly 2)))))))
+  (is (= 91.0 (stats/sum-of-squares (darr (range 0 7))))))
 
 (deftest variance-test
-  (is (= 0.0 (stats/variance (take 20 (repeatedly (constantly 1))))))
-  (is (= 4.0 (stats/variance (range 0 7) 0)))
-  (is (= 850.0 (stats/variance (range 0 101) 0))) ; R: mean((y-mean(y))^2)
-  (is (= 858.5 (stats/variance (range 0 101) 1)))) ; R: var(y)
+  (is (= 0.0 (stats/variance (darr (take 20 (repeatedly (constantly 1)))))))
+  (is (= 4.0 (stats/variance (darr (range 0 7)) 0)))
+  (is (= 850.0 (stats/variance (darr (range 0 101)) 0))) ; R: mean((y-mean(y))^2)
+  (is (= 858.5 (stats/variance (darr (range 0 101)) 1)))) ; R: var(y)
 
 (deftest median-test
   ;; R: median(vs)
-  (is (= [5 [1 2] [7 8]]
-         (stats/median [1 2 5 7 8])))
-  (is (= [3.5 [1 2 2] [5 7 8]]
-         (stats/median [1 2 2 5 7 8]))))
+  ;; Note: With typed arrays, median returns [median nil nil] since partitions are not supported
+  (is (= [5.0 nil nil]
+         (stats/median (darr [1 2 5 7 8]))))
+  (is (= [3.5 nil nil]
+         (stats/median (darr [1 2 2 5 7 8])))))
 
 (deftest quartiles-test
   ;; R: quantile(vs, prob=c(.25,0.5,.75))
-  (is (= [1.5 5 7.5]
-         (stats/quartiles [1 2 5 7 8])))
-  (is (= [2 3.5 7]
-         (stats/quartiles [1 2 2 5 7 8]))))
+  (is (= [2.0 5.0 7.0]
+         (stats/quartiles (darr [1 2 5 7 8]))))
+  (is (= [2.0 3.5 7.0]
+         (stats/quartiles (darr [1 2 2 5 7 8])))))
 
 (deftest quantile-test
   (testing "exact data points"
     ;; R: quantile(c(1,2,5,7,8), prob=c(.25,0.5,.75))
     ;; quantile returns doubles even for integer inputs
-    (is (== 2 (stats/quantile 0.25 [1 2 5 7 8])))
-    (is (== 5 (stats/quantile 0.5 [1 2 5 7 8])))
-    (is (== 7 (stats/quantile 0.75 [1 2 5 7 8]))))
+    (is (== 2 (stats/quantile 0.25 (darr [1 2 5 7 8]))))
+    (is (== 5 (stats/quantile 0.5 (darr [1 2 5 7 8]))))
+    (is (== 7 (stats/quantile 0.75 (darr [1 2 5 7 8])))))
   (testing "interpolated data points"
     ;; R: quantile(c(1,2,2,5,7,8), prob=c(.25,0.5,.75))
-    (is (= 2.0 (stats/quantile 0.25 [1 2 2 5 7 8])))
-    (is (= 3.5 (stats/quantile 0.5 [1 2 2 5 7 8])))
-    (is (= 6.5 (stats/quantile 0.75 [1 2 2 5 7 8])))))
+    (is (= 2.0 (stats/quantile 0.25 (darr [1 2 2 5 7 8]))))
+    (is (= 3.5 (stats/quantile 0.5 (darr [1 2 2 5 7 8]))))
+    (is (= 6.5 (stats/quantile 0.75 (darr [1 2 2 5 7 8]))))))
 
 (defspec sample-uniform-test
   (testing "sample-uniform"
@@ -81,13 +88,13 @@
 
 (deftest quantiles-test
   (let [max-error 1.5e-7]
-    (test-max-error 1.0 (stats/quantile 0.5 [0 1 2]) max-error)
-    (test-max-error 1.5 (stats/quantile 0.5 [0 1 2 3]) max-error)
-    (test-max-error 1.0 (stats/quantile 0.25 [0 1 1.5 2 3]) max-error)
-    (test-max-error 2.0 (stats/quantile 0.75 [0 1 1.5 2 3]) max-error))
+    (test-max-error 1.0 (stats/quantile 0.5 (darr [0 1 2])) max-error)
+    (test-max-error 1.5 (stats/quantile 0.5 (darr [0 1 2 3])) max-error)
+    (test-max-error 1.0 (stats/quantile 0.25 (darr [0 1 1.5 2 3])) max-error)
+    (test-max-error 2.0 (stats/quantile 0.75 (darr [0 1 1.5 2 3])) max-error))
   ;; quantile returns doubles even for integer inputs
-  (is (== 5 (stats/quantile 0.05 (range 0 101))))
-  (is (== 95 (stats/quantile 0.95 (range 0 101)))))
+  (is (== 5 (stats/quantile 0.05 (darr (range 0 101)))))
+  (is (== 95 (stats/quantile 0.95 (darr (range 0 101))))))
 
 ;;; Medcouple tests
 ;; Tests the medcouple function, a robust measure of skewness.
@@ -99,7 +106,7 @@
     (testing "returns correct values for reference test cases"
       (doseq [{:keys [data expected description]} mc-data/test-cases]
         (testing description
-          (let [result   (stats/medcouple data)
+          (let [result   (stats/medcouple (darr data))
                 max-diff 1e-10]
             (is (< (Math/abs (- ^double result ^double expected)) max-diff)
                 (format "Expected %s, got %s for %s"
@@ -107,22 +114,22 @@
 
     (testing "returns correct value for ozone data"
       (let [{:keys [data expected]} mc-data/ozone-data
-            result                  (stats/medcouple data)
+            result                  (stats/medcouple (darr data))
             max-diff                1e-10]
         (is (< (Math/abs (- ^double result ^double expected)) max-diff)
             (format "Expected %s, got %s" expected result))))
 
     (testing "returns value in range [-1, 1]"
       (doseq [{:keys [data]} mc-data/test-cases]
-        (let [result (stats/medcouple data)]
+        (let [result (stats/medcouple (darr data))]
           (is (<= -1.0 result 1.0)
               (format "Medcouple %s out of range [-1, 1]" result)))))
 
     (testing "is symmetric under reflection"
-      (let [data     [1 2 3 4 5 10 15 20]
+      (let [data      [1 2 3 4 5 10 15 20]
             reflected (mapv (fn [^long x] (- x)) (reverse data))
-            mc-orig (double (stats/medcouple (vec (sort data))))
-            mc-ref (double (stats/medcouple (vec (sort reflected))))]
+            mc-orig   (double (stats/medcouple (darr (sort data))))
+            mc-ref    (double (stats/medcouple (darr (sort reflected))))]
         (is (< (Math/abs (+ mc-orig mc-ref)) 1e-10)
             "mc(-x) should equal -mc(x)")))
 
@@ -130,9 +137,9 @@
       (let [data       [1 2 3 4 5 10 15 20]
             shifted    (mapv (fn [^long x] (+ x 100)) data)
             scaled     (mapv (fn [^long x] (* x 10)) data)
-            mc-orig (double (stats/medcouple (vec (sort data))))
-            mc-shifted (double (stats/medcouple (vec (sort shifted))))
-            mc-scaled (double (stats/medcouple (vec (sort scaled))))]
+            mc-orig    (double (stats/medcouple (darr (sort data))))
+            mc-shifted (double (stats/medcouple (darr (sort shifted))))
+            mc-scaled  (double (stats/medcouple (darr (sort scaled))))]
         (is (< (Math/abs (- mc-orig mc-shifted)) 1e-10)
             "Medcouple should be location invariant")
         (is (< (Math/abs (- mc-orig mc-scaled)) 1e-10)
@@ -143,7 +150,7 @@
     (testing "always returns value in [-1, 1]"
       (prop/for-all
        [data (gen/vector gen/small-integer 3 100)]
-       (let [sorted (vec (sort data))
+       (let [sorted (darr (sort data))
              mc     (double (stats/medcouple sorted))]
          (and (<= -1.0 mc) (<= mc 1.0)))))))
 

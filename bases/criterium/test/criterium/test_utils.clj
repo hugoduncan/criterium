@@ -3,10 +3,16 @@
    [clojure.string :as str]
    [clojure.test :refer [deftest is testing]]
    [clojure.test.check.generators :as gen]
+   [criterium.array :as arr]
    [criterium.test.assert :as assert]
    [criterium.util.stats :as stats]
    [criterium.util.well :as well]
    [criterium.util.ziggurat :as ziggurat]))
+
+(defn darr
+  "Create a DoubleArray from a sequence."
+  [coll]
+  (arr/->double-array (double-array coll)))
 
 ;;; Re-exports from criterium.test.assert
 ;; Requiring the assert namespace registers the approx= assert-expr
@@ -167,7 +173,7 @@
          ;; Expected variance for sum of batch-size independent samples
          ;; Var(sum) = batch-size * expected-individual-variance
          expected-var (* (double batch-size) expected-individual-variance)
-         observed-var (double (stats/variance batch-sums))]
+         observed-var (double (stats/variance (darr batch-sums)))]
      (/ observed-var expected-var))))
 
 (defn variance-ratio-uniform
