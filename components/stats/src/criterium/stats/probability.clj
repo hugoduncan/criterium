@@ -630,16 +630,16 @@
             (throw (IllegalArgumentException. "samples cannot be empty")))
         sorted-samples (arr/sorted samples)
         n-d (double n)]
-    (arr/indexed-dfold sorted-samples
-                       (fn [^double d-max ^long i ^double x]
-                         (let [f-x (double (cdf-fn x))
-                               fn-before (/ (double i) n-d)
-                               fn-after (/ (double (inc i)) n-d)
-                               d1 (Math/abs (- fn-before f-x))
-                               d2 (Math/abs (- fn-after f-x))
-                               d-new (Math/max d1 d2)]
-                           (Math/max d-max d-new)))
-                       0.0)))
+    (arr/indexed-fold-double sorted-samples
+                             (fn ^double [^double d-max ^long i ^double x]
+                               (let [f-x (double (cdf-fn x))
+                                     fn-before (/ (double i) n-d)
+                                     fn-after (/ (double (inc i)) n-d)
+                                     d1 (Math/abs (- fn-before f-x))
+                                     d2 (Math/abs (- fn-after f-x))
+                                     d-new (Math/max d1 d2)]
+                                 (Math/max d-max d-new)))
+                             0.0)))
 
 (defn ks-pvalue
   "Compute asymptotic p-value for Kolmogorov-Smirnov test.
@@ -709,16 +709,16 @@
         sorted-samples (arr/sorted samples)
         n-d (double n)
         base (/ 1.0 (* 12.0 n-d))
-        sum (arr/indexed-dfold sorted-samples
-                               (fn [^double acc ^long i ^double x]
-                                 (let [f-x (double (cdf-fn x))
+        sum (arr/indexed-fold-double sorted-samples
+                                     (fn ^double [^double acc ^long i ^double x]
+                                       (let [f-x (double (cdf-fn x))
                                        ;; (2i-1)/(2n) where i is 1-indexed
-                                       expected (/ (- (* 2.0 (double (inc i))) 1.0)
-                                                   (* 2.0 n-d))
-                                       diff (- f-x expected)]
-                                   (+ acc (* diff diff))))
-                               0.0)]
-    (+ base (double sum))))
+                                             expected (/ (- (* 2.0 (double (inc i))) 1.0)
+                                                         (* 2.0 n-d))
+                                             diff (- f-x expected)]
+                                         (+ acc (* diff diff))))
+                                     0.0)]
+    (+ base sum)))
 
 (defn cvm-pvalue
   "Compute asymptotic p-value for Cramér-von Mises test.

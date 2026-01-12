@@ -246,6 +246,115 @@
                                (fn [acc ^double v] (conj acc v))
                                [])))))))
 
+(deftest indexed-fold-double-test
+  ;; Tests primitive indexed fold that returns double.
+  ;; Contracts: fold with index access, primitive performance, both array types.
+  (testing "indexed-fold-double"
+    (testing "with DoubleArray"
+      (testing "sums values using index"
+        (let [wrapped (arr/->double-array (double-array [1.0 2.0 3.0 4.0 5.0]))]
+          (is (= 15.0 (arr/indexed-fold-double
+                       wrapped
+                       (fn ^double [^double acc ^long _i ^double v]
+                         (+ acc v))
+                       0.0)))))
+      (testing "computes weighted sum using index"
+        (let [wrapped (arr/->double-array (double-array [1.0 2.0 3.0]))]
+          ;; sum of v * i = 1*0 + 2*1 + 3*2 = 0 + 2 + 6 = 8
+          (is (= 8.0 (arr/indexed-fold-double
+                      wrapped
+                      (fn ^double [^double acc ^long i ^double v]
+                        (+ acc (* v (double i))))
+                      0.0)))))
+      (testing "finds max value"
+        (let [wrapped (arr/->double-array (double-array [3.0 1.0 4.0 1.0 5.0]))]
+          (is (= 5.0 (arr/indexed-fold-double
+                      wrapped
+                      (fn ^double [^double acc ^long _i ^double v]
+                        (Math/max acc v))
+                      Double/NEGATIVE_INFINITY)))))
+      (testing "works with empty array"
+        (let [wrapped (arr/->double-array (double-array []))]
+          (is (= 0.0 (arr/indexed-fold-double
+                      wrapped
+                      (fn ^double [^double acc ^long _i ^double v]
+                        (+ acc v))
+                      0.0))))))
+    (testing "with LongArray"
+      (testing "sums values (as doubles)"
+        (let [wrapped (arr/->long-array (long-array [10 20 30 40]))]
+          (is (= 100.0 (arr/indexed-fold-double
+                        wrapped
+                        (fn ^double [^double acc ^long _i ^double v]
+                          (+ acc v))
+                        0.0)))))
+      (testing "computes weighted sum using index"
+        (let [wrapped (arr/->long-array (long-array [10 20 30]))]
+          ;; sum of v * i = 10*0 + 20*1 + 30*2 = 0 + 20 + 60 = 80
+          (is (= 80.0 (arr/indexed-fold-double
+                       wrapped
+                       (fn ^double [^double acc ^long i ^double v]
+                         (+ acc (* v (double i))))
+                       0.0))))))))
+
+(deftest indexed-dfold-test
+  ;; Tests Object-returning indexed fold.
+  ;; Contracts: fold with index access, accumulates into collections, both array types.
+  (testing "indexed-dfold"
+    (testing "with DoubleArray"
+      (testing "collects values with indices into vector of maps"
+        (let [wrapped (arr/->double-array (double-array [1.0 2.0 3.0]))]
+          (is (= [{:i 0 :v 1.0} {:i 1 :v 2.0} {:i 2 :v 3.0}]
+                 (arr/indexed-dfold
+                  wrapped
+                  (fn [acc ^long i ^double v]
+                    (conj acc {:i i :v v}))
+                  [])))))
+      (testing "collects only even-indexed values"
+        (let [wrapped (arr/->double-array (double-array [1.0 2.0 3.0 4.0 5.0]))]
+          (is (= [1.0 3.0 5.0]
+                 (arr/indexed-dfold
+                  wrapped
+                  (fn [acc ^long i ^double v]
+                    (if (even? i) (conj acc v) acc))
+                  [])))))
+      (testing "accumulates into a map"
+        (let [wrapped (arr/->double-array (double-array [1.0 2.0 3.0]))]
+          (is (= {:sum 6.0 :count 3 :last-idx 2}
+                 (arr/indexed-dfold
+                  wrapped
+                  (fn [acc ^long i ^double v]
+                    (-> acc
+                        (update :sum + v)
+                        (update :count inc)
+                        (assoc :last-idx i)))
+                  {:sum 0.0 :count 0 :last-idx -1})))))
+      (testing "works with empty array"
+        (let [wrapped (arr/->double-array (double-array []))]
+          (is (= []
+                 (arr/indexed-dfold
+                  wrapped
+                  (fn [acc ^long i ^double v]
+                    (conj acc {:i i :v v}))
+                  []))))))
+    (testing "with LongArray"
+      (testing "collects values with indices"
+        (let [wrapped (arr/->long-array (long-array [10 20 30]))]
+          (is (= [{:i 0 :v 10.0} {:i 1 :v 20.0} {:i 2 :v 30.0}]
+                 (arr/indexed-dfold
+                  wrapped
+                  (fn [acc ^long i ^double v]
+                    (conj acc {:i i :v v}))
+                  [])))))
+      (testing "works with empty array"
+        (let [wrapped (arr/->long-array (long-array []))]
+          (is (= []
+                 (arr/indexed-dfold
+                  wrapped
+                  (fn [acc ^long i ^double v]
+                    (conj acc {:i i :v v}))
+                  []))))))))
+
 (deftest filter-indices-test
   (testing "filter-indices"
     (testing "excludes specified indices"

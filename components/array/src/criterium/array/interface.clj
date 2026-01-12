@@ -74,3 +74,9 @@
 
 (definterface IFilterIndices
   (filterIndices [exclude-set]))
+
+(definterface IIndexedDoubleFold
+  (^double indexedFold [^clojure.lang.IFn$DLDD f ^double init]))
+
+(definterface IIndexedDoubleObjectFold
+  (indexedFoldObject [^clojure.lang.IFn$OLDO f init]))

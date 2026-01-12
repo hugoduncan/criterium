@@ -8,14 +8,15 @@
     - LongArray for :event metrics
     - ObjectArray for :nominal metrics"
   (:require
-   [criterium.array.interface])
+   [criterium.array.interface]
+   [criterium.util.invariant :refer [have?]])
   (:import
    [criterium.array.interface
     ITypedArray IFold IDoubleFold ILongFold IDoubleObjectFold ILongObjectFold
     IDoubleMap IDoubleMapIndexed ILongMap ILongMapIndexed
     IDoubleAny ILongAny IArrayEquals ISortable
     IDoubleFoldSkip IDoubleObjectFoldSkip
-    IFilterIndices
+    IFilterIndices IIndexedDoubleFold IIndexedDoubleObjectFold
     IIndexed IArrayOps]
    [java.util Arrays]))
 
@@ -136,7 +137,28 @@
             (do
               (aset out j (aget array i))
               (recur (unchecked-inc i) (unchecked-inc j))))
-          (DoubleArray. out))))))
+          (DoubleArray. out)))))
+
+  IIndexedDoubleFold
+  (^double indexedFold [_ ^clojure.lang.IFn$DLDD f ^double init]
+    (let [len (alength array)
+          init-d (double init)]
+      (loop [i   (long 0)
+             acc init-d]
+        (if (< i len)
+          (recur (unchecked-inc i)
+                 (.invokePrim f acc i (aget array i)))
+          acc))))
+
+  IIndexedDoubleObjectFold
+  (indexedFoldObject [_ ^clojure.lang.IFn$OLDO f init]
+    (let [len (alength array)]
+      (loop [i   (long 0)
+             acc init]
+        (if (< i len)
+          (recur (unchecked-inc i)
+                 (.invokePrim f acc i (aget array i)))
+          acc)))))
 
 (deftype LongArray [^longs array]
   ITypedArray
@@ -299,7 +321,28 @@
             (do
               (aset out j (aget array i))
               (recur (unchecked-inc i) (unchecked-inc j))))
-          (LongArray. out))))))
+          (LongArray. out)))))
+
+  IIndexedDoubleFold
+  (^double indexedFold [_ ^clojure.lang.IFn$DLDD f ^double init]
+    (let [len (alength array)
+          init-d (double init)]
+      (loop [i   (long 0)
+             acc init-d]
+        (if (< i len)
+          (recur (unchecked-inc i)
+                 (.invokePrim f acc i (double (aget array i))))
+          acc))))
+
+  IIndexedDoubleObjectFold
+  (indexedFoldObject [_ ^clojure.lang.IFn$OLDO f init]
+    (let [len (alength array)]
+      (loop [i   (long 0)
+             acc init]
+        (if (< i len)
+          (recur (unchecked-inc i)
+                 (.invokePrim f acc i (double (aget array i))))
+          acc)))))
 
 (deftype ObjectArray [^objects array]
   ITypedArray
@@ -445,18 +488,24 @@
   (.foldObject arr f init))
 
 (defn ->double-array
-  "Creates a DoubleArray from a double-array."
+  "Creates a DoubleArray from a primitive double array.
+  Use (double-array coll) to convert a collection to a primitive array first."
   ^DoubleArray [^doubles arr]
+  {:pre [(have? #(instance? (Class/forName "[D") %) arr)]}
   (DoubleArray. arr))
 
 (defn ->long-array
-  "Creates a LongArray from a long-array."
+  "Creates a LongArray from a primitive long array.
+  Use (long-array coll) to convert a collection to a primitive array first."
   ^LongArray [^longs arr]
+  {:pre [(have? #(instance? (Class/forName "[J") %) arr)]}
   (LongArray. arr))
 
 (defn ->object-array
-  "Creates an ObjectArray from an object-array."
+  "Creates an ObjectArray from an object array.
+  Use (object-array coll) to convert a collection to an object array first."
   ^ObjectArray [^objects arr]
+  {:pre [(have? #(instance? (Class/forName "[Ljava.lang.Object;") %) arr)]}
   (ObjectArray. arr))
 
 (defn first-double
@@ -533,31 +582,21 @@
   [^IFilterIndices arr exclude-set]
   (.filterIndices arr exclude-set))
 
-(defn indexed-dfold
-  "Fold over elements with index, receiving primitive doubles.
-  f is called as (f acc idx val) for each element.
+(defn indexed-fold-double
+  "Fold over elements with index, accumulating and returning primitive double.
+  f must be (fn ^double [^double acc ^long idx ^double val] ...).
+  Uses .invokePrim to avoid boxing.
   Works with both DoubleArray and LongArray."
-  [arr f init]
-  (cond
-    (instance? DoubleArray arr)
-    (let [^doubles a (.array ^DoubleArray arr)
-          len        (alength a)]
-      (loop [i   (long 0)
-             acc init]
-        (if (< i len)
-          (recur (unchecked-inc i)
-                 (f acc i (aget a i)))
-          acc)))
+  ^double [^IIndexedDoubleFold arr ^clojure.lang.IFn$DLDD f ^double init]
+  (.indexedFold arr f init))
 
-    (instance? LongArray arr)
-    (let [^longs a (.array ^LongArray arr)
-          len      (alength a)]
-      (loop [i   (long 0)
-             acc init]
-        (if (< i len)
-          (recur (unchecked-inc i)
-                 (f acc i (double (aget a i))))
-          acc)))))
+(defn indexed-dfold
+  "Fold over elements with index, accumulating and returning Object.
+  f must be (fn [acc ^long idx ^double val] ...).
+  Uses .invokePrim to avoid boxing on the index and value arguments.
+  Works with both DoubleArray and LongArray."
+  [^IIndexedDoubleObjectFold arr ^clojure.lang.IFn$OLDO f init]
+  (.indexedFoldObject arr f init))
 
 (defn sum
   "Returns the sum of elements.
