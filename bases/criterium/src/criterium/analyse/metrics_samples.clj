@@ -513,9 +513,9 @@
   [dist samples {:keys [n-bootstrap alpha]
                  :or {n-bootstrap 200 alpha 0.05}}]
   (let [typed? (instance? criterium.array.interface.ITypedArray samples)
-        n (if typed?
-            (arr/length samples)
-            (count samples))
+        ^long n (if typed?
+                  (arr/length samples)
+                  (count samples))
         n-bootstrap (long n-bootstrap)
         alpha (double alpha)
         bootstrap-size (max 50 (long (* n 0.8)))
@@ -575,9 +575,9 @@
   (let [{:keys [distributions n-bootstrap alpha]
          :or {n-bootstrap 200 alpha 0.05}} options
         ;; Support both typed arrays and vectors
-        n (if (instance? criterium.array.interface.ITypedArray samples)
-            (arr/length samples)
-            (count samples))
+        ^long n (if (instance? criterium.array.interface.ITypedArray samples)
+                  (arr/length samples)
+                  (count samples))
         ;; Compute sample statistics for moment-match prefilter
         ;; si/mean and si/variance work with typed arrays directly
         mean-val (si/mean samples)
