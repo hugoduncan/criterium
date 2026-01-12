@@ -21,7 +21,7 @@
           fmt-val (fn [v] (when v
                             (format/format-value
                              dimension
-                             (* (double scale) (double (tform v))))))]
+                             (* (double scale) (tform v)))))]
       {:value (fmt-val point-est)
        :ci-lower (fmt-val ci-lower)
        :ci-upper (fmt-val ci-upper)})))

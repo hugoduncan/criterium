@@ -25,8 +25,8 @@
                              ziggurat/random-normal-zig
                              (take 10000)
                              vec)
-         mean           (double (stats/mean values))
-         variance       (double (stats/variance values))
+         mean           (stats/mean values)
+         variance       (stats/variance values)
          mean-error     (double (abs-error mean 0.0))
          variance-error (double (abs-error variance 1.0))
          mean-tol       1e-1
@@ -65,8 +65,8 @@
               (format "variance ratio %.3f outside [0.9, 1.1]" ratio))))
 
       (testing "has correct marginal distribution"
-        (let [mean     (double (stats/mean samples))
-              variance (double (stats/variance samples))]
+        (let [mean     (stats/mean samples)
+              variance (stats/variance samples)]
           (is (< (Math/abs mean) 0.02)
               (format "mean %.4f exceeds tolerance 0.02" mean))
           (is (< (Math/abs (- variance 1.0)) 0.1)

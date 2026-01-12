@@ -204,7 +204,7 @@
   Wichura, MJ. 'Algorithm AS241' The Percentage Points of the Normal
   Distribution. Applied Statistics, 37, 477-484 "
   ^double [^double x]
-  (let [x (double x)
+  (let [x x
         a [2509.0809287301226727
            33430.575583588128105
            67265.770927008700853
@@ -625,7 +625,7 @@
   Returns the D statistic."
   ^double [samples cdf-fn]
   (require-typed-array! samples "ks-test-statistic")
-  (let [n (long (data-length samples))
+  (let [n (data-length samples)
         _ (when (zero? n)
             (throw (IllegalArgumentException. "samples cannot be empty")))
         sorted-samples (arr/sorted samples)
@@ -682,7 +682,7 @@
              goodness of fit of empirical distributions."
   [samples cdf-fn]
   (require-typed-array! samples "ks-test")
-  (let [n (long (data-length samples))
+  (let [n (data-length samples)
         d (ks-test-statistic samples cdf-fn)
         p (ks-pvalue d n)]
     {:statistic d
@@ -703,7 +703,7 @@
   Returns the W² statistic."
   ^double [samples cdf-fn]
   (require-typed-array! samples "cvm-test-statistic")
-  (let [n (long (data-length samples))
+  (let [n (data-length samples)
         _ (when (zero? n)
             (throw (IllegalArgumentException. "samples cannot be empty")))
         sorted-samples (arr/sorted samples)
@@ -781,7 +781,7 @@
              von Mises (1931), Wahrscheinlichkeitsrechnung."
   [samples cdf-fn]
   (require-typed-array! samples "cvm-test")
-  (let [n (long (data-length samples))
+  (let [n (data-length samples)
         w2 (cvm-test-statistic samples cdf-fn)
         p (cvm-pvalue w2 n)]
     {:statistic w2

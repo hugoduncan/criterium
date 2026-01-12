@@ -144,7 +144,7 @@
           ;; Both R and Clojure bootstrap means should be close to the original sample mean
           (let [data (vec (sort normal-data))
                 data-arr (darr data)
-                true-mean (double (stats/mean data-arr))
+                true-mean (stats/mean data-arr)
                 boot-size 1000
                 ;; Clojure bootstrap
                 clj-samples (stats/bootstrap-sample
@@ -174,7 +174,7 @@
                 n (double (count data))
                 boot-size 1000
                 ;; Analytical SE² = var(data) / n
-                analytical-var (/ (double (stats/variance data-arr)) n)
+                analytical-var (/ (stats/variance data-arr) n)
                 ;; Clojure bootstrap variance
                 clj-samples (stats/bootstrap-sample
                              data-arr stats/mean boot-size random/well-rng-1024a)
@@ -328,7 +328,7 @@
         (testing "point estimate matches sample statistic"
           (let [data (vec (sort normal-data))
                 data-arr (darr data)
-                true-mean (double (stats/mean data-arr))
+                true-mean (stats/mean data-arr)
                 boot-size 500
                 alpha [0.5 0.025 0.975]
                 result (stats/bootstrap-bca

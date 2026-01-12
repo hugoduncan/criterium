@@ -97,7 +97,7 @@
   (let [n (typed-array-length sorted-data)]
     (if (< n 3)
       0.0
-      (let [med       (double (core/median-value sorted-data))
+      (let [med       (core/median-value sorted-data)
             first-val (typed-array-get-double sorted-data 0)
             last-val  (typed-array-get-double sorted-data (dec n))]
         (if (== first-val last-val)

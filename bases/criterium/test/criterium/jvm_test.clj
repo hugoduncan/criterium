@@ -231,8 +231,8 @@
               {:keys [freed-bytes]} (agent/allocations-summary
                                      (filterv (agent/allocation-on-thread?) allocations))]
           (is (zero? freed-bytes)
-              (mapv agent/allocation-freed?
-                    (filterv (agent/allocation-on-thread?) allocations))))))))
+              (pr-str (mapv agent/allocation-freed?
+                            (filterv (agent/allocation-on-thread?) allocations)))))))))
 
 (comment
   (deftest transient-persistent-overhead-test

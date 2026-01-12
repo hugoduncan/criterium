@@ -118,8 +118,8 @@
                samples {:quantiles [0.05 0.95]})
         mean-hat (-> stats :mean)
         variance-hat (-> stats :variance)
-        mean (double (stats/mean (darr values)))
-        variance (double (stats/variance (darr values)))]
+        mean (stats/mean (darr values))
+        variance (stats/variance (darr values))]
     (test-max-error (* mean (double batch-size)) mean-hat 1e-5)
     (is (approx= (* variance (double batch-size)) variance-hat 2e-1))))
 
@@ -186,8 +186,8 @@
                {:quantiles [0.05 0.95]})
         mean-hat (-> stats :mean)
         variance-hat (-> stats :variance)
-        mean (double (stats/mean (darr values)))
-        variance (double (stats/variance (darr values)))]
+        mean (stats/mean (darr values))
+        variance (stats/variance (darr values))]
     {:mean mean
      :variance variance
      :mean-hat mean-hat

@@ -215,7 +215,7 @@
   ([data k {:keys [rng-factory]
             :or {rng-factory #(random/well-rng-1024a)}}]
    (require-typed-array! data "excess-mass")
-   (let [n (long (data-length data))
+   (let [n (data-length data)
          k (long k)]
      (when (< n 3)
        (throw (ex-info "Need at least 3 data points for excess mass"
@@ -285,15 +285,15 @@
            max-diff (double
                      (if (empty? lambda-vec)
                        (let [lam 1.0
-                             em-k (double (compute-em lam k min-dist-k len-k))
-                             em-k1 (double (compute-em lam (inc k) min-dist-k1 len-k1))]
+                             em-k (compute-em lam k min-dist-k len-k)
+                             em-k1 (compute-em lam (inc k) min-dist-k1 len-k1)]
                          (- em-k1 em-k))
                        (loop [idx (long 0)
                               max-d Double/NEGATIVE_INFINITY]
                          (if (< idx (count lambda-vec))
-                           (let [lam (double (nth lambda-vec idx))
-                                 em-k (double (compute-em lam k min-dist-k len-k))
-                                 em-k1 (double (compute-em lam (inc k) min-dist-k1 len-k1))
+                           (let [lam (nth lambda-vec idx)
+                                 em-k (compute-em lam k min-dist-k len-k)
+                                 em-k1 (compute-em lam (inc k) min-dist-k1 len-k1)
                                  d (- em-k1 em-k)]
                              (recur (inc idx) (Math/max max-d d)))
                            max-d))))]
@@ -417,7 +417,7 @@
   ^double [data]
   (require-typed-array! data "silverman-bandwidth")
   (let [n (data-length data)
-        sigma (Math/sqrt (double (core/variance data)))
+        sigma (Math/sqrt (core/variance data))
         sorted (arr/sorted data)
         q1 (double (core/quantile 0.25 sorted))
         q3 (double (core/quantile 0.75 sorted))
@@ -483,7 +483,7 @@
   Requires a typed array (DoubleArray or LongArray)."
   ^doubles [data ^double bandwidth ^doubles grid]
   (require-typed-array! data "gaussian-kde")
-  (let [n (long (data-length data))
+  (let [n (data-length data)
         n-grid (alength grid)
         density (double-array n-grid)
         h bandwidth
@@ -660,7 +660,7 @@
   (require-typed-array! data "critical-bandwidth")
   (let [n-pts (long n-points)
         tol (double tol)
-        sigma (Math/sqrt (double (core/variance data)))
+        sigma (Math/sqrt (core/variance data))
         ;; Start with range from very small to Silverman bandwidth * 2
         h-max (* 2.0 (silverman-bandwidth data))
         h-min (/ sigma 100.0)]
@@ -757,8 +757,8 @@
   ^DoubleArray [data ^double bandwidth rng]
   (require-typed-array! data "silverman-bootstrap-sample")
   (let [n (data-length data)
-        sigma-sq (double (core/variance data))
-        mean-val (double (core/mean data))
+        sigma-sq (core/variance data)
+        mean-val (core/mean data)
         scale (Math/sqrt (+ 1.0 (/ (* bandwidth bandwidth) sigma-sq)))
         ;; Sample with replacement - this consumes n random values
         ^DoubleArray resampled (sampling/sample-doubles (ensure-double-array data) rng)
@@ -826,7 +826,7 @@
   (require-typed-array! data "silverman-test")
   (let [n-pts (long n-points)
         ;; Find critical bandwidth
-        h-crit (double (critical-bandwidth data k {:tol tol :n-points n-pts}))
+        h-crit (critical-bandwidth data k {:tol tol :n-points n-pts})
         ;; Bootstrap: count how many times we get > k modes
         exceeds (atom 0)]
     (dotimes [_ n-bootstrap]
@@ -889,7 +889,7 @@
   (require-typed-array! data "acr-test")
   (let [n-pts (long n-points)
         ;; Find critical bandwidth
-        h-crit (double (critical-bandwidth data k {:tol tol :n-points n-pts}))
+        h-crit (critical-bandwidth data k {:tol tol :n-points n-pts})
         ;; Compute observed excess mass statistic
         observed-em (:statistic (excess-mass data k {:rng-factory rng-factory}))
         observed-em (double observed-em)

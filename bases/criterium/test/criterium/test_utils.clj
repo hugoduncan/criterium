@@ -173,7 +173,7 @@
          ;; Expected variance for sum of batch-size independent samples
          ;; Var(sum) = batch-size * expected-individual-variance
          expected-var (* (double batch-size) expected-individual-variance)
-         observed-var (double (stats/variance (darr batch-sums)))]
+         observed-var (stats/variance (darr batch-sums))]
      (/ observed-var expected-var))))
 
 (defn variance-ratio-uniform

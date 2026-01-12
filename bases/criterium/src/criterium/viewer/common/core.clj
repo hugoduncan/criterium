@@ -96,8 +96,7 @@
   (reduce
    (fn [res metric-config]
      (let [quantiles (get-in all-quantiles (:path metric-config))
-           median-val (double
-                       (util/transform-sample-> (quantiles 0.5) transforms))
+           median-val (util/transform-sample-> (quantiles 0.5) transforms)
            metric-scale (double (:scale metric-config))
            [scale unit] (format/scale
                          (:dimension metric-config)
@@ -165,7 +164,7 @@
   [histogram transforms metric-config]
   {:pre [(have? histogram)]}
   (let [transform #(util/transform-sample-> % transforms)
-        min-val (double (transform (:min histogram)))
+        min-val (transform (:min histogram))
         metric-scale (double (:scale metric-config))
         [scale unit] (format/scale
                       (:dimension metric-config)

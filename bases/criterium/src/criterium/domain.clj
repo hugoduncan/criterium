@@ -25,8 +25,7 @@
    [criterium.domain.analysis :as analysis]
    [criterium.domain.builder :as builder]
    [criterium.domain.types :as types]
-   [criterium.measured :as measured])
-  (:refer-clojure :exclude [select]))
+   [criterium.measured :as measured]))
 
 ;;; Re-export from types
 

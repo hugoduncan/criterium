@@ -35,9 +35,9 @@
   [batch-size]
   (let [batch-size (double batch-size)] ; boxed to Double in closure
     {:sample-> (fn sample-> ^double [v]
-                 (/ (double v) (double batch-size)))
+                 (/ v batch-size))
      :->sample (fn ->sample ^double [v]
-                 (* (double v) (double batch-size)))}))
+                 (* v batch-size))}))
 
 (defmethod impl/collect* :one-shot
   ;; Collects a Single sample measured with no warmup of the measured function.

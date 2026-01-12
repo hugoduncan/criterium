@@ -22,7 +22,6 @@
   The instrumentation can also be manually controlled using
   instrument!/uninstrument!  for more fine-grained control over the
   scope which is sampled."
-  (:refer-clojure :exclude [reset!])
   (:require
    [criterium.instrument-fn :as instrument-fn]))
 

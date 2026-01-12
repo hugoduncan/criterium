@@ -746,63 +746,63 @@
           (is (nil? (:mode-method elapsed-modes))
               "should not include mode-method for :isj")
           (is (nil? (:antimodes elapsed-modes))
-              "should not include antimodes for :isj")))))
+              "should not include antimodes for :isj"))))))
 
-  (deftest histogram-test
-    (testing "histogram"
-      (testing "with default (Freedman-Diaconis) method"
-        (let [raw-data (mapv #(+ 100.0 (* 1.0 (double %))) (range 100))
-              samples (metrics-samples
-                       {[:elapsed-time] raw-data}
-                       1)
-              data-map {:samples samples}
-              with-quantiles ((analyse/quantiles {:quantiles []}) data-map)
-              with-outliers ((analyse/outliers) with-quantiles)
-              result ((analyse/histogram) with-outliers)]
-          (is (contains? result :histograms))
-          (let [hist-data (:histograms result)
-                elapsed-hist (get-in hist-data [:histograms [:elapsed-time]])]
-            (is (= :criterium/histogram-fixed-width (:type elapsed-hist)))
-            (is (vector? (:counts elapsed-hist)))
-            (is (vector? (:centers elapsed-hist)))
-            (is (number? (:width elapsed-hist)))
-            (is (not (contains? elapsed-hist :optimal-bins))
-                "Freedman-Diaconis should not include optimal-bins"))))
-
-      (testing "with :method :knuth"
-        (let [raw-data (mapv #(+ 100.0 (* 1.0 (double %))) (range 100))
-              samples (metrics-samples
-                       {[:elapsed-time] raw-data}
-                       1)
-              data-map {:samples samples}
-              with-quantiles ((analyse/quantiles {:quantiles []}) data-map)
-              with-outliers ((analyse/outliers) with-quantiles)
-              result ((analyse/histogram {:method :knuth}) with-outliers)]
-          (is (contains? result :histograms))
-          (let [hist-data (:histograms result)
-                elapsed-hist (get-in hist-data [:histograms [:elapsed-time]])]
-            (is (= :criterium/histogram-knuth (:type elapsed-hist)))
-            (is (vector? (:counts elapsed-hist)))
-            (is (vector? (:centers elapsed-hist)))
-            (is (number? (:width elapsed-hist)))
-            (is (pos-int? (:optimal-bins elapsed-hist))
-                "Knuth method should include optimal-bins")
-            (is (number? (:log-posterior elapsed-hist))
-                "Knuth method should include log-posterior"))))
-
-      (testing "with :method :knuth and :max-bins"
-        (let [raw-data (mapv #(+ 100.0 (* 1.0 (double %))) (range 100))
-              samples (metrics-samples
-                       {[:elapsed-time] raw-data}
-                       1)
-              data-map {:samples samples}
-              with-quantiles ((analyse/quantiles {:quantiles []}) data-map)
-              with-outliers ((analyse/outliers) with-quantiles)
-              result ((analyse/histogram {:method :knuth :max-bins 10}) with-outliers)
-              hist-data (:histograms result)
+(deftest histogram-test
+  (testing "histogram"
+    (testing "with default (Freedman-Diaconis) method"
+      (let [raw-data (mapv #(+ 100.0 (* 1.0 (double %))) (range 100))
+            samples (metrics-samples
+                     {[:elapsed-time] raw-data}
+                     1)
+            data-map {:samples samples}
+            with-quantiles ((analyse/quantiles {:quantiles []}) data-map)
+            with-outliers ((analyse/outliers) with-quantiles)
+            result ((analyse/histogram) with-outliers)]
+        (is (contains? result :histograms))
+        (let [hist-data (:histograms result)
               elapsed-hist (get-in hist-data [:histograms [:elapsed-time]])]
-          (is (<= (long (:optimal-bins elapsed-hist)) 10)
-              "optimal-bins should respect max-bins limit"))))))
+          (is (= :criterium/histogram-fixed-width (:type elapsed-hist)))
+          (is (vector? (:counts elapsed-hist)))
+          (is (vector? (:centers elapsed-hist)))
+          (is (number? (:width elapsed-hist)))
+          (is (not (contains? elapsed-hist :optimal-bins))
+              "Freedman-Diaconis should not include optimal-bins"))))
+
+    (testing "with :method :knuth"
+      (let [raw-data (mapv #(+ 100.0 (* 1.0 (double %))) (range 100))
+            samples (metrics-samples
+                     {[:elapsed-time] raw-data}
+                     1)
+            data-map {:samples samples}
+            with-quantiles ((analyse/quantiles {:quantiles []}) data-map)
+            with-outliers ((analyse/outliers) with-quantiles)
+            result ((analyse/histogram {:method :knuth}) with-outliers)]
+        (is (contains? result :histograms))
+        (let [hist-data (:histograms result)
+              elapsed-hist (get-in hist-data [:histograms [:elapsed-time]])]
+          (is (= :criterium/histogram-knuth (:type elapsed-hist)))
+          (is (vector? (:counts elapsed-hist)))
+          (is (vector? (:centers elapsed-hist)))
+          (is (number? (:width elapsed-hist)))
+          (is (pos-int? (:optimal-bins elapsed-hist))
+              "Knuth method should include optimal-bins")
+          (is (number? (:log-posterior elapsed-hist))
+              "Knuth method should include log-posterior"))))
+
+    (testing "with :method :knuth and :max-bins"
+      (let [raw-data (mapv #(+ 100.0 (* 1.0 (double %))) (range 100))
+            samples (metrics-samples
+                     {[:elapsed-time] raw-data}
+                     1)
+            data-map {:samples samples}
+            with-quantiles ((analyse/quantiles {:quantiles []}) data-map)
+            with-outliers ((analyse/outliers) with-quantiles)
+            result ((analyse/histogram {:method :knuth :max-bins 10}) with-outliers)
+            hist-data (:histograms result)
+            elapsed-hist (get-in hist-data [:histograms [:elapsed-time]])]
+        (is (<= (long (:optimal-bins elapsed-hist)) 10)
+            "optimal-bins should respect max-bins limit")))))
 
 ;;; Tests for KDE-based stats computation
 ;; Validates that defmethod methods/stats :criterium/kde produces correct

@@ -53,7 +53,7 @@
   Throws if any sample is non-positive."
   [samples]
   (require-typed-array! samples "lognormal-mle")
-  (let [n (long (data-length samples))
+  (let [n (data-length samples)
         _ (when (zero? n)
             (throw (IllegalArgumentException. "samples cannot be empty")))
         ;; Transform to log space and compute sum in one pass
@@ -66,7 +66,7 @@
                            (+ acc (Math/log x)))
                          0.0)
         ;; MLE estimates
-        mu (/ (double sum-log) (double n))
+        mu (/ sum-log (double n))
         ;; Use population variance (divide by n, not n-1) for MLE
         ;; Second pass to compute variance
         sum-sq
@@ -76,7 +76,7 @@
                                  diff (- lx mu)]
                              (+ acc (* diff diff))))
                          0.0)
-        sigma (Math/sqrt (/ (double sum-sq) (double n)))
+        sigma (Math/sqrt (/ sum-sq (double n)))
         ;; Log-likelihood: Σ[-log(x) - log(σ) - 0.5*log(2π) - 0.5*((log(x)-μ)/σ)²]
         half-log-2pi (* 0.5 (Math/log (* 2.0 Math/PI)))
         log-likelihood
@@ -111,7 +111,7 @@
   Throws if any sample is non-positive."
   [samples]
   (require-typed-array! samples "inverse-gaussian-mle")
-  (let [n (long (data-length samples))
+  (let [n (data-length samples)
         _ (when (zero? n)
             (throw (IllegalArgumentException. "samples cannot be empty")))
         ;; Validate and compute sum and sum of reciprocals
@@ -190,7 +190,7 @@
   ([samples {:keys [max-iter tol init-shape]
              :or {max-iter 100 tol 1e-10}}]
    (require-typed-array! samples "gamma-mle")
-   (let [n (long (data-length samples))
+   (let [n (data-length samples)
          _ (when (zero? n)
              (throw (IllegalArgumentException. "samples cannot be empty")))
          max-iter (long max-iter)
@@ -221,7 +221,7 @@
                                  (* 12.0 s)))))
          ;; Minka's fixed-point iteration
          [shape iterations]
-         (loop [k (double init-k)
+         (loop [k init-k
                 iter 0]
            (if (>= iter max-iter)
              [k iter]
@@ -296,7 +296,7 @@
   ([samples {:keys [max-iter tol init-shape]
              :or {max-iter 100 tol 1e-10}}]
    (require-typed-array! samples "weibull-mle")
-   (let [n (long (data-length samples))
+   (let [n (data-length samples)
          _ (when (zero? n)
              (throw (IllegalArgumentException. "samples cannot be empty")))
          max-iter (long max-iter)
@@ -312,7 +312,7 @@
                           0.0)
          ;; Normalize by geometric mean to avoid overflow with large values
          ;; If X ~ Weibull(k, λ), then X/c ~ Weibull(k, λ/c)
-         mean-log-x (/ (double sum-log-x) (double n))
+         mean-log-x (/ sum-log-x (double n))
          geo-mean (Math/exp mean-log-x)
          ;; Create normalized samples and their logs
          norm-samples (arr/dmap samples (fn ^double [^double x] (/ x geo-mean)))
@@ -340,7 +340,7 @@
          ;; f(k) = 1/k + mean(log(x)) - (Σxᵏlog(x))/(Σxᵏ)
          ;; f'(k) = -1/k² - [(Σxᵏ(log(x))²)(Σxᵏ) - (Σxᵏlog(x))²] / (Σxᵏ)²
          [shape iterations]
-         (loop [k (double init-k)
+         (loop [k init-k
                 iter 0]
            (if (>= iter max-iter)
              [k iter]
@@ -385,7 +385,7 @@
                                  (fn ^double [^double acc ^double x]
                                    (+ acc (Math/pow x shape)))
                                  0.0)
-         norm-scale (Math/pow (/ (double sum-xk) (double n)) (/ 1.0 shape))
+         norm-scale (Math/pow (/ sum-xk (double n)) (/ 1.0 shape))
          ;; Transform scale back: λ = λ' * geo-mean
          scale (* norm-scale geo-mean)
          log-lik (weibull-log-likelihood samples shape scale)]
