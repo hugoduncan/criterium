@@ -40,4 +40,7 @@
   (^double sum [^criterium.array.DoubleArray arr])
   (^long sum [^criterium.array.LongArray arr])
   (^long getAt [^criterium.array.LongArray arr ^long index])
-  (^double getAt [^criterium.array.DoubleArray arr ^long index]))
+  (^double getAt [^criterium.array.DoubleArray arr ^long index])
+  (^boolean arrayEquals [^criterium.array.DoubleArray arr expected])
+  (^boolean arrayEquals [^criterium.array.LongArray arr expected])
+  (^boolean arrayEquals [^criterium.array.ObjectArray arr expected]))

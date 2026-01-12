@@ -59,7 +59,7 @@
   [data-map id p]
   (let [m (-> data-map id)
         transforms (util/get-transforms data-map id)
-        values (arr/to-double-vec (get (:metric->values m) p))]
+        values (arr/fold (get (:metric->values m) p) conj [])]
     (mapv
      #(util/transform-sample-> % transforms)
      values)))
@@ -82,12 +82,12 @@
           data-map {:samples samples}
           result ((analyse/transform-log) data-map)]
       (testing "puts the log transformed metrics into the result-path"
-        (is (= [1.0 2.0 3.0]
-               (arr/to-double-vec
-                (-> result
-                    :log-samples
-                    :metric->values
-                    (get [:elapsed-time]))))))
+        (is (arr/array=
+             (-> result
+                 :log-samples
+                 :metric->values
+                 (get [:elapsed-time]))
+             [1.0 2.0 3.0])))
       (testing "doesnot change original samples"
         (is (= samples (:samples result))))
       (testing "adds transfprms for the values"
