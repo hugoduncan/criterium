@@ -73,6 +73,7 @@
                                        :kaocha.plugin/profiling
                                        :kaocha.plugin/hooks
                                        #_:kaocha.plugin/cloverage]
+  :kaocha.hooks/pre-load              [criterium.kaocha-hooks/suppress-warnings-pre-load]
   :kaocha.hooks/pre-run               [criterium.kaocha-hooks/instrument-pre-run]
   :kaocha.hooks/post-run              [criterium.kaocha-hooks/unstrument-post-run]
   :cloverage/opts                     {:ns-regex ["^criterium.*$"]}
