@@ -92,24 +92,27 @@
      :alloc-line   - Line number of allocator
      :thread       - Thread ID of allocation
      :freed        - Whether object was freed}
-  - result: The value returned by the body forms
+  - result: The value returned by the expression
 
   Note that the allocations tracked are not limited to the current
   thread. Filter the returned records with `allocation-on-thread?` if that
   is all you are concerned with."
-  [& body]
+  [expr]
   `(if (attached?)
      (let [active?# (core/allocation-tracing-active?)
-           res# (if active?#
-                  (do ~@body)
-                  (try
-                    (core/allocation-tracing-start!)
-                    ~@body
-                    (finally
-                      (core/allocation-tracing-stop!))))]
+           res#     (if active?#
+                      ~expr
+                      (try
+                        (core/allocation-tracing-start!)
+                        (let [res# ~expr]
+                          (core/allocation-tracing-stop!)
+                          res#)
+                        (finally
+                          (when (core/allocation-tracing-active?)
+                            (core/allocation-tracing-stop!)))))]
        (core/collect-allocation-records)
        [@core/records res#])
-     [nil (do ~@body)]))
+     [nil ~expr]))
 
 (defn run-traced*
   "Wrapper function for traced code execution.

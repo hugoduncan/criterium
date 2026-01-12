@@ -8,7 +8,8 @@
    [clojure.test :refer [deftest is testing]]
    [criterium.agent :as agent]
    [criterium.array :as arr]
-   [criterium.primitive-fn :as pfn]))
+   [criterium.primitive-fn :as pfn]
+   [criterium.util.blackhole :as blackhole]))
 
 ;;; Test Data - created at namespace load time
 
@@ -59,32 +60,37 @@
             allocs)))
 
 (defmacro assert-zero-allocation
-  "Verifies the body allocates nothing.
+  "Verifies the expression allocates nothing.
   For primitive operations that should never box."
-  [& body]
+  [expr]
   `(when (agent/attached?)
-     ;; warmup to trigger JIT
-     (agent/with-allocation-tracing ~@body)
-     ;; verify zero allocations
-     (let [[allocs# result#] (agent/with-allocation-tracing ~@body)
+     (let [;; let JVM allocate function stat tracing objects
+           jvm-once#         (agent/with-allocation-tracing ~expr)
+           ;; verify zero allocations
+           [allocs# result#] (agent/with-allocation-tracing ~expr)
            allocated#        (count-allocations allocs#)]
        (is (zero? allocated#)
            (str "Expected zero allocations, got " allocated# " " allocs#))
-       (identity result#))))
+       (blackhole/consume jvm-once#)
+       (blackhole/consume result#)
+       nil)))
 
 (defmacro assert-zero-garbage
-  "Verifies the body produces zero garbage (freed objects).
+  "Verifies the expression produces zero garbage (freed objects).
   For operations that allocate a result but no temporary objects."
-  [& body]
+  [expr]
   `(when (agent/attached?)
-     ;; warmup
-     (agent/with-allocation-tracing ~@body)
-     ;; verify zero freed
-     (let [[allocs# result#] (agent/with-allocation-tracing ~@body)
+     (let [;; let JVM allocate function stat tracing objects
+           jvm-once#         (agent/with-allocation-tracing ~expr)
+           ;; verify zero freed
+           [allocs# result#] (agent/with-allocation-tracing ~expr)
            freed#            (count-freed allocs#)]
        (is (zero? freed#)
-           (str "Expected zero garbage, got " freed# " freed objects"))
-       (identity result#))))
+           (str "Expected zero garbage, got "
+                freed# " freed objects" " " allocs#))
+       (blackhole/consume jvm-once#)
+       (blackhole/consume result#)
+       nil)))
 
 ;;; Primitive-returning fold operations (zero-allocation)
 
