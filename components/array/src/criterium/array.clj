@@ -405,30 +405,6 @@
     (instance? LongArray arr)   (first-long arr)
     (instance? ObjectArray arr) (first-object arr)))
 
-(defn metric-type->elem-type
-  "Maps metric type keywords to element type keywords.
-  :quantitative -> :double
-  :event -> :long
-  :nominal -> :object"
-  [metric-type]
-  (case metric-type
-    :quantitative :double
-    :event        :long
-    :nominal      :object))
-
-(defn array-for-metric-type
-  "Creates an appropriately typed array wrapper from a collection of values.
-
-  metric-type is :quantitative, :event, or :nominal.
-  values is a sequence of values to convert to a typed array.
-
-  Returns a DoubleArray, LongArray, or ObjectArray."
-  [metric-type values]
-  (case metric-type
-    :quantitative (DoubleArray. (double-array values))
-    :event        (LongArray. (long-array values))
-    :nominal      (ObjectArray. (object-array values))))
-
 (defn sorted
   "Returns a new sorted DoubleArray.
   Uses Java's Arrays.sort for efficient primitive sorting.

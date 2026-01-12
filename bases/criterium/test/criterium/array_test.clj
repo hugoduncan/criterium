@@ -62,33 +62,6 @@
         (is (= 0 (arr/length wrapped)))
         (is (= [] (arr/fold wrapped #(conj %1 %2) [])))))))
 
-(deftest metric-type->elem-type-test
-  (testing "metric-type->elem-type"
-    (testing "maps :quantitative to :double"
-      (is (= :double (arr/metric-type->elem-type :quantitative))))
-    (testing "maps :event to :long"
-      (is (= :long (arr/metric-type->elem-type :event))))
-    (testing "maps :nominal to :object"
-      (is (= :object (arr/metric-type->elem-type :nominal))))))
-
-(deftest array-for-metric-type-test
-  (testing "array-for-metric-type"
-    (testing "creates DoubleArray for :quantitative"
-      (let [wrapped (arr/array-for-metric-type :quantitative [1.0 2.0 3.0])]
-        (is (instance? criterium.array.DoubleArray wrapped))
-        (is (= 3 (arr/length wrapped)))
-        (is (= 6.0 (arr/fold wrapped + 0.0)))))
-    (testing "creates LongArray for :event"
-      (let [wrapped (arr/array-for-metric-type :event [10 20 30])]
-        (is (instance? criterium.array.LongArray wrapped))
-        (is (= 3 (arr/length wrapped)))
-        (is (= 60 (arr/fold wrapped + 0)))))
-    (testing "creates ObjectArray for :nominal"
-      (let [wrapped (arr/array-for-metric-type :nominal [:x :y :z])]
-        (is (instance? criterium.array.ObjectArray wrapped))
-        (is (= 3 (arr/length wrapped)))
-        (is (= [:x :y :z] (arr/fold wrapped #(conj %1 %2) [])))))))
-
 (deftest fold-double-test
   (testing "fold-double"
     (testing "sums doubles without boxing"
