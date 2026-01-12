@@ -379,6 +379,21 @@
   [x]
   (instance? ITypedArray x))
 
+(defn double-array?
+  "Returns true if x is a DoubleArray."
+  [x]
+  (instance? DoubleArray x))
+
+(defn long-array?
+  "Returns true if x is a LongArray."
+  [x]
+  (instance? LongArray x))
+
+(defn object-array?
+  "Returns true if x is an ObjectArray."
+  [x]
+  (instance? ObjectArray x))
+
 (deftype ArrayOps []
   IArrayOps
   (^double sum [_ ^DoubleArray arr]

@@ -7,6 +7,35 @@
    [clojure.test :refer [deftest is testing]]
    [criterium.array :as arr]))
 
+(deftest type-predicates-test
+  (testing "type predicates"
+    (let [da (arr/->double-array (double-array [1.0 2.0]))
+          la (arr/->long-array (long-array [1 2]))
+          oa (arr/->object-array (object-array [:a :b]))]
+      (testing "typed-array? returns true for all typed arrays"
+        (is (arr/typed-array? da))
+        (is (arr/typed-array? la))
+        (is (arr/typed-array? oa)))
+      (testing "typed-array? returns false for non-arrays"
+        (is (not (arr/typed-array? [1 2 3])))
+        (is (not (arr/typed-array? nil)))
+        (is (not (arr/typed-array? "string"))))
+      (testing "double-array? returns true only for DoubleArray"
+        (is (arr/double-array? da))
+        (is (not (arr/double-array? la)))
+        (is (not (arr/double-array? oa)))
+        (is (not (arr/double-array? [1.0]))))
+      (testing "long-array? returns true only for LongArray"
+        (is (arr/long-array? la))
+        (is (not (arr/long-array? da)))
+        (is (not (arr/long-array? oa)))
+        (is (not (arr/long-array? [1]))))
+      (testing "object-array? returns true only for ObjectArray"
+        (is (arr/object-array? oa))
+        (is (not (arr/object-array? da)))
+        (is (not (arr/object-array? la)))
+        (is (not (arr/object-array? [:a])))))))
+
 (deftest double-array-test
   (testing "DoubleArray"
     (let [a       (double-array [1.0 2.0 3.0 4.0 5.0])
