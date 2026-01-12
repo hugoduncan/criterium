@@ -318,9 +318,9 @@
         metric-configs (metric/all-metric-configs q-metrics-defs)
         event-metric->values (util/metric->values event-samples)
         e-metric-configs (->> (metric/all-metric-configs e-metrics-defs)
-                              (filterv #(arr/any-positive?
-                                         (get event-metric->values
-                                              (:path %)))))
+                              (filterv #(arr/lany?
+                                         (get event-metric->values (:path %))
+                                         (fn [^long x] (pos? x)))))
 
         transforms (util/get-transforms data-map quant-samples-id)]
     {:data {:values [{}]}

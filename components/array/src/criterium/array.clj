@@ -13,6 +13,7 @@
    [criterium.array.interface
     ITypedArray IFold IDoubleFold ILongFold IDoubleObjectFold ILongObjectFold
     IDoubleMap IDoubleMapIndexed ILongMap ILongMapIndexed
+    IDoubleAny ILongAny
     IIndexed IArrayOps]
    [java.util Arrays]))
 
@@ -65,7 +66,17 @@
           ^doubles out (double-array len)]
       (dotimes [i len]
         (aset out i (.invokePrim f i (aget array i))))
-      (DoubleArray. out))))
+      (DoubleArray. out)))
+
+  IDoubleAny
+  (^boolean dany [_ ^clojure.lang.IFn$DO f]
+    (let [len (alength array)]
+      (loop [i 0]
+        (if (< i len)
+          (if (.invokePrim f (aget array i))
+            true
+            (recur (unchecked-inc i)))
+          false)))))
 
 (deftype LongArray [^longs array]
   ITypedArray
@@ -147,7 +158,27 @@
           ^longs out (long-array len)]
       (dotimes [i len]
         (aset out i (.invokePrim f i (aget array i))))
-      (LongArray. out))))
+      (LongArray. out)))
+
+  IDoubleAny
+  (^boolean dany [_ ^clojure.lang.IFn$DO f]
+    (let [len (alength array)]
+      (loop [i 0]
+        (if (< i len)
+          (if (.invokePrim f (double (aget array i)))
+            true
+            (recur (unchecked-inc i)))
+          false))))
+
+  ILongAny
+  (^boolean lany [_ ^clojure.lang.IFn$LO f]
+    (let [len (alength array)]
+      (loop [i 0]
+        (if (< i len)
+          (if (.invokePrim f (aget array i))
+            true
+            (recur (unchecked-inc i)))
+          false)))))
 
 (deftype ObjectArray [^objects array]
   ITypedArray
@@ -533,30 +564,19 @@
   ^LongArray [^ILongMapIndexed arr f]
   (.lmapIndexed arr f))
 
-(defn any-positive?
-  "Returns true if any element is positive (> 0).
+(defn dany?
+  "Returns true if any element satisfies the predicate.
+  pred must be (fn [^double x] ...) returning truthy/falsy.
   Works with DoubleArray and LongArray."
-  [arr]
-  (cond
-    (instance? DoubleArray arr)
-    (let [^doubles a (.array ^DoubleArray arr)
-          len        (alength a)]
-      (loop [i 0]
-        (if (< i len)
-          (if (pos? (aget a i))
-            true
-            (recur (unchecked-inc i)))
-          false)))
+  [^IDoubleAny arr pred]
+  (.dany arr pred))
 
-    (instance? LongArray arr)
-    (let [^longs a (.array ^LongArray arr)
-          len      (alength a)]
-      (loop [i 0]
-        (if (< i len)
-          (if (pos? (aget a i))
-            true
-            (recur (unchecked-inc i)))
-          false)))))
+(defn lany?
+  "Returns true if any element satisfies the predicate.
+  pred must be (fn [^long x] ...) returning truthy/falsy.
+  Works only with LongArray."
+  [^ILongAny arr pred]
+  (.lany arr pred))
 
 (defn double-array=
   "Returns true if DoubleArray elements equal the expected sequence."

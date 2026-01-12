@@ -43,6 +43,12 @@
 (definterface ILongMapIndexed
   (lmapIndexed [^clojure.lang.IFn$LLL f]))
 
+(definterface IDoubleAny
+  (^boolean dany [^clojure.lang.IFn$DO f]))
+
+(definterface ILongAny
+  (^boolean lany [^clojure.lang.IFn$LO f]))
+
 (definterface IIndexed
   (^double getDouble [^long index])
   (^long getLong [^long index])
