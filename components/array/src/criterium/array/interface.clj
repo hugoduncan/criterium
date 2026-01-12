@@ -60,6 +60,12 @@
 (definterface ISortable
   (sorted []))
 
+(definterface IDoubleFoldSkip
+  (^double foldSkip [^long skip-idx ^clojure.lang.IFn$DDD f ^double init]))
+
+(definterface IDoubleObjectFoldSkip
+  (foldObjectSkip [^long skip-idx ^clojure.lang.IFn$ODO f init]))
+
 (definterface IArrayOps
   (^double sum [^criterium.array.DoubleArray arr])
   (^long sum [^criterium.array.LongArray arr])

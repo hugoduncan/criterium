@@ -14,6 +14,7 @@
     ITypedArray IFold IDoubleFold ILongFold IDoubleObjectFold ILongObjectFold
     IDoubleMap IDoubleMapIndexed ILongMap ILongMapIndexed
     IDoubleAny ILongAny IArrayEquals ISortable
+    IDoubleFoldSkip IDoubleObjectFoldSkip
     IIndexed IArrayOps]
    [java.util Arrays]))
 
@@ -94,7 +95,31 @@
   (sorted [_]
     (let [^doubles cpy (Arrays/copyOf array (alength array))]
       (Arrays/sort cpy)
-      (DoubleArray. cpy))))
+      (DoubleArray. cpy)))
+
+  IDoubleFoldSkip
+  (^double foldSkip [_ ^long skip-idx ^clojure.lang.IFn$DDD f ^double init]
+    (let [len (alength array)]
+      (loop [i   (long 0)
+             acc init]
+        (if (< i len)
+          (if (== i skip-idx)
+            (recur (unchecked-inc i) acc)
+            (recur (unchecked-inc i)
+                   (.invokePrim f acc (aget array i))))
+          acc))))
+
+  IDoubleObjectFoldSkip
+  (foldObjectSkip [_ ^long skip-idx ^clojure.lang.IFn$ODO f init]
+    (let [len (alength array)]
+      (loop [i   (long 0)
+             acc init]
+        (if (< i len)
+          (if (== i skip-idx)
+            (recur (unchecked-inc i) acc)
+            (recur (unchecked-inc i)
+                   (.invokePrim f acc (aget array i))))
+          acc)))))
 
 (deftype LongArray [^longs array]
   ITypedArray
@@ -217,7 +242,31 @@
       (dotimes [i len]
         (aset cpy i (double (aget array i))))
       (Arrays/sort cpy)
-      (DoubleArray. cpy))))
+      (DoubleArray. cpy)))
+
+  IDoubleFoldSkip
+  (^double foldSkip [_ ^long skip-idx ^clojure.lang.IFn$DDD f ^double init]
+    (let [len (alength array)]
+      (loop [i   (long 0)
+             acc init]
+        (if (< i len)
+          (if (== i skip-idx)
+            (recur (unchecked-inc i) acc)
+            (recur (unchecked-inc i)
+                   (.invokePrim f acc (double (aget array i)))))
+          acc))))
+
+  IDoubleObjectFoldSkip
+  (foldObjectSkip [_ ^long skip-idx ^clojure.lang.IFn$ODO f init]
+    (let [len (alength array)]
+      (loop [i   (long 0)
+             acc init]
+        (if (< i len)
+          (if (== i skip-idx)
+            (recur (unchecked-inc i) acc)
+            (recur (unchecked-inc i)
+                   (.invokePrim f acc (double (aget array i)))))
+          acc)))))
 
 (deftype ObjectArray [^objects array]
   ITypedArray
@@ -431,34 +480,18 @@
   "Fold over elements skipping the element at skip-idx.
   Used for jackknife resampling.
   f must be (fn ^double [^double acc ^double val] ...).
+  Works with DoubleArray and LongArray.
   Returns a primitive double."
-  ^double [^DoubleArray arr ^long skip-idx ^clojure.lang.IFn$DDD f ^double init]
-  (let [^doubles a (.array arr)
-        len        (alength a)]
-    (loop [i   (long 0)
-           acc init]
-      (if (< i len)
-        (if (== i skip-idx)
-          (recur (unchecked-inc i) acc)
-          (recur (unchecked-inc i)
-                 (.invokePrim f acc (aget a i))))
-        acc))))
+  ^double [^IDoubleFoldSkip arr ^long skip-idx ^clojure.lang.IFn$DDD f ^double init]
+  (.foldSkip arr skip-idx f init))
 
 (defn dfold-skip
   "Fold over elements skipping the element at skip-idx, returning Object.
   Used for jackknife resampling when accumulating into a collection.
-  f must be (fn [acc ^double val] ...) - receives primitive double, returns Object."
-  [^DoubleArray arr ^long skip-idx ^clojure.lang.IFn$ODO f init]
-  (let [^doubles a (.array arr)
-        len        (alength a)]
-    (loop [i   (long 0)
-           acc init]
-      (if (< i len)
-        (if (== i skip-idx)
-          (recur (unchecked-inc i) acc)
-          (recur (unchecked-inc i)
-                 (.invokePrim f acc (aget a i))))
-        acc))))
+  f must be (fn [acc ^double val] ...) - receives primitive double, returns Object.
+  Works with DoubleArray and LongArray."
+  [^IDoubleObjectFoldSkip arr ^long skip-idx ^clojure.lang.IFn$ODO f init]
+  (.foldObjectSkip arr skip-idx f init))
 
 (defn filter-indices
   "Creates a new DoubleArray containing only elements at indices NOT in exclude-set.
