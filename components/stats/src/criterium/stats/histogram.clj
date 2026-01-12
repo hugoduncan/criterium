@@ -12,25 +12,8 @@
    [criterium.array.interface :as iarr]
    [criterium.stats.knuth :as knuth])
   (:import
-   [criterium.array DoubleArray LongArray]
+   [criterium.array DoubleArray]
    [criterium.array.interface ITypedArray]))
-
-;;; Type detection
-
-(defn- typed-array?
-  "Returns true if x is a typed array (DoubleArray or LongArray)."
-  [x]
-  (or (instance? DoubleArray x)
-      (instance? LongArray x)))
-
-(defn- require-typed-array!
-  "Throws if data is not a typed array."
-  [data fn-name]
-  (when-not (typed-array? data)
-    (throw (ex-info (str fn-name " requires a typed array, got: " (type data))
-                    {:fn fn-name
-                     :type (type data)
-                     :data data}))))
 
 (defn- data-length
   "Returns the length of a typed array."
@@ -182,13 +165,13 @@
      :log-posterior log-posterior}))
 
 (defn histogram
-  "Compute histogram from typed array data.
+  "Compute histogram from data.
 
   Supports multiple binning methods via the :method option:
   - :freedman-diaconis (default) - Uses IQR-based bin width calculation
   - :knuth - Bayesian optimal bin count selection
 
-  Requires a typed array (DoubleArray, LongArray).
+  Requires a typed array (DoubleArray or LongArray).
 
   Options:
     :method   - Binning method (:freedman-diaconis or :knuth)
@@ -218,7 +201,6 @@
   ([data]
    (histogram data {}))
   ([data opts-or-iqr]
-   (require-typed-array! data "histogram")
    (when (data-empty? data)
      (throw (ex-info
              "Input cannot be empty"

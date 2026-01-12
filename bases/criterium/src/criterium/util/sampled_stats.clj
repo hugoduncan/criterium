@@ -10,18 +10,18 @@
 (defn pair-fn [k f]
   (fn [x] [k (f x)]))
 
-(def stats-fns
-  ;; called on sorted values
-  (juxt
-   (pair-fn :mean stats/mean)
-   (pair-fn :median (partial stats/quantile 0.5))
-   (pair-fn :variance stats/variance)
-   (pair-fn :min-val first)
-   (pair-fn :max-val last)))
+(defn stats-fns
+  "Compute basic statistics on sorted values. Requires a typed array."
+  [vs]
+  [[:mean (stats/mean vs)]
+   [:median (stats/quantile 0.5 vs)]
+   [:variance (stats/variance vs)]
+   [:min-val (arr/first-element vs)]
+   [:max-val (arr/last-element vs)]])
 
 (defn sample-quantiles
+  "Compute quantiles for sorted values."
   [quantiles vs]
-  {:pre [(have? seq vs)]}
   (reduce
    (fn [m q] (assoc m q (stats/quantile q vs)))
    {}
@@ -70,6 +70,11 @@
 (defn scale-vals [m scale-1]
   (util/update-vals m scale-1))
 
+(defn- ->darr
+  "Convert sequence to DoubleArray."
+  [vs]
+  (arr/->double-array (double-array vs)))
+
 (defn quantiles-for
   [path samples config]
   {:pre [(have? seq path)
@@ -77,16 +82,17 @@
          (have? map? samples)]}
   (have (comp not :tail-quantile) config)
   (let [qs (vec (sort (into #{0.1 0.25 0.5 0.75 0.9} (:quantiles config))))
-        vs (sort (samples-for-path samples path))]
+        vs (->darr (sort (samples-for-path samples path)))]
     (sample-quantiles qs vs)))
 
 (defn stats-for
+  "Compute statistics for sample values."
   [vs _config]
-  {:pre [(have? seq vs)]}
-  (let [vs (sort vs)]
-    (-> (into {} (stats-fns vs))
+  (let [sorted-arr (arr/sorted vs)
+        n          (arr/length sorted-arr)]
+    (-> (into {} (stats-fns sorted-arr))
         (assoc-mean-3-sigma)
-        (assoc :n (count vs)))))
+        (assoc :n n))))
 
 (defn quantiles
   [samples metric-configs config]
@@ -111,7 +117,7 @@
                                     vs)
                               vs)]
        (if (seq vs)
-         (assoc-in res path (stats-for without-outliers config))
+         (assoc-in res path (stats-for (->darr without-outliers) config))
          res)))
    {}
    (mapv :path metric-configs)))
