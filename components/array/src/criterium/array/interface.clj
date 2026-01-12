@@ -49,6 +49,9 @@
 (definterface ILongAny
   (^boolean lany [^clojure.lang.IFn$LO f]))
 
+(definterface IArrayEquals
+  (^boolean arrayEquals [expected]))
+
 (definterface IIndexed
   (^double getDouble [^long index])
   (^long getLong [^long index])
@@ -58,7 +61,4 @@
   (^double sum [^criterium.array.DoubleArray arr])
   (^long sum [^criterium.array.LongArray arr])
   (^long getAt [^criterium.array.LongArray arr ^long index])
-  (^double getAt [^criterium.array.DoubleArray arr ^long index])
-  (^boolean arrayEquals [^criterium.array.DoubleArray arr expected])
-  (^boolean arrayEquals [^criterium.array.LongArray arr expected])
-  (^boolean arrayEquals [^criterium.array.ObjectArray arr expected]))
+  (^double getAt [^criterium.array.DoubleArray arr ^long index]))

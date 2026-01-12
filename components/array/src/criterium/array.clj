@@ -13,7 +13,7 @@
    [criterium.array.interface
     ITypedArray IFold IDoubleFold ILongFold IDoubleObjectFold ILongObjectFold
     IDoubleMap IDoubleMapIndexed ILongMap ILongMapIndexed
-    IDoubleAny ILongAny
+    IDoubleAny ILongAny IArrayEquals
     IIndexed IArrayOps]
    [java.util Arrays]))
 
@@ -76,7 +76,19 @@
           (if (.invokePrim f (aget array i))
             true
             (recur (unchecked-inc i)))
-          false)))))
+          false))))
+
+  IArrayEquals
+  (^boolean arrayEquals [_ expected]
+    (let [expected-vec (vec expected)
+          n            (count expected-vec)]
+      (and (== n (alength array))
+           (loop [i 0]
+             (if (< i n)
+               (if (== (aget array i) (double (nth expected-vec i)))
+                 (recur (unchecked-inc i))
+                 false)
+               true))))))
 
 (deftype LongArray [^longs array]
   ITypedArray
@@ -178,7 +190,19 @@
           (if (.invokePrim f (aget array i))
             true
             (recur (unchecked-inc i)))
-          false)))))
+          false))))
+
+  IArrayEquals
+  (^boolean arrayEquals [_ expected]
+    (let [expected-vec (vec expected)
+          n            (count expected-vec)]
+      (and (== n (alength array))
+           (loop [i 0]
+             (if (< i n)
+               (if (== (aget array i) (long (nth expected-vec i)))
+                 (recur (unchecked-inc i))
+                 false)
+               true))))))
 
 (deftype ObjectArray [^objects array]
   ITypedArray
@@ -188,7 +212,19 @@
   IFold
   (fold [_ f init]
     (areduce array i acc init
-             (f acc (aget array i)))))
+             (f acc (aget array i))))
+
+  IArrayEquals
+  (^boolean arrayEquals [_ expected]
+    (let [expected-vec (vec expected)
+          n            (count expected-vec)]
+      (and (== n (alength array))
+           (loop [i 0]
+             (if (< i n)
+               (if (= (aget array i) (nth expected-vec i))
+                 (recur (unchecked-inc i))
+                 false)
+               true))))))
 
 (defn elem-type
   "Returns the element type keyword: :double, :long, or :object."
@@ -228,40 +264,7 @@
   (^long getAt [_ ^LongArray arr ^long index]
     (aget ^longs (.array arr) index))
   (^double getAt [_ ^DoubleArray arr ^long index]
-    (aget ^doubles (.array arr) index))
-  (^boolean arrayEquals [_ ^DoubleArray arr expected]
-    (let [expected-vec (vec expected)
-          n            (count expected-vec)
-          ^doubles a   (.array arr)]
-      (and (== n (alength a))
-           (loop [i 0]
-             (if (< i n)
-               (if (== (aget a i) (double (nth expected-vec i)))
-                 (recur (unchecked-inc i))
-                 false)
-               true)))))
-  (^boolean arrayEquals [_ ^LongArray arr expected]
-    (let [expected-vec (vec expected)
-          n            (count expected-vec)
-          ^longs a     (.array arr)]
-      (and (== n (alength a))
-           (loop [i 0]
-             (if (< i n)
-               (if (== (aget a i) (long (nth expected-vec i)))
-                 (recur (unchecked-inc i))
-                 false)
-               true)))))
-  (^boolean arrayEquals [_ ^ObjectArray arr expected]
-    (let [expected-vec (vec expected)
-          n            (count expected-vec)
-          ^objects a   (.array arr)]
-      (and (== n (alength a))
-           (loop [i 0]
-             (if (< i n)
-               (if (= (aget a i) (nth expected-vec i))
-                 (recur (unchecked-inc i))
-                 false)
-               true))))))
+    (aget ^doubles (.array arr) index)))
 
 (def ^:private ^IArrayOps array-ops (ArrayOps.))
 
@@ -578,26 +581,8 @@
   [^ILongAny arr pred]
   (.lany arr pred))
 
-(defn double-array=
-  "Returns true if DoubleArray elements equal the expected sequence."
-  [^DoubleArray arr expected]
-  (.arrayEquals array-ops arr expected))
-
-(defn long-array=
-  "Returns true if LongArray elements equal the expected sequence."
-  [^LongArray arr expected]
-  (.arrayEquals array-ops arr expected))
-
-(defn object-array=
-  "Returns true if ObjectArray elements equal the expected sequence."
-  [^ObjectArray arr expected]
-  (.arrayEquals array-ops arr expected))
-
 (defn array=
   "Returns true if typed array elements equal the expected sequence.
   Compares element-by-element using == for doubles/longs, = for objects."
-  [arr expected]
-  (cond
-    (instance? DoubleArray arr) (double-array= arr expected)
-    (instance? LongArray arr)   (long-array= arr expected)
-    (instance? ObjectArray arr) (object-array= arr expected)))
+  [^IArrayEquals arr expected]
+  (.arrayEquals arr expected))
