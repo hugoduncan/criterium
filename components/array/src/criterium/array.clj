@@ -443,16 +443,6 @@
   ^double [^DoubleArray arr ^long index]
   (.getAt array-ops arr index))
 
-(defn lpos?
-  "Primitive long positive check."
-  [^long v]
-  (pos? v))
-
-(defn dpos?
-  "Primitive double positive check."
-  [^double v]
-  (pos? v))
-
 (defn fold
   "Reduces over the elements with function f and initial value init.
   f is called as (f acc elem) for each element.
@@ -467,16 +457,6 @@
   Returns a primitive double."
   ^double [^IDoubleFold arr f ^double init]
   (.fold arr f init))
-
-(defn dplus
-  "Primitive double addition for use with fold-double."
-  ^double [^double a ^double b]
-  (+ a b))
-
-(defn lplus
-  "Primitive long addition for use with fold-long."
-  ^long [^long a ^long b]
-  (+ a b))
 
 (defn fold-long
   "Reduces over long elements with a primitive long function.

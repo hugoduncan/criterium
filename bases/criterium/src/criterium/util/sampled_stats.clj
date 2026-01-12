@@ -1,6 +1,7 @@
 (ns criterium.util.sampled-stats
   (:require
    [criterium.array :as arr]
+   [criterium.primitive-fn :as prim]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have have?]]
    [criterium.util.stats :as stats])
@@ -137,7 +138,7 @@
              cnt (long 0)]
         (if (< i n)
           (let [has-pos? (some (fn [samples]
-                                 (arr/lpos? (arr/get-long samples i)))
+                                 (prim/lpos? (arr/get-long samples i)))
                                all-vs)]
             (recur (unchecked-inc i)
                    (if has-pos? (unchecked-inc cnt) cnt)))
