@@ -11,8 +11,13 @@
    [criterium.test-data :as test-data]
    [criterium.test-utils :refer [trimmed-lines]]
    [criterium.util.bootstrap :as bootstrap]
+   [criterium.util.helpers :as util]
    [criterium.view :as view]
    [criterium.viewer.print :as print]))
+
+;;; Transforms wrapped in vector format expected by transform-sample->
+(def vectorized-identity-transforms
+  (util/update-vals collect-plan/identity-transforms vector))
 
 (deftest print-stat-test
   (testing "print-stat"
@@ -129,7 +134,8 @@
                   :variance {:point-estimate 16.0
                              :estimate-quantiles
                              [{:value 9.0 :alpha 0.05}
-                              {:value 25.0 :alpha 0.95}]}}))))))
+                              {:value 25.0 :alpha 0.95}]}}
+                 vectorized-identity-transforms))))))
     (testing "with quantiles prints median first, then mean, then spread"
       (is (= ["Elapsed Time median: 98.0 ns CI [93.0 103] (0.025 0.975)"
               "Elapsed Time mean: 100 ns CI [95.0 105] (0.025 0.975)"
@@ -159,7 +165,8 @@
                    0.9 {:point-estimate 115.0
                         :estimate-quantiles
                         [{:value 110.0 :alpha 0.025}
-                         {:value 120.0 :alpha 0.975}]}}}))))))
+                         {:value 120.0 :alpha 0.975}]}}}
+                 vectorized-identity-transforms))))))
     (testing "via bootstrap pipeline with degenerate data"
       (is (= ["Elapsed Time median: 1.00 ns CI [1.00 1.00] (0.025 0.975)"
               "Elapsed Time mean: 1.00 ns CI [1.00 1.00] (0.025 0.975)"
@@ -177,6 +184,35 @@
                      :eval-count 1
                      :elapsed-time 1}}
                    ;; Use min-samples 3 to suppress warning for this degenerate test
+                   bootstrap (bootstrap/bootstrap-stats
+                              {:quantiles [0.025 0.975]
+                               :estimate-quantiles [0.025 0.975]
+                               :min-samples 3})
+                   view (view/bootstrap-stats {})]
+               (trimmed-lines
+                (with-out-str
+                  (->> data-map
+                       bootstrap
+                       (view :print))))))))
+    (testing "applies batch-size transform to per-execution values"
+      ;; Raw samples are 10000 ns (batch of 10000), expected per-execution is 1 ns
+      (is (= ["Elapsed Time median: 1.00 ns CI [1.00 1.00] (0.025 0.975)"
+              "Elapsed Time mean: 1.00 ns CI [1.00 1.00] (0.025 0.975)"
+              "Elapsed Time spread: [1.00 1.00] ns (10th-90th percentile)"]
+             (let [batch-size 10000
+                   data-map
+                   {:samples
+                    {:type :criterium/collected-metrics-samples
+                     :metric->values {[:elapsed-time]
+                                      (arr/->double-array
+                                       (double-array [10000 10000 10000]))}
+                     :metrics-defs (select-keys
+                                    (metrics/metrics)
+                                    [:elapsed-time])
+                     :transform (#'collect-plan/batch-transforms batch-size)
+                     :batch-size batch-size
+                     :eval-count batch-size
+                     :elapsed-time 10000}}
                    bootstrap (bootstrap/bootstrap-stats
                               {:quantiles [0.025 0.975]
                                :estimate-quantiles [0.025 0.975]

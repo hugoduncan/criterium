@@ -105,7 +105,8 @@
         bootstrap-map (data-map bootstrap-stats-id)
         metrics-defs (:metrics-defs bootstrap-map)
         metric-configs (metric/all-metric-configs metrics-defs)
-        bootstrap (util/bootstrap bootstrap-map)]
+        bootstrap (util/bootstrap bootstrap-map)
+        transforms (util/get-transforms data-map bootstrap-stats-id)]
     (when (seq metric-configs)
       (println "\nBootstrap Statistics:")
       (pprint/print-table
@@ -115,7 +116,7 @@
        (for [m metric-configs
              :let [stat (get-in bootstrap (:path m))]
              :when stat]
-         (bootstrap/bootstrap-stat-row m stat))))))
+         (bootstrap/bootstrap-stat-row m stat transforms))))))
 
 (defn- flatten-events [sample metrics-defs index]
   (reduce-kv

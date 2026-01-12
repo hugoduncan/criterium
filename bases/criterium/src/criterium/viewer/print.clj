@@ -123,11 +123,12 @@
   2. Mean with 95% CI
   3. p10-p90 percentile spread"
   [metric
-   {:keys [mean quantiles]}]
+   {:keys [mean quantiles]}
+   transforms]
   (let [{:keys [dimension label]} metric
-        [scale units] (format/scale
-                       dimension
-                       (* (:scale metric) (:point-estimate mean)))
+        tform #(util/transform-sample-> % transforms)
+        mean-val (tform (:point-estimate mean))
+        [scale units] (format/scale dimension (* (:scale metric) mean-val))
         mean-ci (:estimate-quantiles mean)
         median-est (get quantiles 0.5)
         median-ci (:estimate-quantiles median-est)
@@ -138,27 +139,27 @@
       (println
        (format "%36s: %.3g %s CI [%.3g %.3g] (%.3f %.3f)"
                (str label " median")
-               (* scale (:point-estimate median-est))
+               (* scale (tform (:point-estimate median-est)))
                units
-               (* scale (-> median-ci first :value))
-               (* scale (-> median-ci second :value))
+               (* scale (tform (-> median-ci first :value)))
+               (* scale (tform (-> median-ci second :value)))
                (-> median-ci first :alpha)
                (-> median-ci second :alpha))))
     (println
      (format "%36s: %.3g %s CI [%.3g %.3g] (%.3f %.3f)"
              (str label " mean")
-             (* scale (:point-estimate mean))
+             (* scale mean-val)
              units
-             (* scale (-> mean-ci first :value))
-             (* scale (-> mean-ci second :value))
+             (* scale (tform (-> mean-ci first :value)))
+             (* scale (tform (-> mean-ci second :value)))
              (-> mean-ci first :alpha)
              (-> mean-ci second :alpha)))
     (when (and p10-est p90-est)
       (println
        (format "%36s: [%.3g %.3g] %s (10th-90th percentile)"
                (str label " spread")
-               (* scale (:point-estimate p10-est))
-               (* scale (:point-estimate p90-est))
+               (* scale (tform (:point-estimate p10-est)))
+               (* scale (tform (:point-estimate p90-est)))
                units)))))
 
 (defn print-bootstrap-stats
@@ -167,10 +168,11 @@
         bootstrap-map (data-map bootstrap-stats-id)
         metrics-defs (:metrics-defs bootstrap-map)
         metric-configs (metric/all-metric-configs metrics-defs)
-        bootstrap (util/bootstrap bootstrap-map)]
+        bootstrap (util/bootstrap bootstrap-map)
+        transforms (util/get-transforms data-map bootstrap-stats-id)]
     (doseq [metric metric-configs]
       (when-let [stat (get-in bootstrap (:path metric))]
-        (print-bootstrap-stat metric stat)))))
+        (print-bootstrap-stat metric stat transforms)))))
 
 (defmethod view/bootstrap-stats* :print
   [_ view data-map]
