@@ -13,7 +13,7 @@
    [criterium.array.interface
     ITypedArray IFold IDoubleFold ILongFold IDoubleObjectFold ILongObjectFold
     IDoubleMap IDoubleMapIndexed ILongMap ILongMapIndexed
-    IDoubleAny ILongAny IArrayEquals
+    IDoubleAny ILongAny IArrayEquals ISortable
     IIndexed IArrayOps]
    [java.util Arrays]))
 
@@ -88,7 +88,13 @@
                (if (== (aget array i) (double (nth expected-vec i)))
                  (recur (unchecked-inc i))
                  false)
-               true))))))
+               true)))))
+
+  ISortable
+  (sorted [_]
+    (let [^doubles cpy (Arrays/copyOf array (alength array))]
+      (Arrays/sort cpy)
+      (DoubleArray. cpy))))
 
 (deftype LongArray [^longs array]
   ITypedArray
@@ -202,7 +208,16 @@
                (if (== (aget array i) (long (nth expected-vec i)))
                  (recur (unchecked-inc i))
                  false)
-               true))))))
+               true)))))
+
+  ISortable
+  (sorted [_]
+    (let [len          (alength array)
+          ^doubles cpy (double-array len)]
+      (dotimes [i len]
+        (aset cpy i (double (aget array i))))
+      (Arrays/sort cpy)
+      (DoubleArray. cpy))))
 
 (deftype ObjectArray [^objects array]
   ITypedArray
@@ -409,22 +424,8 @@
   "Returns a new sorted DoubleArray.
   Uses Java's Arrays.sort for efficient primitive sorting.
   LongArray is converted to DoubleArray during sorting."
-  ^DoubleArray [arr]
-  (cond
-    (instance? DoubleArray arr)
-    (let [^doubles a   (.array ^DoubleArray arr)
-          ^doubles cpy (Arrays/copyOf a (alength a))]
-      (Arrays/sort cpy)
-      (DoubleArray. cpy))
-
-    (instance? LongArray arr)
-    (let [^longs a   (.array ^LongArray arr)
-          len        (alength a)
-          ^doubles cpy (double-array len)]
-      (dotimes [i len]
-        (aset cpy i (double (aget a i))))
-      (Arrays/sort cpy)
-      (DoubleArray. cpy))))
+  ^DoubleArray [^ISortable arr]
+  (.sorted arr))
 
 (defn fold-double-skip
   "Fold over elements skipping the element at skip-idx.

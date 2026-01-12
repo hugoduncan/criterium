@@ -57,6 +57,9 @@
   (^long getLong [^long index])
   (getObject [^long index]))
 
+(definterface ISortable
+  (sorted []))
+
 (definterface IArrayOps
   (^double sum [^criterium.array.DoubleArray arr])
   (^long sum [^criterium.array.LongArray arr])

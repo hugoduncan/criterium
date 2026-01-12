@@ -153,26 +153,49 @@
                           {:sum 0 :count 0})))))))
 
 (deftest sorted-test
+  ;; Tests the sorted function which returns a new sorted DoubleArray.
+  ;; Contracts: returns sorted copy without modifying original, handles edge cases.
   (testing "sorted"
-    (testing "returns a sorted copy"
-      (let [original (arr/->double-array (double-array [3.0 1.0 4.0 1.0 5.0]))
-            result   (arr/sorted original)]
-        (is (= [1.0 1.0 3.0 4.0 5.0]
-               (arr/dfold result (fn [acc ^double v] (conj acc v)) [])))))
-    (testing "does not modify original"
-      (let [original (arr/->double-array (double-array [3.0 1.0 2.0]))]
-        (arr/sorted original)
-        (is (= [3.0 1.0 2.0]
-               (arr/dfold original (fn [acc ^double v] (conj acc v)) [])))))
-    (testing "works with empty array"
-      (let [original (arr/->double-array (double-array []))
-            result   (arr/sorted original)]
-        (is (= 0 (arr/length result)))))
-    (testing "works with single element"
-      (let [original (arr/->double-array (double-array [42.0]))
-            result   (arr/sorted original)]
-        (is (= [42.0]
-               (arr/dfold result (fn [acc ^double v] (conj acc v)) [])))))))
+    (testing "with DoubleArray"
+      (testing "returns a sorted copy"
+        (let [original (arr/->double-array (double-array [3.0 1.0 4.0 1.0 5.0]))
+              result   (arr/sorted original)]
+          (is (= [1.0 1.0 3.0 4.0 5.0]
+                 (arr/dfold result (fn [acc ^double v] (conj acc v)) [])))))
+      (testing "does not modify original"
+        (let [original (arr/->double-array (double-array [3.0 1.0 2.0]))]
+          (arr/sorted original)
+          (is (= [3.0 1.0 2.0]
+                 (arr/dfold original (fn [acc ^double v] (conj acc v)) [])))))
+      (testing "works with empty array"
+        (let [original (arr/->double-array (double-array []))
+              result   (arr/sorted original)]
+          (is (= 0 (arr/length result)))))
+      (testing "works with single element"
+        (let [original (arr/->double-array (double-array [42.0]))
+              result   (arr/sorted original)]
+          (is (= [42.0]
+                 (arr/dfold result (fn [acc ^double v] (conj acc v)) []))))))
+    (testing "with LongArray"
+      (testing "returns a sorted DoubleArray"
+        (let [original (arr/->long-array (long-array [3 1 4 1 5]))
+              result   (arr/sorted original)]
+          (is (= [1.0 1.0 3.0 4.0 5.0]
+                 (arr/dfold result (fn [acc ^double v] (conj acc v)) [])))))
+      (testing "does not modify original"
+        (let [original (arr/->long-array (long-array [3 1 2]))]
+          (arr/sorted original)
+          (is (= [3 1 2]
+                 (arr/lfold original (fn [acc ^long v] (conj acc v)) [])))))
+      (testing "works with empty array"
+        (let [original (arr/->long-array (long-array []))
+              result   (arr/sorted original)]
+          (is (= 0 (arr/length result)))))
+      (testing "works with single element"
+        (let [original (arr/->long-array (long-array [42]))
+              result   (arr/sorted original)]
+          (is (= [42.0]
+                 (arr/dfold result (fn [acc ^double v] (conj acc v)) []))))))))
 
 (deftest fold-double-skip-test
   (testing "fold-double-skip"
