@@ -141,10 +141,9 @@
 
   IIndexedDoubleFold
   (^double indexedFold [_ ^clojure.lang.IFn$DLDD f ^double init]
-    (let [len (alength array)
-          init-d (double init)]
+    (let [len (alength array)]
       (loop [i   (long 0)
-             acc init-d]
+             acc init]
         (if (< i len)
           (recur (unchecked-inc i)
                  (.invokePrim f acc i (aget array i)))
@@ -325,10 +324,9 @@
 
   IIndexedDoubleFold
   (^double indexedFold [_ ^clojure.lang.IFn$DLDD f ^double init]
-    (let [len (alength array)
-          init-d (double init)]
+    (let [len (alength array)]
       (loop [i   (long 0)
-             acc init-d]
+             acc init]
         (if (< i len)
           (recur (unchecked-inc i)
                  (.invokePrim f acc i (double (aget array i))))
