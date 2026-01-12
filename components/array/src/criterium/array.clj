@@ -362,37 +362,48 @@
   ^ObjectArray [^objects arr]
   (ObjectArray. arr))
 
+(defn first-double
+  "Returns the first element from a DoubleArray as a primitive double."
+  ^double [^DoubleArray arr]
+  (aget ^doubles (.array arr) 0))
+
+(defn last-double
+  "Returns the last element from a DoubleArray as a primitive double."
+  ^double [^DoubleArray arr]
+  (let [^doubles a (.array arr)]
+    (aget a (dec (alength a)))))
+
+(defn first-long
+  "Returns the first element from a LongArray as a primitive long."
+  ^long [^LongArray arr]
+  (aget ^longs (.array arr) 0))
+
+(defn last-long
+  "Returns the last element from a LongArray as a primitive long."
+  ^long [^LongArray arr]
+  (let [^longs a (.array arr)]
+    (aget a (dec (alength a)))))
+
+(defn first-object
+  "Returns the first element from an ObjectArray."
+  [^ObjectArray arr]
+  (aget ^objects (.array arr) 0))
+
+(defn last-object
+  "Returns the last element from an ObjectArray."
+  [^ObjectArray arr]
+  (let [^objects a (.array arr)]
+    (aget a (dec (alength a)))))
+
 (defn first-element
   "Returns the first element from a typed array.
-  Returns nil for empty arrays."
+  Dispatches based on runtime array type for cases where the type
+  cannot be statically determined."
   [arr]
-  (when (pos? (length arr))
-    (cond
-      (instance? DoubleArray arr)
-      (get-double arr 0)
-
-      (instance? LongArray arr)
-      (get-long arr 0)
-
-      (instance? ObjectArray arr)
-      (aget ^objects (.array ^ObjectArray arr) 0))))
-
-(defn last-element
-  "Returns the last element from a typed array.
-  Returns nil for empty arrays."
-  [arr]
-  (let [len (length arr)]
-    (when (pos? len)
-      (let [idx (dec len)]
-        (cond
-          (instance? DoubleArray arr)
-          (get-double arr idx)
-
-          (instance? LongArray arr)
-          (get-long arr idx)
-
-          (instance? ObjectArray arr)
-          (aget ^objects (.array ^ObjectArray arr) idx))))))
+  (cond
+    (instance? DoubleArray arr) (first-double arr)
+    (instance? LongArray arr)   (first-long arr)
+    (instance? ObjectArray arr) (first-object arr)))
 
 (defn metric-type->elem-type
   "Maps metric type keywords to element type keywords.

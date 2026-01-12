@@ -82,7 +82,7 @@
         (is (map? (:metric->values samples-map))
             "Samples should be returned as a map")
         (is (pos?
-             (arr/first-element
+             (arr/first-double
               (get-in samples-map [:metric->values [:elapsed-time]])))
             "Samples should contain positive elapsed times"))))
 

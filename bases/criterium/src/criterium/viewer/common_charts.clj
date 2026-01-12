@@ -476,7 +476,7 @@
         k (first path)
         field-name (name k)
         sorted-arr (arr/sorted (get samples path))
-        min-v (double (arr/first-element sorted-arr))
+        min-v (arr/first-double sorted-arr)
         ;; Build diffs directly from typed array
         diffs (-> (arr/dfold
                    sorted-arr

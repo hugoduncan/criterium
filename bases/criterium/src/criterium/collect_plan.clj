@@ -69,7 +69,7 @@
       collection-map
       {:metric->values metric->values
        :metrics-defs (have (:metrics-defs (:collector collection-map)))
-       :expr-value (arr/last-element (metric->values [:expr-value]))
+       :expr-value (arr/last-object (metric->values [:expr-value]))
        :type :criterium/metrics-samples
        :transform (if (= 1 batch-size)
                     identity-transforms

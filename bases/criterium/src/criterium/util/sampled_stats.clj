@@ -16,8 +16,8 @@
   [[:mean (stats/mean vs)]
    [:median (stats/quantile 0.5 vs)]
    [:variance (stats/variance vs)]
-   [:min-val (arr/first-element vs)]
-   [:max-val (arr/last-element vs)]])
+   [:min-val (arr/first-double vs)]
+   [:max-val (arr/last-double vs)]])
 
 (defn sample-quantiles
   "Compute quantiles for sorted values."
