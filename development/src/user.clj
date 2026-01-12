@@ -17,6 +17,13 @@
   (require 'cider.nrepl.middleware.util.instrument)
   (catch Exception _))
 (try
+  (require 'clj-http.client)
+  (require 'clj-http.headers)
+  (catch Exception _))
+(try
+  (require 'clojure.data.json)
+  (catch Exception _))
+(try
   (require 'clojure.test.check)
   (catch Exception _))
 (try
@@ -47,6 +54,8 @@
   (catch Exception _))
 (try
   (require 'malli.core)
+  (require 'malli.generator)
+  (require 'malli.instrument)
   (catch Exception _))
 (try
   (require 'nextjournal.beholder)
@@ -60,6 +69,9 @@
   (catch Exception _))
 (try
   (require 'orchard.inspect)
+  (catch Exception _))
+(try
+  (require 'potemkin.utils)
   (catch Exception _))
 (try
   (require 'scicloj.clay.v2.make)
