@@ -154,7 +154,7 @@
                     (take (* ^long batch-size ^long num-samples))
                     vec)
         sample-vals (partition batch-size values)
-        samples {[:v] (mapv #(stats/sum (darr %)) sample-vals)}]
+        samples {[:v] (darr (mapv #(stats/sum (darr %)) sample-vals))}]
     {:samples samples
      :values values}))
 

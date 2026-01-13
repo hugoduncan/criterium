@@ -5,6 +5,7 @@
    [clojure.test.check.clojure-test :refer [defspec]]
    [clojure.test.check.generators :as gen]
    [clojure.test.check.properties :as prop]
+   [criterium.array :as arr]
    [criterium.random.well :as well]
    [criterium.random.ziggurat :as ziggurat]
    [criterium.stats.interface :as stats]
@@ -13,6 +14,11 @@
                                  make-xoshiro-rng
                                  variance-ratio
                                  xoshiro-available?]]))
+
+(defn- darr
+  "Create a DoubleArray from a sequence."
+  [coll]
+  (arr/->double-array (double-array coll)))
 
 ;; Tests for ziggurat algorithm for generating normal random variates.
 ;; Verifies correct distribution and independence of samples when using WELL RNG.
@@ -24,7 +30,7 @@
          values         (->> rng
                              ziggurat/random-normal-zig
                              (take 10000)
-                             vec)
+                             darr)
          mean           (stats/mean values)
          variance       (stats/variance values)
          mean-error     (double (abs-error mean 0.0))
@@ -65,8 +71,8 @@
               (format "variance ratio %.3f outside [0.9, 1.1]" ratio))))
 
       (testing "has correct marginal distribution"
-        (let [mean     (stats/mean samples)
-              variance (stats/variance samples)]
+        (let [mean     (stats/mean (darr samples))
+              variance (stats/variance (darr samples))]
           (is (< (Math/abs mean) 0.02)
               (format "mean %.4f exceeds tolerance 0.02" mean))
           (is (< (Math/abs (- variance 1.0)) 0.1)
@@ -119,8 +125,9 @@
          ;; Compute metrics for each source
          compute-metrics
          (fn [name samples]
-           (let [mean      (stats/mean samples)
-                 variance  (stats/variance samples)
+           (let [samples-arr (darr samples)
+                 mean      (stats/mean samples-arr)
+                 variance  (stats/variance samples-arr)
                  ac-vals   (mapv #(autocorrelation samples %) lags)
                  ;; Normal samples have variance 1.0
                  vr        (variance-ratio samples batch-size 1.0)]
