@@ -54,6 +54,15 @@ clojure -T:build deploy :project :arg-gen
 
 # Clean build artifacts
 clojure -T:build clean
+
+# Render notebooks to HTML documentation
+clojure -T:build notebooks
+
+# Render notebooks with agent (macOS)
+clojure -T:build notebooks :aliases :with-agent-mac
+
+# Render notebooks with agent (Linux)
+clojure -T:build notebooks :aliases :with-agent-linux
 ```
 
 ### Code Quality

@@ -91,7 +91,8 @@
                          "-XX:CompileCommand=blackhole,criterium.blackhole.Blackhole::consume"]}
   :nrepl {:extra-deps {nrepl/nrepl {:mvn/version "1.5.1"}}
           :main-opts ["-m" "nrepl.cmdline"]}
-  :render-docs {:extra-deps {poly/criterium {:local/root "bases/criterium"}
+  :render-docs {:extra-deps {poly/agent {:local/root "bases/agent"}
+                             poly/criterium {:local/root "bases/criterium"}
                              poly/notebooks {:local/root "bases/notebooks"}
                              org.clojure/clojure {:mvn/version "1.12.0"}}
                 :jvm-opts ["-Djdk.attach.allowAttachSelf"]
