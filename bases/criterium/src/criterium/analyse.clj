@@ -650,7 +650,7 @@
        (update-in result path
                   assoc
                   :significance significance
-                  :effect (outlier-effect significance))))
+                  :effect (when significance (outlier-effect significance)))))
    {}
    metric-configs))
 
