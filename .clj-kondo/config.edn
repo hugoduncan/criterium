@@ -15,5 +15,6 @@
            criterium.viewer.kindly-clay-test/with-temp-dir clj-kondo.lint-as/def-catch-all}
  :linters {:unused-binding               {:exclude-defmulti-args true}
            :used-underscored-binding     {:level :warning}
-           :unsorted-required-namespaces {:level :warning}}
+           :unsorted-required-namespaces {:level :warning}
+           :redundant-primitive-coercion {:level :warning}}
  :output  {:exclude-files ["src/data_readers.clj"]}}

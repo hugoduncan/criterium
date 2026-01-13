@@ -1551,7 +1551,7 @@
         ;; Newton-Raphson: x_{n+1} = x_n - (F(x_n) - p) / f(x_n)
         (let [max-iter (long 50)
               tol      1e-10]
-          (loop [x    (Math/max (double (initial-guess p)) 1e-10)
+          (loop [x    (Math/max (initial-guess p) 1e-10)
                  iter (long 0)]
             (if (>= iter max-iter)
               x

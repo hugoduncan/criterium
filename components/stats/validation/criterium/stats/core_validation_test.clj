@@ -232,7 +232,7 @@
               (testing (str "at quantile " q)
                 (let [r-q (first (r/r-eval
                                   (str "quantile(" (vec->r-str sorted) ", " q ", type=7)")))
-                      clj-q (double (stats/quantile q (darr sorted)))]
+                      clj-q (stats/quantile q (darr sorted))]
                   (is (approx= r-q clj-q 1e-10)
                       (format "quantile mismatch at q=%.2f: R=%.15f, clj=%.15f"
                               q r-q clj-q)))))))
@@ -243,7 +243,7 @@
               (testing (str "at quantile " q)
                 (let [r-q (first (r/r-eval
                                   (str "quantile(" (vec->r-str sorted) ", " q ", type=7)")))
-                      clj-q (double (stats/quantile q (darr sorted)))]
+                      clj-q (stats/quantile q (darr sorted))]
                   (is (approx= r-q clj-q 1e-10)
                       (format "quantile mismatch at q=%.2f: R=%.15f, clj=%.15f"
                               q r-q clj-q)))))))
@@ -254,7 +254,7 @@
               (testing (str "at quantile " q)
                 (let [r-q (first (r/r-eval
                                   (str "quantile(" (vec->r-str sorted) ", " q ", type=7)")))
-                      clj-q (double (stats/quantile q (darr sorted)))]
+                      clj-q (stats/quantile q (darr sorted))]
                   (is (approx= r-q clj-q 1e-10)
                       (format "quantile mismatch at q=%.2f: R=%.15f, clj=%.15f"
                               q r-q clj-q)))))))
@@ -265,7 +265,7 @@
               (testing (str "at quantile " q)
                 (let [r-q (first (r/r-eval
                                   (str "quantile(" (vec->r-str sorted) ", " q ", type=7)")))
-                      clj-q (double (stats/quantile q (darr sorted)))]
+                      clj-q (stats/quantile q (darr sorted))]
                   (is (approx= r-q clj-q 1e-10)
                       (format "quantile mismatch at q=%.2f: R=%.15f, clj=%.15f"
                               q r-q clj-q)))))))
@@ -276,7 +276,7 @@
               (testing (str "at quantile " q)
                 (let [r-q (first (r/r-eval
                                   (str "quantile(" (vec->r-str sorted) ", " q ", type=7)")))
-                      clj-q (double (stats/quantile q (darr sorted)))]
+                      clj-q (stats/quantile q (darr sorted))]
                   (is (approx= r-q clj-q 1e-10)
                       (format "quantile mismatch at q=%.2f: R=%.15f, clj=%.15f"
                               q r-q clj-q)))))))
@@ -287,7 +287,7 @@
               (testing (str "at quantile " q)
                 (let [r-q (first (r/r-eval
                                   (str "quantile(" (vec->r-str sorted) ", " q ", type=7)")))
-                      clj-q (double (stats/quantile q (darr sorted)))]
+                      clj-q (stats/quantile q (darr sorted))]
                   (is (approx= r-q clj-q 1e-10)
                       (format "quantile mismatch at q=%.2f: R=%.15f, clj=%.15f"
                               q r-q clj-q)))))))
@@ -298,7 +298,7 @@
               (testing (str "at quantile " q)
                 (let [r-q (first (r/r-eval
                                   (str "quantile(" (vec->r-str sorted) ", " q ", type=7)")))
-                      clj-q (double (stats/quantile q (darr sorted)))]
+                      clj-q (stats/quantile q (darr sorted))]
                   (is (approx= r-q clj-q 1e-10)
                       (format "quantile mismatch at q=%.2f: R=%.15f, clj=%.15f"
                               q r-q clj-q)))))))))))

@@ -635,7 +635,7 @@
     cdf-fn - theoretical CDF function (e.g., from gamma-cdf, weibull-cdf)
 
   Returns the D statistic."
-  ^double [samples cdf-fn]
+  ^double [samples ^clojure.lang.IFn$DD cdf-fn]
   {:pre [(have? arr/typed-array? samples)]}
   (let [n (arr/length samples)
         _ (when (zero? n)
@@ -644,7 +644,7 @@
         n-d (double n)]
     (arr/indexed-fold-double sorted-samples
                              (fn ^double [^double d-max ^long i ^double x]
-                               (let [f-x (double (cdf-fn x))
+                               (let [f-x (.invokePrim cdf-fn x)
                                      fn-before (/ i n-d)
                                      fn-after (/ (inc i) n-d)
                                      d1 (Math/abs (- fn-before f-x))
@@ -713,7 +713,7 @@
     cdf-fn - theoretical CDF function
 
   Returns the W² statistic."
-  ^double [samples cdf-fn]
+  ^double [samples ^clojure.lang.IFn$DD cdf-fn]
   {:pre [(have? arr/typed-array? samples)]}
   (let [n (arr/length samples)
         _ (when (zero? n)
@@ -723,7 +723,7 @@
         base (/ 1.0 (* 12.0 n-d))
         sum (arr/indexed-fold-double sorted-samples
                                      (fn ^double [^double acc ^long i ^double x]
-                                       (let [f-x (double (cdf-fn x))
+                                       (let [f-x (.invokePrim cdf-fn x)
                                        ;; (2i-1)/(2n) where i is 1-indexed
                                              expected (/ (- (* 2.0 (inc i)) 1.0)
                                                          (* 2.0 n-d))
