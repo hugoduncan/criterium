@@ -5,9 +5,9 @@
    [clojure.test.check.generators :as gen]
    [clojure.test.check.properties :as prop]
    [criterium.array :as arr]
+   [criterium.stats.interface :as stats]
    [criterium.test-utils :refer [abs-error approx= gen-bounded test-max-error]]
    [criterium.util.sampled-stats :as sampled-stats]
-   [criterium.util.stats :as stats]
    [criterium.util.well :as well]
    [criterium.util.ziggurat :as ziggurat]))
 

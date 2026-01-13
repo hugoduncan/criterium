@@ -7,13 +7,13 @@
    [clojure.test.check.properties :as prop]
    [criterium.array :as arr]
    [criterium.random.well :as well]
+   [criterium.stats.interface :as stats]
    [criterium.test-utils :refer [autocorrelation
                                  gen-bounded
                                  make-xoshiro-rng
                                  test-max-error
                                  variance-ratio-uniform
-                                 xoshiro-available?]]
-   [criterium.util.stats :as stats]))
+                                 xoshiro-available?]]))
 
 (defn- darr
   "Create a DoubleArray from a sequence."

@@ -4,8 +4,8 @@
    [clojure.test :refer [deftest is testing]]
    [clojure.test.check.generators :as gen]
    [criterium.array :as arr]
+   [criterium.stats.interface :as stats]
    [criterium.test.assert :as assert]
-   [criterium.util.stats :as stats]
    [criterium.util.well :as well]
    [criterium.util.ziggurat :as ziggurat]))
 

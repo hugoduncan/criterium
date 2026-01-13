@@ -4,13 +4,12 @@
    [criterium.analyse-test :refer [metrics-samples]]
    [criterium.array :as arr]
    [criterium.collect-plan :as collect-plan]
-   [criterium.stats.interface :as stats-interface]
+   [criterium.stats.interface :as stats]
    [criterium.test-utils :refer [test-max-error]]
    [criterium.util.bootstrap :as bootstrap]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have]]
    [criterium.util.sampled-stats-test :as sampled-stats-test]
-   [criterium.util.stats :as stats]
    [criterium.util.well :as well]))
 
 (deftest bootstrap-estimate-test
@@ -353,13 +352,13 @@
             samples           (arr/->double-array (double-array (range 101)))
             num-samples       (arr/length samples)
             ;; Wrap stats-fn to track invocations
-            original-stats-fn stats-interface/stats-fn
+            original-stats-fn stats/stats-fn
             tracking-stats-fn (fn [fs]
                                 (let [combined (original-stats-fn fs)]
                                   (fn [vs]
                                     (swap! invocation-count inc)
                                     (combined vs))))]
-        (with-redefs [stats-interface/stats-fn tracking-stats-fn]
+        (with-redefs [stats/stats-fn tracking-stats-fn]
           (bootstrap/bootstrap-stats-for
            samples
            {:estimate-quantiles [0.025 0.975]

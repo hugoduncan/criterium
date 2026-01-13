@@ -277,15 +277,15 @@
            max-diff (double
                      (if (empty? lambda-vec)
                        (let [lam 1.0
-                             em-k (compute-em lam k min-dist-k len-k)
-                             em-k1 (compute-em lam (inc k) min-dist-k1 len-k1)]
+                             ^double em-k (compute-em lam k min-dist-k len-k)
+                             ^double em-k1 (compute-em lam (inc k) min-dist-k1 len-k1)]
                          (- em-k1 em-k))
                        (loop [idx (long 0)
                               max-d Double/NEGATIVE_INFINITY]
                          (if (< idx (count lambda-vec))
                            (let [lam (nth lambda-vec idx)
-                                 em-k (compute-em lam k min-dist-k len-k)
-                                 em-k1 (compute-em lam (inc k) min-dist-k1 len-k1)
+                                 ^double em-k (compute-em lam k min-dist-k len-k)
+                                 ^double em-k1 (compute-em lam (inc k) min-dist-k1 len-k1)
                                  d (- em-k1 em-k)]
                              (recur (inc idx) (Math/max max-d d)))
                            max-d))))]

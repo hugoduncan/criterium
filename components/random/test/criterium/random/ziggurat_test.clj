@@ -7,12 +7,12 @@
    [clojure.test.check.properties :as prop]
    [criterium.random.well :as well]
    [criterium.random.ziggurat :as ziggurat]
+   [criterium.stats.interface :as stats]
    [criterium.test-utils :refer [abs-error
                                  autocorrelation
                                  make-xoshiro-rng
                                  variance-ratio
-                                 xoshiro-available?]]
-   [criterium.util.stats :as stats]))
+                                 xoshiro-available?]]))
 
 ;; Tests for ziggurat algorithm for generating normal random variates.
 ;; Verifies correct distribution and independence of samples when using WELL RNG.

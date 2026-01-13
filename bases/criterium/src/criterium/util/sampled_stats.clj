@@ -2,9 +2,9 @@
   (:require
    [criterium.array :as arr]
    [criterium.primitive-fn :as prim]
+   [criterium.stats.interface :as stats]
    [criterium.util.helpers :as util]
-   [criterium.util.invariant :refer [have have?]]
-   [criterium.util.stats :as stats])
+   [criterium.util.invariant :refer [have have?]])
   (:import
    [criterium.array DoubleArray LongArray ObjectArray]))
 

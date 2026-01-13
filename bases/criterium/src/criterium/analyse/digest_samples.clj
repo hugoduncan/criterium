@@ -10,9 +10,9 @@
   (:require
    [criterium.analyse.methods :as methods]
    [criterium.collect-plan :as collect-plan]
+   [criterium.stats.interface :as stats]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have]]
-   [criterium.util.stats :as stats]
    [criterium.util.t-digest :as t-digest]))
 
 (def ^:private digest-samples-keys

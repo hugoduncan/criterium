@@ -14,7 +14,7 @@
   "Test cases with sorted data and expected adjusted boxplot fence values.
   Each entry contains:
   - :data - sorted input vector
-  - :q1, :q3 - quartiles from criterium.util.stats/quartiles
+  - :q1, :q3 - quartiles from criterium.stats.interface/quartiles
   - :mc - medcouple value
   - :expected - [low-severe low-mild high-mild high-severe]
   - :description - test case description"

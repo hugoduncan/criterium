@@ -5,13 +5,12 @@
    criterium.array.interface
    [criterium.collect-plan :as collect-plan]
    [criterium.random.interface :as random]
-   [criterium.stats.interface :as si]
+   [criterium.stats.interface :as stats]
    [criterium.util.helpers :as util]
    [criterium.util.histogram :as histogram]
    [criterium.util.invariant :refer [have]]
    [criterium.util.kde :as kde]
-   [criterium.util.sampled-stats :as sampled-stats]
-   [criterium.util.stats :as stats]))
+   [criterium.util.sampled-stats :as sampled-stats]))
 
 (def ^:private metrics-samples-keys
   "Keys for :criterium/metrics-samples type, used for select-keys."
@@ -474,10 +473,10 @@
   [dist samples]
   (try
     (case dist
-      :gamma (si/gamma-mle samples)
-      :lognormal (si/lognormal-mle samples)
-      :inverse-gaussian (si/inverse-gaussian-mle samples)
-      :weibull (si/weibull-mle samples))
+      :gamma (stats/gamma-mle samples)
+      :lognormal (stats/lognormal-mle samples)
+      :inverse-gaussian (stats/inverse-gaussian-mle samples)
+      :weibull (stats/weibull-mle samples))
     (catch Exception e
       {:error (.getMessage e)})))
 
@@ -485,26 +484,26 @@
   "Create a CDF function for the given distribution and parameters."
   [dist params]
   (case dist
-    :gamma (si/gamma-cdf (:shape params) (:scale params))
-    :lognormal (si/lognormal-cdf (:mu params) (:sigma params))
-    :inverse-gaussian (si/inverse-gaussian-cdf (:mu params) (:lambda params))
-    :weibull (si/weibull-cdf (:shape params) (:scale params))))
+    :gamma (stats/gamma-cdf (:shape params) (:scale params))
+    :lognormal (stats/lognormal-cdf (:mu params) (:sigma params))
+    :inverse-gaussian (stats/inverse-gaussian-cdf (:mu params) (:lambda params))
+    :weibull (stats/weibull-cdf (:shape params) (:scale params))))
 
 (defn- compute-gof-tests
   "Compute goodness-of-fit tests (K-S and CvM) for fitted distribution."
   [samples cdf-fn]
-  {:ks-test (si/ks-test samples cdf-fn)
-   :cvm-test (si/cvm-test samples cdf-fn)})
+  {:ks-test (stats/ks-test samples cdf-fn)
+   :cvm-test (stats/cvm-test samples cdf-fn)})
 
 (defn- compute-information-criteria
   "Compute AIC, BIC, and AICc for a fitted model."
   [dist n log-likelihood]
   (let [k (long (get distribution-num-params dist 2))
         n (long n)]
-    {:aic (si/aic k log-likelihood)
-     :bic (si/bic k n log-likelihood)
+    {:aic (stats/aic k log-likelihood)
+     :bic (stats/bic k n log-likelihood)
      :aicc (when (> n (inc k))
-             (si/aicc k n log-likelihood))}))
+             (stats/aicc k n log-likelihood))}))
 
 (defn- bootstrap-parameter-ci
   "Bootstrap confidence intervals for distribution parameters.
@@ -539,7 +538,7 @@
           (if (>= i n-bootstrap)
             results
             (let [rng (rng-factory)
-                  indices (si/sample-uniform bootstrap-size n rng)
+                  indices (stats/sample-uniform bootstrap-size n rng)
                   boot-samples (resample-fn indices)
                   fit (fit-fn boot-samples)]
               (recur (inc i)
@@ -579,16 +578,16 @@
                   (arr/length samples)
                   (count samples))
         ;; Compute sample statistics for moment-match prefilter
-        ;; si/mean and si/variance work with typed arrays directly
-        mean-val (si/mean samples)
-        var-val (si/variance samples)
+        ;; stats/mean and stats/variance work with typed arrays directly
+        mean-val (stats/mean samples)
+        var-val (stats/variance samples)
         ;; Determine which distributions to fit
         requested-dists (if distributions
                           (set distributions)
                           all-distributions)
         ;; Use moment-match prefilter to screen distributions
-        prefilter-results (si/moment-match-prefilter mean-val var-val requested-dists)
-        suitable-dists (si/suitable-distributions mean-val var-val requested-dists)
+        prefilter-results (stats/moment-match-prefilter mean-val var-val requested-dists)
+        suitable-dists (stats/suitable-distributions mean-val var-val requested-dists)
         ;; Fit each distribution - MLE/GOF functions now accept typed arrays
         fit-results
         (into {}
@@ -649,8 +648,8 @@
           n (arr/length samples-arr)]
       (when (> n 2)
         ;; Use stats functions that accept typed arrays for min/max
-        (let [sample-min (si/min samples-arr)
-              sample-max (si/max samples-arr)]
+        (let [sample-min (stats/min samples-arr)
+              sample-max (stats/max samples-arr)]
           (assoc (fit-distributions-for-metric samples-arr options)
                  :sample-range [sample-min sample-max]))))
     (catch Exception e
