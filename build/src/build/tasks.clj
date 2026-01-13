@@ -154,8 +154,8 @@
   Returns: nil"
   [{:keys [aliases]}]
   (let [alias-str (if aliases
-                    (str ":render-docs:" (name aliases))
-                    ":render-docs")
+                    (str ":render-docs::blackhole:" (name aliases))
+                    ":render-docs::blackhole")
         pb (ProcessBuilder. ["clojure" (str "-M" alias-str)])
         _ (.inheritIO pb)
         proc (.start pb)
