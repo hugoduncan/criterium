@@ -7,7 +7,7 @@
     poly/criterium {:local/root "bases/criterium"}
     poly/notebooks {:local/root "bases/notebooks"}
     poly/optimisation {:local/root "components/optimisation"}
-    poly/primitive-fn {:local/root "../../components/primitive-fn"}
+    poly/primitive-fn {:local/root "components/primitive-fn"}
     poly/random {:local/root "components/random"}
     poly/stats {:local/root "components/stats"}
     poly/utils {:local/root "components/utils"}

@@ -270,28 +270,28 @@
 
   Returns a vector containing the Vega-Lite layer spec, or nil if no events."
   [events [_k metrics]]
-  (let [data (->> (map
-                   (partial event-occurrence events (:values metrics))
-                   (range (arr/length
-                           (get events (:path (first (:values metrics)))))))
-                  (filterv some?))]
-    (when (seq data)
-      [{:data {:values data}
-        :encoding {:x {:field "index"
-                       :type "quantitative"}
-                   :color {:vvalue "white"}
-                   :size {:value 2},
-                   :tooltip (conj
-                             (mapv
-                              #(hash-map
-                                :field (name
-                                        (core/composite-key (:path %)))
-                                :type "quantitative"
-                                :title (str (:label metrics) " " (:label %)))
-                              (:values metrics))
-                             {:field "index" :type "quantitative"})}
-        :mark {:type "rule"
-               :strokeDash [2 2]}}])))
+  (when-let [arr (get events (:path (first (:values metrics))))]
+    (let [data (->> (map
+                     (partial event-occurrence events (:values metrics))
+                     (range (arr/length arr)))
+                    (filterv some?))]
+      (when (seq data)
+        [{:data {:values data}
+          :encoding {:x {:field "index"
+                         :type "quantitative"}
+                     :color {:vvalue "white"}
+                     :size {:value 2},
+                     :tooltip (conj
+                               (mapv
+                                #(hash-map
+                                  :field (name
+                                          (core/composite-key (:path %)))
+                                  :type "quantitative"
+                                  :title (str (:label metrics) " " (:label %)))
+                                (:values metrics))
+                               {:field "index" :type "quantitative"})}
+          :mark {:type "rule"
+                 :strokeDash [2 2]}}]))))
 
 ;;; Samples chart
 
