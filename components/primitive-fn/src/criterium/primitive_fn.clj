@@ -17,6 +17,11 @@
   ^double [^double a ^double b]
   (+ a b))
 
+(defn dadd-unchecked
+  "Unchecked primitive double addition."
+  ^double [^double a ^double b]
+  (unchecked-add a b))
+
 (defn dsubtract
   "Primitive double subtraction."
   ^double [^double a ^double b]

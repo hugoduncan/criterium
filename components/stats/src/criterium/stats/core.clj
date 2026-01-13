@@ -7,9 +7,10 @@
   (:require
    [criterium.array :as arr]
    criterium.array.interface
+   [criterium.primitive-fn :as prim]
    [criterium.utils.interface :as utils :refer [have?]])
   (:import
-   [criterium.array.interface ITypedArray IDoubleFold IIndexed]))
+   [criterium.array.interface IDoubleFold]))
 
 (defn transpose
   "Transpose a vector of vectors."
@@ -18,37 +19,12 @@
     (apply map vector data)
     data))
 
-(defn- typed-array-length
-  "Returns the length of a typed array."
-  ^long [^ITypedArray arr]
-  (.length arr))
-
-(defn- typed-array-fold-double
-  "Fold over typed array with primitive double function."
-  ^double [^IDoubleFold arr ^clojure.lang.IFn$DDD f ^double init]
-  (.fold arr f init))
-
-(defn- typed-array-get-double
-  "Get element at index as double from typed array."
-  ^double [^IIndexed arr ^long index]
-  (.getDouble arr index))
-
-(defn- dmin
-  "Primitive double min function."
-  ^double [^double a ^double b]
-  (if (< a b) a b))
-
-(defn- dmax
-  "Primitive double max function."
-  ^double [^double a ^double b]
-  (if (> a b) a b))
-
 (defn min
   "Minimum value in data.
   Requires a typed array (ITypedArray)."
   ([data]
    {:pre [(have? arr/typed-array? data)]}
-   (typed-array-fold-double data dmin Double/MAX_VALUE))
+   (arr/fold-double data prim/dmin Double/MAX_VALUE))
   ([data _count]
    (min data)))
 
@@ -57,33 +33,28 @@
   Requires a typed array (ITypedArray)."
   ([data]
    {:pre [(have? arr/typed-array? data)]}
-   (typed-array-fold-double data dmax Double/MIN_VALUE))
+   (arr/fold-double data prim/dmax Double/MIN_VALUE))
   ([data _count]
    (max data)))
-
-(defn unchecked-add-d
-  "Unchecked double addition."
-  ^double [^double a ^double b]
-  (unchecked-add a b))
 
 (defn mean
   "Arithmetic mean of data.
   Requires a typed array (ITypedArray)."
   (^double [data]
    {:pre [(have? arr/typed-array? data)]}
-   (let [c (typed-array-length data)]
+   (let [c (arr/length data)]
      (when (pos? c)
-       (/ (typed-array-fold-double data unchecked-add-d 0.0) c))))
+       (/ (arr/fold-double data prim/dadd-unchecked 0.0) c))))
   (^double [data ^long count]
    {:pre [(have? arr/typed-array? data)]}
-   (/ (typed-array-fold-double data unchecked-add-d 0.0) count)))
+   (/ (arr/fold-double data prim/dadd-unchecked 0.0) count)))
 
 (defn sum
   "Sum of each data point.
   Requires a typed array (ITypedArray)."
   [data]
   {:pre [(have? arr/typed-array? data)]}
-  (typed-array-fold-double data unchecked-add-d 0.0))
+  (arr/fold-double data prim/dadd-unchecked 0.0))
 
 (defn sum-of-squares
   "Sum of the squares of each data point.
@@ -91,7 +62,7 @@
   [data]
   {:pre [(have? arr/typed-array? data)]}
   (let [f (fn ^double [^double s ^double v] (+ s (* v v)))]
-    (typed-array-fold-double data f 0.0)))
+    (arr/fold-double data f 0.0)))
 
 (defn variance*
   "Variance based on subtracting mean.
@@ -100,7 +71,7 @@
   {:pre [(have? arr/typed-array? data)]}
   (let [f (fn ^double [^double a ^double b]
             (+ a (utils/sqr (- b mean))))]
-    (/ (typed-array-fold-double data f 0.0) df)))
+    (/ (arr/fold-double data f 0.0) df)))
 
 (defn- variance-typed-array
   "Single-pass variance computation for typed arrays."
@@ -150,13 +121,13 @@
   References: http://en.wikipedia.org/wiki/Median"
   ^double [data]
   {:pre [(have? arr/typed-array? data)]}
-  (let [n (typed-array-length data)
+  (let [n (arr/length data)
         i (bit-shift-right n 1)]
     (if (even? n)
-      (/ (+ (typed-array-get-double data (dec i))
-            (typed-array-get-double data i))
+      (/ (+ (arr/get-double data (dec i))
+            (arr/get-double data i))
          2.0)
-      (typed-array-get-double data (bit-shift-right n 1)))))
+      (arr/get-double data (bit-shift-right n 1)))))
 
 (defn median
   "Calculate the median of a sorted data set.
@@ -174,18 +145,18 @@
   References: http://en.wikipedia.org/wiki/Quartile"
   [data]
   {:pre [(have? arr/typed-array? data)]}
-  (let [n (typed-array-length data)
+  (let [n (arr/length data)
         q1-idx (quot n 4)
         q3-idx (quot (* 3 n) 4)
         i (bit-shift-right n 1)
         med (if (even? n)
-              (/ (+ (typed-array-get-double data (dec i))
-                    (typed-array-get-double data i))
+              (/ (+ (arr/get-double data (dec i))
+                    (arr/get-double data i))
                  2.0)
-              (typed-array-get-double data i))]
-    [(typed-array-get-double data q1-idx)
+              (arr/get-double data i))]
+    [(arr/get-double data q1-idx)
      med
-     (typed-array-get-double data q3-idx)]))
+     (arr/get-double data q3-idx)]))
 
 (defn quantile
   "Calculate the quantile of a sorted data set.
@@ -193,16 +164,16 @@
   References: http://en.wikipedia.org/wiki/Quantile"
   [^double quantile data]
   {:pre [(have? arr/typed-array? data)]}
-  (let [n (dec (typed-array-length data))
+  (let [n (dec (arr/length data))
         interp (fn [^double x]
                  (let [f (Math/floor x)
                        i (long f)
                        p (- x f)]
                    (cond
-                     (zero? p) (typed-array-get-double data i)
-                     (= 1.0 p) (typed-array-get-double data (inc i))
-                     :else     (+ (* p (typed-array-get-double data (inc i)))
-                                  (* (- 1.0 p) (typed-array-get-double data i))))))]
+                     (zero? p) (arr/get-double data i)
+                     (= 1.0 p) (arr/get-double data (inc i))
+                     :else     (+ (* p (arr/get-double data (inc i)))
+                                  (* (- 1.0 p) (arr/get-double data i))))))]
     (interp (* quantile n))))
 
 (defn central-moment
@@ -210,15 +181,10 @@
   Requires a typed array (ITypedArray)."
   ^double [data ^double mean ^long r]
   {:pre [(have? arr/typed-array? data)]}
-  (let [n (typed-array-length data)
+  (let [n (arr/length data)
         f (fn ^double [^double acc ^double x]
             (+ acc (Math/pow (- x mean) r)))]
-    (/ (typed-array-fold-double data f 0.0) n)))
-
-(defn- data-count
-  "Returns the count of elements in a typed array."
-  ^long [data]
-  (typed-array-length data))
+    (/ (arr/fold-double data f 0.0) n)))
 
 (defn skewness
   "Compute sample skewness using one of three methods.
@@ -237,7 +203,7 @@
              and kurtosis. The Statistician, 47, 183-189."
   (^double [data] (skewness data 2))
   (^double [data ^long type]
-   (let [n  (data-count data)
+   (let [n  (arr/length data)
          mu (mean data)
          m2 (central-moment data mu 2)]
      (if (zero? m2)
@@ -271,7 +237,7 @@
              and kurtosis. The Statistician, 47, 183-189."
   (^double [data] (kurtosis data 2))
   (^double [data ^long type]
-   (let [n  (data-count data)
+   (let [n  (arr/length data)
          mu (mean data)
          m2 (central-moment data mu 2)]
      (if (zero? m2)
@@ -297,7 +263,7 @@
   with different units or scales.
   Requires a typed array (ITypedArray)."
   ^double [data]
-  (let [n (data-count data)]
+  (let [n (arr/length data)]
     (if (< n 2)
       Double/NaN
       (let [mu (mean data)]

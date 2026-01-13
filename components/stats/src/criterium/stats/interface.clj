@@ -50,11 +50,6 @@
   ([data] (core/max data))
   ([data count] (core/max data count)))
 
-(defn unchecked-add-d
-  "Unchecked double addition."
-  ^double [^double a ^double b]
-  (core/unchecked-add-d a b))
-
 (defn mean
   "Arithmetic mean of data."
   ([data] (core/mean data))

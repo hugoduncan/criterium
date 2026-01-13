@@ -5,6 +5,7 @@
   (:refer-clojure :exclude [min max])
   (:require
    [criterium.optimisation.interface :as optimisation]
+   [criterium.primitive-fn :as prim]
    [criterium.stats.interface :as stats]))
 
 ;;; Core statistics (delegated to stats component)
@@ -25,7 +26,7 @@
 
 (def unchecked-add-d
   "Unchecked double addition."
-  stats/unchecked-add-d)
+  prim/dadd-unchecked)
 
 (defn mean
   "Arithmetic mean of data."
