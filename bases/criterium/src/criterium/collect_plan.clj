@@ -1,6 +1,7 @@
 (ns criterium.collect-plan
   "Collection plan to control the collection of metrics from a measured."
   (:require
+   [criterium.array :as arr]
    [criterium.collect :as collect]
    [criterium.collect-plan.impl :as impl]
    [criterium.collector :as collector]
@@ -31,12 +32,11 @@
    :->sample (fn ->sample ^double [v] v)})
 
 (defn- batch-transforms
-  [batch-size]
-  (let [batch-size (double batch-size)] ; boxed to Double in closure
-    {:sample-> (fn sample-> ^double [v]
-                 (/ (double v) (double batch-size)))
-     :->sample (fn ->sample ^double [v]
-                 (* (double v) (double batch-size)))}))
+  [^long batch-size]
+  {:sample-> (fn sample-> ^double [^double v]
+               (/ v batch-size))
+   :->sample (fn ->sample ^double [^double v]
+               (* v batch-size))})
 
 (defmethod impl/collect* :one-shot
   ;; Collects a Single sample measured with no warmup of the measured function.
@@ -68,7 +68,7 @@
       collection-map
       {:metric->values metric->values
        :metrics-defs (have (:metrics-defs (:collector collection-map)))
-       :expr-value (last (metric->values [:expr-value]))
+       :expr-value (arr/last-object (metric->values [:expr-value]))
        :type :criterium/metrics-samples
        :transform (if (= 1 batch-size)
                     identity-transforms

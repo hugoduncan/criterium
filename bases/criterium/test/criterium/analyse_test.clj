@@ -3,6 +3,7 @@
    [clojure.test :refer [deftest is testing]]
    [criterium.analyse :as analyse]
    [criterium.analyse.methods]
+   [criterium.array :as arr]
    [criterium.benchmark :as benchmark]
    [criterium.collect-plan :as collect-plan]
    [criterium.collector.metrics :as metrics]
@@ -22,11 +23,26 @@
                  batch-size)
               batch-size))))))
 
+(defn- path->typed-array
+  "Convert a vector to the appropriate typed array for a metric path."
+  [path values]
+  (let [metric-key (first path)]
+    ;; Quantitative metrics: elapsed-time
+    ;; Event metrics: compilation, garbage-collector, class-loader
+    (if (= :elapsed-time metric-key)
+      (arr/->double-array (double-array values))
+      ;; All other metrics (event types) use long arrays
+      (arr/->long-array (long-array values)))))
+
 (defn metrics-samples
   [data ^long batch-size]
-  (let [n (count (first (vals data)))]
+  (let [n (count (first (vals data)))
+        typed-data (into {}
+                         (map (fn [[path values]]
+                                [path (path->typed-array path values)]))
+                         data)]
     {:type :criterium/metrics-samples
-     :metric->values data
+     :metric->values typed-data
      :transform (if (= batch-size 1)
                   collect-plan/identity-transforms
                   (#'collect-plan/batch-transforms batch-size))
@@ -42,10 +58,11 @@
 (defn transformed-metric-values
   [data-map id p]
   (let [m (-> data-map id)
-        transforms (util/get-transforms data-map id)]
+        transforms (util/get-transforms data-map id)
+        values (arr/fold (get (:metric->values m) p) conj [])]
     (mapv
      #(util/transform-sample-> % transforms)
-     (get (:metric->values m) p))))
+     values)))
 
 (defn transformed-values
   [data-map id vs]
@@ -65,11 +82,12 @@
           data-map {:samples samples}
           result ((analyse/transform-log) data-map)]
       (testing "puts the log transformed metrics into the result-path"
-        (is (= [1.0 2.0 3.0]
-               (-> result
-                   :log-samples
-                   :metric->values
-                   (get [:elapsed-time])))))
+        (is (arr/array=
+             (-> result
+                 :log-samples
+                 :metric->values
+                 (get [:elapsed-time]))
+             [1.0 2.0 3.0])))
       (testing "doesnot change original samples"
         (is (= samples (:samples result))))
       (testing "adds transfprms for the values"
@@ -131,7 +149,7 @@
     (let [data-map
           {:samples
            {:type :criterium/collected-metrics-samples
-            :metric->values {[:elapsed-time] [1 1 1 1000]}
+            :metric->values {[:elapsed-time] (arr/->double-array (double-array [1 1 1 1000]))}
             :transform collect-plan/identity-transforms
             :batch-size 1
             :eval-count 4
@@ -467,12 +485,12 @@
                       :label "GC total time"
                       :type :event}]
                     :label "Garbage Collector"}}}))
-            :metric->values {[:elapsed-time] [1 2 3]
-                             [:compilation :time-ms] [3 5 0]
-                             [:garbage-collector :total :time-ms] [1 1 1]
-                             [:garbage-collector :total :count] [2 1 1]
-                             [:class-loader :loaded-count] [2 2 0]
-                             [:class-loader :unloaded-count] [0 0 0]}
+            :metric->values {[:elapsed-time] (arr/->double-array (double-array [1 2 3]))
+                             [:compilation :time-ms] (arr/->long-array (long-array [3 5 0]))
+                             [:garbage-collector :total :time-ms] (arr/->long-array (long-array [1 1 1]))
+                             [:garbage-collector :total :count] (arr/->long-array (long-array [2 1 1]))
+                             [:class-loader :loaded-count] (arr/->long-array (long-array [2 2 0]))
+                             [:class-loader :unloaded-count] (arr/->long-array (long-array [0 0 0]))}
             :batch-size 1
             :eval-count 3}}
           result ((analyse/event-stats) data-map)]
@@ -504,7 +522,7 @@
     (let [data-map
           {:samples
            {:type :criterium/collected-metrics-samples
-            :metric->values {[:elapsed-time] [1 1 1 1000]}
+            :metric->values {[:elapsed-time] (arr/->double-array (double-array [1 1 1 1000]))}
             :transform collect-plan/identity-transforms
             :batch-size 1
             :eval-count 4
@@ -728,63 +746,63 @@
           (is (nil? (:mode-method elapsed-modes))
               "should not include mode-method for :isj")
           (is (nil? (:antimodes elapsed-modes))
-              "should not include antimodes for :isj")))))
+              "should not include antimodes for :isj"))))))
 
-  (deftest histogram-test
-    (testing "histogram"
-      (testing "with default (Freedman-Diaconis) method"
-        (let [raw-data (mapv #(+ 100.0 (* 1.0 (double %))) (range 100))
-              samples (metrics-samples
-                       {[:elapsed-time] raw-data}
-                       1)
-              data-map {:samples samples}
-              with-quantiles ((analyse/quantiles {:quantiles []}) data-map)
-              with-outliers ((analyse/outliers) with-quantiles)
-              result ((analyse/histogram) with-outliers)]
-          (is (contains? result :histograms))
-          (let [hist-data (:histograms result)
-                elapsed-hist (get-in hist-data [:histograms [:elapsed-time]])]
-            (is (= :criterium/histogram-fixed-width (:type elapsed-hist)))
-            (is (vector? (:counts elapsed-hist)))
-            (is (vector? (:centers elapsed-hist)))
-            (is (number? (:width elapsed-hist)))
-            (is (not (contains? elapsed-hist :optimal-bins))
-                "Freedman-Diaconis should not include optimal-bins"))))
-
-      (testing "with :method :knuth"
-        (let [raw-data (mapv #(+ 100.0 (* 1.0 (double %))) (range 100))
-              samples (metrics-samples
-                       {[:elapsed-time] raw-data}
-                       1)
-              data-map {:samples samples}
-              with-quantiles ((analyse/quantiles {:quantiles []}) data-map)
-              with-outliers ((analyse/outliers) with-quantiles)
-              result ((analyse/histogram {:method :knuth}) with-outliers)]
-          (is (contains? result :histograms))
-          (let [hist-data (:histograms result)
-                elapsed-hist (get-in hist-data [:histograms [:elapsed-time]])]
-            (is (= :criterium/histogram-knuth (:type elapsed-hist)))
-            (is (vector? (:counts elapsed-hist)))
-            (is (vector? (:centers elapsed-hist)))
-            (is (number? (:width elapsed-hist)))
-            (is (pos-int? (:optimal-bins elapsed-hist))
-                "Knuth method should include optimal-bins")
-            (is (number? (:log-posterior elapsed-hist))
-                "Knuth method should include log-posterior"))))
-
-      (testing "with :method :knuth and :max-bins"
-        (let [raw-data (mapv #(+ 100.0 (* 1.0 (double %))) (range 100))
-              samples (metrics-samples
-                       {[:elapsed-time] raw-data}
-                       1)
-              data-map {:samples samples}
-              with-quantiles ((analyse/quantiles {:quantiles []}) data-map)
-              with-outliers ((analyse/outliers) with-quantiles)
-              result ((analyse/histogram {:method :knuth :max-bins 10}) with-outliers)
-              hist-data (:histograms result)
+(deftest histogram-test
+  (testing "histogram"
+    (testing "with default (Freedman-Diaconis) method"
+      (let [raw-data (mapv #(+ 100.0 (* 1.0 (double %))) (range 100))
+            samples (metrics-samples
+                     {[:elapsed-time] raw-data}
+                     1)
+            data-map {:samples samples}
+            with-quantiles ((analyse/quantiles {:quantiles []}) data-map)
+            with-outliers ((analyse/outliers) with-quantiles)
+            result ((analyse/histogram) with-outliers)]
+        (is (contains? result :histograms))
+        (let [hist-data (:histograms result)
               elapsed-hist (get-in hist-data [:histograms [:elapsed-time]])]
-          (is (<= (long (:optimal-bins elapsed-hist)) 10)
-              "optimal-bins should respect max-bins limit"))))))
+          (is (= :criterium/histogram-fixed-width (:type elapsed-hist)))
+          (is (vector? (:counts elapsed-hist)))
+          (is (vector? (:centers elapsed-hist)))
+          (is (number? (:width elapsed-hist)))
+          (is (not (contains? elapsed-hist :optimal-bins))
+              "Freedman-Diaconis should not include optimal-bins"))))
+
+    (testing "with :method :knuth"
+      (let [raw-data (mapv #(+ 100.0 (* 1.0 (double %))) (range 100))
+            samples (metrics-samples
+                     {[:elapsed-time] raw-data}
+                     1)
+            data-map {:samples samples}
+            with-quantiles ((analyse/quantiles {:quantiles []}) data-map)
+            with-outliers ((analyse/outliers) with-quantiles)
+            result ((analyse/histogram {:method :knuth}) with-outliers)]
+        (is (contains? result :histograms))
+        (let [hist-data (:histograms result)
+              elapsed-hist (get-in hist-data [:histograms [:elapsed-time]])]
+          (is (= :criterium/histogram-knuth (:type elapsed-hist)))
+          (is (vector? (:counts elapsed-hist)))
+          (is (vector? (:centers elapsed-hist)))
+          (is (number? (:width elapsed-hist)))
+          (is (pos-int? (:optimal-bins elapsed-hist))
+              "Knuth method should include optimal-bins")
+          (is (number? (:log-posterior elapsed-hist))
+              "Knuth method should include log-posterior"))))
+
+    (testing "with :method :knuth and :max-bins"
+      (let [raw-data (mapv #(+ 100.0 (* 1.0 (double %))) (range 100))
+            samples (metrics-samples
+                     {[:elapsed-time] raw-data}
+                     1)
+            data-map {:samples samples}
+            with-quantiles ((analyse/quantiles {:quantiles []}) data-map)
+            with-outliers ((analyse/outliers) with-quantiles)
+            result ((analyse/histogram {:method :knuth :max-bins 10}) with-outliers)
+            hist-data (:histograms result)
+            elapsed-hist (get-in hist-data [:histograms [:elapsed-time]])]
+        (is (<= (long (:optimal-bins elapsed-hist)) 10)
+            "optimal-bins should respect max-bins limit")))))
 
 ;;; Tests for KDE-based stats computation
 ;; Validates that defmethod methods/stats :criterium/kde produces correct

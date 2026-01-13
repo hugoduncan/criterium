@@ -73,7 +73,7 @@
   (linear-range 0 1000 5)   ;=> (0 250 500 750 1000)"
   [^long start ^long end ^long n]
   (if (= n 1)
-    (list (long start))
+    (list start)
     (let [step (double (/ (- end start) (unchecked-dec n)))]
       (mapv
        (fn [^long n] (long (Math/round (double (+ start (* n step))))))

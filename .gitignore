@@ -20,7 +20,8 @@ version.edn
 *.dylib
 *.log
 *.dSYM
-.clj-kondo/*/
+.clj-kondo/.cache/
+.clj-kondo/imports/
 .aider*
 agent-cpp/build/
 node_modules/

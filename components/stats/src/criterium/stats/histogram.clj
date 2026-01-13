@@ -3,10 +3,41 @@
 
   Supports:
   - :freedman-diaconis (default) - Uses IQR-based bin width calculation
-  - :knuth - Bayesian optimal bin count selection"
+  - :knuth - Bayesian optimal bin count selection
+
+  All functions require typed arrays (DoubleArray, LongArray)."
   (:require
    [clojure.math :as math]
-   [criterium.stats.knuth :as knuth]))
+   [criterium.array :as arr]
+   [criterium.array.interface :as iarr]
+   [criterium.stats.knuth :as knuth])
+  (:import
+   [criterium.array DoubleArray]
+   [criterium.array.interface ITypedArray]))
+
+(defn- data-length
+  "Returns the length of a typed array."
+  ^long [^ITypedArray data]
+  (.length data))
+
+(defn- data-empty?
+  "Returns true if typed array is empty."
+  [^ITypedArray data]
+  (zero? (.length data)))
+
+(defn- data-min-max
+  "Returns [min max] for typed array data."
+  [data]
+  (let [init-min Double/POSITIVE_INFINITY
+        init-max Double/NEGATIVE_INFINITY
+        [mn mx] (arr/dfold data
+                           (fn [acc ^double v]
+                             (let [[^double min-v ^double max-v] acc]
+                               [(min min-v v) (max max-v v)]))
+                           [init-min init-max])]
+    [(double mn) (double mx)]))
+
+;;; Quartile computation
 
 (defn- quartiles
   "Calculate quartiles Q1 and Q3 from sorted data.
@@ -19,9 +50,9 @@
      (aget sorted-data q3-idx)]))
 
 (defn- compute-iqr
-  "Compute Interquartile Range (IQR) from vector of values"
-  ^double [values]
-  (let [sorted  (double-array (sort values))
+  "Compute Interquartile Range (IQR) from typed array data."
+  ^double [data]
+  (let [sorted  (.array ^DoubleArray (arr/sorted data))
         [q1 q3] (quartiles sorted)]
     (- (double q3) (double q1))))
 
@@ -31,8 +62,8 @@
 (defn- compute-bin-width
   "Compute bin width using Freedman-Diaconis rule:
    width = 2 * IQR * n^(-1/3)"
-  [values ^double iqr]
-  (let [n (count values)]
+  [data ^double iqr]
+  (let [n (data-length data)]
     (* 2.0 iqr (math/pow n minus-one-third))))
 
 (defn- generate-bins
@@ -66,21 +97,24 @@
      :num-bins num-bins}))
 
 (defn- count-values-in-bins
-  "Count number of values falling into each bin"
-  [values edges]
+  "Count number of typed array values falling into each bin."
+  [data edges]
   (let [bins     (int-array (dec (count edges)))
-        last-idx (dec (alength bins))]
-    (doseq [v values]
-      (loop [idx 0]
-        (when (< idx (count bins))
-          (let [v     (double v)
-                lower (double (nth edges idx))
-                upper (double  (nth edges (inc idx)))]
-            (if (or (and (<= lower v) (< v upper))
-                    (and (= idx last-idx) (<= lower v) (<= v upper)))
-              (aset bins idx (inc (aget bins idx)))
-              (when (< idx last-idx)
-                (recur (inc idx))))))))
+        last-idx (dec (alength bins))
+        edges-d  (double-array edges)]
+    (arr/dfold data
+               (fn [_ ^double v]
+                 (loop [idx 0]
+                   (when (< idx (alength bins))
+                     (let [lower (aget edges-d idx)
+                           upper (aget edges-d (inc idx))]
+                       (if (or (and (<= lower v) (< v upper))
+                               (and (= idx last-idx) (<= lower v) (<= v upper)))
+                         (aset bins idx (inc (aget bins idx)))
+                         (when (< idx last-idx)
+                           (recur (inc idx)))))))
+                 nil)
+               nil)
     (vec bins)))
 
 (defn- compute-density
@@ -90,13 +124,13 @@
 
 (defn- histogram-freedman-diaconis
   "Compute histogram using Freedman-Diaconis binning rule."
-  [values min-val max-val {:keys [iqr]}]
-  (let [iqr       (or iqr (compute-iqr values))
-        bin-width (compute-bin-width values iqr)
+  [data min-val max-val {:keys [iqr]}]
+  (let [iqr       (or iqr (compute-iqr data))
+        bin-width (compute-bin-width data iqr)
         {:keys [edges centers width num-bins]}
         (generate-bins min-val max-val bin-width)
-        counts  (count-values-in-bins values edges)
-        n       (count values)
+        counts  (count-values-in-bins data edges)
+        n       (data-length data)
         density (compute-density counts n)]
     {:type     :criterium/histogram-fixed-width
      :counts   counts
@@ -110,13 +144,13 @@
 
 (defn- histogram-knuth
   "Compute histogram using Knuth's Bayesian optimal binning."
-  [values min-val max-val {:keys [max-bins] :or {max-bins 50}}]
+  [data min-val max-val {:keys [max-bins] :or {max-bins 50}}]
   (let [{:keys [optimal-bins log-posterior]}
-        (knuth/optimal-bins values {:max-bins max-bins :min min-val :max max-val})
+        (knuth/optimal-bins data {:max-bins max-bins :min min-val :max max-val})
         {:keys [edges centers width num-bins]}
         (generate-bins-for-count min-val max-val optimal-bins)
-        counts  (count-values-in-bins values edges)
-        n       (count values)
+        counts  (count-values-in-bins data edges)
+        n       (data-length data)
         density (compute-density counts n)]
     {:type          :criterium/histogram-knuth
      :counts        counts
@@ -131,11 +165,13 @@
      :log-posterior log-posterior}))
 
 (defn histogram
-  "Compute histogram from vector of numeric values.
+  "Compute histogram from data.
 
   Supports multiple binning methods via the :method option:
   - :freedman-diaconis (default) - Uses IQR-based bin width calculation
   - :knuth - Bayesian optimal bin count selection
+
+  Requires a typed array (DoubleArray or LongArray).
 
   Options:
     :method   - Binning method (:freedman-diaconis or :knuth)
@@ -162,15 +198,14 @@
   Throws:
     ex-info {:error :histogram/no-values} for empty input
     ex-info {:error :histogram/same-values} when all values are the same"
-  ([values]
-   (histogram values {}))
-  ([values opts-or-iqr]
-   (when (empty? values)
+  ([data]
+   (histogram data {}))
+  ([data opts-or-iqr]
+   (when (data-empty? data)
      (throw (ex-info
-             "Input vector cannot be empty"
+             "Input cannot be empty"
              {:error :histogram/no-values})))
-   (let [min-val (reduce min values)
-         max-val (reduce max values)]
+   (let [[min-val max-val] (data-min-max data)]
      (when (= min-val max-val)
        (throw (ex-info
                "All values are the same - cannot create histogram"
@@ -183,8 +218,8 @@
                     (or opts-or-iqr {}))
            method (get opts :method :freedman-diaconis)]
        (case method
-         :freedman-diaconis (histogram-freedman-diaconis values min-val max-val opts)
-         :knuth             (histogram-knuth values min-val max-val opts)
+         :freedman-diaconis (histogram-freedman-diaconis data min-val max-val opts)
+         :knuth             (histogram-knuth data min-val max-val opts)
          (throw (ex-info
                  (str "Unknown histogram method: " method)
                  {:error  :histogram/unknown-method

@@ -9,6 +9,7 @@
   (:require
    [clojure.test :refer [deftest is testing use-fixtures]]
    [criterium.analyse :as analyse]
+   [criterium.array :as arr]
    [criterium.sampler :as sampler]
    [criterium.trigger :as trigger]
    [criterium.util.helpers :as util]))
@@ -81,13 +82,15 @@
         (is (map? (:metric->values samples-map))
             "Samples should be returned as a map")
         (is (pos?
-             (first (get-in samples-map [:metric->values [:elapsed-time]])))
+             (arr/first-double
+              (get-in samples-map [:metric->values [:elapsed-time]])))
             "Samples should contain positive elapsed times"))))
 
   (testing "Trigger reset after sample retrieval"
     (sampler/reset-samples! *trigger*)
     (let [samples-map (sampler/samples-map *trigger*)]
-      (is (empty? (get-in samples-map [:metric->values [:elapsed-time]]))
+      (is (zero? (arr/length
+                  (get-in samples-map [:metric->values [:elapsed-time]])))
           "Samples should be cleared"))))
 
 (deftest benchmark-integration-test

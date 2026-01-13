@@ -144,12 +144,19 @@
   Shells out to clojure with :render-docs alias since the notebook
   dependencies require poly/agent and poly/blackhole to be prepped.
 
+  Options:
+    :aliases - additional aliases to include (e.g., :with-agent-mac)
+
   Usage:
     clojure -T:build notebooks
+    clojure -T:build notebooks :aliases :with-agent-mac
 
   Returns: nil"
-  [_params]
-  (let [pb (ProcessBuilder. ["clojure" "-M:render-docs"])
+  [{:keys [aliases]}]
+  (let [alias-str (if aliases
+                    (str ":render-docs::blackhole:" (name aliases))
+                    ":render-docs::blackhole")
+        pb (ProcessBuilder. ["clojure" (str "-M" alias-str)])
         _ (.inheritIO pb)
         proc (.start pb)
         exit (.waitFor proc)]

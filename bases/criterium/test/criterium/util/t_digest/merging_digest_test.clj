@@ -220,7 +220,7 @@
           digest  (md/compress digest)]
       ;; NOTE we should calculate bounds for these using the t and chi-squared
       ;; distributions.
-      (is (> 0.05 (Math/abs (double (md/mean digest)))))
+      (is (> 0.05 (Math/abs (md/mean digest))))
       (is (approx= 1.0 (md/variance digest) 0.1)))))
 
 (deftest basic-operations

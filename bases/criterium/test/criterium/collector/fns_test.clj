@@ -88,7 +88,7 @@
               {:keys [freed-bytes]} (agent/allocations-summary relevant-allocations)]
           (is (= [1 1] res))
           (is (zero? freed-bytes)
-              (filterv agent/allocation-freed? relevant-allocations))
+              (pr-str (filterv agent/allocation-freed? relevant-allocations)))
           (is (some? sample)
               "Make sure sample isn't collected until after garbage check")))
       (testing "for measured-args"
@@ -107,7 +107,7 @@
               {:keys [freed-bytes]} (agent/allocations-summary relevant-allocations)]
           (is (nil? res))
           (is (zero? freed-bytes)
-              (filterv agent/allocation-freed? relevant-allocations))
+              (pr-str (filterv agent/allocation-freed? relevant-allocations)))
           (is (some? sample)
               "Make sure sample isn't collected until after garbage check")))
       (testing "for class-loader"
@@ -126,7 +126,7 @@
               {:keys [freed-bytes]} (agent/allocations-summary relevant-allocations)]
           (is (nil? res))
           (is (zero? freed-bytes)
-              (filterv agent/allocation-freed? relevant-allocations))
+              (pr-str (filterv agent/allocation-freed? relevant-allocations)))
           (is (some? sample)
               "Make sure sample isn't collected until after garbage check")))
       (testing "for compilation"
@@ -145,7 +145,7 @@
               {:keys [freed-bytes]} (agent/allocations-summary relevant-allocations)]
           (is (nil? res))
           (is (zero? freed-bytes)
-              (filterv agent/allocation-freed? relevant-allocations))
+              (pr-str (filterv agent/allocation-freed? relevant-allocations)))
           (is (some? sample)
               "Make sure sample isn't collected until after garbage check")))
       (testing "for memory"
@@ -164,7 +164,7 @@
               {:keys [freed-bytes]} (agent/allocations-summary relevant-allocations)]
           (is (nil? res))
           (is (zero? freed-bytes)
-              (filterv agent/allocation-freed? relevant-allocations))
+              (pr-str (filterv agent/allocation-freed? relevant-allocations)))
           (is (some? sample)
               "Make sure sample isn't collected until after garbage check")))
       (testing "for finalization"
@@ -183,7 +183,7 @@
               {:keys [freed-bytes]} (agent/allocations-summary relevant-allocations)]
           (is (nil? res))
           (is (zero? freed-bytes)
-              (filterv agent/allocation-freed? relevant-allocations))
+              (pr-str (filterv agent/allocation-freed? relevant-allocations)))
           (is (some? sample)
               "Make sure sample isn't collected until after garbage check")))
       (testing "for garbage-collector"
@@ -202,7 +202,7 @@
               {:keys [freed-bytes]} (agent/allocations-summary relevant-allocations)]
           (is (nil? res))
           (is (zero? freed-bytes)
-              (filterv agent/allocation-freed? relevant-allocations))
+              (pr-str (filterv agent/allocation-freed? relevant-allocations)))
           (is (some? sample)
               "Make sure sample isn't collected until after garbage check")))
       (testing "for thread-allocation"
@@ -221,6 +221,6 @@
               {:keys [freed-bytes]} (agent/allocations-summary relevant-allocations)]
           (is (nil? res))
           (is (zero? freed-bytes)
-              (filterv agent/allocation-freed? relevant-allocations))
+              (pr-str (filterv agent/allocation-freed? relevant-allocations)))
           (is (some? sample)
               "Make sure sample isn't collected until after garbage check"))))))

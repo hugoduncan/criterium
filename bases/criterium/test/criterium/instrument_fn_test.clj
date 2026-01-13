@@ -1,6 +1,7 @@
 (ns criterium.instrument-fn-test
   (:require
    [clojure.test :refer [deftest is testing]]
+   [criterium.array :as arr]
    [criterium.collector :as collector]
    [criterium.instrument-fn :as instrument-fn]
    [criterium.jvm :as jvm]
@@ -38,15 +39,15 @@
 
       (inst-f 1)
       (is (= 1 @seen) "original function called")
-      (is (= 1 (count (-> (sampler/samples-map inst-f)
-                          :metric->values
-                          (get [:elapsed-time]))))
+      (is (= 1 (arr/length (-> (sampler/samples-map inst-f)
+                               :metric->values
+                               (get [:elapsed-time]))))
           "sample collected")
 
       (sampler/reset-samples! inst-f)
-      (is (empty? (-> (sampler/samples-map inst-f)
-                      :metric->values
-                      (get [:elapsed-time])))
+      (is (zero? (arr/length (-> (sampler/samples-map inst-f)
+                                 :metric->values
+                                 (get [:elapsed-time]))))
           "samples can be reset")))
 
   (testing "function invocation"
@@ -69,9 +70,9 @@
       (apply inst-f [1])
       (is (= 4 @seen) "apply works")
 
-      (is (= 4 (count (-> (sampler/samples-map inst-f)
-                          :metric->values
-                          (get [:elapsed-time]))))
+      (is (= 4 (arr/length (-> (sampler/samples-map inst-f)
+                               :metric->values
+                               (get [:elapsed-time]))))
           "all invocations collected samples")))
 
   (testing "samples can be analyzed"
@@ -86,12 +87,14 @@
           elapsed  (unchecked-subtract finish start)
           sample-m (sampler/samples-map inst-f)]
       (is (= :criterium/metrics-samples (:type sample-m)))
-      (is (= 2 (count ((:metric->values sample-m) [:elapsed-time])))
+      (is (= 2 (arr/length ((:metric->values sample-m) [:elapsed-time])))
           "samples returned")
-      (is (= (count ((:metric->values sample-m) [:elapsed-time]))
+      (is (= (arr/length ((:metric->values sample-m) [:elapsed-time]))
              (:eval-count sample-m))
           "eval-count correct")
       (is (= 1  (:batch-size sample-m)) "batch-size is correct")
       (is (>= elapsed
-              (reduce + ((:metric->values sample-m) [:elapsed-time])))
+              (arr/fold-double ((:metric->values sample-m) [:elapsed-time])
+                               (fn ^double [^double a ^double b] (+ a b))
+                               0.0))
           "elapsed time is sane"))))

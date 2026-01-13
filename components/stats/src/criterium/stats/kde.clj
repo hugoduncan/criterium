@@ -2,11 +2,71 @@
   "Kernel Density Estimation utilities.
 
   Provides ISJ (Improved Sheather-Jones) bandwidth selection, Gaussian kernel
-  density estimation, bootstrap confidence bands, and mode finding."
+  density estimation, bootstrap confidence bands, and mode finding.
+
+  All functions require typed arrays (DoubleArray, LongArray)."
   (:require
+   [criterium.array :as arr]
    [criterium.random.interface :as random]
    [criterium.stats.core :as core]
-   [criterium.stats.sampling :as sampling]))
+   [criterium.stats.sampling :as sampling]
+   [criterium.utils.interface :refer [have?]])
+  (:import
+   [criterium.array DoubleArray LongArray]
+   [criterium.array.interface ITypedArray]))
+
+(defn- data-length
+  "Returns the length of a typed array."
+  ^long [^ITypedArray data]
+  (.length data))
+
+(defn- data-min-max
+  "Returns [min max] for typed array data."
+  [data]
+  (let [init-min Double/POSITIVE_INFINITY
+        init-max Double/NEGATIVE_INFINITY
+        [mn mx] (arr/dfold data
+                           (fn [acc ^double v]
+                             (let [[^double min-v ^double max-v] acc]
+                               [(min min-v v) (max max-v v)]))
+                           [init-min init-max])]
+    [(double mn) (double mx)]))
+
+(defn- ensure-double-array
+  "Ensures data is a DoubleArray. Converts LongArray to DoubleArray."
+  ^DoubleArray [data]
+  (cond
+    (instance? DoubleArray data) data
+    (instance? LongArray data)
+    (let [^longs a (.array ^LongArray data)
+          len (alength a)
+          ^doubles out (double-array len)]
+      (dotimes [i len]
+        (aset out i (double (aget a i))))
+      (DoubleArray. out))
+    :else
+    (throw (ex-info "ensure-double-array requires a typed array"
+                    {:type (type data)}))))
+
+(defn- ensure-sorted-doubles
+  "Returns a sorted primitive double array from typed array data."
+  ^doubles [data]
+  (let [sorted-arr (arr/sorted data)]
+    (.array ^DoubleArray sorted-arr)))
+
+(defn- quantile-primitive
+  "Calculate quantile from a sorted primitive double array."
+  ^double [^double q ^doubles sorted-arr]
+  (let [n (dec (alength sorted-arr))
+        x (* q n)
+        f (Math/floor x)
+        i (long f)
+        p (- x f)]
+    (cond
+      (zero? p) (aget sorted-arr i)
+      (= 1.0 p) (aget sorted-arr (inc i))
+      :else (+ (* p (aget sorted-arr (inc i)))
+               (* (- 1.0 p) (aget sorted-arr i))))))
 
 ;;; Excess Mass computation (Müller-Sawitzki 1991)
 
@@ -146,8 +206,8 @@
   ([data k] (excess-mass data k {}))
   ([data k {:keys [rng-factory]
             :or {rng-factory #(random/well-rng-1024a)}}]
-   (let [data (vec data)
-         n (long (count data))
+   {:pre [(have? arr/typed-array? data)]}
+   (let [n (data-length data)
          k (long k)]
      (when (< n 3)
        (throw (ex-info "Need at least 3 data points for excess mass"
@@ -157,7 +217,7 @@
        (throw (ex-info "k must be at least 1"
                        {:error :excess-mass/invalid-k
                         :k k})))
-     (let [sorted-data (double-array (sort data))
+     (let [sorted-data (ensure-sorted-doubles data)
            ;; Check for ties and add jitter if needed
            has-ties? (loop [i (long 1)]
                        (if (< i n)
@@ -217,15 +277,15 @@
            max-diff (double
                      (if (empty? lambda-vec)
                        (let [lam 1.0
-                             em-k (double (compute-em lam k min-dist-k len-k))
-                             em-k1 (double (compute-em lam (inc k) min-dist-k1 len-k1))]
+                             ^double em-k (compute-em lam k min-dist-k len-k)
+                             ^double em-k1 (compute-em lam (inc k) min-dist-k1 len-k1)]
                          (- em-k1 em-k))
                        (loop [idx (long 0)
                               max-d Double/NEGATIVE_INFINITY]
                          (if (< idx (count lambda-vec))
-                           (let [lam (double (nth lambda-vec idx))
-                                 em-k (double (compute-em lam k min-dist-k len-k))
-                                 em-k1 (double (compute-em lam (inc k) min-dist-k1 len-k1))
+                           (let [lam (nth lambda-vec idx)
+                                 ^double em-k (compute-em lam k min-dist-k len-k)
+                                 ^double em-k1 (compute-em lam (inc k) min-dist-k1 len-k1)
                                  d (- em-k1 em-k)]
                              (recur (inc idx) (Math/max max-d d)))
                            max-d))))]
@@ -266,28 +326,32 @@
   Returns vector of bin weights that sum to 1.0.
 
   Each data point contributes to two adjacent bins proportionally
-  to its distance from bin centers."
+  to its distance from bin centers.
+
+  Requires a typed array (DoubleArray or LongArray)."
   ^doubles [data ^doubles grid]
+  {:pre [(have? arr/typed-array? data)]}
   (let [n (alength grid)
         weights (double-array n)
         x-min (aget grid 0)
         x-max (aget grid (dec n))
         dx (/ (- x-max x-min) (dec n))
-        n-data (count data)]
-    (doseq [x data]
-      (let [x (double x)
-            ;; Clamp to grid range
-            x (max x-min (min x-max x))
-            ;; Find position in grid
-            pos (/ (- x x-min) dx)
-            i-low (long (Math/floor pos))
-            i-low (min i-low (- n 2))
-            i-high (inc i-low)
-            ;; Linear interpolation weights
-            w-high (- pos i-low)
-            w-low (- 1.0 w-high)]
-        (aset weights i-low (+ (aget weights i-low) w-low))
-        (aset weights i-high (+ (aget weights i-high) w-high))))
+        n-data (data-length data)
+        add-weight! (fn [^double x]
+                      (let [x (max x-min (min x-max x))
+                            pos (/ (- x x-min) dx)
+                            i-low (long (Math/floor pos))
+                            i-low (min i-low (- n 2))
+                            i-high (inc i-low)
+                            w-high (- pos i-low)
+                            w-low (- 1.0 w-high)]
+                        (aset weights i-low (+ (aget weights i-low) w-low))
+                        (aset weights i-high (+ (aget weights i-high) w-high))))]
+    (arr/dfold data
+               (fn [_ ^double x]
+                 (add-weight! x)
+                 nil)
+               nil)
     ;; Normalize to sum to 1
     (let [total (double n-data)]
       (dotimes [i n]
@@ -340,11 +404,13 @@
   "Silverman's rule of thumb bandwidth selector.
   h = 0.9 * min(σ, IQR/1.34) * n^(-1/5)
 
-  A simple fallback when ISJ doesn't converge."
+  A simple fallback when ISJ doesn't converge.
+  Requires a typed array (DoubleArray or LongArray)."
   ^double [data]
-  (let [n (count data)
+  {:pre [(have? arr/typed-array? data)]}
+  (let [n (data-length data)
         sigma (Math/sqrt (core/variance data))
-        sorted (sort data)
+        sorted (arr/sorted data)
         q1 (double (core/quantile 0.25 sorted))
         q3 (double (core/quantile 0.75 sorted))
         iqr (- q3 q1)
@@ -358,13 +424,16 @@
   selection that works well for multimodal distributions.
 
   Falls back to Silverman's rule if ISJ doesn't converge or gives
-  an unreasonable result (bandwidth > half the data range)."
+  an unreasonable result (bandwidth > half the data range).
+
+  Requires a typed array (DoubleArray or LongArray)."
   ^double [data]
-  (let [data (vec data)
-        n (count data)
+  {:pre [(have? arr/typed-array? data)]}
+  (let [n (data-length data)
         n-grid 1024
-        x-min (double (reduce min data))
-        x-max (double (reduce max data))
+        [x-min x-max] (data-min-max data)
+        x-min (double x-min)
+        x-max (double x-max)
         r (- x-max x-min)]
     (if (zero? r)
       1e-10
@@ -398,25 +467,27 @@
   "Compute Gaussian kernel density estimate at grid points.
 
   Parameters:
-  - data: vector of sample values
+  - data: typed array of sample values (DoubleArray or LongArray)
   - bandwidth: kernel bandwidth (h)
   - grid: vector of evaluation points
 
-  Returns vector of density values at each grid point."
+  Returns vector of density values at each grid point.
+  Requires a typed array (DoubleArray or LongArray)."
   ^doubles [data ^double bandwidth ^doubles grid]
-  (let [n (long (count data))
+  {:pre [(have? arr/typed-array? data)]}
+  (let [n (data-length data)
         n-grid (alength grid)
         density (double-array n-grid)
         h bandwidth
         nd (double n)
-        data-a (double-array data)]
+        data-a (.array ^DoubleArray (ensure-double-array data))]
     (dotimes [i n-grid]
       (let [x (aget grid i)
             sum (double
                  (loop [j 0
                         acc 0.0]
                    (if (< j n)
-                     (let [xj (aget data-a j)
+                     (let [xj (aget ^doubles data-a j)
                            u (/ (- x xj) h)]
                        (recur (inc j)
                               (+ acc (gaussian-kernel u))))
@@ -455,9 +526,11 @@
 (defn kde-bootstrap-sample
   "Generate a bootstrap sample of KDE density at fixed grid points.
   Uses the same bandwidth for all bootstrap iterations.
-  rng is a lazy sequence of random doubles in [0,1)."
+  rng is a lazy sequence of random doubles in [0,1).
+  Requires a typed array (DoubleArray or LongArray)."
   [data ^double bandwidth ^doubles grid rng]
-  (let [resampled (sampling/sample data rng)]
+  {:pre [(have? arr/typed-array? data)]}
+  (let [resampled (sampling/sample-doubles (ensure-double-array data) rng)]
     (gaussian-kde resampled bandwidth grid)))
 
 (defn kde-confidence-bands
@@ -478,6 +551,7 @@
                                   :or {n-bootstrap 200
                                        alpha 0.05
                                        rng-factory #(random/well-rng-1024a)}}]
+   {:pre [(have? arr/typed-array? data)]}
    (let [n-grid (alength grid)
          samples (vec (for [_ (range n-bootstrap)]
                         (kde-bootstrap-sample data bandwidth grid (rng-factory))))
@@ -486,10 +560,10 @@
          lower (double-array n-grid)
          upper (double-array n-grid)]
      (dotimes [i n-grid]
-       (let [point-samples (mapv #(aget ^doubles % i) samples)
-             sorted (sort point-samples)]
-         (aset lower i (double (core/quantile alpha-low sorted)))
-         (aset upper i (double (core/quantile alpha-hi sorted)))))
+       (let [point-samples (double-array (mapv #(aget ^doubles % i) samples))]
+         (java.util.Arrays/sort point-samples)
+         (aset lower i (quantile-primitive alpha-low point-samples))
+         (aset upper i (quantile-primitive alpha-hi point-samples))))
      {:lower lower
       :upper upper})))
 
@@ -499,7 +573,7 @@
   "Compute bootstrap confidence intervals for mode locations.
 
   Parameters:
-  - data: original sample data
+  - data: original sample data (typed array)
   - bandwidth: kernel bandwidth
   - grid: evaluation grid
   - n-modes: number of modes to track (default 3)
@@ -507,7 +581,9 @@
   - alpha: confidence level (default 0.05)
   - rng-factory: function returning RNG
 
-  Returns vector of mode CIs, each with :location, :ci-lower, :ci-upper."
+  Returns vector of mode CIs, each with :location, :ci-lower, :ci-upper.
+
+  Requires a typed array (DoubleArray or LongArray)."
   ([data bandwidth grid n-modes]
    (mode-confidence-intervals data bandwidth grid n-modes {}))
   ([data bandwidth ^doubles grid n-modes
@@ -515,6 +591,7 @@
      :or {n-bootstrap 200
           alpha 0.05
           rng-factory #(random/well-rng-1024a)}}]
+   {:pre [(have? arr/typed-array? data)]}
    (let [density (gaussian-kde data bandwidth grid)
          orig-modes (vec (take n-modes (find-modes grid density)))
          boot-modes (vec (for [_ (range n-bootstrap)]
@@ -528,22 +605,24 @@
         (let [boot-locs (keep #(when-let [m (get % i)]
                                  (:location m))
                               boot-modes)
-              sorted (sort boot-locs)]
-          (if (seq sorted)
+              sorted-arr (double-array (sort boot-locs))]
+          (if (pos? (alength sorted-arr))
             (assoc mode
-                   :ci-lower (core/quantile alpha-low sorted)
-                   :ci-upper (core/quantile alpha-high sorted))
+                   :ci-lower (quantile-primitive alpha-low sorted-arr)
+                   :ci-upper (quantile-primitive alpha-high sorted-arr))
             mode)))))))
 
 ;;; Silverman's test for multimodality
 
 (defn count-modes
   "Count number of modes in KDE with given bandwidth.
-  Creates a grid and counts local maxima in the density estimate."
+  Creates a grid and counts local maxima in the density estimate.
+  Requires a typed array (DoubleArray or LongArray)."
   ^long [data ^double bandwidth ^long n-points]
-  (let [data (vec data)
-        x-min (double (reduce min data))
-        x-max (double (reduce max data))
+  {:pre [(have? arr/typed-array? data)]}
+  (let [[x-min x-max] (data-min-max data)
+        x-min (double x-min)
+        x-max (double x-max)
         margin (/ (- x-max x-min) 10.0)
         g-min (- x-min margin)
         g-max (+ x-max margin)
@@ -561,17 +640,19 @@
   such that the KDE has at most k modes.
 
   Parameters:
-  - data: sample values
+  - data: typed array of sample values
   - k: maximum number of modes
   - opts: optional map with :tol (tolerance, default 1e-6),
-          :n-points (grid size, default 512)"
+          :n-points (grid size, default 512)
+
+  Requires a typed array (DoubleArray or LongArray)."
   ^double [data ^long k {:keys [tol n-points]
                          :or {tol 1e-6
                               n-points 512}}]
-  (let [data (vec data)
-        n-pts (long n-points)
+  {:pre [(have? arr/typed-array? data)]}
+  (let [n-pts (long n-points)
         tol (double tol)
-        sigma (Math/sqrt (double (core/variance data)))
+        sigma (Math/sqrt (core/variance data))
         ;; Start with range from very small to Silverman bandwidth * 2
         h-max (* 2.0 (silverman-bandwidth data))
         h-min (/ sigma 100.0)]
@@ -619,7 +700,7 @@
   (local maxima) and antimodes (local minima) at that bandwidth.
 
   Parameters:
-  - data: sample values
+  - data: typed array of sample values
   - k: target number of modes
   - opts: optional map with :n-points (grid size, default 512),
           :tol (tolerance, default 1e-6)
@@ -627,15 +708,18 @@
   Returns:
   {:modes [{:location, :density} ...] - sorted by location
    :antimodes [{:location, :density} ...] - sorted by location
-   :critical-bandwidth h_k}"
+   :critical-bandwidth h_k}
+
+  Requires a typed array (DoubleArray or LongArray)."
   [data ^long k {:keys [n-points tol]
                  :or {n-points 512
                       tol 1e-6}}]
-  (let [data (vec data)
-        n-pts (long n-points)
+  {:pre [(have? arr/typed-array? data)]}
+  (let [n-pts (long n-points)
         h (critical-bandwidth data k {:n-points n-pts :tol tol})
-        x-min (double (reduce min data))
-        x-max (double (reduce max data))
+        [x-min x-max] (data-min-max data)
+        x-min (double x-min)
+        x-max (double x-max)
         margin (/ (- x-max x-min) 10.0)
         g-min (- x-min margin)
         g-max (+ x-max margin)
@@ -659,14 +743,18 @@
   Uses rescaled bootstrap from Silverman (1981):
   y_i = mean + (X*_i - mean + h * epsilon_i) / sqrt(1 + h²/σ²)
 
-  This ensures the bootstrap sample has the same variance as the original."
-  [data ^double bandwidth rng]
-  (let [n (count data)
-        sigma-sq (double (core/variance data))
-        mean-val (double (core/mean data))
+  This ensures the bootstrap sample has the same variance as the original.
+  Returns a DoubleArray.
+  Requires a typed array (DoubleArray or LongArray)."
+  ^DoubleArray [data ^double bandwidth rng]
+  {:pre [(have? arr/typed-array? data)]}
+  (let [n (data-length data)
+        sigma-sq (core/variance data)
+        mean-val (core/mean data)
         scale (Math/sqrt (+ 1.0 (/ (* bandwidth bandwidth) sigma-sq)))
         ;; Sample with replacement - this consumes n random values
-        resampled (vec (sampling/sample data rng))
+        ^DoubleArray resampled (sampling/sample-doubles (ensure-double-array data) rng)
+        ^doubles resampled-a (.array resampled)
         ;; Get 2*n more random values for Box-Muller pairs
         rng-rest (drop n rng)
         u-pairs (take (* 2 n) rng-rest)
@@ -674,7 +762,7 @@
         ;; Generate smoothed sample
         result (double-array n)]
     (dotimes [i n]
-      (let [x-star (double (nth resampled i))
+      (let [x-star (aget resampled-a i)
             ;; Box-Muller for normal random
             u1 (max 1e-10 (double (nth u-vec (* 2 i))))
             u2 (double (nth u-vec (inc (* 2 i))))
@@ -682,7 +770,7 @@
                        (Math/cos (* 2.0 Math/PI u2)))
             y (+ mean-val (/ (+ (- x-star mean-val) (* bandwidth epsilon)) scale))]
         (aset result i y)))
-    (vec result)))
+    (DoubleArray. result)))
 
 (defn- hall-york-lambda
   "Hall-York asymptotic correction factor for k=1.
@@ -705,7 +793,7 @@
   For k>1, uses standard bootstrap (may be conservative).
 
   Parameters:
-  - data: sample values
+  - data: typed array of sample values
   - k: number of modes under H0
   - opts: optional map with:
     - :n-bootstrap (default 200)
@@ -718,17 +806,19 @@
   - :k - number of modes tested
   - :critical-bandwidth - bandwidth giving exactly k modes
   - :p-value - proportion of bootstrap samples with > k modes
-  - :corrected? - whether Hall-York correction was applied"
+  - :corrected? - whether Hall-York correction was applied
+
+  Requires a typed array (DoubleArray or LongArray)."
   [data ^long k {:keys [n-bootstrap n-points alpha tol rng-factory]
                  :or {n-bootstrap 200
                       n-points 512
                       alpha 0.05
                       tol 1e-6
                       rng-factory #(random/well-rng-1024a)}}]
-  (let [data (vec data)
-        n-pts (long n-points)
+  {:pre [(have? arr/typed-array? data)]}
+  (let [n-pts (long n-points)
         ;; Find critical bandwidth
-        h-crit (double (critical-bandwidth data k {:tol tol :n-points n-pts}))
+        h-crit (critical-bandwidth data k {:tol tol :n-points n-pts})
         ;; Bootstrap: count how many times we get > k modes
         exceeds (atom 0)]
     (dotimes [_ n-bootstrap]
@@ -765,7 +855,7 @@
   ACR uses excess mass which provides better calibration.
 
   Parameters:
-  - data: sample values
+  - data: typed array of sample values
   - k: number of modes under H0
   - opts: optional map with:
     - :n-bootstrap (default 200)
@@ -780,16 +870,18 @@
   - :p-value - proportion of bootstrap excess masses >= observed
 
   Reference: Ameijeiras-Alonso et al. (2019) 'Mode testing, critical
-  bandwidth and excess mass' TEST 28, 900-919"
+  bandwidth and excess mass' TEST 28, 900-919
+
+  Requires a typed array (DoubleArray or LongArray)."
   [data ^long k {:keys [n-bootstrap n-points tol rng-factory]
                  :or {n-bootstrap 200
                       n-points 512
                       tol 1e-6
                       rng-factory #(random/well-rng-1024a)}}]
-  (let [data (vec data)
-        n-pts (long n-points)
+  {:pre [(have? arr/typed-array? data)]}
+  (let [n-pts (long n-points)
         ;; Find critical bandwidth
-        h-crit (double (critical-bandwidth data k {:tol tol :n-points n-pts}))
+        h-crit (critical-bandwidth data k {:tol tol :n-points n-pts})
         ;; Compute observed excess mass statistic
         observed-em (:statistic (excess-mass data k {:rng-factory rng-factory}))
         observed-em (double observed-em)
@@ -816,7 +908,7 @@
   "Compute KDE analysis on sample data.
 
   Parameters:
-  - data: vector of sample values
+  - data: typed array of sample values (DoubleArray or LongArray)
   - opts: optional map with:
     - :n-points: grid size (default 512)
     - :bandwidth: override bandwidth (default: ISJ selection)
@@ -834,43 +926,46 @@
   - :n: sample size
 
   Note: Mode detection is now a separate analysis step. Use silverman-test
-  and mode-confidence-intervals for statistical mode analysis."
+  and mode-confidence-intervals for statistical mode analysis.
+
+  Requires a typed array (DoubleArray or LongArray)."
   ([data] (kde data {}))
   ([data {:keys [n-points bandwidth n-bootstrap alpha rng-factory]
           :or {n-points 512
                n-bootstrap 200
                alpha 0.05
                rng-factory #(random/well-rng-1024a)}}]
-   (when (empty? data)
-     (throw (ex-info "Input data cannot be empty"
-                     {:error :kde/no-data})))
-   (let [data (vec data)
-         n (count data)
-         x-min (double (reduce min data))
-         x-max (double (reduce max data))]
-     (when (= x-min x-max)
-       (throw (ex-info "All values are the same - cannot compute KDE"
-                       {:error :kde/constant-data
-                        :value x-min})))
-     (let [margin (/ (- x-max x-min) 10.0)
-           g-min (- x-min margin)
-           g-max (+ x-max margin)
-           g-range (- g-max g-min)
-           n-pts (long n-points)
-           grid (double-array n-pts)
-           _ (dotimes [i n-pts]
-               (aset grid i (+ g-min (* g-range
-                                        (/ (double i) (double (dec n-pts)))))))
-           h (double (or bandwidth (isj-bandwidth data)))
-           density (gaussian-kde data h grid)
-           bands (kde-confidence-bands data h grid
-                                       {:n-bootstrap n-bootstrap
-                                        :alpha alpha
-                                        :rng-factory rng-factory})]
-       {:type :criterium/kde
-        :bandwidth h
-        :grid (vec grid)
-        :density (vec density)
-        :lower-band (vec (:lower bands))
-        :upper-band (vec (:upper bands))
-        :n n}))))
+   {:pre [(have? arr/typed-array? data)]}
+   (let [n (data-length data)]
+     (when (zero? n)
+       (throw (ex-info "Input data cannot be empty"
+                       {:error :kde/no-data})))
+     (let [[x-min x-max] (data-min-max data)
+           x-min (double x-min)
+           x-max (double x-max)]
+       (when (= x-min x-max)
+         (throw (ex-info "All values are the same - cannot compute KDE"
+                         {:error :kde/constant-data
+                          :value x-min})))
+       (let [margin (/ (- x-max x-min) 10.0)
+             g-min (- x-min margin)
+             g-max (+ x-max margin)
+             g-range (- g-max g-min)
+             n-pts (long n-points)
+             grid (double-array n-pts)
+             _ (dotimes [i n-pts]
+                 (aset grid i (+ g-min (* g-range
+                                          (/ (double i) (double (dec n-pts)))))))
+             h (double (or bandwidth (isj-bandwidth data)))
+             density (gaussian-kde data h grid)
+             bands (kde-confidence-bands data h grid
+                                         {:n-bootstrap n-bootstrap
+                                          :alpha alpha
+                                          :rng-factory rng-factory})]
+         {:type :criterium/kde
+          :bandwidth h
+          :grid (vec grid)
+          :density (vec density)
+          :lower-band (vec (:lower bands))
+          :upper-band (vec (:upper bands))
+          :n n})))))

@@ -51,8 +51,8 @@
   ([expected actual]
    (compare-doubles expected actual default-rel-tolerance default-ulps))
   ([^double expected ^double actual ^double rel-tolerance ^long ulps]
-   (let [expected      (double expected)
-         actual        (double actual)
+   (let [expected      expected
+         actual        actual
          abs-expected  (Math/abs expected)
          diff          (- actual expected)
          abs-diff      (Math/abs diff)

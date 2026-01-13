@@ -10,11 +10,13 @@
    [criterium.stats.interface :as stats]))
 
 (defn histogram
-  "Compute histogram from vector of numeric values.
+  "Compute histogram from data (sequence or typed array).
 
   Supports multiple binning methods via the :method option:
   - :freedman-diaconis (default) - Uses IQR-based bin width calculation
   - :knuth - Bayesian optimal bin count selection
+
+  Accepts sequences, vectors, or typed arrays (DoubleArray, LongArray).
 
   Options:
     :method   - Binning method (:freedman-diaconis or :knuth)

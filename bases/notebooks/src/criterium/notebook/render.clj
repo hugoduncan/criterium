@@ -38,5 +38,13 @@
 (defn -main
   "Entry point for rendering notebooks."
   [& _args]
-  (render-site!)
-  (shutdown-agents))
+  (try
+    (render-site!)
+    (catch Throwable t
+      (binding [*out* *err*]
+        (println "Notebook generation failed")
+        (.printStackTrace t)
+        (System/exit 1)))
+    (finally
+      (shutdown-agents)))
+  (System/exit 0))

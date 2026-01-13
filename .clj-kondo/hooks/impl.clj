@@ -70,3 +70,10 @@
         ;; (prn :cond* :original (api/sexpr node))
         ;; (prn :cond* :transformed (api/sexpr new-node))
         {:node (with-meta new-node (meta node))}))))
+
+(defn invoke-dd
+  "Hook for invoke-dd macro - transforms (invoke-dd f v) to (f v)."
+  [{:keys [node]}]
+  (let [[_ f v] (:children node)
+        new-node (api/list-node (list f v))]
+    {:node (with-meta new-node (meta node))}))

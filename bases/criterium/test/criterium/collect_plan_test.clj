@@ -1,10 +1,14 @@
 (ns criterium.collect-plan-test
   (:require
    [clojure.test :refer [deftest is testing]]
+   [criterium.array :as arr]
+   criterium.array.interface
    [criterium.collect-plan :as collect-plan]
    [criterium.collect-plan.config :as collect-plan-config]
    [criterium.collector :as collector]
-   [criterium.measured :as measured]))
+   [criterium.measured :as measured])
+  (:import
+   [criterium.array.interface ITypedArray]))
 
 (deftest one-shot-test
   (testing "one-shot"
@@ -22,10 +26,12 @@
                      measured)]
       (is (map? data-map))
       (is (= :criterium/metrics-samples (:type (:samples data-map))))
-      (is (vector? ((:metric->values (:samples data-map)) [:elapsed-time])))
+      (is (instance? ITypedArray
+                     ((:metric->values (:samples data-map)) [:elapsed-time])))
       (is (= 1
-             (count ((:metric->values (:samples data-map)) [:elapsed-time]))))
-      (is (every? vector? (vals (:metric->values (:samples data-map)))))
+             (arr/length ((:metric->values (:samples data-map)) [:elapsed-time]))))
+      (is (every? #(instance? ITypedArray %)
+                  (vals (:metric->values (:samples data-map)))))
       (is (= 1 (:expr-value (:samples data-map)))))))
 
 (deftest ^:slow full-test
@@ -43,8 +49,10 @@
                      measured)]
       (is (map? data-map))
       (is (= :criterium/metrics-samples (:type (:samples data-map))))
-      (is (vector? ((:metric->values (:samples data-map)) [:elapsed-time])))
+      (is (instance? ITypedArray
+                     ((:metric->values (:samples data-map)) [:elapsed-time])))
       (is (<= 10
-              (count ((:metric->values (:samples data-map)) [:elapsed-time]))))
-      (is (every? vector? (vals (:metric->values (:samples data-map)))))
+              (arr/length ((:metric->values (:samples data-map)) [:elapsed-time]))))
+      (is (every? #(instance? ITypedArray %)
+                  (vals (:metric->values (:samples data-map)))))
       (is (= 1 (:expr-value (:samples data-map)))))))

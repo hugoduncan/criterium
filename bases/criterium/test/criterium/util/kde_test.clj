@@ -4,8 +4,14 @@
   ;; mode detection, and bootstrap confidence intervals.
   (:require
    [clojure.test :refer [deftest is testing]]
+   [criterium.array :as arr]
    [criterium.test-utils :as tu]
    [criterium.util.kde :as kde]))
+
+(defn- darr
+  "Create a DoubleArray from a sequence."
+  [coll]
+  (arr/->double-array (double-array coll)))
 
 (defn rand-double
   "Returns a random double between 0 and 1."
@@ -17,14 +23,14 @@
   ;; expected values for known distributions.
   (testing "silverman-bandwidth"
     (testing "returns reasonable bandwidth for uniform data"
-      (let [data (range 0 100)
+      (let [data (darr (range 0 100))
             h (kde/silverman-bandwidth data)]
         (is (pos? h) "bandwidth should be positive")
         (is (< h 50) "bandwidth should be less than half the range")))
 
     (testing "returns smaller bandwidth for tighter distributions"
-      (let [wide-data (range 0 100)
-            narrow-data (range 45 55)
+      (let [wide-data (darr (range 0 100))
+            narrow-data (darr (range 45 55))
             h-wide (kde/silverman-bandwidth wide-data)
             h-narrow (kde/silverman-bandwidth narrow-data)]
         (is (< h-narrow h-wide)
@@ -35,13 +41,13 @@
   ;; bandwidths and fall back to Silverman when ISJ gives unreasonable results.
   (testing "isj-bandwidth"
     (testing "returns positive bandwidth"
-      (let [data (range 0 100)
+      (let [data (darr (range 0 100))
             h (kde/isj-bandwidth data)]
         (is (pos? h) "bandwidth should be positive")))
 
     (testing "falls back to Silverman for problematic data"
       ;; Bimodal data where ISJ might give too large a bandwidth
-      (let [bimodal (concat (range 0 10) (range 90 100))
+      (let [bimodal (darr (concat (range 0 10) (range 90 100)))
             h (kde/isj-bandwidth bimodal)]
         (is (< h 45) "should not return bandwidth larger than half the range")))))
 
@@ -50,7 +56,7 @@
   ;; estimation properties.
   (testing "gaussian-kde"
     (testing "density integrates to approximately 1"
-      (let [data    [1.0 2.0 3.0 4.0 5.0]
+      (let [data    (darr [1.0 2.0 3.0 4.0 5.0])
             h       1.0
             grid    (double-array (range 0.0 6.0 0.1))
             density (kde/gaussian-kde data h grid)
@@ -60,10 +66,10 @@
             "density should integrate to approximately 1")))
 
     (testing "density is highest near data concentration"
-      (let [data             (double-array (repeat 10 5.0))
+      (let [data             (darr (repeat 10 5.0))
             h                1.0
             grid             (double-array [0.0 2.5 5.0 7.5 10.0])
-            ^doubles density (kde/gaussian-kde (vec data) h grid)]
+            ^doubles density (kde/gaussian-kde data h grid)]
         (is (> (aget density 2) (aget density 0))
             "density at mode should be higher than at edges")
         (is (> (aget density 2) (aget density 4))
@@ -101,7 +107,7 @@
   ;; Tests bootstrap confidence bands for KDE density estimates.
   (testing "kde-confidence-bands"
     (testing "returns lower and upper bands of correct size"
-      (let [data (range 0 50)
+      (let [data (darr (range 0 50))
             h 2.0
             grid (double-array (range 0.0 50.0 1.0))
             bands (kde/kde-confidence-bands data h grid {:n-bootstrap 20})
@@ -110,7 +116,7 @@
         (is (= n-grid (alength ^doubles (:upper bands))))))
 
     (testing "lower band <= upper band at all points"
-      (let [data (range 0 50)
+      (let [data (darr (range 0 50))
             h 2.0
             grid (double-array (range 0.0 50.0 2.0))
             bands (kde/kde-confidence-bands data h grid {:n-bootstrap 20})
@@ -128,7 +134,7 @@
   ;; via the modes analysis step.
   (testing "kde"
     (testing "returns correct structure"
-      (let [data (range 0 100)
+      (let [data (darr (range 0 100))
             result (kde/kde data {:n-bootstrap 10 :n-points 32})]
         (is (= :criterium/kde (:type result)))
         (is (number? (:bandwidth result)))
@@ -141,14 +147,14 @@
 
     (testing "throws on empty data"
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"empty"
-                            (kde/kde []))))
+                            (kde/kde (darr [])))))
 
     (testing "throws on constant data"
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"same"
-                            (kde/kde (repeat 10 5.0)))))
+                            (kde/kde (darr (repeat 10 5.0))))))
 
     (testing "respects custom bandwidth"
-      (let [data (range 0 100)
+      (let [data (darr (range 0 100))
             h 5.0
             result (kde/kde data {:bandwidth h :n-bootstrap 10})]
         (is (= h (:bandwidth result)))))))
@@ -171,7 +177,7 @@
   ;; Tests linear binning for correct distribution of weights.
   (testing "linear-bin"
     (testing "weights sum to 1"
-      (let [data          [1.0 2.0 3.0 4.0 5.0]
+      (let [data          (darr [1.0 2.0 3.0 4.0 5.0])
             grid          (double-array [0.0 2.0 4.0 6.0])
             ^doubles weights (kde/linear-bin data grid)
             ^double total (reduce + weights)]
@@ -179,7 +185,7 @@
             "weights should sum to 1")))
 
     (testing "data at grid point goes to that bin"
-      (let [data    [2.0]
+      (let [data    (darr [2.0])
             grid    (double-array [0.0 2.0 4.0 6.0])
             ^doubles weights (kde/linear-bin data grid)]
         (is (> (aget weights 1) 0.9)
@@ -189,12 +195,12 @@
   ;; Tests the count-modes function for mode counting at different bandwidths.
   (testing "count-modes"
     (testing "finds single mode for unimodal data with appropriate bandwidth"
-      (let [data (range 0 100)]
+      (let [data (darr (range 0 100))]
         (is (= 1 (kde/count-modes data 20.0 128))
             "large bandwidth should give single mode")))
 
     (testing "finds multiple modes for bimodal data with small bandwidth"
-      (let [bimodal (concat (repeat 50 10.0) (repeat 50 90.0))]
+      (let [bimodal (darr (concat (repeat 50 10.0) (repeat 50 90.0)))]
         (is (>= (kde/count-modes bimodal 5.0 128) 2)
             "small bandwidth on bimodal data should find multiple modes")))))
 
@@ -202,18 +208,18 @@
   ;; Tests critical bandwidth computation for mode testing.
   (testing "critical-bandwidth"
     (testing "returns positive bandwidth"
-      (let [data (range 0 100)
+      (let [data (darr (range 0 100))
             h (kde/critical-bandwidth data 1 {})]
         (is (pos? h) "critical bandwidth should be positive")))
 
     (testing "larger k allows smaller bandwidth"
-      (let [data (range 0 100)
+      (let [data (darr (range 0 100))
             h1 (kde/critical-bandwidth data 1 {})
             h2 (kde/critical-bandwidth data 2 {})]
         (is (<= h2 h1) "more modes allowed means smaller bandwidth OK")))
 
     (testing "finds appropriate bandwidth for bimodal data"
-      (let [bimodal (concat (repeat 50 10.0) (repeat 50 90.0))
+      (let [bimodal (darr (concat (repeat 50 10.0) (repeat 50 90.0)))
             h1 (kde/critical-bandwidth bimodal 1 {})
             h2 (kde/critical-bandwidth bimodal 2 {})]
         (is (> h1 h2) "bandwidth for 1 mode should be larger than for 2")))))
@@ -222,7 +228,7 @@
   ;; Tests Silverman's bootstrap test for multimodality.
   (testing "silverman-test"
     (testing "returns correct structure"
-      (let [data (range 0 100)
+      (let [data (darr (range 0 100))
             result (kde/silverman-test data 1 {:n-bootstrap 20})]
         (is (= 1 (:k result)))
         (is (number? (:critical-bandwidth result)))
@@ -231,12 +237,12 @@
         (is (boolean? (:corrected? result)))))
 
     (testing "applies Hall-York correction for k=1"
-      (let [data (range 0 100)
+      (let [data (darr (range 0 100))
             result (kde/silverman-test data 1 {:n-bootstrap 20})]
         (is (:corrected? result) "k=1 should have correction applied")))
 
     (testing "does not apply correction for k>1"
-      (let [data (range 0 100)
+      (let [data (darr (range 0 100))
             result (kde/silverman-test data 2 {:n-bootstrap 20})]
         (is (not (:corrected? result)) "k>1 should not have correction")))
 
@@ -253,7 +259,7 @@
                               ;; N(50, 10^2)
                               x (+ 50.0 (* 10.0 z))]
                           (recur (inc i) (conj result x)))))
-            result (kde/silverman-test normals 1 {:n-bootstrap 100})]
+            result (kde/silverman-test (darr normals) 1 {:n-bootstrap 100})]
         ;; p-value should be relatively high (fail to reject H0: <= 1 mode)
         (is (>= (:p-value result) 0.01)
             "Gaussian unimodal data should not strongly reject single mode")))))
@@ -263,7 +269,7 @@
   ;; Combines critical bandwidth and excess mass for better calibration.
   (testing "acr-test"
     (testing "returns correct structure"
-      (let [data (range 0 100)
+      (let [data (darr (range 0 100))
             result (kde/acr-test data 1 {:n-bootstrap 20})]
         (is (= 1 (:k result)))
         (is (number? (:critical-bandwidth result)))
@@ -283,7 +289,7 @@
                                    (Math/cos (* 2.0 Math/PI u2)))
                               x (+ 50.0 (* 10.0 z))]
                           (recur (inc i) (conj result x)))))
-            result (kde/acr-test normals 1 {:n-bootstrap 100})]
+            result (kde/acr-test (darr normals) 1 {:n-bootstrap 100})]
         (is (>= (:p-value result) 0.01)
             "Gaussian unimodal data should not strongly reject single mode")))
 
@@ -291,7 +297,7 @@
       ;; Well-separated bimodal data
       (let [cluster1 (repeatedly 100 #(+ -2.0 (* 0.5 (- (rand-double) 0.5))))
             cluster2 (repeatedly 100 #(+ 2.0 (* 0.5 (- (rand-double) 0.5))))
-            data (concat cluster1 cluster2)
+            data (darr (concat cluster1 cluster2))
             result (kde/acr-test data 1 {:n-bootstrap 50})]
         (is (<= (:p-value result) 0.1)
             "Bimodal data should reject single mode hypothesis")))
@@ -299,7 +305,7 @@
     (testing "bimodal data should not reject k=2"
       (let [cluster1 (repeatedly 100 #(+ -2.0 (* 0.5 (- (rand-double) 0.5))))
             cluster2 (repeatedly 100 #(+ 2.0 (* 0.5 (- (rand-double) 0.5))))
-            data (concat cluster1 cluster2)
+            data (darr (concat cluster1 cluster2))
             result (kde/acr-test data 2 {:n-bootstrap 50})]
         (is (>= (:p-value result) 0.01)
             "Bimodal data should not reject k=2 hypothesis")))))
@@ -309,7 +315,7 @@
   ;; Verifies the algorithm correctly distinguishes unimodal from multimodal data.
   (testing "excess-mass"
     (testing "returns correct structure"
-      (let [data (range 10 110)
+      (let [data (darr (range 10 110))
             result (kde/excess-mass data 1)]
         (is (= 1 (:k result)))
         (is (= 100 (:n result)))
@@ -317,20 +323,20 @@
         (is (>= (:statistic result) 0) "statistic should be non-negative")))
 
     (testing "handles small data"
-      (let [result (kde/excess-mass [1 2 3 4 5] 1)]
+      (let [result (kde/excess-mass (darr [1 2 3 4 5]) 1)]
         (is (number? (:statistic result)))))
 
     (testing "rejects insufficient data"
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"at least 3"
-                            (kde/excess-mass [1 2] 1))))
+                            (kde/excess-mass (darr [1 2]) 1))))
 
     (testing "rejects invalid k"
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"at least 1"
-                            (kde/excess-mass [1 2 3 4 5] 0))))
+                            (kde/excess-mass (darr [1 2 3 4 5]) 0))))
 
     (testing "unimodal data has small excess mass for k=1"
       ;; Uniform data is clearly unimodal
-      (let [data (range 0 100)
+      (let [data (darr (range 0 100))
             result (kde/excess-mass data 1)]
         (is (< (:statistic result) 0.2)
             "Uniform data should have small excess mass for k=1")))
@@ -339,7 +345,7 @@
       ;; Two well-separated random clusters
       (let [cluster1 (repeatedly 50 rand) ;; [0, 1)
             cluster2 (repeatedly 50 #(+ 5.0 (rand-double))) ;; [5, 6)
-            data (concat cluster1 cluster2)
+            data (darr (concat cluster1 cluster2))
             em-k1 (:statistic (kde/excess-mass data 1))
             em-k2 (:statistic (kde/excess-mass data 2))]
         (is (> em-k1 0.2)
@@ -349,16 +355,16 @@
 
     (testing "handles ties in data via jitter"
       ;; Data with many repeated values
-      (let [data (concat (repeat 30 1.0) (repeat 30 5.0) (repeat 30 10.0))
+      (let [data (darr (concat (repeat 30 1.0) (repeat 30 5.0) (repeat 30 10.0)))
             result (kde/excess-mass data 1)]
         (is (number? (:statistic result))
             "Should handle ties without error")))
 
     (testing "statistic increases with more modes"
       ;; Compare unimodal vs bimodal random data for k=1
-      (let [unimodal (repeatedly 100 rand)
-            bimodal (concat (repeatedly 50 rand)
-                            (repeatedly 50 #(+ 5.0 (rand-double))))
+      (let [unimodal (darr (repeatedly 100 rand))
+            bimodal (darr (concat (repeatedly 50 rand)
+                                  (repeatedly 50 #(+ 5.0 (rand-double)))))
             em-unimodal (:statistic (kde/excess-mass unimodal 1))
             em-bimodal (:statistic (kde/excess-mass bimodal 1))]
         (is (< em-unimodal em-bimodal)
@@ -368,7 +374,7 @@
   ;; Tests mode confidence interval computation.
   (testing "mode-confidence-intervals"
     (testing "returns correct structure"
-      (let [data (range 0 100)
+      (let [data (darr (range 0 100))
             h (kde/isj-bandwidth data)
             grid (double-array (range 0.0 100.0 1.0))
             modes (kde/mode-confidence-intervals data h grid 3
@@ -381,7 +387,7 @@
           (is (number? (:ci-upper mode))))))
 
     (testing "CI lower <= location <= CI upper"
-      (let [data (concat (range 40 60) (range 45 55))
+      (let [data (darr (concat (range 40 60) (range 45 55)))
             h (kde/isj-bandwidth data)
             grid (double-array (range 0.0 100.0 1.0))
             modes (kde/mode-confidence-intervals data h grid 1
@@ -398,7 +404,7 @@
   ;; unimodal and bimodal distributions.
   (testing "locate-modes"
     (testing "with unimodal data"
-      (let [unimodal (tu/gaussian-samples 100 50.0 10.0)]
+      (let [unimodal (darr (tu/gaussian-samples 100 50.0 10.0))]
         (testing "returns exactly one mode with k=1"
           (let [result (kde/locate-modes unimodal 1 {})]
             (is (= 1 (count (:modes result))))
@@ -409,8 +415,8 @@
             (is (empty? (:antimodes result)))))))
 
     (testing "with bimodal data"
-      (let [bimodal (concat (tu/gaussian-samples 50 0.0 1.0 1)
-                            (tu/gaussian-samples 50 10.0 1.0 2))]
+      (let [bimodal (darr (concat (tu/gaussian-samples 50 0.0 1.0 1)
+                                  (tu/gaussian-samples 50 10.0 1.0 2)))]
         (testing "returns two modes with k=2"
           (let [result (kde/locate-modes bimodal 2 {})]
             (is (= 2 (count (:modes result))))))
@@ -421,7 +427,7 @@
             (is (apply < locs) "modes should be in ascending order")))))
 
     (testing "returns correct structure"
-      (let [data (tu/gaussian-samples 100 50.0 10.0)
+      (let [data (darr (tu/gaussian-samples 100 50.0 10.0))
             result (kde/locate-modes data 1 {})]
         (is (contains? result :modes))
         (is (contains? result :antimodes))
@@ -431,7 +437,7 @@
         (is (number? (:critical-bandwidth result)))))
 
     (testing "mode maps have required keys"
-      (let [data (tu/gaussian-samples 100 50.0 10.0)
+      (let [data (darr (tu/gaussian-samples 100 50.0 10.0))
             result (kde/locate-modes data 1 {})
             mode (first (:modes result))]
         (is (contains? mode :location))

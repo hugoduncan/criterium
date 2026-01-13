@@ -4,9 +4,15 @@
   Tests skip gracefully when R/Rserve is unavailable."
   (:require
    [clojure.test :refer [deftest is testing]]
+   [criterium.array :as arr]
    [criterium.r-validation.r :as r :refer [vec->r-str]]
    [criterium.stats.interface :as stats]
    [criterium.test.assert :refer [approx=]]))
+
+(defn- darr
+  "Create a DoubleArray from a sequence."
+  [coll]
+  (arr/->double-array (double-array coll)))
 
 ;;; Test data sets
 ;; Fixed datasets for reproducible validation
@@ -45,43 +51,43 @@
       (do
         (testing "with simple integers"
           (let [r-bw (first (r/r-eval (str "bw.nrd0(" (vec->r-str simple-integers) ")")))
-                clj-bw (stats/silverman-bandwidth simple-integers)]
+                clj-bw (stats/silverman-bandwidth (darr simple-integers))]
             (is (approx= r-bw clj-bw 1e-10)
                 (format "bandwidth mismatch: R=%.15f, clj=%.15f" r-bw clj-bw))))
 
         (testing "with simple doubles"
           (let [r-bw (first (r/r-eval (str "bw.nrd0(" (vec->r-str simple-doubles) ")")))
-                clj-bw (stats/silverman-bandwidth simple-doubles)]
+                clj-bw (stats/silverman-bandwidth (darr simple-doubles))]
             (is (approx= r-bw clj-bw 1e-10)
                 (format "bandwidth mismatch: R=%.15f, clj=%.15f" r-bw clj-bw))))
 
         (testing "with mixed positive and negative values"
           (let [r-bw (first (r/r-eval (str "bw.nrd0(" (vec->r-str mixed-signs) ")")))
-                clj-bw (stats/silverman-bandwidth mixed-signs)]
+                clj-bw (stats/silverman-bandwidth (darr mixed-signs))]
             (is (approx= r-bw clj-bw 1e-10)
                 (format "bandwidth mismatch: R=%.15f, clj=%.15f" r-bw clj-bw))))
 
         (testing "with two values"
           (let [r-bw (first (r/r-eval (str "bw.nrd0(" (vec->r-str two-values) ")")))
-                clj-bw (stats/silverman-bandwidth two-values)]
+                clj-bw (stats/silverman-bandwidth (darr two-values))]
             (is (approx= r-bw clj-bw 1e-10)
                 (format "bandwidth mismatch: R=%.15f, clj=%.15f" r-bw clj-bw))))
 
         (testing "with large range of values"
           (let [r-bw (first (r/r-eval (str "bw.nrd0(" (vec->r-str large-range) ")")))
-                clj-bw (stats/silverman-bandwidth large-range)]
+                clj-bw (stats/silverman-bandwidth (darr large-range))]
             (is (approx= r-bw clj-bw 1e-10)
                 (format "bandwidth mismatch: R=%.15f, clj=%.15f" r-bw clj-bw))))
 
         (testing "with normal-like distribution"
           (let [r-bw (first (r/r-eval (str "bw.nrd0(" (vec->r-str normal-like) ")")))
-                clj-bw (stats/silverman-bandwidth normal-like)]
+                clj-bw (stats/silverman-bandwidth (darr normal-like))]
             (is (approx= r-bw clj-bw 1e-10)
                 (format "bandwidth mismatch: R=%.15f, clj=%.15f" r-bw clj-bw))))
 
         (testing "with bimodal data"
           (let [r-bw (first (r/r-eval (str "bw.nrd0(" (vec->r-str bimodal-data) ")")))
-                clj-bw (stats/silverman-bandwidth bimodal-data)]
+                clj-bw (stats/silverman-bandwidth (darr bimodal-data))]
             (is (approx= r-bw clj-bw 1e-10)
                 (format "bandwidth mismatch: R=%.15f, clj=%.15f" r-bw clj-bw))))))))
 
@@ -112,9 +118,10 @@
               (compare-kde [data description]
                 (testing description
                   (let [n-points (int 64)
-                        bw (stats/silverman-bandwidth data)
+                        data-arr (darr data)
+                        bw (stats/silverman-bandwidth data-arr)
                         ^doubles grid (make-grid data n-points)
-                        ^doubles clj-density (stats/gaussian-kde data bw grid)
+                        ^doubles clj-density (stats/gaussian-kde data-arr bw grid)
                         ;; R's density with matching parameters
                         r-cmd (str "density(" (vec->r-str data)
                                    ", bw=" bw
@@ -155,7 +162,7 @@
       (do
         (testing "with unimodal data"
           ;; Normal-like data should have p-value > 0.05 (fail to reject unimodality)
-          (let [clj-result (stats/silverman-test normal-like 1
+          (let [clj-result (stats/silverman-test (darr normal-like) 1
                                                  {:n-bootstrap 200
                                                   :n-points 512})
                 ;; R modetest with SI method
@@ -179,7 +186,7 @@
 
         (testing "with bimodal data"
           ;; Bimodal data should have p-value < 0.05 (reject unimodality)
-          (let [clj-result (stats/silverman-test bimodal-data 1
+          (let [clj-result (stats/silverman-test (darr bimodal-data) 1
                                                  {:n-bootstrap 200
                                                   :n-points 512})
                 r-result (r/r-eval
@@ -215,7 +222,7 @@
       (do
         (testing "with unimodal data"
           ;; Normal-like data should have p-value > 0.05 (fail to reject unimodality)
-          (let [clj-result (stats/acr-test normal-like 1
+          (let [clj-result (stats/acr-test (darr normal-like) 1
                                            {:n-bootstrap 200
                                             :n-points 512})
                 ;; R modetest with ACR method
@@ -240,7 +247,7 @@
 
         (testing "with bimodal data"
           ;; Bimodal data should have larger excess mass and low p-value
-          (let [clj-result (stats/acr-test bimodal-data 1
+          (let [clj-result (stats/acr-test (darr bimodal-data) 1
                                            {:n-bootstrap 200
                                             :n-points 512})
                 r-result (r/r-eval

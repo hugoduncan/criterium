@@ -5,7 +5,9 @@
   for generating histograms, scatter plots, percentile charts, and treemaps."
   (:require
    [clojure.string :as str]
+   [criterium.array :as arr]
    [criterium.metric :as metric]
+   [criterium.primitive-fn :as prim]
    [criterium.stats.interface :as si]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have have?]]
@@ -24,22 +26,18 @@
   (let [path (:path metric)
         k (first path)
         field-name (name k)
-        data (mapv
-              #(let [outlier (get
-                              (:outliers (get-in outliers path))
-                              %2
-                              "")]
-                 (assoc
-                  {k
-                   (util/transform-sample->
-                    %1
-                    transforms)}
-                  :index %2
-                  :outlier outlier))
-              (have some?
-                    (metric->values path)
-                    {:path path :available (keys metric->values)})
-              (range))]
+        samples (have some?
+                      (metric->values path)
+                      {:path path :available (keys metric->values)})
+        outlier-map (:outliers (get-in outliers path))
+        data (arr/indexed-dfold
+              samples
+              (fn [acc ^long idx ^double val]
+                (conj acc
+                      {:index idx
+                       :outlier (get outlier-map idx "")
+                       k (util/transform-sample-> val transforms)}))
+              [])]
     {:data {:values data}
      :encoding {:x {:field "index" :type "quantitative"}
                 :y {:field field-name
@@ -260,7 +258,7 @@
   (reduce
    (fn [res metric-config]
      (let [path (:path metric-config)
-           v (get (get events path) index)]
+           v (arr/get-at (get events path) index)]
        (if (pos? (long v))
          (assoc res (core/composite-key path) v :index index)
          res)))
@@ -272,29 +270,28 @@
 
   Returns a vector containing the Vega-Lite layer spec, or nil if no events."
   [events [_k metrics]]
-  (let [data (->> (map
-                   (partial event-occurrence events (:values metrics))
-                   (range (-> events
-                              (get (:path (first (:values metrics))))
-                              count)))
-                  (filterv some?))]
-    (when (seq data)
-      [{:data {:values data}
-        :encoding {:x {:field "index"
-                       :type "quantitative"}
-                   :color {:vvalue "white"}
-                   :size {:value 2},
-                   :tooltip (conj
-                             (mapv
-                              #(hash-map
-                                :field (name
-                                        (core/composite-key (:path %)))
-                                :type "quantitative"
-                                :title (str (:label metrics) " " (:label %)))
-                              (:values metrics))
-                             {:field "index" :type "quantitative"})}
-        :mark {:type "rule"
-               :strokeDash [2 2]}}])))
+  (when-let [arr (get events (:path (first (:values metrics))))]
+    (let [data (->> (map
+                     (partial event-occurrence events (:values metrics))
+                     (range (arr/length arr)))
+                    (filterv some?))]
+      (when (seq data)
+        [{:data {:values data}
+          :encoding {:x {:field "index"
+                         :type "quantitative"}
+                     :color {:vvalue "white"}
+                     :size {:value 2},
+                     :tooltip (conj
+                               (mapv
+                                #(hash-map
+                                  :field (name
+                                          (core/composite-key (:path %)))
+                                  :type "quantitative"
+                                  :title (str (:label metrics) " " (:label %)))
+                                (:values metrics))
+                               {:field "index" :type "quantitative"})}
+          :mark {:type "rule"
+                 :strokeDash [2 2]}}]))))
 
 ;;; Samples chart
 
@@ -322,9 +319,9 @@
         metric-configs (metric/all-metric-configs q-metrics-defs)
         event-metric->values (util/metric->values event-samples)
         e-metric-configs (->> (metric/all-metric-configs e-metrics-defs)
-                              (filterv #(not-every? zero?
-                                                    (get event-metric->values
-                                                         (:path %)))))
+                              (filterv #(arr/lany?
+                                         (get event-metric->values (:path %))
+                                         (fn [^long x] (pos? x)))))
 
         transforms (util/get-transforms data-map quant-samples-id)]
     {:data {:values [{}]}
@@ -430,24 +427,22 @@
   (let [path (:path metric)
         k (first path)
         field-name (name k)
-        vs (->> (metric->values path)
-                (map #(util/transform-sample-> % transforms))
-                sort
-                vec)
-        n (count vs)
-        max-val (Math/log10 (double n))
-        xs (mapv
-            #(/ (- max-val (Math/log10 (- n (double %)))) max-val)
-            (range 0 n))
+        samples (metric->values path)
+        ;; Transform and sort samples
+        transformed (arr/dmap samples (fn ^double [^double x]
+                                        (util/transform-sample-> x transforms)))
+        sorted-arr (arr/sorted transformed)
+        n (arr/length sorted-arr)
+        max-val (Math/log10 n)
         delta (/ 100.0 (dec n))
-        percentiles (take n
-                          (iterate
-                           #(+ delta (double %)) 0))
-        data (mapv
-              #(hash-map k %1 :p %2 :x %3)
-              vs
-              percentiles
-              xs)]
+        ;; Build data directly from typed array
+        data (arr/indexed-dfold
+              sorted-arr
+              (fn [acc ^long i ^double v]
+                (let [x (/ (- max-val (Math/log10 (- n i))) max-val)
+                      p (* delta i)]
+                  (conj acc {k v :p p :x x})))
+              [])]
     {:data {:values data
             :name "vals"}
 
@@ -481,14 +476,14 @@
   (let [path (:path metric)
         k (first path)
         field-name (name k)
-        vs (->> (get samples path)
-                sort
-                vec)
-        min-v (double (first vs))
-        diffs (-> (mapv
-                   #(- (double %) min-v)
-                   vs)
-                  sort
+        sorted-arr (arr/sorted (get samples path))
+        min-v (arr/first-double sorted-arr)
+        ;; Build diffs directly from typed array
+        diffs (-> (arr/dfold
+                   sorted-arr
+                   (fn [acc ^double v]
+                     (conj acc (- v min-v)))
+                   [])
                   distinct
                   vec)
         data (mapv
@@ -1537,8 +1532,8 @@
   "Quantile function for gamma distribution using Newton-Raphson inversion.
   Finds x such that gamma-cdf(x) = p."
   [^double shape ^double scale]
-  (let [cdf-fn (si/gamma-cdf shape scale)
-        pdf-fn (si/gamma-pdf shape scale)
+  (let [cdf-fn        (si/gamma-cdf shape scale)
+        pdf-fn        (si/gamma-pdf shape scale)
         ;; Initial guess using Wilson-Hilferty approximation for large shape
         initial-guess (fn ^double [^double p]
                         (let [z (si/normal-quantile p)]
@@ -1546,7 +1541,7 @@
                             ;; For small shape, use median approximation
                             (* scale shape (Math/pow (- 1.0 (/ 1.0 (* 9.0 (max shape 0.1)))) 3.0))
                             ;; Wilson-Hilferty approximation
-                            (let [d (/ 1.0 (* 9.0 shape))
+                            (let [d      (/ 1.0 (* 9.0 shape))
                                   x-norm (- 1.0 d (- (* z (Math/sqrt d))))]
                               (* scale shape (Math/pow (max x-norm 0.01) 3.0))))))]
     (fn ^double [^double p]
@@ -1556,16 +1551,16 @@
         :else
         ;; Newton-Raphson: x_{n+1} = x_n - (F(x_n) - p) / f(x_n)
         (let [max-iter (long 50)
-              tol (double 1e-10)]
-          (loop [x (Math/max (double (initial-guess p)) 1e-10)
+              tol      1e-10]
+          (loop [x    (Math/max (prim/invoke-dd initial-guess p) 1e-10)
                  iter (long 0)]
             (if (>= iter max-iter)
               x
-              (let [fx (double (cdf-fn x))
-                    fpx (double (pdf-fn x))]
+              (let [fx  (prim/invoke-dd cdf-fn x)
+                    fpx (prim/invoke-dd pdf-fn x)]
                 (if (< fpx 1e-100)
                   x
-                  (let [x-new (double (Math/max (- x (/ (- fx p) fpx)) 1e-10))]
+                  (let [x-new (Math/max (- x (/ (- fx p) fpx)) 1e-10)]
                     (if (< (Math/abs (- x-new x)) (* tol x))
                       x-new
                       (recur x-new (inc iter)))))))))))))
@@ -1583,16 +1578,16 @@
         :else
         ;; Newton-Raphson with mu as initial guess
         (let [max-iter (long 50)
-              tol (double 1e-10)]
-          (loop [x (double mu)
+              tol 1e-10]
+          (loop [x mu
                  iter (long 0)]
             (if (>= iter max-iter)
               x
-              (let [fx (double (cdf-fn x))
-                    fpx (double (pdf-fn x))]
+              (let [fx (prim/invoke-dd cdf-fn x)
+                    fpx (prim/invoke-dd pdf-fn x)]
                 (if (< fpx 1e-100)
                   x
-                  (let [x-new (double (Math/max (- x (/ (- fx p) fpx)) 1e-10))]
+                  (let [x-new (Math/max (- x (/ (- fx p) fpx)) 1e-10)]
                     (if (< (Math/abs (- x-new x)) (* tol x))
                       x-new
                       (recur x-new (inc iter)))))))))))))
@@ -1639,12 +1634,12 @@
           label (get distribution-labels dist (name dist))
           is-best? (= dist (:best-model fit-result))
           data (->> grid
-                    (mapv (fn [x]
-                            (let [p (double (pdf-fn x))
+                    (mapv (fn [^double x]
+                            (let [p (prim/invoke-dd pdf-fn x)
                                   ;; Scale by Jacobian if KDE is on log-transformed data
                                   ;; Converts density-per-original-unit to density-per-log-unit
                                   scaled-p (if scale-by-jacobian?
-                                             (* p (double x))
+                                             (* p x)
                                              p)
                                   ;; Transform x for display to match KDE axis
                                   display-x (util/transform-sample-> x transforms)]
@@ -1825,15 +1820,16 @@
   Takes samples and transforms, returns a Vega-Lite layer spec showing
   the empirical CDF as a step function."
   [samples transforms]
-  (let [sorted-samples (sort samples)
-        n (count sorted-samples)
+  (let [sorted-samples (arr/sorted samples)
+        n (arr/length sorted-samples)
+        sorted-vec (arr/fold sorted-samples conj [])
         ;; ECDF: F_n(x) = (number of samples <= x) / n
         ;; For step function, we need points at each sample value
         data (mapv (fn [i x]
                      {"x" (util/transform-sample-> x transforms)
                       "cdf" (/ (double (inc (long i))) n)})
                    (range n)
-                   sorted-samples)]
+                   sorted-vec)]
     {:data {:values data}
      :transform [{:calculate "'ECDF'" :as "distribution"}]
      :mark {:type "line"
@@ -1937,10 +1933,11 @@
         (let [path (:path metric-config)
               samples (get metric->values path)
               fit-data (when fits (get fits path))
+              has-samples? (and samples (pos? (arr/length samples)))
               ;; Generate grid from sample range for CDF curves
-              sorted-samples (when (seq samples) (sort samples))
-              min-val (when sorted-samples (first sorted-samples))
-              max-val (when sorted-samples (last sorted-samples))
+              sorted-samples (when has-samples? (arr/sorted samples))
+              min-val (when sorted-samples (arr/first-double sorted-samples))
+              max-val (when sorted-samples (arr/last-double sorted-samples))
               ;; Extend range slightly for better visualization
               range-val (when (and min-val max-val)
                           (- (double max-val) (double min-val)))
@@ -1949,7 +1946,7 @@
               grid (when (and grid-min grid-max)
                      (let [step (/ (- (double grid-max) (double grid-min)) 100.0)]
                        (vec (range grid-min grid-max step))))]
-          (when (seq samples)
+          (when has-samples?
             (merge
              chart-options
              {:resolve {:scale {:y "shared" :color "shared"}}
@@ -1980,8 +1977,9 @@
 
   Returns a vector of {\"theoretical\" x \"observed\" y} maps."
   [samples quantile-fn transforms]
-  (let [sorted-samples (vec (sort samples))
-        n (count sorted-samples)]
+  (let [sorted-arr (arr/sorted samples)
+        n (arr/length sorted-arr)
+        sorted-samples (arr/fold sorted-arr conj [])]
     (->> (mapv (fn [i x]
                  (let [;; Hazen plotting position: (i - 0.5) / n
                        p (/ (- (double (inc (long i))) 0.5) (double n))
@@ -2035,11 +2033,11 @@
 
   Takes the min and max values from the data range to draw the diagonal.
   Points lying on this line indicate perfect fit to the distribution."
-  [min-val max-val]
+  [^double min-val ^double max-val]
   (let [;; Extend range slightly for visual clarity
-        margin (* 0.05 (- (double max-val) (double min-val)))
-        start (- (double min-val) margin)
-        end (+ (double max-val) margin)]
+        margin (* 0.05 (- max-val min-val))
+        start (- min-val margin)
+        end (+ max-val margin)]
     {:data {:values [{"x" start "y" start}
                      {"x" end "y" end}]}
      :mark {:type "line"
@@ -2085,11 +2083,11 @@
           ;; to ensure all points are visible within the axes
           all-values (into (mapv #(get % "theoretical") data)
                            (mapv #(get % "observed") data))
-          min-val (apply min all-values)
-          max-val (apply max all-values)
-          margin (* 0.05 (- (double max-val) (double min-val)))
-          domain-min (- (double min-val) margin)
-          domain-max (+ (double max-val) margin)]
+          ^double min-val (apply min all-values)
+          ^double max-val (apply max all-values)
+          margin (* 0.05 (- max-val min-val))
+          domain-min (- min-val margin)
+          domain-max (+ max-val margin)]
       (merge
        subplot-options
        {:title {:text label
@@ -2164,10 +2162,12 @@
       (fn [metric-config]
         (let [path (:path metric-config)
               samples (get metric->values path)
-              fit-data (when fits (get fits path))]
-          (when (and (seq samples) fit-data)
+              fit-data (when fits (get fits path))
+              has-samples? (and samples (pos? (arr/length samples)))]
+          (when (and has-samples? fit-data)
             ;; Compute observed range for consistent axes across subplots
-            (let [sorted-samples (sort samples)
+            (let [sorted-arr (arr/sorted samples)
+                  sorted-samples (arr/fold sorted-arr conj [])
                   transformed-samples (mapv #(util/transform-sample-> % samples-transforms)
                                             sorted-samples)
                   min-val (apply min transformed-samples)

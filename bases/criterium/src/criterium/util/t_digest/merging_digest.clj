@@ -28,13 +28,14 @@
 (def minimum md/minimum)
 (def maximum md/maximum)
 
-(defn mean [digest]
+(defn mean
+  ^double [digest]
   (md/mean digest))
 
 (defn variance
-  ([digest]
+  (^double [digest]
    (md/variance digest))
-  ([digest mean]
+  (^double [digest mean]
    (md/variance digest mean)))
 
 (def transform md/transform)

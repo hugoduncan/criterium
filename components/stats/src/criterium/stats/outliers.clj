@@ -2,9 +2,16 @@
   "Outlier detection using boxplot thresholds.
 
   Provides both standard symmetric boxplot and adjusted boxplot for
-  skewed distributions using the medcouple statistic."
+  skewed distributions using the medcouple statistic.
+
+  All functions require typed arrays (ITypedArray) as input."
   (:require
-   [criterium.stats.core :as core]))
+   [criterium.array :as arr]
+   criterium.array.interface
+   [criterium.stats.core :as core]
+   [criterium.utils.interface :refer [have?]])
+  (:import
+   [criterium.array.interface ITypedArray IIndexed]))
 
 (defn boxplot-outlier-thresholds
   "Outlier thresholds for given quartiles.
@@ -55,6 +62,16 @@
       0.0
       (/ (- (- xj med) (- med xi)) diff))))
 
+(defn- typed-array-length
+  "Returns the length of a typed array."
+  ^long [^ITypedArray arr]
+  (.length arr))
+
+(defn- typed-array-get-double
+  "Get element at index as double from typed array."
+  ^double [^IIndexed arr ^long index]
+  (.getDouble arr index))
+
 (defn medcouple
   "Compute the medcouple, a robust measure of skewness.
   Returns a value in [-1, 1] where positive indicates right-skew
@@ -66,27 +83,35 @@
   Uses the naive O(n²) algorithm. For criterium's typical sample sizes
   (hundreds to low thousands), this is acceptable.
 
+  Requires a typed array (ITypedArray).
   Takes sorted data as input. Returns 0.0 for constant data or n < 3."
   ^double [sorted-data]
-  (let [n (count sorted-data)]
+  {:pre [(have? arr/typed-array? sorted-data)]}
+  (let [n (typed-array-length sorted-data)]
     (if (< n 3)
       0.0
-      (let [[med _ _] (core/median sorted-data)
-            med       (double med)
-            first-val (double (first sorted-data))
-            last-val  (double (nth sorted-data (dec n)))]
+      (let [med       (core/median-value sorted-data)
+            first-val (typed-array-get-double sorted-data 0)
+            last-val  (typed-array-get-double sorted-data (dec n))]
         (if (== first-val last-val)
           0.0
           (let [h-values (java.util.ArrayList.)]
             (dotimes [i n]
-              (let [xi (double (nth sorted-data i))]
+              (let [xi (typed-array-get-double sorted-data i)]
                 (when (<= xi med)
                   (loop [j i]
                     (when (< j n)
-                      (let [xj (double (nth sorted-data j))]
+                      (let [xj (typed-array-get-double sorted-data j)]
                         (when (>= xj med)
                           (.add h-values (medcouple-kernel xi xj med)))
                         (recur (inc j))))))))
-            (let [h-vec (vec h-values)
-                  h-sorted (sort h-vec)]
-              (first (core/median h-sorted)))))))))
+            ;; Compute median of h-values directly without typed array
+            (let [h-arr (double-array (.size h-values))]
+              (dotimes [i (.size h-values)]
+                (aset h-arr i (double (.get h-values i))))
+              (java.util.Arrays/sort h-arr)
+              (let [h-n (alength h-arr)
+                    h-i (bit-shift-right h-n 1)]
+                (if (even? h-n)
+                  (/ (+ (aget h-arr (dec h-i)) (aget h-arr h-i)) 2.0)
+                  (aget h-arr h-i))))))))))

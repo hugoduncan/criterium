@@ -1,15 +1,16 @@
 (ns criterium.analyse.metrics-samples
   (:require
    [criterium.analyse.methods :as methods]
+   [criterium.array :as arr]
+   criterium.array.interface
    [criterium.collect-plan :as collect-plan]
    [criterium.random.interface :as random]
-   [criterium.stats.interface :as si]
+   [criterium.stats.interface :as stats]
    [criterium.util.helpers :as util]
    [criterium.util.histogram :as histogram]
    [criterium.util.invariant :refer [have]]
    [criterium.util.kde :as kde]
-   [criterium.util.sampled-stats :as sampled-stats]
-   [criterium.util.stats :as stats]))
+   [criterium.util.sampled-stats :as sampled-stats]))
 
 (def ^:private metrics-samples-keys
   "Keys for :criterium/metrics-samples type, used for select-keys."
@@ -32,7 +33,7 @@
                            (assoc
                             result
                             path
-                            (mapv f (metric->values path))))
+                            (arr/dmap (metric->values path) f)))
                          {}
                          (mapv :path metric-configs))]
     (->
@@ -92,7 +93,7 @@
              q1 (get quantiles 0.25)
              q3 (get quantiles 0.75)
              sample-values (get samples path)
-             sorted-samples (vec (sort sample-values))
+             sorted-samples (arr/sorted sample-values)
              mc (when use-adjusted?
                   (stats/medcouple sorted-samples))
              thresholds (if use-adjusted?
@@ -100,10 +101,13 @@
                           (stats/boxplot-outlier-thresholds q1 q3))
              classifier (classifier thresholds)
              outliers (when (apply not= thresholds)
-                        (into {}
-                              (mapv classifier
-                                    sample-values
-                                    (range))))
+                        (arr/indexed-dfold
+                         sample-values
+                         (fn [m ^long i ^double v]
+                           (if-let [[idx class] (classifier v i)]
+                             (assoc m idx class)
+                             m))
+                         {}))
              outlier-counts (reduce-kv
                              (fn [counts _i v]
                                (update counts v inc))
@@ -227,12 +231,9 @@
      :transform collect-plan/identity-transforms}))
 
 (defn- remove-outliers
+  "Removes samples at outlier indices. Returns a DoubleArray."
   [samples outliers]
-  (into [] (comp
-            (map-indexed
-             (fn [i s] (when-not (outliers i) s)))
-            (filter some?))
-        samples))
+  (arr/filter-indices samples (set (keys outliers))))
 
 (defn histogram
   [metric->values quantiles outliers metric-config options]
@@ -252,6 +253,7 @@
                       ;; For freedman-diaconis, pass IQR if available
                       (and (not= :knuth (:method options)) iqr)
                       (assoc :iqr iqr))]
+      ;; Histogram accepts typed arrays directly
       (histogram/histogram samples hist-opts))
     (catch clojure.lang.ExceptionInfo e
       (let [data (ex-data e)]
@@ -281,13 +283,13 @@
   [metric->values outliers metric-config options]
   (try
     (let [p (:path metric-config)
-          samples (metric->values p)
+          samples-arr (metric->values p)
           outliers (get-in outliers p)
-          samples (if-let [ols (:outliers outliers)]
-                    (remove-outliers samples ols)
-                    samples)]
-      (when (seq samples)
-        (kde/kde samples options)))
+          samples-arr (if-let [ols (:outliers outliers)]
+                        (remove-outliers samples-arr ols)
+                        samples-arr)]
+      (when (pos? (arr/length samples-arr))
+        (kde/kde samples-arr options)))
     (catch clojure.lang.ExceptionInfo e
       (let [data (ex-data e)]
         (when-not (#{:kde/no-data :kde/constant-data} (:error data))
@@ -320,7 +322,7 @@
     - :isj (default) - find modes from KDE density at ISJ bandwidth
     - :critical - find modes at critical bandwidth for validated k modes
   - :max-modes, :n-bootstrap, :alpha, :n-points - as usual"
-  [kde-data samples outliers metric-config options]
+  [kde-data samples-arr outliers metric-config options]
   (try
     (let [{:keys [grid density bandwidth]} kde-data
           {:keys [max-modes n-bootstrap alpha n-points method mode-method]
@@ -334,9 +336,9 @@
           p (:path metric-config)
           ;; Filter outliers from samples
           outliers-data (get-in outliers p)
-          samples (if-let [ols (:outliers outliers-data)]
-                    (remove-outliers samples ols)
-                    samples)
+          samples-arr (if-let [ols (:outliers outliers-data)]
+                        (remove-outliers samples-arr ols)
+                        samples-arr)
           ;; Find modes from existing KDE density (for initial mode count)
           grid-arr (double-array grid)
           density-arr (double-array density)
@@ -346,7 +348,7 @@
           test-results
           (into {}
                 (for [k (range 1 (inc (min max-modes n-all-modes)))]
-                  [k (test-fn samples k
+                  [k (test-fn samples-arr k
                               {:n-bootstrap n-bootstrap
                                :n-points n-points
                                :alpha alpha})]))
@@ -362,19 +364,25 @@
           (case mode-method
             :critical
             ;; Use critical bandwidth to find modes
-            (let [locate-result (kde/locate-modes samples validated-k
+            (let [locate-result (kde/locate-modes samples-arr validated-k
                                                   {:n-points n-points})
                   h-crit (:critical-bandwidth locate-result)
                   ;; Build mode CIs at critical bandwidth
-                  sample-min (double (reduce min samples))
-                  sample-max (double (reduce max samples))
+                  [sample-min sample-max]
+                  (arr/dfold samples-arr
+                             (fn [acc ^double v]
+                               (let [[^double mn ^double mx] acc]
+                                 [(min mn v) (max mx v)]))
+                             [Double/POSITIVE_INFINITY Double/NEGATIVE_INFINITY])
+                  sample-min (double sample-min)
+                  sample-max (double sample-max)
                   sample-range (- sample-max sample-min)
                   grid-step (/ sample-range (double (dec (long n-points))))
                   crit-grid (double-array (range sample-min
                                                  (+ sample-max 0.1)
                                                  grid-step))
                   modes-ci (kde/mode-confidence-intervals
-                            samples h-crit crit-grid validated-k
+                            samples-arr h-crit crit-grid validated-k
                             {:n-bootstrap n-bootstrap
                              :alpha alpha})]
               {:modes-with-ci modes-ci
@@ -383,7 +391,7 @@
 
             ;; :isj - use existing KDE density from ISJ bandwidth
             {:modes-with-ci (kde/mode-confidence-intervals
-                             samples bandwidth grid-arr validated-k
+                             samples-arr bandwidth grid-arr validated-k
                              {:n-bootstrap n-bootstrap
                               :alpha alpha})
              :mode-bandwidth bandwidth
@@ -465,10 +473,10 @@
   [dist samples]
   (try
     (case dist
-      :gamma (si/gamma-mle samples)
-      :lognormal (si/lognormal-mle samples)
-      :inverse-gaussian (si/inverse-gaussian-mle samples)
-      :weibull (si/weibull-mle samples))
+      :gamma (stats/gamma-mle samples)
+      :lognormal (stats/lognormal-mle samples)
+      :inverse-gaussian (stats/inverse-gaussian-mle samples)
+      :weibull (stats/weibull-mle samples))
     (catch Exception e
       {:error (.getMessage e)})))
 
@@ -476,33 +484,37 @@
   "Create a CDF function for the given distribution and parameters."
   [dist params]
   (case dist
-    :gamma (si/gamma-cdf (:shape params) (:scale params))
-    :lognormal (si/lognormal-cdf (:mu params) (:sigma params))
-    :inverse-gaussian (si/inverse-gaussian-cdf (:mu params) (:lambda params))
-    :weibull (si/weibull-cdf (:shape params) (:scale params))))
+    :gamma (stats/gamma-cdf (:shape params) (:scale params))
+    :lognormal (stats/lognormal-cdf (:mu params) (:sigma params))
+    :inverse-gaussian (stats/inverse-gaussian-cdf (:mu params) (:lambda params))
+    :weibull (stats/weibull-cdf (:shape params) (:scale params))))
 
 (defn- compute-gof-tests
   "Compute goodness-of-fit tests (K-S and CvM) for fitted distribution."
   [samples cdf-fn]
-  {:ks-test (si/ks-test samples cdf-fn)
-   :cvm-test (si/cvm-test samples cdf-fn)})
+  {:ks-test (stats/ks-test samples cdf-fn)
+   :cvm-test (stats/cvm-test samples cdf-fn)})
 
 (defn- compute-information-criteria
   "Compute AIC, BIC, and AICc for a fitted model."
   [dist n log-likelihood]
   (let [k (long (get distribution-num-params dist 2))
         n (long n)]
-    {:aic (si/aic k log-likelihood)
-     :bic (si/bic k n log-likelihood)
+    {:aic (stats/aic k log-likelihood)
+     :bic (stats/bic k n log-likelihood)
      :aicc (when (> n (inc k))
-             (si/aicc k n log-likelihood))}))
+             (stats/aicc k n log-likelihood))}))
 
 (defn- bootstrap-parameter-ci
   "Bootstrap confidence intervals for distribution parameters.
-  Returns map of parameter name to {:point-estimate :ci-lower :ci-upper}."
+  Returns map of parameter name to {:point-estimate :ci-lower :ci-upper}.
+  Accepts both vectors and typed arrays."
   [dist samples {:keys [n-bootstrap alpha]
                  :or {n-bootstrap 200 alpha 0.05}}]
-  (let [n (count samples)
+  (let [typed? (instance? criterium.array.interface.ITypedArray samples)
+        ^long n (if typed?
+                  (arr/length samples)
+                  (count samples))
         n-bootstrap (long n-bootstrap)
         alpha (double alpha)
         bootstrap-size (max 50 (long (* n 0.8)))
@@ -510,6 +522,15 @@
         ;; Bootstrap the MLE fitting
         fit-fn (fn [s] (fit-distribution dist s))
         rng-factory random/well-rng-1024a
+        ;; Resample function - creates a double-array for bootstrap sample
+        resample-fn (if typed?
+                      (fn [indices]
+                        (let [^doubles boot-arr (double-array (count indices))]
+                          (dotimes [i (count indices)]
+                            (aset boot-arr i (arr/get-double samples (int (nth indices i)))))
+                          (arr/->double-array boot-arr)))
+                      (fn [indices]
+                        (mapv #(nth samples (int %)) indices)))
         ;; Run bootstrap
         bootstrap-fits
         (loop [i (long 0)
@@ -517,8 +538,8 @@
           (if (>= i n-bootstrap)
             results
             (let [rng (rng-factory)
-                  indices (si/sample-uniform bootstrap-size n rng)
-                  boot-samples (mapv #(nth samples (int %)) indices)
+                  indices (stats/sample-uniform bootstrap-size n rng)
+                  boot-samples (resample-fn indices)
                   fit (fit-fn boot-samples)]
               (recur (inc i)
                      (if (:error fit)
@@ -547,22 +568,27 @@
 
 (defn- fit-distributions-for-metric
   "Fit all applicable distributions to samples for a single metric.
-  Returns fit results including best model selection."
+  Returns fit results including best model selection.
+  Accepts both vectors and typed arrays."
   [samples options]
   (let [{:keys [distributions n-bootstrap alpha]
          :or {n-bootstrap 200 alpha 0.05}} options
-        n (count samples)
+        ;; Support both typed arrays and vectors
+        ^long n (if (instance? criterium.array.interface.ITypedArray samples)
+                  (arr/length samples)
+                  (count samples))
         ;; Compute sample statistics for moment-match prefilter
-        mean-val (si/mean samples)
-        var-val (si/variance samples)
+        ;; stats/mean and stats/variance work with typed arrays directly
+        mean-val (stats/mean samples)
+        var-val (stats/variance samples)
         ;; Determine which distributions to fit
         requested-dists (if distributions
                           (set distributions)
                           all-distributions)
         ;; Use moment-match prefilter to screen distributions
-        prefilter-results (si/moment-match-prefilter mean-val var-val requested-dists)
-        suitable-dists (si/suitable-distributions mean-val var-val requested-dists)
-        ;; Fit each distribution
+        prefilter-results (stats/moment-match-prefilter mean-val var-val requested-dists)
+        suitable-dists (stats/suitable-distributions mean-val var-val requested-dists)
+        ;; Fit each distribution - MLE/GOF functions now accept typed arrays
         fit-results
         (into {}
               (for [dist requested-dists]
@@ -614,15 +640,17 @@
   [metric->values outliers metric-config options]
   (try
     (let [p (:path metric-config)
-          samples (metric->values p)
+          samples-arr (metric->values p)
           outliers-data (get-in outliers p)
-          samples (if-let [ols (:outliers outliers-data)]
-                    (remove-outliers samples ols)
-                    samples)]
-      (when (and (seq samples) (> (count samples) 2))
-        (let [sample-min (reduce min samples)
-              sample-max (reduce max samples)]
-          (assoc (fit-distributions-for-metric samples options)
+          samples-arr (if-let [ols (:outliers outliers-data)]
+                        (remove-outliers samples-arr ols)
+                        samples-arr)
+          n (arr/length samples-arr)]
+      (when (> n 2)
+        ;; Use stats functions that accept typed arrays for min/max
+        (let [sample-min (stats/min samples-arr)
+              sample-max (stats/max samples-arr)]
+          (assoc (fit-distributions-for-metric samples-arr options)
                  :sample-range [sample-min sample-max]))))
     (catch Exception e
       {:error (.getMessage e)})))

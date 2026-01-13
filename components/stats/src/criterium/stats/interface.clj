@@ -42,32 +42,27 @@
 
 (defn min
   "Minimum value in data."
-  ([data] (core/min data))
-  ([data count] (core/min data count)))
+  (^double [data] (core/min data))
+  (^double [data count] (core/min data count)))
 
 (defn max
   "Maximum value in data."
-  ([data] (core/max data))
-  ([data count] (core/max data count)))
-
-(defn unchecked-add-d
-  "Unchecked double addition."
-  ^double [^double a ^double b]
-  (core/unchecked-add-d a b))
+  (^double [data] (core/max data))
+  (^double [data count] (core/max data count)))
 
 (defn mean
   "Arithmetic mean of data."
-  ([data] (core/mean data))
-  ([data count] (core/mean data count)))
+  (^double [data] (core/mean data))
+  (^double [data count] (core/mean data count)))
 
 (defn sum
   "Sum of each data point."
-  [data]
+  ^double [data]
   (core/sum data))
 
 (defn sum-of-squares
   "Sum of the squares of each data point."
-  [data]
+  ^double [data]
   (core/sum-of-squares data))
 
 (defn variance*
@@ -83,12 +78,20 @@
 
   The population variance can be returned using (variance data 0), which uses
   (count data) degrees of freedom."
-  ([data] (core/variance data))
-  ([data df] (core/variance data df)))
+  (^double [data] (core/variance data))
+  (^double [data df] (core/variance data df)))
+
+(defn median-value
+  "Calculate the median value of a sorted data set.
+  Returns just the median value (not the lower/upper partitions).
+  Accepts sequences and typed arrays (ITypedArray)."
+  ^double [data]
+  (core/median-value data))
 
 (defn median
   "Calculate the median of a sorted data set.
-  Return [median, [vals less than median] [vals greater than median]]"
+  Return [median, [vals less than median] [vals greater than median]]
+  For typed arrays, returns [median nil nil] (partitions not supported)."
   [data]
   (core/median data))
 
@@ -99,7 +102,7 @@
 
 (defn quantile
   "Calculate the quantile of a sorted data set."
-  [^double quantile data]
+  ^double [^double quantile data]
   (core/quantile quantile data))
 
 (defn central-moment
@@ -664,11 +667,13 @@
 ;;; Histogram
 
 (defn histogram
-  "Compute histogram from vector of numeric values.
+  "Compute histogram from data (sequence or typed array).
 
   Supports multiple binning methods via the :method option:
   - :freedman-diaconis (default) - Uses IQR-based bin width calculation
   - :knuth - Bayesian optimal bin count selection
+
+  Accepts sequences, vectors, or typed arrays (DoubleArray, LongArray).
 
   Options:
     :method   - Binning method (:freedman-diaconis or :knuth)
@@ -695,10 +700,10 @@
   Throws:
     ex-info {:error :histogram/no-values} for empty input
     ex-info {:error :histogram/same-values} when all values are the same"
-  ([values]
-   (histogram/histogram values))
-  ([values opts-or-iqr]
-   (histogram/histogram values opts-or-iqr)))
+  ([data]
+   (histogram/histogram data))
+  ([data opts-or-iqr]
+   (histogram/histogram data opts-or-iqr)))
 
 ;;; T-digest streaming quantile estimation
 

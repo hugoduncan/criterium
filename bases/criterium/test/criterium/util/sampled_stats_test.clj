@@ -4,22 +4,35 @@
    [clojure.test.check.clojure-test :refer [defspec]]
    [clojure.test.check.generators :as gen]
    [clojure.test.check.properties :as prop]
+   [criterium.array :as arr]
+   [criterium.stats.interface :as stats]
    [criterium.test-utils :refer [abs-error approx= gen-bounded test-max-error]]
    [criterium.util.sampled-stats :as sampled-stats]
-   [criterium.util.stats :as stats]
    [criterium.util.well :as well]
    [criterium.util.ziggurat :as ziggurat]))
+
+(defn- darr
+  "Create a DoubleArray from a sequence."
+  [coll]
+  (arr/->double-array (double-array coll)))
 
 (deftest pair-fn-test
   (is (= [:a 15] ((sampled-stats/pair-fn :a (partial * 3)) 5))))
 
 (deftest quantile-fns-test
-  (is (= {0.01 1 0.99 99}
-         (sampled-stats/sample-quantiles [0.01 0.99] (range 101)))))
+  ;; quantile returns doubles even for integer inputs
+  (is (= {0.01 1.0 0.99 99.0}
+         (sampled-stats/sample-quantiles [0.01 0.99] (darr (range 101))))))
 
 (deftest stats-fns-test
-  (is (= [[:mean 50.0] [:median 50] [:variance 858.5] [:min-val 0] [:max-val 100]]
-         (sampled-stats/stats-fns (range 101)))))
+  ;; Check the computed values are numerically correct
+  (let [result (sampled-stats/stats-fns (darr (range 101)))]
+    (is (= 5 (count result)))
+    (is (== 50.0 (second (nth result 0))))  ; mean
+    (is (== 50.0 (second (nth result 1))))  ; median
+    (is (== 858.5 (second (nth result 2)))) ; variance
+    (is (== 0 (second (nth result 3))))     ; min-val
+    (is (== 100 (second (nth result 4))))))
 
 (defn batch-transforms [^long batch-size]
   {:sample-> (list (fn [^double v] (/ v batch-size)))
@@ -30,7 +43,7 @@
    :->sample [identity]})
 
 (deftest stats-for-test
-  (let [samples (mapv double (repeat 100 1))
+  (let [samples (darr (repeat 100 1))
         stats (sampled-stats/stats-for
                samples {:quantiles [0.05 0.95]})]
     (is (= 1.0 (-> stats :mean)))
@@ -38,7 +51,7 @@
     (is (= 0.0 (-> stats :variance))))
 
   (testing "stats on [0..100]"
-    (let [samples (mapv double (range 101))
+    (let [samples (darr (range 101))
           stats (sampled-stats/stats-for
                  samples {:quantiles [0.05 0.95]})]
       (is (= 50.0 (-> stats :mean)))
@@ -48,7 +61,7 @@
       (is (= 100.0 (-> stats :max-val)))))
 
   (testing "stats on (reverse [0..100])"
-    (let [samples (mapv double (range 101))
+    (let [samples (darr (range 101))
           stats (sampled-stats/stats-for
                  samples {:quantiles [0.05 0.95]})]
       (is (= 50.0 (-> stats :mean)))
@@ -58,7 +71,7 @@
       (is (= 100.0 (-> stats :max-val)))))
 
   (testing "stats on [9 9 9 10 10 10]"
-    (let [samples (mapv double [9 9 9 10 10 10])
+    (let [samples (darr [9 9 9 10 10 10])
           stats (sampled-stats/stats-for
                  samples {:quantiles [0.05 0.95]})]
       (is (= 9.5 (-> stats :mean)))
@@ -68,14 +81,14 @@
       (is (= 10.0 (-> stats :max-val))))))
 
 (deftest quantiles-for-test
-  (let [samples {[:v] (repeat 100 1)}
+  (let [samples {[:v] (arr/->double-array (double-array (repeat 100 1)))}
         quantiles (sampled-stats/quantiles-for
                    [:v] samples {:quantiles [0.05 0.95]})]
     (is (= {0.1 1.0, 0.25 1.0, 0.5 1.0, 0.75 1.0, 0.9 1.0, 0.05 1.0, 0.95 1.0}
            quantiles)))
 
   (testing "quantiles on [0..100]"
-    (let [samples {[:v] (range 101)}
+    (let [samples {[:v] (arr/->double-array (double-array (range 101)))}
           quantiles (sampled-stats/quantiles-for
                      [:v] samples {:quantiles [0.05 0.95]})]
       (is (= {0.1 10.0, 0.25 25.0, 0.5 50.0, 0.75 75.0, 0.9 90.0,
@@ -83,7 +96,7 @@
              quantiles))))
 
   (testing "quantiles on (reverse [0..100])"
-    (let [samples {[:v] (range 101)}
+    (let [samples {[:v] (arr/->double-array (double-array (range 101)))}
           quantiles (sampled-stats/quantiles-for
                      [:v] samples {:quantiles [0.05 0.95]})]
       (is (= {0.1 10.0, 0.25 25.0, 0.5 50.0, 0.75 75.0, 0.9 90.0,
@@ -95,18 +108,18 @@
   ;; Reduced from 5000*200=1M to 1000*100=100K samples for faster tests.
   (let [batch-size 1000
         num-samples 100
-        values (take
-                (* batch-size num-samples)
-                (ziggurat/random-normal-zig
-                 (well/well-rng-1024a 42)))
+        values (vec (take
+                     (* batch-size num-samples)
+                     (ziggurat/random-normal-zig
+                      (well/well-rng-1024a 42))))
         sample-vals (partition batch-size values)
-        samples (mapv #(stats/sum (mapv double %)) sample-vals)
+        samples (darr (mapv #(stats/sum (darr %)) sample-vals))
         stats (sampled-stats/stats-for
                samples {:quantiles [0.05 0.95]})
         mean-hat (-> stats :mean)
         variance-hat (-> stats :variance)
-        mean (double (stats/mean values))
-        variance (double (stats/variance values))]
+        mean (stats/mean (darr values))
+        variance (stats/variance (darr values))]
     (test-max-error (* mean (double batch-size)) mean-hat 1e-5)
     (is (approx= (* variance (double batch-size)) variance-hat 2e-1))))
 
@@ -141,7 +154,7 @@
                     (take (* ^long batch-size ^long num-samples))
                     vec)
         sample-vals (partition batch-size values)
-        samples {[:v] (mapv #(stats/sum %) sample-vals)}]
+        samples {[:v] (darr (mapv #(stats/sum (darr %)) sample-vals))}]
     {:samples samples
      :values values}))
 
@@ -173,8 +186,8 @@
                {:quantiles [0.05 0.95]})
         mean-hat (-> stats :mean)
         variance-hat (-> stats :variance)
-        mean (double (stats/mean values))
-        variance (double (stats/variance values))]
+        mean (stats/mean (darr values))
+        variance (stats/variance (darr values))]
     {:mean mean
      :variance variance
      :mean-hat mean-hat

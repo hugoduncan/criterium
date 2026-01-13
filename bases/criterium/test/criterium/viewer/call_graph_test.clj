@@ -324,25 +324,40 @@
 ;;; Portal Tests
 
 (defmacro with-tap-out
-  "Capture tapped values during body execution."
-  [& body]
-  `(let [v# (volatile! [])
-         f# (fn [x#]
-              (when-not (= ::portal/_ x#)
-                (vswap! v# conj x#)))]
-     (try
-       (add-tap f#)
-       ~@body
-       (loop []
-         (when-not (.isEmpty ^Queue @#'clojure.core/tapq)
-           (recur)))
-       (loop []
-         (when (empty? @v#)
-           (recur)))
-       (portal/flush)
-       @v#
-       (finally
-         (remove-tap f#)))))
+  "Capture tapped values during body execution.
+   Optional expected-count parameter waits for that many values."
+  ([& body]
+   `(with-tap-out* 1 (fn [] ~@body))))
+
+(defn with-tap-out*
+  "Implementation for with-tap-out macro.
+   Waits for expected-count taps to be received."
+  [expected-count body-fn]
+  (let [v (volatile! [])
+        f (fn [x]
+            (when-not (= ::portal/_ x)
+              (vswap! v conj x)))]
+    (try
+      (add-tap f)
+      (body-fn)
+      ;; Wait for tap queue to drain
+      (loop []
+        (when-not (.isEmpty ^Queue @#'clojure.core/tapq)
+          (recur)))
+      ;; Wait for expected number of values
+      (loop [attempts (long 0)]
+        (when (and (< (count @v) (long expected-count))
+                   (< attempts 10000))
+          (recur (inc attempts))))
+      (portal/flush)
+      @v
+      (finally
+        (remove-tap f)))))
+
+(defmacro with-tap-out-n
+  "Capture tapped values during body execution, waiting for n values."
+  [n & body]
+  `(with-tap-out* ~n (fn [] ~@body)))
 
 (deftest call-tree-view-portal-test
   ;; Tests the :portal viewer integration for call-tree.

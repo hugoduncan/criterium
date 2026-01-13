@@ -1,24 +1,28 @@
 (ns criterium.util.sampled-stats
   (:require
+   [criterium.array :as arr]
+   [criterium.primitive-fn :as prim]
+   [criterium.stats.interface :as stats]
    [criterium.util.helpers :as util]
-   [criterium.util.invariant :refer [have have?]]
-   [criterium.util.stats :as stats]))
+   [criterium.util.invariant :refer [have have?]])
+  (:import
+   [criterium.array DoubleArray LongArray ObjectArray]))
 
 (defn pair-fn [k f]
   (fn [x] [k (f x)]))
 
-(def stats-fns
-  ;; called on sorted values
-  (juxt
-   (pair-fn :mean stats/mean)
-   (pair-fn :median (partial stats/quantile 0.5))
-   (pair-fn :variance stats/variance)
-   (pair-fn :min-val first)
-   (pair-fn :max-val last)))
+(defn stats-fns
+  "Compute basic statistics on sorted values. Requires a typed array."
+  [vs]
+  [[:mean (stats/mean vs)]
+   [:median (stats/quantile 0.5 vs)]
+   [:variance (stats/variance vs)]
+   [:min-val (arr/first-double vs)]
+   [:max-val (arr/last-double vs)]])
 
 (defn sample-quantiles
+  "Compute quantiles for sorted values."
   [quantiles vs]
-  {:pre [(have? seq vs)]}
   (reduce
    (fn [m q] (assoc m q (stats/quantile q vs)))
    {}
@@ -33,15 +37,44 @@
              :mean-plus-3sigma mean-plus-3sigma
              :mean-minus-3sigma mean-minus-3sigma))))
 
-(defn samples-for-path [metric->values path]
+(defn samples-for-path
+  "Extract samples for path from metric->values, returning a vector of doubles.
+  Handles TypedArray (DoubleArray, LongArray, ObjectArray)."
+  [metric->values path]
   {:pre [(have? map? metric->values)]}
-  (->> (have seq (metric->values path)
-             {:path path :metric->values metric->values})
-       (filterv some?)
-       (mapv double)))
+  (let [samples (have some? (metric->values path)
+                      {:path path :metric->values metric->values})]
+    (persistent!
+     (cond
+       ;; DoubleArray and LongArray both implement IDoubleObjectFold
+       (or (instance? DoubleArray samples)
+           (instance? LongArray samples))
+       (arr/dfold samples
+                  (fn [acc ^double v]
+                    (if (Double/isNaN v)
+                      acc
+                      (conj! acc v)))
+                  (transient []))
+
+       (instance? ObjectArray samples)
+       (arr/fold samples
+                 (fn [acc v]
+                   (if (some? v)
+                     (conj! acc (double v))
+                     acc))
+                 (transient []))
+
+       :else
+       (throw (ex-info "Expected TypedArray, got unexpected type"
+                       {:type (type samples) :path path}))))))
 
 (defn scale-vals [m scale-1]
   (util/update-vals m scale-1))
+
+(defn- ->darr
+  "Convert sequence to DoubleArray."
+  [vs]
+  (arr/->double-array (double-array vs)))
 
 (defn quantiles-for
   [path samples config]
@@ -50,16 +83,17 @@
          (have? map? samples)]}
   (have (comp not :tail-quantile) config)
   (let [qs (vec (sort (into #{0.1 0.25 0.5 0.75 0.9} (:quantiles config))))
-        vs (sort (samples-for-path samples path))]
+        vs (->darr (sort (samples-for-path samples path)))]
     (sample-quantiles qs vs)))
 
 (defn stats-for
+  "Compute statistics for sample values."
   [vs _config]
-  {:pre [(have? seq vs)]}
-  (let [vs (sort vs)]
-    (-> (into {} (stats-fns vs))
+  (let [sorted-arr (arr/sorted vs)
+        n          (arr/length sorted-arr)]
+    (-> (into {} (stats-fns sorted-arr))
         (assoc-mean-3-sigma)
-        (assoc :n (count vs)))))
+        (assoc :n n))))
 
 (defn quantiles
   [samples metric-configs config]
@@ -84,10 +118,31 @@
                                     vs)
                               vs)]
        (if (seq vs)
-         (assoc-in res path (stats-for without-outliers config))
+         (assoc-in res path (stats-for (->darr without-outliers) config))
          res)))
    {}
    (mapv :path metric-configs)))
+
+(defn- sum-event-samples
+  "Sum values in LongArray."
+  ^long [samples]
+  (arr/sum-long samples))
+
+(defn- count-positive-samples
+  "Count samples where at least one sample has a positive value at that index."
+  ^long [all-vs]
+  (if (empty? all-vs)
+    0
+    (let [n (arr/length (first all-vs))]
+      (loop [i   (long 0)
+             cnt (long 0)]
+        (if (< i n)
+          (let [has-pos? (some (fn [samples]
+                                 (prim/lpos? (arr/get-long samples i)))
+                               all-vs)]
+            (recur (unchecked-inc i)
+                   (if has-pos? (unchecked-inc cnt) cnt)))
+          cnt)))))
 
 (defn event-stats
   "Return the stats for events like JIT compilation and garbage-collector."
@@ -98,13 +153,8 @@
        (merge stats (event-stats groups samples))
        (let [ms           (:values metric)
              all-vs       (mapv #(get samples (:path %)) ms)
-             all-vals     (mapv (fn [vs] (reduce + 0 vs)) all-vs)
-             sample-count (reduce
-                           +
-                           0
-                           (apply mapv
-                                  (fn [& vs] (if (some pos? vs) 1 0))
-                                  all-vs))]
+             all-vals     (mapv sum-event-samples all-vs)
+             sample-count (count-positive-samples all-vs)]
          (merge stats
                 (-> (zipmap
                      (map :path ms)

@@ -3,6 +3,7 @@
    [clojure.string :as str]
    [clojure.test :refer [deftest is testing]]
    [criterium.analyse :as analyse]
+   [criterium.array :as arr]
    [criterium.collect-plan :as collect-plan]
    [criterium.collector.metrics]
    [criterium.domain.types :as domain.types]
@@ -420,7 +421,8 @@
              (let [data-map
                    {:samples
                     {:type :criterium/metrics-samples
-                     :metric->values {[:elapsed-time] [1 1 1]}
+                     :metric->values {[:elapsed-time]
+                                      (arr/->double-array (double-array [1 1 1]))}
                      :metrics-defs (select-keys
                                     (criterium.collector.metrics/metrics)
                                     [:elapsed-time])
@@ -449,7 +451,8 @@
         mean-ns (double mean-ns)]
     {:samples {:type :criterium/collected-metrics-samples
                :metrics-defs metrics-defs
-               :metric->values {[:elapsed-time] [mean-ns]}
+               :metric->values {[:elapsed-time]
+                                (arr/->double-array (double-array [mean-ns]))}
                :transform collect-plan/identity-transforms
                :batch-size 1
                :num-samples 1

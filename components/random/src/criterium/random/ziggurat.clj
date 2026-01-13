@@ -24,7 +24,7 @@
         f                  (Math/exp (* -0.5e0 r r))]
     (aset s-adzigx 0 (/ v f)) ;; [0] is bottom block: V / f(R)
     (aset s-adzigx 1 r)
-    (aset s-adzigx c (double 0.0))
+    (aset s-adzigx c 0.0)
     (loop [i (int 2)
            f f]
       (aset s-adzigx i

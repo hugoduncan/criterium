@@ -462,6 +462,12 @@
   []
   (= (agent-state) :allocation-tracing-active))
 
+(def ^:private warn-failed-to-start
+  "WARNING allocation tracing failed to start promptly")
+
+(def ^:private warn-failed-to-stop
+  "WARNING allocation tracing failed to stop promptly")
+
 (defn ^:internal allocation-tracing-start!
   "Initialize and start allocation tracing.
 
@@ -487,7 +493,7 @@
       (System/gc)
       (recur (unchecked-dec i))))
   (when (not= (agent-state) :allocation-tracing-active)
-    (println "WARNING allocation tracing failed to start promptly")))
+    (println warn-failed-to-start)))
 
 (defn ^:internal allocation-tracing-stop!
   "Stop allocation tracing and collect final results.
@@ -514,7 +520,7 @@
       (System/gc)
       (recur (unchecked-dec i))))
   (when (not= (agent-state) :allocation-tracing-flushed)
-    (println "WARNING allocation tracing failed to stop promptly")))
+    (println warn-failed-to-stop)))
 
 (defn collect-allocation-records
   []

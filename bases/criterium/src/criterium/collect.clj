@@ -1,6 +1,7 @@
 (ns criterium.collect
   "Collect samples using a metrics collector."
   (:require
+   [criterium.array :as arr]
    [criterium.collector :as collector]
    [criterium.jvm :as jvm]
    [criterium.measured :as measured]
@@ -12,11 +13,48 @@
   [sample-arrays collector]
   (mapv (partial collector/transform collector) sample-arrays))
 
+(defn- extract-double-samples
+  "Extract samples at path into a DoubleArray wrapper."
+  [samples path]
+  (let [n (count samples)
+        a (double-array n)]
+    (dotimes [i n]
+      (aset a i (double (get-in (samples i) path))))
+    (arr/->double-array a)))
+
+(defn- extract-long-samples
+  "Extract samples at path into a LongArray wrapper."
+  [samples path]
+  (let [n (count samples)
+        a (long-array n)]
+    (dotimes [i n]
+      (aset a i (long (get-in (samples i) path))))
+    (arr/->long-array a)))
+
+(defn- extract-object-samples
+  "Extract samples at path into an ObjectArray wrapper."
+  [samples path]
+  (let [n (count samples)
+        a (object-array n)]
+    (dotimes [i n]
+      (aset a i (get-in (samples i) path)))
+    (arr/->object-array a)))
+
 (defn sample-maps->map-of-samples
+  "Transform a sequence of sample maps into a map of typed arrays.
+
+  Takes a vector of sample maps (each containing metrics at various paths)
+  and a metrics-defs configuration. Returns a map from metric path to a
+  typed array wrapper (DoubleArray, LongArray, or ObjectArray) based on
+  the metric type."
   [samples metrics-defs]
   (reduce
-   (fn [res {:keys [path]}]
-     (assoc res path (mapv #(get-in % path) samples)))
+   (fn [res {:keys [path type]}]
+     (assoc res path
+            (case type
+              :quantitative (extract-double-samples samples path)
+              :event        (extract-long-samples samples path)
+              :nominal      (extract-object-samples samples path))))
    {}
    (metric/all-metric-configs metrics-defs)))
 

@@ -3,6 +3,7 @@
    [clojure.string :as str]
    [clojure.test :refer [deftest is testing]]
    [criterium.analyse :as analyse]
+   [criterium.array :as arr]
    [criterium.collect-plan :as collect-plan]
    [criterium.collector.metrics :as metrics]
    [criterium.domain.types :as domain.types]
@@ -14,24 +15,41 @@
 
 (set! *unchecked-math* false)
 
-(defmacro with-tap-out [& body]
-  `(let [v# (volatile! [])
-         f# (fn [x#]
-              (when-not (= ::portal/_ x#)
-                (vswap! v# conj x#)))]
-     (try
-       (add-tap f#)
-       ~@body
-       (loop []
-         (when-not (.isEmpty ^Queue @#'clojure.core/tapq)
-           (recur)))
-       (loop []
-         (when (empty? @v#)
-           (recur)))
-       (portal/flush)
-       @v#
-       (finally
-         (remove-tap f#)))))
+(defmacro with-tap-out
+  "Capture tapped values during body execution.
+   Optional expected-count parameter waits for that many values."
+  ([& body]
+   `(with-tap-out* 1 (fn [] ~@body))))
+
+(defn with-tap-out*
+  "Implementation for with-tap-out macro.
+   Waits for expected-count taps to be received."
+  [expected-count body-fn]
+  (let [v (volatile! [])
+        f (fn [x]
+            (when-not (= ::portal/_ x)
+              (vswap! v conj x)))]
+    (try
+      (add-tap f)
+      (body-fn)
+      ;; Wait for tap queue to drain
+      (loop []
+        (when-not (.isEmpty ^Queue @#'clojure.core/tapq)
+          (recur)))
+      ;; Wait for expected number of values
+      (loop [attempts (long 0)]
+        (when (and (< (count @v) (long expected-count))
+                   (< attempts 10000))
+          (recur (inc attempts))))
+      (portal/flush)
+      @v
+      (finally
+        (remove-tap f)))))
+
+(defmacro with-tap-out-n
+  "Capture tapped values during body execution, waiting for n values."
+  [n & body]
+  `(with-tap-out* ~n (fn [] ~@body)))
 
 (deftest portal-samples-test
   (testing "portal-samples"
@@ -87,7 +105,7 @@
                              :portal
                              {}
                              (:data (test-data/samples-with-2-values-map))))]
-        (is (= [{:elapsed-time 1.0, :x 0.0, :p 0}
+        (is (= [{:elapsed-time 1.0, :x 0.0, :p 0.0}
                 {:elapsed-time 1.0, :x 1.0, :p 100.0}]
                (-> chart :vconcat first :layer first :data :values)))
         (is (= [:b "Percentiles"] title))))))
@@ -1204,7 +1222,8 @@
     (testing "produces table with median first, then mean, CI bounds, percentiles"
       (let [data-map {:samples
                       {:type :criterium/metrics-samples
-                       :metric->values {[:elapsed-time] [1 1 1]}
+                       :metric->values {[:elapsed-time]
+                                        (arr/->double-array (double-array [1 1 1]))}
                        :metrics-defs (select-keys
                                       (criterium.collector.metrics/metrics)
                                       [:elapsed-time])
@@ -1216,7 +1235,7 @@
                           {:quantiles [0.025 0.975]
                            :estimate-quantiles [0.025 0.975]})
             view-fn (view/bootstrap-stats {})
-            [title table] (with-tap-out
+            [title table] (with-tap-out-n 2
                             (->> data-map
                                  bootstrap-fn
                                  (view-fn :portal)))]
@@ -1238,10 +1257,12 @@
 (defn- make-bench-data
   "Create minimal benchmark data with stats for testing domain-apply."
   [mean-ns]
-  (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])]
+  (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])
+        mean-ns      (double mean-ns)]
     {:samples {:type :criterium/collected-metrics-samples
                :metrics-defs metrics-defs
-               :metric->values {[:elapsed-time] [mean-ns]}
+               :metric->values {[:elapsed-time]
+                                (arr/->double-array (double-array [mean-ns]))}
                :transform collect-plan/identity-transforms
                :batch-size 1
                :num-samples 1

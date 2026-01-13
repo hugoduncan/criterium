@@ -4,32 +4,40 @@
   Provides functions for formatting bootstrap estimates and building
   bootstrap statistics table rows."
   (:require
-   [criterium.util.format :as format]))
+   [criterium.primitive-fn :as prim]
+   [criterium.util.format :as format]
+   [criterium.util.helpers :as util]))
 
 (defn format-bootstrap-estimate
   "Format a BcaEstimate for display, returning a map with :value and :ci keys.
-  Applies unit scaling based on metric-config dimension and scale."
-  [estimate metric-config]
+  Applies transforms (e.g., batch-size division) and unit scaling."
+  [estimate metric-config transforms]
   (when estimate
-    (let [{:keys [dimension scale]} metric-config
+    (let [{:keys [dimension ^double scale]} metric-config
+          tform (fn ^double [^double v]
+                  (util/transform-sample-> v transforms))
           quantiles (:estimate-quantiles estimate)
           ci-lower (when (seq quantiles) (-> quantiles first :value))
           ci-upper (when (seq quantiles) (-> quantiles second :value))
           point-est (:point-estimate estimate)
-          fmt-val (fn [v] (when v (format/format-value dimension (* (double scale) (double v)))))]
+          fmt-val (fn [v] (when v
+                            (format/format-value
+                             dimension
+                             (* scale (prim/invoke-dd tform v)))))]
       {:value (fmt-val point-est)
        :ci-lower (fmt-val ci-lower)
        :ci-upper (fmt-val ci-upper)})))
 
 (defn bootstrap-stat-row
   "Create a row for the bootstrap stats table.
-  Column order: median first, then mean, then percentile spread."
-  [metric-config stat]
+  Column order: median first, then mean, then percentile spread.
+  Applies transforms (e.g., batch-size division) to all values."
+  [metric-config stat transforms]
   (let [{:keys [mean quantiles]} stat
-        mean-fmt (format-bootstrap-estimate mean metric-config)
-        p10 (format-bootstrap-estimate (get quantiles 0.1) metric-config)
-        p50 (format-bootstrap-estimate (get quantiles 0.5) metric-config)
-        p90 (format-bootstrap-estimate (get quantiles 0.9) metric-config)]
+        mean-fmt (format-bootstrap-estimate mean metric-config transforms)
+        p10 (format-bootstrap-estimate (get quantiles 0.1) metric-config transforms)
+        p50 (format-bootstrap-estimate (get quantiles 0.5) metric-config transforms)
+        p90 (format-bootstrap-estimate (get quantiles 0.9) metric-config transforms)]
     {:metric (:label metric-config)
      :median (:value p50)
      :median-ci-lower (:ci-lower p50)

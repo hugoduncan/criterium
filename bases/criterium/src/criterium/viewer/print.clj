@@ -2,6 +2,7 @@
   "A print viewer"
   (:require
    [clojure.string :as str]
+   [criterium.array :as arr]
    [criterium.benchmark :as benchmark]
    [criterium.domain.types :as domain.types]
    [criterium.jvm :as jvm]
@@ -24,14 +25,15 @@
 (defn print-metrics
   [metrics metrics->values]
   (doseq [m metrics]
-    (when-let [v (first (metrics->values (:path m)))]
-      (println
-       (format
-        "%36s: %s"
-        (:label m)
-        (if (number? v)
-          (format/format-value (:dimension m) (* v (:scale m)))
-          v))))))
+    (when-let [a (metrics->values (:path m))]
+      (when-let [v (arr/first-element a)]
+        (println
+         (format
+          "%36s: %s"
+          (:label m)
+          (if (number? v)
+            (format/format-value (:dimension m) (* v (:scale m)))
+            v)))))))
 
 (defmethod view/metrics* :print
   [_ {:keys [samples-id]} data-map]
@@ -121,11 +123,12 @@
   2. Mean with 95% CI
   3. p10-p90 percentile spread"
   [metric
-   {:keys [mean quantiles]}]
+   {:keys [mean quantiles]}
+   transforms]
   (let [{:keys [dimension label]} metric
-        [scale units] (format/scale
-                       dimension
-                       (* (:scale metric) (:point-estimate mean)))
+        tform #(util/transform-sample-> % transforms)
+        mean-val (tform (:point-estimate mean))
+        [scale units] (format/scale dimension (* (:scale metric) mean-val))
         mean-ci (:estimate-quantiles mean)
         median-est (get quantiles 0.5)
         median-ci (:estimate-quantiles median-est)
@@ -136,39 +139,41 @@
       (println
        (format "%36s: %.3g %s CI [%.3g %.3g] (%.3f %.3f)"
                (str label " median")
-               (* scale (:point-estimate median-est))
+               (* scale (tform (:point-estimate median-est)))
                units
-               (* scale (-> median-ci first :value))
-               (* scale (-> median-ci second :value))
+               (* scale (tform (-> median-ci first :value)))
+               (* scale (tform (-> median-ci second :value)))
                (-> median-ci first :alpha)
                (-> median-ci second :alpha))))
     (println
      (format "%36s: %.3g %s CI [%.3g %.3g] (%.3f %.3f)"
              (str label " mean")
-             (* scale (:point-estimate mean))
+             (* scale mean-val)
              units
-             (* scale (-> mean-ci first :value))
-             (* scale (-> mean-ci second :value))
+             (* scale (tform (-> mean-ci first :value)))
+             (* scale (tform (-> mean-ci second :value)))
              (-> mean-ci first :alpha)
              (-> mean-ci second :alpha)))
     (when (and p10-est p90-est)
       (println
        (format "%36s: [%.3g %.3g] %s (10th-90th percentile)"
                (str label " spread")
-               (* scale (:point-estimate p10-est))
-               (* scale (:point-estimate p90-est))
+               (* scale (tform (:point-estimate p10-est)))
+               (* scale (tform (:point-estimate p90-est)))
                units)))))
 
 (defn print-bootstrap-stats
   [{:keys [bootstrap-stats-id]} data-map]
   (let [bootstrap-stats-id (or bootstrap-stats-id :bootstrap-stats)
-        bootstrap-map (data-map bootstrap-stats-id)
-        metrics-defs (:metrics-defs bootstrap-map)
-        metric-configs (metric/all-metric-configs metrics-defs)
-        bootstrap (util/bootstrap bootstrap-map)]
-    (doseq [metric metric-configs]
-      (when-let [stat (get-in bootstrap (:path metric))]
-        (print-bootstrap-stat metric stat)))))
+        bootstrap-map (data-map bootstrap-stats-id)]
+    (when bootstrap-map
+      (let [metrics-defs (:metrics-defs bootstrap-map)
+            metric-configs (metric/all-metric-configs metrics-defs)
+            bootstrap (util/bootstrap bootstrap-map)
+            transforms (util/get-transforms data-map bootstrap-stats-id)]
+        (doseq [metric metric-configs]
+          (when-let [stat (get-in bootstrap (:path metric))]
+            (print-bootstrap-stat metric stat transforms)))))))
 
 (defmethod view/bootstrap-stats* :print
   [_ view data-map]
@@ -190,13 +195,13 @@
                              (filterv #(= :time (:dimension %))))
         metric->values (util/metric->values metrics-samples)
         total (* (:scale metric)
-                 (reduce + (metric->values [:elapsed-time])))
+                 (arr/sum (metric->values [:elapsed-time])))
         gc-samples (-> data-map final-gc-id util/metric->values)
         total-gc (reduce
                   +
                   (mapv
                    (fn [m]
-                     (* (:scale m) (reduce + (gc-samples (:path m)))))
+                     (* (:scale m) (arr/sum (gc-samples (:path m)))))
                    gc-time-metrics))
         frac (/ total-gc total)]
     (when (and total-gc (> frac warn-threshold))
@@ -325,7 +330,7 @@
                (format/format-value
                 (:dimension metric)
                 (* (:scale metric)
-                   (util/transform-sample-> (values i) transforms)))
+                   (util/transform-sample-> (arr/get-at values i) transforms)))
                (name v))))))
 
 (defmethod view/samples* :print

@@ -2,9 +2,12 @@
   (:require
    [clojure.test :refer [deftest is testing]]
    [criterium.agent :as agent]
+   [criterium.array :as arr]
    [criterium.collect :as collect]
    [criterium.collector :as collector]
-   [criterium.measured :as measured]))
+   [criterium.measured :as measured])
+  (:import
+   [criterium.array DoubleArray LongArray ObjectArray]))
 
 (deftest full-zero-garbage-test
   (testing "full sampling"
@@ -38,3 +41,68 @@
                (filterv (agent/allocation-on-thread?))
                (filterv agent/allocation-freed?)))
       (is (some? sampled) "hold onto samples reference until this point"))))
+
+;; Tests that sample-maps->map-of-samples produces correctly typed
+;; arrays (DoubleArray, LongArray, ObjectArray) based on metric type.
+(deftest sample-maps->map-of-samples-test
+  (testing "sample-maps->map-of-samples"
+    (let [metrics-defs {:elapsed-time
+                        {:type   :quantitative
+                         :values [{:path [:elapsed-time]
+                                   :type :quantitative
+                                   :dimension :time
+                                   :scale 1e-9
+                                   :label "Elapsed Time"}
+                                  {:path [:expr-value]
+                                   :type :nominal
+                                   :dimension :fn-value
+                                   :scale 1
+                                   :label "Expr value"}]}
+                        :class-loader
+                        {:type   :event
+                         :values [{:path [:class-loader :loaded-count]
+                                   :type :event
+                                   :dimension :count
+                                   :scale 1
+                                   :label "Loaded classes"}]}}
+          samples [{:elapsed-time 1000000
+                    :expr-value :a
+                    :class-loader {:loaded-count 5}}
+                   {:elapsed-time 2000000
+                    :expr-value :b
+                    :class-loader {:loaded-count 3}}
+                   {:elapsed-time 1500000
+                    :expr-value :c
+                    :class-loader {:loaded-count 0}}]
+          result (collect/sample-maps->map-of-samples samples metrics-defs)]
+      (testing "returns correct keys for each metric path"
+        (is (= #{[:elapsed-time] [:expr-value] [:class-loader :loaded-count]}
+               (set (keys result)))))
+      (testing "produces DoubleArray for :quantitative metrics"
+        (is (instance? DoubleArray (result [:elapsed-time])))
+        (is (= :double (arr/elem-type (result [:elapsed-time]))))
+        (is (= 3 (arr/length (result [:elapsed-time])))))
+      (testing "produces LongArray for :event metrics"
+        (is (instance? LongArray (result [:class-loader :loaded-count])))
+        (is (= :long (arr/elem-type (result [:class-loader :loaded-count]))))
+        (is (= 3 (arr/length (result [:class-loader :loaded-count])))))
+      (testing "produces ObjectArray for :nominal metrics"
+        (is (instance? ObjectArray (result [:expr-value])))
+        (is (= :object (arr/elem-type (result [:expr-value]))))
+        (is (= 3 (arr/length (result [:expr-value])))))
+      (testing "preserves values correctly via fold"
+        (is (= 4500000.0
+               (arr/fold-double
+                (result [:elapsed-time])
+                (fn ^double [^double acc ^double v] (+ acc v))
+                0.0)))
+        (is (= 8
+               (arr/fold-long
+                (result [:class-loader :loaded-count])
+                (fn ^long [^long acc ^long v] (+ acc v))
+                0)))
+        (is (= [:a :b :c]
+               (arr/fold
+                (result [:expr-value])
+                conj
+                [])))))))

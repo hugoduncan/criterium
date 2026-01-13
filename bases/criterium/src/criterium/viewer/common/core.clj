@@ -6,6 +6,7 @@
   basic statistical data for display."
   (:require
    [clojure.string :as str]
+   [criterium.array :as arr]
    [criterium.metric :as metric]
    [criterium.util.format :as format]
    [criterium.util.helpers :as util]
@@ -17,7 +18,8 @@
   [sample metrics]
   (reduce
    (fn [res metric]
-     (let [v (first (sample (:path metric)))]
+     (let [arr (sample (:path metric))
+           v (when arr (arr/first-element arr))]
        (conj res
              {:metric (:label metric)
               :value (if (number? v)
@@ -94,8 +96,7 @@
   (reduce
    (fn [res metric-config]
      (let [quantiles (get-in all-quantiles (:path metric-config))
-           median-val (double
-                       (util/transform-sample-> (quantiles 0.5) transforms))
+           median-val (util/transform-sample-> (quantiles 0.5) transforms)
            metric-scale (double (:scale metric-config))
            [scale unit] (format/scale
                          (:dimension metric-config)
@@ -163,8 +164,8 @@
   [histogram transforms metric-config]
   {:pre [(have? histogram)]}
   (let [transform #(util/transform-sample-> % transforms)
-        min-val (double (transform (:min histogram)))
-        metric-scale (double (:scale metric-config))
+        ^double min-val (transform (:min histogram))
+        ^double metric-scale (:scale metric-config)
         [scale unit] (format/scale
                       (:dimension metric-config)
                       (* metric-scale min-val))
