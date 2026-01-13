@@ -3,23 +3,17 @@
   and common statistical distributions (gamma, weibull, lognormal, inverse-gaussian)."
   (:require
    [criterium.array :as arr]
-   [criterium.utils.interface :refer [have?]])
-  (:import
-   [criterium.array.interface ITypedArray]))
-
-(defn- data-length
-  "Returns the length of a typed array."
-  ^long [^ITypedArray data]
-  (.length data))
+   [criterium.utils.interface :refer [have?]]))
 
 (defn polynomial-value
   "Evaluate a polynomial at the given value x, for the coefficients given in
   descending order (so the last element of coefficients is the constant term)."
-  ^double [^double x ^doubles coefficients]
-  (reduce
-   #(+ (* x ^double %1) ^double %2)
-   (first coefficients)
-   (rest coefficients)))
+  ^double [^double x coefficients]
+  (arr/fold-double
+   coefficients
+   (fn ^double [^double acc ^double coeff]
+     (+ (* acc x) coeff))
+   0.0))
 
 ;;; Log-gamma (Lanczos approximation)
 
@@ -27,20 +21,21 @@
   "Precomputed log(sqrt(2*pi)) for Lanczos approximation."
   (Math/log (Math/sqrt (* 2.0 Math/PI))))
 
-(def ^:private ^"[D" lanczos-g7-coefficients
+(def ^:private lanczos-g7-coefficients
   "Lanczos coefficients for g=7, n=9.
   Source: Numerical Recipes 3rd edition, section 6.1.
   These provide ~15 significant digits for the gamma function."
-  (double-array
-   [0.99999999999980993
-    676.5203681218851
-    -1259.1392167224028
-    771.32342877765313
-    -176.61502916214059
-    12.507343278686905
-    -0.13857109526572012
-    9.9843695780195716e-6
-    1.5056327351493116e-7]))
+  (arr/->double-array
+   (double-array
+    [0.99999999999980993
+     676.5203681218851
+     -1259.1392167224028
+     771.32342877765313
+     -176.61502916214059
+     12.507343278686905
+     -0.13857109526572012
+     9.9843695780195716e-6
+     1.5056327351493116e-7])))
 
 (defn log-gamma
   "Compute the natural logarithm of the gamma function using Lanczos approximation.
@@ -70,12 +65,12 @@
           g  7.0
           ;; Compute the sum: c0 + c1/(z+1) + c2/(z+2) + ... + c8/(z+8)
           ag (loop [i   8
-                    sum (aget lanczos-g7-coefficients 0)]
+                    sum (arr/get-double lanczos-g7-coefficients 0)]
                (if (< i 1)
                  sum
                  (recur (dec i)
-                        (+ sum (/ (aget lanczos-g7-coefficients i)
-                                  (+ z (double i)))))))
+                        (+ sum (/ (arr/get-double lanczos-g7-coefficients i)
+                                  (+ z i))))))
           t  (+ z g 0.5)]
       ;; log(Γ(z+1)) = log(sqrt(2π)) + (z+0.5)*log(t) - t + log(ag)
       (+ (double log-sqrt-2pi)
@@ -156,7 +151,9 @@
 ;;; Error function
 
 (def ^:private a-coeffs
-  [1.061405429 -1.453152027 1.421413741 -0.284496736 0.254829592 0.0])
+  (arr/->double-array
+   (double-array
+    [1.061405429 -1.453152027 1.421413741 -0.284496736 0.254829592 0.0])))
 
 (defn erf
   "erf polynomial approximation.  Maximum error is 1.5e-7.
@@ -189,6 +186,78 @@
         (/ (Math/exp (* -0.5 e e))
            d)))))
 
+(def ^:private nq-a
+  (arr/->double-array
+   (double-array
+    [2509.0809287301226727
+     33430.575583588128105
+     67265.770927008700853
+     45921.953931549871457
+     13731.693765509461125
+     1971.5909503065514427
+     133.14166789178437745
+     3.3871328727963666080])))
+
+(def ^:private nq-b
+  (arr/->double-array
+   (double-array
+    [5226.4952788528545610
+     28729.085735721942674
+     39307.895800092710610
+     21213.794301586595867
+     5394.1960214247511077
+     687.18700749205790830
+     42.313330701600911252
+     1.0])))
+
+(def ^:private nq-c
+  (arr/->double-array
+   (double-array
+    [0.000774545014278341407640
+     0.0227238449892691845833
+     0.241780725177450611770
+     1.27045825245236838258
+     3.64784832476320460504
+     5.76949722146069140550
+     4.63033784615654529590
+     1.42343711074968357734])))
+
+(def ^:private nq-d
+  (arr/->double-array
+   (double-array
+    [1.05075007164441684324e-9
+     0.000547593808499534494600
+     0.0151986665636164571966
+     0.148103976427480074590
+     0.689767334985100004550
+     1.67638483018380384940
+     2.05319162663775882187
+     1.0])))
+
+(def ^:private nq-e
+  (arr/->double-array
+   (double-array
+    [2.01033439929228813265e-7
+     0.0000271155556874348757815
+     0.00124266094738807843860
+     0.0265321895265761230930
+     0.296560571828504891230
+     1.78482653991729133580
+     5.46378491116411436990
+     6.65790464350110377720])))
+
+(def ^:private nq-f
+  (arr/->double-array
+   (double-array
+    [2.04426310338993978564e-15
+     1.42151175831644588870e-7
+     1.84631831751005468180e-5
+     0.000786869131145613259100
+     0.0148753612908506148525
+     0.136929880922735805310
+     0.599832206555887937690
+     1.0])))
+
 (defn normal-quantile
   "Normal quantile function. Given a quantile in (0,1), return the normal value
   for that quantile.
@@ -196,68 +265,19 @@
   Wichura, MJ. 'Algorithm AS241' The Percentage Points of the Normal
   Distribution. Applied Statistics, 37, 477-484 "
   ^double [^double x]
-  (let [x x
-        a [2509.0809287301226727
-           33430.575583588128105
-           67265.770927008700853
-           45921.953931549871457
-           13731.693765509461125
-           1971.5909503065514427
-           133.14166789178437745
-           3.3871328727963666080]
-        b [5226.4952788528545610
-           28729.085735721942674
-           39307.895800092710610
-           21213.794301586595867
-           5394.1960214247511077
-           687.18700749205790830
-           42.313330701600911252
-           1.0]
-        c [0.000774545014278341407640
-           0.0227238449892691845833
-           0.241780725177450611770
-           1.27045825245236838258
-           3.64784832476320460504
-           5.76949722146069140550
-           4.63033784615654529590
-           1.42343711074968357734]
-        d [1.05075007164441684324e-9
-           0.000547593808499534494600
-           0.0151986665636164571966
-           0.148103976427480074590
-           0.689767334985100004550
-           1.67638483018380384940
-           2.05319162663775882187
-           1.0]
-        e [2.01033439929228813265e-7
-           0.0000271155556874348757815
-           0.00124266094738807843860
-           0.0265321895265761230930
-           0.296560571828504891230
-           1.78482653991729133580
-           5.46378491116411436990
-           6.65790464350110377720]
-        f [2.04426310338993978564e-15
-           1.42151175831644588870e-7
-           1.84631831751005468180e-5
-           0.000786869131145613259100
-           0.0148753612908506148525
-           0.136929880922735805310
-           0.599832206555887937690
-           1.0]]
-    (if (<= 0.075 x 0.925)
-      (let [v (- x 0.5)
-            r (- 180625e-6 (* v v))]
-        (* v (/ (polynomial-value r a) (polynomial-value r b))))
-      (let [r (if (< x 0.5) x (- 1.0 x))
-            r (Math/sqrt (- (Math/log r)))]
-        (if (<= r 5.0)
-          (let [r (- r (double 16/10))]
-            (* (Math/signum (double (- x 0.5)))
-               (/ (polynomial-value r c) (polynomial-value r d))))
-          (let [r (- r 5.0)]
-            (* (Math/signum (double (- x 0.5)))
-               (/ (polynomial-value r e) (polynomial-value r f)))))))))
+  (if (<= 0.075 x 0.925)
+    (let [v (- x 0.5)
+          r (- 180625e-6 (* v v))]
+      (* v (/ (polynomial-value r nq-a) (polynomial-value r nq-b))))
+    (let [r (if (< x 0.5) x (- 1.0 x))
+          r (Math/sqrt (- (Math/log r)))]
+      (if (<= r 5.0)
+        (let [r (- r (double 16/10))]
+          (* (Math/signum (- x 0.5))
+             (/ (polynomial-value r nq-c) (polynomial-value r nq-d))))
+        (let [r (- r 5.0)]
+          (* (Math/signum (- x 0.5))
+             (/ (polynomial-value r nq-e) (polynomial-value r nq-f))))))))
 
 ;;; Regularized Incomplete Gamma Function
 ;; Required for gamma distribution CDF
@@ -526,7 +546,7 @@
 
   Reference: Akaike (1974), A new look at the statistical model identification."
   ^double [^long k ^double log-likelihood]
-  (- (* 2.0 (double k)) (* 2.0 log-likelihood)))
+  (- (* 2.0 k) (* 2.0 log-likelihood)))
 
 (defn bic
   "Bayesian Information Criterion (Schwarz criterion).
@@ -543,7 +563,7 @@
 
   Reference: Schwarz (1978), Estimating the dimension of a model."
   ^double [^long k ^long n ^double log-likelihood]
-  (- (* (double k) (Math/log (double n)))
+  (- (* k (Math/log (double n)))
      (* 2.0 log-likelihood)))
 
 (defn aicc
@@ -617,7 +637,7 @@
   Returns the D statistic."
   ^double [samples cdf-fn]
   {:pre [(have? arr/typed-array? samples)]}
-  (let [n (data-length samples)
+  (let [n (arr/length samples)
         _ (when (zero? n)
             (throw (IllegalArgumentException. "samples cannot be empty")))
         sorted-samples (arr/sorted samples)
@@ -625,8 +645,8 @@
     (arr/indexed-fold-double sorted-samples
                              (fn ^double [^double d-max ^long i ^double x]
                                (let [f-x (double (cdf-fn x))
-                                     fn-before (/ (double i) n-d)
-                                     fn-after (/ (double (inc i)) n-d)
+                                     fn-before (/ i n-d)
+                                     fn-after (/ (inc i) n-d)
                                      d1 (Math/abs (- fn-before f-x))
                                      d2 (Math/abs (- fn-after f-x))
                                      d-new (Math/max d1 d2)]
@@ -674,7 +694,7 @@
              goodness of fit of empirical distributions."
   [samples cdf-fn]
   {:pre [(have? arr/typed-array? samples)]}
-  (let [n (data-length samples)
+  (let [n (arr/length samples)
         d (ks-test-statistic samples cdf-fn)
         p (ks-pvalue d n)]
     {:statistic d
@@ -695,7 +715,7 @@
   Returns the W² statistic."
   ^double [samples cdf-fn]
   {:pre [(have? arr/typed-array? samples)]}
-  (let [n (data-length samples)
+  (let [n (arr/length samples)
         _ (when (zero? n)
             (throw (IllegalArgumentException. "samples cannot be empty")))
         sorted-samples (arr/sorted samples)
@@ -705,7 +725,7 @@
                                      (fn ^double [^double acc ^long i ^double x]
                                        (let [f-x (double (cdf-fn x))
                                        ;; (2i-1)/(2n) where i is 1-indexed
-                                             expected (/ (- (* 2.0 (double (inc i))) 1.0)
+                                             expected (/ (- (* 2.0 (inc i)) 1.0)
                                                          (* 2.0 n-d))
                                              diff (- f-x expected)]
                                          (+ acc (* diff diff))))
@@ -726,7 +746,7 @@
   ^double [^double w2-statistic ^long n]
   ;; Asymptotic approximation using Anderson-Darling style formula
   ;; Modified W² for finite sample: W²*(1 + 0.5/n)
-  (let [w2-mod (* w2-statistic (+ 1.0 (/ 0.5 (double n))))
+  (let [w2-mod (* w2-statistic (+ 1.0 (/ 0.5 n)))
         ;; Approximation from Csörgő & Faraway (1996)
         ;; P(W² > w) ≈ Σₖ₌₁^∞ (-1)^(k+1) exp(-k²π²w²/2) × polynomial correction
         ;; Simplified approximation for practical use
@@ -773,7 +793,7 @@
              von Mises (1931), Wahrscheinlichkeitsrechnung."
   [samples cdf-fn]
   {:pre [(have? arr/typed-array? samples)]}
-  (let [n (data-length samples)
+  (let [n (arr/length samples)
         w2 (cvm-test-statistic samples cdf-fn)
         p (cvm-pvalue w2 n)]
     {:statistic w2
