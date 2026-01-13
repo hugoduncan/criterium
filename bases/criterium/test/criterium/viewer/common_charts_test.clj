@@ -1,6 +1,7 @@
 (ns criterium.viewer.common-charts-test
   (:require
    [clojure.test :refer [deftest is testing]]
+   [criterium.array :as arr]
    [criterium.test-data :as test-data]
    [criterium.viewer.common-charts :as charts]
    [criterium.viewer.schema-validation :as schema]))
@@ -1888,7 +1889,7 @@
   ;; Verifies step function structure and cumulative probability values.
   (testing "ecdf-layer"
     (testing "produces valid layer structure"
-      (let [samples [1.0 2.0 3.0 4.0 5.0]
+      (let [samples (arr/->double-array (double-array [1.0 2.0 3.0 4.0 5.0]))
             layer (charts/ecdf-layer samples identity-transforms)]
         (is (map? layer))
         (is (contains? layer :data))
@@ -1896,13 +1897,13 @@
         (is (contains? layer :encoding))))
 
     (testing "includes correct number of data points"
-      (let [samples [1.0 2.0 3.0 4.0 5.0]
+      (let [samples (arr/->double-array (double-array [1.0 2.0 3.0 4.0 5.0]))
             layer (charts/ecdf-layer samples identity-transforms)
             data (get-in layer [:data :values])]
         (is (= 5 (count data)))))
 
     (testing "computes correct ECDF values"
-      (let [samples [1.0 2.0 3.0 4.0 5.0]
+      (let [samples (arr/->double-array (double-array [1.0 2.0 3.0 4.0 5.0]))
             layer (charts/ecdf-layer samples identity-transforms)
             data (get-in layer [:data :values])
             cdf-values (mapv #(get % "cdf") data)]
@@ -1910,12 +1911,12 @@
         (is (= [0.2 0.4 0.6 0.8 1.0] cdf-values))))
 
     (testing "uses step-after interpolation"
-      (let [samples [1.0 2.0 3.0]
+      (let [samples (arr/->double-array (double-array [1.0 2.0 3.0]))
             layer (charts/ecdf-layer samples identity-transforms)]
         (is (= "step-after" (get-in layer [:mark :interpolate])))))
 
     (testing "handles unsorted samples"
-      (let [samples [5.0 1.0 3.0 2.0 4.0]
+      (let [samples (arr/->double-array (double-array [5.0 1.0 3.0 2.0 4.0]))
             layer (charts/ecdf-layer samples identity-transforms)
             data (get-in layer [:data :values])
             x-values (mapv #(get % "x") data)]
@@ -2098,7 +2099,7 @@
   ;; Verifies correct output structure and Hazen plotting position.
   (testing "qq-points"
     (testing "generates correct structure"
-      (let [samples [1.0 2.0 3.0 4.0 5.0]
+      (let [samples (arr/->double-array (double-array [1.0 2.0 3.0 4.0 5.0]))
             ;; Simple identity quantile function for testing
             quantile-fn identity
             points (charts/qq-points samples quantile-fn identity-transforms)]
@@ -2107,7 +2108,7 @@
         (is (every? #(contains? % "observed") points))))
 
     (testing "uses Hazen plotting position"
-      (let [samples [1.0 2.0 3.0]
+      (let [samples (arr/->double-array (double-array [1.0 2.0 3.0]))
             quantile-fn identity
             points (charts/qq-points samples quantile-fn identity-transforms)]
         ;; Hazen: (i - 0.5) / n for i = 1, 2, 3 and n = 3
@@ -2117,7 +2118,7 @@
         (is (< (Math/abs (- (/ 2.5 3.0) (double (get (nth points 2) "theoretical")))) 0.001))))
 
     (testing "preserves sorted sample values"
-      (let [samples [3.0 1.0 2.0]  ; unsorted input
+      (let [samples (arr/->double-array (double-array [3.0 1.0 2.0]))  ; unsorted input
             quantile-fn identity
             points (charts/qq-points samples quantile-fn identity-transforms)]
         ;; Observed values should be sorted
@@ -2126,7 +2127,7 @@
         (is (= 3.0 (get (nth points 2) "observed")))))
 
     (testing "applies transforms"
-      (let [samples [1.0 2.0 3.0]
+      (let [samples (arr/->double-array (double-array [1.0 2.0 3.0]))
             quantile-fn identity
             transforms {:sample-> (list #(* 1000.0 (double %)))
                         :->sample [#(/ (double %) 1000.0)]}
@@ -2139,7 +2140,7 @@
   ;; Verifies layer structure, mark properties, and encoding.
   (testing "distribution-qq-layer"
     (testing "generates valid layer for fitted distribution"
-      (let [samples [1.0 2.0 3.0 4.0 5.0]
+      (let [samples (arr/->double-array (double-array [1.0 2.0 3.0 4.0 5.0]))
             fit-result {:params {:shape 2.0 :scale 1.5}
                         :best-model :gamma}
             layer (charts/distribution-qq-layer
@@ -2152,7 +2153,7 @@
         (is (= "point" (get-in layer [:mark :type])))))
 
     (testing "uses larger filled marks for best model"
-      (let [samples [1.0 2.0 3.0]
+      (let [samples (arr/->double-array (double-array [1.0 2.0 3.0]))
             fit-result {:params {:shape 2.0 :scale 1.5}
                         :best-model :gamma}
             layer (charts/distribution-qq-layer
@@ -2161,7 +2162,7 @@
         (is (true? (get-in layer [:mark :filled])))))
 
     (testing "uses smaller hollow marks for non-best model"
-      (let [samples [1.0 2.0 3.0]
+      (let [samples (arr/->double-array (double-array [1.0 2.0 3.0]))
             fit-result {:params {:mu 0.5 :sigma 0.6}
                         :best-model :gamma}  ; lognormal is not best
             layer (charts/distribution-qq-layer
@@ -2170,14 +2171,14 @@
         (is (false? (get-in layer [:mark :filled])))))
 
     (testing "returns nil for skipped distribution"
-      (let [samples [1.0 2.0 3.0]
+      (let [samples (arr/->double-array (double-array [1.0 2.0 3.0]))
             fit-result {:skipped :moment-match-failed}
             layer (charts/distribution-qq-layer
                    :inverse-gaussian fit-result samples identity-transforms)]
         (is (nil? layer))))
 
     (testing "returns nil for distribution without params"
-      (let [samples [1.0 2.0 3.0]
+      (let [samples (arr/->double-array (double-array [1.0 2.0 3.0]))
             fit-result {}
             layer (charts/distribution-qq-layer
                    :gamma fit-result samples identity-transforms)]
@@ -2213,7 +2214,7 @@
   ;; Verifies filtering of skipped distributions and layer count.
   (testing "distribution-qq-overlay-layers"
     (testing "generates layers for fitted distributions"
-      (let [samples [1.0 2.0 3.0 4.0 5.0]
+      (let [samples (arr/->double-array (double-array [1.0 2.0 3.0 4.0 5.0]))
             fit-data {:best-model :gamma
                       :distributions
                       {:gamma {:params {:shape 2.0 :scale 1.5}}
@@ -2225,7 +2226,7 @@
         (is (every? map? layers))))
 
     (testing "filters out skipped distributions"
-      (let [samples [1.0 2.0 3.0]
+      (let [samples (arr/->double-array (double-array [1.0 2.0 3.0]))
             fit-data {:best-model :gamma
                       :distributions
                       {:gamma {:params {:shape 2.0 :scale 1.5}}
@@ -2235,7 +2236,7 @@
         (is (= 1 (count layers)))))
 
     (testing "returns empty vector when no distributions fitted"
-      (let [samples [1.0 2.0 3.0]
+      (let [samples (arr/->double-array (double-array [1.0 2.0 3.0]))
             fit-data {:best-model nil :distributions {}}
             layers (charts/distribution-qq-overlay-layers
                     fit-data samples identity-transforms)]

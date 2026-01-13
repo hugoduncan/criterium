@@ -413,7 +413,8 @@
     {:samples
      {:type :criterium/metrics-samples
       :metrics-defs metrics-defs
-      :metric->values {[:elapsed-time] [1.0 1.5 2.0 2.5 3.0 3.5 4.0 4.5 5.0]}
+      :metric->values {[:elapsed-time] (arr/->double-array
+                                        (double-array [1.0 1.5 2.0 2.5 3.0 3.5 4.0 4.5 5.0]))}
       :transform {:sample-> identity :->sample identity}
       :batch-size 1
       :eval-count 9
@@ -458,7 +459,8 @@
     {:samples
      {:type :criterium/metrics-samples
       :metrics-defs metrics-defs
-      :metric->values {[:elapsed-time] [1.0 1.5 2.0 2.5 3.0 3.5 4.0 4.5 5.0]}
+      :metric->values {[:elapsed-time] (arr/->double-array
+                                        (double-array [1.0 1.5 2.0 2.5 3.0 3.5 4.0 4.5 5.0]))}
       :transform {:sample-> identity :->sample identity}
       :batch-size 1
       :eval-count 9

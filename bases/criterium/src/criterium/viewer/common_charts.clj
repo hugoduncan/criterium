@@ -1820,15 +1820,16 @@
   Takes samples and transforms, returns a Vega-Lite layer spec showing
   the empirical CDF as a step function."
   [samples transforms]
-  (let [sorted-samples (sort samples)
-        n (count sorted-samples)
+  (let [sorted-samples (arr/sorted samples)
+        n (arr/length sorted-samples)
+        sorted-vec (arr/fold sorted-samples conj [])
         ;; ECDF: F_n(x) = (number of samples <= x) / n
         ;; For step function, we need points at each sample value
         data (mapv (fn [i x]
                      {"x" (util/transform-sample-> x transforms)
                       "cdf" (/ (double (inc (long i))) n)})
                    (range n)
-                   sorted-samples)]
+                   sorted-vec)]
     {:data {:values data}
      :transform [{:calculate "'ECDF'" :as "distribution"}]
      :mark {:type "line"
@@ -1932,10 +1933,11 @@
         (let [path (:path metric-config)
               samples (get metric->values path)
               fit-data (when fits (get fits path))
+              has-samples? (and samples (pos? (arr/length samples)))
               ;; Generate grid from sample range for CDF curves
-              sorted-samples (when (seq samples) (sort samples))
-              min-val (when sorted-samples (first sorted-samples))
-              max-val (when sorted-samples (last sorted-samples))
+              sorted-samples (when has-samples? (arr/sorted samples))
+              min-val (when sorted-samples (arr/first-double sorted-samples))
+              max-val (when sorted-samples (arr/last-double sorted-samples))
               ;; Extend range slightly for better visualization
               range-val (when (and min-val max-val)
                           (- (double max-val) (double min-val)))
@@ -1944,7 +1946,7 @@
               grid (when (and grid-min grid-max)
                      (let [step (/ (- (double grid-max) (double grid-min)) 100.0)]
                        (vec (range grid-min grid-max step))))]
-          (when (seq samples)
+          (when has-samples?
             (merge
              chart-options
              {:resolve {:scale {:y "shared" :color "shared"}}
@@ -1975,8 +1977,9 @@
 
   Returns a vector of {\"theoretical\" x \"observed\" y} maps."
   [samples quantile-fn transforms]
-  (let [sorted-samples (vec (sort samples))
-        n (count sorted-samples)]
+  (let [sorted-arr (arr/sorted samples)
+        n (arr/length sorted-arr)
+        sorted-samples (arr/fold sorted-arr conj [])]
     (->> (mapv (fn [i x]
                  (let [;; Hazen plotting position: (i - 0.5) / n
                        p (/ (- (double (inc (long i))) 0.5) (double n))
@@ -2159,10 +2162,12 @@
       (fn [metric-config]
         (let [path (:path metric-config)
               samples (get metric->values path)
-              fit-data (when fits (get fits path))]
-          (when (and (seq samples) fit-data)
+              fit-data (when fits (get fits path))
+              has-samples? (and samples (pos? (arr/length samples)))]
+          (when (and has-samples? fit-data)
             ;; Compute observed range for consistent axes across subplots
-            (let [sorted-samples (sort samples)
+            (let [sorted-arr (arr/sorted samples)
+                  sorted-samples (arr/fold sorted-arr conj [])
                   transformed-samples (mapv #(util/transform-sample-> % samples-transforms)
                                             sorted-samples)
                   min-val (apply min transformed-samples)

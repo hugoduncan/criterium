@@ -95,6 +95,8 @@
              :outliers
              [:stats {}]
              [:stats {:samples-id :log-samples :id :log-stats}]
+             [:bootstrap-stats {:quantiles [0.99]
+                                :estimate-quantiles [0.025 0.975]}]
              [:histogram {:method :knuth}]
              :event-stats
              :allocation-summary
@@ -127,6 +129,8 @@
              :outliers
              [:stats {}]
              [:stats {:samples-id :log-samples :id :log-stats}]
+             [:bootstrap-stats {:quantiles [0.99]
+                                :estimate-quantiles [0.025 0.975]}]
              :histogram
              :kde
              :kde-stats
@@ -165,6 +169,8 @@
              :outliers
              [:stats {}]
              [:stats {:samples-id :log-samples :id :log-stats}]
+             [:bootstrap-stats {:quantiles [0.99]
+                                :estimate-quantiles [0.025 0.975]}]
              :histogram
              :kde
              :kde-stats

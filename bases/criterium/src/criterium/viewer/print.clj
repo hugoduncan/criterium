@@ -165,14 +165,15 @@
 (defn print-bootstrap-stats
   [{:keys [bootstrap-stats-id]} data-map]
   (let [bootstrap-stats-id (or bootstrap-stats-id :bootstrap-stats)
-        bootstrap-map (data-map bootstrap-stats-id)
-        metrics-defs (:metrics-defs bootstrap-map)
-        metric-configs (metric/all-metric-configs metrics-defs)
-        bootstrap (util/bootstrap bootstrap-map)
-        transforms (util/get-transforms data-map bootstrap-stats-id)]
-    (doseq [metric metric-configs]
-      (when-let [stat (get-in bootstrap (:path metric))]
-        (print-bootstrap-stat metric stat transforms)))))
+        bootstrap-map (data-map bootstrap-stats-id)]
+    (when bootstrap-map
+      (let [metrics-defs (:metrics-defs bootstrap-map)
+            metric-configs (metric/all-metric-configs metrics-defs)
+            bootstrap (util/bootstrap bootstrap-map)
+            transforms (util/get-transforms data-map bootstrap-stats-id)]
+        (doseq [metric metric-configs]
+          (when-let [stat (get-in bootstrap (:path metric))]
+            (print-bootstrap-stat metric stat transforms)))))))
 
 (defmethod view/bootstrap-stats* :print
   [_ view data-map]
