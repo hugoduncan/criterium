@@ -1531,8 +1531,8 @@
   "Quantile function for gamma distribution using Newton-Raphson inversion.
   Finds x such that gamma-cdf(x) = p."
   [^double shape ^double scale]
-  (let [cdf-fn (si/gamma-cdf shape scale)
-        pdf-fn (si/gamma-pdf shape scale)
+  (let [cdf-fn        (si/gamma-cdf shape scale)
+        pdf-fn        (si/gamma-pdf shape scale)
         ;; Initial guess using Wilson-Hilferty approximation for large shape
         initial-guess (fn ^double [^double p]
                         (let [z (si/normal-quantile p)]
@@ -1540,7 +1540,7 @@
                             ;; For small shape, use median approximation
                             (* scale shape (Math/pow (- 1.0 (/ 1.0 (* 9.0 (max shape 0.1)))) 3.0))
                             ;; Wilson-Hilferty approximation
-                            (let [d (/ 1.0 (* 9.0 shape))
+                            (let [d      (/ 1.0 (* 9.0 shape))
                                   x-norm (- 1.0 d (- (* z (Math/sqrt d))))]
                               (* scale shape (Math/pow (max x-norm 0.01) 3.0))))))]
     (fn ^double [^double p]
@@ -1550,12 +1550,12 @@
         :else
         ;; Newton-Raphson: x_{n+1} = x_n - (F(x_n) - p) / f(x_n)
         (let [max-iter (long 50)
-              tol 1e-10]
-          (loop [x (Math/max (initial-guess p) 1e-10)
+              tol      1e-10]
+          (loop [x    (Math/max (double (initial-guess p)) 1e-10)
                  iter (long 0)]
             (if (>= iter max-iter)
               x
-              (let [fx (double (cdf-fn x))
+              (let [fx  (double (cdf-fn x))
                     fpx (double (pdf-fn x))]
                 (if (< fpx 1e-100)
                   x

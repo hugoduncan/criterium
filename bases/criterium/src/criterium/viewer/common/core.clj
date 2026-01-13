@@ -164,8 +164,8 @@
   [histogram transforms metric-config]
   {:pre [(have? histogram)]}
   (let [transform #(util/transform-sample-> % transforms)
-        min-val (transform (:min histogram))
-        metric-scale (double (:scale metric-config))
+        ^double min-val (transform (:min histogram))
+        ^double metric-scale (:scale metric-config)
         [scale unit] (format/scale
                       (:dimension metric-config)
                       (* metric-scale min-val))

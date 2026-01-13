@@ -42,27 +42,27 @@
 
 (defn min
   "Minimum value in data."
-  ([data] (core/min data))
-  ([data count] (core/min data count)))
+  (^double [data] (core/min data))
+  (^double [data count] (core/min data count)))
 
 (defn max
   "Maximum value in data."
-  ([data] (core/max data))
-  ([data count] (core/max data count)))
+  (^double [data] (core/max data))
+  (^double [data count] (core/max data count)))
 
 (defn mean
   "Arithmetic mean of data."
-  ([data] (core/mean data))
-  ([data count] (core/mean data count)))
+  (^double [data] (core/mean data))
+  (^double [data count] (core/mean data count)))
 
 (defn sum
   "Sum of each data point."
-  [data]
+  ^double [data]
   (core/sum data))
 
 (defn sum-of-squares
   "Sum of the squares of each data point."
-  [data]
+  ^double [data]
   (core/sum-of-squares data))
 
 (defn variance*
@@ -78,8 +78,8 @@
 
   The population variance can be returned using (variance data 0), which uses
   (count data) degrees of freedom."
-  ([data] (core/variance data))
-  ([data df] (core/variance data df)))
+  (^double [data] (core/variance data))
+  (^double [data df] (core/variance data df)))
 
 (defn median-value
   "Calculate the median value of a sorted data set.
@@ -102,7 +102,7 @@
 
 (defn quantile
   "Calculate the quantile of a sorted data set."
-  [^double quantile data]
+  ^double [^double quantile data]
   (core/quantile quantile data))
 
 (defn central-moment

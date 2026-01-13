@@ -63,7 +63,7 @@
   "Verifies the expression allocates nothing.
   For primitive operations that should never box."
   [expr]
-  `(when (agent/attached?)
+  `(if (agent/attached?)
      (let [;; let JVM allocate function stat tracing objects
            jvm-once#         (agent/with-allocation-tracing ~expr)
            ;; verify zero allocations
@@ -73,13 +73,14 @@
            (str "Expected zero allocations, got " allocated# " " allocs#))
        (blackhole/consume jvm-once#)
        (blackhole/consume result#)
-       nil)))
+       nil)
+     (is true)))
 
 (defmacro assert-zero-garbage
   "Verifies the expression produces zero garbage (freed objects).
   For operations that allocate a result but no temporary objects."
   [expr]
-  `(when (agent/attached?)
+  `(if (agent/attached?)
      (let [;; let JVM allocate function stat tracing objects
            jvm-once#         (agent/with-allocation-tracing ~expr)
            ;; verify zero freed
@@ -90,7 +91,8 @@
                 freed# " freed objects" " " allocs#))
        (blackhole/consume jvm-once#)
        (blackhole/consume result#)
-       nil)))
+       nil)
+     (is true)))
 
 ;;; Primitive-returning fold operations (zero-allocation)
 

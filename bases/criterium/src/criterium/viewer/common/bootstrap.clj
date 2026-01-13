@@ -12,7 +12,7 @@
   Applies transforms (e.g., batch-size division) and unit scaling."
   [estimate metric-config transforms]
   (when estimate
-    (let [{:keys [dimension scale]} metric-config
+    (let [{:keys [dimension ^double scale]} metric-config
           tform #(util/transform-sample-> % transforms)
           quantiles (:estimate-quantiles estimate)
           ci-lower (when (seq quantiles) (-> quantiles first :value))
@@ -21,7 +21,7 @@
           fmt-val (fn [v] (when v
                             (format/format-value
                              dimension
-                             (* (double scale) (tform v)))))]
+                             (* scale (double (tform v))))))]
       {:value (fmt-val point-est)
        :ci-lower (fmt-val ci-lower)
        :ci-upper (fmt-val ci-upper)})))
