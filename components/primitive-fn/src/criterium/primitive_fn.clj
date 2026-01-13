@@ -112,3 +112,8 @@
   "Primitive long zero check."
   [^long v]
   (zero? v))
+
+(defmacro invoke-dd
+  "Invoke a primitive double -> double function."
+  [f v]
+  `(.invokePrim ~(vary-meta f assoc :tag 'clojure.lang.IFn$DD) ~v))

@@ -4,6 +4,7 @@
   Provides functions for formatting bootstrap estimates and building
   bootstrap statistics table rows."
   (:require
+   [criterium.primitive-fn :as prim]
    [criterium.util.format :as format]
    [criterium.util.helpers :as util]))
 
@@ -13,7 +14,8 @@
   [estimate metric-config transforms]
   (when estimate
     (let [{:keys [dimension ^double scale]} metric-config
-          tform #(util/transform-sample-> % transforms)
+          tform (fn ^double [^double v]
+                  (util/transform-sample-> v transforms))
           quantiles (:estimate-quantiles estimate)
           ci-lower (when (seq quantiles) (-> quantiles first :value))
           ci-upper (when (seq quantiles) (-> quantiles second :value))
@@ -21,7 +23,7 @@
           fmt-val (fn [v] (when v
                             (format/format-value
                              dimension
-                             (* scale (tform v)))))]
+                             (* scale (prim/invoke-dd tform v)))))]
       {:value (fmt-val point-est)
        :ci-lower (fmt-val ci-lower)
        :ci-upper (fmt-val ci-upper)})))

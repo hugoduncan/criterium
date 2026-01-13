@@ -7,6 +7,7 @@
    [clojure.string :as str]
    [criterium.array :as arr]
    [criterium.metric :as metric]
+   [criterium.primitive-fn :as prim]
    [criterium.stats.interface :as si]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have have?]]
@@ -432,14 +433,14 @@
                                         (util/transform-sample-> x transforms)))
         sorted-arr (arr/sorted transformed)
         n (arr/length sorted-arr)
-        max-val (Math/log10 (double n))
+        max-val (Math/log10 n)
         delta (/ 100.0 (dec n))
         ;; Build data directly from typed array
         data (arr/indexed-dfold
               sorted-arr
               (fn [acc ^long i ^double v]
-                (let [x (/ (- max-val (Math/log10 (- n (double i)))) max-val)
-                      p (* delta (double i))]
+                (let [x (/ (- max-val (Math/log10 (- n i))) max-val)
+                      p (* delta i)]
                   (conj acc {k v :p p :x x})))
               [])]
     {:data {:values data
@@ -1551,15 +1552,15 @@
         ;; Newton-Raphson: x_{n+1} = x_n - (F(x_n) - p) / f(x_n)
         (let [max-iter (long 50)
               tol      1e-10]
-          (loop [x    (Math/max (initial-guess p) 1e-10)
+          (loop [x    (Math/max (prim/invoke-dd initial-guess p) 1e-10)
                  iter (long 0)]
             (if (>= iter max-iter)
               x
-              (let [fx  (double (cdf-fn x))
-                    fpx (double (pdf-fn x))]
+              (let [fx  (prim/invoke-dd cdf-fn x)
+                    fpx (prim/invoke-dd pdf-fn x)]
                 (if (< fpx 1e-100)
                   x
-                  (let [x-new (double (Math/max (- x (/ (- fx p) fpx)) 1e-10))]
+                  (let [x-new (Math/max (- x (/ (- fx p) fpx)) 1e-10)]
                     (if (< (Math/abs (- x-new x)) (* tol x))
                       x-new
                       (recur x-new (inc iter)))))))))))))
@@ -1582,11 +1583,11 @@
                  iter (long 0)]
             (if (>= iter max-iter)
               x
-              (let [fx (double (cdf-fn x))
-                    fpx (double (pdf-fn x))]
+              (let [fx (prim/invoke-dd cdf-fn x)
+                    fpx (prim/invoke-dd pdf-fn x)]
                 (if (< fpx 1e-100)
                   x
-                  (let [x-new (double (Math/max (- x (/ (- fx p) fpx)) 1e-10))]
+                  (let [x-new (Math/max (- x (/ (- fx p) fpx)) 1e-10)]
                     (if (< (Math/abs (- x-new x)) (* tol x))
                       x-new
                       (recur x-new (inc iter)))))))))))))
@@ -1633,12 +1634,12 @@
           label (get distribution-labels dist (name dist))
           is-best? (= dist (:best-model fit-result))
           data (->> grid
-                    (mapv (fn [x]
-                            (let [p (double (pdf-fn x))
+                    (mapv (fn [^double x]
+                            (let [p (prim/invoke-dd pdf-fn x)
                                   ;; Scale by Jacobian if KDE is on log-transformed data
                                   ;; Converts density-per-original-unit to density-per-log-unit
                                   scaled-p (if scale-by-jacobian?
-                                             (* p (double x))
+                                             (* p x)
                                              p)
                                   ;; Transform x for display to match KDE axis
                                   display-x (util/transform-sample-> x transforms)]
@@ -2029,11 +2030,11 @@
 
   Takes the min and max values from the data range to draw the diagonal.
   Points lying on this line indicate perfect fit to the distribution."
-  [min-val max-val]
+  [^double min-val ^double max-val]
   (let [;; Extend range slightly for visual clarity
-        margin (* 0.05 (- (double max-val) (double min-val)))
-        start (- (double min-val) margin)
-        end (+ (double max-val) margin)]
+        margin (* 0.05 (- max-val min-val))
+        start (- min-val margin)
+        end (+ max-val margin)]
     {:data {:values [{"x" start "y" start}
                      {"x" end "y" end}]}
      :mark {:type "line"
@@ -2079,11 +2080,11 @@
           ;; to ensure all points are visible within the axes
           all-values (into (mapv #(get % "theoretical") data)
                            (mapv #(get % "observed") data))
-          min-val (apply min all-values)
-          max-val (apply max all-values)
-          margin (* 0.05 (- (double max-val) (double min-val)))
-          domain-min (- (double min-val) margin)
-          domain-max (+ (double max-val) margin)]
+          ^double min-val (apply min all-values)
+          ^double max-val (apply max all-values)
+          margin (* 0.05 (- max-val min-val))
+          domain-min (- min-val margin)
+          domain-max (+ max-val margin)]
       (merge
        subplot-options
        {:title {:text label
