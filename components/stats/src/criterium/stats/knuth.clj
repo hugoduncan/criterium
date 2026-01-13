@@ -13,18 +13,10 @@
   (:require
    [criterium.array :as arr]
    [criterium.array.interface :as iarr]
-   [criterium.stats.probability :as prob])
+   [criterium.stats.probability :as prob]
+   [criterium.utils.interface :refer [have?]])
   (:import
    [criterium.array.interface ITypedArray]))
-
-(defn- require-typed-array!
-  "Throws if data is not a typed array."
-  [data fn-name]
-  (when-not (arr/typed-array? data)
-    (throw (ex-info (str fn-name " requires a typed array, got: " (type data))
-                    {:fn fn-name
-                     :type (type data)
-                     :data data}))))
 
 (defn- data-length
   "Returns the length of a typed array."
@@ -131,7 +123,7 @@
     ex-info {:error :knuth/same-values} when all values are identical"
   ([data] (optimal-bins data {}))
   ([data {:keys [max-bins min max] :or {max-bins 50}}]
-   (require-typed-array! data "optimal-bins")
+   {:pre [(have? arr/typed-array? data)]}
    (when (data-empty? data)
      (throw (ex-info "Input samples cannot be empty"
                      {:error :knuth/no-samples})))

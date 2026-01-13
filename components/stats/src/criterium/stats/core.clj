@@ -7,7 +7,7 @@
   (:require
    [criterium.array :as arr]
    criterium.array.interface
-   [criterium.utils.interface :as utils])
+   [criterium.utils.interface :as utils :refer [have?]])
   (:import
    [criterium.array.interface ITypedArray IDoubleFold IIndexed]))
 
@@ -17,15 +17,6 @@
   (if (vector? (first data))
     (apply map vector data)
     data))
-
-(defn- require-typed-array!
-  "Throws if data is not a typed array."
-  [data fn-name]
-  (when-not (arr/typed-array? data)
-    (throw (ex-info (str fn-name " requires a typed array, got: " (type data))
-                    {:fn fn-name
-                     :type (type data)
-                     :data data}))))
 
 (defn- typed-array-length
   "Returns the length of a typed array."
@@ -56,7 +47,7 @@
   "Minimum value in data.
   Requires a typed array (ITypedArray)."
   ([data]
-   (require-typed-array! data "min")
+   {:pre [(have? arr/typed-array? data)]}
    (typed-array-fold-double data dmin Double/MAX_VALUE))
   ([data _count]
    (min data)))
@@ -65,7 +56,7 @@
   "Maximum value in data.
   Requires a typed array (ITypedArray)."
   ([data]
-   (require-typed-array! data "max")
+   {:pre [(have? arr/typed-array? data)]}
    (typed-array-fold-double data dmax Double/MIN_VALUE))
   ([data _count]
    (max data)))
@@ -79,26 +70,26 @@
   "Arithmetic mean of data.
   Requires a typed array (ITypedArray)."
   (^double [data]
-   (require-typed-array! data "mean")
+   {:pre [(have? arr/typed-array? data)]}
    (let [c (typed-array-length data)]
      (when (pos? c)
        (/ (typed-array-fold-double data unchecked-add-d 0.0) c))))
   (^double [data ^long count]
-   (require-typed-array! data "mean")
+   {:pre [(have? arr/typed-array? data)]}
    (/ (typed-array-fold-double data unchecked-add-d 0.0) count)))
 
 (defn sum
   "Sum of each data point.
   Requires a typed array (ITypedArray)."
   [data]
-  (require-typed-array! data "sum")
+  {:pre [(have? arr/typed-array? data)]}
   (typed-array-fold-double data unchecked-add-d 0.0))
 
 (defn sum-of-squares
   "Sum of the squares of each data point.
   Requires a typed array (ITypedArray)."
   [data]
-  (require-typed-array! data "sum-of-squares")
+  {:pre [(have? arr/typed-array? data)]}
   (let [f (fn ^double [^double s ^double v] (+ s (* v v)))]
     (typed-array-fold-double data f 0.0)))
 
@@ -106,7 +97,7 @@
   "Variance based on subtracting mean.
   Requires a typed array (ITypedArray)."
   ^double [data ^double mean ^long df]
-  (require-typed-array! data "variance*")
+  {:pre [(have? arr/typed-array? data)]}
   (let [f (fn ^double [^double a ^double b]
             (+ a (utils/sqr (- b mean))))]
     (/ (typed-array-fold-double data f 0.0) df)))
@@ -149,7 +140,7 @@
        recommendations. American Statistician (1983)."
   (^double [data] (variance data 1))
   (^double [data ^long df]
-   (require-typed-array! data "variance")
+   {:pre [(have? arr/typed-array? data)]}
    (variance-typed-array data df)))
 
 (defn median-value
@@ -158,7 +149,7 @@
   Requires a typed array (ITypedArray).
   References: http://en.wikipedia.org/wiki/Median"
   ^double [data]
-  (require-typed-array! data "median-value")
+  {:pre [(have? arr/typed-array? data)]}
   (let [n (typed-array-length data)
         i (bit-shift-right n 1)]
     (if (even? n)
@@ -173,7 +164,7 @@
   Requires a typed array (ITypedArray).
   References: http://en.wikipedia.org/wiki/Median"
   [data]
-  (require-typed-array! data "median")
+  {:pre [(have? arr/typed-array? data)]}
   [(median-value data) nil nil])
 
 (defn quartiles
@@ -182,7 +173,7 @@
   Requires a typed array (ITypedArray).
   References: http://en.wikipedia.org/wiki/Quartile"
   [data]
-  (require-typed-array! data "quartiles")
+  {:pre [(have? arr/typed-array? data)]}
   (let [n (typed-array-length data)
         q1-idx (quot n 4)
         q3-idx (quot (* 3 n) 4)
@@ -201,7 +192,7 @@
   Requires a typed array (ITypedArray).
   References: http://en.wikipedia.org/wiki/Quantile"
   [^double quantile data]
-  (require-typed-array! data "quantile")
+  {:pre [(have? arr/typed-array? data)]}
   (let [n (dec (typed-array-length data))
         interp (fn [^double x]
                  (let [f (Math/floor x)
@@ -218,7 +209,7 @@
   "Compute the r-th central moment: (1/n) * Σ(xᵢ - μ)^r
   Requires a typed array (ITypedArray)."
   ^double [data ^double mean ^long r]
-  (require-typed-array! data "central-moment")
+  {:pre [(have? arr/typed-array? data)]}
   (let [n (typed-array-length data)
         f (fn ^double [^double acc ^double x]
             (+ acc (Math/pow (- x mean) r)))]

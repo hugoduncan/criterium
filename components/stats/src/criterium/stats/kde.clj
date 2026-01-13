@@ -9,19 +9,11 @@
    [criterium.array :as arr]
    [criterium.random.interface :as random]
    [criterium.stats.core :as core]
-   [criterium.stats.sampling :as sampling])
+   [criterium.stats.sampling :as sampling]
+   [criterium.utils.interface :refer [have?]])
   (:import
    [criterium.array DoubleArray LongArray]
    [criterium.array.interface ITypedArray]))
-
-(defn- require-typed-array!
-  "Throws if data is not a typed array."
-  [data fn-name]
-  (when-not (arr/typed-array? data)
-    (throw (ex-info (str fn-name " requires a typed array, got: " (type data))
-                    {:fn fn-name
-                     :type (type data)
-                     :data data}))))
 
 (defn- data-length
   "Returns the length of a typed array."
@@ -214,7 +206,7 @@
   ([data k] (excess-mass data k {}))
   ([data k {:keys [rng-factory]
             :or {rng-factory #(random/well-rng-1024a)}}]
-   (require-typed-array! data "excess-mass")
+   {:pre [(have? arr/typed-array? data)]}
    (let [n (data-length data)
          k (long k)]
      (when (< n 3)
@@ -338,7 +330,7 @@
 
   Requires a typed array (DoubleArray or LongArray)."
   ^doubles [data ^doubles grid]
-  (require-typed-array! data "linear-bin")
+  {:pre [(have? arr/typed-array? data)]}
   (let [n (alength grid)
         weights (double-array n)
         x-min (aget grid 0)
@@ -415,7 +407,7 @@
   A simple fallback when ISJ doesn't converge.
   Requires a typed array (DoubleArray or LongArray)."
   ^double [data]
-  (require-typed-array! data "silverman-bandwidth")
+  {:pre [(have? arr/typed-array? data)]}
   (let [n (data-length data)
         sigma (Math/sqrt (core/variance data))
         sorted (arr/sorted data)
@@ -436,7 +428,7 @@
 
   Requires a typed array (DoubleArray or LongArray)."
   ^double [data]
-  (require-typed-array! data "isj-bandwidth")
+  {:pre [(have? arr/typed-array? data)]}
   (let [n (data-length data)
         n-grid 1024
         [x-min x-max] (data-min-max data)
@@ -482,7 +474,7 @@
   Returns vector of density values at each grid point.
   Requires a typed array (DoubleArray or LongArray)."
   ^doubles [data ^double bandwidth ^doubles grid]
-  (require-typed-array! data "gaussian-kde")
+  {:pre [(have? arr/typed-array? data)]}
   (let [n (data-length data)
         n-grid (alength grid)
         density (double-array n-grid)
@@ -537,7 +529,7 @@
   rng is a lazy sequence of random doubles in [0,1).
   Requires a typed array (DoubleArray or LongArray)."
   [data ^double bandwidth ^doubles grid rng]
-  (require-typed-array! data "kde-bootstrap-sample")
+  {:pre [(have? arr/typed-array? data)]}
   (let [resampled (sampling/sample-doubles (ensure-double-array data) rng)]
     (gaussian-kde resampled bandwidth grid)))
 
@@ -559,7 +551,7 @@
                                   :or {n-bootstrap 200
                                        alpha 0.05
                                        rng-factory #(random/well-rng-1024a)}}]
-   (require-typed-array! data "kde-confidence-bands")
+   {:pre [(have? arr/typed-array? data)]}
    (let [n-grid (alength grid)
          samples (vec (for [_ (range n-bootstrap)]
                         (kde-bootstrap-sample data bandwidth grid (rng-factory))))
@@ -599,7 +591,7 @@
      :or {n-bootstrap 200
           alpha 0.05
           rng-factory #(random/well-rng-1024a)}}]
-   (require-typed-array! data "mode-confidence-intervals")
+   {:pre [(have? arr/typed-array? data)]}
    (let [density (gaussian-kde data bandwidth grid)
          orig-modes (vec (take n-modes (find-modes grid density)))
          boot-modes (vec (for [_ (range n-bootstrap)]
@@ -627,7 +619,7 @@
   Creates a grid and counts local maxima in the density estimate.
   Requires a typed array (DoubleArray or LongArray)."
   ^long [data ^double bandwidth ^long n-points]
-  (require-typed-array! data "count-modes")
+  {:pre [(have? arr/typed-array? data)]}
   (let [[x-min x-max] (data-min-max data)
         x-min (double x-min)
         x-max (double x-max)
@@ -657,7 +649,7 @@
   ^double [data ^long k {:keys [tol n-points]
                          :or {tol 1e-6
                               n-points 512}}]
-  (require-typed-array! data "critical-bandwidth")
+  {:pre [(have? arr/typed-array? data)]}
   (let [n-pts (long n-points)
         tol (double tol)
         sigma (Math/sqrt (core/variance data))
@@ -722,7 +714,7 @@
   [data ^long k {:keys [n-points tol]
                  :or {n-points 512
                       tol 1e-6}}]
-  (require-typed-array! data "locate-modes")
+  {:pre [(have? arr/typed-array? data)]}
   (let [n-pts (long n-points)
         h (critical-bandwidth data k {:n-points n-pts :tol tol})
         [x-min x-max] (data-min-max data)
@@ -755,7 +747,7 @@
   Returns a DoubleArray.
   Requires a typed array (DoubleArray or LongArray)."
   ^DoubleArray [data ^double bandwidth rng]
-  (require-typed-array! data "silverman-bootstrap-sample")
+  {:pre [(have? arr/typed-array? data)]}
   (let [n (data-length data)
         sigma-sq (core/variance data)
         mean-val (core/mean data)
@@ -823,7 +815,7 @@
                       alpha 0.05
                       tol 1e-6
                       rng-factory #(random/well-rng-1024a)}}]
-  (require-typed-array! data "silverman-test")
+  {:pre [(have? arr/typed-array? data)]}
   (let [n-pts (long n-points)
         ;; Find critical bandwidth
         h-crit (critical-bandwidth data k {:tol tol :n-points n-pts})
@@ -886,7 +878,7 @@
                       n-points 512
                       tol 1e-6
                       rng-factory #(random/well-rng-1024a)}}]
-  (require-typed-array! data "acr-test")
+  {:pre [(have? arr/typed-array? data)]}
   (let [n-pts (long n-points)
         ;; Find critical bandwidth
         h-crit (critical-bandwidth data k {:tol tol :n-points n-pts})
@@ -943,7 +935,7 @@
                n-bootstrap 200
                alpha 0.05
                rng-factory #(random/well-rng-1024a)}}]
-   (require-typed-array! data "kde")
+   {:pre [(have? arr/typed-array? data)]}
    (let [n (data-length data)]
      (when (zero? n)
        (throw (ex-info "Input data cannot be empty"

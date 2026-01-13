@@ -2,18 +2,10 @@
   "Probability functions: log-gamma, error function, normal distribution,
   and common statistical distributions (gamma, weibull, lognormal, inverse-gaussian)."
   (:require
-   [criterium.array :as arr])
+   [criterium.array :as arr]
+   [criterium.utils.interface :refer [have?]])
   (:import
    [criterium.array.interface ITypedArray]))
-
-(defn- require-typed-array!
-  "Throws if data is not a typed array."
-  [data fn-name]
-  (when-not (arr/typed-array? data)
-    (throw (ex-info (str fn-name " requires a typed array, got: " (type data))
-                    {:fn fn-name
-                     :type (type data)
-                     :data data}))))
 
 (defn- data-length
   "Returns the length of a typed array."
@@ -624,7 +616,7 @@
 
   Returns the D statistic."
   ^double [samples cdf-fn]
-  (require-typed-array! samples "ks-test-statistic")
+  {:pre [(have? arr/typed-array? samples)]}
   (let [n (data-length samples)
         _ (when (zero? n)
             (throw (IllegalArgumentException. "samples cannot be empty")))
@@ -681,7 +673,7 @@
              di distribuzione; Smirnov (1948), Table for estimating the
              goodness of fit of empirical distributions."
   [samples cdf-fn]
-  (require-typed-array! samples "ks-test")
+  {:pre [(have? arr/typed-array? samples)]}
   (let [n (data-length samples)
         d (ks-test-statistic samples cdf-fn)
         p (ks-pvalue d n)]
@@ -702,7 +694,7 @@
 
   Returns the W² statistic."
   ^double [samples cdf-fn]
-  (require-typed-array! samples "cvm-test-statistic")
+  {:pre [(have? arr/typed-array? samples)]}
   (let [n (data-length samples)
         _ (when (zero? n)
             (throw (IllegalArgumentException. "samples cannot be empty")))
@@ -780,7 +772,7 @@
   Reference: Cramér (1928), On the composition of elementary errors;
              von Mises (1931), Wahrscheinlichkeitsrechnung."
   [samples cdf-fn]
-  (require-typed-array! samples "cvm-test")
+  {:pre [(have? arr/typed-array? samples)]}
   (let [n (data-length samples)
         w2 (cvm-test-statistic samples cdf-fn)
         p (cvm-pvalue w2 n)]

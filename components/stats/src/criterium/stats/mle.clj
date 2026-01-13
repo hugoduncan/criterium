@@ -14,18 +14,10 @@
   All functions require typed arrays (DoubleArray, LongArray)."
   (:require
    [criterium.array :as arr]
-   [criterium.stats.probability :as probability])
+   [criterium.stats.probability :as probability]
+   [criterium.utils.interface :refer [have?]])
   (:import
    [criterium.array.interface ITypedArray]))
-
-(defn- require-typed-array!
-  "Throws if data is not a typed array."
-  [data fn-name]
-  (when-not (arr/typed-array? data)
-    (throw (ex-info (str fn-name " requires a typed array, got: " (type data))
-                    {:fn fn-name
-                     :type (type data)
-                     :data data}))))
 
 (defn- data-length
   "Returns the length of a typed array."
@@ -52,7 +44,7 @@
 
   Throws if any sample is non-positive."
   [samples]
-  (require-typed-array! samples "lognormal-mle")
+  {:pre [(have? arr/typed-array? samples)]}
   (let [n (data-length samples)
         _ (when (zero? n)
             (throw (IllegalArgumentException. "samples cannot be empty")))
@@ -110,7 +102,7 @@
 
   Throws if any sample is non-positive."
   [samples]
-  (require-typed-array! samples "inverse-gaussian-mle")
+  {:pre [(have? arr/typed-array? samples)]}
   (let [n (data-length samples)
         _ (when (zero? n)
             (throw (IllegalArgumentException. "samples cannot be empty")))
@@ -189,7 +181,7 @@
   ([samples] (gamma-mle samples {}))
   ([samples {:keys [max-iter tol init-shape]
              :or {max-iter 100 tol 1e-10}}]
-   (require-typed-array! samples "gamma-mle")
+   {:pre [(have? arr/typed-array? samples)]}
    (let [n (data-length samples)
          _ (when (zero? n)
              (throw (IllegalArgumentException. "samples cannot be empty")))
@@ -295,7 +287,7 @@
   ([samples] (weibull-mle samples {}))
   ([samples {:keys [max-iter tol init-shape]
              :or {max-iter 100 tol 1e-10}}]
-   (require-typed-array! samples "weibull-mle")
+   {:pre [(have? arr/typed-array? samples)]}
    (let [n (data-length samples)
          _ (when (zero? n)
              (throw (IllegalArgumentException. "samples cannot be empty")))

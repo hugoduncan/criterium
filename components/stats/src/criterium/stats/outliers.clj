@@ -6,8 +6,10 @@
 
   All functions require typed arrays (ITypedArray) as input."
   (:require
+   [criterium.array :as arr]
    criterium.array.interface
-   [criterium.stats.core :as core])
+   [criterium.stats.core :as core]
+   [criterium.utils.interface :refer [have?]])
   (:import
    [criterium.array.interface ITypedArray IIndexed]))
 
@@ -70,15 +72,6 @@
   ^double [^IIndexed arr ^long index]
   (.getDouble arr index))
 
-(defn- require-typed-array!
-  "Throws if data is not a typed array."
-  [data fn-name]
-  (when-not (instance? ITypedArray data)
-    (throw (ex-info (str fn-name " requires a typed array, got: " (type data))
-                    {:fn fn-name
-                     :type (type data)
-                     :data data}))))
-
 (defn medcouple
   "Compute the medcouple, a robust measure of skewness.
   Returns a value in [-1, 1] where positive indicates right-skew
@@ -93,7 +86,7 @@
   Requires a typed array (ITypedArray).
   Takes sorted data as input. Returns 0.0 for constant data or n < 3."
   ^double [sorted-data]
-  (require-typed-array! sorted-data "medcouple")
+  {:pre [(have? arr/typed-array? sorted-data)]}
   (let [n (typed-array-length sorted-data)]
     (if (< n 3)
       0.0
