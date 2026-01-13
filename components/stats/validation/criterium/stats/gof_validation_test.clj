@@ -65,7 +65,7 @@
                       (first (vals r-result))
                       (first r-result))
                 ;; Use normal CDF for the test
-                normal-cdf-fn (fn [x]
+                normal-cdf-fn (fn ^double [^double x]
                                 (stats/normal-cdf (/ (- x mean-val) sd-val)))
                 clj-d (stats/ks-test-statistic (darr normal-test-data) normal-cdf-fn)]
             (is (approx= r-d clj-d 1e-5)
@@ -79,7 +79,7 @@
                       (first (vals r-result))
                       (first r-result))
                 ;; Uniform(0,1) CDF: F(x) = x for x in [0,1]
-                uniform-cdf-fn (fn [x]
+                uniform-cdf-fn (fn ^double [^double x]
                                  (cond
                                    (<= x 0.0) 0.0
                                    (>= x 1.0) 1.0
@@ -121,7 +121,7 @@
           (let [data-str (str "c(" (str/join "," uniform-test-data) ")")
                 r-result (r/r-eval (str "ks.test(" data-str ", 'punif')$p.value"))
                 r-p (first r-result)
-                uniform-cdf-fn (fn [x] (cond (<= x 0) 0.0 (>= x 1) 1.0 :else x))
+                uniform-cdf-fn (fn ^double [^double x] (cond (<= x 0) 0.0 (>= x 1) 1.0 :else x))
                 clj-result (stats/ks-test (darr uniform-test-data) uniform-cdf-fn)
                 clj-p (:p-value clj-result)]
             ;; Both should reject the null at high p (data is from uniform)
@@ -165,7 +165,7 @@
                 r-w2 (if (map? r-result)
                        (first (vals r-result))
                        (first r-result))
-                uniform-cdf-fn (fn [x]
+                uniform-cdf-fn (fn ^double [^double x]
                                  (cond
                                    (<= x 0.0) 0.0
                                    (>= x 1.0) 1.0
@@ -206,7 +206,7 @@
           (let [data-str (str "c(" (str/join "," uniform-test-data) ")")
                 r-result (r/r-eval (str "cvm.test(" data-str ", 'punif')$p.value"))
                 r-p (first r-result)
-                uniform-cdf-fn (fn [x] (cond (<= x 0) 0.0 (>= x 1) 1.0 :else x))
+                uniform-cdf-fn (fn ^double [^double x] (cond (<= x 0) 0.0 (>= x 1) 1.0 :else x))
                 clj-result (stats/cvm-test (darr uniform-test-data) uniform-cdf-fn)
                 clj-p (:p-value clj-result)]
             (is (> r-p 0.01) "R p-value should not reject good fit")
@@ -231,47 +231,47 @@
   ;; Tests basic properties of GoF tests without R.
   (testing "ks-test"
     (testing "returns expected keys"
-      (let [cdf-fn (fn [x] (cond (<= x 0) 0.0 (>= x 1) 1.0 :else x))
+      (let [cdf-fn (fn ^double [^double x] (cond (<= x 0) 0.0 (>= x 1) 1.0 :else x))
             result (stats/ks-test (darr uniform-test-data) cdf-fn)]
         (is (contains? result :statistic))
         (is (contains? result :p-value))
         (is (contains? result :n))))
 
     (testing "D statistic is in [0, 1]"
-      (let [cdf-fn (fn [x] (cond (<= x 0) 0.0 (>= x 1) 1.0 :else x))
+      (let [cdf-fn (fn ^double [^double x] (cond (<= x 0) 0.0 (>= x 1) 1.0 :else x))
             result (stats/ks-test (darr uniform-test-data) cdf-fn)]
         (is (<= 0 (:statistic result) 1))))
 
     (testing "p-value is in [0, 1]"
-      (let [cdf-fn (fn [x] (cond (<= x 0) 0.0 (>= x 1) 1.0 :else x))
+      (let [cdf-fn (fn ^double [^double x] (cond (<= x 0) 0.0 (>= x 1) 1.0 :else x))
             result (stats/ks-test (darr uniform-test-data) cdf-fn)]
         (is (<= 0 (:p-value result) 1))))
 
     (testing "n equals sample size"
-      (let [cdf-fn (fn [x] (cond (<= x 0) 0.0 (>= x 1) 1.0 :else x))
+      (let [cdf-fn (fn ^double [^double x] (cond (<= x 0) 0.0 (>= x 1) 1.0 :else x))
             result (stats/ks-test (darr uniform-test-data) cdf-fn)]
         (is (= (count uniform-test-data) (:n result))))))
 
   (testing "cvm-test"
     (testing "returns expected keys"
-      (let [cdf-fn (fn [x] (cond (<= x 0) 0.0 (>= x 1) 1.0 :else x))
+      (let [cdf-fn (fn ^double [^double x] (cond (<= x 0) 0.0 (>= x 1) 1.0 :else x))
             result (stats/cvm-test (darr uniform-test-data) cdf-fn)]
         (is (contains? result :statistic))
         (is (contains? result :p-value))
         (is (contains? result :n))))
 
     (testing "W² statistic is non-negative"
-      (let [cdf-fn (fn [x] (cond (<= x 0) 0.0 (>= x 1) 1.0 :else x))
+      (let [cdf-fn (fn ^double [^double x] (cond (<= x 0) 0.0 (>= x 1) 1.0 :else x))
             result (stats/cvm-test (darr uniform-test-data) cdf-fn)]
         (is (>= (:statistic result) 0))))
 
     (testing "p-value is in [0, 1]"
-      (let [cdf-fn (fn [x] (cond (<= x 0) 0.0 (>= x 1) 1.0 :else x))
+      (let [cdf-fn (fn ^double [^double x] (cond (<= x 0) 0.0 (>= x 1) 1.0 :else x))
             result (stats/cvm-test (darr uniform-test-data) cdf-fn)]
         (is (<= 0 (:p-value result) 1))))
 
     (testing "n equals sample size"
-      (let [cdf-fn (fn [x] (cond (<= x 0) 0.0 (>= x 1) 1.0 :else x))
+      (let [cdf-fn (fn ^double [^double x] (cond (<= x 0) 0.0 (>= x 1) 1.0 :else x))
             result (stats/cvm-test (darr uniform-test-data) cdf-fn)]
         (is (= (count uniform-test-data) (:n result)))))))
 
