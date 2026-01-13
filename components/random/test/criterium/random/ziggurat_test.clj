@@ -164,3 +164,53 @@
 (comment
   (print-ziggurat-comparison-table)
   (print-ziggurat-comparison-table {:n 50000}))
+
+;;; NormalRng deftype tests
+
+(deftest normal-rng-deftype-test
+  ;; Tests for the mutable NormalRng deftype.
+  ;; Verifies deterministic seeding, distribution properties, and state mutation.
+  (testing "NormalRng deftype"
+    (testing "produces values with correct distribution"
+      (let [rng    (ziggurat/make-normal-rng (well/make-well-rng-1024a 42))
+            values (darr (repeatedly 10000 #(ziggurat/next-gaussian! rng)))
+            mean   (stats/mean values)
+            var    (stats/variance values)]
+        (is (< (Math/abs mean) 0.1)
+            (format "mean %.4f exceeds tolerance 0.1" mean))
+        (is (< (Math/abs (- var 1.0)) 0.1)
+            (format "variance %.4f not within 0.1 of 1.0" var))))
+
+    (testing "with same seed produces same sequence"
+      (let [rng1  (ziggurat/make-normal-rng (well/make-well-rng-1024a 123))
+            rng2  (ziggurat/make-normal-rng (well/make-well-rng-1024a 123))
+            vals1 (vec (repeatedly 100 #(ziggurat/next-gaussian! rng1)))
+            vals2 (vec (repeatedly 100 #(ziggurat/next-gaussian! rng2)))]
+        (is (= vals1 vals2))))
+
+    (testing "produces same sequence as lazy-seq implementation"
+      (let [seed         42
+            rng          (ziggurat/make-normal-rng (well/make-well-rng-1024a seed))
+            deftype-vals (vec (repeatedly 1000 #(ziggurat/next-gaussian! rng)))
+            lazy-vals    (vec (take 1000 (ziggurat/random-normal-zig
+                                          (well/well-rng-1024a seed))))]
+        (is (= deftype-vals lazy-vals))))))
+
+(defspec normal-rng-deftype-statistics-property 50
+  (prop/for-all
+   [seed (gen/large-integer* {:min 1 :max Long/MAX_VALUE})]
+   (let [rng    (ziggurat/make-normal-rng (well/make-well-rng-1024a seed))
+         values (darr (repeatedly 10000 #(ziggurat/next-gaussian! rng)))
+         mean   (stats/mean values)
+         var    (stats/variance values)]
+     (and (< (Math/abs mean) 0.1)
+          (< (Math/abs (- var 1.0)) 0.1)))))
+
+(defspec normal-rng-deftype-determinism-property 50
+  (prop/for-all
+   [seed (gen/large-integer* {:min 0 :max Long/MAX_VALUE})]
+   (let [rng1  (ziggurat/make-normal-rng (well/make-well-rng-1024a seed))
+         rng2  (ziggurat/make-normal-rng (well/make-well-rng-1024a seed))
+         vals1 (vec (repeatedly 100 #(ziggurat/next-gaussian! rng1)))
+         vals2 (vec (repeatedly 100 #(ziggurat/next-gaussian! rng2)))]
+     (= vals1 vals2))))
