@@ -4,6 +4,6 @@
 set -euo pipefail
 
 echo "Running clj-kondo lint..."
-clj-kondo --lint bases projects --fail-level warning
+clj-kondo --lint components bases projects --fail-level warning
 
 echo "Lint passed."
