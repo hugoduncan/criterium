@@ -184,5 +184,66 @@
      (println "  - Variance ratio near 1.0 indicates correct variance scaling")
      (println "  - WELL RNG thresholds: |autocorrelation| < 0.02, variance ratio in [0.75, 1.25]"))))
 
+;;; WellRng1024a deftype tests
+
+(deftest well-rng-1024a-deftype-test
+  ;; Tests for the mutable WellRng1024a deftype.
+  ;; Verifies deterministic seeding, value range, and state mutation.
+  (testing "WellRng1024a deftype"
+    (testing "produces expected sequence from known state"
+      (let [rng (well/->WellRng1024a
+                 (long-array 32 [512 419 150 58 784 546 1012 939 419 520 825
+                                 296 222 87 357 198 534 728 325 427 300 1021
+                                 856 208 318 272 688 760 229 14 135 610])
+                 0)]
+        (is (= (vec (repeatedly 1000 #(well/next-double! rng)))
+               well-1024a-res0))))
+
+    (testing "produces values in [0,1) range"
+      (let [rng (well/make-well-rng-1024a 42)]
+        (dotimes [_ 1000]
+          (let [v (well/next-double! rng)]
+            (is (<= 0.0 v))
+            (is (< v 1.0))))))
+
+    (testing "with same seed produces same sequence"
+      (let [rng1   (well/make-well-rng-1024a 123)
+            rng2   (well/make-well-rng-1024a 123)
+            vals1  (vec (repeatedly 100 #(well/next-double! rng1)))
+            vals2  (vec (repeatedly 100 #(well/next-double! rng2)))]
+        (is (= vals1 vals2))))
+
+    (testing "produces same sequence as lazy-seq implementation"
+      (let [seed       42
+            rng        (well/make-well-rng-1024a seed)
+            deftype-vals (vec (repeatedly 1000 #(well/next-double! rng)))
+            lazy-vals    (vec (take 1000 (well/well-rng-1024a seed)))]
+        (is (= deftype-vals lazy-vals))))))
+
+(defspec well-rng-1024a-deftype-range-property 50
+  (prop/for-all
+   [seed (gen/large-integer* {:min 0 :max Long/MAX_VALUE})]
+   (let [rng    (well/make-well-rng-1024a seed)
+         values (vec (repeatedly 100 #(well/next-double! rng)))]
+     (every? #(and (<= 0.0 (double %)) (< (double %) 1.0)) values))))
+
+(defspec well-rng-1024a-deftype-statistics-property 50
+  (prop/for-all
+   [seed (gen/large-integer* {:min 1 :max Long/MAX_VALUE})]
+   (let [rng    (well/make-well-rng-1024a seed)
+         values (vec (repeatedly 10000 #(well/next-double! rng)))]
+     (and
+      (test-max-error (stats/mean (darr values)) 0.5 2e-2)
+      (test-max-error (stats/variance (darr values)) (/ 1.0 12) 1e-2)))))
+
+(defspec well-rng-1024a-deftype-determinism-property 50
+  (prop/for-all
+   [seed (gen/large-integer* {:min 0 :max Long/MAX_VALUE})]
+   (let [rng1   (well/make-well-rng-1024a seed)
+         rng2   (well/make-well-rng-1024a seed)
+         vals1  (vec (repeatedly 100 #(well/next-double! rng1)))
+         vals2  (vec (repeatedly 100 #(well/next-double! rng2)))]
+     (= vals1 vals2))))
+
 (comment
   (print-rng-comparison-table))
