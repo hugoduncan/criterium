@@ -13,7 +13,8 @@
    [criterium.utils.interface :refer [have?]])
   (:import
    [criterium.array DoubleArray LongArray]
-   [criterium.array.interface ITypedArray]))
+   [criterium.array.interface ITypedArray]
+   [criterium.random.well WellRng1024a]))
 
 (defn- data-length
   "Returns the length of a typed array."
@@ -73,8 +74,9 @@
 (defn- add-jitter
   "Add small uniform jitter to handle ties in data.
   Perturbs each point by ±mindist/2 where mindist is the smallest
-  non-zero distance between points."
-  ^doubles [^doubles sorted-data rng]
+  non-zero distance between points.
+  rng is a mutable WellRng1024a instance."
+  ^doubles [^doubles sorted-data ^WellRng1024a rng]
   (let [n (alength sorted-data)]
     (if (< n 2)
       sorted-data
@@ -88,15 +90,11 @@
                              md))
             min-dist (double (if (= min-dist-raw Double/MAX_VALUE) 1e-10 min-dist-raw))
             half-dist (/ min-dist 2.0)
-            result (double-array n)
-            rng-seq (take n rng)]
-        (loop [i (long 0)
-               rs (seq rng-seq)]
-          (when (< i n)
-            (let [r (double (first rs))
-                  jitter (- (* 2.0 r half-dist) half-dist)]
-              (aset result i (+ (aget sorted-data i) jitter))
-              (recur (inc i) (rest rs)))))
+            result (double-array n)]
+        (dotimes [i n]
+          (let [r (random/next-double! rng)
+                jitter (- (* 2.0 r half-dist) half-dist)]
+            (aset result i (+ (aget sorted-data i) jitter))))
         result))))
 
 (defn- build-distance-matrix
@@ -194,7 +192,7 @@
   - data: sample values (will be sorted internally)
   - k: number of modes to test (tests H0: at most k modes)
   - opts: optional map with:
-    - :rng-factory: RNG factory for jitter (default: WELL RNG)
+    - :rng-factory: 0-arity fn returning WellRng1024a for jitter (default: make-well-rng-1024a)
 
   Returns map with:
   - :statistic - the excess mass test statistic
@@ -205,7 +203,7 @@
   and Tests for Multimodality' JASA 86, 738-746"
   ([data k] (excess-mass data k {}))
   ([data k {:keys [rng-factory]
-            :or {rng-factory #(random/well-rng-1024a)}}]
+            :or {rng-factory #(random/make-well-rng-1024a)}}]
    {:pre [(have? arr/typed-array? data)]}
    (let [n (data-length data)
          k (long k)]
@@ -526,9 +524,9 @@
 (defn kde-bootstrap-sample
   "Generate a bootstrap sample of KDE density at fixed grid points.
   Uses the same bandwidth for all bootstrap iterations.
-  rng is a lazy sequence of random doubles in [0,1).
+  rng is a mutable WellRng1024a instance.
   Requires a typed array (DoubleArray or LongArray)."
-  [data ^double bandwidth ^doubles grid rng]
+  [data ^double bandwidth ^doubles grid ^WellRng1024a rng]
   {:pre [(have? arr/typed-array? data)]}
   (let [resampled (sampling/sample-doubles (ensure-double-array data) rng)]
     (gaussian-kde resampled bandwidth grid)))
@@ -542,7 +540,7 @@
   - grid: evaluation grid points
   - n-bootstrap: number of bootstrap samples (default 200)
   - alpha: confidence level (default 0.05 for 95% CI)
-  - rng-factory: function returning RNG (default: WELL RNG)
+  - rng-factory: 0-arity fn returning WellRng1024a (default: make-well-rng-1024a)
 
   Returns map with :lower and :upper vectors."
   ([data bandwidth grid]
@@ -550,7 +548,7 @@
   ([data bandwidth ^doubles grid {:keys [n-bootstrap alpha rng-factory]
                                   :or {n-bootstrap 200
                                        alpha 0.05
-                                       rng-factory #(random/well-rng-1024a)}}]
+                                       rng-factory #(random/make-well-rng-1024a)}}]
    {:pre [(have? arr/typed-array? data)]}
    (let [n-grid (alength grid)
          samples (vec (for [_ (range n-bootstrap)]
@@ -579,7 +577,7 @@
   - n-modes: number of modes to track (default 3)
   - n-bootstrap: number of bootstrap samples (default 200)
   - alpha: confidence level (default 0.05)
-  - rng-factory: function returning RNG
+  - rng-factory: 0-arity fn returning WellRng1024a (default: make-well-rng-1024a)
 
   Returns vector of mode CIs, each with :location, :ci-lower, :ci-upper.
 
@@ -590,7 +588,7 @@
     {:keys [n-bootstrap alpha rng-factory]
      :or {n-bootstrap 200
           alpha 0.05
-          rng-factory #(random/well-rng-1024a)}}]
+          rng-factory #(random/make-well-rng-1024a)}}]
    {:pre [(have? arr/typed-array? data)]}
    (let [density (gaussian-kde data bandwidth grid)
          orig-modes (vec (take n-modes (find-modes grid density)))
@@ -745,27 +743,24 @@
 
   This ensures the bootstrap sample has the same variance as the original.
   Returns a DoubleArray.
+  rng is a mutable WellRng1024a instance.
   Requires a typed array (DoubleArray or LongArray)."
-  ^DoubleArray [data ^double bandwidth rng]
+  ^DoubleArray [data ^double bandwidth ^WellRng1024a rng]
   {:pre [(have? arr/typed-array? data)]}
   (let [n (data-length data)
         sigma-sq (core/variance data)
         mean-val (core/mean data)
         scale (Math/sqrt (+ 1.0 (/ (* bandwidth bandwidth) sigma-sq)))
-        ;; Sample with replacement - this consumes n random values
+        ;; Sample with replacement - mutates rng state
         ^DoubleArray resampled (sampling/sample-doubles (ensure-double-array data) rng)
         ^doubles resampled-a (.array resampled)
-        ;; Get 2*n more random values for Box-Muller pairs
-        rng-rest (drop n rng)
-        u-pairs (take (* 2 n) rng-rest)
-        u-vec (vec u-pairs)
-        ;; Generate smoothed sample
+        ;; Generate smoothed sample using Box-Muller for normal random
         result (double-array n)]
     (dotimes [i n]
       (let [x-star (aget resampled-a i)
-            ;; Box-Muller for normal random
-            u1 (max 1e-10 (double (nth u-vec (* 2 i))))
-            u2 (double (nth u-vec (inc (* 2 i))))
+            ;; Box-Muller for normal random - consume 2 uniform values per iteration
+            u1 (max 1e-10 (random/next-double! rng))
+            u2 (random/next-double! rng)
             epsilon (* (Math/sqrt (* -2.0 (Math/log u1)))
                        (Math/cos (* 2.0 Math/PI u2)))
             y (+ mean-val (/ (+ (- x-star mean-val) (* bandwidth epsilon)) scale))]
@@ -800,7 +795,7 @@
     - :n-points (default 512)
     - :alpha (for Hall-York correction, default 0.05)
     - :tol (for critical bandwidth search, default 1e-6)
-    - :rng-factory (default: WELL RNG)
+    - :rng-factory: 0-arity fn returning WellRng1024a (default: make-well-rng-1024a)
 
   Returns map with:
   - :k - number of modes tested
@@ -814,7 +809,7 @@
                       n-points 512
                       alpha 0.05
                       tol 1e-6
-                      rng-factory #(random/well-rng-1024a)}}]
+                      rng-factory #(random/make-well-rng-1024a)}}]
   {:pre [(have? arr/typed-array? data)]}
   (let [n-pts (long n-points)
         ;; Find critical bandwidth
@@ -861,7 +856,7 @@
     - :n-bootstrap (default 200)
     - :n-points (default 512)
     - :tol (for critical bandwidth search, default 1e-6)
-    - :rng-factory (default: WELL RNG)
+    - :rng-factory: 0-arity fn returning WellRng1024a (default: make-well-rng-1024a)
 
   Returns map with:
   - :k - number of modes tested
@@ -877,7 +872,7 @@
                  :or {n-bootstrap 200
                       n-points 512
                       tol 1e-6
-                      rng-factory #(random/well-rng-1024a)}}]
+                      rng-factory #(random/make-well-rng-1024a)}}]
   {:pre [(have? arr/typed-array? data)]}
   (let [n-pts (long n-points)
         ;; Find critical bandwidth
@@ -914,7 +909,7 @@
     - :bandwidth: override bandwidth (default: ISJ selection)
     - :n-bootstrap: bootstrap samples for confidence bands (default 200)
     - :alpha: confidence level (default 0.05)
-    - :rng-factory: RNG factory function
+    - :rng-factory: 0-arity fn returning WellRng1024a (default: make-well-rng-1024a)
 
   Returns map with:
   - :type :criterium/kde
@@ -934,7 +929,7 @@
           :or {n-points 512
                n-bootstrap 200
                alpha 0.05
-               rng-factory #(random/well-rng-1024a)}}]
+               rng-factory #(random/make-well-rng-1024a)}}]
    {:pre [(have? arr/typed-array? data)]}
    (let [n (data-length data)]
      (when (zero? n)
