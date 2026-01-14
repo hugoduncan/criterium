@@ -521,7 +521,7 @@
         quantiles [(/ alpha 2.0) (- 1.0 (/ alpha 2.0))]
         ;; Bootstrap the MLE fitting
         fit-fn (fn [s] (fit-distribution dist s))
-        rng-factory random/well-rng-1024a
+        rng-factory random/make-well-rng-1024a
         ;; Resample function - creates a double-array for bootstrap sample
         resample-fn (if typed?
                       (fn [indices]

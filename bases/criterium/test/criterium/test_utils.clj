@@ -4,10 +4,9 @@
    [clojure.test :refer [deftest is testing]]
    [clojure.test.check.generators :as gen]
    [criterium.array :as arr]
+   [criterium.random.interface :as random]
    [criterium.stats.interface :as stats]
-   [criterium.test.assert :as assert]
-   [criterium.util.well :as well]
-   [criterium.util.ziggurat :as ziggurat]))
+   [criterium.test.assert :as assert]))
 
 (defn darr
   "Create a DoubleArray from a sequence."
@@ -61,10 +60,15 @@
   ([n] (gaussian-samples n 0.0 1.0))
   ([n mean std-dev] (gaussian-samples n mean std-dev 42))
   ([n mean std-dev seed]
-   (let [rng (well/well-rng-1024a seed)
-         normals (ziggurat/random-normal-zig rng)]
-     (mapv (fn [^double x] (+ (double mean) (* (double std-dev) x)))
-           (take n normals)))))
+   (let [rng (random/make-normal-rng (random/make-well-rng-1024a seed))
+         mean (double mean)
+         std-dev (double std-dev)]
+     (loop [i (long 0)
+            result (transient [])]
+       (if (< i (long n))
+         (let [x (random/next-gaussian! rng)]
+           (recur (inc i) (conj! result (+ mean (* std-dev x)))))
+         (persistent! result))))))
 
 (defn plus-frac ^double [^double x ^double f]
   (+ x (* x f)))
