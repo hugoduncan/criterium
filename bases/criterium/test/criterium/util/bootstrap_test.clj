@@ -73,7 +73,8 @@
     (let [f (fn [n] (take n (repeatedly rand)))]
       (dissoc (criterium.bench/measure (f 1000000)) :expr-value))
 
-    (let [f (fn [n] (take n (criterium.util.random/make-well-rng-1024a)))]
+    (let [rng (random/make-well-rng-1024a)
+          f   (fn [n] (vec (repeatedly n #(random/next-double! rng))))]
       (dissoc (criterium.bench/measure (f 1000000)) :expr-value))
 
     (criterium.bench/time (bootstrap-estimate (take 1000000 (repeatedly rand))))
