@@ -1,7 +1,7 @@
 (ns criterium.stats.sampling
   "Sampling utilities: sample functions, confidence intervals.
 
-  All sampling functions take mutable RNGs (WellRng1024a) and call next-double!
+  All sampling functions take mutable uniform RNGs and call next-double!
   to generate random values."
   (:require
    [criterium.array :as arr]
@@ -12,7 +12,7 @@
 
 (defn sample-uniform
   "Provide n samples from a uniform distribution on [0, max-val).
-  rng is a mutable WellRng1024a instance.
+  rng is a mutable uniform RNG.
   Returns a vector of n doubles."
   [^long n ^double max-val ^WellRng1024a rng]
   (let [result (double-array n)]
@@ -22,7 +22,7 @@
 
 (defn sample
   "Sample n items with replacement from collection x.
-  rng is a mutable WellRng1024a instance.
+  rng is a mutable uniform RNG.
   Returns a vector of sampled items."
   [x ^WellRng1024a rng]
   (let [n (count x)
@@ -40,7 +40,7 @@
 
 (defn sample-doubles
   "Sample with replacement from a DoubleArray, returning a new DoubleArray.
-  rng is a mutable WellRng1024a instance."
+  rng is a mutable uniform RNG."
   ^DoubleArray [^DoubleArray arr ^WellRng1024a rng]
   (let [^doubles a (.array arr)
         n (alength a)
