@@ -128,7 +128,7 @@
        [t gen/nat]
        (every?
         #(<= 0 % t)
-        (stats/sample-uniform 100 t (random/well-rng-1024a)))))))
+        (stats/sample-uniform 100 t (random/make-well-rng-1024a)))))))
 
 (defspec sample-uniform-count-test 50
   (testing "sample-uniform"
@@ -136,7 +136,7 @@
       (prop/for-all
        [t gen/nat]
        (= t
-          (count (stats/sample-uniform t 1 (random/well-rng-1024a))))))))
+          (count (stats/sample-uniform t 1 (random/make-well-rng-1024a))))))))
 
 (deftest confidence-interval-test
   (testing "confidence-interval"
