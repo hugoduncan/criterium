@@ -8,10 +8,15 @@
   (:import
    [criterium.random.well WellRng1024a]))
 
-(def ^:dynamic ^Long *zignor-c* 128) ; "Number of blocks."
-;; "Start of the right tail" (R * phi(R) + Pr(X>=R)) * sqrt(2\pi)
-(def ^:dynamic ^Double *zignor-r* 3.442619855899e0)
-(def ^:dynamic ^Double *zignor-v* 9.91256303526217e-3)
+(def ^:const ^long zignor-c
+  "Number of blocks."
+  128)
+
+(def ^:const ^double zignor-r
+  "Start of the right tail: (R * phi(R) + Pr(X>=R)) * sqrt(2pi)"
+  3.442619855899e0)
+
+(def ^:const ^double zignor-v 9.91256303526217e-3)
 
 (defmacro sqr [x] `(let [x# ~x] (* x# x#)))
 
@@ -112,7 +117,7 @@
   ([]
    (make-normal-rng (well/make-well-rng-1024a)))
   ([uniform-rng]
-   (make-normal-rng uniform-rng *zignor-c* *zignor-r* *zignor-v*))
+   (make-normal-rng uniform-rng zignor-c zignor-r zignor-v))
   ([uniform-rng c r v]
    (let [[s-adzigr s-adzigx zr mask] (zignor-init c r v)]
      (->NormalRng uniform-rng s-adzigr s-adzigx zr mask))))
