@@ -26,8 +26,8 @@
   (let [c                  (int c)
         r                  (double r)
         v                  (double v)
-        #^doubles s-adzigx (double-array (inc c))
-        #^doubles s-adzigr (double-array c)
+        ^doubles s-adzigx (double-array (inc c))
+        ^doubles s-adzigr (double-array c)
         f                  (Math/exp (* -0.5e0 r r))]
     (aset s-adzigx 0 (/ v f)) ;; [0] is bottom block: V / f(R)
     (aset s-adzigx 1 r)
@@ -41,7 +41,7 @@
          (inc i)
          (Math/exp (* -0.5e0 (sqr (aget s-adzigx i)))))))
 
-    (doseq [#^Integer i (range c)]
+    (doseq [^Integer i (range c)]
       (let [j (int i)]
         (aset s-adzigr j (/ (aget s-adzigx (inc j)) (aget s-adzigx j)))))
     [s-adzigr s-adzigx r (dec c)]))
