@@ -64,7 +64,7 @@
   ensuring reproducible test results across platforms."
   [^long base-seed]
   (let [counter (atom 0)]
-    #(random/well-rng-1024a (+ base-seed ^long (swap! counter inc)))))
+    #(random/make-well-rng-1024a (+ base-seed ^long (swap! counter inc)))))
 
 ;;; Jackknife validation (deterministic - exact match)
 
@@ -148,7 +148,7 @@
                 boot-size 1000
                 ;; Clojure bootstrap
                 clj-samples (stats/bootstrap-sample
-                             data-arr stats/mean boot-size random/well-rng-1024a)
+                             data-arr stats/mean boot-size random/make-well-rng-1024a)
                 clj-boot-mean (stats/mean (darr clj-samples))
                 ;; R bootstrap
                 r-boot-mean (first (r/r-eval
@@ -177,7 +177,7 @@
                 analytical-var (/ (stats/variance data-arr) n)
                 ;; Clojure bootstrap variance
                 clj-samples (stats/bootstrap-sample
-                             data-arr stats/mean boot-size random/well-rng-1024a)
+                             data-arr stats/mean boot-size random/make-well-rng-1024a)
                 clj-boot-var (stats/variance (darr clj-samples))
                 ;; R bootstrap variance
                 r-boot-var (first (r/r-eval
@@ -213,7 +213,7 @@
                 alpha [0.025 0.5 0.975]
                 ;; Clojure BCa
                 clj-bca (stats/bca-nonparametric
-                         data-arr stats/mean boot-size alpha random/well-rng-1024a)
+                         data-arr stats/mean boot-size alpha random/make-well-rng-1024a)
                 [clj-ci _ _ _ _] clj-bca
                 [clj-lower _clj-median clj-upper] clj-ci
                 ;; R BCa using boot package
@@ -280,7 +280,7 @@
                 alpha [0.025 0.5 0.975]
                 ;; Clojure BCa
                 clj-bca (stats/bca-nonparametric
-                         data-arr stats/mean boot-size alpha random/well-rng-1024a)
+                         data-arr stats/mean boot-size alpha random/make-well-rng-1024a)
                 [clj-ci _ _ _ _] clj-bca
                 [clj-lower _ clj-upper] clj-ci
                 ;; R BCa
@@ -315,7 +315,7 @@
                 boot-size 500
                 alpha [0.5 0.025 0.975]
                 result (stats/bootstrap-bca
-                        data-arr stats/mean boot-size alpha random/well-rng-1024a)]
+                        data-arr stats/mean boot-size alpha random/make-well-rng-1024a)]
             (is (instance? BcaEstimate result)
                 "Result should be BcaEstimate record")
             (is (number? (:point-estimate result))
@@ -332,7 +332,7 @@
                 boot-size 500
                 alpha [0.5 0.025 0.975]
                 result (stats/bootstrap-bca
-                        data-arr stats/mean boot-size alpha random/well-rng-1024a)
+                        data-arr stats/mean boot-size alpha random/make-well-rng-1024a)
                 ;; Point estimate (at alpha=0.5) should be close to true mean
                 point-est (:point-estimate result)
                 se (/ (Math/sqrt (stats/variance data-arr)) (Math/sqrt (count data)))
