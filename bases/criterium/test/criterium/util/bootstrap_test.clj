@@ -4,13 +4,13 @@
    [criterium.analyse-test :refer [metrics-samples]]
    [criterium.array :as arr]
    [criterium.collect-plan :as collect-plan]
+   [criterium.random.interface :as random]
    [criterium.stats.interface :as stats]
    [criterium.test-utils :refer [test-max-error]]
    [criterium.util.bootstrap :as bootstrap]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have]]
-   [criterium.util.sampled-stats-test :as sampled-stats-test]
-   [criterium.util.well :as well]))
+   [criterium.util.sampled-stats-test :as sampled-stats-test]))
 
 (deftest bootstrap-estimate-test
   (is (= [1.0 0.0 [1.0 1.0]]
@@ -37,12 +37,12 @@
          (bootstrap/bootstrap (take 20 (repeatedly (constantly 1)))
                               stats/mean
                               100
-                              well/well-rng-1024a)))
+                              random/make-well-rng-1024a)))
   (is (=  [[1.0 0.0 [1.0 1.0]] [0.0 0.0 [0.0 0.0]]]
           (bootstrap/bootstrap (take 20 (repeatedly (constantly 1)))
                                (juxt stats/mean stats/variance)
                                100
-                               well/well-rng-1024a))))
+                               random/make-well-rng-1024a))))
 
 (deftest bootstrap-bca-test
   (let [ci 0.95]
@@ -54,7 +54,7 @@
                                     stats/mean
                                     100
                                     [0.5 ci (- 1.0 ci)]
-                                    well/well-rng-1024a)))
+                                    random/make-well-rng-1024a)))
     (is (=  [(bootstrap/map->BcaEstimate
               {:point-estimate     1.0
                :estimate-quantiles [{:value 1.0 :alpha 0.95}
@@ -67,13 +67,14 @@
                                      (juxt stats/mean stats/variance)
                                      100
                                      [0.5 ci (- 1.0 ci)]
-                                     well/well-rng-1024a)))))
+                                     random/make-well-rng-1024a)))))
 
 #_(comment
     (let [f (fn [n] (take n (repeatedly rand)))]
       (dissoc (criterium.bench/measure (f 1000000)) :expr-value))
 
-    (let [f (fn [n] (take n (criterium.util.well/well-rng-1024a)))]
+    (let [rng (random/make-well-rng-1024a)
+          f   (fn [n] (vec (repeatedly n #(random/next-double! rng))))]
       (dissoc (criterium.bench/measure (f 1000000)) :expr-value))
 
     (criterium.bench/time (bootstrap-estimate (take 1000000 (repeatedly rand))))

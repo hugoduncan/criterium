@@ -26,11 +26,8 @@
 (defspec ^:slow random-normal-zig-test-property 10
   (prop/for-all
    [random-seed gen/small-integer]
-   (let [rng            (well/well-rng-1024a random-seed)
-         values         (->> rng
-                             ziggurat/random-normal-zig
-                             (take 10000)
-                             darr)
+   (let [rng            (ziggurat/make-normal-rng (well/make-well-rng-1024a random-seed))
+         values         (darr (repeatedly 10000 #(ziggurat/next-gaussian! rng)))
          mean           (stats/mean values)
          variance       (stats/variance values)
          mean-error     (double (abs-error mean 0.0))
@@ -50,11 +47,11 @@
 (deftest ^:slow ziggurat-well-rng-autocorrelation-test
   ;; Verify ziggurat produces independent normal samples when using WELL RNG.
   ;; With n=100,000, SE approx 1/sqrt(n) approx 0.003, so threshold of 0.02 is conservative.
-  (testing "random-normal-zig with WELL RNG"
+  (testing "NormalRng with WellRng1024a"
     (let [seed    42
           n       100000
-          samples (vec (take n (ziggurat/random-normal-zig
-                                (well/well-rng-1024a seed))))]
+          rng     (ziggurat/make-normal-rng (well/make-well-rng-1024a seed))
+          samples (vec (repeatedly n #(ziggurat/next-gaussian! rng)))]
       (testing "has negligible autocorrelation at multiple lags"
         (let [lags [1 2 5 10]]
           (doseq [lag lags]
@@ -85,9 +82,7 @@
 
   Computes and displays mean, variance, autocorrelation at various lags,
   and variance ratio for each available normal sample source:
-  - LCG (java.util.Random) + ziggurat
-  - WELL-1024a + ziggurat
-  - Xoshiro256++ + ziggurat (JDK 17+)
+  - WELL-1024a + NormalRng
   - Xoshiro256++ nextGaussian (JDK 17+, native normal generation)
 
   This function is for manual exploration and is not called in tests."
@@ -99,20 +94,8 @@
          fmt-4sf (fn [x] (format "%.4g" (double x)))
 
          ;; Generate normal samples from each source
-         lcg           (java.util.Random. seed)
-         lcg-rng-seq   (repeatedly #(.nextDouble lcg))
-         lcg-samples   (vec (take n (ziggurat/random-normal-zig lcg-rng-seq)))
-         well-samples  (vec (take n (ziggurat/random-normal-zig
-                                     (well/well-rng-1024a seed))))
-
-         ;; Xoshiro256++ + ziggurat if available
-         xoshiro-zig-samples
-         (when (xoshiro-available?)
-           (when-let [rng (make-xoshiro-rng seed)]
-             (let [next-double (.getMethod (class rng) "nextDouble"
-                                           (into-array Class []))
-                   rng-seq     (repeatedly #(.invoke next-double rng (object-array [])))]
-               (vec (take n (ziggurat/random-normal-zig rng-seq))))))
+         well-rng      (ziggurat/make-normal-rng (well/make-well-rng-1024a seed))
+         well-samples  (vec (repeatedly n #(ziggurat/next-gaussian! well-rng)))
 
          ;; Xoshiro256++ nextGaussian (native normal) if available
          xoshiro-gaussian-samples
@@ -140,10 +123,7 @@
                         (map fmt-4sf ac-vals)))))
 
          results
-         (cond-> [(compute-metrics "LCG + ziggurat" lcg-samples)
-                  (compute-metrics "WELL + ziggurat" well-samples)]
-           xoshiro-zig-samples
-           (conj (compute-metrics "Xoshiro++ + ziggurat" xoshiro-zig-samples))
+         (cond-> [(compute-metrics "WELL + NormalRng" well-samples)]
            xoshiro-gaussian-samples
            (conj (compute-metrics "Xoshiro++ nextGaussian" xoshiro-gaussian-samples)))]
 
@@ -164,3 +144,45 @@
 (comment
   (print-ziggurat-comparison-table)
   (print-ziggurat-comparison-table {:n 50000}))
+
+;;; NormalRng deftype tests
+
+(deftest normal-rng-deftype-test
+  ;; Tests for the mutable NormalRng deftype.
+  ;; Verifies deterministic seeding, distribution properties, and state mutation.
+  (testing "NormalRng deftype"
+    (testing "produces values with correct distribution"
+      (let [rng    (ziggurat/make-normal-rng (well/make-well-rng-1024a 42))
+            values (darr (repeatedly 10000 #(ziggurat/next-gaussian! rng)))
+            mean   (stats/mean values)
+            var    (stats/variance values)]
+        (is (< (Math/abs mean) 0.1)
+            (format "mean %.4f exceeds tolerance 0.1" mean))
+        (is (< (Math/abs (- var 1.0)) 0.1)
+            (format "variance %.4f not within 0.1 of 1.0" var))))
+
+    (testing "with same seed produces same sequence"
+      (let [rng1  (ziggurat/make-normal-rng (well/make-well-rng-1024a 123))
+            rng2  (ziggurat/make-normal-rng (well/make-well-rng-1024a 123))
+            vals1 (vec (repeatedly 100 #(ziggurat/next-gaussian! rng1)))
+            vals2 (vec (repeatedly 100 #(ziggurat/next-gaussian! rng2)))]
+        (is (= vals1 vals2))))))
+
+(defspec normal-rng-deftype-statistics-property 50
+  (prop/for-all
+   [seed (gen/large-integer* {:min 1 :max Long/MAX_VALUE})]
+   (let [rng    (ziggurat/make-normal-rng (well/make-well-rng-1024a seed))
+         values (darr (repeatedly 10000 #(ziggurat/next-gaussian! rng)))
+         mean   (stats/mean values)
+         var    (stats/variance values)]
+     (and (< (Math/abs mean) 0.1)
+          (< (Math/abs (- var 1.0)) 0.1)))))
+
+(defspec normal-rng-deftype-determinism-property 50
+  (prop/for-all
+   [seed (gen/large-integer* {:min 0 :max Long/MAX_VALUE})]
+   (let [rng1  (ziggurat/make-normal-rng (well/make-well-rng-1024a seed))
+         rng2  (ziggurat/make-normal-rng (well/make-well-rng-1024a seed))
+         vals1 (vec (repeatedly 100 #(ziggurat/next-gaussian! rng1)))
+         vals2 (vec (repeatedly 100 #(ziggurat/next-gaussian! rng2)))]
+     (= vals1 vals2))))

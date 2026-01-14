@@ -167,7 +167,7 @@
                        stats-fn
                        (:bootstrap-size opts n)
                        (into [0.5] (:estimate-quantiles opts))
-                       random/well-rng-1024a)
+                       random/make-well-rng-1024a)
         ks            (keys stats/stats-fn-map)]
     (cond-> (-> (zipmap ks stats)
                 (dissoc :min-val :max-val)

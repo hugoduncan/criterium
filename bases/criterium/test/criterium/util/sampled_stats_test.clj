@@ -5,11 +5,10 @@
    [clojure.test.check.generators :as gen]
    [clojure.test.check.properties :as prop]
    [criterium.array :as arr]
+   [criterium.random.interface :as random]
    [criterium.stats.interface :as stats]
    [criterium.test-utils :refer [abs-error approx= gen-bounded test-max-error]]
-   [criterium.util.sampled-stats :as sampled-stats]
-   [criterium.util.well :as well]
-   [criterium.util.ziggurat :as ziggurat]))
+   [criterium.util.sampled-stats :as sampled-stats]))
 
 (defn- darr
   "Create a DoubleArray from a sequence."
@@ -108,10 +107,13 @@
   ;; Reduced from 5000*200=1M to 1000*100=100K samples for faster tests.
   (let [batch-size 1000
         num-samples 100
-        values (vec (take
-                     (* batch-size num-samples)
-                     (ziggurat/random-normal-zig
-                      (well/well-rng-1024a 42))))
+        n (* batch-size num-samples)
+        rng (random/make-normal-rng (random/make-well-rng-1024a 42))
+        values (loop [i (long 0)
+                      result (transient [])]
+                 (if (< i (long n))
+                   (recur (inc i) (conj! result (random/next-gaussian! rng)))
+                   (persistent! result)))
         sample-vals (partition batch-size values)
         samples (darr (mapv #(stats/sum (darr %)) sample-vals))
         stats (sampled-stats/stats-for
@@ -124,11 +126,11 @@
     (is (approx= (* variance (double batch-size)) variance-hat 2e-1))))
 
 (defn random-values
-  "Return a sequence of values with the given mean an standard deviation."
+  "Return a lazy sequence of values with the given mean and standard deviation.
+  Creates a new RNG per call for stateful lazy sequence generation."
   [random-seed ^double mean ^double sigma]
-  (->> (well/well-rng-1024a random-seed)
-       ziggurat/random-normal-zig
-       (map (fn [^double x] (+ mean (* sigma x))))))
+  (let [rng (random/make-normal-rng (random/make-well-rng-1024a random-seed))]
+    (repeatedly #(+ mean (* sigma (random/next-gaussian! rng))))))
 
 (comment
   (defspec random-values-test-property 10

@@ -5,7 +5,7 @@
   - Core stats: min, max, mean, sum, variance, median, quartiles, quantile,
                 skewness, kurtosis
   - Outlier detection: boxplot-outlier-thresholds
-  - Sampling: uniform-distribution, sample-uniform, sample, confidence-interval
+  - Sampling: sample-uniform, sample, sample-doubles, confidence-interval
   - Probability: log-gamma, digamma, trigamma, erf, normal-cdf, normal-pdf, normal-quantile
   - Distributions: gamma, weibull, lognormal, inverse-gaussian (PDF and CDF)
   - Model selection: aic, bic, aicc (information criteria)
@@ -177,20 +177,25 @@
 
 ;;; Sampling
 
-(defn uniform-distribution
-  "Return uniformly distributed deviates on 0..max-val using the specified rng."
-  [^double max-val rng]
-  (sampling/uniform-distribution max-val rng))
-
 (defn sample-uniform
-  "Provide n samples from a uniform distribution on 0..max-val."
+  "Provide n samples from a uniform distribution on [0, max-val).
+  rng is a mutable WellRng1024a instance.
+  Returns a vector of n doubles."
   [n max-val rng]
   (sampling/sample-uniform n max-val rng))
 
 (defn sample
-  "Sample with replacement."
+  "Sample n items with replacement from collection x.
+  rng is a mutable WellRng1024a instance.
+  Returns a vector of sampled items."
   [x rng]
   (sampling/sample x rng))
+
+(defn sample-doubles
+  "Sample with replacement from a DoubleArray, returning a new DoubleArray.
+  rng is a mutable WellRng1024a instance."
+  [arr rng]
+  (sampling/sample-doubles arr rng))
 
 (defn confidence-interval
   "Find the significance of outliers given bootstrapped mean and variance

@@ -5,13 +5,12 @@
    [clojure.test.check.clojure-test :refer [defspec]]
    [clojure.test.check.generators :as gen]
    [clojure.test.check.properties :as prop]
+   [criterium.random.interface :as random]
    [criterium.stats.t-digest.merging-digest :as stats-md]
    [criterium.test-utils :refer [approx= gen-double]]
    [criterium.util.probability :as probability]
    [criterium.util.t-digest.merging-digest :as md]
-   [criterium.util.t-digest.scale :as scale]
-   [criterium.util.well :as well]
-   [criterium.util.ziggurat :as ziggurat]))
+   [criterium.util.t-digest.scale :as scale]))
 
 #_(deftest merge-centroids-invariants
     (let [compression 100.0]
@@ -163,13 +162,22 @@
         t  (* 2 Math/PI u2)]
     (+ mean (* std-dev r (Math/cos t)))))
 
+(defn- take-gaussians
+  "Generate n gaussian samples using the mutable RNG API."
+  [^long n]
+  (let [rng (random/make-normal-rng)]
+    (loop [i (long 0)
+           result (transient [])]
+      (if (< i n)
+        (recur (inc i) (conj! result (random/next-gaussian! rng)))
+        (persistent! result)))))
+
 (deftest normal-distribution-quantile-test
   (testing "accuracy with normal distribution"
     (let [n          20000
           mean       0.0
           std-dev    1.0
-          samples    (take n (ziggurat/random-normal-zig
-                              (well/well-rng-1024a)))
+          samples    (take-gaussians n)
           digest     (reduce md/add-point (md/new-digest 100.0) samples)
           expected-q {0.01 (probability/normal-quantile 0.01)
                       0.1  (probability/normal-quantile 0.1)
@@ -192,8 +200,7 @@
   (testing "accuracy with normal distribution"
     (let [n            50000
           std-dev      1.0
-          samples      (take n (ziggurat/random-normal-zig
-                                (well/well-rng-1024a)))
+          samples      (take-gaussians n)
           digest       (reduce md/add-point (md/new-digest 100.0) samples)
           expected-cdf {-2.0  (probability/normal-cdf -2.0)
                         -1.0  (probability/normal-cdf -1.0)
@@ -214,8 +221,7 @@
 (deftest normal-distribution-sample-states-test
   (testing "accuracy with normal distribution"
     (let [n       20000
-          samples (take n (ziggurat/random-normal-zig
-                           (well/well-rng-1024a)))
+          samples (take-gaussians n)
           digest  (reduce md/add-point (md/new-digest 100.0) samples)
           digest  (md/compress digest)]
       ;; NOTE we should calculate bounds for these using the t and chi-squared
