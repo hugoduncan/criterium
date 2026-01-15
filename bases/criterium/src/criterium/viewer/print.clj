@@ -761,15 +761,21 @@
         (format/format-value dimension (* raw-value scale))))))
 
 (defn- format-extract-value-with-unit
-  "Format a value with SI units for display."
-  [value metric-path]
-  (when (some? value)
-    (let [base-value (* (double value)
-                        (core/metric-path->base-scale metric-path))
-          dimension (core/metric-path->dimension metric-path)]
-      (if dimension
-        (format/format-value dimension base-value)
-        (format "%g" base-value)))))
+  "Format a value with SI units for display.
+  When sub-key is provided and value is a map, extracts that key first."
+  ([value metric-path]
+   (format-extract-value-with-unit value metric-path nil))
+  ([value metric-path sub-key]
+   (let [raw-value (if (and sub-key (map? value))
+                     (get value sub-key)
+                     value)]
+     (when (some? raw-value)
+       (let [base-value (* (double raw-value)
+                           (core/metric-path->base-scale metric-path))
+             dimension (core/metric-path->dimension metric-path)]
+         (if dimension
+           (format/format-value dimension base-value)
+           (format "%g" base-value)))))))
 
 (defn- sort-coords
   "Sort coordinate-value pairs, using numeric sort when coord values are numbers."
@@ -1078,15 +1084,18 @@
         ;; Format cell values
         format-cell (fn [{:keys [type metric-id metric-path impl]} row-key]
                       (let [value (get-in lookup [metric-id impl row-key])
-                            baseline-value (get-in lookup [metric-id baseline-impl row-key])]
+                            baseline-value (get-in lookup [metric-id baseline-impl row-key])
+                            ;; Extract :value from error-bound maps
+                            rv (if (map? value) (:value value) value)
+                            bv (if (map? baseline-value) (:value baseline-value) baseline-value)]
                         (if (= type :baseline)
-                          (or (format-extract-value-with-unit value metric-path) "-")
+                          (or (format-extract-value-with-unit value metric-path :value) "-")
                           ;; Factor relative to baseline
                           (cond
-                            (nil? value) "-"
-                            (nil? baseline-value) "-"
-                            (zero? baseline-value) "-"
-                            :else (format "%.2f" (/ value baseline-value))))))
+                            (nil? rv) "-"
+                            (nil? bv) "-"
+                            (zero? bv) "-"
+                            :else (format "%.2f" (/ rv bv))))))
         formatted-rows (mapv (fn [row-key]
                                (mapv #(format-cell % row-key) col-specs))
                              all-row-keys)
