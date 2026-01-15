@@ -708,7 +708,7 @@
             color-encoding (get-in chart [:encoding :color])]
         (is (= "impl" (:field color-encoding)))
         (is (= "nominal" (:type color-encoding)))
-        (is (= "Implementation" (:title color-encoding)))))
+        (is (= {:title "Implementation"} (:legend color-encoding)))))
 
     (testing "respects chart dimensions"
       (let [spec (charts/domain-line-chart-spec
@@ -725,7 +725,13 @@
             chart (first (:vconcat spec))
             tooltip (get-in chart [:encoding :tooltip])]
         (is (vector? tooltip))
-        (is (= 3 (count tooltip)))))))
+        (is (= 3 (count tooltip)))))
+
+    (testing "shares legend across vconcated charts"
+      (let [spec (charts/domain-line-chart-spec
+                  multi-point-extract
+                  {:width 400 :height 300})]
+        (is (= {:legend {:color "shared"}} (:resolve spec)))))))
 
 (deftest domain-line-chart-spec-schema-validation-test
   ;; Validates domain-line-chart-spec output against Vega-Lite v6 schema.
@@ -794,7 +800,13 @@
             color-encoding (get-in chart [:encoding :color])]
         (is (= "impl" (:field color-encoding)))
         (is (= "nominal" (:type color-encoding)))
-        (is (= "Implementation" (:title color-encoding)))))))
+        (is (= {:title "Implementation"} (:legend color-encoding)))))
+
+    (testing "shares legend across vconcated charts"
+      (let [spec (charts/comparison-line-chart-spec
+                  multi-point-comparison
+                  {:width 400 :height 300})]
+        (is (= {:legend {:color "shared"}} (:resolve spec)))))))
 
 (deftest comparison-line-chart-spec-schema-validation-test
   ;; Validates comparison-line-chart-spec output against Vega-Lite v6 schema.

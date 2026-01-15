@@ -1175,7 +1175,7 @@
    :encoding {:x {:field "x" :type "quantitative"}
               :y {:field "yLower" :type "quantitative"}
               :y2 {:field "yUpper"}
-              :color {:field "impl" :type "nominal" :legend nil}}})
+              :color {:field "impl" :type "nominal"}}})
 
 (defn- line-chart-layer
   "Build a single line chart layer from prepared line data.
@@ -1196,7 +1196,7 @@
                          :title y-title}
                      :color {:field "impl"
                              :type "nominal"
-                             :title "Implementation"}
+                             :legend {:title "Implementation"}}
                      :tooltip [{:field "impl"
                                 :type "nominal"
                                 :title "Implementation"}
@@ -1227,6 +1227,7 @@
   [extract chart-options]
   (let [line-data (comparison/prepare-line-chart-data extract)]
     {:data {:values []}
+     :resolve {:legend {:color "shared"}}
      :vconcat (mapv #(line-chart-layer % chart-options) line-data)}))
 
 (defn comparison-line-chart-spec
@@ -1244,6 +1245,7 @@
   [comparison chart-options]
   (let [line-data (comparison/prepare-comparison-line-data comparison)]
     {:data {:values []}
+     :resolve {:legend {:color "shared"}}
      :vconcat (mapv #(line-chart-layer % chart-options) line-data)}))
 
 ;;; Treemap charts
