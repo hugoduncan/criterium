@@ -1227,6 +1227,7 @@
   [extract chart-options]
   (let [line-data (comparison/prepare-line-chart-data extract)]
     {:data {:values []}
+     :resolve {:legend {:color "shared"}}
      :vconcat (mapv #(line-chart-layer % chart-options) line-data)}))
 
 (defn comparison-line-chart-spec
@@ -1244,6 +1245,7 @@
   [comparison chart-options]
   (let [line-data (comparison/prepare-comparison-line-data comparison)]
     {:data {:values []}
+     :resolve {:legend {:color "shared"}}
      :vconcat (mapv #(line-chart-layer % chart-options) line-data)}))
 
 ;;; Treemap charts
