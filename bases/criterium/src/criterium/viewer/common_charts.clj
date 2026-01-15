@@ -1196,7 +1196,7 @@
                          :title y-title}
                      :color {:field "impl"
                              :type "nominal"
-                             :title "Implementation"}
+                             :legend {:title "Implementation"}}
                      :tooltip [{:field "impl"
                                 :type "nominal"
                                 :title "Implementation"}

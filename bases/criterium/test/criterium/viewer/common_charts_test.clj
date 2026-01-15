@@ -708,7 +708,7 @@
             color-encoding (get-in chart [:encoding :color])]
         (is (= "impl" (:field color-encoding)))
         (is (= "nominal" (:type color-encoding)))
-        (is (= "Implementation" (:title color-encoding)))))
+        (is (= {:title "Implementation"} (:legend color-encoding)))))
 
     (testing "respects chart dimensions"
       (let [spec (charts/domain-line-chart-spec
@@ -800,7 +800,7 @@
             color-encoding (get-in chart [:encoding :color])]
         (is (= "impl" (:field color-encoding)))
         (is (= "nominal" (:type color-encoding)))
-        (is (= "Implementation" (:title color-encoding)))))
+        (is (= {:title "Implementation"} (:legend color-encoding)))))
 
     (testing "shares legend across vconcated charts"
       (let [spec (charts/comparison-line-chart-spec
