@@ -1175,7 +1175,7 @@
    :encoding {:x {:field "x" :type "quantitative"}
               :y {:field "yLower" :type "quantitative"}
               :y2 {:field "yUpper"}
-              :color {:field "impl" :type "nominal" :legend nil}}})
+              :color {:field "impl" :type "nominal"}}})
 
 (defn- line-chart-layer
   "Build a single line chart layer from prepared line data.
