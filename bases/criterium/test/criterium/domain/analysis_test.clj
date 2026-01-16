@@ -385,6 +385,58 @@
         (is (= :impl (:impl-axis result)))
         (is (= [:vec :list] (:implementations result)))))))
 
+(deftest extract-nil-value-consistency-test
+  ;; Tests that extract handles nil values consistently between extraction modes.
+  ;; Both median mode (no metric-path) and explicit path mode should return
+  ;; nil when the metric value is nil, not a map with nil :value.
+  ;; Contracts: identical nil handling, error bounds not included for nil values.
+  (testing "extract nil value handling"
+    (testing "with explicit metric-path"
+      (testing "returns nil (not map) when value is nil with error bounds"
+        (let [d (domain/domain
+                 {:coord {:n 100}
+                  :data (mock-bench-result
+                         {:elapsed-time {:mean-plus-3sigma 1.2
+                                         :mean-minus-3sigma 0.8}})})
+              result (analysis/extract d [:stats :elapsed-time :mean]
+                                       {:with-error-bounds true})
+              [_coord value] (first (get-in result [:metrics :elapsed-time :data]))]
+          (is (nil? value)
+              "Should return nil, not {:value nil :lower 0.8 :upper 1.2}"))))
+    (testing "default median mode"
+      (testing "returns nil (not map) when value is nil with error bounds"
+        ;; mock-bench-result-with-defs creates :metrics-defs but no stats
+        ;; Use an empty metric to simulate missing median value
+        (let [d (domain/domain
+                 {:coord {:n 100}
+                  :data (mock-bench-result-with-defs {:elapsed-time {}})})
+              result (analysis/extract d nil {:with-error-bounds true
+                                              :metric-ids [:elapsed-time]})
+              [_coord value] (first (get-in result [:metrics :elapsed-time :data]))]
+          (is (nil? value)
+              "Should return nil, not {:value nil :lower nil :upper nil}"))))
+    (testing "both modes are consistent"
+      (let [;; Data with nil metric value but existing bounds info
+            path-data (mock-bench-result
+                       {:elapsed-time {:mean-plus-3sigma 1.2
+                                       :mean-minus-3sigma 0.8}})
+            ;; Median mode needs metrics-defs for discovery
+            median-data (mock-bench-result-with-defs {:elapsed-time {}})
+            path-result (analysis/extract
+                         (domain/domain {:coord {:n 100} :data path-data})
+                         [:stats :elapsed-time :mean]
+                         {:with-error-bounds true})
+            median-result (analysis/extract
+                           (domain/domain {:coord {:n 100} :data median-data})
+                           nil
+                           {:with-error-bounds true :metric-ids [:elapsed-time]})
+            [_c1 path-value] (first (get-in path-result [:metrics :elapsed-time :data]))
+            [_c2 median-value] (first (get-in median-result [:metrics :elapsed-time :data]))]
+        (is (= path-value median-value)
+            "Both modes should return identical nil handling")
+        (is (nil? path-value))
+        (is (nil? median-value))))))
+
 ;; Tests for domain group-by-axis function.
 ;; Validates partitioning runs by axis key values, returning a map
 ;; of axis-value to sub-domain.
