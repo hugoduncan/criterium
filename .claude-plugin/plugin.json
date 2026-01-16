@@ -1,0 +1,6 @@
+{
+  "name": "criterium",
+  "description": "Skill for using criterium benchmarking library",
+  "version": "0.5.0",
+  "skills": ["./skills/criterium"]
+}
