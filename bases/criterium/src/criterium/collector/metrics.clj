@@ -17,6 +17,13 @@
               :scale     1
               :type      :nominal
               :label     "Expr value"}]}
+   :elapsed-time-only
+   {:type   :quantitative
+    :values [{:path      [:elapsed-time]
+              :dimension :time
+              :scale     1e-9
+              :type      :quantitative
+              :label     "Elapsed Time"}]}
    :memory
    {:type   :quantitative
     :values [{:path      [:memory :heap :used]

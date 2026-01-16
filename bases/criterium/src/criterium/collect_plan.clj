@@ -62,13 +62,16 @@
 (defn- collected-data-map
   [collection-map]
   (let [metric->values (collect/transform collection-map)
-        batch-size (:batch-size collection-map)]
+        batch-size (:batch-size collection-map)
+        expr-values (metric->values [:expr-value])]
     (util/->collected-metrics-map
      (merge
       collection-map
       {:metric->values metric->values
        :metrics-defs (have (:metrics-defs (:collector collection-map)))
-       :expr-value (arr/last-object (metric->values [:expr-value]))
+       :expr-value (if expr-values
+                     (arr/last-object expr-values)
+                     :criterium/not-collected)
        :type :criterium/metrics-samples
        :transform (if (= 1 batch-size)
                     identity-transforms
