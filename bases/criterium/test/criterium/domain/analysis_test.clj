@@ -459,7 +459,7 @@
               result (analysis/compare-by d :impl nil)]
           (is (contains? (:metrics result) :elapsed-time))
           (is (contains? (:metrics result) :thread-allocation))))
-      (testing "each metric has :metric path and :data grouped by impl"
+      (testing "each metric has :metric :median and :data grouped by impl"
         (let [d (domain/domain
                  {:coord {:n 100 :impl :foo}
                   :data (mock-bench-result-with-defs {:elapsed-time {:mean 1.0}})}
@@ -467,7 +467,8 @@
                   :data (mock-bench-result-with-defs {:elapsed-time {:mean 2.0}})})
               result (analysis/compare-by d :impl nil)
               elapsed-metric (get-in result [:metrics :elapsed-time])]
-          (is (= [:stats :elapsed-time :mean] (:metric elapsed-metric)))
+          (is (= :median (:metric elapsed-metric))
+              "multi-metric mode now uses :median extraction")
           (is (map? (:data elapsed-metric)))
           (is (contains? (:data elapsed-metric) :foo))
           (is (contains? (:data elapsed-metric) :bar))))
@@ -496,7 +497,53 @@
                                           {:metric-ids [:elapsed-time :memory]})]
           (is (contains? (:metrics result) :elapsed-time))
           (is (contains? (:metrics result) :memory))
-          (is (not (contains? (:metrics result) :thread-allocation))))))))
+          (is (not (contains? (:metrics result) :thread-allocation)))))
+      (testing "uses bootstrap median when available"
+        (let [d (domain/domain
+                 {:coord {:n 100 :impl :foo}
+                  :data (mock-bench-result-with-bootstrap {:elapsed-time {:mean 1.0}})}
+                 {:coord {:n 100 :impl :bar}
+                  :data (mock-bench-result-with-bootstrap {:elapsed-time {:mean 2.0}})})
+              result (analysis/compare-by d :impl nil)
+              foo-value (-> result
+                            (get-in [:metrics :elapsed-time :data :foo])
+                            first :value)]
+          (is (= :median (get-in result [:metrics :elapsed-time :metric])))
+          ;; With bootstrap data, value is the median (quantile 0.5 point estimate)
+          (is (map? foo-value) "value should be a map with bootstrap stats")
+          (is (= 1.0 (:value foo-value))
+              "primary value is the bootstrap median")))
+      (testing "falls back to mean when bootstrap unavailable"
+        (let [d (domain/domain
+                 {:coord {:n 100 :impl :foo}
+                  :data (mock-bench-result-with-defs {:elapsed-time {:mean 1.5}})}
+                 {:coord {:n 100 :impl :bar}
+                  :data (mock-bench-result-with-defs {:elapsed-time {:mean 2.5}})})
+              result (analysis/compare-by d :impl nil)
+              foo-value (-> result
+                            (get-in [:metrics :elapsed-time :data :foo])
+                            first :value)]
+          (is (= :median (get-in result [:metrics :elapsed-time :metric])))
+          ;; Without bootstrap data, value is the mean directly (fallback)
+          (is (= 1.5 foo-value)
+              "falls back to mean when no bootstrap")))
+      (testing "extracts error bounds from bootstrap CI when available"
+        (let [d (domain/domain
+                 {:coord {:n 100 :impl :foo}
+                  :data (mock-bench-result-with-bootstrap {:elapsed-time {:mean 1.0}})}
+                 {:implementations [:foo]})
+              result (analysis/compare-by d :impl nil {:with-error-bounds true})
+              foo-value (-> result
+                            (get-in [:metrics :elapsed-time :data :foo])
+                            first :value)]
+          (is (:with-error-bounds (get-in result [:metrics :elapsed-time])))
+          (is (map? foo-value))
+          (is (contains? foo-value :lower))
+          (is (contains? foo-value :upper))
+          ;; Bootstrap CI is derived from quantile 0.5's estimate-quantiles
+          ;; test-util uses +/- 5% for CI
+          (is (< (:lower foo-value) (:value foo-value)))
+          (is (> (:upper foo-value) (:value foo-value))))))))
 
 ;; Tests for domain analysis pipeline functions.
 ;; Validates composable analysis transformers that operate on data-maps,

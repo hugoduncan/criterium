@@ -221,12 +221,17 @@
   run's :stats :metrics-defs, similar to extract. In multi-metric mode, the
   domain must have an :implementations key.
 
+  By default, comparison uses the bootstrapped median (quantile 0.5) when
+  available, falling back to mean from stats when bootstrap stats are
+  unavailable. When a metric-path is provided that explicitly requests
+  :mean (e.g., [:stats :elapsed-time :mean]), the mean is extracted directly.
+
   Options:
     :metric-ids        - When metric-path is nil, filter to only these metric-ids.
-    :with-error-bounds - When true and extracting :mean values, also
-                         extracts :mean-plus-3sigma and :mean-minus-3sigma
-                         as error bounds. Values become maps with :value,
-                         :lower, and :upper keys.
+    :with-error-bounds - When true, extracts error bounds for each value.
+                         Prefers bootstrap CI from quantile 0.5 when available,
+                         falls back to ±3σ from stats. Values become maps with
+                         :value, :lower, and :upper keys.
 
   In multi-metric mode, bootstrap quantile statistics (:median, :p10, :p90,
   :ci-lower, :ci-upper) are automatically included when available. This
@@ -288,43 +293,36 @@
                                             (types/runs sub-domain))]))
                               grouped)}
            impls (assoc :implementations impls)))
-       ;; Multi-metric mode
+       ;; Multi-metric mode - uses median extraction with bootstrap stats
        (let [first-run-data (:data (first runs))
              discovered (discover-quantitative-metrics
                          first-run-data)
              metric-ids-to-extract (if metric-ids
                                      (filter (set metric-ids) discovered)
                                      discovered)
-             ;; Function to extract both mean and bootstrap stats for a metric
-             compare-with-bootstrap
+             ;; Function to extract median and bootstrap stats for a metric
+             compare-with-median
              (fn [metric-id]
-               (let [metric-path [:stats metric-id :mean]
-                     extract-bounds? with-error-bounds]
-                 {:metric metric-path
+               (let [extract-bounds? with-error-bounds]
+                 {:metric :median
                   :with-error-bounds (boolean extract-bounds?)
                   :data (into {}
                               (map (fn [[axis-val sub-domain]]
                                      [axis-val
                                       (mapv (fn [{:keys [coord data]}]
-                                              (let [mean-value (helpers/stats-value
-                                                                data :stats
-                                                                metric-id :mean)
-                                                    ;; Base value with mean
+                                              (let [median-value (extract-metric-value
+                                                                  data metric-id)
+                                                    ;; Base value with median
                                                     base-value
                                                     (if extract-bounds?
-                                                      (let [lower (helpers/stats-value
-                                                                   data :stats
-                                                                   metric-id
-                                                                   :mean-minus-3sigma)
-                                                            upper (helpers/stats-value
-                                                                   data :stats
-                                                                   metric-id
-                                                                   :mean-plus-3sigma)]
-                                                        (when mean-value
-                                                          {:value mean-value
+                                                      (let [[lower upper]
+                                                            (extract-error-bounds
+                                                             data metric-id)]
+                                                        (when median-value
+                                                          {:value median-value
                                                            :lower lower
                                                            :upper upper}))
-                                                      mean-value)
+                                                      median-value)
                                                     ;; Bootstrap stats (when available)
                                                     bootstrap (helpers/bootstrap-box-plot-stats
                                                                data metric-id)]
@@ -341,7 +339,7 @@
                   :axis axis-key
                   :metrics (into {}
                                  (map (fn [metric-id]
-                                        [metric-id (compare-with-bootstrap metric-id)]))
+                                        [metric-id (compare-with-median metric-id)]))
                                  metric-ids-to-extract)}
            impls (assoc :implementations impls)))))))
 
