@@ -6,7 +6,7 @@
   (:require
    [criterium.bench.config :as bench-config]
    [criterium.domain.types :as types]
-   [criterium.util.helpers :as util]
+   [criterium.util.helpers :as helpers]
    [criterium.util.invariant :refer [have have?]]
    [criterium.view :as view]))
 
@@ -22,6 +22,34 @@
     (->> metrics-defs
          (filter (fn [[_k v]] (= :quantitative (:type v))))
          (map first))))
+
+;;; Metric Value Extraction Helpers
+
+(defn- extract-metric-value
+  "Extract the primary metric value from a benchmark data map.
+
+  Prefers bootstrapped median (quantile 0.5) when available, falls back to
+  mean from stats when bootstrap stats are unavailable.
+
+  Returns the transformed value, or nil if neither source has the metric."
+  [data-map metric-id]
+  (or (helpers/bootstrap-quantile-value data-map metric-id 0.5)
+      (helpers/stats-value data-map :stats metric-id :mean)))
+
+(defn- extract-error-bounds
+  "Extract error bounds for a metric from a benchmark data map.
+
+  Prefers bootstrap CI from quantile 0.5's estimate-quantiles when available,
+  falls back to ±3σ from stats when bootstrap stats are unavailable.
+
+  Returns [lower upper] tuple, or nil if no error bounds are available."
+  [data-map metric-id]
+  (if-let [bootstrap-ci (helpers/bootstrap-quantile-ci data-map metric-id 0.5)]
+    [(:ci-lower bootstrap-ci) (:ci-upper bootstrap-ci)]
+    (let [lower (helpers/stats-value data-map :stats metric-id :mean-minus-3sigma)
+          upper (helpers/stats-value data-map :stats metric-id :mean-plus-3sigma)]
+      (when (and lower upper)
+        [lower upper]))))
 
 (defn extract
   "Extract metric values from all runs in a domain.
@@ -100,18 +128,18 @@
              {:metric metric-path
               :with-error-bounds (boolean extract-bounds?)
               :data (mapv (fn [{:keys [coord data]}]
-                            (let [value (util/stats-value
+                            (let [value (helpers/stats-value
                                          data
                                          stats-id
                                          metric-id
                                          value-key)]
                               (if extract-bounds?
-                                (let [lower (util/stats-value
+                                (let [lower (helpers/stats-value
                                              data
                                              stats-id
                                              metric-id
                                              :mean-minus-3sigma)
-                                      upper (util/stats-value
+                                      upper (helpers/stats-value
                                              data
                                              stats-id
                                              metric-id
@@ -219,16 +247,16 @@
                               (map (fn [[axis-val sub-domain]]
                                      [axis-val
                                       (mapv (fn [{:keys [coord data]}]
-                                              (let [value (util/stats-value
+                                              (let [value (helpers/stats-value
                                                            data stats-id
                                                            metric-id value-key)]
                                                 {:coord coord
                                                  :value (if extract-bounds?
-                                                          (let [lower (util/stats-value
+                                                          (let [lower (helpers/stats-value
                                                                        data stats-id
                                                                        metric-id
                                                                        :mean-minus-3sigma)
-                                                                upper (util/stats-value
+                                                                upper (helpers/stats-value
                                                                        data stats-id
                                                                        metric-id
                                                                        :mean-plus-3sigma)]
@@ -258,17 +286,17 @@
                               (map (fn [[axis-val sub-domain]]
                                      [axis-val
                                       (mapv (fn [{:keys [coord data]}]
-                                              (let [mean-value (util/stats-value
+                                              (let [mean-value (helpers/stats-value
                                                                 data :stats
                                                                 metric-id :mean)
                                                     ;; Base value with mean
                                                     base-value
                                                     (if extract-bounds?
-                                                      (let [lower (util/stats-value
+                                                      (let [lower (helpers/stats-value
                                                                    data :stats
                                                                    metric-id
                                                                    :mean-minus-3sigma)
-                                                            upper (util/stats-value
+                                                            upper (helpers/stats-value
                                                                    data :stats
                                                                    metric-id
                                                                    :mean-plus-3sigma)]
@@ -278,7 +306,7 @@
                                                            :upper upper}))
                                                       mean-value)
                                                     ;; Bootstrap stats (when available)
-                                                    bootstrap (util/bootstrap-box-plot-stats
+                                                    bootstrap (helpers/bootstrap-box-plot-stats
                                                                data metric-id)]
                                                 {:coord coord
                                                  :value (if bootstrap
@@ -1158,8 +1186,8 @@
   [x]
   (let [options {:default-ns 'criterium.domain.analysis}]
     (if (sequential? x)
-      (apply (util/maybe-var-get (first x) options) (rest x))
-      ((util/maybe-var-get x options)))))
+      (apply (helpers/maybe-var-get (first x) options) (rest x))
+      ((helpers/maybe-var-get x options)))))
 
 (defn- resolve-domain-view-fn
   "Resolves a single domain view function specification.
@@ -1171,8 +1199,8 @@
     (have
      fn?
      (if (sequential? x)
-       (apply (util/maybe-var-get (first x) options) (rest x))
-       ((util/maybe-var-get x options)))
+       (apply (helpers/maybe-var-get (first x) options) (rest x))
+       ((helpers/maybe-var-get x options)))
      {:x x})))
 
 (defn ->domain-analyse

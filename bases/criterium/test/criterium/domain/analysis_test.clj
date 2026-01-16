@@ -75,6 +75,55 @@
             bic-high-rss (analysis/compute-bic 5.0 10 2)]
         (is (< bic-low-rss bic-high-rss))))))
 
+;; Tests for metric value extraction helpers.
+;; Validates extract-metric-value and extract-error-bounds which prefer
+;; bootstrapped median/CI with fallback to mean/±3σ from stats.
+
+(deftest extract-metric-value-test
+  ;; Tests the extract-metric-value private helper.
+  ;; Prefers bootstrap median (quantile 0.5), falls back to stats mean.
+  (testing "extract-metric-value"
+    (testing "with bootstrap data present"
+      (testing "returns bootstrapped median"
+        (let [data (mock-bench-result-with-bootstrap
+                    {:elapsed-time {:mean 1.0}})]
+          ;; mock-bench-result-with-bootstrap sets p50 = mean value
+          (is (= 1.0 (#'analysis/extract-metric-value data :elapsed-time))))))
+    (testing "without bootstrap data"
+      (testing "falls back to stats mean"
+        (let [data (mock-bench-result {:elapsed-time {:mean 2.5}})]
+          (is (= 2.5 (#'analysis/extract-metric-value data :elapsed-time))))))
+    (testing "with neither bootstrap nor stats"
+      (testing "returns nil"
+        (let [data (mock-bench-result {:other-metric {:mean 1.0}})]
+          (is (nil? (#'analysis/extract-metric-value data :elapsed-time))))))))
+
+(deftest extract-error-bounds-test
+  ;; Tests the extract-error-bounds private helper.
+  ;; Prefers bootstrap CI from quantile 0.5, falls back to ±3σ.
+  (testing "extract-error-bounds"
+    (testing "with bootstrap data present"
+      (testing "returns bootstrap CI as [lower upper]"
+        (let [data (mock-bench-result-with-bootstrap
+                    {:elapsed-time {:mean 1.0}})
+              [lower upper] (#'analysis/extract-error-bounds data :elapsed-time)]
+          ;; mock-bench-result-with-bootstrap derives CI as ±5% of point estimate
+          (is (some? lower))
+          (is (some? upper))
+          (is (< lower upper)))))
+    (testing "without bootstrap data"
+      (testing "falls back to ±3σ from stats"
+        (let [data (mock-bench-result {:elapsed-time {:mean 1.0
+                                                      :mean-minus-3sigma 0.7
+                                                      :mean-plus-3sigma 1.3}})
+              [lower upper] (#'analysis/extract-error-bounds data :elapsed-time)]
+          (is (= 0.7 lower))
+          (is (= 1.3 upper)))))
+    (testing "with neither bootstrap nor stats bounds"
+      (testing "returns nil"
+        (let [data (mock-bench-result {:elapsed-time {:mean 1.0}})]
+          (is (nil? (#'analysis/extract-error-bounds data :elapsed-time))))))))
+
 ;; Tests for domain analysis function extract.
 ;; Validates extracting metric values across runs with coordinate-value pairs,
 ;; handling missing metrics, preserving order, and applying transforms.
