@@ -86,6 +86,31 @@
                     {:stages     (all-stages)
                      :terminator ::unknown}))))))
 
+;; Tests that metric-ids uses :metric-id when present, falling back to :id.
+;; The elapsed-time-only terminator has :id :elapsed-time-only but :metric-id
+;; :elapsed-time, so metric-ids should return :elapsed-time.
+(deftest metric-ids-test
+  (testing "metric-ids"
+    (testing "returns :id when :metric-id is not present"
+      (let [config {:stages     [:class-loader]
+                    :terminator :elapsed-time}]
+        (is (= [:class-loader :elapsed-time]
+               (collector-impl/metric-ids
+                (collector-impl/maybe-var-get-config config))))))
+    (testing "returns :metric-id when present (elapsed-time-only case)"
+      (let [config {:stages     []
+                    :terminator :elapsed-time-only}]
+        (is (= [:elapsed-time]
+               (collector-impl/metric-ids
+                (collector-impl/maybe-var-get-config config)))
+            "elapsed-time-only should produce :elapsed-time metric"))
+      (let [config {:stages     [:class-loader]
+                    :terminator :elapsed-time-only}]
+        (is (= [:class-loader :elapsed-time]
+               (collector-impl/metric-ids
+                (collector-impl/maybe-var-get-config config)))
+            "stages + elapsed-time-only should produce stage ids + :elapsed-time")))))
+
 (deftest collector-test
   (testing "collector"
     (testing "builds a pipeline"
