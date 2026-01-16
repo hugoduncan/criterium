@@ -90,9 +90,12 @@
 
 (def elapsed-time-only
   "Elapsed time collector that does not retain expression return values.
-  Useful for benchmarking functions that return large data structures."
+  Useful for benchmarking functions that return large data structures.
+
+  Produces :elapsed-time metric (same as elapsed-time collector)."
   (with-meta
-    (->SampleStage elapsed-time-sample-m elapsed-time-only-xform :elapsed-time-only)
+    (assoc (->SampleStage elapsed-time-sample-m elapsed-time-only-xform :elapsed-time-only)
+           :metric-id :elapsed-time)
     {:criterium.collector/stage-type :terminal}))
 
 ;;; Sample Pipeline Stages
