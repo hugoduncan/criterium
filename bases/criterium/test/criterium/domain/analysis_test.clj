@@ -1847,3 +1847,63 @@
               foo-value (-> elapsed-data :foo first :value)]
           ;; Without bootstrap stats, value is just the mean
           (is (= 100.0 foo-value) "value should be the mean when no bootstrap"))))))
+
+;; Tests for metric-path validation in extract and compare-by functions.
+;; Validates that malformed paths produce clear error messages rather
+;; than silently producing nils through destructuring.
+
+(deftest metric-path-validation-test
+  ;; Tests that extract and compare-by validate metric-path structure.
+  ;; Contracts: clear error for non-vector, clear error for wrong element count.
+  (testing "extract"
+    (testing "rejects non-vector metric-path"
+      (let [d (domain/domain {:coord {:n 100}
+                              :data (mock-bench-result {:elapsed-time {:mean 1.0}})})]
+        (is (thrown? AssertionError (analysis/extract d :stats))
+            "keyword metric-path throws")
+        (is (thrown? AssertionError (analysis/extract d '(:stats :elapsed-time :mean)))
+            "list metric-path throws")))
+    (testing "rejects metric-path with wrong element count"
+      (let [d (domain/domain {:coord {:n 100}
+                              :data (mock-bench-result {:elapsed-time {:mean 1.0}})})]
+        (is (thrown? AssertionError (analysis/extract d [:stats :elapsed-time]))
+            "2-element path throws")
+        (is (thrown? AssertionError (analysis/extract d [:stats :elapsed-time :mean :extra]))
+            "4-element path throws")))
+    (testing "includes reason in error data"
+      (let [d (domain/domain {:coord {:n 100}
+                              :data (mock-bench-result {:elapsed-time {:mean 1.0}})})]
+        (try
+          (analysis/extract d :not-a-vector)
+          (is false "should throw")
+          (catch AssertionError e
+            (let [cause (.getCause e)
+                  data (ex-data cause)]
+              (is (= "metric-path must be a vector like [:stats :metric-id :value-key]"
+                     (get-in data [:data :reason])))))))))
+  (testing "compare-by"
+    (testing "rejects non-vector metric-path"
+      (let [d (domain/domain {:coord {:n 100 :impl :foo}
+                              :data (mock-bench-result {:elapsed-time {:mean 1.0}})})]
+        (is (thrown? AssertionError (analysis/compare-by d :impl :stats))
+            "keyword metric-path throws")
+        (is (thrown? AssertionError (analysis/compare-by d :impl '(:stats :elapsed-time :mean)))
+            "list metric-path throws")))
+    (testing "rejects metric-path with wrong element count"
+      (let [d (domain/domain {:coord {:n 100 :impl :foo}
+                              :data (mock-bench-result {:elapsed-time {:mean 1.0}})})]
+        (is (thrown? AssertionError (analysis/compare-by d :impl [:stats :elapsed-time]))
+            "2-element path throws")
+        (is (thrown? AssertionError (analysis/compare-by d :impl [:stats :elapsed-time :mean :extra]))
+            "4-element path throws")))
+    (testing "includes reason in error data"
+      (let [d (domain/domain {:coord {:n 100 :impl :foo}
+                              :data (mock-bench-result {:elapsed-time {:mean 1.0}})})]
+        (try
+          (analysis/compare-by d :impl [:stats :elapsed-time])
+          (is false "should throw")
+          (catch AssertionError e
+            (let [cause (.getCause e)
+                  data (ex-data cause)]
+              (is (= "metric-path must have exactly 3 elements: [stats-id metric-id value-key]"
+                     (get-in data [:data :reason]))))))))))

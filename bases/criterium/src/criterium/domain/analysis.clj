@@ -100,6 +100,14 @@
   ([domain metric-path]
    (extract domain metric-path {}))
   ([domain metric-path {:keys [with-error-bounds metric-ids]}]
+   ;; Validate metric-path structure when provided
+   (when metric-path
+     (have vector? metric-path
+           {:reason "metric-path must be a vector like [:stats :metric-id :value-key]"
+            :metric-path metric-path})
+     (have #(= 3 (count %)) metric-path
+           {:reason "metric-path must have exactly 3 elements: [stats-id metric-id value-key]"
+            :metric-path metric-path}))
    (let [runs (types/runs domain)
          impl-axis-key (types/impl-axis domain)
          impls (types/implementations domain)
@@ -256,6 +264,14 @@
   ([domain axis-key metric-path]
    (compare-by domain axis-key metric-path {}))
   ([domain axis-key metric-path {:keys [metric-ids with-error-bounds]}]
+   ;; Validate metric-path structure when provided
+   (when metric-path
+     (have vector? metric-path
+           {:reason "metric-path must be a vector like [:stats :metric-id :value-key]"
+            :metric-path metric-path})
+     (have #(= 3 (count %)) metric-path
+           {:reason "metric-path must have exactly 3 elements: [stats-id metric-id value-key]"
+            :metric-path metric-path}))
    (let [runs (types/runs domain)
          impls (:implementations domain)
          grouped (:data (group-by-axis domain axis-key))]
