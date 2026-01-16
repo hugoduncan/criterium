@@ -61,11 +61,16 @@
 
   metric-path is a vector like [:stats :elapsed-time :mean].
 
+  By default, extraction uses the bootstrapped median (quantile 0.5) when
+  available, falling back to mean from stats when bootstrap stats are
+  unavailable. When a metric-path is provided that explicitly requests
+  :mean (e.g., [:stats :elapsed-time :mean]), the mean is extracted directly.
+
   Options:
-    :with-error-bounds - When true and extracting :mean values, also
-                         extracts :mean-plus-3sigma and :mean-minus-3sigma
-                         as error bounds. Values become maps with :value,
-                         :lower, and :upper keys.
+    :with-error-bounds - When true, extracts error bounds for each value.
+                         Prefers bootstrap CI from quantile 0.5 when available,
+                         falls back to ±3σ from stats. Values become maps with
+                         :value, :lower, and :upper keys.
     :metric-ids        - When metric-path is nil, filter to only these
                          metric-ids (e.g., [:elapsed-time :thread-allocation]).
                          If nil, extracts all quantitative metrics.
@@ -85,11 +90,11 @@
   ;;     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
   ;;                              :data [[{:n 100} 1.23e-6] ...]}}}
 
-  Example - all metrics:
+  Example - all metrics (uses bootstrapped median):
   (extract domain)
   ;; => {:type :criterium/domain-extract
-  ;;     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean] :data [...]}
-  ;;               :thread-allocation {:metric [:stats :thread-allocation :mean] :data [...]}}}"
+  ;;     :metrics {:elapsed-time {:metric :median :data [...]}
+  ;;               :thread-allocation {:metric :median :data [...]}}}"
   ([domain]
    (extract domain nil {}))
   ([domain metric-path]
@@ -111,21 +116,34 @@
                (filter (set metric-ids) discovered)
                discovered)))
 
-         ;; Build metric-path for each metric-id (default to :mean)
-         metric-paths
-         (if metric-path
-           {(second metric-path) metric-path}
-           (into {}
-                 (map (fn [mid] [mid [:stats mid :mean]]))
-                 metric-ids-to-extract))
+         ;; When metric-path is nil, use median extraction with helper functions
+         ;; When metric-path is provided, use explicit path extraction
+         use-median? (nil? metric-path)
 
-         ;; Extract data for each metric
-         extract-single
-         (fn [metric-path]
-           (let [[stats-id metric-id value-key] metric-path
+         ;; Extract using median helper (when metric-path is nil)
+         extract-with-median
+         (fn [metric-id]
+           {:metric :median
+            :with-error-bounds (boolean with-error-bounds)
+            :data (mapv (fn [{:keys [coord data]}]
+                          (let [value (extract-metric-value data metric-id)]
+                            (if with-error-bounds
+                              (let [[lower upper] (extract-error-bounds
+                                                   data metric-id)]
+                                [coord (when value
+                                         {:value value
+                                          :lower lower
+                                          :upper upper})])
+                              [coord value])))
+                        runs)})
+
+         ;; Extract using explicit path (when metric-path is provided)
+         extract-with-path
+         (fn [mpath]
+           (let [[stats-id metric-id value-key] mpath
                  extract-bounds? (and with-error-bounds
                                       (= value-key :mean))]
-             {:metric metric-path
+             {:metric mpath
               :with-error-bounds (boolean extract-bounds?)
               :data (mapv (fn [{:keys [coord data]}]
                             (let [value (helpers/stats-value
@@ -152,9 +170,11 @@
                           runs)}))]
      (cond-> {:type :criterium/domain-extract
               :metrics (into {}
-                             (map (fn [[metric-id mpath]]
-                                    [metric-id (extract-single mpath)]))
-                             metric-paths)}
+                             (if use-median?
+                               (map (fn [mid] [mid (extract-with-median mid)]))
+                               (map (fn [mid]
+                                      [mid (extract-with-path metric-path)])))
+                             metric-ids-to-extract)}
        multi-impl? (assoc :impl-axis impl-axis-key
                           :implementations impls)))))
 
