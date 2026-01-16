@@ -328,12 +328,12 @@ Generate diverse inputs for each benchmark iteration using test.check generators
 
 ### Multiple Bindings
 
-Earlier bindings are visible to later ones:
+Bindings are processed left-to-right, with earlier bindings available to later generators. This enables dependent generation where one value determines another:
 
 ```clojure
 (arg-gen/measured
- [n (gen/choose 10 100)
-  coll (gen/vector gen/small-integer n)]
+ [n (gen/choose 10 100)                    ; n bound first
+  coll (gen/vector gen/small-integer n)]   ; n used to size the vector
  (reduce + coll))
 ```
 
