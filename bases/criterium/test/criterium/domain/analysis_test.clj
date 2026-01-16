@@ -276,6 +276,115 @@
             result (analysis/extract d [:stats :elapsed-time :mean])]
         (is (not (contains? result :impl-axis)))))))
 
+(deftest extract-default-mode-test
+  ;; Tests extract when called without metric-path (default median extraction).
+  ;; Uses bootstrapped median when available, falls back to mean from stats.
+  ;; Contracts: discovers metrics, uses :median as metric key, handles error bounds.
+  (testing "extract without metric-path (default median mode)"
+    (testing "with bootstrap data available"
+      (testing "returns :median as the metric key"
+        (let [d (domain/domain
+                 {:coord {:n 100}
+                  :data (mock-bench-result-with-bootstrap
+                         {:elapsed-time {:mean 1.0}})})
+              result (analysis/extract d)]
+          (is (= :criterium/domain-extract (:type result)))
+          (is (= :median (get-in result [:metrics :elapsed-time :metric])))))
+      (testing "extracts bootstrapped median value"
+        (let [d (domain/domain
+                 {:coord {:n 100}
+                  :data (mock-bench-result-with-bootstrap
+                         {:elapsed-time {:mean 2.5}})})
+              result (analysis/extract d)
+              [_coord value] (first (get-in result [:metrics :elapsed-time :data]))]
+          ;; mock-bench-result-with-bootstrap sets p50 = mean value
+          (is (= 2.5 value))))
+      (testing "discovers all quantitative metrics from first run"
+        (let [d (domain/domain
+                 {:coord {:n 100}
+                  :data (mock-bench-result-with-bootstrap
+                         {:elapsed-time {:mean 1.0}
+                          :thread-allocation {:mean 100.0}})})
+              result (analysis/extract d)]
+          (is (contains? (:metrics result) :elapsed-time))
+          (is (contains? (:metrics result) :thread-allocation)))))
+    (testing "without bootstrap data (fallback to mean)"
+      (testing "returns :median as metric key even when falling back"
+        (let [d (domain/domain
+                 {:coord {:n 100}
+                  :data (mock-bench-result-with-defs {:elapsed-time {:mean 1.5}})})
+              result (analysis/extract d)]
+          (is (= :median (get-in result [:metrics :elapsed-time :metric])))))
+      (testing "extracts mean value as fallback"
+        (let [d (domain/domain
+                 {:coord {:n 100}
+                  :data (mock-bench-result-with-defs {:elapsed-time {:mean 3.5}})})
+              result (analysis/extract d)
+              [_coord value] (first (get-in result [:metrics :elapsed-time :data]))]
+          (is (= 3.5 value)))))
+    (testing "with :metric-ids option"
+      (testing "filters to specified metrics only"
+        (let [d (domain/domain
+                 {:coord {:n 100}
+                  :data (mock-bench-result-with-bootstrap
+                         {:elapsed-time {:mean 1.0}
+                          :thread-allocation {:mean 100.0}
+                          :memory {:mean 1000.0}})})
+              result (analysis/extract d nil {:metric-ids [:elapsed-time :memory]})]
+          (is (contains? (:metrics result) :elapsed-time))
+          (is (contains? (:metrics result) :memory))
+          (is (not (contains? (:metrics result) :thread-allocation))))))
+    (testing "with :with-error-bounds option"
+      (testing "with bootstrap data returns bootstrap CI"
+        (let [d (domain/domain
+                 {:coord {:n 100}
+                  :data (mock-bench-result-with-bootstrap
+                         {:elapsed-time {:mean 1.0}})})
+              result (analysis/extract d nil {:with-error-bounds true})
+              [_coord value] (first (get-in result [:metrics :elapsed-time :data]))]
+          (is (true? (get-in result [:metrics :elapsed-time :with-error-bounds])))
+          (is (map? value))
+          (is (contains? value :value))
+          (is (contains? value :lower))
+          (is (contains? value :upper))
+          ;; Bootstrap CI is ±5% in mock
+          (is (< (:lower value) (:value value)))
+          (is (> (:upper value) (:value value)))))
+      (testing "without bootstrap falls back to ±3σ"
+        (let [d (domain/domain
+                 {:coord {:n 100}
+                  :data (mock-bench-result-with-defs {:elapsed-time {:mean 2.0
+                                                                     :mean-minus-3sigma 1.7
+                                                                     :mean-plus-3sigma 2.3}})})
+              result (analysis/extract d nil {:with-error-bounds true})
+              [_coord value] (first (get-in result [:metrics :elapsed-time :data]))]
+          (is (map? value))
+          (is (= 2.0 (:value value)))
+          (is (= 1.7 (:lower value)))
+          (is (= 2.3 (:upper value)))))
+      (testing "returns nil value when no error bounds available"
+        (let [d (domain/domain
+                 {:coord {:n 100}
+                  :data (mock-bench-result-with-defs {:elapsed-time {:mean 1.0}})})
+              result (analysis/extract d nil {:with-error-bounds true})
+              [_coord value] (first (get-in result [:metrics :elapsed-time :data]))]
+          ;; Value should have :value but nil bounds
+          (is (map? value))
+          (is (= 1.0 (:value value)))
+          (is (nil? (:lower value)))
+          (is (nil? (:upper value))))))
+    (testing "preserves :impl-axis and :implementations"
+      (let [d (domain/domain
+               {:coord {:n 100 :impl :vec}
+                :data (mock-bench-result-with-bootstrap {:elapsed-time {:mean 1.0}})}
+               {:coord {:n 100 :impl :list}
+                :data (mock-bench-result-with-bootstrap {:elapsed-time {:mean 2.0}})}
+               {:impl-axis :impl
+                :implementations [:vec :list]})
+            result (analysis/extract d)]
+        (is (= :impl (:impl-axis result)))
+        (is (= [:vec :list] (:implementations result)))))))
+
 ;; Tests for domain group-by-axis function.
 ;; Validates partitioning runs by axis key values, returning a map
 ;; of axis-value to sub-domain.
