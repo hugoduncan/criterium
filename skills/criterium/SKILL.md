@@ -222,3 +222,269 @@ Outputs Kindly-annotated data structures rendered as tables and charts.
 (bench/default-viewer)
 ```
 
+## Domain Analysis
+
+Domain analysis benchmarks across a parameter space rather than at a single point. Use it for:
+- Comparing implementations at multiple input sizes
+- Analyzing algorithmic complexity (O(n), O(n log n), etc.)
+- Understanding scaling behavior
+
+### Basic Usage
+
+```clojure
+(require '[criterium.domain :as domain]
+         '[criterium.domain.builder :as builder]
+         '[criterium.domain-plans :as domain-plans])
+
+;; Benchmark sorting across input sizes
+(domain/bench
+ (domain/domain-expr
+  [n (builder/log-range 10 1000 5)]
+  (sort (vec (range n)))))
+```
+
+The `domain-expr` macro defines axes (parameter ranges) and expressions to benchmark. The `bench` function runs benchmarks at each coordinate and analyzes results.
+
+### Comparing Implementations
+
+Use a map body in `domain-expr` to compare implementations:
+
+```clojure
+(domain/bench
+ (domain/domain-expr
+  [n (builder/log-range 100 10000 5)]
+  {:sort    (sort (vec (range n)))
+   :sort-by (sort-by identity (vec (range n)))})
+ :domain-plan domain-plans/implementation-comparison)
+```
+
+Output shows the baseline (first implementation) in absolute values and others as relative factors.
+
+### Complexity Analysis
+
+Fit O(log n), O(n), O(n log n), O(n²) models:
+
+```clojure
+(domain/bench
+ (domain/domain-expr
+  [n (builder/n-log-n-range 10 10000 7)]
+  (sort (vec (range n))))
+ :domain-plan domain-plans/complexity-analysis)
+```
+
+Use `n-log-n-range` for better sampling when expecting O(n log n) complexity.
+
+### Range Generators
+
+| Function | Use Case |
+|----------|----------|
+| `log-range` | Wide range coverage (10 to 10000) |
+| `linear-range` | Uniform sampling |
+| `n-log-n-range` | O(n log n) algorithms |
+| `powers-of-2` | Binary scaling patterns |
+
+### Domain Plans
+
+| Plan | Purpose |
+|------|---------|
+| `extract-metrics` | Default - shows all metrics |
+| `implementation-comparison` | Compare implementations with factors |
+| `complexity-analysis` | Fit complexity models |
+
+### Options
+
+```clojure
+(domain/bench
+ (domain/domain-expr ...)
+ :domain-plan domain-plans/complexity-analysis
+ :reporter nil                        ; Silent (no progress dots)
+ :bench-options {:limit-time-s 2})    ; Per-benchmark time limit
+```
+
+## Argument Generation
+
+Generate diverse inputs for each benchmark iteration using test.check generators.
+
+**Dependency:** `criterium/arg-gen` (separate artifact)
+
+```clojure
+;; deps.edn
+{:deps {criterium/arg-gen {:mvn/version "0.5.x"}}}
+```
+
+### The measured Macro
+
+```clojure
+(require '[criterium.arg-gen :as arg-gen]
+         '[clojure.test.check.generators :as gen])
+
+;; Basic usage - each iteration gets fresh generated values
+(bench/bench-measured
+ (bench/options->bench-plan)
+ (arg-gen/measured
+  [n gen/small-integer]
+  (* n n)))
+```
+
+### Multiple Bindings
+
+Earlier bindings are visible to later ones:
+
+```clojure
+(arg-gen/measured
+ [n (gen/choose 10 100)
+  coll (gen/vector gen/small-integer n)]
+ (reduce + coll))
+```
+
+### Options
+
+```clojure
+;; Control generator size (affects sized generators like gen/vector)
+(arg-gen/measured {:size 50}
+ [coll (gen/vector gen/small-integer)]
+ (sort coll))
+
+;; Reproducible generation with seed
+(arg-gen/measured {:seed 12345}
+ [n gen/small-integer]
+ (* n n))
+```
+
+### Common Patterns
+
+```clojure
+;; String processing
+(arg-gen/measured
+ [s gen/string-alphanumeric]
+ (clojure.string/upper-case s))
+
+;; Collection operations
+(arg-gen/measured {:size 100}
+ [v (gen/vector gen/small-integer)]
+ (sort v))
+
+;; Map operations
+(arg-gen/measured {:size 20}
+ [m (gen/map gen/keyword gen/small-integer)]
+ (vals m))
+```
+
+## Best Practices
+
+### JVM Warmup
+
+The JIT compiler optimizes code during execution. Criterium handles warmup automatically, but be aware:
+
+- First benchmark in a session may be slower (class loading, JIT)
+- Run benchmarks multiple times if results seem inconsistent
+- The `default-with-warmup` plan (default) includes warmup phases
+
+### Avoiding Measurement Pitfalls
+
+**Dead code elimination:** The JVM may optimize away computations with unused results. Criterium prevents this by consuming return values, but avoid:
+
+```clojure
+;; BAD - side-effect only, result discarded
+(bench/bench (do (sort data) nil))
+
+;; GOOD - return the result
+(bench/bench (sort data))
+```
+
+**Side effects:** Benchmarks with side effects (I/O, mutation) may not measure what you intend:
+
+```clojure
+;; BAD - file I/O dominates timing
+(bench/bench (spit "test.txt" (str data)))
+
+;; GOOD - separate I/O from computation
+(bench/bench (str data))
+```
+
+**Constant folding:** The compiler may evaluate constant expressions at compile time:
+
+```clojure
+;; BAD - may be optimized to constant
+(bench/bench (+ 1 2))
+
+;; BETTER - use local bindings
+(let [a 1 b 2]
+  (bench/bench (+ a b)))
+```
+
+### Interpreting Results
+
+**Outliers:** Some outliers are normal (GC, OS scheduling). Concern when:
+- High-severe outliers exceed 5% of samples
+- Results vary significantly between runs
+- Minimum time much lower than mean
+
+**Confidence intervals:** The 3σ bounds show where 99.7% of values fall. Wide bounds suggest high variance—consider longer benchmarks or investigating causes.
+
+### Choosing Bench Plans
+
+| Situation | Plan |
+|-----------|------|
+| Quick measurement | `default-with-warmup` (default) |
+| Understanding distribution shape | `distribution-analysis` |
+| Comparing implementations | `implementation-comparison` (domain) |
+| Analyzing complexity | `complexity-analysis` (domain) |
+
+## Quick Reference
+
+### Single Expression
+
+```clojure
+(require '[criterium.bench :as bench])
+
+(bench/bench (my-function arg1 arg2))
+(bench/bench (my-function arg1 arg2) :viewer :pprint)
+(bench/last-bench)  ; Access results
+```
+
+### With Local Bindings
+
+```clojure
+(let [data (vec (range 1000))]
+  (bench/bench (reduce + data)))
+```
+
+### Compare Implementations
+
+```clojure
+(require '[criterium.domain :as domain]
+         '[criterium.domain.builder :as builder]
+         '[criterium.domain-plans :as domain-plans])
+
+(domain/bench
+ (domain/domain-expr
+  [n (builder/log-range 100 10000 5)]
+  {:impl-a (sort (vec (range n)))
+   :impl-b (sort-by identity (vec (range n)))})
+ :domain-plan domain-plans/implementation-comparison)
+```
+
+### Complexity Analysis
+
+```clojure
+(domain/bench
+ (domain/domain-expr
+  [n (builder/log-range 10 10000 7)]
+  (my-algorithm n))
+ :domain-plan domain-plans/complexity-analysis)
+```
+
+### Generated Arguments
+
+```clojure
+(require '[criterium.arg-gen :as arg-gen]
+         '[clojure.test.check.generators :as gen])
+
+(bench/bench-measured
+ (bench/options->bench-plan)
+ (arg-gen/measured {:size 100}
+  [coll (gen/vector gen/small-integer)]
+  (sort coll)))
+```
+
