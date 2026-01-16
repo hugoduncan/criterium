@@ -60,7 +60,7 @@ The `bench` macro wraps your expression in a `measured` - a benchmarkable unit t
 - Supports batched evaluation for fast expressions
 - Provides zero-allocation measurement
 
-You rarely interact with `measured` directly, but it enables advanced patterns like argument generation.
+You rarely interact with `measured` directly, but it enables advanced patterns like argument generation. See [Argument Generation](#argument-generation) for explicit usage with test.check generators.
 
 ## Basic Benchmarking
 
