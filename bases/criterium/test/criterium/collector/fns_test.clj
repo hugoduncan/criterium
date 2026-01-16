@@ -245,7 +245,8 @@
 
 ;; Tests elapsed-time-only output structure:
 ;; - contains :elapsed-time key
-;; - does NOT contain :expr-value key
+;; - contains :expr-value set to :criterium/not-collected (to distinguish from
+;;   expressions that genuinely return nil)
 ;; - correctly usable as a terminator with metric-id :elapsed-time-only
 (deftest elapsed-time-only-output-test
   (testing "elapsed-time-only collector"
@@ -253,7 +254,7 @@
                     (fn [] [])
                     (fn [_ _] [100 :large-value]))
           state    []]
-      (testing "produces output with :elapsed-time but not :expr-value"
+      (testing "produces output with :elapsed-time and :expr-value :criterium/not-collected"
         (let [^objects sample (make-array Object 1)
               p      (collector/collector
                       {:stages [] :terminator :elapsed-time-only})]
@@ -262,8 +263,8 @@
           (let [result (aget sample 0)]
             (is (contains? result :elapsed-time)
                 "Output should contain :elapsed-time")
-            (is (not (contains? result :expr-value))
-                "Output should NOT contain :expr-value"))))
+            (is (= :criterium/not-collected (:expr-value result))
+                "Output should have :expr-value :criterium/not-collected"))))
       (testing "compared to elapsed-time which retains :expr-value"
         (let [^objects sample (make-array Object 1)
               p      (collector/collector

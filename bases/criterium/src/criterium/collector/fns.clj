@@ -84,7 +84,8 @@
   [sample ^long result-index]
   (let [v (aget ^objects sample result-index)]
     (aset ^objects sample result-index
-          {:elapsed-time (v 0)})
+          {:elapsed-time (v 0)
+           :expr-value   :criterium/not-collected})
     nil))
 
 (def elapsed-time-only
