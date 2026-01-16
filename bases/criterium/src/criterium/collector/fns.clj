@@ -79,6 +79,21 @@
     (->SampleStage elapsed-time-sample-m elapsed-time-xform :elapsed-time)
     {:criterium.collector/stage-type :terminal}))
 
+(defn- elapsed-time-only-xform
+  "Transform elapsed time sample, discarding expression value."
+  [sample ^long result-index]
+  (let [v (aget ^objects sample result-index)]
+    (aset ^objects sample result-index
+          {:elapsed-time (v 0)})
+    nil))
+
+(def elapsed-time-only
+  "Elapsed time collector that does not retain expression return values.
+  Useful for benchmarking functions that return large data structures."
+  (with-meta
+    (->SampleStage elapsed-time-sample-m elapsed-time-only-xform :elapsed-time-only)
+    {:criterium.collector/stage-type :terminal}))
+
 ;;; Sample Pipeline Stages
 
 ;; Stages can be composed.
