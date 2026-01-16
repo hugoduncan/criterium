@@ -220,6 +220,8 @@ bench-plans/knuth-histogram
 ;; The `:metric-ids` option selects which metrics to collect.
 ;; Available metrics:
 ;; - `:elapsed-time` - Wall clock timing
+;; - `:elapsed-time-only` - Wall clock timing without retaining return values
+;;   (use when benchmarking functions with large return values to avoid memory exhaustion)
 ;; - `:memory` - Memory usage
 ;; - `:garbage-collector` - GC statistics
 ;; - `:thread-allocation` - Per-thread allocation (requires agent)
