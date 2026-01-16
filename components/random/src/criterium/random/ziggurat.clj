@@ -93,7 +93,7 @@
 
   Object
   (toString [_]
-    (str "#<NormalRng>")))
+    "#<NormalRng>"))
 
 (defn next-gaussian!
   "Generate the next random gaussian in N(0,1), mutating the RNG state.
