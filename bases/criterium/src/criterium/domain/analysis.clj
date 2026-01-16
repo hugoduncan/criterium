@@ -93,8 +93,8 @@
   Example - all metrics (uses bootstrapped median):
   (extract domain)
   ;; => {:type :criterium/domain-extract
-  ;;     :metrics {:elapsed-time {:metric :median :data [...]}
-  ;;               :thread-allocation {:metric :median :data [...]}}}"
+  ;;     :metrics {:elapsed-time {:metric [:stats :elapsed-time :median] :data [...]}
+  ;;               :thread-allocation {:metric [:stats :thread-allocation :median] :data [...]}}}"
   ([domain]
    (extract domain nil {}))
   ([domain metric-path]
@@ -131,7 +131,7 @@
          ;; Extract using median helper (when metric-path is nil)
          extract-with-median
          (fn [metric-id]
-           {:metric :median
+           {:metric [:stats metric-id :median]
             :with-error-bounds (boolean with-error-bounds)
             :data (mapv (fn [{:keys [coord data]}]
                           (let [value (extract-metric-value data metric-id)]
@@ -320,7 +320,7 @@
              compare-with-median
              (fn [metric-id]
                (let [extract-bounds? with-error-bounds]
-                 {:metric :median
+                 {:metric [:stats metric-id :median]
                   :with-error-bounds (boolean extract-bounds?)
                   :data (into {}
                               (map (fn [[axis-val sub-domain]]

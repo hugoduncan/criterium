@@ -282,14 +282,16 @@
   ;; Contracts: discovers metrics, uses :median as metric key, handles error bounds.
   (testing "extract without metric-path (default median mode)"
     (testing "with bootstrap data available"
-      (testing "returns :median as the metric key"
+      (testing "returns :metric as path vector [:stats metric-id :median]"
         (let [d (domain/domain
                  {:coord {:n 100}
                   :data (mock-bench-result-with-bootstrap
                          {:elapsed-time {:mean 1.0}})})
               result (analysis/extract d)]
           (is (= :criterium/domain-extract (:type result)))
-          (is (= :median (get-in result [:metrics :elapsed-time :metric])))))
+          (is (= [:stats :elapsed-time :median]
+                 (get-in result [:metrics :elapsed-time :metric]))
+              "path format enables viewer SI scaling")))
       (testing "extracts bootstrapped median value"
         (let [d (domain/domain
                  {:coord {:n 100}
@@ -309,12 +311,13 @@
           (is (contains? (:metrics result) :elapsed-time))
           (is (contains? (:metrics result) :thread-allocation)))))
     (testing "without bootstrap data (fallback to mean)"
-      (testing "returns :median as metric key even when falling back"
+      (testing "returns :metric as path vector even when falling back"
         (let [d (domain/domain
                  {:coord {:n 100}
                   :data (mock-bench-result-with-defs {:elapsed-time {:mean 1.5}})})
               result (analysis/extract d)]
-          (is (= :median (get-in result [:metrics :elapsed-time :metric])))))
+          (is (= [:stats :elapsed-time :median]
+                 (get-in result [:metrics :elapsed-time :metric])))))
       (testing "extracts mean value as fallback"
         (let [d (domain/domain
                  {:coord {:n 100}
@@ -383,7 +386,45 @@
                 :implementations [:vec :list]})
             result (analysis/extract d)]
         (is (= :impl (:impl-axis result)))
-        (is (= [:vec :list] (:implementations result)))))))
+        (is (= [:vec :list] (:implementations result))))))
+  (testing "viewer compatibility - :metric path structure"
+    ;; The viewer uses :metric to determine SI scaling (ns->s, bytes->KB, etc).
+    ;; It extracts metric type from (second metric-path) and stats type from
+    ;; (first metric-path). This test ensures :metric is always a valid path
+    ;; vector that viewers can process, not just a keyword like :median.
+    (testing "extract default mode returns valid path for viewer SI scaling"
+      (let [d (domain/domain
+               {:coord {:n 100}
+                :data (mock-bench-result-with-bootstrap
+                       {:elapsed-time {:mean 1.0}
+                        :thread-allocation {:mean 100.0}})})
+            result (analysis/extract d)]
+        (doseq [metric-id [:elapsed-time :thread-allocation]]
+          (let [metric-path (get-in result [:metrics metric-id :metric])]
+            (is (vector? metric-path)
+                (str metric-id " :metric must be a vector, not a keyword"))
+            (is (= 3 (count metric-path))
+                (str metric-id " :metric path must have 3 elements"))
+            (is (= :stats (first metric-path))
+                (str metric-id " :metric path must start with :stats"))
+            (is (= metric-id (second metric-path))
+                (str metric-id " :metric path must contain metric-id at position 1"))
+            (is (= :median (nth metric-path 2))
+                (str metric-id " :metric path must end with :median"))))))
+    (testing "compare-by multi-metric mode returns valid path for viewer SI scaling"
+      (let [d (domain/domain
+               {:coord {:n 100 :impl :foo}
+                :data (mock-bench-result-with-bootstrap {:elapsed-time {:mean 1.0}})}
+               {:coord {:n 100 :impl :bar}
+                :data (mock-bench-result-with-bootstrap {:elapsed-time {:mean 2.0}})})
+            result (analysis/compare-by d :impl nil)
+            metric-path (get-in result [:metrics :elapsed-time :metric])]
+        (is (vector? metric-path)
+            ":metric must be a vector for viewer compatibility")
+        (is (= 3 (count metric-path))
+            ":metric path must have 3 elements for viewer SI scaling")
+        (is (= :stats (first metric-path))
+            ":metric path must start with :stats or :log-stats")))))
 
 (deftest extract-nil-value-consistency-test
   ;; Tests that extract handles nil values consistently between extraction modes.
@@ -620,7 +661,7 @@
               result (analysis/compare-by d :impl nil)]
           (is (contains? (:metrics result) :elapsed-time))
           (is (contains? (:metrics result) :thread-allocation))))
-      (testing "each entry has :metric :median (multi-metric mode only)"
+      (testing "each entry has :metric as path vector (multi-metric mode only)"
         (let [d (domain/domain
                  {:coord {:n 100 :impl :foo}
                   :data (mock-bench-result-with-defs {:elapsed-time {:mean 1.0}})}
@@ -628,8 +669,8 @@
                   :data (mock-bench-result-with-defs {:elapsed-time {:mean 2.0}})})
               result (analysis/compare-by d :impl nil)
               elapsed-metric (get-in result [:metrics :elapsed-time])]
-          (is (= :median (:metric elapsed-metric))
-              "multi-metric mode now uses :median extraction")
+          (is (= [:stats :elapsed-time :median] (:metric elapsed-metric))
+              "multi-metric mode uses [:stats metric-id :median] path format")
           (is (map? (:data elapsed-metric)))
           (is (contains? (:data elapsed-metric) :foo))
           (is (contains? (:data elapsed-metric) :bar))))
@@ -669,7 +710,8 @@
               foo-value (-> result
                             (get-in [:metrics :elapsed-time :data :foo])
                             first :value)]
-          (is (= :median (get-in result [:metrics :elapsed-time :metric])))
+          (is (= [:stats :elapsed-time :median]
+                 (get-in result [:metrics :elapsed-time :metric])))
           ;; With bootstrap data, value is the median (quantile 0.5 point estimate)
           (is (map? foo-value) "value should be a map with bootstrap stats")
           (is (= 1.0 (:value foo-value))
@@ -684,7 +726,8 @@
               foo-value (-> result
                             (get-in [:metrics :elapsed-time :data :foo])
                             first :value)]
-          (is (= :median (get-in result [:metrics :elapsed-time :metric])))
+          (is (= [:stats :elapsed-time :median]
+                 (get-in result [:metrics :elapsed-time :metric])))
           ;; Without bootstrap data, value is the mean directly (fallback)
           (is (= 1.5 foo-value)
               "falls back to mean when no bootstrap")))
