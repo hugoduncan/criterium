@@ -620,7 +620,7 @@
               result (analysis/compare-by d :impl nil)]
           (is (contains? (:metrics result) :elapsed-time))
           (is (contains? (:metrics result) :thread-allocation))))
-      (testing "each metric has :metric :median and :data grouped by impl"
+      (testing "each entry has :metric :median (multi-metric mode only)"
         (let [d (domain/domain
                  {:coord {:n 100 :impl :foo}
                   :data (mock-bench-result-with-defs {:elapsed-time {:mean 1.0}})}
