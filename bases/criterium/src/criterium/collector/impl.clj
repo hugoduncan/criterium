@@ -17,10 +17,13 @@
 
 (defn metric-ids
   "Return a sequence of all metrics produced by a pipeline with the
-  given pipeline config."
+  given pipeline config.
+
+  Each stage can specify a :metric-id that differs from its :id.
+  When present, :metric-id is used; otherwise :id is used."
   [{:keys [stages terminator] :as _pipline-config}]
   {:pre [stages terminator]}
-  (mapv :id (conj stages terminator)))
+  (mapv #(or (:metric-id %) (:id %)) (conj stages terminator)))
 
 ;;; Pipeline construction
 

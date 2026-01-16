@@ -44,7 +44,7 @@
      :result-index-sym result-index-sym}))
 
 (defrecord ^:private SampleStage
-  [m x id])
+  [m x id metric-id])
 
 ;;; Terminal function
 
@@ -76,7 +76,7 @@
 
 (def elapsed-time
   (with-meta
-    (->SampleStage elapsed-time-sample-m elapsed-time-xform :elapsed-time)
+    (->SampleStage elapsed-time-sample-m elapsed-time-xform :elapsed-time nil)
     {:criterium.collector/stage-type :terminal}))
 
 (defn- elapsed-time-only-xform
@@ -90,9 +90,12 @@
 
 (def elapsed-time-only
   "Elapsed time collector that does not retain expression return values.
-  Useful for benchmarking functions that return large data structures."
+  Useful for benchmarking functions that return large data structures.
+
+  Produces :elapsed-time metric (same as elapsed-time collector)."
   (with-meta
-    (->SampleStage elapsed-time-sample-m elapsed-time-only-xform :elapsed-time-only)
+    (->SampleStage elapsed-time-sample-m elapsed-time-only-xform
+                   :elapsed-time-only :elapsed-time)
     {:criterium.collector/stage-type :terminal}))
 
 ;;; Sample Pipeline Stages
@@ -119,7 +122,7 @@
     nil))
 
 (def measured-args
-  (->SampleStage measured-args-sample-m measured-args-xform :measured-args))
+  (->SampleStage measured-args-sample-m measured-args-xform :measured-args nil))
 
 ;;;; Class Loader
 
@@ -143,7 +146,7 @@
                   (aget ^objects sample result-index))})))
 
 (def class-loader
-  (->SampleStage class-loader-sample-m class-loader-xform :class-loader))
+  (->SampleStage class-loader-sample-m class-loader-xform :class-loader nil))
 
 ;;;; Compilation
 
@@ -167,7 +170,7 @@
                   (aget ^objects sample result-index))})))
 
 (def compilation
-  (->SampleStage compilation-sample-m compilation-xform :compilation))
+  (->SampleStage compilation-sample-m compilation-xform :compilation nil))
 
 ;;;; Memory
 
@@ -197,7 +200,7 @@
                           (aget ^objects sample result-index))})))
 
 (def memory
-  (->SampleStage memory-sample-m memory-xform :memory))
+  (->SampleStage memory-sample-m memory-xform :memory nil))
 
 ;;;; Finalization
 
@@ -228,7 +231,7 @@
                   (aget ^objects sample result-index))})))
 
 (def finalization
-  (->SampleStage finalization-sample-m finalization-xform :finalization))
+  (->SampleStage finalization-sample-m finalization-xform :finalization nil))
 
 ;;;; Garbage-collector
 
@@ -258,7 +261,7 @@
 
 (def garbage-collector
   (->SampleStage
-   garbage-collector-sample-m garbage-collector-xform :garbage-collector))
+   garbage-collector-sample-m garbage-collector-xform :garbage-collector nil))
 
 ;;;; Thread Memory Allocation
 
@@ -286,4 +289,4 @@
 
 (def thread-allocation
   (->SampleStage
-   thread-allocation-sample-m thread-allocation-xform :thread-allocation))
+   thread-allocation-sample-m thread-allocation-xform :thread-allocation nil))
