@@ -222,6 +222,11 @@ bench-plans/knuth-histogram
 ;; - `:elapsed-time` - Wall clock timing
 ;; - `:elapsed-time-only` - Wall clock timing without retaining return values
 ;;   (use when benchmarking functions with large return values to avoid memory exhaustion)
+
+^:kindly/hide-code
+(bench-display
+ (bench/bench (vec (range 10000)) :metric-ids [:elapsed-time-only]))
+
 ;; - `:memory` - Memory usage
 ;; - `:garbage-collector` - GC statistics
 ;; - `:thread-allocation` - Per-thread allocation (requires agent)
