@@ -522,10 +522,20 @@
   Options:
     :color-field - field name for color encoding (e.g., \"impl\" or nil for static color)
     :color-value - static color when color-field is nil (default \"steelblue\")
-    :legend-options - legend config map or nil for default"
+    :legend-options - legend config map or nil for default
+
+  When color-field is \"model\", adds a \"series\" field with value \"data\" to
+  each point since data points don't have model labels (only fit lines do)."
   [points {:keys [axis-name y-title color-field color-value legend-options]
            :or {color-value "steelblue"}}]
-  (let [base-tooltip [{:field "x"
+  (let [;; For single-impl mode (color-field="model"), data points need a series
+        ;; label since they don't have individual model values like fit lines do
+        single-impl-model-mode? (= color-field "model")
+        labeled-points (if single-impl-model-mode?
+                         (mapv #(assoc % "series" "data") points)
+                         points)
+        actual-color-field (if single-impl-model-mode? "series" color-field)
+        base-tooltip [{:field "x"
                        :type "quantitative"
                        :title axis-name
                        :format ".4g"}
@@ -533,42 +543,51 @@
                        :type "quantitative"
                        :title y-title
                        :format ".4g"}]
-        tooltip (if color-field
-                  (into [{:field color-field
+        tooltip (if actual-color-field
+                  (into [{:field actual-color-field
                           :type "nominal"
-                          :title (if (= color-field "impl")
-                                   "Implementation"
+                          :title (case actual-color-field
+                                   "impl" "Implementation"
+                                   "series" "Series"
                                    "Model")}]
                         base-tooltip)
                   base-tooltip)]
-    {:data {:values points}
+    {:data {:values labeled-points}
      :mark {:type "point" :size 60}
      :encoding (cond-> {:x {:field "x" :type "quantitative" :title axis-name}
                         :y {:field "y" :type "quantitative" :title y-title}
                         :tooltip tooltip}
-                 color-field
-                 (assoc :color {:field color-field :type "nominal"
-                                :legend (merge {:title (if (= color-field "impl")
-                                                         "Implementation"
+                 actual-color-field
+                 (assoc :color {:field actual-color-field :type "nominal"
+                                :legend (merge {:title (case actual-color-field
+                                                         "impl" "Implementation"
+                                                         "series" "Series"
                                                          "Model")}
                                                legend-options)})
-                 (not color-field)
+                 (not actual-color-field)
                  (assoc :color {:value color-value}))}))
 
 (defn regression-error-layer
-  "Build error bar layer for regression points with error bounds."
+  "Build error bar layer for regression points with error bounds.
+  When color-field is \"model\", adds a \"series\" field with value \"data\" to
+  match the scatter layer behavior."
   [points {:keys [color-field color-value]
            :or {color-value "steelblue"}}]
-  {:data {:values points}
-   :mark {:type "rule" :strokeWidth 1.5}
-   :encoding (cond-> {:x {:field "x" :type "quantitative"}
-                      :y {:field "yLower" :type "quantitative"}
-                      :y2 {:field "yUpper"}
-                      :opacity {:value 0.5}}
-               color-field
-               (assoc :color {:field color-field :type "nominal" :legend nil})
-               (not color-field)
-               (assoc :color {:value color-value}))})
+  (let [single-impl-model-mode? (= color-field "model")
+        labeled-points (if single-impl-model-mode?
+                         (mapv #(assoc % "series" "data") points)
+                         points)
+        actual-color-field (if single-impl-model-mode? "series" color-field)]
+    {:data {:values labeled-points}
+     :mark {:type "rule" :strokeWidth 1.5}
+     :encoding (cond-> {:x {:field "x" :type "quantitative"}
+                        :y {:field "yLower" :type "quantitative"}
+                        :y2 {:field "yUpper"}
+                        :opacity {:value 0.5}}
+                 actual-color-field
+                 (assoc :color {:field actual-color-field :type "nominal" :legend nil})
+                 (not actual-color-field)
+                 (assoc :color {:value color-value}))}))
 
 (defn regression-line-layer
   "Build fit line layer for regression models.
