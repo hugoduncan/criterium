@@ -15,7 +15,12 @@
    [criterium.util.invariant :refer [have]]
    [criterium.view :as view]
    [criterium.viewer.call-graph :as call-graph]
-   [criterium.viewer.common-charts :as charts]
+   [criterium.viewer.common-charts.comparison :as charts.comparison]
+   [criterium.viewer.common-charts.distribution :as charts.distribution]
+   [criterium.viewer.common-charts.profile :as charts.profile]
+   [criterium.viewer.common-charts.quantile :as charts.quantile]
+   [criterium.viewer.common-charts.regression :as charts.regression]
+   [criterium.viewer.common-charts.samples :as charts.samples]
    [criterium.viewer.common.allocation :as allocation]
    [criterium.viewer.common.bootstrap :as bootstrap]
    [criterium.viewer.common.core :as core]
@@ -150,15 +155,15 @@
   [_ view data-map]
   (kindly-heading "Samples")
   (kindly-vega-lite
-   (charts/samples-vega-spec data-map view {:width chart-width
-                                            :height chart-height})))
+   (charts.samples/samples-vega-spec data-map view {:width chart-width
+                                                    :height chart-height})))
 
 (defmethod view/histogram* :kindly
   [_ view data-map]
   (kindly-heading "Histogram")
   (kindly-vega-lite
-   (charts/histogram-vega-spec data-map view {:width chart-width
-                                              :height chart-height})))
+   (charts.samples/histogram-vega-spec data-map view {:width chart-width
+                                                      :height chart-height})))
 
 (defmethod view/kde* :kindly
   [_ view data-map]
@@ -167,8 +172,8 @@
     (when kde-map
       (kindly-heading "Kernel Density Estimation")
       (kindly-vega-lite
-       (charts/kde-vega-spec data-map view {:width chart-width
-                                            :height chart-height})))))
+       (charts.distribution/kde-vega-spec data-map view {:width chart-width
+                                                         :height chart-height})))))
 
 (defmethod view/sample-percentiles* :kindly
   [_ view data-map]
@@ -190,7 +195,7 @@
          :layer
          (vec
           (into
-           [(charts/metric-percentile-layer
+           [(charts.samples/metric-percentile-layer
              (util/metric->values quant-samples)
              transforms
              (first metric-configs))]))}])})))
@@ -249,7 +254,7 @@
          :layer
          (vec
           (into
-           [(charts/metric-diff-layer
+           [(charts.samples/metric-diff-layer
              (util/metric->values quant-samples)
              (first metric-configs))]))}])})))
 
@@ -287,20 +292,20 @@
     (case (detection/visualization-strategy extract)
       :single-point
       (when extract
-        (let [box-spec (charts/single-point-box-chart-spec extract {:width chart-width
-                                                                    :height chart-height})]
+        (let [box-spec (charts.comparison/single-point-box-chart-spec extract {:width chart-width
+                                                                               :height chart-height})]
           ;; Fall back to bar chart if box plot has no data (missing bootstrap stats)
           (if (seq (:vconcat box-spec))
             (kindly-vega-lite box-spec)
             (kindly-vega-lite
-             (charts/single-point-bar-chart-spec extract {:width chart-width
-                                                          :height chart-height})))))
+             (charts.comparison/single-point-bar-chart-spec extract {:width chart-width
+                                                                     :height chart-height})))))
 
       :multi-point
       (when extract
         (kindly-vega-lite
-         (charts/domain-line-chart-spec extract {:width chart-width
-                                                 :height chart-height})))
+         (charts.comparison/domain-line-chart-spec extract {:width chart-width
+                                                            :height chart-height})))
 
       ;; :default-table - no chart output
       nil)))
@@ -344,20 +349,20 @@
     (case (detection/comparison-visualization-strategy comparison)
       :single-point
       (when comparison
-        (let [box-spec (charts/comparison-box-chart-spec comparison {:width chart-width
-                                                                     :height chart-height})]
+        (let [box-spec (charts.comparison/comparison-box-chart-spec comparison {:width chart-width
+                                                                                :height chart-height})]
           ;; Fall back to bar chart if box plot has no data (missing bootstrap stats)
           (if (seq (:vconcat box-spec))
             (kindly-vega-lite box-spec)
             (kindly-vega-lite
-             (charts/comparison-bar-chart-spec comparison {:width chart-width
-                                                           :height chart-height})))))
+             (charts.comparison/comparison-bar-chart-spec comparison {:width chart-width
+                                                                      :height chart-height})))))
 
       :multi-point
       (when comparison
         (kindly-vega-lite
-         (charts/comparison-line-chart-spec comparison {:width chart-width
-                                                        :height chart-height})))
+         (charts.comparison/comparison-line-chart-spec comparison {:width chart-width
+                                                                   :height chart-height})))
 
       ;; :default-table - no chart output
       nil)))
@@ -382,7 +387,7 @@
          (kindly-heading title)
          (when (seq points)
            (kindly-vega-lite
-            (charts/log-log-chart-spec
+            (charts.regression/log-log-chart-spec
              points line-pts
              (assoc chart-opts
                     :width chart-width
@@ -392,7 +397,7 @@
            (when (seq residual-pts)
              (kindly-heading "Log-Log Residual Plot")
              (kindly-vega-lite
-              (charts/log-log-residual-spec
+              (charts.regression/log-log-residual-spec
                residual-pts
                (assoc chart-opts
                       :width chart-width
@@ -412,7 +417,7 @@
        (fn [{:keys [points line-pts residual-pts y-title residual-title chart-opts]}]
          (when (seq points)
            (kindly-vega-lite
-            (charts/regression-chart-spec
+            (charts.regression/regression-chart-spec
              points line-pts
              (assoc chart-opts
                     :width chart-width
@@ -422,7 +427,7 @@
            (when (seq residual-pts)
              (kindly-heading "Residual Plot")
              (kindly-vega-lite
-              (charts/regression-residual-spec
+              (charts.regression/regression-residual-spec
                residual-pts
                (assoc chart-opts
                       :width chart-width
@@ -500,7 +505,7 @@
         treemap-data (data-map treemap-id)]
     (when (and treemap-data (:root treemap-data))
       (kindly-heading "Allocation Treemap")
-      (kindly-vega (charts/treemap-vega-spec treemap-data {})))))
+      (kindly-vega (charts.profile/treemap-vega-spec treemap-data {})))))
 
 ;;; Bootstrap statistics view
 
@@ -561,7 +566,7 @@
     (when call-tree
       (let [total-calls (call-graph/total-call-count call-tree)]
         (kindly-heading (clojure.core/format "Call Tree (%d total calls)" total-calls))
-        (kindly-vega (charts/call-tree-tree-vega-spec call-tree {}))))))
+        (kindly-vega (charts.profile/call-tree-tree-vega-spec call-tree {}))))))
 
 (defmethod view/call-flame* :kindly
   [_ {:keys [call-tree-id]} data-map]
@@ -570,7 +575,7 @@
     (when call-tree
       (let [total-calls (call-graph/total-call-count call-tree)]
         (kindly-heading "Call Flame Chart")
-        (kindly-vega (charts/call-tree-flame-vega-spec call-tree total-calls {}))))))
+        (kindly-vega (charts.profile/call-tree-flame-vega-spec call-tree total-calls {}))))))
 
 (defmethod view/most-called* :kindly
   [_ {:keys [most-called-id]} data-map]
@@ -581,7 +586,7 @@
             total-in-list (reduce + 0 (map :total-calls methods))]
         (kindly-heading (clojure.core/format "Most Called Methods (top %d, %d total calls)"
                                              (count methods) total-in-list))
-        (kindly-vega-lite (charts/most-called-vega-lite-spec most-called-data {}))))))
+        (kindly-vega-lite (charts.profile/most-called-vega-lite-spec most-called-data {}))))))
 
 ;;; Distribution Fit Views
 
@@ -691,7 +696,7 @@
     (when kde-map
       (kindly-heading "Distribution PDF")
       (kindly-vega-lite
-       (charts/distribution-pdf-vega-spec
+       (charts.distribution/distribution-pdf-vega-spec
         data-map
         (assoc view :histogram-id :histograms)
         {:width chart-width
@@ -704,8 +709,8 @@
     (when kde-map
       (kindly-heading "Distribution CDF")
       (kindly-vega-lite
-       (charts/distribution-cdf-vega-spec data-map view {:width chart-width
-                                                         :height chart-height})))))
+       (charts.distribution/distribution-cdf-vega-spec data-map view {:width chart-width
+                                                                      :height chart-height})))))
 
 (defmethod view/distribution-qq* :kindly
   [_ {:keys [kde-id] :as view} data-map]
@@ -714,8 +719,8 @@
     (when kde-map
       (kindly-heading "Q-Q Plot")
       (kindly-vega-lite
-       (charts/distribution-qq-vega-spec data-map view {:width chart-width
-                                                        :height chart-height})))))
+       (charts.quantile/distribution-qq-vega-spec data-map view {:width chart-width
+                                                                 :height chart-height})))))
 
 ;;; Noop implementations for views not applicable to Kindly output
 

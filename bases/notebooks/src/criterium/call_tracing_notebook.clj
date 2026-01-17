@@ -4,7 +4,7 @@
    [clojure.string :as str]
    [criterium.agent :as agent]
    [criterium.viewer.call-graph :as call-graph]
-   [criterium.viewer.common-charts :as charts]
+   [criterium.viewer.common-charts.profile :as charts.profile]
    [scicloj.kindly.v4.kind :as kind]))
 
 ;; # Call Tracing
@@ -95,7 +95,7 @@
 (let [[call-tree _] (agent/with-call-tracing
                       (reduce + (range 10)))]
   (when call-tree
-    (kind/vega (charts/call-tree-tree-vega-spec call-tree {}))))
+    (kind/vega (charts.profile/call-tree-tree-vega-spec call-tree {}))))
 
 ;; ### Flame Chart
 ;;
@@ -106,7 +106,7 @@
                       (reduce + (range 10)))]
   (when call-tree
     (let [total-calls (call-graph/total-call-count call-tree)]
-      (kind/vega (charts/call-tree-flame-vega-spec call-tree total-calls {})))))
+      (kind/vega (charts.profile/call-tree-flame-vega-spec call-tree total-calls {})))))
 
 ;; ## Filtering Call Trees
 ;;

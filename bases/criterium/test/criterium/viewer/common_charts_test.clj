@@ -3,7 +3,12 @@
    [clojure.test :refer [deftest is testing]]
    [criterium.array :as arr]
    [criterium.test-data :as test-data]
-   [criterium.viewer.common-charts :as charts]
+   [criterium.viewer.common-charts.comparison :as charts.comparison]
+   [criterium.viewer.common-charts.distribution :as charts.distribution]
+   [criterium.viewer.common-charts.profile :as charts.profile]
+   [criterium.viewer.common-charts.quantile :as charts.quantile]
+   [criterium.viewer.common-charts.regression :as charts.regression]
+   [criterium.viewer.common-charts.samples :as charts.samples]
    [criterium.viewer.schema-validation :as schema]))
 
 ;; Tests for treemap-vega-spec function.
@@ -28,7 +33,7 @@
 (deftest treemap-vega-spec-test
   (testing "treemap-vega-spec"
     (testing "produces valid Vega spec structure"
-      (let [spec (charts/treemap-vega-spec sample-treemap {})]
+      (let [spec (charts.profile/treemap-vega-spec sample-treemap {})]
         (is (map? spec))
         (is (contains? spec :$schema))
         (is (contains? spec :width))
@@ -41,11 +46,11 @@
         (is (vector? (:marks spec)))))
 
     (testing "includes correct $schema"
-      (let [spec (charts/treemap-vega-spec sample-treemap {})]
+      (let [spec (charts.profile/treemap-vega-spec sample-treemap {})]
         (is (= "https://vega.github.io/schema/vega/v5.json" (:$schema spec)))))
 
     (testing "data values match input hierarchy"
-      (let [spec (charts/treemap-vega-spec sample-treemap {})
+      (let [spec (charts.profile/treemap-vega-spec sample-treemap {})
             tree-data (first (:data spec))
             values (:values tree-data)]
         (is (= "tree" (:name tree-data)))
@@ -67,17 +72,17 @@
           (is (= #{500 300 200} (set (map :value leaf-nodes)))))))
 
     (testing "respects width/height options"
-      (let [spec (charts/treemap-vega-spec sample-treemap {:width 500 :height 300})]
+      (let [spec (charts.profile/treemap-vega-spec sample-treemap {:width 500 :height 300})]
         (is (= 500 (:width spec)))
         (is (= 300 (:height spec)))))
 
     (testing "uses default width/height when not specified"
-      (let [spec (charts/treemap-vega-spec sample-treemap {})]
+      (let [spec (charts.profile/treemap-vega-spec sample-treemap {})]
         (is (= 700 (:width spec)))
         (is (= 400 (:height spec)))))
 
     (testing "respects color-scheme option"
-      (let [spec (charts/treemap-vega-spec sample-treemap {:color-scheme "category20"})
+      (let [spec (charts.profile/treemap-vega-spec sample-treemap {:color-scheme "category20"})
             color-scale (first (:scales spec))]
         (is (= {:scheme "category20"} (:range color-scale)))))
 
@@ -85,7 +90,7 @@
       (let [empty-treemap {:type :criterium/allocation-treemap
                            :root {:name "allocations"
                                   :value 0}}
-            spec (charts/treemap-vega-spec empty-treemap {})]
+            spec (charts.profile/treemap-vega-spec empty-treemap {})]
         (is (map? spec))
         (is (= "https://vega.github.io/schema/vega/v5.json" (:$schema spec)))
         (let [values (-> spec :data first :values)]
@@ -96,12 +101,12 @@
     (testing "with nil root produces empty data"
       (let [nil-treemap {:type :criterium/allocation-treemap
                          :root nil}
-            spec (charts/treemap-vega-spec nil-treemap {})]
+            spec (charts.profile/treemap-vega-spec nil-treemap {})]
         (is (map? spec))
         (is (empty? (-> spec :data first :values)))))
 
     (testing "includes stratify and treemap transforms"
-      (let [spec (charts/treemap-vega-spec sample-treemap {})
+      (let [spec (charts.profile/treemap-vega-spec sample-treemap {})
             transforms (-> spec :data first :transform)]
         (is (= 2 (count transforms)))
         (is (= "stratify" (:type (first transforms))))
@@ -109,7 +114,7 @@
         (is (= "squarify" (:method (second transforms))))))
 
     (testing "includes two rect marks for nodes and leaves"
-      (let [spec (charts/treemap-vega-spec sample-treemap {})
+      (let [spec (charts.profile/treemap-vega-spec sample-treemap {})
             marks (:marks spec)]
         (is (= 2 (count marks)))
         (is (= "rect" (:type (first marks))))
@@ -126,7 +131,7 @@
       (let [data-map (test-data/samples-data-map)
             view {}
             chart-options {:width 400 :height 300}
-            spec (charts/samples-vega-spec data-map view chart-options)
+            spec (charts.samples/samples-vega-spec data-map view chart-options)
             result (schema/validate-vega-lite-spec spec)]
         (is (:valid? result)
             (str "samples-vega-spec validation failed: "
@@ -140,7 +145,7 @@
       (let [data-map (test-data/histogram-data-map)
             view {}
             chart-options {:width 400 :height 300}
-            spec (charts/histogram-vega-spec data-map view chart-options)
+            spec (charts.samples/histogram-vega-spec data-map view chart-options)
             result (schema/validate-vega-lite-spec spec)]
         (is (:valid? result)
             (str "histogram-vega-spec validation failed: "
@@ -154,7 +159,7 @@
       (let [data-map (test-data/histogram-with-bootstrap-data-map)
             view {}
             chart-options {:width 400 :height 300}
-            spec (charts/histogram-vega-spec data-map view chart-options)
+            spec (charts.samples/histogram-vega-spec data-map view chart-options)
             result (schema/validate-vega-lite-spec spec)]
         (is (:valid? result)
             (str "histogram-vega-spec with boxplot validation failed: "
@@ -168,7 +173,7 @@
       (let [data-map (test-data/kde-data-map)
             view {}
             chart-options {:width 400 :height 300}
-            spec (charts/kde-vega-spec data-map view chart-options)
+            spec (charts.distribution/kde-vega-spec data-map view chart-options)
             result (schema/validate-vega-lite-spec spec)]
         (is (:valid? result)
             (str "kde-vega-spec validation failed: "
@@ -190,7 +195,7 @@
                   :axis-name "n"
                   :y-title "Time (ns)"
                   :color-field "model"}
-            spec (charts/regression-chart-spec points line-pts opts)
+            spec (charts.regression/regression-chart-spec points line-pts opts)
             result (schema/validate-vega-lite-spec spec)]
         (is (:valid? result)
             (str "regression-chart-spec validation failed: "
@@ -207,7 +212,7 @@
             opts {:axis-name "n"
                   :y-title "Time (ns)"
                   :color-field "model"}
-            spec (charts/regression-chart-spec points line-pts opts)
+            spec (charts.regression/regression-chart-spec points line-pts opts)
             scatter-layer (first (:layer spec))
             tooltip (get-in scatter-layer [:encoding :tooltip])]
         (is (vector? tooltip))
@@ -221,7 +226,7 @@
             opts {:axis-name "n"
                   :y-title "Time (ns)"
                   :color-field "impl"}
-            spec (charts/regression-chart-spec points line-pts opts)
+            spec (charts.regression/regression-chart-spec points line-pts opts)
             scatter-layer (first (:layer spec))
             tooltip (get-in scatter-layer [:encoding :tooltip])]
         (is (vector? tooltip))
@@ -241,7 +246,7 @@
                   :axis-name "n"
                   :residual-title "Residual"
                   :color-field "model"}
-            spec (charts/regression-residual-spec residual-pts opts)
+            spec (charts.regression/regression-residual-spec residual-pts opts)
             result (schema/validate-vega-lite-spec spec)]
         (is (:valid? result)
             (str "regression-residual-spec validation failed: "
@@ -266,20 +271,20 @@
   ;; Verifies correct extraction and SI scaling of implementation values.
   (testing "prepare-single-point-bar-data"
     (testing "extracts data for each metric"
-      (let [result (charts/prepare-single-point-bar-data single-point-extract)]
+      (let [result (charts.comparison/prepare-single-point-bar-data single-point-extract)]
         (is (vector? result))
         (is (= 1 (count result)))
         (is (= :elapsed-time (:metric-id (first result))))))
 
     (testing "includes all implementations in data"
-      (let [result (charts/prepare-single-point-bar-data single-point-extract)
+      (let [result (charts.comparison/prepare-single-point-bar-data single-point-extract)
             data (:data (first result))]
         (is (= 3 (count data)))
         (is (= #{"foo" "bar" "baz"}
                (set (map #(get % "impl") data))))))
 
     (testing "applies SI scaling to values"
-      (let [result (charts/prepare-single-point-bar-data single-point-extract)
+      (let [result (charts.comparison/prepare-single-point-bar-data single-point-extract)
             first-metric (first result)]
         ;; y-title should contain SI unit
         (is (string? (:y-title first-metric)))
@@ -298,13 +303,13 @@
                        :data [[{:n 100 :impl :foo} 1000]
                               [{:n 100 :impl :bar} 2000]
                               [{:n 100 :impl :baz} 1500]]})
-            result (charts/prepare-single-point-bar-data multi-metric-extract)]
+            result (charts.comparison/prepare-single-point-bar-data multi-metric-extract)]
         (is (= 2 (count result)))
         (is (= #{:elapsed-time :thread-allocation}
                (set (map :metric-id result))))))
 
     (testing "returns has-error-bounds? false for plain values"
-      (let [result (charts/prepare-single-point-bar-data single-point-extract)
+      (let [result (charts.comparison/prepare-single-point-bar-data single-point-extract)
             first-metric (first result)]
         (is (false? (:has-error-bounds? first-metric)))
         ;; Data should not have valueLower/valueUpper
@@ -322,7 +327,7 @@
                                 {:value 1.0e-6 :lower 0.9e-6 :upper 1.1e-6}]
                                [{:n 100 :impl :bar}
                                 {:value 2.0e-6 :lower 1.8e-6 :upper 2.2e-6}]]}}}
-            result (charts/prepare-single-point-bar-data extract-with-bounds)
+            result (charts.comparison/prepare-single-point-bar-data extract-with-bounds)
             first-metric (first result)]
         ;; Check has-error-bounds? flag
         (is (true? (:has-error-bounds? first-metric)))
@@ -348,7 +353,7 @@
                                 {:value 1.0e-6 :lower 0.9e-6 :upper 1.1e-6}]
                                [{:n 100 :impl :bar}
                                 {:value 2.0e-6 :lower 1.8e-6 :upper 2.2e-6}]]}}}
-            result (charts/prepare-single-point-bar-data extract-with-median)
+            result (charts.comparison/prepare-single-point-bar-data extract-with-median)
             first-metric (first result)]
         (is (re-find #"median" (:y-title first-metric)))))
 
@@ -363,7 +368,7 @@
                         :data [[{:n 100 :impl :foo}
                                 {:value 1.0e-6 :lower 0.9e-6 :upper 1.1e-6}]
                                [{:n 100 :impl :bar} 2.0e-6]]}}}
-            result (charts/prepare-single-point-bar-data extract-mixed)
+            result (charts.comparison/prepare-single-point-bar-data extract-mixed)
             first-metric (first result)
             data (:data first-metric)]
         ;; has-error-bounds? true because some have bounds
@@ -381,7 +386,7 @@
   ;; Verifies correct Vega-Lite structure with implementation bars.
   (testing "single-point-bar-chart-spec"
     (testing "produces valid structure"
-      (let [spec (charts/single-point-bar-chart-spec
+      (let [spec (charts.comparison/single-point-bar-chart-spec
                   single-point-extract
                   {:width 400 :height 300})]
         (is (map? spec))
@@ -390,14 +395,14 @@
         (is (= 1 (count (:vconcat spec))))))
 
     (testing "includes bar mark"
-      (let [spec (charts/single-point-bar-chart-spec
+      (let [spec (charts.comparison/single-point-bar-chart-spec
                   single-point-extract
                   {:width 400 :height 300})
             chart (first (:vconcat spec))]
         (is (= {:type "bar"} (:mark chart)))))
 
     (testing "encodes implementation on x-axis"
-      (let [spec (charts/single-point-bar-chart-spec
+      (let [spec (charts.comparison/single-point-bar-chart-spec
                   single-point-extract
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -407,7 +412,7 @@
         (is (= "Implementation" (:title x-encoding)))))
 
     (testing "preserves implementation order from data"
-      (let [spec (charts/single-point-bar-chart-spec
+      (let [spec (charts.comparison/single-point-bar-chart-spec
                   single-point-extract
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -416,7 +421,7 @@
             "x-axis sort should be nil to preserve data order")))
 
     (testing "encodes value on y-axis"
-      (let [spec (charts/single-point-bar-chart-spec
+      (let [spec (charts.comparison/single-point-bar-chart-spec
                   single-point-extract
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -425,7 +430,7 @@
         (is (= "quantitative" (:type y-encoding)))))
 
     (testing "respects chart dimensions"
-      (let [spec (charts/single-point-bar-chart-spec
+      (let [spec (charts.comparison/single-point-bar-chart-spec
                   single-point-extract
                   {:width 500 :height 250})
             chart (first (:vconcat spec))]
@@ -433,7 +438,7 @@
         (is (= 250 (:height chart)))))
 
     (testing "includes tooltip"
-      (let [spec (charts/single-point-bar-chart-spec
+      (let [spec (charts.comparison/single-point-bar-chart-spec
                   single-point-extract
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -446,7 +451,7 @@
   ;; Tests bar chart visualization for implementation comparison.
   (testing "single-point-bar-chart-spec"
     (testing "produces valid Vega-Lite spec"
-      (let [spec (charts/single-point-bar-chart-spec
+      (let [spec (charts.comparison/single-point-bar-chart-spec
                   single-point-extract
                   {:width 400 :height 300})
             result (schema/validate-vega-lite-spec spec)]
@@ -476,7 +481,7 @@
   ;; Verifies layered spec structure with bar layer + error layer.
   (testing "single-point-bar-chart-spec with error bounds"
     (testing "produces layered structure"
-      (let [spec (charts/single-point-bar-chart-spec
+      (let [spec (charts.comparison/single-point-bar-chart-spec
                   single-point-extract-with-bounds
                   {:width 400 :height 300})
             chart (first (:vconcat spec))]
@@ -484,7 +489,7 @@
         (is (= 2 (count (:layer chart))))))
 
     (testing "includes bar layer with bar mark"
-      (let [spec (charts/single-point-bar-chart-spec
+      (let [spec (charts.comparison/single-point-bar-chart-spec
                   single-point-extract-with-bounds
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -492,7 +497,7 @@
         (is (= {:type "bar"} (:mark bar-layer)))))
 
     (testing "includes error layer with rule and tick marks"
-      (let [spec (charts/single-point-bar-chart-spec
+      (let [spec (charts.comparison/single-point-bar-chart-spec
                   single-point-extract-with-bounds
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -504,7 +509,7 @@
         (is (= 1.5 (get-in rule-layer [:mark :strokeWidth])))))
 
     (testing "error rule layer encodes y/y2 for bounds"
-      (let [spec (charts/single-point-bar-chart-spec
+      (let [spec (charts.comparison/single-point-bar-chart-spec
                   single-point-extract-with-bounds
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -515,7 +520,7 @@
         (is (= "valueUpper" (get-in encoding [:y2 :field])))))
 
     (testing "error layer data includes bounds"
-      (let [spec (charts/single-point-bar-chart-spec
+      (let [spec (charts.comparison/single-point-bar-chart-spec
                   single-point-extract-with-bounds
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -526,7 +531,7 @@
         (is (every? #(contains? % "valueUpper") data))))
 
     (testing "respects chart dimensions"
-      (let [spec (charts/single-point-bar-chart-spec
+      (let [spec (charts.comparison/single-point-bar-chart-spec
                   single-point-extract-with-bounds
                   {:width 500 :height 250})
             chart (first (:vconcat spec))]
@@ -538,7 +543,7 @@
   ;; Verifies graceful degradation - no layered structure when no bounds.
   (testing "single-point-bar-chart-spec without error bounds"
     (testing "produces simple structure without layer"
-      (let [spec (charts/single-point-bar-chart-spec
+      (let [spec (charts.comparison/single-point-bar-chart-spec
                   single-point-extract
                   {:width 400 :height 300})
             chart (first (:vconcat spec))]
@@ -546,7 +551,7 @@
         (is (= {:type "bar"} (:mark chart)))))
 
     (testing "still includes bar mark and encodings"
-      (let [spec (charts/single-point-bar-chart-spec
+      (let [spec (charts.comparison/single-point-bar-chart-spec
                   single-point-extract
                   {:width 400 :height 300})
             chart (first (:vconcat spec))]
@@ -557,7 +562,7 @@
   ;; Validates bar chart with error bars against Vega-Lite v6 schema.
   (testing "single-point-bar-chart-spec with error bounds"
     (testing "produces valid Vega-Lite spec"
-      (let [spec (charts/single-point-bar-chart-spec
+      (let [spec (charts.comparison/single-point-bar-chart-spec
                   single-point-extract-with-bounds
                   {:width 400 :height 300})
             result (schema/validate-vega-lite-spec spec)]
@@ -583,7 +588,7 @@
   ;; Verifies correct Vega-Lite structure with implementation bars.
   (testing "comparison-bar-chart-spec"
     (testing "produces valid structure"
-      (let [spec (charts/comparison-bar-chart-spec
+      (let [spec (charts.comparison/comparison-bar-chart-spec
                   single-point-comparison
                   {:width 400 :height 300})]
         (is (map? spec))
@@ -592,14 +597,14 @@
         (is (= 1 (count (:vconcat spec))))))
 
     (testing "includes bar mark"
-      (let [spec (charts/comparison-bar-chart-spec
+      (let [spec (charts.comparison/comparison-bar-chart-spec
                   single-point-comparison
                   {:width 400 :height 300})
             chart (first (:vconcat spec))]
         (is (= {:type "bar"} (:mark chart)))))
 
     (testing "encodes implementation on x-axis"
-      (let [spec (charts/comparison-bar-chart-spec
+      (let [spec (charts.comparison/comparison-bar-chart-spec
                   single-point-comparison
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -609,7 +614,7 @@
         (is (= "Implementation" (:title x-encoding)))))
 
     (testing "preserves implementation order from data"
-      (let [spec (charts/comparison-bar-chart-spec
+      (let [spec (charts.comparison/comparison-bar-chart-spec
                   single-point-comparison
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -622,7 +627,7 @@
   ;; Tests bar chart visualization from domain-comparison data.
   (testing "comparison-bar-chart-spec"
     (testing "produces valid Vega-Lite spec"
-      (let [spec (charts/comparison-bar-chart-spec
+      (let [spec (charts.comparison/comparison-bar-chart-spec
                   single-point-comparison
                   {:width 400 :height 300})
             result (schema/validate-vega-lite-spec spec)]
@@ -650,7 +655,7 @@
   ;; Verifies layered spec structure with bar layer + error layer.
   (testing "comparison-bar-chart-spec with error bounds"
     (testing "produces layered structure"
-      (let [spec (charts/comparison-bar-chart-spec
+      (let [spec (charts.comparison/comparison-bar-chart-spec
                   single-point-comparison-with-bounds
                   {:width 400 :height 300})
             chart (first (:vconcat spec))]
@@ -658,7 +663,7 @@
         (is (= 2 (count (:layer chart))))))
 
     (testing "includes error layer with rule and tick marks"
-      (let [spec (charts/comparison-bar-chart-spec
+      (let [spec (charts.comparison/comparison-bar-chart-spec
                   single-point-comparison-with-bounds
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -672,7 +677,7 @@
   ;; Tests that comparison bar charts without error bounds render normally.
   (testing "comparison-bar-chart-spec without error bounds"
     (testing "produces simple structure without layer"
-      (let [spec (charts/comparison-bar-chart-spec
+      (let [spec (charts.comparison/comparison-bar-chart-spec
                   single-point-comparison
                   {:width 400 :height 300})
             chart (first (:vconcat spec))]
@@ -683,7 +688,7 @@
   ;; Validates comparison bar chart with error bars against Vega-Lite schema.
   (testing "comparison-bar-chart-spec with error bounds"
     (testing "produces valid Vega-Lite spec"
-      (let [spec (charts/comparison-bar-chart-spec
+      (let [spec (charts.comparison/comparison-bar-chart-spec
                   single-point-comparison-with-bounds
                   {:width 400 :height 300})
             result (schema/validate-vega-lite-spec spec)]
@@ -713,7 +718,7 @@
   ;; Verifies correct Vega-Lite structure with lines per implementation.
   (testing "domain-line-chart-spec"
     (testing "produces valid structure"
-      (let [spec (charts/domain-line-chart-spec
+      (let [spec (charts.comparison/domain-line-chart-spec
                   multi-point-extract
                   {:width 400 :height 300})]
         (is (map? spec))
@@ -722,14 +727,14 @@
         (is (= 1 (count (:vconcat spec))))))
 
     (testing "includes line mark with points"
-      (let [spec (charts/domain-line-chart-spec
+      (let [spec (charts.comparison/domain-line-chart-spec
                   multi-point-extract
                   {:width 400 :height 300})
             chart (first (:vconcat spec))]
         (is (= {:type "line" :point true} (:mark chart)))))
 
     (testing "encodes axis value on x-axis"
-      (let [spec (charts/domain-line-chart-spec
+      (let [spec (charts.comparison/domain-line-chart-spec
                   multi-point-extract
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -739,7 +744,7 @@
         (is (= "n" (:title x-encoding)))))
 
     (testing "encodes value on y-axis"
-      (let [spec (charts/domain-line-chart-spec
+      (let [spec (charts.comparison/domain-line-chart-spec
                   multi-point-extract
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -748,7 +753,7 @@
         (is (= "quantitative" (:type y-encoding)))))
 
     (testing "encodes implementation as color"
-      (let [spec (charts/domain-line-chart-spec
+      (let [spec (charts.comparison/domain-line-chart-spec
                   multi-point-extract
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -758,7 +763,7 @@
         (is (= {:title "Implementation"} (:legend color-encoding)))))
 
     (testing "respects chart dimensions"
-      (let [spec (charts/domain-line-chart-spec
+      (let [spec (charts.comparison/domain-line-chart-spec
                   multi-point-extract
                   {:width 500 :height 250})
             chart (first (:vconcat spec))]
@@ -766,7 +771,7 @@
         (is (= 250 (:height chart)))))
 
     (testing "includes tooltip"
-      (let [spec (charts/domain-line-chart-spec
+      (let [spec (charts.comparison/domain-line-chart-spec
                   multi-point-extract
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -775,7 +780,7 @@
         (is (= 3 (count tooltip)))))
 
     (testing "shares legend across vconcated charts"
-      (let [spec (charts/domain-line-chart-spec
+      (let [spec (charts.comparison/domain-line-chart-spec
                   multi-point-extract
                   {:width 400 :height 300})]
         (is (= {:legend {:color "shared"}} (:resolve spec)))))))
@@ -785,7 +790,7 @@
   ;; Tests line chart visualization for implementation comparison.
   (testing "domain-line-chart-spec"
     (testing "produces valid Vega-Lite spec"
-      (let [spec (charts/domain-line-chart-spec
+      (let [spec (charts.comparison/domain-line-chart-spec
                   multi-point-extract
                   {:width 400 :height 300})
             result (schema/validate-vega-lite-spec spec)]
@@ -821,7 +826,7 @@
   ;; Verifies correct Vega-Lite structure and data handling.
   (testing "domain-line-chart-spec with single implementation"
     (testing "produces valid structure"
-      (let [spec (charts/domain-line-chart-spec
+      (let [spec (charts.comparison/domain-line-chart-spec
                   single-impl-extract
                   {:width 400 :height 300})]
         (is (map? spec))
@@ -830,14 +835,14 @@
         (is (= 1 (count (:vconcat spec))))))
 
     (testing "includes line mark with points"
-      (let [spec (charts/domain-line-chart-spec
+      (let [spec (charts.comparison/domain-line-chart-spec
                   single-impl-extract
                   {:width 400 :height 300})
             chart (first (:vconcat spec))]
         (is (= {:type "line" :point true} (:mark chart)))))
 
     (testing "chart data uses single impl name"
-      (let [spec (charts/domain-line-chart-spec
+      (let [spec (charts.comparison/domain-line-chart-spec
                   single-impl-extract
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -849,7 +854,7 @@
   ;; Tests line chart spec for single-impl with error bounds.
   (testing "domain-line-chart-spec single-impl with error bounds"
     (testing "produces layered structure"
-      (let [spec (charts/domain-line-chart-spec
+      (let [spec (charts.comparison/domain-line-chart-spec
                   single-impl-extract-with-bounds
                   {:width 400 :height 300})
             chart (first (:vconcat spec))]
@@ -857,7 +862,7 @@
         (is (= 2 (count (:layer chart))))))
 
     (testing "includes confidence band layer with area mark"
-      (let [spec (charts/domain-line-chart-spec
+      (let [spec (charts.comparison/domain-line-chart-spec
                   single-impl-extract-with-bounds
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -866,7 +871,7 @@
         (is (= 0.2 (get-in band-layer [:mark :opacity])))))
 
     (testing "data includes bounds"
-      (let [spec (charts/domain-line-chart-spec
+      (let [spec (charts.comparison/domain-line-chart-spec
                   single-impl-extract-with-bounds
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -879,7 +884,7 @@
   ;; Validates single-impl line chart against Vega-Lite v6 schema.
   (testing "domain-line-chart-spec single-impl"
     (testing "produces valid Vega-Lite spec"
-      (let [spec (charts/domain-line-chart-spec
+      (let [spec (charts.comparison/domain-line-chart-spec
                   single-impl-extract
                   {:width 400 :height 300})
             result (schema/validate-vega-lite-spec spec)]
@@ -888,7 +893,7 @@
                  (pr-str (:errors result))))))
 
     (testing "with error bounds produces valid Vega-Lite spec"
-      (let [spec (charts/domain-line-chart-spec
+      (let [spec (charts.comparison/domain-line-chart-spec
                   single-impl-extract-with-bounds
                   {:width 400 :height 300})
             result (schema/validate-vega-lite-spec spec)]
@@ -917,7 +922,7 @@
   ;; Verifies correct Vega-Lite structure with lines per implementation.
   (testing "comparison-line-chart-spec"
     (testing "produces valid structure"
-      (let [spec (charts/comparison-line-chart-spec
+      (let [spec (charts.comparison/comparison-line-chart-spec
                   multi-point-comparison
                   {:width 400 :height 300})]
         (is (map? spec))
@@ -926,14 +931,14 @@
         (is (= 1 (count (:vconcat spec))))))
 
     (testing "includes line mark with points"
-      (let [spec (charts/comparison-line-chart-spec
+      (let [spec (charts.comparison/comparison-line-chart-spec
                   multi-point-comparison
                   {:width 400 :height 300})
             chart (first (:vconcat spec))]
         (is (= {:type "line" :point true} (:mark chart)))))
 
     (testing "encodes axis value on x-axis"
-      (let [spec (charts/comparison-line-chart-spec
+      (let [spec (charts.comparison/comparison-line-chart-spec
                   multi-point-comparison
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -943,7 +948,7 @@
         (is (= "n" (:title x-encoding)))))
 
     (testing "encodes implementation as color"
-      (let [spec (charts/comparison-line-chart-spec
+      (let [spec (charts.comparison/comparison-line-chart-spec
                   multi-point-comparison
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -953,7 +958,7 @@
         (is (= {:title "Implementation"} (:legend color-encoding)))))
 
     (testing "shares legend across vconcated charts"
-      (let [spec (charts/comparison-line-chart-spec
+      (let [spec (charts.comparison/comparison-line-chart-spec
                   multi-point-comparison
                   {:width 400 :height 300})]
         (is (= {:legend {:color "shared"}} (:resolve spec)))))))
@@ -963,7 +968,7 @@
   ;; Tests line chart visualization from domain-comparison data.
   (testing "comparison-line-chart-spec"
     (testing "produces valid Vega-Lite spec"
-      (let [spec (charts/comparison-line-chart-spec
+      (let [spec (charts.comparison/comparison-line-chart-spec
                   multi-point-comparison
                   {:width 400 :height 300})
             result (schema/validate-vega-lite-spec spec)]
@@ -999,7 +1004,7 @@
   ;; Verifies layered spec structure with confidence band layer + line layer.
   (testing "domain-line-chart-spec with error bounds"
     (testing "produces layered structure"
-      (let [spec (charts/domain-line-chart-spec
+      (let [spec (charts.comparison/domain-line-chart-spec
                   multi-point-extract-with-bounds
                   {:width 400 :height 300})
             chart (first (:vconcat spec))]
@@ -1007,7 +1012,7 @@
         (is (= 2 (count (:layer chart))))))
 
     (testing "includes confidence band layer with area mark"
-      (let [spec (charts/domain-line-chart-spec
+      (let [spec (charts.comparison/domain-line-chart-spec
                   multi-point-extract-with-bounds
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -1016,7 +1021,7 @@
         (is (= 0.2 (get-in band-layer [:mark :opacity])))))
 
     (testing "confidence band layer encodes y/y2 for bounds"
-      (let [spec (charts/domain-line-chart-spec
+      (let [spec (charts.comparison/domain-line-chart-spec
                   multi-point-extract-with-bounds
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -1026,7 +1031,7 @@
         (is (= "yUpper" (get-in encoding [:y2 :field])))))
 
     (testing "includes line layer with line mark"
-      (let [spec (charts/domain-line-chart-spec
+      (let [spec (charts.comparison/domain-line-chart-spec
                   multi-point-extract-with-bounds
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -1035,7 +1040,7 @@
         (is (true? (get-in line-layer [:mark :point])))))
 
     (testing "confidence band data includes bounds"
-      (let [spec (charts/domain-line-chart-spec
+      (let [spec (charts.comparison/domain-line-chart-spec
                   multi-point-extract-with-bounds
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -1045,7 +1050,7 @@
         (is (every? #(contains? % "yUpper") data))))
 
     (testing "respects chart dimensions"
-      (let [spec (charts/domain-line-chart-spec
+      (let [spec (charts.comparison/domain-line-chart-spec
                   multi-point-extract-with-bounds
                   {:width 500 :height 250})
             chart (first (:vconcat spec))]
@@ -1057,7 +1062,7 @@
   ;; Verifies graceful degradation - no layered structure when no bounds.
   (testing "domain-line-chart-spec without error bounds"
     (testing "produces simple structure without layer"
-      (let [spec (charts/domain-line-chart-spec
+      (let [spec (charts.comparison/domain-line-chart-spec
                   multi-point-extract
                   {:width 400 :height 300})
             chart (first (:vconcat spec))]
@@ -1065,7 +1070,7 @@
         (is (= {:type "line" :point true} (:mark chart)))))
 
     (testing "still includes line mark and encodings"
-      (let [spec (charts/domain-line-chart-spec
+      (let [spec (charts.comparison/domain-line-chart-spec
                   multi-point-extract
                   {:width 400 :height 300})
             chart (first (:vconcat spec))]
@@ -1077,7 +1082,7 @@
   ;; Validates line chart with confidence bands against Vega-Lite v6 schema.
   (testing "domain-line-chart-spec with error bounds"
     (testing "produces valid Vega-Lite spec"
-      (let [spec (charts/domain-line-chart-spec
+      (let [spec (charts.comparison/domain-line-chart-spec
                   multi-point-extract-with-bounds
                   {:width 400 :height 300})
             result (schema/validate-vega-lite-spec spec)]
@@ -1111,7 +1116,7 @@
   ;; Verifies layered spec structure with confidence band layer + line layer.
   (testing "comparison-line-chart-spec with error bounds"
     (testing "produces layered structure"
-      (let [spec (charts/comparison-line-chart-spec
+      (let [spec (charts.comparison/comparison-line-chart-spec
                   multi-point-comparison-with-bounds
                   {:width 400 :height 300})
             chart (first (:vconcat spec))]
@@ -1119,7 +1124,7 @@
         (is (= 2 (count (:layer chart))))))
 
     (testing "includes confidence band layer with area mark"
-      (let [spec (charts/comparison-line-chart-spec
+      (let [spec (charts.comparison/comparison-line-chart-spec
                   multi-point-comparison-with-bounds
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -1131,7 +1136,7 @@
   ;; Tests that comparison line charts without error bounds render normally.
   (testing "comparison-line-chart-spec without error bounds"
     (testing "produces simple structure without layer"
-      (let [spec (charts/comparison-line-chart-spec
+      (let [spec (charts.comparison/comparison-line-chart-spec
                   multi-point-comparison
                   {:width 400 :height 300})
             chart (first (:vconcat spec))]
@@ -1142,7 +1147,7 @@
   ;; Validates comparison line chart with confidence bands against Vega-Lite schema.
   (testing "comparison-line-chart-spec with error bounds"
     (testing "produces valid Vega-Lite spec"
-      (let [spec (charts/comparison-line-chart-spec
+      (let [spec (charts.comparison/comparison-line-chart-spec
                   multi-point-comparison-with-bounds
                   {:width 400 :height 300})
             result (schema/validate-vega-lite-spec spec)]
@@ -1180,7 +1185,7 @@
   ;; median CI and 10th/90th percentile spread.
   (testing "metric-bootstrap-boxplot-layer"
     (testing "returns vector of layers when quantiles present"
-      (let [result (charts/metric-bootstrap-boxplot-layer
+      (let [result (charts.samples/metric-bootstrap-boxplot-layer
                     identity-transforms sample-bootstrap-stats sample-metric-config)]
         (is (vector? result))
         (is (= 1 (count result)))
@@ -1188,7 +1193,7 @@
         (is (contains? (first result) :layer))))
 
     (testing "contains whisker, CI box, and median line layers"
-      (let [result (charts/metric-bootstrap-boxplot-layer
+      (let [result (charts.samples/metric-bootstrap-boxplot-layer
                     identity-transforms sample-bootstrap-stats sample-metric-config)
             inner-layers (get-in result [0 :layer])]
         (is (= 3 (count inner-layers)))
@@ -1206,7 +1211,7 @@
           (is (= 2 (get-in median-line [:mark :strokeWidth]))))))
 
     (testing "whisker spans from p10 to p90"
-      (let [result (charts/metric-bootstrap-boxplot-layer
+      (let [result (charts.samples/metric-bootstrap-boxplot-layer
                     identity-transforms sample-bootstrap-stats sample-metric-config)
             whisker (get-in result [0 :layer 0])
             data (get-in whisker [:data :values 0])]
@@ -1215,7 +1220,7 @@
         (is (= 110.0 (get data :end)))))
 
     (testing "CI box spans median confidence interval"
-      (let [result (charts/metric-bootstrap-boxplot-layer
+      (let [result (charts.samples/metric-bootstrap-boxplot-layer
                     identity-transforms sample-bootstrap-stats sample-metric-config)
             ci-box (get-in result [0 :layer 1])
             data (get-in ci-box [:data :values 0])]
@@ -1224,7 +1229,7 @@
         (is (= 105.0 (get data :end)))))
 
     (testing "median line at point estimate"
-      (let [result (charts/metric-bootstrap-boxplot-layer
+      (let [result (charts.samples/metric-bootstrap-boxplot-layer
                     identity-transforms sample-bootstrap-stats sample-metric-config)
             median-line (get-in result [0 :layer 2])
             data (get-in median-line [:data :values 0])]
@@ -1234,7 +1239,7 @@
     (testing "applies transforms to raw bootstrap values"
       (let [scale-transforms {:sample-> (list (fn [^double v] (/ v 1e9)))
                               :->sample [identity]}
-            result (charts/metric-bootstrap-boxplot-layer
+            result (charts.samples/metric-bootstrap-boxplot-layer
                     scale-transforms sample-bootstrap-stats sample-metric-config)
             whisker (get-in result [0 :layer 0])
             whisker-data (get-in whisker [:data :values 0])]
@@ -1243,14 +1248,14 @@
 
     (testing "returns nil when quantiles missing"
       (let [missing-quantiles {:quantiles {}}
-            result (charts/metric-bootstrap-boxplot-layer
+            result (charts.samples/metric-bootstrap-boxplot-layer
                     identity-transforms missing-quantiles sample-metric-config)]
         (is (nil? result))))
 
     (testing "returns nil when p50 missing"
       (let [missing-p50 {:quantiles {0.1 {:point-estimate 90.0}
                                      0.9 {:point-estimate 110.0}}}
-            result (charts/metric-bootstrap-boxplot-layer
+            result (charts.samples/metric-bootstrap-boxplot-layer
                     identity-transforms missing-p50 sample-metric-config)]
         (is (nil? result))))
 
@@ -1260,7 +1265,7 @@
                     0.5 {:point-estimate 100.0
                          :estimate-quantiles []}
                     0.9 {:point-estimate 110.0}}}
-            result (charts/metric-bootstrap-boxplot-layer
+            result (charts.samples/metric-bootstrap-boxplot-layer
                     identity-transforms no-ci sample-metric-config)
             inner-layers (get-in result [0 :layer])]
         ;; Only whisker and median line (no CI box)
@@ -1269,7 +1274,7 @@
         (is (= "rule" (get-in (second inner-layers) [:mark :type])))))
 
     (testing "includes layer transforms for legend"
-      (let [result (charts/metric-bootstrap-boxplot-layer
+      (let [result (charts.samples/metric-bootstrap-boxplot-layer
                     identity-transforms sample-bootstrap-stats sample-metric-config)
             whisker (get-in result [0 :layer 0])]
         (is (some? (get-in whisker [:transform])))
@@ -1322,27 +1327,27 @@
   ;; Verifies correct extraction of median, CI bounds, and percentiles.
   (testing "prepare-single-point-box-data"
     (testing "extracts data for each metric"
-      (let [result (charts/prepare-single-point-box-data single-point-box-extract)]
+      (let [result (charts.comparison/prepare-single-point-box-data single-point-box-extract)]
         (is (vector? result))
         (is (= 1 (count result)))
         (is (= :elapsed-time (:metric-id (first result))))))
 
     (testing "includes all implementations in data"
-      (let [result (charts/prepare-single-point-box-data single-point-box-extract)
+      (let [result (charts.comparison/prepare-single-point-box-data single-point-box-extract)
             data (:data (first result))]
         (is (= 3 (count data)))
         (is (= #{"foo" "bar" "baz"}
                (set (map #(get % "impl") data))))))
 
     (testing "extracts median, p10, p90 values"
-      (let [result (charts/prepare-single-point-box-data single-point-box-extract)
+      (let [result (charts.comparison/prepare-single-point-box-data single-point-box-extract)
             data (:data (first result))]
         (is (every? #(contains? % "median") data))
         (is (every? #(contains? % "p10") data))
         (is (every? #(contains? % "p90") data))))
 
     (testing "extracts CI bounds when present"
-      (let [result (charts/prepare-single-point-box-data single-point-box-extract)
+      (let [result (charts.comparison/prepare-single-point-box-data single-point-box-extract)
             data (:data (first result))]
         (is (every? #(contains? % "ciLower") data))
         (is (every? #(contains? % "ciUpper") data))
@@ -1352,7 +1357,7 @@
           (is (< (get d "median") (get d "ciUpper"))))))
 
     (testing "omits CI bounds when not present"
-      (let [result (charts/prepare-single-point-box-data single-point-box-extract-no-ci)
+      (let [result (charts.comparison/prepare-single-point-box-data single-point-box-extract-no-ci)
             data (:data (first result))]
         (is (every? #(contains? % "median") data))
         (is (every? #(contains? % "p10") data))
@@ -1361,7 +1366,7 @@
         (is (every? #(not (contains? % "ciUpper")) data))))
 
     (testing "applies SI scaling to values"
-      (let [result (charts/prepare-single-point-box-data single-point-box-extract)
+      (let [result (charts.comparison/prepare-single-point-box-data single-point-box-extract)
             first-metric (first result)]
         ;; y-title should contain SI unit
         (is (string? (:y-title first-metric)))
@@ -1376,7 +1381,7 @@
 
     (testing "warns and returns nil for missing bootstrap stats"
       (let [output (with-out-str
-                     (let [result (charts/prepare-single-point-box-data
+                     (let [result (charts.comparison/prepare-single-point-box-data
                                    single-point-missing-bootstrap)]
                        (is (empty? result))))]
         ;; Should have printed a warning
@@ -1393,7 +1398,7 @@
                                {:median 2000 :p10 1600 :p90 2400}]
                               [{:n 100 :impl :baz}
                                {:median 1500 :p10 1200 :p90 1800}]]})
-            result (charts/prepare-single-point-box-data multi-metric-extract)]
+            result (charts.comparison/prepare-single-point-box-data multi-metric-extract)]
         (is (= 2 (count result)))
         (is (= #{:elapsed-time :thread-allocation}
                (set (map :metric-id result))))))))
@@ -1406,7 +1411,7 @@
   ;; Verifies correct Vega-Lite structure with implementation box plots.
   (testing "single-point-box-chart-spec"
     (testing "produces valid structure"
-      (let [spec (charts/single-point-box-chart-spec
+      (let [spec (charts.comparison/single-point-box-chart-spec
                   single-point-box-extract
                   {:width 400 :height 300})]
         (is (map? spec))
@@ -1415,7 +1420,7 @@
         (is (= 1 (count (:vconcat spec))))))
 
     (testing "includes layered structure"
-      (let [spec (charts/single-point-box-chart-spec
+      (let [spec (charts.comparison/single-point-box-chart-spec
                   single-point-box-extract
                   {:width 400 :height 300})
             chart (first (:vconcat spec))]
@@ -1424,7 +1429,7 @@
         (is (= 4 (count (:layer chart))))))
 
     (testing "includes whisker layer with rule mark and end caps"
-      (let [spec (charts/single-point-box-chart-spec
+      (let [spec (charts.comparison/single-point-box-chart-spec
                   single-point-box-extract
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -1441,7 +1446,7 @@
             "p90 cap should be a tick mark")))
 
     (testing "includes CI box layer with bar mark"
-      (let [spec (charts/single-point-box-chart-spec
+      (let [spec (charts.comparison/single-point-box-chart-spec
                   single-point-box-extract
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -1455,7 +1460,7 @@
             "CI box should have 1px stroke width")))
 
     (testing "includes median layer with tick mark"
-      (let [spec (charts/single-point-box-chart-spec
+      (let [spec (charts.comparison/single-point-box-chart-spec
                   single-point-box-extract
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -1464,7 +1469,7 @@
         (is (= "median" (get-in median-layer [:encoding :y :field])))))
 
     (testing "encodes implementation on x-axis"
-      (let [spec (charts/single-point-box-chart-spec
+      (let [spec (charts.comparison/single-point-box-chart-spec
                   single-point-box-extract
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -1474,7 +1479,7 @@
         (is (= "Implementation" (:title x-encoding)))))
 
     (testing "sets y-axis scale to exclude zero"
-      (let [spec (charts/single-point-box-chart-spec
+      (let [spec (charts.comparison/single-point-box-chart-spec
                   single-point-box-extract
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -1483,7 +1488,7 @@
             "y-axis scale :zero should be false to fit data range")))
 
     (testing "preserves implementation order from data"
-      (let [spec (charts/single-point-box-chart-spec
+      (let [spec (charts.comparison/single-point-box-chart-spec
                   single-point-box-extract
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -1492,7 +1497,7 @@
             "x-axis sort should be nil to preserve data order")))
 
     (testing "y-axis title includes median prefix"
-      (let [spec (charts/single-point-box-chart-spec
+      (let [spec (charts.comparison/single-point-box-chart-spec
                   single-point-box-extract
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -1500,7 +1505,7 @@
         (is (re-find #"median" (:title y-encoding)))))
 
     (testing "respects chart dimensions"
-      (let [spec (charts/single-point-box-chart-spec
+      (let [spec (charts.comparison/single-point-box-chart-spec
                   single-point-box-extract
                   {:width 500 :height 250})
             chart (first (:vconcat spec))]
@@ -1508,7 +1513,7 @@
         (is (= 250 (:height chart)))))
 
     (testing "includes tooltip layer"
-      (let [spec (charts/single-point-box-chart-spec
+      (let [spec (charts.comparison/single-point-box-chart-spec
                   single-point-box-extract
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -1523,7 +1528,7 @@
   ;; Verifies graceful degradation - only whiskers and median shown.
   (testing "single-point-box-chart-spec without CI bounds"
     (testing "produces structure without CI layer"
-      (let [spec (charts/single-point-box-chart-spec
+      (let [spec (charts.comparison/single-point-box-chart-spec
                   single-point-box-extract-no-ci
                   {:width 400 :height 300})
             chart (first (:vconcat spec))]
@@ -1532,7 +1537,7 @@
         (is (= 3 (count (:layer chart))))))
 
     (testing "still includes whisker and median layers"
-      (let [spec (charts/single-point-box-chart-spec
+      (let [spec (charts.comparison/single-point-box-chart-spec
                   single-point-box-extract-no-ci
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -1543,7 +1548,7 @@
         (is (= "tick" (get-in median-layer [:mark :type])))))
 
     (testing "tooltip excludes CI fields"
-      (let [spec (charts/single-point-box-chart-spec
+      (let [spec (charts.comparison/single-point-box-chart-spec
                   single-point-box-extract-no-ci
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -1558,7 +1563,7 @@
   (testing "single-point-box-chart-spec with missing bootstrap stats"
     (testing "produces empty vconcat"
       (let [output (with-out-str
-                     (let [spec (charts/single-point-box-chart-spec
+                     (let [spec (charts.comparison/single-point-box-chart-spec
                                  single-point-missing-bootstrap
                                  {:width 400 :height 300})]
                        (is (empty? (:vconcat spec)))))]
@@ -1569,7 +1574,7 @@
   ;; Validates single-point-box-chart-spec output against Vega-Lite v6 schema.
   (testing "single-point-box-chart-spec"
     (testing "produces valid Vega-Lite spec"
-      (let [spec (charts/single-point-box-chart-spec
+      (let [spec (charts.comparison/single-point-box-chart-spec
                   single-point-box-extract
                   {:width 400 :height 300})
             result (schema/validate-vega-lite-spec spec)]
@@ -1581,7 +1586,7 @@
   ;; Validates box chart without CI bounds against Vega-Lite v6 schema.
   (testing "single-point-box-chart-spec without CI"
     (testing "produces valid Vega-Lite spec"
-      (let [spec (charts/single-point-box-chart-spec
+      (let [spec (charts.comparison/single-point-box-chart-spec
                   single-point-box-extract-no-ci
                   {:width 400 :height 300})
             result (schema/validate-vega-lite-spec spec)]
@@ -1623,7 +1628,7 @@
   ;; Tests box plot spec generation from domain-comparison data.
   (testing "comparison-box-chart-spec"
     (testing "produces valid structure"
-      (let [spec (charts/comparison-box-chart-spec
+      (let [spec (charts.comparison/comparison-box-chart-spec
                   single-point-box-comparison
                   {:width 400 :height 300})]
         (is (map? spec))
@@ -1632,7 +1637,7 @@
         (is (= 1 (count (:vconcat spec))))))
 
     (testing "includes layered structure"
-      (let [spec (charts/comparison-box-chart-spec
+      (let [spec (charts.comparison/comparison-box-chart-spec
                   single-point-box-comparison
                   {:width 400 :height 300})
             chart (first (:vconcat spec))]
@@ -1641,7 +1646,7 @@
         (is (= 4 (count (:layer chart))))))
 
     (testing "encodes implementation on x-axis"
-      (let [spec (charts/comparison-box-chart-spec
+      (let [spec (charts.comparison/comparison-box-chart-spec
                   single-point-box-comparison
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -1651,7 +1656,7 @@
         (is (= "Implementation" (:title x-encoding)))))
 
     (testing "sets y-axis scale to exclude zero"
-      (let [spec (charts/comparison-box-chart-spec
+      (let [spec (charts.comparison/comparison-box-chart-spec
                   single-point-box-comparison
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -1660,7 +1665,7 @@
             "y-axis scale :zero should be false to fit data range")))
 
     (testing "preserves implementation order from data"
-      (let [spec (charts/comparison-box-chart-spec
+      (let [spec (charts.comparison/comparison-box-chart-spec
                   single-point-box-comparison
                   {:width 400 :height 300})
             chart (first (:vconcat spec))
@@ -1672,7 +1677,7 @@
   ;; Tests comparison box plot spec when CI bounds are not present.
   (testing "comparison-box-chart-spec without CI bounds"
     (testing "produces structure without CI layer"
-      (let [spec (charts/comparison-box-chart-spec
+      (let [spec (charts.comparison/comparison-box-chart-spec
                   single-point-box-comparison-no-ci
                   {:width 400 :height 300})
             chart (first (:vconcat spec))]
@@ -1684,7 +1689,7 @@
   ;; Validates comparison-box-chart-spec output against Vega-Lite v6 schema.
   (testing "comparison-box-chart-spec"
     (testing "produces valid Vega-Lite spec"
-      (let [spec (charts/comparison-box-chart-spec
+      (let [spec (charts.comparison/comparison-box-chart-spec
                   single-point-box-comparison
                   {:width 400 :height 300})
             result (schema/validate-vega-lite-spec spec)]
@@ -1696,7 +1701,7 @@
   ;; Validates comparison box chart without CI bounds against Vega-Lite schema.
   (testing "comparison-box-chart-spec without CI"
     (testing "produces valid Vega-Lite spec"
-      (let [spec (charts/comparison-box-chart-spec
+      (let [spec (charts.comparison/comparison-box-chart-spec
                   single-point-box-comparison-no-ci
                   {:width 400 :height 300})
             result (schema/validate-vega-lite-spec spec)]
@@ -1709,7 +1714,7 @@
   ;; Tests treemap visualization for allocation data.
   (testing "treemap-vega-spec"
     (testing "produces valid Vega spec"
-      (let [spec (charts/treemap-vega-spec sample-treemap {})
+      (let [spec (charts.profile/treemap-vega-spec sample-treemap {})
             result (schema/validate-vega-spec spec)]
         (is (:valid? result)
             (str "treemap-vega-spec validation failed: "
@@ -1746,7 +1751,7 @@
   ;; Contracts: returns valid Vega-Lite spec with correct layers.
   (testing "log-log-chart-spec"
     (testing "produces valid Vega-Lite spec structure"
-      (let [spec (charts/log-log-chart-spec
+      (let [spec (charts.regression/log-log-chart-spec
                   sample-log-log-points
                   sample-log-log-line-points
                   {:width 600 :height 400 :axis-name "n" :metric-name "time"})]
@@ -1760,14 +1765,14 @@
         (is (>= (count (:layer spec)) 2))))
     (testing "includes error bar layer when error bounds present"
       (let [points-with-error [{"x" 2.3 "y" 4.6 "yLower" 4.4 "yUpper" 4.8}]
-            spec (charts/log-log-chart-spec
+            spec (charts.regression/log-log-chart-spec
                   points-with-error
                   sample-log-log-line-points
                   {:has-error-bounds? true :metric-name "time"})]
         ;; Should have scatter, line, and error bar layers
         (is (= 3 (count (:layer spec))))))
     (testing "includes title with slope and r-squared when provided"
-      (let [spec (charts/log-log-chart-spec
+      (let [spec (charts.regression/log-log-chart-spec
                   sample-log-log-points
                   sample-log-log-line-points
                   {:slope 1.02 :r-squared 0.998 :metric-name "time"})]
@@ -1778,7 +1783,7 @@
                     {"x" 2.3 "y" 5.0 "impl" "list"}]
             line-pts [{"x" 2.0 "y" 4.0 "impl" "vec"}
                       {"x" 2.0 "y" 4.5 "impl" "list"}]
-            spec (charts/log-log-chart-spec
+            spec (charts.regression/log-log-chart-spec
                   points line-pts
                   {:color-field "impl" :metric-name "time"})]
         (is (map? spec))
@@ -1786,7 +1791,7 @@
         (let [scatter-layer (first (:layer spec))]
           (is (contains? (get-in scatter-layer [:encoding :color]) :field)))))
     (testing "uses provided metric-name in y-axis title"
-      (let [spec (charts/log-log-chart-spec
+      (let [spec (charts.regression/log-log-chart-spec
                   sample-log-log-points
                   sample-log-log-line-points
                   {:axis-name "n" :metric-name "allocation"})
@@ -1798,7 +1803,7 @@
   ;; Tests the log-log-residual-spec function for structure correctness.
   (testing "log-log-residual-spec"
     (testing "produces valid Vega-Lite spec structure"
-      (let [spec (charts/log-log-residual-spec
+      (let [spec (charts.regression/log-log-residual-spec
                   sample-log-log-residuals
                   {:width 600 :height 200 :axis-name "n"})]
         (is (map? spec))
@@ -1809,7 +1814,7 @@
         ;; Should have scatter layer, loess layer, and zero line
         (is (= 3 (count (:layer spec))))))
     (testing "uses log axis title"
-      (let [spec (charts/log-log-residual-spec
+      (let [spec (charts.regression/log-log-residual-spec
                   sample-log-log-residuals
                   {:axis-name "n"})
             scatter-layer (first (:layer spec))
@@ -1820,7 +1825,7 @@
   ;; Validates log-log-chart-spec output against Vega-Lite v5 schema.
   (testing "log-log-chart-spec"
     (testing "produces valid Vega-Lite spec"
-      (let [spec (charts/log-log-chart-spec
+      (let [spec (charts.regression/log-log-chart-spec
                   sample-log-log-points
                   sample-log-log-line-points
                   {:width 600 :height 400 :axis-name "n" :metric-name "time"})
@@ -1831,7 +1836,7 @@
     (testing "with error bounds produces valid spec"
       (let [points-with-error [{"x" 2.3 "y" 4.6 "yLower" 4.4 "yUpper" 4.8}
                                {"x" 3.0 "y" 6.0 "yLower" 5.8 "yUpper" 6.2}]
-            spec (charts/log-log-chart-spec
+            spec (charts.regression/log-log-chart-spec
                   points-with-error
                   sample-log-log-line-points
                   {:has-error-bounds? true :metric-name "time"})
@@ -1844,7 +1849,7 @@
                     {"x" 3.0 "y" 6.0 "impl" "list"}]
             line-pts [{"x" 2.0 "y" 4.0 "impl" "vec"}
                       {"x" 3.0 "y" 6.0 "impl" "list"}]
-            spec (charts/log-log-chart-spec
+            spec (charts.regression/log-log-chart-spec
                   points line-pts
                   {:color-field "impl" :metric-name "time"})
             result (schema/validate-vega-lite-spec spec)]
@@ -1856,7 +1861,7 @@
   ;; Validates log-log-residual-spec output against Vega-Lite v5 schema.
   (testing "log-log-residual-spec"
     (testing "produces valid Vega-Lite spec"
-      (let [spec (charts/log-log-residual-spec
+      (let [spec (charts.regression/log-log-residual-spec
                   sample-log-log-residuals
                   {:width 600 :height 200 :axis-name "n"})
             result (schema/validate-vega-lite-spec spec)]
@@ -1882,7 +1887,7 @@
   ;; Verifies layer structure, data points, and styling.
   (testing "distribution-pdf-layer"
     (testing "produces valid layer for fitted distribution"
-      (let [layer (charts/distribution-pdf-layer
+      (let [layer (charts.distribution/distribution-pdf-layer
                    :gamma sample-fit-result sample-grid "elapsed-time"
                    identity-transforms false)]
         (is (map? layer))
@@ -1891,7 +1896,7 @@
         (is (contains? layer :encoding))))
 
     (testing "includes PDF density values in data"
-      (let [layer (charts/distribution-pdf-layer
+      (let [layer (charts.distribution/distribution-pdf-layer
                    :gamma sample-fit-result sample-grid "elapsed-time"
                    identity-transforms false)
             data (get-in layer [:data :values])]
@@ -1902,14 +1907,14 @@
         (is (every? #(pos? (double (get % "pdf-density"))) data))))
 
     (testing "uses line mark"
-      (let [layer (charts/distribution-pdf-layer
+      (let [layer (charts.distribution/distribution-pdf-layer
                    :gamma sample-fit-result sample-grid "elapsed-time"
                    identity-transforms false)]
         (is (= "line" (get-in layer [:mark :type])))))
 
     (testing "best model has solid line"
       (let [best-result (assoc sample-fit-result :best-model :gamma)
-            layer (charts/distribution-pdf-layer
+            layer (charts.distribution/distribution-pdf-layer
                    :gamma best-result sample-grid "elapsed-time"
                    identity-transforms false)]
         (is (= [1 0] (get-in layer [:mark :strokeDash])))
@@ -1917,7 +1922,7 @@
 
     (testing "non-best model has dashed line"
       (let [non-best-result (assoc sample-fit-result :best-model :lognormal)
-            layer (charts/distribution-pdf-layer
+            layer (charts.distribution/distribution-pdf-layer
                    :gamma non-best-result sample-grid "elapsed-time"
                    identity-transforms false)]
         (is (= [4 4] (get-in layer [:mark :strokeDash])))
@@ -1925,14 +1930,14 @@
 
     (testing "returns nil for failed fit"
       (let [failed-result {:error "Fitting failed"}
-            layer (charts/distribution-pdf-layer
+            layer (charts.distribution/distribution-pdf-layer
                    :gamma failed-result sample-grid "elapsed-time"
                    identity-transforms false)]
         (is (nil? layer))))
 
     (testing "returns nil for skipped distribution"
       (let [skipped-result {:skipped :moment-match-failed}
-            layer (charts/distribution-pdf-layer
+            layer (charts.distribution/distribution-pdf-layer
                    :gamma skipped-result sample-grid "elapsed-time"
                    identity-transforms false)]
         (is (nil? layer))))
@@ -1943,7 +1948,7 @@
                              [:weibull {:shape 1.8 :scale 3.2}]
                              [:inverse-gaussian {:mu 3.0 :lambda 2.0}]]]
         (let [result {:params params}
-              layer (charts/distribution-pdf-layer
+              layer (charts.distribution/distribution-pdf-layer
                      dist result sample-grid "elapsed-time"
                      identity-transforms false)]
           (is (map? layer)
@@ -1961,7 +1966,7 @@
                        :lognormal {:params {:mu 0.5 :sigma 0.8}}
                        :weibull {:params {:shape 1.8 :scale 3.2}}}
                       :best-model :gamma}
-            layers (charts/distribution-pdf-overlay-layers
+            layers (charts.distribution/distribution-pdf-overlay-layers
                     fit-data sample-grid "elapsed-time" identity-transforms false)]
         (is (= 3 (count layers)))
         (is (every? map? layers))))
@@ -1971,7 +1976,7 @@
                       {:gamma {:params {:shape 2.0 :scale 1.5}}
                        :lognormal {:error "Fitting failed"}}
                       :best-model :gamma}
-            layers (charts/distribution-pdf-overlay-layers
+            layers (charts.distribution/distribution-pdf-overlay-layers
                     fit-data sample-grid "elapsed-time" identity-transforms false)]
         (is (= 1 (count layers)))))
 
@@ -1980,7 +1985,7 @@
                       {:gamma {:params {:shape 2.0 :scale 1.5}}
                        :inverse-gaussian {:skipped :moment-match-failed}}
                       :best-model :gamma}
-            layers (charts/distribution-pdf-overlay-layers
+            layers (charts.distribution/distribution-pdf-overlay-layers
                     fit-data sample-grid "elapsed-time" identity-transforms false)]
         (is (= 1 (count layers)))))
 
@@ -1989,7 +1994,7 @@
                       {:gamma {:error "Fitting failed"}
                        :lognormal {:skipped :moment-match-failed}}
                       :best-model nil}
-            layers (charts/distribution-pdf-overlay-layers
+            layers (charts.distribution/distribution-pdf-overlay-layers
                     fit-data sample-grid "elapsed-time" identity-transforms false)]
         (is (empty? layers))))))
 
@@ -1999,7 +2004,7 @@
   (testing "distribution-pdf-vega-spec"
     (testing "produces valid structure"
       (let [data-map (test-data/distribution-fit-data-map)
-            spec (charts/distribution-pdf-vega-spec
+            spec (charts.distribution/distribution-pdf-vega-spec
                   data-map {} {:width 400 :height 300})]
         (is (map? spec))
         (is (contains? spec :vconcat))
@@ -2008,7 +2013,7 @@
 
     (testing "includes chart dimensions"
       (let [data-map (test-data/distribution-fit-data-map)
-            spec (charts/distribution-pdf-vega-spec
+            spec (charts.distribution/distribution-pdf-vega-spec
                   data-map {} {:width 500 :height 350})
             chart (first (:vconcat spec))]
         (is (= 500 (:width chart)))
@@ -2016,7 +2021,7 @@
 
     (testing "includes KDE and distribution layers"
       (let [data-map (test-data/distribution-fit-data-map)
-            spec (charts/distribution-pdf-vega-spec
+            spec (charts.distribution/distribution-pdf-vega-spec
                   data-map {} {:width 400 :height 300})
             chart (first (:vconcat spec))
             inner-group (first (:layer chart))
@@ -2029,7 +2034,7 @@
 
     (testing "works without distribution-fit data"
       (let [data-map (test-data/kde-data-map)
-            spec (charts/distribution-pdf-vega-spec
+            spec (charts.distribution/distribution-pdf-vega-spec
                   data-map {} {:width 400 :height 300})]
         (is (map? spec))
         (is (contains? spec :vconcat))))))
@@ -2040,7 +2045,7 @@
   (testing "distribution-pdf-vega-spec"
     (testing "produces valid Vega-Lite spec"
       (let [data-map (test-data/distribution-fit-data-map)
-            spec (charts/distribution-pdf-vega-spec
+            spec (charts.distribution/distribution-pdf-vega-spec
                   data-map {} {:width 400 :height 300})
             result (schema/validate-vega-lite-spec spec)]
         (is (:valid? result)
@@ -2060,7 +2065,7 @@
   (testing "ecdf-layer"
     (testing "produces valid layer structure"
       (let [samples (arr/->double-array (double-array [1.0 2.0 3.0 4.0 5.0]))
-            layer (charts/ecdf-layer samples identity-transforms)]
+            layer (charts.distribution/ecdf-layer samples identity-transforms)]
         (is (map? layer))
         (is (contains? layer :data))
         (is (contains? layer :mark))
@@ -2068,13 +2073,13 @@
 
     (testing "includes correct number of data points"
       (let [samples (arr/->double-array (double-array [1.0 2.0 3.0 4.0 5.0]))
-            layer (charts/ecdf-layer samples identity-transforms)
+            layer (charts.distribution/ecdf-layer samples identity-transforms)
             data (get-in layer [:data :values])]
         (is (= 5 (count data)))))
 
     (testing "computes correct ECDF values"
       (let [samples (arr/->double-array (double-array [1.0 2.0 3.0 4.0 5.0]))
-            layer (charts/ecdf-layer samples identity-transforms)
+            layer (charts.distribution/ecdf-layer samples identity-transforms)
             data (get-in layer [:data :values])
             cdf-values (mapv #(get % "cdf") data)]
         ;; ECDF at each point should be i/n
@@ -2082,12 +2087,12 @@
 
     (testing "uses step-after interpolation"
       (let [samples (arr/->double-array (double-array [1.0 2.0 3.0]))
-            layer (charts/ecdf-layer samples identity-transforms)]
+            layer (charts.distribution/ecdf-layer samples identity-transforms)]
         (is (= "step-after" (get-in layer [:mark :interpolate])))))
 
     (testing "handles unsorted samples"
       (let [samples (arr/->double-array (double-array [5.0 1.0 3.0 2.0 4.0]))
-            layer (charts/ecdf-layer samples identity-transforms)
+            layer (charts.distribution/ecdf-layer samples identity-transforms)
             data (get-in layer [:data :values])
             x-values (mapv #(get % "x") data)]
         ;; Should be sorted
@@ -2098,7 +2103,7 @@
   ;; Verifies layer structure, data points, and styling.
   (testing "distribution-cdf-layer"
     (testing "produces valid layer for fitted distribution"
-      (let [layer (charts/distribution-cdf-layer
+      (let [layer (charts.distribution/distribution-cdf-layer
                    :gamma sample-fit-result sample-cdf-grid identity-transforms)]
         (is (map? layer))
         (is (contains? layer :data))
@@ -2106,7 +2111,7 @@
         (is (contains? layer :encoding))))
 
     (testing "includes CDF values in data"
-      (let [layer (charts/distribution-cdf-layer
+      (let [layer (charts.distribution/distribution-cdf-layer
                    :gamma sample-fit-result sample-cdf-grid identity-transforms)
             data (get-in layer [:data :values])]
         (is (= 5 (count data)))
@@ -2116,40 +2121,40 @@
         (is (every? #(<= 0.0 (get % "cdf") 1.0) data))))
 
     (testing "CDF values are monotonically increasing"
-      (let [layer (charts/distribution-cdf-layer
+      (let [layer (charts.distribution/distribution-cdf-layer
                    :gamma sample-fit-result sample-cdf-grid identity-transforms)
             data (get-in layer [:data :values])
             cdf-values (mapv #(get % "cdf") data)]
         (is (apply <= cdf-values))))
 
     (testing "uses line mark"
-      (let [layer (charts/distribution-cdf-layer
+      (let [layer (charts.distribution/distribution-cdf-layer
                    :gamma sample-fit-result sample-cdf-grid identity-transforms)]
         (is (= "line" (get-in layer [:mark :type])))))
 
     (testing "best model has solid line"
       (let [best-result (assoc sample-fit-result :best-model :gamma)
-            layer (charts/distribution-cdf-layer
+            layer (charts.distribution/distribution-cdf-layer
                    :gamma best-result sample-cdf-grid identity-transforms)]
         (is (= [1 0] (get-in layer [:mark :strokeDash])))
         (is (= 2.5 (get-in layer [:mark :strokeWidth])))))
 
     (testing "non-best model has dashed line"
       (let [non-best-result (assoc sample-fit-result :best-model :lognormal)
-            layer (charts/distribution-cdf-layer
+            layer (charts.distribution/distribution-cdf-layer
                    :gamma non-best-result sample-cdf-grid identity-transforms)]
         (is (= [4 4] (get-in layer [:mark :strokeDash])))
         (is (= 1.5 (get-in layer [:mark :strokeWidth])))))
 
     (testing "returns nil for failed fit"
       (let [failed-result {:error "Fitting failed"}
-            layer (charts/distribution-cdf-layer
+            layer (charts.distribution/distribution-cdf-layer
                    :gamma failed-result sample-cdf-grid identity-transforms)]
         (is (nil? layer))))
 
     (testing "returns nil for skipped distribution"
       (let [skipped-result {:skipped :moment-match-failed}
-            layer (charts/distribution-cdf-layer
+            layer (charts.distribution/distribution-cdf-layer
                    :gamma skipped-result sample-cdf-grid identity-transforms)]
         (is (nil? layer))))
 
@@ -2159,7 +2164,7 @@
                              [:weibull {:shape 1.8 :scale 3.2}]
                              [:inverse-gaussian {:mu 3.0 :lambda 2.0}]]]
         (let [result {:params params}
-              layer (charts/distribution-cdf-layer
+              layer (charts.distribution/distribution-cdf-layer
                      dist result sample-cdf-grid identity-transforms)]
           (is (map? layer)
               (str "Failed for distribution: " dist))
@@ -2176,7 +2181,7 @@
                        :lognormal {:params {:mu 0.5 :sigma 0.8}}
                        :weibull {:params {:shape 1.8 :scale 3.2}}}
                       :best-model :gamma}
-            layers (charts/distribution-cdf-overlay-layers
+            layers (charts.distribution/distribution-cdf-overlay-layers
                     fit-data sample-cdf-grid identity-transforms)]
         (is (= 3 (count layers)))
         (is (every? map? layers))))
@@ -2186,7 +2191,7 @@
                       {:gamma {:params {:shape 2.0 :scale 1.5}}
                        :lognormal {:error "Fitting failed"}}
                       :best-model :gamma}
-            layers (charts/distribution-cdf-overlay-layers
+            layers (charts.distribution/distribution-cdf-overlay-layers
                     fit-data sample-cdf-grid identity-transforms)]
         (is (= 1 (count layers)))))
 
@@ -2195,7 +2200,7 @@
                       {:gamma {:params {:shape 2.0 :scale 1.5}}
                        :inverse-gaussian {:skipped :moment-match-failed}}
                       :best-model :gamma}
-            layers (charts/distribution-cdf-overlay-layers
+            layers (charts.distribution/distribution-cdf-overlay-layers
                     fit-data sample-cdf-grid identity-transforms)]
         (is (= 1 (count layers)))))
 
@@ -2204,7 +2209,7 @@
                       {:gamma {:error "Fitting failed"}
                        :lognormal {:skipped :moment-match-failed}}
                       :best-model nil}
-            layers (charts/distribution-cdf-overlay-layers
+            layers (charts.distribution/distribution-cdf-overlay-layers
                     fit-data sample-cdf-grid identity-transforms)]
         (is (empty? layers))))))
 
@@ -2214,7 +2219,7 @@
   (testing "distribution-cdf-vega-spec"
     (testing "produces valid structure"
       (let [data-map (test-data/distribution-cdf-data-map)
-            spec (charts/distribution-cdf-vega-spec
+            spec (charts.distribution/distribution-cdf-vega-spec
                   data-map {} {:width 400 :height 300})]
         (is (map? spec))
         (is (contains? spec :vconcat))
@@ -2223,7 +2228,7 @@
 
     (testing "includes chart dimensions"
       (let [data-map (test-data/distribution-cdf-data-map)
-            spec (charts/distribution-cdf-vega-spec
+            spec (charts.distribution/distribution-cdf-vega-spec
                   data-map {} {:width 500 :height 350})
             chart (first (:vconcat spec))]
         (is (= 500 (:width chart)))
@@ -2231,7 +2236,7 @@
 
     (testing "includes ECDF and distribution CDF layers"
       (let [data-map (test-data/distribution-cdf-data-map)
-            spec (charts/distribution-cdf-vega-spec
+            spec (charts.distribution/distribution-cdf-vega-spec
                   data-map {} {:width 400 :height 300})
             chart (first (:vconcat spec))
             layers (:layer chart)]
@@ -2240,7 +2245,7 @@
 
     (testing "works without distribution-fit data"
       (let [data-map {:samples (:samples (test-data/distribution-cdf-data-map))}
-            spec (charts/distribution-cdf-vega-spec
+            spec (charts.distribution/distribution-cdf-vega-spec
                   data-map {} {:width 400 :height 300})]
         (is (map? spec))
         (is (contains? spec :vconcat))
@@ -2255,7 +2260,7 @@
   (testing "distribution-cdf-vega-spec"
     (testing "produces valid Vega-Lite spec"
       (let [data-map (test-data/distribution-cdf-data-map)
-            spec (charts/distribution-cdf-vega-spec
+            spec (charts.distribution/distribution-cdf-vega-spec
                   data-map {} {:width 400 :height 300})
             result (schema/validate-vega-lite-spec spec)]
         (is (:valid? result)
@@ -2272,7 +2277,7 @@
       (let [samples (arr/->double-array (double-array [1.0 2.0 3.0 4.0 5.0]))
             ;; Simple identity quantile function for testing
             quantile-fn identity
-            points (charts/qq-points samples quantile-fn identity-transforms)]
+            points (charts.quantile/qq-points samples quantile-fn identity-transforms)]
         (is (= 5 (count points)))
         (is (every? #(contains? % "theoretical") points))
         (is (every? #(contains? % "observed") points))))
@@ -2280,7 +2285,7 @@
     (testing "uses Hazen plotting position"
       (let [samples (arr/->double-array (double-array [1.0 2.0 3.0]))
             quantile-fn identity
-            points (charts/qq-points samples quantile-fn identity-transforms)]
+            points (charts.quantile/qq-points samples quantile-fn identity-transforms)]
         ;; Hazen: (i - 0.5) / n for i = 1, 2, 3 and n = 3
         ;; p1 = 0.5/3 = 0.167, p2 = 1.5/3 = 0.5, p3 = 2.5/3 = 0.833
         (is (< (Math/abs (- (/ 0.5 3.0) (double (get (nth points 0) "theoretical")))) 0.001))
@@ -2290,7 +2295,7 @@
     (testing "preserves sorted sample values"
       (let [samples (arr/->double-array (double-array [3.0 1.0 2.0]))  ; unsorted input
             quantile-fn identity
-            points (charts/qq-points samples quantile-fn identity-transforms)]
+            points (charts.quantile/qq-points samples quantile-fn identity-transforms)]
         ;; Observed values should be sorted
         (is (= 1.0 (get (nth points 0) "observed")))
         (is (= 2.0 (get (nth points 1) "observed")))
@@ -2301,7 +2306,7 @@
             quantile-fn identity
             transforms {:sample-> (list #(* 1000.0 (double %)))
                         :->sample [#(/ (double %) 1000.0)]}
-            points (charts/qq-points samples quantile-fn transforms)]
+            points (charts.quantile/qq-points samples quantile-fn transforms)]
         ;; Values should be transformed to ns from s
         (is (= 1000.0 (get (nth points 0) "observed")))))))
 
@@ -2313,7 +2318,7 @@
       (let [samples (arr/->double-array (double-array [1.0 2.0 3.0 4.0 5.0]))
             fit-result {:params {:shape 2.0 :scale 1.5}
                         :best-model :gamma}
-            layer (charts/distribution-qq-layer
+            layer (charts.quantile/distribution-qq-layer
                    :gamma fit-result samples identity-transforms)]
         (is (some? layer))
         (is (map? layer))
@@ -2326,7 +2331,7 @@
       (let [samples (arr/->double-array (double-array [1.0 2.0 3.0]))
             fit-result {:params {:shape 2.0 :scale 1.5}
                         :best-model :gamma}
-            layer (charts/distribution-qq-layer
+            layer (charts.quantile/distribution-qq-layer
                    :gamma fit-result samples identity-transforms)]
         (is (= 60 (get-in layer [:mark :size])))
         (is (true? (get-in layer [:mark :filled])))))
@@ -2335,7 +2340,7 @@
       (let [samples (arr/->double-array (double-array [1.0 2.0 3.0]))
             fit-result {:params {:mu 0.5 :sigma 0.6}
                         :best-model :gamma}  ; lognormal is not best
-            layer (charts/distribution-qq-layer
+            layer (charts.quantile/distribution-qq-layer
                    :lognormal fit-result samples identity-transforms)]
         (is (= 40 (get-in layer [:mark :size])))
         (is (false? (get-in layer [:mark :filled])))))
@@ -2343,14 +2348,14 @@
     (testing "returns nil for skipped distribution"
       (let [samples (arr/->double-array (double-array [1.0 2.0 3.0]))
             fit-result {:skipped :moment-match-failed}
-            layer (charts/distribution-qq-layer
+            layer (charts.quantile/distribution-qq-layer
                    :inverse-gaussian fit-result samples identity-transforms)]
         (is (nil? layer))))
 
     (testing "returns nil for distribution without params"
       (let [samples (arr/->double-array (double-array [1.0 2.0 3.0]))
             fit-result {}
-            layer (charts/distribution-qq-layer
+            layer (charts.quantile/distribution-qq-layer
                    :gamma fit-result samples identity-transforms)]
         (is (nil? layer))))))
 
@@ -2359,7 +2364,7 @@
   ;; Verifies line structure and range extension.
   (testing "qq-reference-line-layer"
     (testing "generates valid layer structure"
-      (let [layer (charts/qq-reference-line-layer 1.0 5.0)]
+      (let [layer (charts.quantile/qq-reference-line-layer 1.0 5.0)]
         (is (map? layer))
         (is (contains? layer :data))
         (is (contains? layer :mark))
@@ -2367,11 +2372,11 @@
         (is (= "line" (get-in layer [:mark :type])))))
 
     (testing "uses dashed line style"
-      (let [layer (charts/qq-reference-line-layer 1.0 5.0)]
+      (let [layer (charts.quantile/qq-reference-line-layer 1.0 5.0)]
         (is (= [4 4] (get-in layer [:mark :strokeDash])))))
 
     (testing "extends range for visual clarity"
-      (let [layer (charts/qq-reference-line-layer 1.0 5.0)
+      (let [layer (charts.quantile/qq-reference-line-layer 1.0 5.0)
             values (get-in layer [:data :values])]
         ;; Range 1.0-5.0, margin = 0.05 * 4 = 0.2
         ;; Start = 1.0 - 0.2 = 0.8, End = 5.0 + 0.2 = 5.2
@@ -2390,7 +2395,7 @@
                       {:gamma {:params {:shape 2.0 :scale 1.5}}
                        :lognormal {:params {:mu 0.5 :sigma 0.6}}
                        :weibull {:params {:shape 2.0 :scale 3.0}}}}
-            layers (charts/distribution-qq-overlay-layers
+            layers (charts.quantile/distribution-qq-overlay-layers
                     fit-data samples identity-transforms)]
         (is (= 3 (count layers)))
         (is (every? map? layers))))
@@ -2401,14 +2406,14 @@
                       :distributions
                       {:gamma {:params {:shape 2.0 :scale 1.5}}
                        :inverse-gaussian {:skipped :moment-match-failed}}}
-            layers (charts/distribution-qq-overlay-layers
+            layers (charts.quantile/distribution-qq-overlay-layers
                     fit-data samples identity-transforms)]
         (is (= 1 (count layers)))))
 
     (testing "returns empty vector when no distributions fitted"
       (let [samples (arr/->double-array (double-array [1.0 2.0 3.0]))
             fit-data {:best-model nil :distributions {}}
-            layers (charts/distribution-qq-overlay-layers
+            layers (charts.quantile/distribution-qq-overlay-layers
                     fit-data samples identity-transforms)]
         (is (empty? layers))))))
 
@@ -2418,7 +2423,7 @@
   (testing "distribution-qq-vega-spec"
     (testing "produces valid structure with subplot grid"
       (let [data-map (test-data/distribution-qq-data-map)
-            spec (charts/distribution-qq-vega-spec
+            spec (charts.quantile/distribution-qq-vega-spec
                   data-map {} {:width 400 :height 300})]
         (is (map? spec))
         (is (contains? spec :vconcat))
@@ -2429,7 +2434,7 @@
 
     (testing "creates subplot for each distribution"
       (let [data-map (test-data/distribution-qq-data-map)
-            spec (charts/distribution-qq-vega-spec
+            spec (charts.quantile/distribution-qq-vega-spec
                   data-map {} {:width 400 :height 300})
             metric-grid (first (:vconcat spec))
             rows (:vconcat metric-grid)
@@ -2441,7 +2446,7 @@
 
     (testing "each subplot includes reference line and Q-Q scatter layers"
       (let [data-map (test-data/distribution-qq-data-map)
-            spec (charts/distribution-qq-vega-spec
+            spec (charts.quantile/distribution-qq-vega-spec
                   data-map {} {:width 400 :height 300})
             metric-grid (first (:vconcat spec))
             rows (:vconcat metric-grid)
@@ -2456,7 +2461,7 @@
 
     (testing "subplot axes constrained to observed data range"
       (let [data-map (test-data/distribution-qq-data-map)
-            spec (charts/distribution-qq-vega-spec
+            spec (charts.quantile/distribution-qq-vega-spec
                   data-map {} {:width 400 :height 300})
             metric-grid (first (:vconcat spec))
             rows (:vconcat metric-grid)
@@ -2473,7 +2478,7 @@
 
     (testing "returns nil chart when no distribution-fit data"
       (let [data-map {:samples (:samples (test-data/distribution-qq-data-map))}
-            spec (charts/distribution-qq-vega-spec
+            spec (charts.quantile/distribution-qq-vega-spec
                   data-map {} {:width 400 :height 300})]
         (is (map? spec))
         (is (contains? spec :vconcat))
@@ -2486,7 +2491,7 @@
   (testing "distribution-qq-vega-spec"
     (testing "produces valid Vega-Lite spec"
       (let [data-map (test-data/distribution-qq-data-map)
-            spec (charts/distribution-qq-vega-spec
+            spec (charts.quantile/distribution-qq-vega-spec
                   data-map {} {:width 400 :height 300})
             result (schema/validate-vega-lite-spec spec)]
         (is (:valid? result)

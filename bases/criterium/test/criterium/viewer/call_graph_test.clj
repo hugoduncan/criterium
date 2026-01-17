@@ -5,7 +5,7 @@
    [criterium.test-utils :refer [trimmed-lines]]
    [criterium.view :as view]
    [criterium.viewer.call-graph :as call-graph]
-   [criterium.viewer.common-charts :as charts]
+   [criterium.viewer.common-charts.profile :as charts.profile]
    [criterium.viewer.kindly :as kindly]
    [criterium.viewer.portal :as portal])
   (:import
@@ -270,7 +270,7 @@
   ;; Tests the Vega spec generation for tree diagram.
   (testing "call-tree-tree-vega-spec"
     (testing "generates valid Vega spec for nested tree"
-      (let [spec (charts/call-tree-tree-vega-spec nested-call-tree {})]
+      (let [spec (charts.profile/call-tree-tree-vega-spec nested-call-tree {})]
         (is (str/includes? (:$schema spec) "vega/v5.json"))
         (is (= 700 (:width spec)))
         (is (= 500 (:height spec)))
@@ -279,13 +279,13 @@
         (is (contains? spec :scales))))
 
     (testing "respects width/height options"
-      (let [spec (charts/call-tree-tree-vega-spec nested-call-tree
-                                                  {:width 800 :height 600})]
+      (let [spec (charts.profile/call-tree-tree-vega-spec nested-call-tree
+                                                          {:width 800 :height 600})]
         (is (= 800 (:width spec)))
         (is (= 600 (:height spec)))))
 
     (testing "handles nil call-tree"
-      (let [spec (charts/call-tree-tree-vega-spec nil {})]
+      (let [spec (charts.profile/call-tree-tree-vega-spec nil {})]
         (is (map? spec))
         (is (= [] (get-in spec [:data 0 :values])))))))
 
@@ -294,7 +294,7 @@
   (testing "call-tree-flame-vega-spec"
     (testing "generates valid Vega spec for nested tree"
       (let [total-calls (call-graph/total-call-count nested-call-tree)
-            spec (charts/call-tree-flame-vega-spec nested-call-tree total-calls {})]
+            spec (charts.profile/call-tree-flame-vega-spec nested-call-tree total-calls {})]
         (is (str/includes? (:$schema spec) "vega/v5.json"))
         (is (= 700 (:width spec)))
         (is (contains? spec :data))
@@ -312,12 +312,12 @@
 
     (testing "respects width option"
       (let [total-calls (call-graph/total-call-count simple-call-tree)
-            spec (charts/call-tree-flame-vega-spec simple-call-tree total-calls
-                                                   {:width 500})]
+            spec (charts.profile/call-tree-flame-vega-spec simple-call-tree total-calls
+                                                           {:width 500})]
         (is (= 500 (:width spec)))))
 
     (testing "handles nil call-tree"
-      (let [spec (charts/call-tree-flame-vega-spec nil 0 {})]
+      (let [spec (charts.profile/call-tree-flame-vega-spec nil 0 {})]
         (is (map? spec))
         (is (= [] (get-in spec [:data 0 :values])))))))
 
@@ -599,7 +599,7 @@
   ;; Tests the Vega-Lite spec generation for most-called bar chart.
   (testing "most-called-vega-lite-spec"
     (testing "generates valid Vega-Lite spec"
-      (let [spec (charts/most-called-vega-lite-spec sample-most-called {})]
+      (let [spec (charts.profile/most-called-vega-lite-spec sample-most-called {})]
         (is (str/includes? (:$schema spec) "vega-lite"))
         (is (= 600 (:width spec)))
         (is (contains? spec :data))
@@ -613,11 +613,11 @@
           (is (= 100 (get (first data) "calls"))))))
 
     (testing "respects width option"
-      (let [spec (charts/most-called-vega-lite-spec sample-most-called {:width 800})]
+      (let [spec (charts.profile/most-called-vega-lite-spec sample-most-called {:width 800})]
         (is (= 800 (:width spec)))))
 
     (testing "includes location in tooltip data"
-      (let [spec (charts/most-called-vega-lite-spec sample-most-called {})
+      (let [spec (charts.profile/most-called-vega-lite-spec sample-most-called {})
             first-item (first (get-in spec [:data :values]))]
         (is (= "Helper.java:30" (get first-item "location")))))))
 
