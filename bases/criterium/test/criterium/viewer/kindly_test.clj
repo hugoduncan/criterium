@@ -1003,6 +1003,117 @@
       (view/domain-regression* :kindly {} {:regression nil})
       (is (nil? (kindly/flush))))))
 
+(deftest domain-regression-log-log-callback-integration-test
+  ;; Tests that the render-log-log-charts callback in domain-regression* extracts
+  ;; the metric-name correctly from the metric path vector. This catches type
+  ;; errors like (name metric) on a vector vs (name (second metric)) on a keyword.
+  (testing "view/domain-regression* :kindly log-log callback"
+    (testing "generates y-axis label using metric-name from path"
+      (reset! kindly/accumulated [])
+      (let [;; Create realistic log-log data structure with metric as path vector
+            data-map
+            {:extract
+             {:type :criterium/domain-extract
+              :metrics {:elapsed-time
+                        {:metric [:stats :elapsed-time :mean]
+                         :data [[{:n 100} 1e6]
+                                [{:n 200} 2e6]
+                                [{:n 400} 4e6]
+                                [{:n 800} 8e6]]}}}
+             :log-log
+             {:type :criterium/domain-log-log-regression
+              :axis :n
+              :regressions
+              {:elapsed-time
+               {:metric [:stats :elapsed-time :mean]
+                :xs [100 200 400 800]
+                :ys [1e6 2e6 4e6 8e6]
+                :log-xs [(Math/log 100) (Math/log 200) (Math/log 400) (Math/log 800)]
+                :log-ys [(Math/log 1e6) (Math/log 2e6) (Math/log 4e6) (Math/log 8e6)]
+                :slope 1.0
+                :intercept 6.9
+                :r-squared 0.9999
+                :residuals [0.001 -0.001 0.001 -0.001]}}}
+             :regression
+             {:type :criterium/domain-regression
+              :axis :n
+              :regressions
+              {:elapsed-time
+               {:metric [:stats :elapsed-time :mean]
+                :models [{:id :linear
+                          :label "O(n)"
+                          :coefficients {:a 10000.0 :b 0.0}
+                          :equation-str "y = 10000*n + 0"
+                          :predict-fn (fn [^double x] (* 10000.0 x))
+                          :r-squared 0.9999}]
+                :best-fit :linear}}}}]
+        (view/domain-regression* :kindly {} data-map)
+        (let [result (kindly/flush)]
+          (is (= :kind/fragment (:kindly/kind (meta result))))
+          ;; Find the log-log chart (first vega-lite chart with log(n) x-axis)
+          (let [log-log-chart (->> result
+                                   (filter #(and (= :kind/vega-lite
+                                                    (:kindly/kind (meta %)))
+                                                 (some-> % :layer first :encoding :x :title
+                                                         (str/includes? "log(n)"))))
+                                   first)]
+            (is (some? log-log-chart)
+                "Should have a log-log chart")
+            ;; Verify the y-axis uses the metric name (elapsed-time)
+            ;; not the full path vector and not the hardcoded "time"
+            (let [y-axis-title (-> log-log-chart :layer first :encoding :y :title)]
+              (is (= "log(elapsed-time)" y-axis-title)
+                  (str "Y-axis should use metric name from path. "
+                       "Got: " (pr-str y-axis-title))))))))
+
+    (testing "handles allocation metric correctly"
+      (reset! kindly/accumulated [])
+      (let [data-map
+            {:extract
+             {:type :criterium/domain-extract
+              :metrics {:thread-allocation
+                        {:metric [:stats :thread-allocation :mean]
+                         :data [[{:n 100} 1e4]
+                                [{:n 200} 2e4]]}}}
+             :log-log
+             {:type :criterium/domain-log-log-regression
+              :axis :n
+              :regressions
+              {:thread-allocation
+               {:metric [:stats :thread-allocation :mean]
+                :xs [100 200]
+                :ys [1e4 2e4]
+                :log-xs [(Math/log 100) (Math/log 200)]
+                :log-ys [(Math/log 1e4) (Math/log 2e4)]
+                :slope 1.0
+                :intercept 6.9
+                :r-squared 0.99
+                :residuals [0.01 -0.01]}}}
+             :regression
+             {:type :criterium/domain-regression
+              :axis :n
+              :regressions
+              {:thread-allocation
+               {:metric [:stats :thread-allocation :mean]
+                :models [{:id :linear
+                          :label "O(n)"
+                          :coefficients {:a 100.0 :b 0.0}
+                          :equation-str "y = 100*n"
+                          :predict-fn (fn [^double x] (* 100.0 x))
+                          :r-squared 0.99}]
+                :best-fit :linear}}}}]
+        (view/domain-regression* :kindly {} data-map)
+        (let [result (kindly/flush)
+              log-log-chart (->> result
+                                 (filter #(and (= :kind/vega-lite
+                                                  (:kindly/kind (meta %)))
+                                               (some-> % :layer first :encoding :x :title
+                                                       (str/includes? "log(n)"))))
+                                 first)
+              y-axis-title (-> log-log-chart :layer first :encoding :y :title)]
+          (is (= "log(thread-allocation)" y-axis-title)
+              "Y-axis should use thread-allocation metric name"))))))
+
 (deftest allocation-summary-view-test
   ;; Tests the view/allocation-summary* multimethod for :kindly viewer.
   ;; Verifies that allocation summary data is rendered as a heading and table
