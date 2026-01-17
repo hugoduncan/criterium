@@ -136,7 +136,7 @@
   Returns a Vega-Lite spec with reference line and scatter points for the
   given distribution. Axes domain is computed from both theoretical and
   observed values to ensure all Q-Q points are visible."
-  [dist fit-result samples transforms _observed-range subplot-options]
+  [dist fit-result samples transforms subplot-options]
   (when (and (:params fit-result)
              (not (:error fit-result))
              (not (:skipped fit-result)))
@@ -231,15 +231,7 @@
               fit-data (when fits (get fits path))
               has-samples? (and samples (pos? (arr/length samples)))]
           (when (and has-samples? fit-data)
-            ;; Compute observed range for consistent axes across subplots
-            (let [sorted-arr (arr/sorted samples)
-                  sorted-samples (arr/fold sorted-arr conj [])
-                  transformed-samples (mapv #(util/transform-sample-> % samples-transforms)
-                                            sorted-samples)
-                  min-val (apply min transformed-samples)
-                  max-val (apply max transformed-samples)
-                  observed-range [min-val max-val]
-                  distributions (:distributions fit-data)
+            (let [distributions (:distributions fit-data)
                   best-model (:best-model fit-data)
                   ;; Generate subplots for each distribution
                   subplots (->> distribution-order
@@ -251,7 +243,6 @@
                                                 :best-model best-model)
                                          samples
                                          samples-transforms
-                                         observed-range
                                          subplot-options)))
                                 (filterv some?))]
               ;; Arrange in 2-column grid using vconcat of hconcat rows
