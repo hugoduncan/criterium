@@ -45,7 +45,35 @@
                     {:axis :n :impl-axis :impl})]
         (is (= 2 (count (:points result))))
         (is (some #(= "vec" (get % "impl")) (:points result)))
-        (is (some #(= "list" (get % "impl")) (:points result)))))))
+        (is (some #(= "list" (get % "impl")) (:points result)))))
+    (testing "includes original values for tooltips when present"
+      (let [log-log-data {:xs [10 20]
+                          :ys [100 200]
+                          :log-xs [(Math/log 10) (Math/log 20)]
+                          :log-ys [(Math/log 100) (Math/log 200)]}
+            result (regression/prepare-log-log-points
+                    log-log-data
+                    {:axis :n})]
+        (is (= 2 (count (:points result))))
+        (is (= 10 (get (first (:points result)) "origX")))
+        (is (= 100 (get (first (:points result)) "origY")))
+        (is (= 20 (get (second (:points result)) "origX")))
+        (is (= 200 (get (second (:points result)) "origY")))))
+    (testing "includes original values in multi-impl mode"
+      (let [log-log-data {:by-impl {:vec {:xs [10]
+                                          :ys [100]
+                                          :log-xs [(Math/log 10)]
+                                          :log-ys [(Math/log 100)]}
+                                    :list {:xs [10]
+                                           :ys [200]
+                                           :log-xs [(Math/log 10)]
+                                           :log-ys [(Math/log 200)]}}}
+            result (regression/prepare-log-log-points
+                    log-log-data
+                    {:axis :n :impl-axis :impl})]
+        (is (= 2 (count (:points result))))
+        (is (every? #(contains? % "origX") (:points result)))
+        (is (every? #(contains? % "origY") (:points result)))))))
 
 (deftest prepare-log-log-fit-line-test
   ;; Tests prepare-log-log-fit-line which generates fit line points.

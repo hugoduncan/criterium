@@ -195,8 +195,9 @@
   "Prepare log-log transformed data points for scatter plot.
   Returns {:points [...] :axis-name string} or nil.
 
-  Points have keys: x (log(n)), y (log(time)), and optionally
-  yLower, yUpper for log-transformed error bounds.
+  Points have keys: x (log(n)), y (log(time)), origX (original n),
+  origY (original time), and optionally yLower, yUpper for
+  log-transformed error bounds.
   For multi-impl mode, points also have :impl key.
 
   The log-log-data comes from the :regressions map of a
@@ -212,15 +213,19 @@
               (vec
                (mapcat
                 (fn [impl-key]
-                  (let [{:keys [log-xs log-ys log-lowers log-uppers]}
+                  (let [{:keys [xs ys log-xs log-ys log-lowers log-uppers]}
                         (get by-impl impl-key)]
                     (when (and log-xs log-ys)
                       (map-indexed
                        (fn [i log-x]
-                         (let [log-y (nth log-ys i)]
+                         (let [log-y (nth log-ys i)
+                               orig-x (when xs (nth xs i nil))
+                               orig-y (when ys (nth ys i nil))]
                            (cond-> {"x" log-x
                                     "y" log-y
                                     "impl" (name impl-key)}
+                             orig-x (assoc "origX" orig-x)
+                             orig-y (assoc "origY" orig-y)
                              (and log-lowers (nth log-lowers i nil))
                              (assoc "yLower" (nth log-lowers i))
                              (and log-uppers (nth log-uppers i nil))
@@ -233,14 +238,18 @@
              :has-error-bounds? (boolean
                                  (some #(contains? % "yLower") all-points))}))
         ;; Single implementation mode
-        (let [{:keys [log-xs log-ys log-lowers log-uppers]} log-log-data]
+        (let [{:keys [xs ys log-xs log-ys log-lowers log-uppers]} log-log-data]
           (when (and log-xs log-ys)
             (let [points (vec
                           (map-indexed
                            (fn [i log-x]
-                             (let [log-y (nth log-ys i)]
+                             (let [log-y (nth log-ys i)
+                                   orig-x (when xs (nth xs i nil))
+                                   orig-y (when ys (nth ys i nil))]
                                (cond-> {"x" log-x
                                         "y" log-y}
+                                 orig-x (assoc "origX" orig-x)
+                                 orig-y (assoc "origY" orig-y)
                                  (and log-lowers (nth log-lowers i nil))
                                  (assoc "yLower" (nth log-lowers i))
                                  (and log-uppers (nth log-uppers i nil))

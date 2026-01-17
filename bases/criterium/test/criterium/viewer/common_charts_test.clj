@@ -1752,7 +1752,32 @@
         (is (map? spec))
         ;; Check that color encoding exists in scatter layer
         (let [scatter-layer (first (:layer spec))]
-          (is (contains? (get-in scatter-layer [:encoding :color]) :field)))))))
+          (is (contains? (get-in scatter-layer [:encoding :color]) :field)))))
+    (testing "includes tooltips with log values"
+      (let [spec (charts/log-log-chart-spec
+                  sample-log-log-points
+                  sample-log-log-line-points
+                  {:axis-name "n"})
+            scatter-layer (first (:layer spec))
+            tooltip (get-in scatter-layer [:encoding :tooltip])]
+        (is (vector? tooltip))
+        (is (some #(= "log(n)" (:title %)) tooltip))
+        (is (some #(= "log(time)" (:title %)) tooltip))))
+    (testing "includes original values in tooltips when present"
+      (let [points [{"x" 2.3 "y" 4.6 "origX" 10 "origY" 100}
+                    {"x" 3.0 "y" 6.0 "origX" 20 "origY" 200}]
+            spec (charts/log-log-chart-spec
+                  points
+                  sample-log-log-line-points
+                  {:axis-name "n"})
+            scatter-layer (first (:layer spec))
+            tooltip (get-in scatter-layer [:encoding :tooltip])]
+        (is (vector? tooltip))
+        ;; Should have original values first, then log values
+        (is (some #(= "n" (:title %)) tooltip))
+        (is (some #(= "time" (:title %)) tooltip))
+        (is (some #(= "log(n)" (:title %)) tooltip))
+        (is (some #(= "log(time)" (:title %)) tooltip))))))
 
 (deftest log-log-residual-spec-test
   ;; Tests the log-log-residual-spec function for structure correctness.
