@@ -1024,3 +1024,134 @@
         (is (= 2 (count (:rows result))))
         ;; Should show "median" when metric path is :median
         (is (some #(str/includes? % "median") (:col-headers result)))))))
+
+;;; Tests for CI bounds extraction from bootstrap stats.
+;;; Verifies that :ci-lower/:ci-upper are recognized as error bounds.
+
+(deftest prepare-comparison-line-data-ci-bounds-test
+  ;; Tests line chart data preparation recognizes bootstrap CI bounds.
+  ;; Bootstrap stats use :ci-lower/:ci-upper keys which should be extracted
+  ;; into yLower/yUpper chart fields.
+  (testing "prepare-comparison-line-data with bootstrap CI bounds"
+    (testing "extracts :ci-lower/:ci-upper into yLower/yUpper"
+      (let [domain-comparison {:type :criterium/domain-comparison
+                               :axis :n
+                               :metric [:stats :elapsed-time :median]
+                               :implementations [:foo :bar]
+                               :data {:foo [{:coord {:n 100}
+                                             :value {:value 1.0e-6
+                                                     :ci-lower 0.9e-6
+                                                     :ci-upper 1.1e-6}}
+                                            {:coord {:n 200}
+                                             :value {:value 1.5e-6
+                                                     :ci-lower 1.4e-6
+                                                     :ci-upper 1.6e-6}}]
+                                      :bar [{:coord {:n 100}
+                                             :value {:value 2.0e-6
+                                                     :ci-lower 1.8e-6
+                                                     :ci-upper 2.2e-6}}
+                                            {:coord {:n 200}
+                                             :value {:value 2.5e-6
+                                                     :ci-lower 2.3e-6
+                                                     :ci-upper 2.7e-6}}]}}
+            result (comparison/prepare-comparison-line-data domain-comparison)
+            first-metric (first result)]
+        (is (true? (:has-error-bounds? first-metric)))
+        (is (str/starts-with? (:y-title first-metric) "median "))
+        (let [data (:data first-metric)]
+          (is (every? #(contains? % "yLower") data))
+          (is (every? #(contains? % "yUpper") data))
+          (doseq [d data]
+            (is (< (get d "yLower") (get d "y")))
+            (is (< (get d "y") (get d "yUpper")))))))
+
+    (testing "prefers :lower/:upper over :ci-lower/:ci-upper"
+      (let [domain-comparison {:type :criterium/domain-comparison
+                               :axis :n
+                               :metric [:stats :elapsed-time :mean]
+                               :implementations [:foo]
+                               :data {:foo [{:coord {:n 100}
+                                             :value {:value 1.0e-6
+                                                     :lower 0.8e-6
+                                                     :upper 1.2e-6
+                                                     :ci-lower 0.9e-6
+                                                     :ci-upper 1.1e-6}}]}}
+            result (comparison/prepare-comparison-line-data domain-comparison)
+            data (:data (first result))
+            point (first data)]
+        ;; Should use :lower/:upper (0.8e-6, 1.2e-6) not :ci-lower/:ci-upper (0.9e-6, 1.1e-6)
+        ;; Note: values are scaled by SI factor, so we compare ratios
+        (let [y (get point "y")
+              y-lower (get point "yLower")
+              y-upper (get point "yUpper")
+              lower-ratio (/ y-lower y)
+              upper-ratio (/ y-upper y)]
+          ;; 0.8/1.0 = 0.8, 1.2/1.0 = 1.2
+          (is (< 0.79 lower-ratio 0.81))
+          (is (< 1.19 upper-ratio 1.21)))))
+
+    (testing "extracts CI bounds from multi-metric comparison"
+      (let [domain-comparison {:type :criterium/domain-comparison
+                               :axis :n
+                               :implementations [:foo :bar]
+                               :metrics {:elapsed-time
+                                         {:metric [:stats :elapsed-time :median]
+                                          :data {:foo [{:coord {:n 100}
+                                                        :value {:value 1.0e-6
+                                                                :ci-lower 0.9e-6
+                                                                :ci-upper 1.1e-6}}
+                                                       {:coord {:n 200}
+                                                        :value {:value 1.5e-6
+                                                                :ci-lower 1.4e-6
+                                                                :ci-upper 1.6e-6}}]
+                                                 :bar [{:coord {:n 100}
+                                                        :value {:value 2.0e-6
+                                                                :ci-lower 1.8e-6
+                                                                :ci-upper 2.2e-6}}
+                                                       {:coord {:n 200}
+                                                        :value {:value 2.5e-6
+                                                                :ci-lower 2.3e-6
+                                                                :ci-upper 2.7e-6}}]}}}}
+            result (comparison/prepare-comparison-line-data domain-comparison)
+            first-metric (first result)]
+        (is (true? (:has-error-bounds? first-metric)))
+        (let [data (:data first-metric)]
+          (is (every? #(contains? % "yLower") data))
+          (is (every? #(contains? % "yUpper") data)))))))
+
+(deftest prepare-line-chart-data-ci-bounds-test
+  ;; Tests line chart data preparation for domain extract recognizes bootstrap CI bounds.
+  (testing "prepare-line-chart-data with bootstrap CI bounds"
+    (testing "extracts :ci-lower/:ci-upper into yLower/yUpper"
+      (let [domain-extract {:type :criterium/domain-extract
+                            :impl-axis :impl
+                            :implementations [:foo :bar]
+                            :metrics {:elapsed-time
+                                      {:metric [:stats :elapsed-time :median]
+                                       :data [[{:n 100 :impl :foo}
+                                               {:value 1.0e-6
+                                                :ci-lower 0.9e-6
+                                                :ci-upper 1.1e-6}]
+                                              [{:n 100 :impl :bar}
+                                               {:value 2.0e-6
+                                                :ci-lower 1.8e-6
+                                                :ci-upper 2.2e-6}]
+                                              [{:n 200 :impl :foo}
+                                               {:value 1.5e-6
+                                                :ci-lower 1.4e-6
+                                                :ci-upper 1.6e-6}]
+                                              [{:n 200 :impl :bar}
+                                               {:value 2.5e-6
+                                                :ci-lower 2.3e-6
+                                                :ci-upper 2.7e-6}]]}}}
+            result (comparison/prepare-line-chart-data domain-extract)
+            first-metric (first result)]
+        (is (true? (:has-error-bounds? first-metric)))
+        (is (str/starts-with? (:y-title first-metric) "median "))
+        (let [data (:data first-metric)]
+          (is (every? #(contains? % "yLower") data))
+          (is (every? #(contains? % "yUpper") data))
+          (doseq [d data]
+            (when (and (get d "yLower") (get d "yUpper") (get d "y"))
+              (is (< (get d "yLower") (get d "y")))
+              (is (< (get d "y") (get d "yUpper"))))))))))

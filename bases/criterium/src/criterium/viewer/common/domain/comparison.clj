@@ -15,6 +15,18 @@
       (when (#{:mean :median} value-key)
         (name value-key)))))
 
+(defn- get-error-lower
+  "Get lower error bound from value map.
+  Checks :lower first, falls back to :ci-lower from bootstrap stats."
+  [value]
+  (or (:lower value) (:ci-lower value)))
+
+(defn- get-error-upper
+  "Get upper error bound from value map.
+  Checks :upper first, falls back to :ci-upper from bootstrap stats."
+  [value]
+  (or (:upper value) (:ci-upper value)))
+
 ;;; Box plot data preparation
 
 (defn- prepare-comparison-box-data-multi-metric
@@ -327,19 +339,19 @@
                                             nil)
                                  impl-name (if impl-val
                                              (name impl-val)
-                                             default-impl-name)]
+                                             default-impl-name)
+                                 lower-bound (when (map? value)
+                                               (get-error-lower value))
+                                 upper-bound (when (map? value)
+                                               (get-error-upper value))]
                              (cond-> {"x" x-val
                                       "y" (when raw-value
                                             (* (double raw-value) total-scale))
                                       "impl" impl-name}
-                               (and has-error-bounds?
-                                    (map? value)
-                                    (contains? value :lower))
-                               (assoc "yLower" (* (double (:lower value)) total-scale))
-                               (and has-error-bounds?
-                                    (map? value)
-                                    (contains? value :upper))
-                               (assoc "yUpper" (* (double (:upper value)) total-scale)))))
+                               (and has-error-bounds? lower-bound)
+                               (assoc "yLower" (* (double lower-bound) total-scale))
+                               (and has-error-bounds? upper-bound)
+                               (assoc "yUpper" (* (double upper-bound) total-scale)))))
                          data)]
          {:metric-id metric-id
           :metric-path metric
@@ -413,19 +425,19 @@
                            (for [[impl-val entries] data
                                  {:keys [coord value]} entries
                                  :let [raw-value (core/get-numeric-value value)
-                                       x-val (get coord x-key)]
+                                       x-val (get coord x-key)
+                                       lower-bound (when (map? value)
+                                                     (get-error-lower value))
+                                       upper-bound (when (map? value)
+                                                     (get-error-upper value))]
                                  :when (some? raw-value)]
                              (cond-> {"x" x-val
                                       "y" (* (double raw-value) total-scale)
                                       "impl" (name impl-val)}
-                               (and has-error-bounds?
-                                    (map? value)
-                                    (contains? value :lower))
-                               (assoc "yLower" (* (double (:lower value)) total-scale))
-                               (and has-error-bounds?
-                                    (map? value)
-                                    (contains? value :upper))
-                               (assoc "yUpper" (* (double (:upper value)) total-scale)))))]
+                               (and has-error-bounds? lower-bound)
+                               (assoc "yLower" (* (double lower-bound) total-scale))
+                               (and has-error-bounds? upper-bound)
+                               (assoc "yUpper" (* (double upper-bound) total-scale)))))]
            {:metric-id metric-id
             :metric-path metric
             :x-title x-title
@@ -460,19 +472,19 @@
                         (for [[impl-val entries] data
                               {:keys [coord value]} entries
                               :let [raw-value (core/get-numeric-value value)
-                                    x-val (get coord x-key)]
+                                    x-val (get coord x-key)
+                                    lower-bound (when (map? value)
+                                                  (get-error-lower value))
+                                    upper-bound (when (map? value)
+                                                  (get-error-upper value))]
                               :when (some? raw-value)]
                           (cond-> {"x" x-val
                                    "y" (* (double raw-value) total-scale)
                                    "impl" (name impl-val)}
-                            (and has-error-bounds?
-                                 (map? value)
-                                 (contains? value :lower))
-                            (assoc "yLower" (* (double (:lower value)) total-scale))
-                            (and has-error-bounds?
-                                 (map? value)
-                                 (contains? value :upper))
-                            (assoc "yUpper" (* (double (:upper value)) total-scale)))))]
+                            (and has-error-bounds? lower-bound)
+                            (assoc "yLower" (* (double lower-bound) total-scale))
+                            (and has-error-bounds? upper-bound)
+                            (assoc "yUpper" (* (double upper-bound) total-scale)))))]
         [{:metric-id nil
           :metric-path metric
           :x-title x-title

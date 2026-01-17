@@ -316,13 +316,17 @@
   (and (map? v) (contains? v :value)))
 
 (defn values-have-error-bounds?
-  "Returns true if any value in coll has :lower and :upper keys for error bounds."
+  "Returns true if any value in coll has error bounds.
+  Checks for :lower/:upper keys (from with-error-bounds option) or
+  :ci-lower/:ci-upper keys (from bootstrap stats)."
   [coll]
   (boolean
    (some (fn [v]
            (and (map? v)
-                (contains? v :lower)
-                (contains? v :upper)))
+                (or (and (contains? v :lower)
+                         (contains? v :upper))
+                    (and (contains? v :ci-lower)
+                         (contains? v :ci-upper)))))
          coll)))
 
 (defn has-box-plot-data?
