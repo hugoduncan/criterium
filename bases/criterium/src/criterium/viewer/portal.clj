@@ -522,7 +522,7 @@
                        :plotted-marker ""
                        :tolerance tolerance}}
       {:render-log-log-charts
-       (fn [{:keys [title points line-pts residual-pts chart-opts]}]
+       (fn [{:keys [title metric points line-pts residual-pts chart-opts]}]
          (heading title)
          (when (seq points)
            (portal-vega-lite
@@ -530,7 +530,8 @@
              points line-pts
              (assoc chart-opts
                     :width chart-width
-                    :height chart-height)))
+                    :height chart-height
+                    :metric-name (name (second metric)))))
            (when (seq residual-pts)
              (heading "Log-Log Residual Plot")
              (portal-vega-lite

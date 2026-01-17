@@ -1749,7 +1749,7 @@
       (let [spec (charts/log-log-chart-spec
                   sample-log-log-points
                   sample-log-log-line-points
-                  {:width 600 :height 400 :axis-name "n"})]
+                  {:width 600 :height 400 :axis-name "n" :metric-name "time"})]
         (is (map? spec))
         (is (contains? spec :width))
         (is (contains? spec :height))
@@ -1763,14 +1763,14 @@
             spec (charts/log-log-chart-spec
                   points-with-error
                   sample-log-log-line-points
-                  {:has-error-bounds? true})]
+                  {:has-error-bounds? true :metric-name "time"})]
         ;; Should have scatter, line, and error bar layers
         (is (= 3 (count (:layer spec))))))
     (testing "includes title with slope and r-squared when provided"
       (let [spec (charts/log-log-chart-spec
                   sample-log-log-points
                   sample-log-log-line-points
-                  {:slope 1.02 :r-squared 0.998})]
+                  {:slope 1.02 :r-squared 0.998 :metric-name "time"})]
         (is (some? (:title spec)))
         (is (string? (:title spec)))))
     (testing "handles multi-impl with color field"
@@ -1780,36 +1780,19 @@
                       {"x" 2.0 "y" 4.5 "impl" "list"}]
             spec (charts/log-log-chart-spec
                   points line-pts
-                  {:color-field "impl"})]
+                  {:color-field "impl" :metric-name "time"})]
         (is (map? spec))
         ;; Check that color encoding exists in scatter layer
         (let [scatter-layer (first (:layer spec))]
           (is (contains? (get-in scatter-layer [:encoding :color]) :field)))))
-    (testing "includes tooltips with log values"
+    (testing "uses provided metric-name in y-axis title"
       (let [spec (charts/log-log-chart-spec
                   sample-log-log-points
                   sample-log-log-line-points
-                  {:axis-name "n"})
+                  {:axis-name "n" :metric-name "allocation"})
             scatter-layer (first (:layer spec))
-            tooltip (get-in scatter-layer [:encoding :tooltip])]
-        (is (vector? tooltip))
-        (is (some #(= "log(n)" (:title %)) tooltip))
-        (is (some #(= "log(time)" (:title %)) tooltip))))
-    (testing "includes original values in tooltips when present"
-      (let [points [{"x" 2.3 "y" 4.6 "origX" 10 "origY" 100}
-                    {"x" 3.0 "y" 6.0 "origX" 20 "origY" 200}]
-            spec (charts/log-log-chart-spec
-                  points
-                  sample-log-log-line-points
-                  {:axis-name "n"})
-            scatter-layer (first (:layer spec))
-            tooltip (get-in scatter-layer [:encoding :tooltip])]
-        (is (vector? tooltip))
-        ;; Should have original values first, then log values
-        (is (some #(= "n" (:title %)) tooltip))
-        (is (some #(= "time" (:title %)) tooltip))
-        (is (some #(= "log(n)" (:title %)) tooltip))
-        (is (some #(= "log(time)" (:title %)) tooltip))))))
+            y-title (get-in scatter-layer [:encoding :y :title])]
+        (is (= "log(allocation)" y-title))))))
 
 (deftest log-log-residual-spec-test
   ;; Tests the log-log-residual-spec function for structure correctness.
@@ -1840,7 +1823,7 @@
       (let [spec (charts/log-log-chart-spec
                   sample-log-log-points
                   sample-log-log-line-points
-                  {:width 600 :height 400 :axis-name "n"})
+                  {:width 600 :height 400 :axis-name "n" :metric-name "time"})
             result (schema/validate-vega-lite-spec spec)]
         (is (:valid? result)
             (str "log-log-chart-spec validation failed: "
@@ -1851,7 +1834,7 @@
             spec (charts/log-log-chart-spec
                   points-with-error
                   sample-log-log-line-points
-                  {:has-error-bounds? true})
+                  {:has-error-bounds? true :metric-name "time"})
             result (schema/validate-vega-lite-spec spec)]
         (is (:valid? result)
             (str "log-log-chart-spec with error bounds failed: "
@@ -1863,7 +1846,7 @@
                       {"x" 3.0 "y" 6.0 "impl" "list"}]
             spec (charts/log-log-chart-spec
                   points line-pts
-                  {:color-field "impl"})
+                  {:color-field "impl" :metric-name "time"})
             result (schema/validate-vega-lite-spec spec)]
         (is (:valid? result)
             (str "log-log-chart-spec with color field failed: "

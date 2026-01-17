@@ -195,9 +195,8 @@
   "Prepare log-log transformed data points for scatter plot.
   Returns {:points [...] :axis-name string} or nil.
 
-  Points have keys: x (log(n)), y (log(time)), origX (original n),
-  origY (original time), and optionally yLower, yUpper for
-  log-transformed error bounds.
+  Points have keys: x (log(n)), y (log(metric)), and optionally
+  yLower, yUpper for log-transformed error bounds.
   For multi-impl mode, points also have :impl key.
 
   The log-log-data comes from the :regressions map of a
@@ -265,7 +264,7 @@
   Returns vector of point maps with x, y, and optionally impl key.
 
   Uses the pre-computed slope and intercept: y = slope * x + intercept
-  where x = log(n), y = log(time)."
+  where x = log(n), y = log(metric)."
   [log-log-data {:keys [_axis _impl-axis]}]
   (when log-log-data
     (let [multi-impl? (contains? log-log-data :by-impl)]

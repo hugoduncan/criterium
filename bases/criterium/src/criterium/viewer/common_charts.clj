@@ -703,61 +703,29 @@
 
 (defn log-log-scatter-layer
   "Build scatter layer for log-log plot.
-  Points are in log space: x = log(n), y = log(time).
-  Tooltips show both original and log-transformed values."
-  [points {:keys [axis-name color-field color-value legend-options]}]
-  (let [has-orig-values? (some #(contains? % "origX") points)
-        base-tooltip (if has-orig-values?
-                       [{:field "origX"
-                         :type "quantitative"
-                         :title axis-name
-                         :format ".4g"}
-                        {:field "origY"
-                         :type "quantitative"
-                         :title "time"
-                         :format ".4g"}
-                        {:field "x"
-                         :type "quantitative"
-                         :title (str "log(" axis-name ")")
-                         :format ".4f"}
-                        {:field "y"
-                         :type "quantitative"
-                         :title "log(time)"
-                         :format ".4f"}]
-                       [{:field "x"
-                         :type "quantitative"
-                         :title (str "log(" axis-name ")")
-                         :format ".4f"}
-                        {:field "y"
-                         :type "quantitative"
-                         :title "log(time)"
-                         :format ".4f"}])
-        tooltip (if color-field
-                  (into [{:field color-field
-                          :type "nominal"
-                          :title (if (= color-field "impl")
-                                   "Implementation"
-                                   "Model")}]
-                        base-tooltip)
-                  base-tooltip)]
-    {:data {:values (vec points)}
-     :mark {:type "point" :size 60 :filled true}
-     :encoding (cond-> {:x {:field "x"
-                            :type "quantitative"
-                            :title (str "log(" axis-name ")")}
-                        :y {:field "y"
-                            :type "quantitative"
-                            :title "log(time)"}
-                        :tooltip tooltip}
-                 color-field
-                 (assoc :color {:field color-field
-                                :type "nominal"
-                                :legend (merge {:title (if (= color-field "impl")
-                                                         "Implementation"
-                                                         "Model")}
-                                               legend-options)})
-                 (and (nil? color-field) color-value)
-                 (assoc :color {:value color-value}))}))
+  Points are in log space: x = log(n), y = log(metric).
+  Options:
+    :axis-name - name of the x-axis variable (e.g., 'n')
+    :metric-name - name of the metric being plotted (e.g., 'elapsed-time')"
+  [points {:keys [axis-name metric-name color-field color-value legend-options]}]
+  (have metric-name)
+  {:data {:values (vec points)}
+   :mark {:type "point" :size 60 :filled true}
+   :encoding (cond-> {:x {:field "x"
+                          :type "quantitative"
+                          :title (str "log(" axis-name ")")}
+                      :y {:field "y"
+                          :type "quantitative"
+                          :title (str "log(" metric-name ")")}}
+               color-field
+               (assoc :color {:field color-field
+                              :type "nominal"
+                              :legend (merge {:title (if (= color-field "impl")
+                                                       "Implementation"
+                                                       "Model")}
+                                             legend-options)})
+               (and (nil? color-field) color-value)
+               (assoc :color {:value color-value}))})
 
 (defn log-log-line-layer
   "Build fit line layer for log-log plot.
@@ -794,6 +762,7 @@
     :width - chart width
     :height - chart height
     :axis-name - name of the axis variable (e.g., 'n')
+    :metric-name - name of the metric being plotted (e.g., 'elapsed-time')
     :color-field - field for color encoding ('impl' or nil)
     :color-value - static color when color-field is nil
     :legend-options - legend config map
