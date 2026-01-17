@@ -76,10 +76,11 @@
             all-coords (map first first-metric-data)
             ;; Get the non-impl axis keys from first coordinate
             first-coord (first all-coords)
-            non-impl-keys (if (and (map? first-coord) impl-axis-key)
-                            (disj (set (keys first-coord)) impl-axis-key)
-                            (when (map? first-coord)
-                              (set (keys first-coord))))
+            ;; Always exclude :impl - it's added by domain-builder even for
+            ;; single-impl domains (where impl-axis-key is nil)
+            non-impl-keys (when (map? first-coord)
+                            (disj (set (keys first-coord))
+                                  (or impl-axis-key :impl)))
             ;; Single axis?
             single-axis? (= 1 (count non-impl-keys))]
         (when single-axis?

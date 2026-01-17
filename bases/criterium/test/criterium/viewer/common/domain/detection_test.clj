@@ -156,6 +156,17 @@
                                        [{:n 200} 2.0e-6]]}}}]
         (is (true? (detection/single-axis-multi-point-any-impl? extract)))))
 
+    (testing "returns true when coords have :impl but extract has no :impl-axis"
+      ;; This is the actual output from domain-builder for single-impl domains:
+      ;; coordinates include {:n X :impl :default} but extract has no :impl-axis
+      (let [extract {:type :criterium/domain-extract
+                     :implementations [:default]
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100 :impl :default} 1.0e-6]
+                                       [{:n 200 :impl :default} 2.0e-6]]}}}]
+        (is (true? (detection/single-axis-multi-point-any-impl? extract)))))
+
     (testing "returns false when one axis with single value"
       (let [extract {:type :criterium/domain-extract
                      :implementations [:default]
@@ -215,6 +226,16 @@
                                {:metric [:stats :elapsed-time :mean]
                                 :data [[{:n 100} 1.0e-6]
                                        [{:n 200} 2.0e-6]]}}}]
+        (is (= :multi-point (detection/visualization-strategy extract)))))
+
+    (testing "returns :multi-point for single impl with :impl in coords but no :impl-axis"
+      ;; Real domain-builder output: coords have :impl but extract has no :impl-axis
+      (let [extract {:type :criterium/domain-extract
+                     :implementations [:default]
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100 :impl :default} 1.0e-6]
+                                       [{:n 200 :impl :default} 2.0e-6]]}}}]
         (is (= :multi-point (detection/visualization-strategy extract)))))
 
     (testing "returns :default-table for multiple non-impl axes"

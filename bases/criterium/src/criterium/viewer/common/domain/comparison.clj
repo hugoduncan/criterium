@@ -302,10 +302,11 @@
         ;; Find the non-impl axis key
         first-metric-data (:data (val (first metrics)))
         first-coord (first (first first-metric-data))
+        ;; Always exclude :impl - it's added by domain-builder even for
+        ;; single-impl domains (where impl-axis-key is nil)
         non-impl-keys (when (map? first-coord)
-                        (if impl-axis-key
-                          (disj (set (keys first-coord)) impl-axis-key)
-                          (set (keys first-coord))))
+                        (disj (set (keys first-coord))
+                              (or impl-axis-key :impl)))
         axis-key (first non-impl-keys)]
     (mapv
      (fn [[metric-id {:keys [metric data]}]]
