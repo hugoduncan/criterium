@@ -407,6 +407,52 @@
           (is (not (contains? bar-100 "yLower")))
           (is (not (contains? bar-100 "yUpper"))))))))
 
+;;; Tests for prepare-line-chart-data with single implementation.
+;;; Verifies line chart data preparation handles single-impl extracts.
+
+(deftest prepare-line-chart-data-single-impl-test
+  (testing "prepare-line-chart-data with single implementation"
+    (testing "uses single implementation name"
+      (let [domain-extract {:type :criterium/domain-extract
+                            :implementations [:my-impl]
+                            :metrics {:elapsed-time
+                                      {:metric [:stats :elapsed-time :mean]
+                                       :data [[{:n 100} 1.0e-6]
+                                              [{:n 200} 1.5e-6]
+                                              [{:n 400} 2.0e-6]]}}}
+            result (comparison/prepare-line-chart-data domain-extract)
+            data (:data (first result))]
+        (is (= 3 (count data)))
+        (is (every? #(= "my-impl" (get % "impl")) data))
+        (is (= #{100 200 400} (set (map #(get % "x") data))))))
+
+    (testing "uses 'default' when no implementations key"
+      (let [domain-extract {:type :criterium/domain-extract
+                            :metrics {:elapsed-time
+                                      {:metric [:stats :elapsed-time :mean]
+                                       :data [[{:n 100} 1.0e-6]
+                                              [{:n 200} 1.5e-6]]}}}
+            result (comparison/prepare-line-chart-data domain-extract)
+            data (:data (first result))]
+        (is (= 2 (count data)))
+        (is (every? #(= "default" (get % "impl")) data))))
+
+    (testing "handles error bounds for single impl"
+      (let [domain-extract {:type :criterium/domain-extract
+                            :implementations [:default]
+                            :metrics {:elapsed-time
+                                      {:metric [:stats :elapsed-time :mean]
+                                       :data [[{:n 100}
+                                               {:value 1.0e-6 :lower 0.9e-6 :upper 1.1e-6}]
+                                              [{:n 200}
+                                               {:value 1.5e-6 :lower 1.4e-6 :upper 1.6e-6}]]}}}
+            result (comparison/prepare-line-chart-data domain-extract)
+            first-metric (first result)
+            data (:data first-metric)]
+        (is (true? (:has-error-bounds? first-metric)))
+        (is (every? #(contains? % "yLower") data))
+        (is (every? #(contains? % "yUpper") data))))))
+
 ;;; Edge case tests
 
 (deftest edge-cases-nil-values-test

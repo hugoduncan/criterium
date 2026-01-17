@@ -121,6 +121,64 @@
     (testing "returns nil for nil extract"
       (is (nil? (detection/single-axis-multi-point? nil))))))
 
+;;; Tests for single-axis-multi-point-any-impl? helper.
+;;; Verifies detection of the line chart scenario for both single and
+;;; multiple implementations across a range of values on a single axis.
+
+(deftest single-axis-multi-point-any-impl?-test
+  (testing "single-axis-multi-point-any-impl?"
+    (testing "returns true when one axis with multiple values and multiple impls"
+      (let [extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations [:foo :bar]
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100 :impl :foo} 1.0e-6]
+                                       [{:n 100 :impl :bar} 2.0e-6]
+                                       [{:n 200 :impl :foo} 1.5e-6]
+                                       [{:n 200 :impl :bar} 2.5e-6]]}}}]
+        (is (true? (detection/single-axis-multi-point-any-impl? extract)))))
+
+    (testing "returns true when one axis with multiple values and single impl"
+      (let [extract {:type :criterium/domain-extract
+                     :implementations [:default]
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100} 1.0e-6]
+                                       [{:n 200} 2.0e-6]]}}}]
+        (is (true? (detection/single-axis-multi-point-any-impl? extract)))))
+
+    (testing "returns true when no implementations key but multi-point axis"
+      (let [extract {:type :criterium/domain-extract
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100} 1.0e-6]
+                                       [{:n 200} 2.0e-6]]}}}]
+        (is (true? (detection/single-axis-multi-point-any-impl? extract)))))
+
+    (testing "returns false when one axis with single value"
+      (let [extract {:type :criterium/domain-extract
+                     :implementations [:default]
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100} 1.0e-6]]}}}]
+        (is (not (detection/single-axis-multi-point-any-impl? extract)))))
+
+    (testing "returns false when multiple non-impl axes"
+      (let [extract {:type :criterium/domain-extract
+                     :impl-axis :impl
+                     :implementations [:foo :bar]
+                     :metrics {:elapsed-time
+                               {:metric [:stats :elapsed-time :mean]
+                                :data [[{:n 100 :m 10 :impl :foo} 1.0e-6]
+                                       [{:n 100 :m 10 :impl :bar} 2.0e-6]
+                                       [{:n 200 :m 20 :impl :foo} 1.5e-6]
+                                       [{:n 200 :m 20 :impl :bar} 2.5e-6]]}}}]
+        (is (not (detection/single-axis-multi-point-any-impl? extract)))))
+
+    (testing "returns nil for nil extract"
+      (is (nil? (detection/single-axis-multi-point-any-impl? nil))))))
+
 ;;; Tests for visualization-strategy helper.
 ;;; Verifies the helper returns correct strategy keywords based on extract shape.
 
@@ -149,14 +207,15 @@
                                        [{:n 200 :impl :bar} 2.5e-6]]}}}]
         (is (= :multi-point (detection/visualization-strategy extract)))))
 
-    (testing "returns :default-table for single implementation"
+    (testing "returns :multi-point for single implementation with multiple axis values"
+      ;; Single-impl multi-point now uses line chart visualization
       (let [extract {:type :criterium/domain-extract
                      :implementations [:default]
                      :metrics {:elapsed-time
                                {:metric [:stats :elapsed-time :mean]
                                 :data [[{:n 100} 1.0e-6]
                                        [{:n 200} 2.0e-6]]}}}]
-        (is (= :default-table (detection/visualization-strategy extract)))))
+        (is (= :multi-point (detection/visualization-strategy extract)))))
 
     (testing "returns :default-table for multiple non-impl axes"
       (let [extract {:type :criterium/domain-extract

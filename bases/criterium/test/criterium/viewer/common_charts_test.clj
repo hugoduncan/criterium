@@ -746,6 +746,109 @@
             (str "domain-line-chart-spec validation failed: "
                  (pr-str (:errors result))))))))
 
+;;; Single-impl line chart tests.
+;;; Verifies line chart generation for single-implementation extracts.
+
+(def single-impl-extract
+  "Sample single-impl multi-point extract for line chart testing."
+  {:type :criterium/domain-extract
+   :implementations [:default]
+   :metrics {:elapsed-time
+             {:metric [:stats :elapsed-time :mean]
+              :data [[{:n 100} 1.0e-6]
+                     [{:n 200} 1.5e-6]
+                     [{:n 400} 2.0e-6]]}}})
+
+(def single-impl-extract-with-bounds
+  "Sample single-impl extract with error bounds for line chart testing."
+  {:type :criterium/domain-extract
+   :implementations [:default]
+   :metrics {:elapsed-time
+             {:metric [:stats :elapsed-time :mean]
+              :data [[{:n 100} {:value 1.0e-6 :lower 0.9e-6 :upper 1.1e-6}]
+                     [{:n 200} {:value 1.5e-6 :lower 1.3e-6 :upper 1.7e-6}]
+                     [{:n 400} {:value 2.0e-6 :lower 1.8e-6 :upper 2.2e-6}]]}}})
+
+(deftest domain-line-chart-spec-single-impl-test
+  ;; Tests line chart spec for single-implementation extracts.
+  ;; Verifies correct Vega-Lite structure and data handling.
+  (testing "domain-line-chart-spec with single implementation"
+    (testing "produces valid structure"
+      (let [spec (charts/domain-line-chart-spec
+                  single-impl-extract
+                  {:width 400 :height 300})]
+        (is (map? spec))
+        (is (contains? spec :vconcat))
+        (is (vector? (:vconcat spec)))
+        (is (= 1 (count (:vconcat spec))))))
+
+    (testing "includes line mark with points"
+      (let [spec (charts/domain-line-chart-spec
+                  single-impl-extract
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))]
+        (is (= {:type "line" :point true} (:mark chart)))))
+
+    (testing "chart data uses single impl name"
+      (let [spec (charts/domain-line-chart-spec
+                  single-impl-extract
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            data (get-in chart [:data :values])]
+        (is (= 3 (count data)))
+        (is (every? #(= "default" (get % "impl")) data))))))
+
+(deftest domain-line-chart-spec-single-impl-with-bounds-test
+  ;; Tests line chart spec for single-impl with error bounds.
+  (testing "domain-line-chart-spec single-impl with error bounds"
+    (testing "produces layered structure"
+      (let [spec (charts/domain-line-chart-spec
+                  single-impl-extract-with-bounds
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))]
+        (is (contains? chart :layer))
+        (is (= 2 (count (:layer chart))))))
+
+    (testing "includes confidence band layer with area mark"
+      (let [spec (charts/domain-line-chart-spec
+                  single-impl-extract-with-bounds
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            band-layer (first (:layer chart))]
+        (is (= "area" (get-in band-layer [:mark :type])))
+        (is (= 0.2 (get-in band-layer [:mark :opacity])))))
+
+    (testing "data includes bounds"
+      (let [spec (charts/domain-line-chart-spec
+                  single-impl-extract-with-bounds
+                  {:width 400 :height 300})
+            chart (first (:vconcat spec))
+            band-layer (first (:layer chart))
+            data (get-in band-layer [:data :values])]
+        (is (every? #(contains? % "yLower") data))
+        (is (every? #(contains? % "yUpper") data))))))
+
+(deftest domain-line-chart-spec-single-impl-schema-validation-test
+  ;; Validates single-impl line chart against Vega-Lite v6 schema.
+  (testing "domain-line-chart-spec single-impl"
+    (testing "produces valid Vega-Lite spec"
+      (let [spec (charts/domain-line-chart-spec
+                  single-impl-extract
+                  {:width 400 :height 300})
+            result (schema/validate-vega-lite-spec spec)]
+        (is (:valid? result)
+            (str "single-impl line chart validation failed: "
+                 (pr-str (:errors result))))))
+
+    (testing "with error bounds produces valid Vega-Lite spec"
+      (let [spec (charts/domain-line-chart-spec
+                  single-impl-extract-with-bounds
+                  {:width 400 :height 300})
+            result (schema/validate-vega-lite-spec spec)]
+        (is (:valid? result)
+            (str "single-impl line chart with bounds failed: "
+                 (pr-str (:errors result))))))))
+
 ;;; Comparison line chart tests.
 ;;; Verifies line chart generation from domain-comparison data.
 

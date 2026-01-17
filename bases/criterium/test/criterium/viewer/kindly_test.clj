@@ -658,13 +658,33 @@
             (is (= :kind/vega-lite (:kindly/kind (meta chart))))
             (is (string? (:$schema chart)))))))
 
-    (testing "outputs nothing for default-table strategy"
+    (testing "outputs line chart for single-impl multi-point extract"
+      ;; Single-impl with multiple axis values now renders line chart
       (reset! kindly/accumulated [])
       (let [data-map {:extract {:type :criterium/domain-extract
+                                :implementations [:default]
                                 :metrics {:elapsed-time
                                           {:metric [:stats :elapsed-time :mean]
                                            :data [[{:n 100} 1e6]
                                                   [{:n 1000} 1e7]]}}}}]
+        (view/domain-extract-chart* :kindly {} data-map)
+        (let [result (kindly/flush)]
+          (is (= :kind/fragment (:kindly/kind (meta result))))
+          (is (= 1 (count result)) "Expected chart only")
+          (let [[chart] result]
+            (is (= :kind/vega-lite (:kindly/kind (meta chart))))
+            (is (string? (:$schema chart)))))))
+
+    (testing "outputs nothing for default-table strategy (multi-axis)"
+      ;; Multi-axis scenarios fall into default-table with no chart
+      (reset! kindly/accumulated [])
+      (let [data-map {:extract {:type :criterium/domain-extract
+                                :impl-axis :impl
+                                :implementations [:foo :bar]
+                                :metrics {:elapsed-time
+                                          {:metric [:stats :elapsed-time :mean]
+                                           :data [[{:n 100 :m 10 :impl :foo} 1e6]
+                                                  [{:n 1000 :m 20 :impl :bar} 1e7]]}}}}]
         (view/domain-extract-chart* :kindly {} data-map)
         (is (nil? (kindly/flush)))))
 

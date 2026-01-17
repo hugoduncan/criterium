@@ -265,15 +265,26 @@
     :y-title - y-axis title with SI unit
     :has-error-bounds? - true if error bounds data is present
     :data - vector of {\"x\" number \"y\" number \"impl\" string} maps
-            (yLower/yUpper only present when error bounds exist)"
+            (yLower/yUpper only present when error bounds exist)
+
+  Handles both multi-impl and single-impl extracts. For single-impl,
+  the impl field uses the single implementation name or 'default'."
   [extract]
   (let [impl-axis-key (:impl-axis extract)
+        implementations (:implementations extract)
+        single-impl? (or (nil? implementations)
+                         (= 1 (count implementations)))
+        default-impl-name (if (and single-impl? (seq implementations))
+                            (name (first implementations))
+                            "default")
         metrics (:metrics extract)
         ;; Find the non-impl axis key
         first-metric-data (:data (val (first metrics)))
         first-coord (first (first first-metric-data))
         non-impl-keys (when (map? first-coord)
-                        (disj (set (keys first-coord)) impl-axis-key))
+                        (if impl-axis-key
+                          (disj (set (keys first-coord)) impl-axis-key)
+                          (set (keys first-coord))))
         axis-key (first non-impl-keys)]
     (mapv
      (fn [[metric-id {:keys [metric data]}]]
@@ -300,11 +311,16 @@
                          (fn [[coord value]]
                            (let [raw-value (core/get-numeric-value value)
                                  x-val (get coord axis-key)
-                                 impl-val (get coord impl-axis-key)]
+                                 impl-val (if impl-axis-key
+                                            (get coord impl-axis-key)
+                                            nil)
+                                 impl-name (if impl-val
+                                             (name impl-val)
+                                             default-impl-name)]
                              (cond-> {"x" x-val
                                       "y" (when raw-value
                                             (* (double raw-value) total-scale))
-                                      "impl" (name impl-val)}
+                                      "impl" impl-name}
                                (and has-error-bounds?
                                     (map? value)
                                     (contains? value :lower))
