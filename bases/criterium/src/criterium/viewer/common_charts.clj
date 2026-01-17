@@ -525,18 +525,35 @@
     :legend-options - legend config map or nil for default"
   [points {:keys [axis-name y-title color-field color-value legend-options]
            :or {color-value "steelblue"}}]
-  {:data {:values points}
-   :mark {:type "point" :size 60}
-   :encoding (cond-> {:x {:field "x" :type "quantitative" :title axis-name}
-                      :y {:field "y" :type "quantitative" :title y-title}}
-               color-field
-               (assoc :color {:field color-field :type "nominal"
-                              :legend (merge {:title (if (= color-field "impl")
-                                                       "Implementation"
-                                                       "Model")}
-                                             legend-options)})
-               (not color-field)
-               (assoc :color {:value color-value}))})
+  (let [base-tooltip [{:field "x"
+                       :type "quantitative"
+                       :title axis-name
+                       :format ".4g"}
+                      {:field "y"
+                       :type "quantitative"
+                       :title y-title
+                       :format ".4g"}]
+        tooltip (if color-field
+                  (into [{:field color-field
+                          :type "nominal"
+                          :title (if (= color-field "impl")
+                                   "Implementation"
+                                   "Model")}]
+                        base-tooltip)
+                  base-tooltip)]
+    {:data {:values points}
+     :mark {:type "point" :size 60}
+     :encoding (cond-> {:x {:field "x" :type "quantitative" :title axis-name}
+                        :y {:field "y" :type "quantitative" :title y-title}
+                        :tooltip tooltip}
+                 color-field
+                 (assoc :color {:field color-field :type "nominal"
+                                :legend (merge {:title (if (= color-field "impl")
+                                                         "Implementation"
+                                                         "Model")}
+                                               legend-options)})
+                 (not color-field)
+                 (assoc :color {:value color-value}))}))
 
 (defn regression-error-layer
   "Build error bar layer for regression points with error bounds."

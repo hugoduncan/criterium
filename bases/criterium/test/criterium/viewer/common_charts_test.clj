@@ -196,6 +196,38 @@
             (str "regression-chart-spec validation failed: "
                  (pr-str (:errors result))))))))
 
+(deftest regression-chart-spec-tooltip-test
+  ;; Verifies regression chart scatter points include tooltips showing x and y values.
+  (testing "regression-chart-spec"
+    (testing "includes tooltips with x and y values"
+      (let [points [{"x" 100 "y" 1e6}
+                    {"x" 200 "y" 2e6}]
+            line-pts [{"x" 100 "y" 1e6 "model" "O(n)"}
+                      {"x" 200 "y" 2e6 "model" "O(n)"}]
+            opts {:axis-name "n"
+                  :y-title "Time (ns)"
+                  :color-field "model"}
+            spec (charts/regression-chart-spec points line-pts opts)
+            scatter-layer (first (:layer spec))
+            tooltip (get-in scatter-layer [:encoding :tooltip])]
+        (is (vector? tooltip))
+        (is (some #(= "n" (:title %)) tooltip))
+        (is (some #(= "Time (ns)" (:title %)) tooltip))))
+    (testing "includes color field in tooltip when multi-impl"
+      (let [points [{"x" 100 "y" 1e6 "impl" "foo"}
+                    {"x" 200 "y" 2e6 "impl" "bar"}]
+            line-pts [{"x" 100 "y" 1e6 "impl" "foo"}
+                      {"x" 200 "y" 2e6 "impl" "bar"}]
+            opts {:axis-name "n"
+                  :y-title "Time (ns)"
+                  :color-field "impl"}
+            spec (charts/regression-chart-spec points line-pts opts)
+            scatter-layer (first (:layer spec))
+            tooltip (get-in scatter-layer [:encoding :tooltip])]
+        (is (vector? tooltip))
+        (is (some #(= "Implementation" (:title %)) tooltip))
+        (is (some #(= "n" (:title %)) tooltip))))))
+
 (deftest regression-residual-spec-schema-validation-test
   ;; Validates regression-residual-spec output against Vega-Lite v6 schema.
   ;; Tests residual plot with loess smoothing.
