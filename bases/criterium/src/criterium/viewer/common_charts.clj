@@ -706,10 +706,9 @@
   Points are in log space: x = log(n), y = log(metric).
   Options:
     :axis-name - name of the x-axis variable (e.g., 'n')
-    :metric-name - name of the metric being plotted (e.g., 'elapsed-time')
-                   Defaults to 'time' for backwards compatibility."
-  [points {:keys [axis-name metric-name color-field color-value legend-options]
-           :or {metric-name "time"}}]
+    :metric-name - name of the metric being plotted (e.g., 'elapsed-time')"
+  [points {:keys [axis-name metric-name color-field color-value legend-options]}]
+  (have metric-name)
   {:data {:values (vec points)}
    :mark {:type "point" :size 60 :filled true}
    :encoding (cond-> {:x {:field "x"
@@ -764,7 +763,6 @@
     :height - chart height
     :axis-name - name of the axis variable (e.g., 'n')
     :metric-name - name of the metric being plotted (e.g., 'elapsed-time')
-                   Defaults to 'time' for backwards compatibility.
     :color-field - field for color encoding ('impl' or nil)
     :color-value - static color when color-field is nil
     :legend-options - legend config map
