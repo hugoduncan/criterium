@@ -14,11 +14,11 @@
 
 ;;; Distribution constants
 
-(def ^:private distribution-order
+(def distribution-order
   "Canonical ordering of distributions for consistent color assignment."
   [:gamma :lognormal :inverse-gaussian :weibull])
 
-(def ^:private distribution-colors
+(def distribution-colors
   "Color palette for fitted distributions.
   Colors chosen to avoid conflict with histogram blue (#4682b4 steelblue)."
   {:gamma "#e41a1c"           ; red
@@ -26,14 +26,14 @@
    :inverse-gaussian "#4daf4a" ; green
    :weibull "#984ea3"})
 
-(def ^:private distribution-labels
+(def distribution-labels
   "Human-readable labels for distributions."
   {:gamma "Gamma"
    :lognormal "Log-normal"
    :inverse-gaussian "Inverse Gaussian"
    :weibull "Weibull"})
 
-(def ^:private distribution-color-scale
+(def distribution-color-scale
   "Vega-Lite color scale with domain and range in consistent order."
   {:domain (mapv #(get distribution-labels % (name %)) distribution-order)
    :range (mapv #(get distribution-colors % "#999999") distribution-order)})
@@ -702,25 +702,3 @@
                        grid
                        samples-transforms)))}))))
       metric-configs)}))
-
-;;; Exports for Q-Q plots (used by quantile namespace)
-
-(def distribution-color-scale-for-qq
-  "Vega-Lite color scale with domain and range in consistent order.
-  Exported for use by Q-Q plot functions in quantile namespace."
-  distribution-color-scale)
-
-(def distribution-labels-for-qq
-  "Human-readable labels for distributions.
-  Exported for use by Q-Q plot functions in quantile namespace."
-  distribution-labels)
-
-(def distribution-colors-for-qq
-  "Color palette for fitted distributions.
-  Exported for use by Q-Q plot functions in quantile namespace."
-  distribution-colors)
-
-(def distribution-order-for-qq
-  "Canonical ordering of distributions for consistent color assignment.
-  Exported for use by Q-Q plot functions in quantile namespace."
-  distribution-order)

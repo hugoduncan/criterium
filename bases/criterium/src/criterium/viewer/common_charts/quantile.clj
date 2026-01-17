@@ -15,19 +15,19 @@
 
 (def ^:private distribution-order
   "Canonical ordering of distributions for consistent color assignment."
-  distribution/distribution-order-for-qq)
+  distribution/distribution-order)
 
 (def ^:private distribution-colors
   "Color palette for fitted distributions."
-  distribution/distribution-colors-for-qq)
+  distribution/distribution-colors)
 
 (def ^:private distribution-labels
   "Human-readable labels for distributions."
-  distribution/distribution-labels-for-qq)
+  distribution/distribution-labels)
 
 (def ^:private distribution-color-scale
   "Vega-Lite color scale with domain and range in consistent order."
-  distribution/distribution-color-scale-for-qq)
+  distribution/distribution-color-scale)
 
 ;;; Q-Q plot functions
 
