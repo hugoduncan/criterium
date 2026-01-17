@@ -779,6 +779,67 @@
                  (get foo-data "p90"))
               "values should be in correct order"))))))
 
+;;; Tests for prepare-domain-comparison-tables helper.
+;;; Verifies multi-point comparison table preparation with factor display.
+
+(deftest prepare-domain-comparison-tables-metric-type-test
+  ;; Tests that factor tables show metric type (mean/median) in column headers.
+  (testing "prepare-domain-comparison-tables"
+    (testing "multi-metric with implementations shows metric type in headers"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :implementations [:foo :bar]
+                        :metrics {:elapsed-time
+                                  {:metric [:stats :elapsed-time :mean]
+                                   :data {:foo [{:coord {:n 100} :value 1e-6}
+                                                {:coord {:n 200} :value 2e-6}]
+                                          :bar [{:coord {:n 100} :value 1.5e-6}
+                                                {:coord {:n 200} :value 2.5e-6}]}}
+                                  :thread-allocation
+                                  {:metric [:stats :thread-allocation :median]
+                                   :data {:foo [{:coord {:n 100} :value 100}
+                                                {:coord {:n 200} :value 200}]
+                                          :bar [{:coord {:n 100} :value 150}
+                                                {:coord {:n 200} :value 250}]}}}}
+            result (comparison/prepare-domain-comparison-tables comparison)
+            table (first result)
+            headers (:col-headers table)]
+        ;; Should have headers with metric type prefixes
+        (is (some #(str/includes? % "mean elapsed-time") headers)
+            "elapsed-time header should show 'mean' from metric path")
+        (is (some #(str/includes? % "median thread-allocation") headers)
+            "thread-allocation header should show 'median' from metric path")))
+
+    (testing "single-metric with implementations shows metric type in heading"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :median]
+                        :implementations [:foo :bar]
+                        :data {:foo [{:coord {:n 100} :value 1e-6}
+                                     {:coord {:n 200} :value 2e-6}]
+                               :bar [{:coord {:n 100} :value 1.5e-6}
+                                     {:coord {:n 200} :value 2.5e-6}]}}
+            result (comparison/prepare-domain-comparison-tables comparison)
+            table (first result)]
+        ;; Heading should include metric type
+        (is (str/includes? (:heading table) "(median)")
+            "heading should indicate median metric type")))
+
+    (testing "single-metric with mean shows mean in heading"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo :bar]
+                        :data {:foo [{:coord {:n 100} :value 1e-6}
+                                     {:coord {:n 200} :value 2e-6}]
+                               :bar [{:coord {:n 100} :value 1.5e-6}
+                                     {:coord {:n 200} :value 2.5e-6}]}}
+            result (comparison/prepare-domain-comparison-tables comparison)
+            table (first result)]
+        ;; Heading should include metric type
+        (is (str/includes? (:heading table) "(mean)")
+            "heading should indicate mean metric type")))))
+
 ;;; Tests for prepare-domain-comparison-table-transposed helper.
 ;;; Verifies transposed table preparation with bootstrapped median values.
 
@@ -801,8 +862,25 @@
             result (comparison/prepare-domain-comparison-table-transposed comparison)
             rows (:rows result)]
         (is (= 2 (count rows)))
-        ;; The median column header should contain "median"
-        (is (some #(str/includes? % "median") (:col-headers result)))))
+        ;; The column header should contain metric type from path (mean in this case)
+        (is (some #(str/includes? % "mean") (:col-headers result)))))
+
+    (testing "shows median in header when metric path contains :median"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :impl
+                        :implementations [:foo :bar]
+                        :metrics {:elapsed-time
+                                  {:metric [:stats :elapsed-time :median]
+                                   :data {:foo [{:coord {:impl :foo}
+                                                 :value {:median 1.0e-6
+                                                         :value 1.1e-6}}]
+                                          :bar [{:coord {:impl :bar}
+                                                 :value {:median 2.0e-6
+                                                         :value 2.2e-6}}]}}}}
+            result (comparison/prepare-domain-comparison-table-transposed comparison)
+            col-headers (:col-headers result)]
+        ;; The column header should contain "median" when metric path is :median
+        (is (some #(str/includes? % "median") col-headers))))
 
     (testing "includes CI columns when CI bounds present"
       (let [comparison {:type :criterium/domain-comparison
@@ -917,7 +995,7 @@
         ;; Factor should work with plain numeric values
         (is (= "2.00" (get bar-row factor-header)))))
 
-    (testing "handles single-metric mode"
+    (testing "handles single-metric mode with metric type from path"
       (let [comparison {:type :criterium/domain-comparison
                         :axis :impl
                         :metric [:stats :elapsed-time :mean]
@@ -929,4 +1007,20 @@
             result (comparison/prepare-domain-comparison-table-transposed comparison)]
         (is (map? result))
         (is (= 2 (count (:rows result))))
+        ;; Should show "mean" when metric path is :mean
+        (is (some #(str/includes? % "mean") (:col-headers result)))))
+
+    (testing "single-metric mode shows median when metric path is :median"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :impl
+                        :metric [:stats :elapsed-time :median]
+                        :implementations [:foo :bar]
+                        :data {:foo [{:coord {:impl :foo}
+                                      :value {:median 1.0e-6}}]
+                               :bar [{:coord {:impl :bar}
+                                      :value {:median 2.0e-6}}]}}
+            result (comparison/prepare-domain-comparison-table-transposed comparison)]
+        (is (map? result))
+        (is (= 2 (count (:rows result))))
+        ;; Should show "median" when metric path is :median
         (is (some #(str/includes? % "median") (:col-headers result)))))))

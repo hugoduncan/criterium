@@ -607,8 +607,12 @@
                                           (/ ^double value
                                              ^double baseline-value))))]))
                         col-specs col-headers)))
-           row-keys)]
-      {:heading (str "Domain Comparison by " (name axis) ": " (pr-str metric))
+           row-keys)
+          type-prefix (metric-type-prefix metric)
+          heading-suffix (if type-prefix
+                           (str " (" type-prefix ")")
+                           "")]
+      {:heading (str "Domain Comparison by " (name axis) ": " (pr-str metric) heading-suffix)
        :coord-header coord-header
        :col-headers col-headers
        :rows table-rows})))
@@ -657,11 +661,15 @@
                                                      :impl impl}])
                                                  other-impls))))
                                metric-ids))
-        col-headers (mapv (fn [{:keys [type metric-id impl]}]
-                            (case type
-                              :baseline (str (name impl) " " (name metric-id))
-                              :value (str (name impl) " " (name metric-id))
-                              :factor (str (name impl) " ×")))
+        col-headers (mapv (fn [{:keys [type metric-id metric-path impl]}]
+                            (let [type-prefix (metric-type-prefix metric-path)
+                                  metric-name (if type-prefix
+                                                (str type-prefix " " (name metric-id))
+                                                (name metric-id))]
+                              (case type
+                                :baseline (str (name impl) " " metric-name)
+                                :value (str (name impl) " " metric-name)
+                                :factor (str (name impl) " ×"))))
                           col-specs)
         table-rows
         (mapv
@@ -806,15 +814,17 @@
                 metric-ids)
 
           ;; Build column headers: Implementation, then for each metric:
-          ;; median value, CI (when available), and factor
+          ;; median/mean value, CI (when available), and factor
           col-headers
           (into ["Implementation"]
                 (mapcat (fn [metric-id]
                           (let [{:keys [unit]} (get metric-scales metric-id)
+                                metric-path (get-in metrics-map [metric-id :metric])
+                                type-prefix (or (metric-type-prefix metric-path) "median")
                                 metric-name (name metric-id)
                                 value-header (if (seq unit)
-                                               (str "median " metric-name " (" unit ")")
-                                               (str "median " metric-name))
+                                               (str type-prefix " " metric-name " (" unit ")")
+                                               (str type-prefix " " metric-name))
                                 ci-header (str metric-name " CI")
                                 factor-header (str metric-name " ×")]
                             (if (get metric-has-ci metric-id)
@@ -831,10 +841,12 @@
                     (fn [metric-id]
                       (let [{:keys [unit ^double total-scale]}
                             (get metric-scales metric-id)
+                            metric-path (get-in metrics-map [metric-id :metric])
+                            type-prefix (or (metric-type-prefix metric-path) "median")
                             metric-name (name metric-id)
                             value-header (if (seq unit)
-                                           (str "median " metric-name " (" unit ")")
-                                           (str "median " metric-name))
+                                           (str type-prefix " " metric-name " (" unit ")")
+                                           (str type-prefix " " metric-name))
                             ci-header (str metric-name " CI")
                             factor-header (str metric-name " ×")
                             full-value (get value-lookup [impl metric-id])
