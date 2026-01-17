@@ -12,17 +12,13 @@
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have have?]]
    [criterium.util.probability :as probability]
+   [criterium.viewer.common-charts.util :as charts-util]
    [criterium.viewer.common.core :as core]
    [criterium.viewer.common.domain.comparison :as comparison]))
 
-(defn- metric-type-prefix
-  "Extract metric type (mean/median) from metric path for y-axis titles.
-  Returns \"mean\" or \"median\" if found in path, nil otherwise."
-  [metric-path]
-  (when (and (vector? metric-path) (>= (count metric-path) 3))
-    (let [value-key (nth metric-path 2)]
-      (when (#{:mean :median} value-key)
-        (name value-key)))))
+(def ^:private metric-type-prefix
+  "Alias for charts-util/metric-type-prefix for backward compatibility."
+  charts-util/metric-type-prefix)
 
 ;;; Scatter plots
 
@@ -962,15 +958,9 @@
           :data chart-data}))
      (sort-by key metrics))))
 
-(defn- chart-layer
-  "Build a chart layer by merging chart-options with mark and encoding.
-  Common structure for bar and line chart layers."
-  [data chart-options mark encoding]
-  (merge
-   chart-options
-   {:data {:values data}
-    :mark mark
-    :encoding encoding}))
+(def ^:private chart-layer
+  "Alias for charts-util/chart-layer for backward compatibility."
+  charts-util/chart-layer)
 
 (defn- bar-error-layer
   "Build error bar layer for bar charts with error bounds.
