@@ -1078,17 +1078,17 @@
                                                      :ci-upper 1.1e-6}}]}}
             result (comparison/prepare-comparison-line-data domain-comparison)
             data (:data (first result))
-            point (first data)]
-        ;; Should use :lower/:upper (0.8e-6, 1.2e-6) not :ci-lower/:ci-upper (0.9e-6, 1.1e-6)
-        ;; Note: values are scaled by SI factor, so we compare ratios
-        (let [y (get point "y")
-              y-lower (get point "yLower")
-              y-upper (get point "yUpper")
-              lower-ratio (/ y-lower y)
-              upper-ratio (/ y-upper y)]
-          ;; 0.8/1.0 = 0.8, 1.2/1.0 = 1.2
-          (is (< 0.79 lower-ratio 0.81))
-          (is (< 1.19 upper-ratio 1.21)))))
+            point (first data)
+            ;; Should use :lower/:upper (0.8e-6, 1.2e-6) not :ci-lower/:ci-upper (0.9e-6, 1.1e-6)
+            ;; Note: values are scaled by SI factor, so we compare ratios
+            y (double (get point "y"))
+            y-lower (get point "yLower")
+            y-upper (get point "yUpper")
+            lower-ratio (/ y-lower y)
+            upper-ratio (/ y-upper y)]
+        ;; 0.8/1.0 = 0.8, 1.2/1.0 = 1.2
+        (is (< 0.79 lower-ratio 0.81))
+        (is (< 1.19 upper-ratio 1.21))))
 
     (testing "extracts CI bounds from multi-metric comparison"
       (let [domain-comparison {:type :criterium/domain-comparison
