@@ -202,7 +202,6 @@
   Returns a Vega-Lite layer spec."
   [kde-data metric-config transforms]
   (let [{:keys [grid lower-band upper-band]} kde-data
-        {:keys [_label]} metric-config
         k (first (:path metric-config))
         field-name (name k)
         data (mapv (fn [x lo hi]
