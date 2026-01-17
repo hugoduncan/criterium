@@ -6,6 +6,27 @@
   (:require
    [criterium.viewer.common.core :as core]))
 
+(defn- metric-type-prefix
+  "Extract metric type (mean/median) from metric path for y-axis titles.
+  Returns \"mean\" or \"median\" if found in path, nil otherwise."
+  [metric-path]
+  (when (and (vector? metric-path) (>= (count metric-path) 3))
+    (let [value-key (nth metric-path 2)]
+      (when (#{:mean :median} value-key)
+        (name value-key)))))
+
+(defn- get-error-lower
+  "Get lower error bound from value map.
+  Checks :lower first, falls back to :ci-lower from bootstrap stats."
+  [value]
+  (or (:lower value) (:ci-lower value)))
+
+(defn- get-error-upper
+  "Get upper error bound from value map.
+  Checks :upper first, falls back to :ci-upper from bootstrap stats."
+  [value]
+  (or (:upper value) (:ci-upper value)))
+
 ;;; Box plot data preparation
 
 (defn- prepare-comparison-box-data-multi-metric
@@ -265,15 +286,27 @@
     :y-title - y-axis title with SI unit
     :has-error-bounds? - true if error bounds data is present
     :data - vector of {\"x\" number \"y\" number \"impl\" string} maps
-            (yLower/yUpper only present when error bounds exist)"
+            (yLower/yUpper only present when error bounds exist)
+
+  Handles both multi-impl and single-impl extracts. For single-impl,
+  the impl field uses the single implementation name or 'default'."
   [extract]
   (let [impl-axis-key (:impl-axis extract)
+        implementations (:implementations extract)
+        single-impl? (or (nil? implementations)
+                         (= 1 (count implementations)))
+        default-impl-name (if (and single-impl? (seq implementations))
+                            (name (first implementations))
+                            "default")
         metrics (:metrics extract)
         ;; Find the non-impl axis key
         first-metric-data (:data (val (first metrics)))
         first-coord (first (first first-metric-data))
+        ;; Always exclude :impl - it's added by domain-builder even for
+        ;; single-impl domains (where impl-axis-key is nil)
         non-impl-keys (when (map? first-coord)
-                        (disj (set (keys first-coord)) impl-axis-key))
+                        (disj (set (keys first-coord))
+                              (or impl-axis-key :impl)))
         axis-key (first non-impl-keys)]
     (mapv
      (fn [[metric-id {:keys [metric data]}]]
@@ -289,8 +322,10 @@
              ;; Build axis titles
              x-title (name axis-key)
              metric-name (name metric-id)
-             base-title (if (or has-error-bounds? has-error-bound-format)
-                          (str "mean " metric-name)
+             type-prefix (when (or has-error-bounds? has-error-bound-format)
+                           (or (metric-type-prefix metric) "mean"))
+             base-title (if type-prefix
+                          (str type-prefix " " metric-name)
                           metric-name)
              y-title (if (seq unit)
                        (str base-title " (" unit ")")
@@ -300,19 +335,24 @@
                          (fn [[coord value]]
                            (let [raw-value (core/get-numeric-value value)
                                  x-val (get coord axis-key)
-                                 impl-val (get coord impl-axis-key)]
+                                 impl-val (if impl-axis-key
+                                            (get coord impl-axis-key)
+                                            nil)
+                                 impl-name (if impl-val
+                                             (name impl-val)
+                                             default-impl-name)
+                                 lower-bound (when (map? value)
+                                               (get-error-lower value))
+                                 upper-bound (when (map? value)
+                                               (get-error-upper value))]
                              (cond-> {"x" x-val
                                       "y" (when raw-value
                                             (* (double raw-value) total-scale))
-                                      "impl" (name impl-val)}
-                               (and has-error-bounds?
-                                    (map? value)
-                                    (contains? value :lower))
-                               (assoc "yLower" (* (double (:lower value)) total-scale))
-                               (and has-error-bounds?
-                                    (map? value)
-                                    (contains? value :upper))
-                               (assoc "yUpper" (* (double (:upper value)) total-scale)))))
+                                      "impl" impl-name}
+                               (and has-error-bounds? lower-bound)
+                               (assoc "yLower" (* (double lower-bound) total-scale))
+                               (and has-error-bounds? upper-bound)
+                               (assoc "yUpper" (* (double upper-bound) total-scale)))))
                          data)]
          {:metric-id metric-id
           :metric-path metric
@@ -373,8 +413,10 @@
                (core/compute-si-scaling metric all-values)
                ;; Build y-axis title
                metric-name (name metric-id)
-               base-title (if (or has-error-bounds? has-error-bound-format)
-                            (str "mean " metric-name)
+               type-prefix (when (or has-error-bounds? has-error-bound-format)
+                             (or (metric-type-prefix metric) "mean"))
+               base-title (if type-prefix
+                            (str type-prefix " " metric-name)
                             metric-name)
                y-title (if (seq unit)
                          (str base-title " (" unit ")")
@@ -384,19 +426,19 @@
                            (for [[impl-val entries] data
                                  {:keys [coord value]} entries
                                  :let [raw-value (core/get-numeric-value value)
-                                       x-val (get coord x-key)]
+                                       x-val (get coord x-key)
+                                       lower-bound (when (map? value)
+                                                     (get-error-lower value))
+                                       upper-bound (when (map? value)
+                                                     (get-error-upper value))]
                                  :when (some? raw-value)]
                              (cond-> {"x" x-val
                                       "y" (* (double raw-value) total-scale)
                                       "impl" (name impl-val)}
-                               (and has-error-bounds?
-                                    (map? value)
-                                    (contains? value :lower))
-                               (assoc "yLower" (* (double (:lower value)) total-scale))
-                               (and has-error-bounds?
-                                    (map? value)
-                                    (contains? value :upper))
-                               (assoc "yUpper" (* (double (:upper value)) total-scale)))))]
+                               (and has-error-bounds? lower-bound)
+                               (assoc "yLower" (* (double lower-bound) total-scale))
+                               (and has-error-bounds? upper-bound)
+                               (assoc "yUpper" (* (double upper-bound) total-scale)))))]
            {:metric-id metric-id
             :metric-path metric
             :x-title x-title
@@ -418,8 +460,10 @@
             {:keys [^double total-scale unit]}
             (core/compute-si-scaling metric all-values)
             ;; Build y-axis title
-            base-title (if (or has-error-bounds? has-error-bound-format)
-                         (str "mean " (pr-str metric))
+            type-prefix (when (or has-error-bounds? has-error-bound-format)
+                          (or (metric-type-prefix metric) "mean"))
+            base-title (if type-prefix
+                         (str type-prefix " " (pr-str metric))
                          (pr-str metric))
             y-title (if (seq unit)
                       (str base-title " (" unit ")")
@@ -429,19 +473,19 @@
                         (for [[impl-val entries] data
                               {:keys [coord value]} entries
                               :let [raw-value (core/get-numeric-value value)
-                                    x-val (get coord x-key)]
+                                    x-val (get coord x-key)
+                                    lower-bound (when (map? value)
+                                                  (get-error-lower value))
+                                    upper-bound (when (map? value)
+                                                  (get-error-upper value))]
                               :when (some? raw-value)]
                           (cond-> {"x" x-val
                                    "y" (* (double raw-value) total-scale)
                                    "impl" (name impl-val)}
-                            (and has-error-bounds?
-                                 (map? value)
-                                 (contains? value :lower))
-                            (assoc "yLower" (* (double (:lower value)) total-scale))
-                            (and has-error-bounds?
-                                 (map? value)
-                                 (contains? value :upper))
-                            (assoc "yUpper" (* (double (:upper value)) total-scale)))))]
+                            (and has-error-bounds? lower-bound)
+                            (assoc "yLower" (* (double lower-bound) total-scale))
+                            (and has-error-bounds? upper-bound)
+                            (assoc "yUpper" (* (double upper-bound) total-scale)))))]
         [{:metric-id nil
           :metric-path metric
           :x-title x-title
@@ -576,8 +620,12 @@
                                           (/ ^double value
                                              ^double baseline-value))))]))
                         col-specs col-headers)))
-           row-keys)]
-      {:heading (str "Domain Comparison by " (name axis) ": " (pr-str metric))
+           row-keys)
+          type-prefix (metric-type-prefix metric)
+          heading-suffix (if type-prefix
+                           (str " (" type-prefix ")")
+                           "")]
+      {:heading (str "Domain Comparison by " (name axis) ": " (pr-str metric) heading-suffix)
        :coord-header coord-header
        :col-headers col-headers
        :rows table-rows})))
@@ -626,11 +674,15 @@
                                                      :impl impl}])
                                                  other-impls))))
                                metric-ids))
-        col-headers (mapv (fn [{:keys [type metric-id impl]}]
-                            (case type
-                              :baseline (str (name impl) " " (name metric-id))
-                              :value (str (name impl) " " (name metric-id))
-                              :factor (str (name impl) " ×")))
+        col-headers (mapv (fn [{:keys [type metric-id metric-path impl]}]
+                            (let [type-prefix (metric-type-prefix metric-path)
+                                  metric-name (if type-prefix
+                                                (str type-prefix " " (name metric-id))
+                                                (name metric-id))]
+                              (case type
+                                :baseline (str (name impl) " " metric-name)
+                                :value (str (name impl) " " metric-name)
+                                :factor (str (name impl) " ×"))))
                           col-specs)
         table-rows
         (mapv
@@ -775,15 +827,17 @@
                 metric-ids)
 
           ;; Build column headers: Implementation, then for each metric:
-          ;; median value, CI (when available), and factor
+          ;; median/mean value, CI (when available), and factor
           col-headers
           (into ["Implementation"]
                 (mapcat (fn [metric-id]
                           (let [{:keys [unit]} (get metric-scales metric-id)
+                                metric-path (get-in metrics-map [metric-id :metric])
+                                type-prefix (or (metric-type-prefix metric-path) "median")
                                 metric-name (name metric-id)
                                 value-header (if (seq unit)
-                                               (str "median " metric-name " (" unit ")")
-                                               (str "median " metric-name))
+                                               (str type-prefix " " metric-name " (" unit ")")
+                                               (str type-prefix " " metric-name))
                                 ci-header (str metric-name " CI")
                                 factor-header (str metric-name " ×")]
                             (if (get metric-has-ci metric-id)
@@ -800,10 +854,12 @@
                     (fn [metric-id]
                       (let [{:keys [unit ^double total-scale]}
                             (get metric-scales metric-id)
+                            metric-path (get-in metrics-map [metric-id :metric])
+                            type-prefix (or (metric-type-prefix metric-path) "median")
                             metric-name (name metric-id)
                             value-header (if (seq unit)
-                                           (str "median " metric-name " (" unit ")")
-                                           (str "median " metric-name))
+                                           (str type-prefix " " metric-name " (" unit ")")
+                                           (str type-prefix " " metric-name))
                             ci-header (str metric-name " CI")
                             factor-header (str metric-name " ×")
                             full-value (get value-lookup [impl metric-id])

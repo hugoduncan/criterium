@@ -6,7 +6,7 @@
   (:require
    [criterium.bench.config :as bench-config]
    [criterium.domain.types :as types]
-   [criterium.util.helpers :as util]
+   [criterium.util.helpers :as helpers]
    [criterium.util.invariant :refer [have have?]]
    [criterium.view :as view]))
 
@@ -23,6 +23,34 @@
          (filter (fn [[_k v]] (= :quantitative (:type v))))
          (map first))))
 
+;;; Metric Value Extraction Helpers
+
+(defn- extract-metric-value
+  "Extract the primary metric value from a benchmark data map.
+
+  Prefers bootstrapped median (quantile 0.5) when available, falls back to
+  mean from stats when bootstrap stats are unavailable.
+
+  Returns the transformed value, or nil if neither source has the metric."
+  [data-map metric-id]
+  (or (helpers/bootstrap-quantile-value data-map metric-id 0.5)
+      (helpers/stats-value data-map :stats metric-id :mean)))
+
+(defn- extract-error-bounds
+  "Extract error bounds for a metric from a benchmark data map.
+
+  Prefers bootstrap CI from quantile 0.5's estimate-quantiles when available,
+  falls back to ±3σ from stats when bootstrap stats are unavailable.
+
+  Returns [lower upper] tuple, or nil if no error bounds are available."
+  [data-map metric-id]
+  (if-let [bootstrap-ci (helpers/bootstrap-quantile-ci data-map metric-id 0.5)]
+    [(:ci-lower bootstrap-ci) (:ci-upper bootstrap-ci)]
+    (let [lower (helpers/stats-value data-map :stats metric-id :mean-minus-3sigma)
+          upper (helpers/stats-value data-map :stats metric-id :mean-plus-3sigma)]
+      (when (and lower upper)
+        [lower upper]))))
+
 (defn extract
   "Extract metric values from all runs in a domain.
   Returns a domain-extract result with a :metrics map.
@@ -33,11 +61,16 @@
 
   metric-path is a vector like [:stats :elapsed-time :mean].
 
+  By default, extraction uses the bootstrapped median (quantile 0.5) when
+  available, falling back to mean from stats when bootstrap stats are
+  unavailable. When a metric-path is provided that explicitly requests
+  :mean (e.g., [:stats :elapsed-time :mean]), the mean is extracted directly.
+
   Options:
-    :with-error-bounds - When true and extracting :mean values, also
-                         extracts :mean-plus-3sigma and :mean-minus-3sigma
-                         as error bounds. Values become maps with :value,
-                         :lower, and :upper keys.
+    :with-error-bounds - When true, extracts error bounds for each value.
+                         Prefers bootstrap CI from quantile 0.5 when available,
+                         falls back to ±3σ from stats. Values become maps with
+                         :value, :lower, and :upper keys.
     :metric-ids        - When metric-path is nil, filter to only these
                          metric-ids (e.g., [:elapsed-time :thread-allocation]).
                          If nil, extracts all quantitative metrics.
@@ -57,16 +90,24 @@
   ;;     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean]
   ;;                              :data [[{:n 100} 1.23e-6] ...]}}}
 
-  Example - all metrics:
+  Example - all metrics (uses bootstrapped median):
   (extract domain)
   ;; => {:type :criterium/domain-extract
-  ;;     :metrics {:elapsed-time {:metric [:stats :elapsed-time :mean] :data [...]}
-  ;;               :thread-allocation {:metric [:stats :thread-allocation :mean] :data [...]}}}"
+  ;;     :metrics {:elapsed-time {:metric [:stats :elapsed-time :median] :data [...]}
+  ;;               :thread-allocation {:metric [:stats :thread-allocation :median] :data [...]}}}"
   ([domain]
    (extract domain nil {}))
   ([domain metric-path]
    (extract domain metric-path {}))
   ([domain metric-path {:keys [with-error-bounds metric-ids]}]
+   ;; Validate metric-path structure when provided
+   (when metric-path
+     (have vector? metric-path
+           {:reason "metric-path must be a vector like [:stats :metric-id :value-key]"
+            :metric-path metric-path})
+     (have #(= 3 (count %)) metric-path
+           {:reason "metric-path must have exactly 3 elements: [stats-id metric-id value-key]"
+            :metric-path metric-path}))
    (let [runs (types/runs domain)
          impl-axis-key (types/impl-axis domain)
          impls (types/implementations domain)
@@ -83,35 +124,48 @@
                (filter (set metric-ids) discovered)
                discovered)))
 
-         ;; Build metric-path for each metric-id (default to :mean)
-         metric-paths
-         (if metric-path
-           {(second metric-path) metric-path}
-           (into {}
-                 (map (fn [mid] [mid [:stats mid :mean]]))
-                 metric-ids-to-extract))
+         ;; When metric-path is nil, use median extraction with helper functions
+         ;; When metric-path is provided, use explicit path extraction
+         use-median? (nil? metric-path)
 
-         ;; Extract data for each metric
-         extract-single
-         (fn [metric-path]
-           (let [[stats-id metric-id value-key] metric-path
+         ;; Extract using median helper (when metric-path is nil)
+         extract-with-median
+         (fn [metric-id]
+           {:metric [:stats metric-id :median]
+            :with-error-bounds (boolean with-error-bounds)
+            :data (mapv (fn [{:keys [coord data]}]
+                          (let [value (extract-metric-value data metric-id)]
+                            (if with-error-bounds
+                              (let [[lower upper] (extract-error-bounds
+                                                   data metric-id)]
+                                [coord (when value
+                                         {:value value
+                                          :lower lower
+                                          :upper upper})])
+                              [coord value])))
+                        runs)})
+
+         ;; Extract using explicit path (when metric-path is provided)
+         extract-with-path
+         (fn [mpath]
+           (let [[stats-id metric-id value-key] mpath
                  extract-bounds? (and with-error-bounds
                                       (= value-key :mean))]
-             {:metric metric-path
+             {:metric mpath
               :with-error-bounds (boolean extract-bounds?)
               :data (mapv (fn [{:keys [coord data]}]
-                            (let [value (util/stats-value
+                            (let [value (helpers/stats-value
                                          data
                                          stats-id
                                          metric-id
                                          value-key)]
                               (if extract-bounds?
-                                (let [lower (util/stats-value
+                                (let [lower (helpers/stats-value
                                              data
                                              stats-id
                                              metric-id
                                              :mean-minus-3sigma)
-                                      upper (util/stats-value
+                                      upper (helpers/stats-value
                                              data
                                              stats-id
                                              metric-id
@@ -124,9 +178,11 @@
                           runs)}))]
      (cond-> {:type :criterium/domain-extract
               :metrics (into {}
-                             (map (fn [[metric-id mpath]]
-                                    [metric-id (extract-single mpath)]))
-                             metric-paths)}
+                             (if use-median?
+                               (map (fn [mid] [mid (extract-with-median mid)]))
+                               (map (fn [mid]
+                                      [mid (extract-with-path metric-path)])))
+                             metric-ids-to-extract)}
        multi-impl? (assoc :impl-axis impl-axis-key
                           :implementations impls)))))
 
@@ -173,12 +229,17 @@
   run's :stats :metrics-defs, similar to extract. In multi-metric mode, the
   domain must have an :implementations key.
 
+  By default, comparison uses the bootstrapped median (quantile 0.5) when
+  available, falling back to mean from stats when bootstrap stats are
+  unavailable. When a metric-path is provided that explicitly requests
+  :mean (e.g., [:stats :elapsed-time :mean]), the mean is extracted directly.
+
   Options:
     :metric-ids        - When metric-path is nil, filter to only these metric-ids.
-    :with-error-bounds - When true and extracting :mean values, also
-                         extracts :mean-plus-3sigma and :mean-minus-3sigma
-                         as error bounds. Values become maps with :value,
-                         :lower, and :upper keys.
+    :with-error-bounds - When true, extracts error bounds for each value.
+                         Prefers bootstrap CI from quantile 0.5 when available,
+                         falls back to ±3σ from stats. Values become maps with
+                         :value, :lower, and :upper keys.
 
   In multi-metric mode, bootstrap quantile statistics (:median, :p10, :p90,
   :ci-lower, :ci-upper) are automatically included when available. This
@@ -203,6 +264,14 @@
   ([domain axis-key metric-path]
    (compare-by domain axis-key metric-path {}))
   ([domain axis-key metric-path {:keys [metric-ids with-error-bounds]}]
+   ;; Validate metric-path structure when provided
+   (when metric-path
+     (have vector? metric-path
+           {:reason "metric-path must be a vector like [:stats :metric-id :value-key]"
+            :metric-path metric-path})
+     (have #(= 3 (count %)) metric-path
+           {:reason "metric-path must have exactly 3 elements: [stats-id metric-id value-key]"
+            :metric-path metric-path}))
    (let [runs (types/runs domain)
          impls (:implementations domain)
          grouped (:data (group-by-axis domain axis-key))]
@@ -219,16 +288,16 @@
                               (map (fn [[axis-val sub-domain]]
                                      [axis-val
                                       (mapv (fn [{:keys [coord data]}]
-                                              (let [value (util/stats-value
+                                              (let [value (helpers/stats-value
                                                            data stats-id
                                                            metric-id value-key)]
                                                 {:coord coord
                                                  :value (if extract-bounds?
-                                                          (let [lower (util/stats-value
+                                                          (let [lower (helpers/stats-value
                                                                        data stats-id
                                                                        metric-id
                                                                        :mean-minus-3sigma)
-                                                                upper (util/stats-value
+                                                                upper (helpers/stats-value
                                                                        data stats-id
                                                                        metric-id
                                                                        :mean-plus-3sigma)]
@@ -240,45 +309,38 @@
                                             (types/runs sub-domain))]))
                               grouped)}
            impls (assoc :implementations impls)))
-       ;; Multi-metric mode
+       ;; Multi-metric mode - uses median extraction with bootstrap stats
        (let [first-run-data (:data (first runs))
              discovered (discover-quantitative-metrics
                          first-run-data)
              metric-ids-to-extract (if metric-ids
                                      (filter (set metric-ids) discovered)
                                      discovered)
-             ;; Function to extract both mean and bootstrap stats for a metric
-             compare-with-bootstrap
+             ;; Function to extract median and bootstrap stats for a metric
+             compare-with-median
              (fn [metric-id]
-               (let [metric-path [:stats metric-id :mean]
-                     extract-bounds? with-error-bounds]
-                 {:metric metric-path
+               (let [extract-bounds? with-error-bounds]
+                 {:metric [:stats metric-id :median]
                   :with-error-bounds (boolean extract-bounds?)
                   :data (into {}
                               (map (fn [[axis-val sub-domain]]
                                      [axis-val
                                       (mapv (fn [{:keys [coord data]}]
-                                              (let [mean-value (util/stats-value
-                                                                data :stats
-                                                                metric-id :mean)
-                                                    ;; Base value with mean
+                                              (let [median-value (extract-metric-value
+                                                                  data metric-id)
+                                                    ;; Base value with median
                                                     base-value
                                                     (if extract-bounds?
-                                                      (let [lower (util/stats-value
-                                                                   data :stats
-                                                                   metric-id
-                                                                   :mean-minus-3sigma)
-                                                            upper (util/stats-value
-                                                                   data :stats
-                                                                   metric-id
-                                                                   :mean-plus-3sigma)]
-                                                        (when mean-value
-                                                          {:value mean-value
+                                                      (let [[lower upper]
+                                                            (extract-error-bounds
+                                                             data metric-id)]
+                                                        (when median-value
+                                                          {:value median-value
                                                            :lower lower
                                                            :upper upper}))
-                                                      mean-value)
+                                                      median-value)
                                                     ;; Bootstrap stats (when available)
-                                                    bootstrap (util/bootstrap-box-plot-stats
+                                                    bootstrap (helpers/bootstrap-box-plot-stats
                                                                data metric-id)]
                                                 {:coord coord
                                                  :value (if bootstrap
@@ -293,7 +355,7 @@
                   :axis axis-key
                   :metrics (into {}
                                  (map (fn [metric-id]
-                                        [metric-id (compare-with-bootstrap metric-id)]))
+                                        [metric-id (compare-with-median metric-id)]))
                                  metric-ids-to-extract)}
            impls (assoc :implementations impls)))))))
 
@@ -1158,8 +1220,8 @@
   [x]
   (let [options {:default-ns 'criterium.domain.analysis}]
     (if (sequential? x)
-      (apply (util/maybe-var-get (first x) options) (rest x))
-      ((util/maybe-var-get x options)))))
+      (apply (helpers/maybe-var-get (first x) options) (rest x))
+      ((helpers/maybe-var-get x options)))))
 
 (defn- resolve-domain-view-fn
   "Resolves a single domain view function specification.
@@ -1171,8 +1233,8 @@
     (have
      fn?
      (if (sequential? x)
-       (apply (util/maybe-var-get (first x) options) (rest x))
-       ((util/maybe-var-get x options)))
+       (apply (helpers/maybe-var-get (first x) options) (rest x))
+       ((helpers/maybe-var-get x options)))
      {:x x})))
 
 (defn ->domain-analyse

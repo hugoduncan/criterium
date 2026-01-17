@@ -325,6 +325,20 @@
         (testing "includes 'mean' in y-title for error-bound values"
           (is (str/starts-with? y-title "mean ")))))
 
+    (testing "uses 'median' in y-title when metric path contains :median"
+      (let [domain-extract {:type :criterium/domain-extract
+                            :impl-axis :impl
+                            :implementations [:foo :bar]
+                            :metrics {:elapsed-time
+                                      {:metric [:stats :elapsed-time :median]
+                                       :data [[{:n 100 :impl :foo} {:value 1.0e-6 :lower 0.9e-6 :upper 1.1e-6}]
+                                              [{:n 100 :impl :bar} {:value 2.0e-6 :lower 1.9e-6 :upper 2.1e-6}]
+                                              [{:n 200 :impl :foo} {:value 1.5e-6 :lower 1.4e-6 :upper 1.6e-6}]
+                                              [{:n 200 :impl :bar} {:value 2.5e-6 :lower 2.4e-6 :upper 2.6e-6}]]}}}
+            result (comparison/prepare-line-chart-data domain-extract)
+            {:keys [y-title]} (first result)]
+        (is (str/starts-with? y-title "median "))))
+
     (testing "does not prefix y-title with 'mean' for plain values"
       (let [domain-extract {:type :criterium/domain-extract
                             :impl-axis :impl
@@ -406,6 +420,52 @@
           (is (contains? foo-100 "yUpper"))
           (is (not (contains? bar-100 "yLower")))
           (is (not (contains? bar-100 "yUpper"))))))))
+
+;;; Tests for prepare-line-chart-data with single implementation.
+;;; Verifies line chart data preparation handles single-impl extracts.
+
+(deftest prepare-line-chart-data-single-impl-test
+  (testing "prepare-line-chart-data with single implementation"
+    (testing "uses single implementation name"
+      (let [domain-extract {:type :criterium/domain-extract
+                            :implementations [:my-impl]
+                            :metrics {:elapsed-time
+                                      {:metric [:stats :elapsed-time :mean]
+                                       :data [[{:n 100} 1.0e-6]
+                                              [{:n 200} 1.5e-6]
+                                              [{:n 400} 2.0e-6]]}}}
+            result (comparison/prepare-line-chart-data domain-extract)
+            data (:data (first result))]
+        (is (= 3 (count data)))
+        (is (every? #(= "my-impl" (get % "impl")) data))
+        (is (= #{100 200 400} (set (map #(get % "x") data))))))
+
+    (testing "uses 'default' when no implementations key"
+      (let [domain-extract {:type :criterium/domain-extract
+                            :metrics {:elapsed-time
+                                      {:metric [:stats :elapsed-time :mean]
+                                       :data [[{:n 100} 1.0e-6]
+                                              [{:n 200} 1.5e-6]]}}}
+            result (comparison/prepare-line-chart-data domain-extract)
+            data (:data (first result))]
+        (is (= 2 (count data)))
+        (is (every? #(= "default" (get % "impl")) data))))
+
+    (testing "handles error bounds for single impl"
+      (let [domain-extract {:type :criterium/domain-extract
+                            :implementations [:default]
+                            :metrics {:elapsed-time
+                                      {:metric [:stats :elapsed-time :mean]
+                                       :data [[{:n 100}
+                                               {:value 1.0e-6 :lower 0.9e-6 :upper 1.1e-6}]
+                                              [{:n 200}
+                                               {:value 1.5e-6 :lower 1.4e-6 :upper 1.6e-6}]]}}}
+            result (comparison/prepare-line-chart-data domain-extract)
+            first-metric (first result)
+            data (:data first-metric)]
+        (is (true? (:has-error-bounds? first-metric)))
+        (is (every? #(contains? % "yLower") data))
+        (is (every? #(contains? % "yUpper") data))))))
 
 ;;; Edge case tests
 
@@ -532,6 +592,19 @@
         (is (every? #(number? (get % "y")) data))
         (testing "includes 'mean' in y-title for error-bound values"
           (is (str/starts-with? y-title "mean ")))))
+
+    (testing "uses 'median' in y-title when metric path contains :median"
+      (let [domain-comparison {:type :criterium/domain-comparison
+                               :axis :n
+                               :metric [:stats :elapsed-time :median]
+                               :implementations [:foo :bar]
+                               :data {:foo [{:coord {:n 100} :value {:value 1.0e-6 :lower 0.9e-6 :upper 1.1e-6}}
+                                            {:coord {:n 200} :value {:value 1.5e-6 :lower 1.4e-6 :upper 1.6e-6}}]
+                                      :bar [{:coord {:n 100} :value {:value 2.0e-6 :lower 1.9e-6 :upper 2.1e-6}}
+                                            {:coord {:n 200} :value {:value 2.5e-6 :lower 2.4e-6 :upper 2.6e-6}}]}}
+            result (comparison/prepare-comparison-line-data domain-comparison)
+            {:keys [y-title]} (first result)]
+        (is (str/starts-with? y-title "median "))))
 
     (testing "does not prefix y-title with 'mean' for plain values"
       (let [domain-comparison {:type :criterium/domain-comparison
@@ -706,6 +779,67 @@
                  (get foo-data "p90"))
               "values should be in correct order"))))))
 
+;;; Tests for prepare-domain-comparison-tables helper.
+;;; Verifies multi-point comparison table preparation with factor display.
+
+(deftest prepare-domain-comparison-tables-metric-type-test
+  ;; Tests that factor tables show metric type (mean/median) in column headers.
+  (testing "prepare-domain-comparison-tables"
+    (testing "multi-metric with implementations shows metric type in headers"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :implementations [:foo :bar]
+                        :metrics {:elapsed-time
+                                  {:metric [:stats :elapsed-time :mean]
+                                   :data {:foo [{:coord {:n 100} :value 1e-6}
+                                                {:coord {:n 200} :value 2e-6}]
+                                          :bar [{:coord {:n 100} :value 1.5e-6}
+                                                {:coord {:n 200} :value 2.5e-6}]}}
+                                  :thread-allocation
+                                  {:metric [:stats :thread-allocation :median]
+                                   :data {:foo [{:coord {:n 100} :value 100}
+                                                {:coord {:n 200} :value 200}]
+                                          :bar [{:coord {:n 100} :value 150}
+                                                {:coord {:n 200} :value 250}]}}}}
+            result (comparison/prepare-domain-comparison-tables comparison)
+            table (first result)
+            headers (:col-headers table)]
+        ;; Should have headers with metric type prefixes
+        (is (some #(str/includes? % "mean elapsed-time") headers)
+            "elapsed-time header should show 'mean' from metric path")
+        (is (some #(str/includes? % "median thread-allocation") headers)
+            "thread-allocation header should show 'median' from metric path")))
+
+    (testing "single-metric with implementations shows metric type in heading"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :median]
+                        :implementations [:foo :bar]
+                        :data {:foo [{:coord {:n 100} :value 1e-6}
+                                     {:coord {:n 200} :value 2e-6}]
+                               :bar [{:coord {:n 100} :value 1.5e-6}
+                                     {:coord {:n 200} :value 2.5e-6}]}}
+            result (comparison/prepare-domain-comparison-tables comparison)
+            table (first result)]
+        ;; Heading should include metric type
+        (is (str/includes? (:heading table) "(median)")
+            "heading should indicate median metric type")))
+
+    (testing "single-metric with mean shows mean in heading"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :n
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo :bar]
+                        :data {:foo [{:coord {:n 100} :value 1e-6}
+                                     {:coord {:n 200} :value 2e-6}]
+                               :bar [{:coord {:n 100} :value 1.5e-6}
+                                     {:coord {:n 200} :value 2.5e-6}]}}
+            result (comparison/prepare-domain-comparison-tables comparison)
+            table (first result)]
+        ;; Heading should include metric type
+        (is (str/includes? (:heading table) "(mean)")
+            "heading should indicate mean metric type")))))
+
 ;;; Tests for prepare-domain-comparison-table-transposed helper.
 ;;; Verifies transposed table preparation with bootstrapped median values.
 
@@ -728,8 +862,25 @@
             result (comparison/prepare-domain-comparison-table-transposed comparison)
             rows (:rows result)]
         (is (= 2 (count rows)))
-        ;; The median column header should contain "median"
-        (is (some #(str/includes? % "median") (:col-headers result)))))
+        ;; The column header should contain metric type from path (mean in this case)
+        (is (some #(str/includes? % "mean") (:col-headers result)))))
+
+    (testing "shows median in header when metric path contains :median"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :impl
+                        :implementations [:foo :bar]
+                        :metrics {:elapsed-time
+                                  {:metric [:stats :elapsed-time :median]
+                                   :data {:foo [{:coord {:impl :foo}
+                                                 :value {:median 1.0e-6
+                                                         :value 1.1e-6}}]
+                                          :bar [{:coord {:impl :bar}
+                                                 :value {:median 2.0e-6
+                                                         :value 2.2e-6}}]}}}}
+            result (comparison/prepare-domain-comparison-table-transposed comparison)
+            col-headers (:col-headers result)]
+        ;; The column header should contain "median" when metric path is :median
+        (is (some #(str/includes? % "median") col-headers))))
 
     (testing "includes CI columns when CI bounds present"
       (let [comparison {:type :criterium/domain-comparison
@@ -844,7 +995,7 @@
         ;; Factor should work with plain numeric values
         (is (= "2.00" (get bar-row factor-header)))))
 
-    (testing "handles single-metric mode"
+    (testing "handles single-metric mode with metric type from path"
       (let [comparison {:type :criterium/domain-comparison
                         :axis :impl
                         :metric [:stats :elapsed-time :mean]
@@ -856,4 +1007,151 @@
             result (comparison/prepare-domain-comparison-table-transposed comparison)]
         (is (map? result))
         (is (= 2 (count (:rows result))))
+        ;; Should show "mean" when metric path is :mean
+        (is (some #(str/includes? % "mean") (:col-headers result)))))
+
+    (testing "single-metric mode shows median when metric path is :median"
+      (let [comparison {:type :criterium/domain-comparison
+                        :axis :impl
+                        :metric [:stats :elapsed-time :median]
+                        :implementations [:foo :bar]
+                        :data {:foo [{:coord {:impl :foo}
+                                      :value {:median 1.0e-6}}]
+                               :bar [{:coord {:impl :bar}
+                                      :value {:median 2.0e-6}}]}}
+            result (comparison/prepare-domain-comparison-table-transposed comparison)]
+        (is (map? result))
+        (is (= 2 (count (:rows result))))
+        ;; Should show "median" when metric path is :median
         (is (some #(str/includes? % "median") (:col-headers result)))))))
+
+;;; Tests for CI bounds extraction from bootstrap stats.
+;;; Verifies that :ci-lower/:ci-upper are recognized as error bounds.
+
+(deftest prepare-comparison-line-data-ci-bounds-test
+  ;; Tests line chart data preparation recognizes bootstrap CI bounds.
+  ;; Bootstrap stats use :ci-lower/:ci-upper keys which should be extracted
+  ;; into yLower/yUpper chart fields.
+  (testing "prepare-comparison-line-data with bootstrap CI bounds"
+    (testing "extracts :ci-lower/:ci-upper into yLower/yUpper"
+      (let [domain-comparison {:type :criterium/domain-comparison
+                               :axis :n
+                               :metric [:stats :elapsed-time :median]
+                               :implementations [:foo :bar]
+                               :data {:foo [{:coord {:n 100}
+                                             :value {:value 1.0e-6
+                                                     :ci-lower 0.9e-6
+                                                     :ci-upper 1.1e-6}}
+                                            {:coord {:n 200}
+                                             :value {:value 1.5e-6
+                                                     :ci-lower 1.4e-6
+                                                     :ci-upper 1.6e-6}}]
+                                      :bar [{:coord {:n 100}
+                                             :value {:value 2.0e-6
+                                                     :ci-lower 1.8e-6
+                                                     :ci-upper 2.2e-6}}
+                                            {:coord {:n 200}
+                                             :value {:value 2.5e-6
+                                                     :ci-lower 2.3e-6
+                                                     :ci-upper 2.7e-6}}]}}
+            result (comparison/prepare-comparison-line-data domain-comparison)
+            first-metric (first result)]
+        (is (true? (:has-error-bounds? first-metric)))
+        (is (str/starts-with? (:y-title first-metric) "median "))
+        (let [data (:data first-metric)]
+          (is (every? #(contains? % "yLower") data))
+          (is (every? #(contains? % "yUpper") data))
+          (doseq [d data]
+            (is (< (get d "yLower") (get d "y")))
+            (is (< (get d "y") (get d "yUpper")))))))
+
+    (testing "prefers :lower/:upper over :ci-lower/:ci-upper"
+      (let [domain-comparison {:type :criterium/domain-comparison
+                               :axis :n
+                               :metric [:stats :elapsed-time :mean]
+                               :implementations [:foo]
+                               :data {:foo [{:coord {:n 100}
+                                             :value {:value 1.0e-6
+                                                     :lower 0.8e-6
+                                                     :upper 1.2e-6
+                                                     :ci-lower 0.9e-6
+                                                     :ci-upper 1.1e-6}}]}}
+            result (comparison/prepare-comparison-line-data domain-comparison)
+            data (:data (first result))
+            point (first data)
+            ;; Should use :lower/:upper (0.8e-6, 1.2e-6) not :ci-lower/:ci-upper (0.9e-6, 1.1e-6)
+            ;; Note: values are scaled by SI factor, so we compare ratios
+            y (double (get point "y"))
+            y-lower (get point "yLower")
+            y-upper (get point "yUpper")
+            lower-ratio (/ y-lower y)
+            upper-ratio (/ y-upper y)]
+        ;; 0.8/1.0 = 0.8, 1.2/1.0 = 1.2
+        (is (< 0.79 lower-ratio 0.81))
+        (is (< 1.19 upper-ratio 1.21))))
+
+    (testing "extracts CI bounds from multi-metric comparison"
+      (let [domain-comparison {:type :criterium/domain-comparison
+                               :axis :n
+                               :implementations [:foo :bar]
+                               :metrics {:elapsed-time
+                                         {:metric [:stats :elapsed-time :median]
+                                          :data {:foo [{:coord {:n 100}
+                                                        :value {:value 1.0e-6
+                                                                :ci-lower 0.9e-6
+                                                                :ci-upper 1.1e-6}}
+                                                       {:coord {:n 200}
+                                                        :value {:value 1.5e-6
+                                                                :ci-lower 1.4e-6
+                                                                :ci-upper 1.6e-6}}]
+                                                 :bar [{:coord {:n 100}
+                                                        :value {:value 2.0e-6
+                                                                :ci-lower 1.8e-6
+                                                                :ci-upper 2.2e-6}}
+                                                       {:coord {:n 200}
+                                                        :value {:value 2.5e-6
+                                                                :ci-lower 2.3e-6
+                                                                :ci-upper 2.7e-6}}]}}}}
+            result (comparison/prepare-comparison-line-data domain-comparison)
+            first-metric (first result)]
+        (is (true? (:has-error-bounds? first-metric)))
+        (let [data (:data first-metric)]
+          (is (every? #(contains? % "yLower") data))
+          (is (every? #(contains? % "yUpper") data)))))))
+
+(deftest prepare-line-chart-data-ci-bounds-test
+  ;; Tests line chart data preparation for domain extract recognizes bootstrap CI bounds.
+  (testing "prepare-line-chart-data with bootstrap CI bounds"
+    (testing "extracts :ci-lower/:ci-upper into yLower/yUpper"
+      (let [domain-extract {:type :criterium/domain-extract
+                            :impl-axis :impl
+                            :implementations [:foo :bar]
+                            :metrics {:elapsed-time
+                                      {:metric [:stats :elapsed-time :median]
+                                       :data [[{:n 100 :impl :foo}
+                                               {:value 1.0e-6
+                                                :ci-lower 0.9e-6
+                                                :ci-upper 1.1e-6}]
+                                              [{:n 100 :impl :bar}
+                                               {:value 2.0e-6
+                                                :ci-lower 1.8e-6
+                                                :ci-upper 2.2e-6}]
+                                              [{:n 200 :impl :foo}
+                                               {:value 1.5e-6
+                                                :ci-lower 1.4e-6
+                                                :ci-upper 1.6e-6}]
+                                              [{:n 200 :impl :bar}
+                                               {:value 2.5e-6
+                                                :ci-lower 2.3e-6
+                                                :ci-upper 2.7e-6}]]}}}
+            result (comparison/prepare-line-chart-data domain-extract)
+            first-metric (first result)]
+        (is (true? (:has-error-bounds? first-metric)))
+        (is (str/starts-with? (:y-title first-metric) "median "))
+        (let [data (:data first-metric)]
+          (is (every? #(contains? % "yLower") data))
+          (is (every? #(contains? % "yUpper") data))
+          (doseq [d data]
+            (when (and (get d "yLower") (get d "yUpper") (get d "y"))
+              (is (< (get d "yLower") (get d "y")))
+              (is (< (get d "y") (get d "yUpper"))))))))))

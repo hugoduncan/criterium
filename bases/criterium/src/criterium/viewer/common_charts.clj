@@ -15,6 +15,15 @@
    [criterium.viewer.common.core :as core]
    [criterium.viewer.common.domain.comparison :as comparison]))
 
+(defn- metric-type-prefix
+  "Extract metric type (mean/median) from metric path for y-axis titles.
+  Returns \"mean\" or \"median\" if found in path, nil otherwise."
+  [metric-path]
+  (when (and (vector? metric-path) (>= (count metric-path) 3))
+    (let [value-key (nth metric-path 2)]
+      (when (#{:mean :median} value-key)
+        (name value-key)))))
+
 ;;; Scatter plots
 
 (defn metric-layer
@@ -513,36 +522,72 @@
   Options:
     :color-field - field name for color encoding (e.g., \"impl\" or nil for static color)
     :color-value - static color when color-field is nil (default \"steelblue\")
-    :legend-options - legend config map or nil for default"
+    :legend-options - legend config map or nil for default
+
+  When color-field is \"model\", adds a \"series\" field with value \"data\" to
+  each point since data points don't have model labels (only fit lines do)."
   [points {:keys [axis-name y-title color-field color-value legend-options]
            :or {color-value "steelblue"}}]
-  {:data {:values points}
-   :mark {:type "point" :size 60}
-   :encoding (cond-> {:x {:field "x" :type "quantitative" :title axis-name}
-                      :y {:field "y" :type "quantitative" :title y-title}}
-               color-field
-               (assoc :color {:field color-field :type "nominal"
-                              :legend (merge {:title (if (= color-field "impl")
-                                                       "Implementation"
-                                                       "Model")}
-                                             legend-options)})
-               (not color-field)
-               (assoc :color {:value color-value}))})
+  (let [;; For single-impl mode (color-field="model"), data points need a series
+        ;; label since they don't have individual model values like fit lines do
+        single-impl-model-mode? (= color-field "model")
+        labeled-points (if single-impl-model-mode?
+                         (mapv #(assoc % "series" "data") points)
+                         points)
+        actual-color-field (if single-impl-model-mode? "series" color-field)
+        base-tooltip [{:field "x"
+                       :type "quantitative"
+                       :title axis-name
+                       :format ".4g"}
+                      {:field "y"
+                       :type "quantitative"
+                       :title y-title
+                       :format ".4g"}]
+        tooltip (if actual-color-field
+                  (into [{:field actual-color-field
+                          :type "nominal"
+                          :title (case actual-color-field
+                                   "impl" "Implementation"
+                                   "series" "Series"
+                                   "Model")}]
+                        base-tooltip)
+                  base-tooltip)]
+    {:data {:values labeled-points}
+     :mark {:type "point" :size 60}
+     :encoding (cond-> {:x {:field "x" :type "quantitative" :title axis-name}
+                        :y {:field "y" :type "quantitative" :title y-title}
+                        :tooltip tooltip}
+                 actual-color-field
+                 (assoc :color {:field actual-color-field :type "nominal"
+                                :legend (merge {:title (case actual-color-field
+                                                         "impl" "Implementation"
+                                                         "series" "Series"
+                                                         "Model")}
+                                               legend-options)})
+                 (not actual-color-field)
+                 (assoc :color {:value color-value}))}))
 
 (defn regression-error-layer
-  "Build error bar layer for regression points with error bounds."
+  "Build error bar layer for regression points with error bounds.
+  When color-field is \"model\", adds a \"series\" field with value \"data\" to
+  match the scatter layer behavior."
   [points {:keys [color-field color-value]
            :or {color-value "steelblue"}}]
-  {:data {:values points}
-   :mark {:type "rule" :strokeWidth 1.5}
-   :encoding (cond-> {:x {:field "x" :type "quantitative"}
-                      :y {:field "yLower" :type "quantitative"}
-                      :y2 {:field "yUpper"}
-                      :opacity {:value 0.5}}
-               color-field
-               (assoc :color {:field color-field :type "nominal" :legend nil})
-               (not color-field)
-               (assoc :color {:value color-value}))})
+  (let [single-impl-model-mode? (= color-field "model")
+        labeled-points (if single-impl-model-mode?
+                         (mapv #(assoc % "series" "data") points)
+                         points)
+        actual-color-field (if single-impl-model-mode? "series" color-field)]
+    {:data {:values labeled-points}
+     :mark {:type "rule" :strokeWidth 1.5}
+     :encoding (cond-> {:x {:field "x" :type "quantitative"}
+                        :y {:field "yLower" :type "quantitative"}
+                        :y2 {:field "yUpper"}
+                        :opacity {:value 0.5}}
+                 actual-color-field
+                 (assoc :color {:field actual-color-field :type "nominal" :legend nil})
+                 (not actual-color-field)
+                 (assoc :color {:value color-value}))}))
 
 (defn regression-line-layer
   "Build fit line layer for regression models.
@@ -658,25 +703,61 @@
 
 (defn log-log-scatter-layer
   "Build scatter layer for log-log plot.
-  Points are in log space: x = log(n), y = log(time)."
+  Points are in log space: x = log(n), y = log(time).
+  Tooltips show both original and log-transformed values."
   [points {:keys [axis-name color-field color-value legend-options]}]
-  {:data {:values (vec points)}
-   :mark {:type "point" :size 60 :filled true}
-   :encoding (cond-> {:x {:field "x"
-                          :type "quantitative"
-                          :title (str "log(" axis-name ")")}
-                      :y {:field "y"
-                          :type "quantitative"
-                          :title "log(time)"}}
-               color-field
-               (assoc :color {:field color-field
-                              :type "nominal"
-                              :legend (merge {:title (if (= color-field "impl")
-                                                       "Implementation"
-                                                       "Model")}
-                                             legend-options)})
-               (and (nil? color-field) color-value)
-               (assoc :color {:value color-value}))})
+  (let [has-orig-values? (some #(contains? % "origX") points)
+        base-tooltip (if has-orig-values?
+                       [{:field "origX"
+                         :type "quantitative"
+                         :title axis-name
+                         :format ".4g"}
+                        {:field "origY"
+                         :type "quantitative"
+                         :title "time"
+                         :format ".4g"}
+                        {:field "x"
+                         :type "quantitative"
+                         :title (str "log(" axis-name ")")
+                         :format ".4f"}
+                        {:field "y"
+                         :type "quantitative"
+                         :title "log(time)"
+                         :format ".4f"}]
+                       [{:field "x"
+                         :type "quantitative"
+                         :title (str "log(" axis-name ")")
+                         :format ".4f"}
+                        {:field "y"
+                         :type "quantitative"
+                         :title "log(time)"
+                         :format ".4f"}])
+        tooltip (if color-field
+                  (into [{:field color-field
+                          :type "nominal"
+                          :title (if (= color-field "impl")
+                                   "Implementation"
+                                   "Model")}]
+                        base-tooltip)
+                  base-tooltip)]
+    {:data {:values (vec points)}
+     :mark {:type "point" :size 60 :filled true}
+     :encoding (cond-> {:x {:field "x"
+                            :type "quantitative"
+                            :title (str "log(" axis-name ")")}
+                        :y {:field "y"
+                            :type "quantitative"
+                            :title "log(time)"}
+                        :tooltip tooltip}
+                 color-field
+                 (assoc :color {:field color-field
+                                :type "nominal"
+                                :legend (merge {:title (if (= color-field "impl")
+                                                         "Implementation"
+                                                         "Model")}
+                                               legend-options)})
+                 (and (nil? color-field) color-value)
+                 (assoc :color {:value color-value}))}))
 
 (defn log-log-line-layer
   "Build fit line layer for log-log plot.
@@ -880,8 +961,10 @@
              (core/compute-si-scaling metric all-values)
              ;; Build y-axis title with unit
              metric-name (name metric-id)
-             base-title (if has-error-bounds?
-                          (str "mean " metric-name)
+             type-prefix (when has-error-bounds?
+                           (or (metric-type-prefix metric) "mean"))
+             base-title (if type-prefix
+                          (str type-prefix " " metric-name)
                           metric-name)
              y-title (if (seq unit)
                        (str base-title " (" unit ")")

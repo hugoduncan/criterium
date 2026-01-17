@@ -49,7 +49,81 @@
           (is (= 10 (get first-row "n"))))))
 
     (testing "returns nil for nil extract"
-      (is (nil? (extract/prepare-domain-extract-table nil {}))))))
+      (is (nil? (extract/prepare-domain-extract-table nil {}))))
+
+    (testing "column headers include metric type prefix"
+      (testing "when metric path has :mean"
+        (let [domain-extract {:type :criterium/domain-extract
+                              :impl-axis :impl
+                              :implementations [:default]
+                              :metrics {:elapsed-time
+                                        {:metric [:stats :elapsed-time :mean]
+                                         :data [[{:n 10 :impl :default} 1.0e-6]]}}}
+              result (extract/prepare-domain-extract-table domain-extract {})
+              col-headers (:col-headers result)]
+          (is (some #(str/starts-with? % "mean ") col-headers))))
+
+      (testing "when metric path has :median"
+        (let [domain-extract {:type :criterium/domain-extract
+                              :impl-axis :impl
+                              :implementations [:default]
+                              :metrics {:elapsed-time
+                                        {:metric [:stats :elapsed-time :median]
+                                         :data [[{:n 10 :impl :default} 1.0e-6]]}}}
+              result (extract/prepare-domain-extract-table domain-extract {})
+              col-headers (:col-headers result)]
+          (is (some #(str/starts-with? % "median ") col-headers))))
+
+      (testing "no prefix for other value keys"
+        (let [domain-extract {:type :criterium/domain-extract
+                              :impl-axis :impl
+                              :implementations [:default]
+                              :metrics {:elapsed-time
+                                        {:metric [:stats :elapsed-time :min-val]
+                                         :data [[{:n 10 :impl :default} 1.0e-6]]}}}
+              result (extract/prepare-domain-extract-table domain-extract {})
+              col-headers (:col-headers result)]
+          (is (not (some #(or (str/starts-with? % "mean ")
+                              (str/starts-with? % "median "))
+                         col-headers))))))
+
+    (testing "values with error bounds are formatted inline"
+      (let [domain-extract {:type :criterium/domain-extract
+                            :impl-axis :impl
+                            :implementations [:default]
+                            :metrics {:elapsed-time
+                                      {:metric [:stats :elapsed-time :median]
+                                       :with-error-bounds true
+                                       :data [[{:n 10 :impl :default}
+                                               {:value 1.0e-6
+                                                :lower 0.9e-6
+                                                :upper 1.1e-6}]]}}}
+            result (extract/prepare-domain-extract-table domain-extract {})
+            first-row (first (:rows result))
+            value-header (first (filter #(str/includes? % "elapsed-time")
+                                        (:col-headers result)))
+            cell-value (get first-row value-header)]
+        ;; Value should contain CI in format "value (lower-upper)"
+        (is (string? cell-value))
+        (is (str/includes? cell-value "("))
+        (is (str/includes? cell-value "-"))))
+
+    (testing "values without error bounds are formatted plain"
+      (let [domain-extract {:type :criterium/domain-extract
+                            :impl-axis :impl
+                            :implementations [:default]
+                            :metrics {:elapsed-time
+                                      {:metric [:stats :elapsed-time :mean]
+                                       :data [[{:n 10 :impl :default} 1.0e-6]]}}}
+            result (extract/prepare-domain-extract-table domain-extract {})
+            first-row (first (:rows result))
+            value-header (first (filter #(str/includes? % "elapsed-time")
+                                        (:col-headers result)))
+            cell-value (get first-row value-header)]
+        ;; Value should not contain CI parentheses
+        (is (string? cell-value))
+        (is (not (str/includes? cell-value "("))
+            "Plain values should not have CI parentheses")))))
 
 ;;; Tests for prepare-domain-extract-table-transposed helper.
 ;;; Verifies transposed table generation for single-point multi-impl scenarios
@@ -129,4 +203,54 @@
                   col-headers))))
 
     (testing "returns nil for nil extract"
-      (is (nil? (extract/prepare-domain-extract-table-transposed nil))))))
+      (is (nil? (extract/prepare-domain-extract-table-transposed nil))))
+
+    (testing "column headers include metric type prefix"
+      (testing "when metric path has :mean"
+        (let [domain-extract {:type :criterium/domain-extract
+                              :impl-axis :impl
+                              :implementations [:foo :bar]
+                              :metrics {:elapsed-time
+                                        {:metric [:stats :elapsed-time :mean]
+                                         :data [[{:n 100 :impl :foo} 1.0e-6]
+                                                [{:n 100 :impl :bar} 2.0e-6]]}}}
+              result (extract/prepare-domain-extract-table-transposed domain-extract)
+              col-headers (:col-headers result)]
+          (is (some #(str/starts-with? % "mean ") col-headers))))
+
+      (testing "when metric path has :median"
+        (let [domain-extract {:type :criterium/domain-extract
+                              :impl-axis :impl
+                              :implementations [:foo :bar]
+                              :metrics {:elapsed-time
+                                        {:metric [:stats :elapsed-time :median]
+                                         :data [[{:n 100 :impl :foo} 1.0e-6]
+                                                [{:n 100 :impl :bar} 2.0e-6]]}}}
+              result (extract/prepare-domain-extract-table-transposed domain-extract)
+              col-headers (:col-headers result)]
+          (is (some #(str/starts-with? % "median ") col-headers)))))
+
+    (testing "values with error bounds are formatted inline"
+      (let [domain-extract {:type :criterium/domain-extract
+                            :impl-axis :impl
+                            :implementations [:foo :bar]
+                            :metrics {:elapsed-time
+                                      {:metric [:stats :elapsed-time :median]
+                                       :with-error-bounds true
+                                       :data [[{:n 100 :impl :foo}
+                                               {:value 1.0e-6
+                                                :lower 0.9e-6
+                                                :upper 1.1e-6}]
+                                              [{:n 100 :impl :bar}
+                                               {:value 2.0e-6
+                                                :lower 1.8e-6
+                                                :upper 2.2e-6}]]}}}
+            result (extract/prepare-domain-extract-table-transposed domain-extract)
+            foo-row (first (:rows result))
+            value-header (first (filter #(str/starts-with? % "median ")
+                                        (:col-headers result)))
+            cell-value (get foo-row value-header)]
+        ;; Value should contain CI in format "value (lower-upper)"
+        (is (string? cell-value))
+        (is (str/includes? cell-value "("))
+        (is (str/includes? cell-value "-"))))))

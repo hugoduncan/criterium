@@ -36,7 +36,8 @@
   Groups runs by :impl axis and compares all quantitative metrics.
   Requires map coordinates with an :impl key distinguishing implementations.
 
-  Extracts mean values with error bounds (±3σ) for bar chart visualization.
+  Extracts median values (with fallback to mean when bootstrap stats unavailable)
+  with error bounds for bar chart visualization.
   When bootstrap stats are available, also includes quantile statistics
   (median, p10, p90, CI) enabling box plot visualization.
 
@@ -54,7 +55,8 @@
   "Extract all quantitative metrics from all runs.
 
   Discovers available metrics automatically (elapsed-time, thread-allocation, etc.)
-  and extracts mean values for each.
+  and extracts median values for each (with fallback to mean when bootstrap stats
+  unavailable).
 
   Includes error bounds (±3σ) for each data point when viewed with portal or kindly.
 
@@ -65,10 +67,11 @@
           [:domain-extract-chart {}]]})
 
 (def extract-elapsed-time
-  "Extract elapsed time mean values from all runs.
+  "Extract elapsed time values from all runs using explicit mean path.
 
-  Simple plan for viewing elapsed time across a domain. For all available
-  metrics, use complexity-analysis or omit :metric-path from domain-extract-fn.
+  This plan explicitly extracts the mean value (not median) for elapsed-time.
+  For median-based extraction with bootstrap fallback, use extract-metrics or
+  complexity-analysis instead.
 
   Example:
     (analyse-domain extract-elapsed-time my-domain)"

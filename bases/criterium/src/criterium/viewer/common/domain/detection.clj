@@ -61,6 +61,33 @@
                     axis-values (into #{} (map #(get % axis-key)) all-coords)]
                 (> (count axis-values) 1)))))))))
 
+(defn single-axis-multi-point-any-impl?
+  "Return true when extract has exactly one axis with multiple values,
+  regardless of implementation count (single or multiple implementations).
+
+  This detects the 'line chart' scenario for showing metric values
+  across a range of parameter values on a single axis."
+  [extract]
+  (let [impl-axis-key (:impl-axis extract)
+        metrics (:metrics extract)]
+    (when (seq metrics)
+      (let [;; Get all coordinates from first metric
+            first-metric-data (:data (val (first metrics)))
+            all-coords (map first first-metric-data)
+            ;; Get the non-impl axis keys from first coordinate
+            first-coord (first all-coords)
+            ;; Always exclude :impl - it's added by domain-builder even for
+            ;; single-impl domains (where impl-axis-key is nil)
+            non-impl-keys (when (map? first-coord)
+                            (disj (set (keys first-coord))
+                                  (or impl-axis-key :impl)))
+            ;; Single axis?
+            single-axis? (= 1 (count non-impl-keys))]
+        (when single-axis?
+          (let [axis-key (first non-impl-keys)
+                axis-values (into #{} (map #(get % axis-key)) all-coords)]
+            (> (count axis-values) 1)))))))
+
 (defn visualization-strategy
   "Determine the visualization strategy for domain extract data.
 
@@ -72,7 +99,7 @@
   [extract]
   (cond
     (single-point-multi-impl? extract) :single-point
-    (single-axis-multi-point? extract) :multi-point
+    (single-axis-multi-point-any-impl? extract) :multi-point
     :else :default-table))
 
 ;;; Domain comparison shape detection
