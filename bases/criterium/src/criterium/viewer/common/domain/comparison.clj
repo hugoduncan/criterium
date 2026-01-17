@@ -6,6 +6,15 @@
   (:require
    [criterium.viewer.common.core :as core]))
 
+(defn- metric-type-prefix
+  "Extract metric type (mean/median) from metric path for y-axis titles.
+  Returns \"mean\" or \"median\" if found in path, nil otherwise."
+  [metric-path]
+  (when (and (vector? metric-path) (>= (count metric-path) 3))
+    (let [value-key (nth metric-path 2)]
+      (when (#{:mean :median} value-key)
+        (name value-key)))))
+
 ;;; Box plot data preparation
 
 (defn- prepare-comparison-box-data-multi-metric
@@ -300,8 +309,10 @@
              ;; Build axis titles
              x-title (name axis-key)
              metric-name (name metric-id)
-             base-title (if (or has-error-bounds? has-error-bound-format)
-                          (str "mean " metric-name)
+             type-prefix (when (or has-error-bounds? has-error-bound-format)
+                           (or (metric-type-prefix metric) "mean"))
+             base-title (if type-prefix
+                          (str type-prefix " " metric-name)
                           metric-name)
              y-title (if (seq unit)
                        (str base-title " (" unit ")")
@@ -389,8 +400,10 @@
                (core/compute-si-scaling metric all-values)
                ;; Build y-axis title
                metric-name (name metric-id)
-               base-title (if (or has-error-bounds? has-error-bound-format)
-                            (str "mean " metric-name)
+               type-prefix (when (or has-error-bounds? has-error-bound-format)
+                             (or (metric-type-prefix metric) "mean"))
+               base-title (if type-prefix
+                            (str type-prefix " " metric-name)
                             metric-name)
                y-title (if (seq unit)
                          (str base-title " (" unit ")")
@@ -434,8 +447,10 @@
             {:keys [^double total-scale unit]}
             (core/compute-si-scaling metric all-values)
             ;; Build y-axis title
-            base-title (if (or has-error-bounds? has-error-bound-format)
-                         (str "mean " (pr-str metric))
+            type-prefix (when (or has-error-bounds? has-error-bound-format)
+                          (or (metric-type-prefix metric) "mean"))
+            base-title (if type-prefix
+                         (str type-prefix " " (pr-str metric))
                          (pr-str metric))
             y-title (if (seq unit)
                       (str base-title " (" unit ")")

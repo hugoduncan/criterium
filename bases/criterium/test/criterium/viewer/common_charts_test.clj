@@ -305,6 +305,21 @@
             (is (< (get d "valueLower") (get d "value")))
             (is (< (get d "value") (get d "valueUpper")))))))
 
+    (testing "uses 'median' in y-title when metric path contains :median"
+      (let [extract-with-median
+            {:type :criterium/domain-extract
+             :impl-axis :impl
+             :implementations [:foo :bar]
+             :metrics {:elapsed-time
+                       {:metric [:stats :elapsed-time :median]
+                        :data [[{:n 100 :impl :foo}
+                                {:value 1.0e-6 :lower 0.9e-6 :upper 1.1e-6}]
+                               [{:n 100 :impl :bar}
+                                {:value 2.0e-6 :lower 1.8e-6 :upper 2.2e-6}]]}}}
+            result (charts/prepare-single-point-bar-data extract-with-median)
+            first-metric (first result)]
+        (is (re-find #"median" (:y-title first-metric)))))
+
     (testing "graceful degradation for mixed values"
       ;; When some values have bounds and some don't
       (let [extract-mixed

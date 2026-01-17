@@ -15,6 +15,15 @@
    [criterium.viewer.common.core :as core]
    [criterium.viewer.common.domain.comparison :as comparison]))
 
+(defn- metric-type-prefix
+  "Extract metric type (mean/median) from metric path for y-axis titles.
+  Returns \"mean\" or \"median\" if found in path, nil otherwise."
+  [metric-path]
+  (when (and (vector? metric-path) (>= (count metric-path) 3))
+    (let [value-key (nth metric-path 2)]
+      (when (#{:mean :median} value-key)
+        (name value-key)))))
+
 ;;; Scatter plots
 
 (defn metric-layer
@@ -880,8 +889,10 @@
              (core/compute-si-scaling metric all-values)
              ;; Build y-axis title with unit
              metric-name (name metric-id)
-             base-title (if has-error-bounds?
-                          (str "mean " metric-name)
+             type-prefix (when has-error-bounds?
+                           (or (metric-type-prefix metric) "mean"))
+             base-title (if type-prefix
+                          (str type-prefix " " metric-name)
                           metric-name)
              y-title (if (seq unit)
                        (str base-title " (" unit ")")

@@ -325,6 +325,20 @@
         (testing "includes 'mean' in y-title for error-bound values"
           (is (str/starts-with? y-title "mean ")))))
 
+    (testing "uses 'median' in y-title when metric path contains :median"
+      (let [domain-extract {:type :criterium/domain-extract
+                            :impl-axis :impl
+                            :implementations [:foo :bar]
+                            :metrics {:elapsed-time
+                                      {:metric [:stats :elapsed-time :median]
+                                       :data [[{:n 100 :impl :foo} {:value 1.0e-6 :lower 0.9e-6 :upper 1.1e-6}]
+                                              [{:n 100 :impl :bar} {:value 2.0e-6 :lower 1.9e-6 :upper 2.1e-6}]
+                                              [{:n 200 :impl :foo} {:value 1.5e-6 :lower 1.4e-6 :upper 1.6e-6}]
+                                              [{:n 200 :impl :bar} {:value 2.5e-6 :lower 2.4e-6 :upper 2.6e-6}]]}}}
+            result (comparison/prepare-line-chart-data domain-extract)
+            {:keys [y-title]} (first result)]
+        (is (str/starts-with? y-title "median "))))
+
     (testing "does not prefix y-title with 'mean' for plain values"
       (let [domain-extract {:type :criterium/domain-extract
                             :impl-axis :impl
@@ -578,6 +592,19 @@
         (is (every? #(number? (get % "y")) data))
         (testing "includes 'mean' in y-title for error-bound values"
           (is (str/starts-with? y-title "mean ")))))
+
+    (testing "uses 'median' in y-title when metric path contains :median"
+      (let [domain-comparison {:type :criterium/domain-comparison
+                               :axis :n
+                               :metric [:stats :elapsed-time :median]
+                               :implementations [:foo :bar]
+                               :data {:foo [{:coord {:n 100} :value {:value 1.0e-6 :lower 0.9e-6 :upper 1.1e-6}}
+                                            {:coord {:n 200} :value {:value 1.5e-6 :lower 1.4e-6 :upper 1.6e-6}}]
+                                      :bar [{:coord {:n 100} :value {:value 2.0e-6 :lower 1.9e-6 :upper 2.1e-6}}
+                                            {:coord {:n 200} :value {:value 2.5e-6 :lower 2.4e-6 :upper 2.6e-6}}]}}
+            result (comparison/prepare-comparison-line-data domain-comparison)
+            {:keys [y-title]} (first result)]
+        (is (str/starts-with? y-title "median "))))
 
     (testing "does not prefix y-title with 'mean' for plain values"
       (let [domain-comparison {:type :criterium/domain-comparison
