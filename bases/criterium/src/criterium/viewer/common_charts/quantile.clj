@@ -11,24 +11,6 @@
    [criterium.util.helpers :as util]
    [criterium.viewer.common-charts.distribution :as distribution]))
 
-;;; Distribution constants (from distribution namespace)
-
-(def ^:private distribution-order
-  "Canonical ordering of distributions for consistent color assignment."
-  distribution/distribution-order)
-
-(def ^:private distribution-colors
-  "Color palette for fitted distributions."
-  distribution/distribution-colors)
-
-(def ^:private distribution-labels
-  "Human-readable labels for distributions."
-  distribution/distribution-labels)
-
-(def ^:private distribution-color-scale
-  "Vega-Lite color scale with domain and range in consistent order."
-  distribution/distribution-color-scale)
-
 ;;; Q-Q plot functions
 
 (defn qq-points
@@ -71,7 +53,7 @@
              (not (:error fit-result))
              (not (:skipped fit-result)))
     (let [quantile-fn (distribution/make-quantile-fn dist (:params fit-result))
-          label (get distribution-labels dist (name dist))
+          label (get distribution/distribution-labels dist (name dist))
           is-best? (= dist (:best-model fit-result))
           data (qq-points samples quantile-fn transforms)]
       {:data {:values data}
@@ -87,7 +69,7 @@
                       :title "Sample Quantiles"
                       :scale {:zero false}}
                   :color {:field "distribution" :type "nominal"
-                          :scale distribution-color-scale
+                          :scale distribution/distribution-color-scale
                           :legend {:orient "top-right" :title "Fitted Distributions"}}
                   :tooltip [{:field "theoretical" :type "quantitative"
                              :title "Theoretical" :format ".4g"}
@@ -141,9 +123,9 @@
              (not (:error fit-result))
              (not (:skipped fit-result)))
     (let [quantile-fn (distribution/make-quantile-fn dist (:params fit-result))
-          label (get distribution-labels dist (name dist))
+          label (get distribution/distribution-labels dist (name dist))
           is-best? (= dist (:best-model fit-result))
-          color (get distribution-colors dist "#999999")
+          color (get distribution/distribution-colors dist "#999999")
           data (qq-points samples quantile-fn transforms)
           ;; Compute domain from both theoretical and observed values
           ;; to ensure all points are visible within the axes
@@ -234,7 +216,7 @@
             (let [distributions (:distributions fit-data)
                   best-model (:best-model fit-data)
                   ;; Generate subplots for each distribution
-                  subplots (->> distribution-order
+                  subplots (->> distribution/distribution-order
                                 (filter #(contains? distributions %))
                                 (mapv (fn [dist]
                                         (qq-subplot-spec
