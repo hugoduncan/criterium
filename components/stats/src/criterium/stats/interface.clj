@@ -17,7 +17,8 @@
   - T-digest: streaming quantile estimation
   - Kernel: modal estimation, kernel density estimators
   - KDE: bandwidth selection, Gaussian KDE, mode detection, multimodality tests
-  - Bootstrap: resampling, BCa confidence intervals, jacknife"
+  - Bootstrap: resampling, BCa confidence intervals, jacknife
+  - Tail: Hill estimator, GPD fitting, mean residual life, tail ratios"
   (:refer-clojure :exclude [min max])
   (:require
    [criterium.stats.bootstrap :as bootstrap]
@@ -31,7 +32,8 @@
    [criterium.stats.outliers :as outliers]
    [criterium.stats.probability :as probability]
    [criterium.stats.sampling :as sampling]
-   [criterium.stats.t-digest :as t-digest]))
+   [criterium.stats.t-digest :as t-digest]
+   [criterium.stats.tail :as tail]))
 
 ;;; Core statistics
 
@@ -1017,3 +1019,120 @@
   "Combine multiple stat functions into one that returns a vector of results."
   [fs]
   (bootstrap/stats-fn fs))
+
+;;; Tail statistics for extreme value analysis
+
+(defn exceedances-over-threshold
+  "Extract values exceeding the given threshold.
+  Returns a new DoubleArray containing only values > threshold.
+
+  Parameters:
+    samples - typed array of sample values
+    threshold - threshold value u
+
+  Returns DoubleArray of exceedances (values > threshold)."
+  [samples threshold]
+  (tail/exceedances-over-threshold samples threshold))
+
+(defn hill-estimator
+  "Compute the Hill estimator for tail index across a range of k values.
+
+  The Hill estimator for the k largest order statistics is:
+    H_k = (1/k) * Σᵢ₌₁ᵏ log(X_{(n-i+1)} / X_{(n-k)})
+
+  Parameters:
+    sorted-samples - typed array of samples sorted in ascending order
+    k-range - sequence of k values to compute estimates for
+
+  Returns vector of maps {:k k :estimate H_k :tail-index (1/H_k)}"
+  [sorted-samples k-range]
+  (tail/hill-estimator sorted-samples k-range))
+
+(defn hill-estimator-default-k-range
+  "Compute default k range for Hill estimator.
+  Uses k from 10 to min(n/2, 500) with step size based on n."
+  [n]
+  (tail/hill-estimator-default-k-range n))
+
+(defn gpd-pdf
+  "Probability density function for the Generalized Pareto Distribution.
+
+  Parameters:
+    xi - shape parameter ξ (can be negative, zero, or positive)
+    sigma - scale parameter σ (must be positive)
+
+  Returns a function f(y) that computes the density at y."
+  [xi sigma]
+  (tail/gpd-pdf xi sigma))
+
+(defn gpd-cdf
+  "Cumulative distribution function for the Generalized Pareto Distribution.
+
+  Parameters:
+    xi - shape parameter ξ
+    sigma - scale parameter σ (must be positive)
+
+  Returns a function F(y) that computes P(Y ≤ y)."
+  [xi sigma]
+  (tail/gpd-cdf xi sigma))
+
+(defn gpd-quantile
+  "Quantile function (inverse CDF) for the Generalized Pareto Distribution.
+
+  Parameters:
+    xi - shape parameter ξ
+    sigma - scale parameter σ (must be positive)
+
+  Returns a function Q(p) that computes the p-th quantile."
+  [xi sigma]
+  (tail/gpd-quantile xi sigma))
+
+(defn gpd-mle
+  "Maximum likelihood estimation for the Generalized Pareto Distribution.
+
+  Uses Grimshaw's (1993) algorithm with profile likelihood optimization.
+
+  Parameters:
+    exceedances - typed array of exceedance values (values above threshold)
+    opts - optional map with :max-iter, :tol, :xi-min, :xi-max
+
+  Returns map with :xi, :sigma, :log-likelihood, :converged?, :n"
+  ([exceedances] (tail/gpd-mle exceedances))
+  ([exceedances opts] (tail/gpd-mle exceedances opts)))
+
+(defn mean-residual-life
+  "Compute mean residual life (mean excess) over a range of thresholds.
+
+  The mean residual life at threshold u is:
+    e(u) = E[X - u | X > u]
+
+  For GPD data, e(u) is linear in u with slope ξ/(1-ξ).
+
+  Parameters:
+    sorted-samples - typed array of samples sorted in ascending order
+    threshold-range - sequence of threshold values to evaluate
+
+  Returns vector of maps {:threshold u :mrl e(u) :n-exceed count}"
+  [sorted-samples threshold-range]
+  (tail/mean-residual-life sorted-samples threshold-range))
+
+(defn mean-residual-life-default-thresholds
+  "Compute default threshold range for MRL plot.
+  Uses quantiles from 50th to 95th percentile."
+  ([sorted-samples]
+   (tail/mean-residual-life-default-thresholds sorted-samples))
+  ([sorted-samples n-points]
+   (tail/mean-residual-life-default-thresholds sorted-samples n-points)))
+
+(defn tail-ratios
+  "Compute tail ratios from percentile values.
+
+  Tail ratios indicate how heavy the distribution tail is.
+  Higher ratios suggest heavier tails.
+
+  Parameters:
+    percentiles - map of percentile values with keys like :p95, :p99, :p999
+
+  Returns map with :p99-p95, :p999-p99, :p999-p95 ratios."
+  [percentiles]
+  (tail/tail-ratios percentiles))
