@@ -40,6 +40,46 @@
       (is (= [1 [:arg :arg]] (invoke m 3)))
       (is (= 3 @eval-count)))))
 
+(deftest warmup-args-fn-test
+  ;; Tests for the warmup-args-fn field in Measured record.
+  ;; Validates the 4-arity constructor and warmup-args function behavior.
+  (testing "warmup-args-fn"
+    (testing "4-arity constructor creates measured with warmup-args-fn"
+      (let [m (measured/measured
+               (fn [] [:measurement])
+               (fn [_args _n] [0 nil])
+               nil
+               (fn [] [:warmup]))]
+        (is (measured/measured? m))
+        (is (= [:measurement] (measured/args m)))
+        (is (= [:warmup] (measured/warmup-args m)))))
+    (testing "warmup-args falls back to args-fn when warmup-args-fn is nil"
+      (let [m (measured/measured
+               (fn [] [:fallback])
+               (fn [_args _n] [0 nil]))]
+        (is (= [:fallback] (measured/args m)))
+        (is (= [:fallback] (measured/warmup-args m)))))
+    (testing "warmup-args-fn can generate varied inputs"
+      (let [warmup-call-count (volatile! 0)
+            m (measured/measured
+               (fn [] [42])
+               (fn [[x] _n] [0 x])
+               nil
+               (fn []
+                 (vswap! warmup-call-count inc-long)
+                 [(rand-int 1000)]))]
+        (is (= [42] (measured/args m)))
+        (measured/warmup-args m)
+        (measured/warmup-args m)
+        (is (= 2 @warmup-call-count))))
+    (testing "3-arity constructor creates measured without warmup-args-fn"
+      (let [m (measured/measured
+               (fn [] [:args])
+               (fn [_args _n] [0 nil])
+               (fn [] ::expr))]
+        (is (= ::expr (measured/symbolic m)))
+        (is (= [:args] (measured/warmup-args m)))))))
+
 (deftest with-args-fn-test
   ;; Tests for with-args-fn which creates a new measured with a replaced args-fn.
   ;; Validates that the measurement function is preserved while args-fn is swapped.
@@ -71,7 +111,16 @@
                          (fn [[x] _n] [0 x])
                          nil)
             _modified-m (measured/with-args-fn original-m (fn [] [99]))]
-        (is (= [0 1] (invoke original-m)))))))
+        (is (= [0 1] (invoke original-m)))))
+    (testing "preserves warmup-args-fn"
+      (let [original-m (measured/measured
+                        (fn [] [:original-args])
+                        (fn [_args _n] [0 nil])
+                        nil
+                        (fn [] [:warmup-args]))
+            modified-m (measured/with-args-fn original-m (fn [] [:new-args]))]
+        (is (= [:new-args] (measured/args modified-m)))
+        (is (= [:warmup-args] (measured/warmup-args modified-m)))))))
 
 (defn random-seq
   [n]

@@ -43,20 +43,30 @@
   than the timer granularity.
 
   expr-fn, if specified, returns a symbolic representation of the measured,
-  for inspection purposes (unused internally)."
-  ^criterium.measured.impl.Measured
-  [args-fn f & [expr-fn]]
-  (impl/measured args-fn f expr-fn))
+  for inspection purposes (unused internally).
+
+  warmup-args-fn, if specified, provides arguments for warmup phase instead
+  of args-fn. This allows warmup with more varied inputs to get more
+  representative JIT optimization."
+  (^criterium.measured.impl.Measured [args-fn f]
+   (impl/measured args-fn f))
+  (^criterium.measured.impl.Measured [args-fn f expr-fn]
+   (impl/measured args-fn f expr-fn))
+  (^criterium.measured.impl.Measured [args-fn f expr-fn warmup-args-fn]
+   (impl/measured args-fn f expr-fn warmup-args-fn)))
 
 (defn with-args-fn
   "Return a new Measured with the args-fn replaced.
-  Preserves the measurement function and symbolic representation.
+  Preserves the measurement function, symbolic representation, and warmup-args-fn.
 
   This is useful for running the same measured expression with different
   input generators, e.g., when benchmarking across a parameter space."
   ^criterium.measured.impl.Measured
   [measured new-args-fn]
-  (impl/measured new-args-fn (.-f ^Measured measured) (:expr-fn measured)))
+  (impl/measured new-args-fn
+                 (.-f ^Measured measured)
+                 (:expr-fn measured)
+                 (:warmup-args-fn measured)))
 
 (defn args
   "Generate the input state for a measured.
@@ -66,6 +76,17 @@
   optimizations."
   [measured]
   ((:args-fn measured)))
+
+(defn warmup-args
+  "Generate warmup input state for a measured.
+
+  Returns warmup-args-fn result if present, otherwise falls back to args-fn.
+  This allows warmup to use more varied inputs for better JIT optimization
+  while measurement uses the actual benchmark inputs."
+  [measured]
+  (if-let [warmup-args-fn (:warmup-args-fn measured)]
+    (warmup-args-fn)
+    ((:args-fn measured))))
 
 (defn invoke
   "Invoke the given Measured.

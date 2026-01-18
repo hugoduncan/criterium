@@ -8,7 +8,8 @@
 (defrecord Measured
   [^clojure.lang.IFn args-fn
    ^clojure.lang.IFn f
-   expr-fn])
+   expr-fn
+   ^clojure.lang.IFn warmup-args-fn])
 
 (alter-meta! #'->Measured assoc :private true)
 (alter-meta! #'map->Measured assoc :private true)
@@ -35,12 +36,17 @@
 
   expr-fn, if specified, returns a symbolic representation of the measured,
   for inspection purposes (unused internally).
+
+  warmup-args-fn, if specified, provides arguments for warmup phase instead
+  of args-fn. This allows warmup with more varied inputs to get more
+  representative JIT optimization.
   "
-  ^Measured
-  [args-fn
-   f
-   & [expr-fn]]
-  (->Measured args-fn f expr-fn))
+  (^Measured [args-fn f]
+   (->Measured args-fn f nil nil))
+  (^Measured [args-fn f expr-fn]
+   (->Measured args-fn f expr-fn nil))
+  (^Measured [args-fn f expr-fn warmup-args-fn]
+   (->Measured args-fn f expr-fn warmup-args-fn)))
 
 (defn- s-expression?
   "Predicate for expr being an S-expression."
