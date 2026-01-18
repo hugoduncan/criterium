@@ -106,3 +106,44 @@
                 (result [:expr-value])
                 conj
                 [])))))))
+
+;;; warmup tests
+
+;; Tests that warmup uses warmup-args-fn (not args-fn) when it's present
+;; on a Measured. Validates that the collection pipeline respects the
+;; warmup-args-fn contract.
+(deftest warmup-uses-warmup-args-fn-test
+  (testing "warmup"
+    (testing "uses warmup-args-fn when present"
+      (let [measurement-args-calls (atom 0)
+            warmup-args-calls      (atom 0)
+            m                      (measured/measured
+                                    (fn []
+                                      (swap! measurement-args-calls inc)
+                                      [:measurement])
+                                    (fn [_ _] [1 1])
+                                    nil
+                                    (fn []
+                                      (swap! warmup-args-calls inc)
+                                      [:warmup]))
+            collector              (collector/collector
+                                    {:stages     []
+                                     :terminator :elapsed-time})
+            _                      (collect/warmup collector m 3 1)]
+        (is (pos? @warmup-args-calls)
+            "warmup-args-fn should be called during warmup")
+        (is (zero? @measurement-args-calls)
+            "measurement args-fn should NOT be called during warmup")))
+    (testing "falls back to args-fn when warmup-args-fn is nil"
+      (let [measurement-args-calls (atom 0)
+            m                      (measured/measured
+                                    (fn []
+                                      (swap! measurement-args-calls inc)
+                                      [:measurement])
+                                    (fn [_ _] [1 1]))
+            collector              (collector/collector
+                                    {:stages     []
+                                     :terminator :elapsed-time})
+            _                      (collect/warmup collector m 3 1)]
+        (is (pos? @measurement-args-calls)
+            "args-fn should be called when warmup-args-fn is nil")))))
