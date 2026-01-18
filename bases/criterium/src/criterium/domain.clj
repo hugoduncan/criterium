@@ -150,7 +150,8 @@
     :viewer        - Output format (:print, :pprint, :kindly, :portal, :none).
                      Overrides any :viewer in the domain-plan.
     :reporter      - Progress reporter (default: dot-reporter, nil for silent)
-    :bench-options - Options passed to bench-measured
+    :bench-options - Options passed to bench-measured. Notably :warmup-args-fn
+                     can be used to provide varied warmup inputs for all runs.
     :time-axis     - Axis key for time estimation (default: first axis)
 
   Returns the analysis data-map (same as analyse-domain).

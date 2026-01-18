@@ -6,11 +6,23 @@
   - A function to execute and measure
   - An arguments generator to prevent constant folding
   - Optional symbolic representation for debugging
+  - Optional warmup arguments generator for JIT optimization
 
   The Measured implements a timed, batch invocation interface that:
   - Supports multiple evaluations per timing sample for fast expressions
   - Guarantees zero garbage allocation during measurement
   - Prevents constant folding optimization of inputs
+
+  Warmup Customization:
+  Functions may have different complexities based on their inputs. If warmup
+  always uses the same arguments, JIT may over-specialize for those inputs.
+  The warmup-args-fn field enables using varied inputs during warmup for
+  more representative JIT optimization.
+
+  Priority rule for warmup arguments:
+  1. Options-level :warmup-args-fn (in bench macro or bench-measured)
+  2. Measured-level warmup-args-fn (from measured constructor)
+  3. Fall back to regular args-fn
 
   While Criterium automatically creates Measured instances for expressions,
   you can also construct custom ones for special measurement needs."
@@ -67,6 +79,20 @@
                  (.-f ^Measured measured)
                  (:expr-fn measured)
                  (:warmup-args-fn measured)))
+
+(defn with-warmup-args-fn
+  "Return a new Measured with the warmup-args-fn set or replaced.
+  Preserves the measurement function, args-fn, and symbolic representation.
+
+  This is useful for adding varied warmup inputs to an existing Measured,
+  for example when running domain analysis where all implementations should
+  share the same warmup strategy."
+  ^criterium.measured.impl.Measured
+  [measured new-warmup-args-fn]
+  (impl/measured (:args-fn measured)
+                 (.-f ^Measured measured)
+                 (:expr-fn measured)
+                 new-warmup-args-fn))
 
 (defn args
   "Generate the input state for a measured.

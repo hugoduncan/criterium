@@ -1,5 +1,28 @@
 (ns criterium.arg-gen
-  "Argument generation"
+  "Argument generation using test.check generators.
+
+  Provides macros for creating benchmarks with generated arguments and
+  for creating zero-arg functions that generate varied inputs.
+
+  Primary use cases:
+  - `measured`: Create a Measured with generated arguments for benchmarking
+  - `args-fn`: Create a warmup-args-fn for use with :warmup-args-fn option
+
+  The `args-fn` macro is particularly useful for creating warmup functions
+  that generate varied inputs, enabling more representative JIT optimization
+  during the warmup phase.
+
+  Example:
+  (require '[criterium.arg-gen :as arg-gen]
+           '[criterium.bench :refer [bench]]
+           '[clojure.test.check.generators :as gen])
+
+  ;; Use varied warmup inputs for better JIT optimization
+  (let [coll (vec (range 1000))]
+    (bench (sort coll)
+           :warmup-args-fn (arg-gen/args-fn {:size 200}
+                             [v (gen/vector gen/small-integer)]
+                             [v])))"
   (:require [clojure.test.check.generators :as gen]
             [clojure.test.check.random :as random]
             [clojure.test.check.rose-tree :as rose]
