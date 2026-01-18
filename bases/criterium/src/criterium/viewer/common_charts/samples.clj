@@ -51,7 +51,7 @@
   "Build a histogram bar chart layer from pre-computed histogram data.
 
   Returns a Vega-Lite layer spec for displaying histogram bins."
-  [transforms histogram metric _layer-num]
+  [transforms histogram metric]
   (let [path (:path metric)
         k (first path)
         field-name (name k)
@@ -387,10 +387,7 @@
                     [(metric-computed-histo-layer
                       hist-transforms
                       (histograms (:path metric-config))
-                      metric-config
-                      (vswap!
-                       layer-num
-                       (fn [^long x] (unchecked-inc x))))]
+                      metric-config)]
                     (concat
                      ;; Bootstrap boxplot layers (median) first
                      (when bootstrap-stats-map

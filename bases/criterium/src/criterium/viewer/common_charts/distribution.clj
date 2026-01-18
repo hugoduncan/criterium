@@ -321,8 +321,7 @@
                 (conj (samples/metric-computed-histo-layer
                        hist-transforms
                        histogram
-                       metric-config
-                       0))
+                       metric-config))
                 ;; Wrap KDE layers in a nested group with shared Y-scale
                 ;; This gives them independent Y-scale from histogram
                 true
@@ -522,8 +521,7 @@
                 (conj (samples/metric-computed-histo-layer
                        hist-transforms
                        histogram
-                       metric-config
-                       0))
+                       metric-config))
                 ;; Wrap KDE + distribution layers in a nested group with shared Y-scale
                 ;; Note: KDE confidence band is intentionally omitted here.
                 ;; It's shown in the plain KDE chart; including it here causes
