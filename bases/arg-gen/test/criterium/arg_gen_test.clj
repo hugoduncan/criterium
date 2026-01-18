@@ -56,3 +56,89 @@
           (is (every? (comp integer? first) vs))
           (is (= '([0] [0] [0] [3] [4] [5] [-6] [3] [6] [6])
                  vs)))))))
+
+;; Tests for arg-gen/args-fn macro.
+;; Validates that args-fn creates zero-arg functions that generate
+;; arguments using test.check generators for use as warmup-args-fn.
+(deftest args-fn-test
+  (testing "arg-gen/args-fn"
+    (testing "with single binding"
+      (let [f (arg-gen/args-fn [x gen/small-integer] [x])]
+        (testing "returns a function"
+          (is (fn? f)))
+        (testing "generates integer values"
+          (let [[x] (f)]
+            (is (integer? x))))))
+
+    (testing "with multiple independent bindings"
+      (let [f (arg-gen/args-fn
+               [a gen/small-integer
+                b gen/string-alphanumeric]
+               [a b])]
+        (testing "generates values for each binding"
+          (let [[a b] (f)]
+            (is (integer? a))
+            (is (string? b))))))
+
+    (testing "with dependent bindings"
+      (let [f (arg-gen/args-fn
+               [n (gen/choose 5 10)
+                v (gen/vector gen/small-integer n)]
+               [v])]
+        (testing "generates values respecting dependency"
+          (let [[v] (f)]
+            (is (vector? v))
+            (is (<= 5 (count v) 10))
+            (is (every? integer? v))))))
+
+    (testing "generates different values on each call"
+      (let [f  (arg-gen/args-fn [x gen/large-integer] [x])
+            vs (repeatedly 10 f)]
+        (testing "values vary across calls"
+          (is (< 1 (count (distinct vs)))
+              "should generate at least some different values"))))
+
+    (testing "with :size option"
+      (let [f (arg-gen/args-fn {:size 3}
+                               [i gen/small-integer]
+                               [i])]
+        (testing "respects size constraint"
+          (let [vs (repeatedly 20 f)]
+            (is (every? #(<= -3 (first %) 3) vs)
+                "values should be bounded by size")))))
+
+    (testing "with :seed option"
+      (let [f (arg-gen/args-fn {:seed 12345}
+                               [i gen/small-integer]
+                               [i])]
+        (testing "generates reproducible values"
+          (let [vs (vec (repeatedly 10 f))]
+            (is (= [[0] [0] [0] [3] [4] [5] [-6] [3] [6] [6]]
+                   vs))))))
+
+    (testing "with :size and :seed options"
+      (let [f1 (arg-gen/args-fn {:size 50 :seed 999}
+                                [x gen/small-integer]
+                                [x])
+            f2 (arg-gen/args-fn {:size 50 :seed 999}
+                                [x gen/small-integer]
+                                [x])]
+        (testing "same options produce same sequence"
+          (is (= (vec (repeatedly 10 f1))
+                 (vec (repeatedly 10 f2)))))))
+
+    (testing "without options map"
+      (let [f (arg-gen/args-fn [x gen/boolean] [x])]
+        (testing "works with bindings vector as first arg"
+          (is (fn? f))
+          (let [[x] (f)]
+            (is (boolean? x))))))
+
+    (testing "independent state per invocation"
+      (let [f1 (arg-gen/args-fn {:seed 42} [x gen/small-integer] [x])
+            f2 (arg-gen/args-fn {:seed 42} [x gen/small-integer] [x])]
+        (testing "separate invocations have independent state"
+          (is (= (f1) (f2))
+              "first call should match")
+          (is (= (f1) (f2))
+              "second call should match"))))))
