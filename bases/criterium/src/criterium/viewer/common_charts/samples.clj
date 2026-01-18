@@ -114,7 +114,7 @@
 
   Returns a vector of Vega-Lite layer specs showing the fitted normal
   distribution and mean line."
-  [transforms stats metric-config _layer-num]
+  [transforms stats metric-config]
   (let [{:keys [mean-minus-3sigma mean-plus-3sigma mean variance]}
         stats
         path (:path metric-config)
@@ -371,8 +371,7 @@
         hist-transforms (util/get-transforms data-map histogram-id)
         stats-transforms (util/get-transforms data-map (:source-id stats))
         bootstrap-transforms (when bootstrap-stats-map
-                               (util/get-transforms data-map bootstrap-stats-id))
-        layer-num (volatile! 0)]
+                               (util/get-transforms data-map bootstrap-stats-id))]
     {:data {:values []}
      :resolve {:scale {:x "independent"
                        :y "independent"
@@ -399,14 +398,10 @@
                          metric-config)))
                      ;; Stats layers (mean) last so mean line appears on top
                      (when stats
-                       (->>
-                        (metric-sample-stats-layer
-                         stats-transforms
-                         (get-in (util/stats stats) (:path metric-config))
-                         metric-config
-                         (vswap!
-                          layer-num
-                          (fn [^long x] (unchecked-inc x))))))))}))
+                       (metric-sample-stats-layer
+                        stats-transforms
+                        (get-in (util/stats stats) (:path metric-config))
+                        metric-config))))}))
                metric-configs)}))
 
 ;;; Percentile charts
