@@ -345,4 +345,16 @@
          {})
        (fn ~'measured-expr []
          ~(list 'quote
-                `(time (~f))))))))
+                `(time (~f)))))))
+  ([args-f f warmup-args-fn]
+   (let [args (gensym "args")]
+     `(measured
+       (fn ~'measured-args [] (~args-f))
+       ~(measured-expr-fn
+         [args]
+         `(apply ~f [~args])
+         {})
+       (fn ~'measured-expr []
+         ~(list 'quote
+                `(time (~f))))
+       ~warmup-args-fn))))

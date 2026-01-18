@@ -160,8 +160,18 @@
    (impl/measured-expr* expr options &env)))
 
 (defmacro callable
-  "Return a Measured for the given no arg function."
+  "Return a Measured for a function.
+
+  With one argument, the function takes no arguments.
+
+  With two arguments, the first is a setup function that returns a
+  sequence of arguments to pass to the function.
+
+  With three arguments, the third is a warmup-args-fn that returns
+  arguments to use during warmup instead of the setup function."
   ([f]
    (impl/measured-callable f))
   ([sf f]
-   (impl/measured-callable sf f)))
+   (impl/measured-callable sf f))
+  ([sf f warmup-args-fn]
+   (impl/measured-callable sf f warmup-args-fn)))
