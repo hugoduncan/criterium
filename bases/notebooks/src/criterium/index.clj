@@ -17,6 +17,7 @@
 ;;
 ;; - [Basic Usage](./criterium.basic_usage_notebook.html) - Introduction to benchmarking with criterium
 ;; - [Bench Options](./criterium.bench_options_notebook.html) - Predefined bench plans and viewer options
+;; - [Warmup](./criterium.warmup_notebook.html) - JIT warmup customization with varied inputs
 ;; - [Argument Generation](./criterium.arg_gen_notebook.html) - Benchmarking with test.check generated inputs
 ;; - [Sampled Functions](./criterium.sampled_fn_notebook.html) - Memory-efficient function sampling with t-digest aggregation
 ;; - [Instrumented Functions](./criterium.instrument_fn_notebook.html) - Instrument functions for continuous performance sampling

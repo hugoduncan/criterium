@@ -1,5 +1,28 @@
 (ns criterium.arg-gen
-  "Argument generation"
+  "Argument generation using test.check generators.
+
+  Provides macros for creating benchmarks with generated arguments and
+  for creating zero-arg functions that generate varied inputs.
+
+  Primary use cases:
+  - `measured`: Create a Measured with generated arguments for benchmarking
+  - `args-fn`: Create a warmup-args-fn for use with :warmup-args-fn option
+
+  The `args-fn` macro is particularly useful for creating warmup functions
+  that generate varied inputs, enabling more representative JIT optimization
+  during the warmup phase.
+
+  Example:
+  (require '[criterium.arg-gen :as arg-gen]
+           '[criterium.bench :refer [bench]]
+           '[clojure.test.check.generators :as gen])
+
+  ;; Use varied warmup inputs for better JIT optimization
+  (let [coll (vec (range 1000))]
+    (bench (sort coll)
+           :warmup-args-fn (arg-gen/args-fn {:size 200}
+                             [v (gen/vector gen/small-integer)]
+                             [v])))"
   (:require [clojure.test.check.generators :as gen]
             [clojure.test.check.random :as random]
             [clojure.test.check.rose-tree :as rose]
@@ -27,9 +50,10 @@
                 :rng          rng
                 :size-seq     size-seq})))
 
-(defn args-fn
+(defn make-args-fn-from-state
   "Return a zero-arg function that generates arguments from gen.
-  Each call advances the RNG and size sequence in args-fn-state."
+  Each call advances the RNG and size sequence in args-fn-state.
+  Internal helper - used by macros via eval."
   [gen args-fn-state]
   (fn []
     (let [{:keys [rng size-seq]} @args-fn-state
@@ -50,16 +74,16 @@
     (fn [[a b]] (+ a b))
     {})"
   [gen f {:keys [size seed] :or {size 100 seed nil}}]
-  (let [args-fn-state (args-fn-state size seed)]
+  (let [state (args-fn-state size seed)]
     (measured/measured
-     (args-fn gen args-fn-state)
+     (make-args-fn-from-state gen state)
      f)))
 
 (defn arg-metas-from-example
   "Return a vector of type hints for the generated state elements."
   [binding-gens]
   (let [example-size  2
-        example-form  `((args-fn
+        example-form  `((make-args-fn-from-state
                          ~binding-gens
                          (args-fn-state ~example-size nil)))
         example-state (eval example-form)
@@ -113,3 +137,78 @@
     (do
       (assert (map? bindings) "First arg must be options map or bindings vector")
       `(measured* ~bindings ~@body))))
+
+(defmacro args-fn*
+  "Return a zero-arg function that generates arguments using test.check.
+
+  Takes a `let`-style bindings vector where each right-hand side is a
+  test.check generator. The body expression determines the return value
+  shape, typically a vector of arguments.
+
+  Earlier binding pairs are visible to later pairs. Multiple body
+  expressions execute in sequence as with `do`.
+
+  Each call to the returned function generates new values, advancing
+  the internal RNG and size sequence.
+
+  Example:
+
+  (args-fn* {:size 50 :seed 42}
+    [a gen/large-integer
+     b gen/large-integer]
+    [a b])"
+  [{:keys [size seed]
+    :or   {size 100 seed nil}
+    :as   _options}
+   bindings & body]
+  (let [pairs        (partition 2 bindings)
+        binding-vars (mapv first pairs)
+        binding-gens (reduce
+                      (fn [curr [sym code]]
+                        `(gen/bind ~code (fn [~sym] ~curr)))
+                      `(gen/return ~binding-vars)
+                      (reverse pairs))]
+    `(let [state# (args-fn-state ~size ~seed)
+           gen#   ~binding-gens]
+       (fn []
+         (let [~binding-vars ((make-args-fn-from-state gen# state#))]
+           (do ~@body))))))
+
+(defmacro args-fn
+  "Return a zero-arg function that generates arguments using test.check.
+
+  Takes an optional options map followed by a `let`-style bindings vector
+  where each right-hand side is a test.check generator. The body expression
+  determines the return value shape, typically a vector of arguments.
+
+  Options:
+    :size - Maximum size for generators (default 100)
+    :seed - Random seed for reproducibility (default nil, uses timestamp)
+
+  Earlier binding pairs are visible to later pairs.
+
+  Examples:
+
+  ;; Without options
+  (args-fn [a gen/large-integer
+            b gen/large-integer]
+    [a b])
+
+  ;; With options
+  (args-fn {:size 50 :seed 42}
+    [a gen/large-integer
+     b gen/large-integer]
+    [a b])
+
+  ;; Dependent bindings
+  (args-fn {:size 100}
+    [n (gen/choose 10 100)
+     v (gen/vector gen/small-integer n)]
+    [v])"
+  [bindings-or-options & args]
+  (if (vector? bindings-or-options)
+    `(args-fn* nil ~bindings-or-options ~@args)
+    (do
+      (assert (map? bindings-or-options)
+              "First arg must be options map or bindings vector")
+      `(args-fn* ~bindings-or-options ~@args))))

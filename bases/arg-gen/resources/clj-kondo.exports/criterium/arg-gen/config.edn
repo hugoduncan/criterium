@@ -1,3 +1,4 @@
 {:hooks
  {:analyze-call
-  {criterium.arg-gen/measured clj-kondo.hooks/measured}}}
+  {criterium.arg-gen/measured clj-kondo.hooks/measured
+   criterium.arg-gen/args-fn  clj-kondo.hooks/args-fn}}}

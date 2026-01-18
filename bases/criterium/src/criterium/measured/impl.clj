@@ -8,7 +8,8 @@
 (defrecord Measured
   [^clojure.lang.IFn args-fn
    ^clojure.lang.IFn f
-   expr-fn])
+   expr-fn
+   ^clojure.lang.IFn warmup-args-fn])
 
 (alter-meta! #'->Measured assoc :private true)
 (alter-meta! #'map->Measured assoc :private true)
@@ -35,12 +36,17 @@
 
   expr-fn, if specified, returns a symbolic representation of the measured,
   for inspection purposes (unused internally).
+
+  warmup-args-fn, if specified, provides arguments for warmup phase instead
+  of args-fn. This allows warmup with more varied inputs to get more
+  representative JIT optimization.
   "
-  ^Measured
-  [args-fn
-   f
-   & [expr-fn]]
-  (->Measured args-fn f expr-fn))
+  (^Measured [args-fn f]
+   (->Measured args-fn f nil nil))
+  (^Measured [args-fn f expr-fn]
+   (->Measured args-fn f expr-fn nil))
+  (^Measured [args-fn f expr-fn warmup-args-fn]
+   (->Measured args-fn f expr-fn warmup-args-fn)))
 
 (defn- s-expression?
   "Predicate for expr being an S-expression."
@@ -291,13 +297,18 @@
 
   The env parameter is the macro's &env, used to identify local bindings.
   Local bindings are captured at the call-site and passed through the
-  measurement pipeline alongside hoisted constants."
+  measurement pipeline alongside hoisted constants.
+
+  Options:
+    :time-fn - Custom timing function
+    :warmup-args-fn - Function to generate arguments for warmup phase"
   [expr options env]
   (let [{:keys [expr arg-vals] :as _f} (factor-expr expr env)
         arg-syms (keys arg-vals)
         local-arg-syms (identify-local-args arg-vals env)
         arg-metas (capture-arg-types
                    arg-syms arg-vals local-arg-syms env)
+        warmup-args-fn (:warmup-args-fn options)
         options (update
                  options
                  :arg-metas merge-metas arg-metas)]
@@ -310,7 +321,8 @@
       (fn ~'measured-expr []
         ~(list 'quote
                `(~'let [~@(reduce into [] arg-vals)]
-                       (~'time ~expr)))))))
+                       (~'time ~expr))))
+      ~warmup-args-fn)))
 
 (defn measured-callable
   ([f]
@@ -333,4 +345,16 @@
          {})
        (fn ~'measured-expr []
          ~(list 'quote
-                `(time (~f))))))))
+                `(time (~f)))))))
+  ([args-f f warmup-args-fn]
+   (let [args (gensym "args")]
+     `(measured
+       (fn ~'measured-args [] (~args-f))
+       ~(measured-expr-fn
+         [args]
+         `(apply ~f [~args])
+         {})
+       (fn ~'measured-expr []
+         ~(list 'quote
+                `(time (~f))))
+       ~warmup-args-fn))))

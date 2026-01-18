@@ -6,11 +6,23 @@
   - A function to execute and measure
   - An arguments generator to prevent constant folding
   - Optional symbolic representation for debugging
+  - Optional warmup arguments generator for JIT optimization
 
   The Measured implements a timed, batch invocation interface that:
   - Supports multiple evaluations per timing sample for fast expressions
   - Guarantees zero garbage allocation during measurement
   - Prevents constant folding optimization of inputs
+
+  Warmup Customization:
+  Functions may have different complexities based on their inputs. If warmup
+  always uses the same arguments, JIT may over-specialize for those inputs.
+  The warmup-args-fn field enables using varied inputs during warmup for
+  more representative JIT optimization.
+
+  Priority rule for warmup arguments:
+  1. The bench macro's :warmup-args-fn option (baked into Measured at compile time)
+  2. Measured-level warmup-args-fn (from measured constructor or with-warmup-args-fn)
+  3. Fall back to regular args-fn
 
   While Criterium automatically creates Measured instances for expressions,
   you can also construct custom ones for special measurement needs."
@@ -43,20 +55,44 @@
   than the timer granularity.
 
   expr-fn, if specified, returns a symbolic representation of the measured,
-  for inspection purposes (unused internally)."
-  ^criterium.measured.impl.Measured
-  [args-fn f & [expr-fn]]
-  (impl/measured args-fn f expr-fn))
+  for inspection purposes (unused internally).
+
+  warmup-args-fn, if specified, provides arguments for warmup phase instead
+  of args-fn. This allows warmup with more varied inputs to get more
+  representative JIT optimization."
+  (^criterium.measured.impl.Measured [args-fn f]
+   (impl/measured args-fn f))
+  (^criterium.measured.impl.Measured [args-fn f expr-fn]
+   (impl/measured args-fn f expr-fn))
+  (^criterium.measured.impl.Measured [args-fn f expr-fn warmup-args-fn]
+   (impl/measured args-fn f expr-fn warmup-args-fn)))
 
 (defn with-args-fn
   "Return a new Measured with the args-fn replaced.
-  Preserves the measurement function and symbolic representation.
+  Preserves the measurement function, symbolic representation, and warmup-args-fn.
 
   This is useful for running the same measured expression with different
   input generators, e.g., when benchmarking across a parameter space."
   ^criterium.measured.impl.Measured
   [measured new-args-fn]
-  (impl/measured new-args-fn (.-f ^Measured measured) (:expr-fn measured)))
+  (impl/measured new-args-fn
+                 (.-f ^Measured measured)
+                 (:expr-fn measured)
+                 (:warmup-args-fn measured)))
+
+(defn with-warmup-args-fn
+  "Return a new Measured with the warmup-args-fn set or replaced.
+  Preserves the measurement function, args-fn, and symbolic representation.
+
+  This is useful for adding varied warmup inputs to an existing Measured,
+  for example when running domain analysis where all implementations should
+  share the same warmup strategy."
+  ^criterium.measured.impl.Measured
+  [measured new-warmup-args-fn]
+  (impl/measured (:args-fn measured)
+                 (.-f ^Measured measured)
+                 (:expr-fn measured)
+                 new-warmup-args-fn))
 
 (defn args
   "Generate the input state for a measured.
@@ -66,6 +102,17 @@
   optimizations."
   [measured]
   ((:args-fn measured)))
+
+(defn warmup-args
+  "Generate warmup input state for a measured.
+
+  Returns warmup-args-fn result if present, otherwise falls back to args-fn.
+  This allows warmup to use more varied inputs for better JIT optimization
+  while measurement uses the actual benchmark inputs."
+  [measured]
+  (if-let [warmup-args-fn (:warmup-args-fn measured)]
+    (warmup-args-fn)
+    ((:args-fn measured))))
 
 (defn invoke
   "Invoke the given Measured.
@@ -113,8 +160,18 @@
    (impl/measured-expr* expr options &env)))
 
 (defmacro callable
-  "Return a Measured for the given no arg function."
+  "Return a Measured for a function.
+
+  With one argument, the function takes no arguments.
+
+  With two arguments, the first is a setup function that returns a
+  sequence of arguments to pass to the function.
+
+  With three arguments, the third is a warmup-args-fn that returns
+  arguments to use during warmup instead of the setup function."
   ([f]
    (impl/measured-callable f))
   ([sf f]
-   (impl/measured-callable sf f)))
+   (impl/measured-callable sf f))
+  ([sf f warmup-args-fn]
+   (impl/measured-callable sf f warmup-args-fn)))

@@ -252,7 +252,7 @@
          elapsed-time 0
          min-time     Long/MAX_VALUE
          collections  []]
-    (let [args         (measured/args measured)
+    (let [args         (measured/warmup-args measured)
           collected    (collector/collect collector measured args batch-size)
           t            (metric/elapsed-time collected)
           elapsed-time (unchecked-add elapsed-time t)]

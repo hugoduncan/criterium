@@ -68,16 +68,20 @@
 ;;; Domain Expression Macro
 
 (defn- transform-impl-expr
-  "Transform an implementation expression into (fn [{:keys [syms]}] (measured/expr body)).
-  Type hints on axis binding symbols transfer to the destructured keys."
-  [expr axis-syms]
+  "Transform an implementation expression into (fn [{:keys [syms]}] (measured/expr body options)).
+  Type hints on axis binding symbols transfer to the destructured keys.
+  Options are passed through to measured/expr (e.g., :warmup-args-fn)."
+  [expr axis-syms options]
   (let [keys-with-hints (mapv (fn [sym]
                                 (if-let [hint (-> sym meta :tag)]
                                   (with-meta (symbol (name sym)) {:tag hint})
                                   (symbol (name sym))))
                               axis-syms)]
-    `(fn [{:keys ~keys-with-hints}]
-       (measured/expr ~expr))))
+    (if options
+      `(fn [{:keys ~keys-with-hints}]
+         (measured/expr ~expr ~options))
+      `(fn [{:keys ~keys-with-hints}]
+         (measured/expr ~expr)))))
 
 (defmacro domain-expr
   "Create a domain specification map from a concise expression syntax.
@@ -99,25 +103,37 @@
                   m (linear-range 1 10 3)]
       (matrix-mult (random-matrix n m)))
 
+    ;; With options (e.g., shared warmup-args-fn for JIT warmup)
+    (domain-expr [n (log-range 10 1000 5)]
+      {:sort (sort (random-seq n))
+       :sort-by (sort-by identity (random-seq n))}
+      {:warmup-args-fn (fn [] [(vec (shuffle (range 5000)))])})
+
   The binding vector defines axes as [sym range-expr ...] pairs.
   Axis symbols are available in implementation expressions.
 
   Each implementation becomes a function (fn [axis-map] measured) that
   receives axis values and returns a Measured for that coordinate.
-  Type hints on axis bindings transfer to the destructured keys."
-  [bindings body]
-  (let [axis-pairs (partition 2 bindings)
-        axis-syms (mapv first axis-pairs)
-        axes-map (into {}
-                       (map (fn [[sym range-expr]]
-                              [(keyword sym) range-expr]))
-                       axis-pairs)
-        impls (if (map? body) body {:default body})
-        impl-entries (map (fn [[impl-key expr]]
-                            [impl-key (transform-impl-expr expr axis-syms)])
-                          impls)]
-    `{:axes ~axes-map
-      :implementations ~(into {} impl-entries)}))
+  Type hints on axis bindings transfer to the destructured keys.
+
+  Options:
+    :warmup-args-fn - Function returning arguments for warmup phase.
+                      Applied to all implementations for consistent JIT warmup."
+  ([bindings body]
+   `(domain-expr ~bindings ~body nil))
+  ([bindings body options]
+   (let [axis-pairs (partition 2 bindings)
+         axis-syms (mapv first axis-pairs)
+         axes-map (into {}
+                        (map (fn [[sym range-expr]]
+                               [(keyword sym) range-expr]))
+                        axis-pairs)
+         impls (if (map? body) body {:default body})
+         impl-entries (map (fn [[impl-key expr]]
+                             [impl-key (transform-impl-expr expr axis-syms options)])
+                           impls)]
+     `{:axes ~axes-map
+       :implementations ~(into {} impl-entries)})))
 
 ;;; High-level API
 
@@ -134,7 +150,8 @@
     :viewer        - Output format (:print, :pprint, :kindly, :portal, :none).
                      Overrides any :viewer in the domain-plan.
     :reporter      - Progress reporter (default: dot-reporter, nil for silent)
-    :bench-options - Options passed to bench-measured
+    :bench-options - Options passed to bench-measured (e.g., :limit-time-s, :metric-ids).
+                     Note: :warmup-args-fn is not supported here; use domain-expr options instead.
     :time-axis     - Axis key for time estimation (default: first axis)
 
   Returns the analysis data-map (same as analyse-domain).
