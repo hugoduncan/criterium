@@ -311,3 +311,56 @@
         ;; For a simple (+ 1 1) benchmark, distribution should be unimodal
         ;; so we don't test for warning output here
         ))))
+
+;;; warmup-args-fn option tests
+;; Tests for the :warmup-args-fn option in the bench macro.
+;; Validates that warmup uses provided warmup-args-fn during JIT warmup
+;; while measurement uses the expression's captured arguments.
+
+(deftest ^:slow warmup-args-fn-option-test
+  (testing ":warmup-args-fn option"
+    (testing "bench macro accepts :warmup-args-fn option"
+      (let [warmup-calls (atom 0)
+            warmup-args-fn (fn []
+                             (swap! warmup-calls inc)
+                             [42])]
+        (with-out-str
+          (bench/bench (identity 1)
+                       :warmup-args-fn warmup-args-fn
+                       :limit-time-s 0.1))
+        (is (pos? @warmup-calls)
+            "warmup-args-fn should be called during warmup")))
+
+    (testing "warmup uses warmup-args-fn when provided"
+      (let [warmup-calls (atom 0)
+            measurement-value 100
+            warmup-args-fn (fn []
+                             (swap! warmup-calls inc)
+                             [999])]
+        (with-out-str
+          (let [result (bench/bench (identity measurement-value)
+                                    :warmup-args-fn warmup-args-fn
+                                    :limit-time-s 0.1)]
+            (is (= measurement-value result)
+                "measurement should use expr's captured args, not warmup args")
+            (is (pos? @warmup-calls)
+                "warmup-args-fn should be called during warmup")))))
+
+    (testing "without warmup-args-fn, uses default args-fn"
+      (with-out-str
+        (let [result (bench/bench (identity 42) :limit-time-s 0.1)]
+          (is (= 42 result)
+              "bench should work without warmup-args-fn"))))))
+
+(deftest warmup-args-fn-config-test
+  ;; Tests that :warmup-args-fn is recognized as a valid bench option.
+  (testing ":warmup-args-fn in config"
+    (testing "config-map accepts :warmup-args-fn"
+      (let [warmup-fn (fn [] [1])
+            config (bench-config/config-map {:warmup-args-fn warmup-fn})]
+        (is (map? config)
+            "config-map should accept :warmup-args-fn without error")))
+
+    (testing "unknown options still throw"
+      (is (thrown? Exception
+                   (bench-config/config-map {:unknown-option true}))))))

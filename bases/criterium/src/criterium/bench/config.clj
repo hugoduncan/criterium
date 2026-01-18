@@ -74,7 +74,8 @@
                         :bench-plan
                         :verbose
                         :viewer
-                        :with-allocation-trace})
+                        :with-allocation-trace
+                        :warmup-args-fn})
         limit-time-s (:limit-time-s options-map)
         analyse (:analyse options-map)
         view (:view options-map)

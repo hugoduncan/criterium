@@ -297,13 +297,18 @@
 
   The env parameter is the macro's &env, used to identify local bindings.
   Local bindings are captured at the call-site and passed through the
-  measurement pipeline alongside hoisted constants."
+  measurement pipeline alongside hoisted constants.
+
+  Options:
+    :time-fn - Custom timing function
+    :warmup-args-fn - Function to generate arguments for warmup phase"
   [expr options env]
   (let [{:keys [expr arg-vals] :as _f} (factor-expr expr env)
         arg-syms (keys arg-vals)
         local-arg-syms (identify-local-args arg-vals env)
         arg-metas (capture-arg-types
                    arg-syms arg-vals local-arg-syms env)
+        warmup-args-fn (:warmup-args-fn options)
         options (update
                  options
                  :arg-metas merge-metas arg-metas)]
@@ -316,7 +321,8 @@
       (fn ~'measured-expr []
         ~(list 'quote
                `(~'let [~@(reduce into [] arg-vals)]
-                       (~'time ~expr)))))))
+                       (~'time ~expr))))
+      ~warmup-args-fn)))
 
 (defn measured-callable
   ([f]

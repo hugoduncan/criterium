@@ -217,6 +217,10 @@
       :limit-time-s - Time limit in seconds (optional)
       :collect-plan - Sampling strategy (optional)
       :time-fn     - Custom timing function (optional)
+      :warmup-args-fn - Function returning arguments for warmup phase (optional).
+                     When specified, warmup uses varied inputs from this function
+                     instead of the expression's captured arguments, enabling
+                     more representative JIT optimization.
       :with-allocation-trace - When true, collect allocation trace and display
                      allocation analysis (summary, hotspots, by-type). Requires
                      the native agent to be attached. (optional)
@@ -241,6 +245,11 @@
          :metric-ids [:elapsed-time :memory]
          :limit-time-s 5)
 
+  ;; With warmup using varied inputs
+  (let [coll (vec (range 1000))]
+    (bench (sort coll)
+           :warmup-args-fn (fn [] [(vec (shuffle (range 5000)))])))
+
   (bench (+ 1 1)
          :viewer :portal
          :benchmark (criterium.benchmark/->benchmark
@@ -258,8 +267,8 @@
   - Local bindings from enclosing scope can be used in the expression"
   [expr & options]
   (let [options-map (apply hash-map options)
-        expr-options (select-keys options-map [:time-fn])
-        options (dissoc options-map :time-fn)]
+        expr-options (select-keys options-map [:time-fn :warmup-args-fn])
+        options (dissoc options-map :time-fn :warmup-args-fn)]
     `(bench-measured
       (options->bench-plan ~options)
       (measured/expr ~expr ~expr-options))))
