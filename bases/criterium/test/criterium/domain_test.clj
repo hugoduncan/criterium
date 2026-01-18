@@ -93,7 +93,27 @@
       (let [spec    (domain/domain-expr [^long n [10 100]] (+ n 1))
             impl-fn (get-in spec [:implementations :default])]
         (is (fn? impl-fn))
-        (is (measured/measured? (impl-fn {:n 10})))))))
+        (is (measured/measured? (impl-fn {:n 10})))))
+    (testing "with options"
+      (testing "passes :warmup-args-fn to all implementations"
+        (let [warmup-fn (fn [] [:warmup-val])
+              spec      (domain/domain-expr
+                         [n [10 100]]
+                         {:impl-a (sort (vec (range n)))
+                          :impl-b (sort-by identity (vec (range n)))}
+                         {:warmup-args-fn warmup-fn})
+              m-a       ((get-in spec [:implementations :impl-a]) {:n 10})
+              m-b       ((get-in spec [:implementations :impl-b]) {:n 10})]
+          (is (= [:warmup-val] (measured/warmup-args m-a)))
+          (is (= [:warmup-val] (measured/warmup-args m-b)))))
+      (testing "with single expression applies :warmup-args-fn"
+        (let [warmup-fn (fn [] [:single-warmup])
+              spec      (domain/domain-expr
+                         [n [10 100]]
+                         (sort (vec (range n)))
+                         {:warmup-args-fn warmup-fn})
+              m         ((get-in spec [:implementations :default]) {:n 10})]
+          (is (= [:single-warmup] (measured/warmup-args m))))))))
 
 ;; Tests for the extract-metrics domain plan.
 ;; Validates plan structure and integration with analyse-domain.
