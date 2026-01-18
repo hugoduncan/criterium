@@ -220,8 +220,8 @@
       :warmup-args-fn - Function returning arguments for warmup phase (optional).
                      When specified, warmup uses varied inputs from this function
                      instead of the expression's captured arguments, enabling
-                     more representative JIT optimization. Takes precedence over
-                     any warmup-args-fn on the Measured instance.
+                     more representative JIT optimization. This option is baked
+                     into the Measured at macro expansion time.
       :with-allocation-trace - When true, collect allocation trace and display
                      allocation analysis (summary, hotspots, by-type). Requires
                      the native agent to be attached. (optional)

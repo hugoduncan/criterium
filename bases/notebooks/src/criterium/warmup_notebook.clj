@@ -99,27 +99,29 @@
  (bench/options->bench-plan)
  sort-measured)
 
-;; ### Using arg-gen/measured with :warmup-args-fn option
+;; ### Using with-warmup-args-fn
 ;;
-;; When the measurement itself uses generated arguments, you can override
-;; warmup with the bench option:
+;; Add warmup behavior to an existing Measured with `with-warmup-args-fn`:
 
 (bench/bench-measured
- (bench/options->bench-plan :warmup-args-fn (arg-gen/args-fn {:size 200}
-                                                             [v (gen/vector gen/small-integer)]
-                                                             [v]))
- (arg-gen/measured {:size 100 :seed 42}
-                   [v (gen/vector gen/small-integer)]
-                   (sort v)))
+ (bench/options->bench-plan)
+ (measured/with-warmup-args-fn
+   (arg-gen/measured {:size 100 :seed 42}
+                     [v (gen/vector gen/small-integer)]
+                     (sort v))
+   (arg-gen/args-fn {:size 200}
+                    [v (gen/vector gen/small-integer)]
+                    [v])))
 
 ;; ## Priority Rules
 ;;
 ;; Warmup arguments are resolved in this order:
-;; 1. Options-level `:warmup-args-fn` (in bench macro or bench-measured)
-;; 2. Measured-level warmup-args-fn (from measured constructor)
+;; 1. The bench macro's `:warmup-args-fn` option (baked into Measured at compile time)
+;; 2. Measured-level warmup-args-fn (from constructor or `with-warmup-args-fn`)
 ;; 3. Fall back to regular args-fn
 ;;
-;; This allows overriding warmup behavior at any level.
+;; Note: `:warmup-args-fn` only works as a bench macro option, not with
+;; `bench-measured`. For pre-built Measured instances, use `with-warmup-args-fn`.
 
 ;; ## Domain Analysis with Shared Warmup
 ;;
@@ -143,17 +145,17 @@
   {:warmup-args-fn (fn [] [(vec (shuffle (range 500)))])})
  :reporter nil)
 
-;; ### Using :bench-options for Domain Warmup
+;; ### Single Implementation with Warmup
 ;;
-;; Alternatively, use `:bench-options` with `:warmup-args-fn`:
+;; The third argument to domain-expr also works with single implementations:
 
 (domain/bench
  (domain/domain-expr
   [n (builder/log-range 100 1000 3)]
-  (sort (random-seq n)))
- :bench-options {:warmup-args-fn (arg-gen/args-fn {:size 200}
-                                                  [v (gen/vector gen/small-integer)]
-                                                  [v])}
+  (sort (random-seq n))
+  {:warmup-args-fn (arg-gen/args-fn {:size 200}
+                                    [v (gen/vector gen/small-integer)]
+                                    [v])})
  :reporter nil)
 
 ;; ## When to Use Varied Warmup

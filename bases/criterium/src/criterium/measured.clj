@@ -20,8 +20,8 @@
   more representative JIT optimization.
 
   Priority rule for warmup arguments:
-  1. Options-level :warmup-args-fn (in bench macro or bench-measured)
-  2. Measured-level warmup-args-fn (from measured constructor)
+  1. The bench macro's :warmup-args-fn option (baked into Measured at compile time)
+  2. Measured-level warmup-args-fn (from measured constructor or with-warmup-args-fn)
   3. Fall back to regular args-fn
 
   While Criterium automatically creates Measured instances for expressions,
