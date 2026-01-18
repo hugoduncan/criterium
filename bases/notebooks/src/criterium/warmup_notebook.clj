@@ -39,9 +39,9 @@
 ;; Use `:warmup-args-fn` with the bench macro to specify a function that
 ;; generates varied inputs during warmup:
 
-(let [coll (vec (range 1000))]
+(let [coll (vec (range 100))]
   (bench/bench (sort coll)
-               :warmup-args-fn (fn [] [(vec (shuffle (range 5000)))])))
+               :warmup-args-fn (fn [] [(vec (shuffle (range 200)))])))
 
 ;; The warmup phase calls `warmup-args-fn` repeatedly to generate fresh inputs.
 ;; Measurement continues to use the original arguments (`coll`).
@@ -51,9 +51,9 @@
 ;; The `arg-gen/args-fn` macro creates warmup functions using test.check
 ;; generators. This provides varied, reproducible inputs:
 
-(let [coll (vec (range 1000))]
+(let [coll (vec (range 100))]
   (bench/bench (sort coll)
-               :warmup-args-fn (arg-gen/args-fn {:size 200 :seed 42}
+               :warmup-args-fn (arg-gen/args-fn {:size 50 :seed 42}
                                                 [v (gen/vector gen/small-integer)]
                                                 [v])))
 
@@ -71,11 +71,11 @@
   [m k]
   (get m k))
 
-(let [m (zipmap (range 1000) (range 1000))
-      k 500]
+(let [m (zipmap (range 100) (range 100))
+      k 50]
   (bench/bench (lookup-key m k)
-               :warmup-args-fn (arg-gen/args-fn {:size 100}
-                                                [n (gen/choose 100 5000)
+               :warmup-args-fn (arg-gen/args-fn {:size 30}
+                                                [n (gen/choose 50 200)
                                                  m (gen/fmap #(zipmap (range %) (range %))
                                                              (gen/return n))
                                                  k (gen/choose 0 n)]
@@ -91,9 +91,9 @@
 
 (def sort-measured
   (measured/callable
-   (fn [] [(vec (range 1000))])     ; args-fn for measurement
+   (fn [] [(vec (range 100))])      ; args-fn for measurement
    sort                              ; function to measure
-   (fn [] [(vec (shuffle (range 5000)))]))) ; warmup-args-fn
+   (fn [] [(vec (shuffle (range 200)))]))) ; warmup-args-fn
 
 (bench/bench-measured
  (bench/options->bench-plan)
@@ -106,10 +106,10 @@
 (bench/bench-measured
  (bench/options->bench-plan)
  (measured/with-warmup-args-fn
-   (arg-gen/measured {:size 100 :seed 42}
+   (arg-gen/measured {:size 30 :seed 42}
                      [v (gen/vector gen/small-integer)]
                      (sort v))
-   (arg-gen/args-fn {:size 200}
+   (arg-gen/args-fn {:size 50}
                     [v (gen/vector gen/small-integer)]
                     [v])))
 
@@ -139,10 +139,10 @@
 
 (domain/bench
  (domain/domain-expr
-  [n (builder/log-range 100 1000 3)]
+  [n (builder/log-range 50 200 3)]
   {:sort    (sort (random-seq n))
    :sort-by (sort-by identity (random-seq n))}
-  {:warmup-args-fn (fn [] [(vec (shuffle (range 500)))])})
+  {:warmup-args-fn (fn [] [(vec (shuffle (range 100)))])})
  :reporter nil)
 
 ;; ### Single Implementation with Warmup
@@ -151,9 +151,9 @@
 
 (domain/bench
  (domain/domain-expr
-  [n (builder/log-range 100 1000 3)]
+  [n (builder/log-range 50 200 3)]
   (sort (random-seq n))
-  {:warmup-args-fn (arg-gen/args-fn {:size 200}
+  {:warmup-args-fn (arg-gen/args-fn {:size 50}
                                     [v (gen/vector gen/small-integer)]
                                     [v])})
  :reporter nil)
