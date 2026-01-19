@@ -15,6 +15,7 @@
    [criterium.viewer.common-charts.quantile :as charts.quantile]
    [criterium.viewer.common-charts.regression :as charts.regression]
    [criterium.viewer.common-charts.samples :as charts.samples]
+   [criterium.viewer.common-charts.tail :as charts.tail]
    [criterium.viewer.common.allocation :as allocation]
    [criterium.viewer.common.bootstrap :as bootstrap]
    [criterium.viewer.common.core :as core]
@@ -404,6 +405,17 @@
       (heading "Q-Q Plot")
       (portal-vega-lite
        (charts.quantile/distribution-qq-vega-spec data-map view {:height 400})))))
+
+;;; Tail Analysis Views
+
+(defmethod view/tail-analysis* :portal
+  [_ view data-map]
+  (let [tail-analysis-id (or (:tail-analysis-id view) :tail-analysis)
+        tail-analysis-map (get data-map tail-analysis-id)]
+    (when tail-analysis-map
+      (heading "Tail Analysis")
+      (portal-vega-lite
+       (charts.tail/tail-analysis-vega-spec data-map view {:height 400})))))
 
 (defmethod view/final-gc-warnings* :portal [_ _ _])
 

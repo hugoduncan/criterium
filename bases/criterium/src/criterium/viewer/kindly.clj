@@ -21,6 +21,7 @@
    [criterium.viewer.common-charts.quantile :as charts.quantile]
    [criterium.viewer.common-charts.regression :as charts.regression]
    [criterium.viewer.common-charts.samples :as charts.samples]
+   [criterium.viewer.common-charts.tail :as charts.tail]
    [criterium.viewer.common.allocation :as allocation]
    [criterium.viewer.common.bootstrap :as bootstrap]
    [criterium.viewer.common.core :as core]
@@ -721,6 +722,18 @@
       (kindly-vega-lite
        (charts.quantile/distribution-qq-vega-spec data-map view {:width chart-width
                                                                  :height chart-height})))))
+
+;;; Tail Analysis Views
+
+(defmethod view/tail-analysis* :kindly
+  [_ view data-map]
+  (let [tail-analysis-id (or (:tail-analysis-id view) :tail-analysis)
+        tail-analysis-map (get data-map tail-analysis-id)]
+    (when tail-analysis-map
+      (kindly-heading "Tail Analysis")
+      (kindly-vega-lite
+       (charts.tail/tail-analysis-vega-spec data-map view {:width chart-width
+                                                           :height chart-height})))))
 
 ;;; Noop implementations for views not applicable to Kindly output
 

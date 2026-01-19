@@ -1803,3 +1803,27 @@
         (is (str/includes? (str stderr-output)
                            "WARNING: domain-apply requires :view-spec option")
             "Should warn on stderr when view-spec is missing")))))
+
+;;; Tail Analysis Views
+
+(deftest tail-analysis-view-test
+  ;; Tests the view/tail-analysis* multimethod for :kindly viewer.
+  ;; Verifies heading and Vega-Lite spec generation with all six tail charts.
+  (testing "view/tail-analysis* :kindly"
+    (testing "renders tail analysis as heading and Vega-Lite chart"
+      (reset! kindly/accumulated [])
+      (view/tail-analysis* :kindly {} (test-data/tail-analysis-data-map))
+      (let [result (kindly/flush)]
+        (is (= :kind/fragment (:kindly/kind (meta result))))
+        (is (= 2 (count result)) "Expected heading and chart")
+        (let [[heading chart] result]
+          (is (= :kind/md (:kindly/kind (meta heading))))
+          (is (= ["**Tail Analysis**"] heading))
+          (is (= :kind/vega-lite (:kindly/kind (meta chart))))
+          (is (string? (:$schema chart)) "Expected Vega-Lite schema")
+          (is (contains? chart :vconcat) "Expected vertically concat charts"))))
+
+    (testing "handles nil tail-analysis gracefully"
+      (reset! kindly/accumulated [])
+      (view/tail-analysis* :kindly {} {:tail-analysis nil})
+      (is (nil? (kindly/flush))))))

@@ -1379,3 +1379,32 @@
               "Should warn on stderr when view-spec is missing")
           (finally
             (remove-tap f)))))))
+
+;;; Tail Analysis Views
+
+(deftest portal-tail-analysis-test
+  ;; Tests the portal viewer output for tail-analysis results.
+  ;; Verifies heading and Vega-Lite spec generation with all six tail charts.
+  (testing "tail-analysis*"
+    (testing "produces heading and vega-lite chart"
+      (let [[title vega-spec] (with-tap-out
+                                (view/tail-analysis*
+                                 :portal
+                                 {}
+                                 (test-data/tail-analysis-data-map)))]
+        (is (= [:b "Tail Analysis"] title))
+        (is (map? vega-spec))
+        (is (str/includes? (:$schema vega-spec) "vega-lite"))
+        (is (contains? vega-spec :vconcat)
+            "Expected vertically concatenated charts")))
+
+    (testing "handles nil tail-analysis gracefully"
+      (let [v (volatile! [])
+            f (fn [x] (when-not (= ::portal/_ x) (vswap! v conj x)))]
+        (try
+          (add-tap f)
+          (view/tail-analysis* :portal {} {:tail-analysis nil})
+          (portal/flush)
+          (is (empty? @v))
+          (finally
+            (remove-tap f)))))))
