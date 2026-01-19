@@ -587,6 +587,105 @@
   [_ view data-map]
   (print-shape-stats view data-map))
 
+;;; Tail Analysis Views
+
+(defn- format-tail-ratio
+  "Format a tail ratio value with reference percentile values."
+  [[ratio-name ratio-val] {:keys [p95 p99 p999]}]
+  (case ratio-name
+    :p99-p95 (format "p99/p95 = %.3f (p99=%.4g, p95=%.4g)"
+                     ratio-val (double p99) (double p95))
+    :p999-p99 (format "p999/p99 = %.3f (p999=%.4g, p99=%.4g)"
+                      ratio-val (double p999) (double p99))
+    :p999-p95 (format "p999/p95 = %.3f (p999=%.4g, p95=%.4g)"
+                      ratio-val (double p999) (double p95))
+    (format "%s = %.3f" (name ratio-name) ratio-val)))
+
+(defn- print-tail-ratios
+  "Print tail ratio statistics."
+  [tail-ratios empirical-quantiles label]
+  (when (and tail-ratios (seq tail-ratios))
+    (let [sorted-ratios (sort-by first tail-ratios)]
+      (doseq [[i [rname rval]] (map-indexed vector sorted-ratios)]
+        (if (zero? i)
+          (println (format "%32s: %s"
+                           (str label " tail ratios")
+                           (format-tail-ratio [rname rval] empirical-quantiles)))
+          (println (format "%32s  %s"
+                           ""
+                           (format-tail-ratio [rname rval] empirical-quantiles))))))))
+
+(defn- print-hill-estimate
+  "Print Hill estimator summary."
+  [hill label]
+  (let [{:keys [stable-estimate k-range]} hill]
+    (when stable-estimate
+      (let [k-min (when (seq k-range) (apply min k-range))
+            k-max (when (seq k-range) (apply max k-range))]
+        (println (format "%32s: Hill estimate = %.4f (k: %d-%d)"
+                         (str label " tail index")
+                         stable-estimate k-min k-max))))))
+
+(defn- print-gpd-fit
+  "Print GPD fit parameters."
+  [gpd label]
+  (let [{:keys [xi sigma threshold exceedances-count]} gpd]
+    (when (and xi sigma)
+      (println (format "%32s: ξ=%.4f σ=%.4g (threshold=%.4g, n=%d)"
+                       (str label " GPD fit")
+                       xi sigma (double threshold)
+                       (or exceedances-count 0))))))
+
+(defn- print-high-quantiles
+  "Print high quantile estimates from GPD extrapolation."
+  [high-quantiles label transforms]
+  (when (seq high-quantiles)
+    (let [sorted-qs (sort-by first high-quantiles)]
+      (println (format "%32s: High quantile estimates (GPD)"
+                       label))
+      (doseq [[q val] sorted-qs]
+        (let [tval (util/transform-sample-> val transforms)
+              [scale unit] (format/scale :time tval)
+              scaled (* scale tval)]
+          (println (format "%32s  p%.4g = %s %s"
+                           ""
+                           (* q 100)
+                           (format/format-scaled scaled 1.0)
+                           unit)))))))
+
+(defn- print-tail-analysis-for-metric
+  "Print tail analysis for a single metric."
+  [metric-config tail-data transforms]
+  (let [{:keys [label]} metric-config
+        {:keys [tail-ratios hill gpd high-quantiles empirical-quantiles]} tail-data]
+    (print-tail-ratios tail-ratios empirical-quantiles label)
+    (print-hill-estimate hill label)
+    (print-gpd-fit gpd label)
+    (print-high-quantiles high-quantiles label transforms)))
+
+(defn print-tail-analysis
+  "Print tail analysis statistics for all metrics."
+  [{:keys [tail-analysis-id] :as _view} data-map]
+  (let [tail-analysis-id (or tail-analysis-id :tail-analysis)
+        tail-analysis-map (data-map tail-analysis-id)]
+    (when tail-analysis-map
+      (let [metrics-defs (-> (:metrics-defs tail-analysis-map)
+                             (metric/filter-metrics
+                              (metric/type-pred :quantitative)))
+            metric-configs (metric/all-metric-configs metrics-defs)
+            tail-results (:tail-analysis tail-analysis-map)
+            transforms (util/get-transforms data-map tail-analysis-id)]
+        (when (seq tail-results)
+          (println "Tail Analysis:")
+          (doseq [mc metric-configs]
+            (when-let [tail-data (get tail-results (:path mc))]
+              (print-tail-analysis-for-metric mc tail-data transforms)))
+          (println))))))
+
+(defmethod view/tail-analysis* :print
+  [_ view data-map]
+  (print-tail-analysis view data-map))
+
 ;;; Distribution Fit Views
 
 (def ^:private distribution-labels
