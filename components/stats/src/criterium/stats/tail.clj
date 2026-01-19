@@ -20,14 +20,18 @@
 ;;; Exceedances
 
 (defn exceedances-over-threshold
-  "Extract values exceeding the given threshold.
-  Returns a new DoubleArray containing only values > threshold.
+  "Extract excesses over the given threshold.
+  Returns a new DoubleArray containing (y - threshold) for each y > threshold.
+
+  In extreme value theory, the 'exceedance' or 'excess' over a threshold u
+  is defined as Y = X - u for observations X > u. These excesses are modeled
+  by the Generalized Pareto Distribution (GPD).
 
   Parameters:
     samples - typed array of sample values
     threshold - threshold value u
 
-  Returns DoubleArray of exceedances (values > threshold)."
+  Returns DoubleArray of excesses (y - threshold for y > threshold)."
   [samples ^double threshold]
   {:pre [(have? arr/typed-array? samples)]}
   ;; Two-pass: count exceeding values, then collect them
@@ -41,7 +45,7 @@
             (if (> (arr/get-double samples i) threshold)
               (recur (inc i) (inc c))
               (recur (inc i) c))))
-        ;; Second pass: collect into array
+        ;; Second pass: collect excesses (value - threshold) into array
         result (double-array count-exceed)]
     (loop [i 0
            j 0]
@@ -49,7 +53,7 @@
         (let [v (arr/get-double samples i)]
           (if (> v threshold)
             (do
-              (aset result j v)
+              (aset result j (- v threshold))
               (recur (inc i) (inc j)))
             (recur (inc i) j)))))
     (arr/->double-array result)))

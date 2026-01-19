@@ -21,25 +21,31 @@
 
 (deftest exceedances-over-threshold-test
   (testing "exceedances-over-threshold"
-    (testing "returns values strictly greater than threshold"
+    (testing "returns excesses (value - threshold) for values > threshold"
       (let [samples (darr [1.0 2.0 3.0 4.0 5.0])
             exceeds (stats/exceedances-over-threshold samples 3.0)]
         (is (= 2 (arr/length exceeds)))
-        (is (= 4.0 (arr/get-double exceeds 0)))
-        (is (= 5.0 (arr/get-double exceeds 1)))))
+        ;; 4.0 - 3.0 = 1.0, 5.0 - 3.0 = 2.0
+        (is (= 1.0 (arr/get-double exceeds 0)))
+        (is (= 2.0 (arr/get-double exceeds 1)))))
     (testing "returns empty array when no values exceed threshold"
       (let [samples (darr [1.0 2.0 3.0])
             exceeds (stats/exceedances-over-threshold samples 5.0)]
         (is (= 0 (arr/length exceeds)))))
-    (testing "returns all values when threshold is below minimum"
+    (testing "returns all excesses when threshold is below minimum"
       (let [samples (darr [1.0 2.0 3.0])
             exceeds (stats/exceedances-over-threshold samples 0.0)]
-        (is (= 3 (arr/length exceeds)))))
+        (is (= 3 (arr/length exceeds)))
+        ;; 1.0 - 0.0 = 1.0, 2.0 - 0.0 = 2.0, 3.0 - 0.0 = 3.0
+        (is (= 1.0 (arr/get-double exceeds 0)))
+        (is (= 2.0 (arr/get-double exceeds 1)))
+        (is (= 3.0 (arr/get-double exceeds 2)))))
     (testing "handles threshold equal to a value (excludes equal values)"
       (let [samples (darr [1.0 2.0 3.0 3.0 4.0])
             exceeds (stats/exceedances-over-threshold samples 3.0)]
         (is (= 1 (arr/length exceeds)))
-        (is (= 4.0 (arr/get-double exceeds 0)))))))
+        ;; 4.0 - 3.0 = 1.0
+        (is (= 1.0 (arr/get-double exceeds 0)))))))
 
 ;;; Hill estimator tests
 
