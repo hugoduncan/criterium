@@ -364,3 +364,54 @@
     (testing "unknown options still throw"
       (is (thrown? Exception
                    (bench-config/config-map {:unknown-option true}))))))
+
+(deftest ^:slow tail-analysis-bench-plan-test
+  ;; Integration test verifying the tail-analysis bench plan runs correctly.
+  ;; Tail analysis requires >30 samples for meaningful results. With short
+  ;; time limits, we may not collect enough samples to produce tail-analysis
+  ;; output, but the plan should execute without errors and produce standard
+  ;; benchmark output.
+  (testing "tail-analysis bench plan"
+    (testing "executes without error"
+      (let [result (atom nil)
+            out (with-out-str
+                  (reset! result
+                          (bench/bench (reduce + (range 100))
+                                       :bench-plan bench-plans/tail-analysis
+                                       :limit-time-s 0.2)))
+            data (:data (bench/last-bench))]
+        (testing "returns expression value"
+          (is (= 4950 @result) "reduce should return sum"))
+        (testing "produces samples"
+          (is (some? (:samples data))
+              "should have samples in data"))
+        (testing "outputs basic timing information"
+          (is (re-find #"Elapsed Time" out)
+              "stdout should contain elapsed time output"))
+        (testing "outputs quantiles"
+          (is (re-find #"Quantiles" out)
+              "stdout should contain quantiles output"))))))
+
+(deftest tail-analysis-bench-plan-structure-test
+  ;; Validates the structure of the tail-analysis bench plan.
+  (testing "tail-analysis bench plan structure"
+    (testing "includes :tail-analysis in analyse plan"
+      (is (some #{:tail-analysis} (:analyse bench-plans/tail-analysis))
+          ":tail-analysis should be in analyse plan"))
+
+    (testing "includes :tail-analysis in view plan"
+      (is (some #{:tail-analysis} (:view bench-plans/tail-analysis))
+          ":tail-analysis should be in view plan"))
+
+    (testing "includes quantiles with tail percentiles"
+      (let [quantile-spec (some #(when (and (vector? %) (= :quantiles (first %)))
+                                   %)
+                                (:analyse bench-plans/tail-analysis))]
+        (is (some? quantile-spec)
+            "[:quantiles ...] should be in analyse plan")
+        (when quantile-spec
+          (let [quantiles (get-in quantile-spec [1 :quantiles])]
+            (is (contains? (set quantiles) 0.99)
+                "quantiles should include 0.99")
+            (is (contains? (set quantiles) 0.999)
+                "quantiles should include 0.999")))))))

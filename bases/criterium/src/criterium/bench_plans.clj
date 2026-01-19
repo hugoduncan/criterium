@@ -252,3 +252,48 @@
           :allocation-hotspots
           :allocation-by-type]
    :viewer :print})
+
+(def tail-analysis
+  "Benchmark plan for extreme value tail analysis.
+
+  Analyzes the tail behavior of latency distributions to understand worst-case
+  performance (p99, p999). Useful for SLA validation and understanding rare
+  but impactful latency spikes.
+
+  Includes:
+  - Tail ratios (p99/p95, p999/p99) indicating tail heaviness
+  - Hill estimator for tail index estimation
+  - Generalized Pareto Distribution (GPD) fitting for exceedances
+  - Mean residual life plot for threshold selection guidance
+  - High quantile estimation via GPD extrapolation
+  - Zipf plot (log-log complementary CDF)
+  - Q-Q plots against exponential and GPD distributions
+
+  Unlike other analyses, tail analysis uses raw samples WITHOUT outlier
+  filtering because extreme values ARE the tail being analyzed.
+
+  Recommended: Use sufficient iterations (1000+ samples) for reliable
+  tail estimation. The default collect plan targets adequate sample sizes."
+  {:collector-config default-collector-config
+   :analyse [:transform-log
+             [:quantiles {:quantiles [0.9 0.95 0.99 0.999]}]
+             [:stats {}]
+             [:stats {:samples-id :log-samples :id :log-stats}]
+             [:bootstrap-stats {:quantiles [0.99 0.999]
+                                :estimate-quantiles [0.025 0.975]}]
+             :tail-analysis
+             :event-stats
+             :allocation-summary
+             [:allocation-hotspots {:limit 10}]
+             :allocation-by-type]
+   :view [[:stats {:metric-ids [:memory]}]
+          :bootstrap-stats
+          [:stats {:stats-id :log-stats}]
+          :quantiles
+          :tail-analysis
+          :event-stats
+          :collect-plan
+          :allocation-summary
+          :allocation-hotspots
+          :allocation-by-type]
+   :viewer :print})
