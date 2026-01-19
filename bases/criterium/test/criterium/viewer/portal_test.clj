@@ -1384,19 +1384,56 @@
 
 (deftest portal-tail-analysis-test
   ;; Tests the portal viewer output for tail-analysis results.
-  ;; Verifies heading and Vega-Lite spec generation with all six tail charts.
+  ;; Verifies tables (summary, ratios, quantiles) and Vega-Lite spec generation.
   (testing "tail-analysis*"
-    (testing "produces heading and vega-lite chart"
-      (let [[title vega-spec] (with-tap-out
-                                (view/tail-analysis*
-                                 :portal
-                                 {}
-                                 (test-data/tail-analysis-data-map)))]
-        (is (= [:b "Tail Analysis"] title))
-        (is (map? vega-spec))
-        (is (str/includes? (:$schema vega-spec) "vega-lite"))
-        (is (contains? vega-spec :vconcat)
-            "Expected vertically concatenated charts")))
+    (testing "produces tables and vega-lite chart"
+      (let [outputs (with-tap-out-n 10
+                      (view/tail-analysis*
+                       :portal
+                       {}
+                       (test-data/tail-analysis-data-map)))
+            headings (filter #(and (vector? %) (= :b (first %))) outputs)
+            tables (filter #(and (vector? %) (every? map? %)) outputs)
+            charts (filter #(and (map? %) (contains? % :$schema)) outputs)]
+        ;; Should have multiple headings for summary, ratios, quantiles, and charts
+        (is (>= (count headings) 4)
+            "Expected headings for summary, ratios, quantiles, and charts")
+        ;; Should have summary table with GPD/Hill params
+        (is (some #(str/includes? (second %) "Tail Summary") headings)
+            "Expected Tail Summary heading")
+        ;; Should have tail ratios table
+        (is (some #(str/includes? (second %) "Tail Ratios") headings)
+            "Expected Tail Ratios heading")
+        ;; Should have high quantiles table
+        (is (some #(str/includes? (second %) "High Quantile") headings)
+            "Expected High Quantile Estimates heading")
+        ;; Should have charts heading
+        (is (some #(str/includes? (second %) "Tail Analysis Charts") headings)
+            "Expected Tail Analysis Charts heading")
+        ;; Should have at least 3 tables (summary, ratios, quantiles)
+        (is (>= (count tables) 3)
+            "Expected at least 3 tables")
+        ;; Should have Vega-Lite chart
+        (is (= 1 (count charts))
+            "Expected 1 Vega-Lite chart")
+        (is (str/includes? (:$schema (first charts)) "vega-lite"))))
+
+    (testing "summary table contains expected parameters"
+      (let [outputs (with-tap-out-n 10
+                      (view/tail-analysis*
+                       :portal
+                       {}
+                       (test-data/tail-analysis-data-map)))
+            tables (filter #(and (vector? %) (every? map? %)) outputs)
+            ;; First table should be summary
+            summary-table (first tables)]
+        (when summary-table
+          (is (some #(= "Threshold" (:parameter %)) summary-table)
+              "Expected Threshold row")
+          (is (some #(= "GPD shape (ξ)" (:parameter %)) summary-table)
+              "Expected GPD shape row")
+          (is (some #(= "Hill estimate" (:parameter %)) summary-table)
+              "Expected Hill estimate row"))))
 
     (testing "handles nil tail-analysis gracefully"
       (let [v (volatile! [])

@@ -355,3 +355,88 @@
                                    (every? #(= v (get % k)) coords)))
                                (keys first-coord))]
       (set uniform-keys))))
+
+;;; Tail Analysis Table Helpers
+
+(defn tail-summary-table
+  "Prepare summary table data for tail analysis.
+
+  Returns a vector of row maps with:
+  - Threshold value (with SI units)
+  - Exceedances count (k)
+  - GPD shape (ξ) and scale (σ)
+  - Hill stable estimate with k-range
+
+  Takes tail-data map for a single metric and optional transforms."
+  [tail-data transforms]
+  (let [{:keys [gpd hill threshold]} tail-data
+        {:keys [xi sigma exceedances-count]} gpd
+        {:keys [stable-estimate k-range]} hill
+        k-min (when (seq k-range) (apply min k-range))
+        k-max (when (seq k-range) (apply max k-range))
+        ;; Format threshold with SI units (time dimension)
+        threshold-transformed (when threshold
+                                (util/transform-sample-> threshold transforms))
+        threshold-formatted (when threshold-transformed
+                              (format/format-value :time threshold-transformed))]
+    (cond-> []
+      threshold-formatted
+      (conj {:parameter "Threshold"
+             :value threshold-formatted})
+      exceedances-count
+      (conj {:parameter "Exceedances (k)"
+             :value exceedances-count})
+      xi
+      (conj {:parameter "GPD shape (ξ)"
+             :value (clojure.core/format "%.4f" (double xi))})
+      sigma
+      (conj {:parameter "GPD scale (σ)"
+             :value (clojure.core/format "%.4g" (double sigma))})
+      stable-estimate
+      (conj {:parameter "Hill estimate"
+             :value (if (and k-min k-max)
+                      (clojure.core/format "%.4f (k: %d-%d)"
+                                           (double stable-estimate) k-min k-max)
+                      (clojure.core/format "%.4f" (double stable-estimate)))}))))
+
+(defn tail-ratios-table-data
+  "Prepare tail ratios table data for display.
+
+  Returns a vector of row maps with ratio name, value, and constituent percentiles.
+  Takes tail-data map for a single metric."
+  [tail-data]
+  (let [{:keys [tail-ratios empirical-quantiles]} tail-data
+        {:keys [p99-p95 p999-p99 p999-p95]} tail-ratios
+        {:keys [p95 p99 p999]} empirical-quantiles]
+    (cond-> []
+      p99-p95
+      (conj {:ratio "p99/p95"
+             :value (clojure.core/format "%.3f" (double p99-p95))
+             :p95 (when p95 (clojure.core/format "%.4g" (double p95)))
+             :p99 (when p99 (clojure.core/format "%.4g" (double p99)))})
+      p999-p99
+      (conj {:ratio "p999/p99"
+             :value (clojure.core/format "%.3f" (double p999-p99))
+             :p99 (when p99 (clojure.core/format "%.4g" (double p99)))
+             :p999 (when p999 (clojure.core/format "%.4g" (double p999)))})
+      p999-p95
+      (conj {:ratio "p999/p95"
+             :value (clojure.core/format "%.3f" (double p999-p95))
+             :p95 (when p95 (clojure.core/format "%.4g" (double p95)))
+             :p999 (when p999 (clojure.core/format "%.4g" (double p999)))}))))
+
+(defn tail-high-quantiles-table
+  "Prepare high quantiles table data for display.
+
+  Returns a vector of row maps with quantile label and estimated value (SI units).
+  Takes tail-data map for a single metric and optional transforms."
+  [tail-data transforms]
+  (let [{:keys [high-quantiles]} tail-data]
+    (when (seq high-quantiles)
+      (->> high-quantiles
+           (sort-by first)
+           (mapv (fn [[q val]]
+                   (let [tval (util/transform-sample-> val transforms)
+                         formatted (format/format-value :time tval)]
+                     {:quantile (clojure.core/format "p%.4g" (* (double q) 100))
+                      :estimate formatted})))))))

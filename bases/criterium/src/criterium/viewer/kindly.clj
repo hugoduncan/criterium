@@ -725,15 +725,54 @@
 
 ;;; Tail Analysis Views
 
+(defn- tail-analysis-tables
+  "Display tail analysis summary tables for kindly viewer.
+  Shows GPD/Hill summary, tail ratios, and high quantile estimates."
+  [tail-analysis-map transforms]
+  (let [tail-results (:tail-analysis tail-analysis-map)
+        metrics-defs (-> (:metrics-defs tail-analysis-map)
+                         (metric/filter-metrics
+                          (metric/type-pred :quantitative)))
+        metric-configs (metric/all-metric-configs metrics-defs)]
+    (doseq [mc metric-configs]
+      (when-let [tail-data (get tail-results (:path mc))]
+        ;; GPD/Hill summary table
+        (let [summary-rows (core/tail-summary-table tail-data transforms)]
+          (when (seq summary-rows)
+            (kindly-heading (str "Tail Summary: " (:label mc)))
+            (kindly-table summary-rows
+                          {:column-names [:parameter :value]})))
+        ;; Tail ratios table
+        (let [ratios-rows (core/tail-ratios-table-data tail-data)]
+          (when (seq ratios-rows)
+            (kindly-heading (str "Tail Ratios: " (:label mc)))
+            (kindly-table ratios-rows
+                          {:column-names [:ratio :value :p95 :p99 :p999]})))
+        ;; High quantiles table
+        (let [quantiles-rows (core/tail-high-quantiles-table tail-data transforms)]
+          (when (seq quantiles-rows)
+            (kindly-heading (str "High Quantile Estimates: " (:label mc)))
+            (kindly-table quantiles-rows
+                          {:column-names [:quantile :estimate]})))))))
+
 (defmethod view/tail-analysis* :kindly
   [_ view data-map]
   (let [tail-analysis-id (or (:tail-analysis-id view) :tail-analysis)
         tail-analysis-map (get data-map tail-analysis-id)]
     (when tail-analysis-map
-      (kindly-heading "Tail Analysis")
-      (kindly-vega-lite
-       (charts.tail/tail-analysis-vega-spec data-map view {:width chart-width
-                                                           :height chart-height})))))
+      (let [raw-transform (:transform tail-analysis-map)
+            transforms (when raw-transform
+                         {:sample-> (let [s (:sample-> raw-transform)]
+                                      (if (fn? s) (list s) s))
+                          :->sample (let [s (:->sample raw-transform)]
+                                      (if (fn? s) [s] s))})]
+        ;; Display tables first
+        (tail-analysis-tables tail-analysis-map transforms)
+        ;; Then display charts
+        (kindly-heading "Tail Analysis Charts")
+        (kindly-vega-lite
+         (charts.tail/tail-analysis-vega-spec data-map view {:width chart-width
+                                                             :height chart-height}))))))
 
 ;;; Noop implementations for views not applicable to Kindly output
 
