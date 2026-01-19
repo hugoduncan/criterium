@@ -95,12 +95,14 @@
 ;;
 ;; The Hill plot is crucial for choosing a reliable tail index estimate.
 
-(bench/bench
- ;; Generate heavy-tailed behavior (occasional slow operations)
- (let [n (rand-int 10000)]
-   (reduce + (range n)))
- :bench-plan bench-plans/tail-analysis
- :viewer :kindly)
+(defn variable-work
+  "Simulates work with occasional slow executions."
+  []
+  (reduce + (range (rand-int 10000))))
+
+(bench/bench (variable-work)
+             :bench-plan bench-plans/tail-analysis
+             :viewer :kindly)
 
 ;; **What to look for:**
 ;;
