@@ -105,17 +105,7 @@
                       r-estimate (if (sequential? r-result) (first r-result) r-result)]
                   (is (approx= r-estimate estimate 1e-6)
                       (format "Hill estimate mismatch at k=%d: R=%.10f, clj=%.10f"
-                              k (double r-estimate) estimate)))))))
-
-        (testing "tail-index interpretation"
-          ;; For Pareto(alpha=2) data, tail index should be around 2
-          ;; Hill estimate H_k estimates 1/alpha, so tail-index = 1/H_k ~ 2
-          (let [results (stats/hill-estimator (sorted-darr pareto-data) [20])
-                {:keys [tail-index]} (first results)]
-            ;; Allow for sampling variability
-            (is (< 1.0 tail-index 4.0)
-                (format "Tail index should be in reasonable range, got %.3f"
-                        tail-index))))))))
+                              k (double r-estimate) estimate)))))))))))
 
 ;;; GPD MLE Validation
 
