@@ -31,7 +31,6 @@
 (def-multi-view outlier-counts)
 (def-multi-view outlier-significance)
 (def-multi-view quantiles)
-(def-multi-view tail-analysis)
 (def-multi-view runtime)
 (def-multi-view sample-percentiles)
 (def-multi-view sample-diffs)
@@ -47,6 +46,18 @@
 (def-multi-view distribution-pdf)
 (def-multi-view distribution-cdf)
 (def-multi-view distribution-qq)
+
+;;; Tail Analysis Views
+
+(def-multi-view tail-summary)
+(def-multi-view tail-ratios)
+(def-multi-view tail-high-quantiles)
+(def-multi-view tail-ratios-chart)
+(def-multi-view hill-plot)
+(def-multi-view mrl-plot)
+(def-multi-view zipf-plot)
+(def-multi-view exponential-qq-plot)
+(def-multi-view gpd-qq-plot)
 
 ;;; Modal Analysis Views
 
@@ -92,7 +103,6 @@
 (defmethod outlier-counts* :none [_ _ _])
 (defmethod outlier-significance* :none [_ _ _])
 (defmethod quantiles* :none [_ _ _])
-(defmethod tail-analysis* :none [_ _ _])
 (defmethod runtime* :none [_ _ _])
 (defmethod sample-percentiles* :none [_ _ _])
 (defmethod sample-diffs* :none [_ _ _])
@@ -107,6 +117,17 @@
 (defmethod distribution-pdf* :none [_ _ _])
 (defmethod distribution-cdf* :none [_ _ _])
 (defmethod distribution-qq* :none [_ _ _])
+
+;; Tail Analysis Null Viewer
+(defmethod tail-summary* :none [_ _ _])
+(defmethod tail-ratios* :none [_ _ _])
+(defmethod tail-high-quantiles* :none [_ _ _])
+(defmethod tail-ratios-chart* :none [_ _ _])
+(defmethod hill-plot* :none [_ _ _])
+(defmethod mrl-plot* :none [_ _ _])
+(defmethod zipf-plot* :none [_ _ _])
+(defmethod exponential-qq-plot* :none [_ _ _])
+(defmethod gpd-qq-plot* :none [_ _ _])
 
 ;; Modal Analysis Null Viewer
 (defmethod multimodal-warning* :none [_ _ _])

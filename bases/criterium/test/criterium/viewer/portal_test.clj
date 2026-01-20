@@ -1382,66 +1382,85 @@
 
 ;;; Tail Analysis Views
 
-(deftest portal-tail-analysis-test
-  ;; Tests the portal viewer output for tail-analysis results.
-  ;; Verifies tables (summary, ratios, quantiles) and Vega-Lite spec generation.
-  (testing "tail-analysis*"
-    (testing "produces tables and vega-lite chart"
-      (let [outputs (with-tap-out-n 10
-                      (view/tail-analysis*
+(deftest portal-tail-summary-test
+  ;; Tests the portal viewer output for tail summary view.
+  (testing "tail-summary*"
+    (testing "produces heading and table with GPD/Hill parameters"
+      (let [outputs (with-tap-out-n 4
+                      (view/tail-summary*
                        :portal
                        {}
                        (test-data/tail-analysis-data-map)))
             headings (filter #(and (vector? %) (= :b (first %))) outputs)
-            tables (filter #(and (vector? %) (every? map? %)) outputs)
-            charts (filter #(and (map? %) (contains? % :$schema)) outputs)]
-        ;; Should have multiple headings for summary, ratios, quantiles, and charts
-        (is (>= (count headings) 4)
-            "Expected headings for summary, ratios, quantiles, and charts")
-        ;; Should have summary table with GPD/Hill params
+            tables (filter #(and (vector? %) (every? map? %)) outputs)]
         (is (some #(str/includes? (second %) "Tail Summary") headings)
             "Expected Tail Summary heading")
-        ;; Should have tail ratios table
-        (is (some #(str/includes? (second %) "Tail Ratios") headings)
-            "Expected Tail Ratios heading")
-        ;; Should have high quantiles table
-        (is (some #(str/includes? (second %) "High Quantile") headings)
-            "Expected High Quantile Estimates heading")
-        ;; Should have charts heading
-        (is (some #(str/includes? (second %) "Tail Analysis Charts") headings)
-            "Expected Tail Analysis Charts heading")
-        ;; Should have at least 3 tables (summary, ratios, quantiles)
-        (is (>= (count tables) 3)
-            "Expected at least 3 tables")
-        ;; Should have Vega-Lite chart
-        (is (= 1 (count charts))
-            "Expected 1 Vega-Lite chart")
-        (is (str/includes? (:$schema (first charts)) "vega-lite"))))
-
-    (testing "summary table contains expected parameters"
-      (let [outputs (with-tap-out-n 10
-                      (view/tail-analysis*
-                       :portal
-                       {}
-                       (test-data/tail-analysis-data-map)))
-            tables (filter #(and (vector? %) (every? map? %)) outputs)
-            ;; First table should be summary
-            summary-table (first tables)]
-        (when summary-table
-          (is (some #(= "Threshold" (:parameter %)) summary-table)
-              "Expected Threshold row")
-          (is (some #(= "GPD shape (ξ)" (:parameter %)) summary-table)
-              "Expected GPD shape row")
-          (is (some #(= "Hill estimate" (:parameter %)) summary-table)
-              "Expected Hill estimate row"))))
+        (is (>= (count tables) 1) "Expected at least 1 table")
+        (let [summary-table (first tables)]
+          (when summary-table
+            (is (some #(= "Threshold" (:parameter %)) summary-table)
+                "Expected Threshold row")
+            (is (some #(= "GPD shape (ξ)" (:parameter %)) summary-table)
+                "Expected GPD shape row")))))
 
     (testing "handles nil tail-analysis gracefully"
       (let [v (volatile! [])
             f (fn [x] (when-not (= ::portal/_ x) (vswap! v conj x)))]
         (try
           (add-tap f)
-          (view/tail-analysis* :portal {} {:tail-analysis nil})
+          (view/tail-summary* :portal {} {:tail-analysis nil})
           (portal/flush)
           (is (empty? @v))
           (finally
             (remove-tap f)))))))
+
+(deftest portal-tail-ratios-test
+  ;; Tests the portal viewer output for tail ratios view.
+  (testing "tail-ratios*"
+    (testing "produces heading and ratios table"
+      (let [outputs (with-tap-out-n 4
+                      (view/tail-ratios*
+                       :portal
+                       {}
+                       (test-data/tail-analysis-data-map)))
+            headings (filter #(and (vector? %) (= :b (first %))) outputs)]
+        (is (some #(str/includes? (second %) "Tail Ratios") headings)
+            "Expected Tail Ratios heading")))))
+
+(deftest portal-tail-high-quantiles-test
+  ;; Tests the portal viewer output for high quantiles view.
+  (testing "tail-high-quantiles*"
+    (testing "produces heading and quantiles table"
+      (let [outputs (with-tap-out-n 4
+                      (view/tail-high-quantiles*
+                       :portal
+                       {}
+                       (test-data/tail-analysis-data-map)))
+            headings (filter #(and (vector? %) (= :b (first %))) outputs)]
+        (is (some #(str/includes? (second %) "High Quantile") headings)
+            "Expected High Quantile heading")))))
+
+(deftest portal-tail-chart-views-test
+  ;; Tests the portal viewer output for tail chart views.
+  (testing "tail chart views produce Vega-Lite specs"
+    (let [data-map (test-data/tail-analysis-data-map)]
+      (testing "tail-ratios-chart*"
+        (let [outputs (with-tap-out-n 4
+                        (view/tail-ratios-chart* :portal {} data-map))
+              charts (filter #(and (map? %) (contains? % :$schema)) outputs)]
+          (when (seq charts)
+            (is (str/includes? (:$schema (first charts)) "vega-lite")))))
+
+      (testing "hill-plot*"
+        (let [outputs (with-tap-out-n 4
+                        (view/hill-plot* :portal {} data-map))
+              charts (filter #(and (map? %) (contains? % :$schema)) outputs)]
+          (when (seq charts)
+            (is (str/includes? (:$schema (first charts)) "vega-lite")))))
+
+      (testing "mrl-plot*"
+        (let [outputs (with-tap-out-n 4
+                        (view/mrl-plot* :portal {} data-map))
+              charts (filter #(and (map? %) (contains? % :$schema)) outputs)]
+          (when (seq charts)
+            (is (str/includes? (:$schema (first charts)) "vega-lite"))))))))

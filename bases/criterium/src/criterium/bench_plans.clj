@@ -290,7 +290,15 @@
           :bootstrap-stats
           [:stats {:stats-id :log-stats}]
           :quantiles
-          :tail-analysis
+          :tail-summary
+          :tail-ratios
+          :tail-high-quantiles
+          :tail-ratios-chart
+          :hill-plot
+          :mrl-plot
+          :zipf-plot
+          :exponential-qq-plot
+          :gpd-qq-plot
           :event-stats
           :collect-plan
           :allocation-summary

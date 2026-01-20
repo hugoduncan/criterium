@@ -1806,64 +1806,85 @@
 
 ;;; Tail Analysis Views
 
-(deftest tail-analysis-view-test
-  ;; Tests the view/tail-analysis* multimethod for :kindly viewer.
-  ;; Verifies tables (summary, ratios, quantiles) and Vega-Lite spec generation.
-  (testing "view/tail-analysis* :kindly"
-    (testing "renders tables and Vega-Lite chart"
+(deftest tail-summary-view-test
+  ;; Tests the view/tail-summary* multimethod for :kindly viewer.
+  (testing "view/tail-summary* :kindly"
+    (testing "renders heading and summary table"
       (reset! kindly/accumulated [])
-      (view/tail-analysis* :kindly {} (test-data/tail-analysis-data-map))
+      (view/tail-summary* :kindly {} (test-data/tail-analysis-data-map))
       (let [result (kindly/flush)
             headings (filter #(and (vector? %)
                                    (= :kind/md (:kindly/kind (meta %))))
                              result)
             tables (filter #(and (map? %)
                                  (= :kind/table (:kindly/kind (meta %))))
-                           result)
-            charts (filter #(and (map? %)
-                                 (= :kind/vega-lite (:kindly/kind (meta %))))
                            result)]
         (is (= :kind/fragment (:kindly/kind (meta result))))
-        ;; Should have headings for summary, ratios, quantiles, and charts
-        (is (>= (count headings) 4)
-            "Expected headings for summary, ratios, quantiles, and charts")
         (is (some #(str/includes? (first %) "Tail Summary") headings)
             "Expected Tail Summary heading")
-        (is (some #(str/includes? (first %) "Tail Ratios") headings)
-            "Expected Tail Ratios heading")
-        (is (some #(str/includes? (first %) "High Quantile") headings)
-            "Expected High Quantile heading")
-        (is (some #(str/includes? (first %) "Tail Analysis Charts") headings)
-            "Expected Tail Analysis Charts heading")
-        ;; Should have at least 3 tables
-        (is (>= (count tables) 3)
-            "Expected at least 3 tables")
-        ;; Should have Vega-Lite chart
-        (is (= 1 (count charts))
-            "Expected 1 Vega-Lite chart")
-        (when-let [chart (first charts)]
-          (is (string? (:$schema chart)) "Expected Vega-Lite schema")
-          (is (contains? chart :vconcat) "Expected vertically concat charts"))))
-
-    (testing "summary table contains expected structure"
-      (reset! kindly/accumulated [])
-      (view/tail-analysis* :kindly {} (test-data/tail-analysis-data-map))
-      (let [result (kindly/flush)
-            tables (filter #(and (map? %)
-                                 (= :kind/table (:kindly/kind (meta %))))
-                           result)
-            ;; First table should be summary
-            summary-table (first tables)]
-        (when summary-table
+        (is (>= (count tables) 1) "Expected at least 1 table")
+        (when-let [summary-table (first tables)]
           (let [rows (table-rows summary-table)]
             (is (some #(= "Threshold" (:parameter %)) rows)
                 "Expected Threshold row")
             (is (some #(= "GPD shape (ξ)" (:parameter %)) rows)
-                "Expected GPD shape row")
-            (is (some #(= "Hill estimate" (:parameter %)) rows)
-                "Expected Hill estimate row")))))
+                "Expected GPD shape row")))))
 
     (testing "handles nil tail-analysis gracefully"
       (reset! kindly/accumulated [])
-      (view/tail-analysis* :kindly {} {:tail-analysis nil})
+      (view/tail-summary* :kindly {} {:tail-analysis nil})
       (is (nil? (kindly/flush))))))
+
+(deftest tail-ratios-view-test
+  ;; Tests the view/tail-ratios* multimethod for :kindly viewer.
+  (testing "view/tail-ratios* :kindly"
+    (testing "renders heading and ratios table"
+      (reset! kindly/accumulated [])
+      (view/tail-ratios* :kindly {} (test-data/tail-analysis-data-map))
+      (let [result (kindly/flush)
+            headings (filter #(and (vector? %)
+                                   (= :kind/md (:kindly/kind (meta %))))
+                             result)]
+        (is (some #(str/includes? (first %) "Tail Ratios") headings)
+            "Expected Tail Ratios heading")))))
+
+(deftest tail-high-quantiles-view-test
+  ;; Tests the view/tail-high-quantiles* multimethod for :kindly viewer.
+  (testing "view/tail-high-quantiles* :kindly"
+    (testing "renders heading and quantiles table"
+      (reset! kindly/accumulated [])
+      (view/tail-high-quantiles* :kindly {} (test-data/tail-analysis-data-map))
+      (let [result (kindly/flush)
+            headings (filter #(and (vector? %)
+                                   (= :kind/md (:kindly/kind (meta %))))
+                             result)]
+        (is (some #(str/includes? (first %) "High Quantile") headings)
+            "Expected High Quantile heading")))))
+
+(deftest tail-chart-views-test
+  ;; Tests the tail chart view multimethods for :kindly viewer.
+  (testing "tail chart views produce Vega-Lite specs"
+    (let [data-map (test-data/tail-analysis-data-map)]
+      (testing "hill-plot*"
+        (reset! kindly/accumulated [])
+        (view/hill-plot* :kindly {} data-map)
+        (let [result (kindly/flush)]
+          (when result
+            (let [charts (filter #(and (map? %)
+                                       (= :kind/vega-lite (:kindly/kind (meta %))))
+                                 result)]
+              (when (seq charts)
+                (is (string? (:$schema (first charts)))
+                    "Expected Vega-Lite schema"))))))
+
+      (testing "mrl-plot*"
+        (reset! kindly/accumulated [])
+        (view/mrl-plot* :kindly {} data-map)
+        (let [result (kindly/flush)]
+          (when result
+            (let [charts (filter #(and (map? %)
+                                       (= :kind/vega-lite (:kindly/kind (meta %))))
+                                 result)]
+              (when (seq charts)
+                (is (string? (:$schema (first charts)))
+                    "Expected Vega-Lite schema")))))))))

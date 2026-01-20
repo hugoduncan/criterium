@@ -399,9 +399,13 @@
       (is (some #{:tail-analysis} (:analyse bench-plans/tail-analysis))
           ":tail-analysis should be in analyse plan"))
 
-    (testing "includes :tail-analysis in view plan"
-      (is (some #{:tail-analysis} (:view bench-plans/tail-analysis))
-          ":tail-analysis should be in view plan"))
+    (testing "includes tail views in view plan"
+      (is (some #{:tail-summary} (:view bench-plans/tail-analysis))
+          ":tail-summary should be in view plan")
+      (is (some #{:tail-ratios} (:view bench-plans/tail-analysis))
+          ":tail-ratios should be in view plan")
+      (is (some #{:hill-plot} (:view bench-plans/tail-analysis))
+          ":hill-plot should be in view plan"))
 
     (testing "includes quantiles with tail percentiles"
       (let [quantile-spec (some #(when (and (vector? %) (= :quantiles (first %)))
