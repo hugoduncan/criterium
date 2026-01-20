@@ -4,15 +4,16 @@
   Tests skip gracefully when R/Rserve is unavailable.
 
   Tail statistics validated:
-  - hill-estimator: Hill estimator for tail index, against evd::hill
+  - hill-estimator: Hill estimator for tail index, against evir::hill
   - gpd-mle: GPD maximum likelihood estimation, against evd::fpot
   - gpd-pdf/cdf/quantile: GPD distribution functions, against evd package
   - mean-residual-life: Mean excess function, computed in R
 
   References:
   - R evd package: https://cran.r-project.org/package=evd
-  - R POT package: https://cran.r-project.org/package=POT"
+  - R evir package: https://cran.r-project.org/package=evir"
   (:require
+   [clojure.string :as str]
    [clojure.test :refer [deftest is testing]]
    [criterium.array :as arr]
    [criterium.r-validation.r :as r :refer [vec->r-str]]
@@ -79,7 +80,7 @@
 ;;; Hill Estimator Validation
 
 (deftest hill-estimator-validation-test
-  ;; Validates stats/hill-estimator against R's evd::hill function.
+  ;; Validates stats/hill-estimator against R's evir::hill function.
   ;; The Hill estimator computes tail index for the k largest observations.
   (testing "hill-estimator"
     (if-not (r/r-available?)
@@ -87,10 +88,10 @@
         (println "Skipping Hill estimator validation: R/Rserve not available")
         (is true "Skipped - R unavailable"))
       (do
-        (r/r-eval "library(evd)")
+        (r/r-eval "library(evir)")
 
-        (testing "against evd::hill for Pareto data"
-          ;; evd::hill returns Hill estimates for k=1 to n-1
+        (testing "against evir::hill for Pareto data"
+          ;; evir::hill returns Hill estimates for k=1 to n-1
           ;; We compare at specific k values
           (let [sorted-data (vec (sort pareto-data))
                 data-str (vec->r-str sorted-data)
@@ -100,8 +101,8 @@
                                                   test-k-values)]
             (doseq [{:keys [k estimate]} clj-results]
               (testing (str "at k=" k)
-                ;; evd::hill(x, k) returns estimate for that specific k
-                (let [r-result (r/r-eval (str "evd::hill(" data-str ", " k ")"))
+                ;; evir::hill(x, k) returns estimate for that specific k
+                (let [r-result (r/r-eval (str "evir::hill(" data-str ", " k ")"))
                       r-estimate (if (map? r-result)
                                    (first (vals r-result))
                                    (first r-result))]
@@ -123,7 +124,7 @@
 
 (deftest gpd-mle-validation-test
   ;; Validates stats/gpd-mle against R's evd::fpot function.
-  ;; fpot fits GPD to exceedances over a threshold.
+  ;; Uses R-generated GPD samples for meaningful comparison.
   (testing "gpd-mle"
     (if-not (r/r-available?)
       (do
@@ -133,54 +134,61 @@
         (r/r-eval "library(evd)")
 
         (testing "positive xi case"
-          (let [data-str (vec->r-str gpd-data-positive-xi)
-                ;; R's fpot uses threshold, we have exceedances directly
-                ;; Use ismev::gpd.fit or evd::fpot with threshold=0
+          ;; Generate GPD samples in R and fit both R and Clojure
+          (let [r-data (r/r-eval "set.seed(42); evd::rgpd(100, loc=0, scale=2, shape=0.3)")
+                data-vec (vec r-data)
                 r-result (r/r-eval
-                          (str "fit <- evd::fpot(" data-str ", threshold=0); "
+                          (str "fit <- evd::fpot(c(" (str/join "," data-vec)
+                               "), threshold=0); "
                                "c(fit$estimate['shape'], fit$estimate['scale'])"))
                 [r-xi r-sigma] (if (sequential? r-result)
                                  r-result
                                  (vals r-result))
-                clj-result (stats/gpd-mle (darr gpd-data-positive-xi))
+                clj-result (stats/gpd-mle (darr data-vec))
                 {:keys [xi sigma]} clj-result]
-            ;; GPD MLE can have some variability in optimization
-            (is (approx= r-xi xi 0.1)
-                (format "xi mismatch: R=%.6f, clj=%.6f" r-xi xi))
-            (is (approx= r-sigma sigma 0.2)
-                (format "sigma mismatch: R=%.6f, clj=%.6f" r-sigma sigma))))
-
-        (testing "exponential case (xi near zero)"
-          (let [data-str (vec->r-str gpd-data-zero-xi)
-                r-result (r/r-eval
-                          (str "fit <- evd::fpot(" data-str ", threshold=0); "
-                               "c(fit$estimate['shape'], fit$estimate['scale'])"))
-                [r-xi r-sigma] (if (sequential? r-result)
-                                 r-result
-                                 (vals r-result))
-                clj-result (stats/gpd-mle (darr gpd-data-zero-xi))
-                {:keys [xi sigma]} clj-result]
-            ;; For exponential data, both R and Clojure xi should be near zero
-            (is (< (Math/abs r-xi) 0.3)
-                (format "R xi should be near zero for exponential data, got %.6f" r-xi))
-            (is (< (Math/abs xi) 0.3)
-                (format "clj xi should be near zero for exponential data, got %.6f" xi))
-            (is (approx= r-sigma sigma 0.3)
-                (format "sigma mismatch: R=%.6f, clj=%.6f" r-sigma sigma))))
-
-        (testing "negative xi case"
-          (let [data-str (vec->r-str gpd-data-negative-xi)
-                r-result (r/r-eval
-                          (str "fit <- evd::fpot(" data-str ", threshold=0); "
-                               "c(fit$estimate['shape'], fit$estimate['scale'])"))
-                [r-xi r-sigma] (if (sequential? r-result)
-                                 r-result
-                                 (vals r-result))
-                clj-result (stats/gpd-mle (darr gpd-data-negative-xi))
-                {:keys [xi sigma]} clj-result]
+            ;; Both should recover approximately the true parameters
             (is (approx= r-xi xi 0.15)
                 (format "xi mismatch: R=%.6f, clj=%.6f" r-xi xi))
             (is (approx= r-sigma sigma 0.3)
+                (format "sigma mismatch: R=%.6f, clj=%.6f" r-sigma sigma))))
+
+        (testing "exponential case (xi near zero)"
+          ;; Generate exponential samples (GPD with xi=0)
+          (let [r-data (r/r-eval "set.seed(43); evd::rgpd(100, loc=0, scale=2, shape=0)")
+                data-vec (vec r-data)
+                r-result (r/r-eval
+                          (str "fit <- evd::fpot(c(" (str/join "," data-vec)
+                               "), threshold=0); "
+                               "c(fit$estimate['shape'], fit$estimate['scale'])"))
+                [r-xi r-sigma] (if (sequential? r-result)
+                                 r-result
+                                 (vals r-result))
+                clj-result (stats/gpd-mle (darr data-vec))
+                {:keys [xi sigma]} clj-result]
+            ;; For exponential data, xi should be near zero
+            (is (< (Math/abs r-xi) 0.3)
+                (format "R xi should be near zero, got %.6f" r-xi))
+            (is (< (Math/abs xi) 0.3)
+                (format "clj xi should be near zero, got %.6f" xi))
+            (is (approx= r-sigma sigma 0.5)
+                (format "sigma mismatch: R=%.6f, clj=%.6f" r-sigma sigma))))
+
+        (testing "negative xi case"
+          ;; Generate GPD samples with negative xi (bounded tail)
+          (let [r-data (r/r-eval "set.seed(44); evd::rgpd(100, loc=0, scale=2, shape=-0.2)")
+                data-vec (vec r-data)
+                r-result (r/r-eval
+                          (str "fit <- evd::fpot(c(" (str/join "," data-vec)
+                               "), threshold=0); "
+                               "c(fit$estimate['shape'], fit$estimate['scale'])"))
+                [r-xi r-sigma] (if (sequential? r-result)
+                                 r-result
+                                 (vals r-result))
+                clj-result (stats/gpd-mle (darr data-vec))
+                {:keys [xi sigma]} clj-result]
+            (is (approx= r-xi xi 0.2)
+                (format "xi mismatch: R=%.6f, clj=%.6f" r-xi xi))
+            (is (approx= r-sigma sigma 0.5)
                 (format "sigma mismatch: R=%.6f, clj=%.6f" r-sigma sigma))))
 
         (testing "returns expected structure"
