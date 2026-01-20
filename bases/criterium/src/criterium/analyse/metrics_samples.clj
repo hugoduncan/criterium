@@ -672,3 +672,151 @@
       {:type :criterium/distribution-fit
        :fits fit-results
        :transform collect-plan/identity-transforms})))
+
+;;; Tail Analysis
+
+(defn- find-stable-hill-estimate
+  "Find a stable region in the Hill plot and return the estimate.
+  Uses a simple heuristic: look for a plateau where estimates don't vary much.
+  Returns the median estimate from the most stable region."
+  [hill-results]
+  (when (seq hill-results)
+    (let [estimates (mapv :estimate hill-results)
+          n (count estimates)]
+      (if (< n 5)
+        ;; Not enough points, return median
+        (nth (sort estimates) (quot n 2))
+        ;; Look for stable region using rolling variance
+        (let [window-size (max 5 (quot n 10))
+              ;; Compute rolling variance
+              rolling-vars
+              (for [i (range (- n window-size))]
+                (let [window (subvec estimates i (+ i window-size))
+                      mean (/ (reduce + window) window-size)
+                      var (/ (reduce + (map #(Math/pow (- % mean) 2) window))
+                             window-size)]
+                  {:start i :variance var :mean mean}))
+              ;; Find region with minimum variance
+              best-region (apply min-key :variance rolling-vars)]
+          (:mean best-region))))))
+
+(defn- compute-high-quantiles-gpd
+  "Compute high quantiles using GPD extrapolation.
+  For probability p above the threshold:
+    Q(p) = u + Q_GPD((p - F(u)) / (1 - F(u)))
+  where F(u) is the proportion of data below threshold."
+  [sorted-samples ^double threshold gpd-fit quantiles]
+  (let [n (arr/length sorted-samples)
+        ;; Proportion below threshold
+        n-below (loop [i 0]
+                  (if (or (>= i n)
+                          (> (arr/get-double sorted-samples i) threshold))
+                    i
+                    (recur (inc i))))
+        f-u (/ (double n-below) n)
+        {:keys [xi sigma]} gpd-fit
+        gpd-quantile-fn (stats/gpd-quantile xi sigma)]
+    (into {}
+          (for [p quantiles]
+            (let [p (double p)]
+              (if (<= p f-u)
+                ;; Below threshold, use empirical quantile
+                (let [idx (min (dec n) (long (* p (dec n))))]
+                  [p (arr/get-double sorted-samples idx)])
+                ;; Above threshold, use GPD extrapolation
+                (let [;; Transform p to GPD scale
+                      p-excess (/ (- p f-u) (- 1.0 f-u))
+                      gpd-q (gpd-quantile-fn p-excess)]
+                  [p (+ threshold gpd-q)])))))))
+
+(defn tail-analysis-for-metric
+  "Compute tail analysis for a single metric's samples.
+
+  Uses raw samples WITHOUT outlier filtering - tail analysis requires the
+  extreme values that would normally be considered outliers.
+
+  Options:
+    :threshold - explicit threshold value for POT
+    :threshold-quantile - quantile to use as threshold (default 0.9)
+    :k-range - range of k values for Hill estimator
+    :high-quantiles - quantiles to estimate (default [0.99 0.999 0.9999])"
+  [metric->values metric-config options]
+  (try
+    (let [p (:path metric-config)
+          ;; Use raw samples - no outlier filtering for tail analysis
+          samples-arr (metric->values p)
+          n (arr/length samples-arr)]
+      (when (> n 30) ; Need sufficient samples for tail analysis
+        (let [sorted-samples (arr/sorted samples-arr)
+              ;; Determine threshold
+              threshold-quantile (or (:threshold-quantile options) 0.9)
+              threshold (or (:threshold options)
+                            (stats/quantile threshold-quantile sorted-samples))
+              threshold (double threshold)
+              ;; Compute percentiles for tail ratios
+              p95 (stats/quantile 0.95 sorted-samples)
+              p99 (stats/quantile 0.99 sorted-samples)
+              p999 (stats/quantile 0.999 sorted-samples)
+              tail-ratios (stats/tail-ratios {:p95 p95 :p99 p99 :p999 p999})
+              ;; Hill estimator
+              k-range (or (:k-range options)
+                          (stats/hill-estimator-default-k-range n))
+              hill-results (when (seq k-range)
+                             (stats/hill-estimator sorted-samples k-range))
+              stable-estimate (find-stable-hill-estimate hill-results)
+              ;; GPD fitting on exceedances
+              exceedances (stats/exceedances-over-threshold sorted-samples threshold)
+              n-exceed (arr/length exceedances)
+              gpd-fit (when (> n-exceed 10)
+                        (try
+                          (stats/gpd-mle exceedances)
+                          (catch Exception _e nil)))
+              ;; Mean residual life
+              mrl-thresholds (stats/mean-residual-life-default-thresholds sorted-samples)
+              mrl-results (when (seq mrl-thresholds)
+                            (stats/mean-residual-life sorted-samples mrl-thresholds))
+              ;; High quantile estimation using GPD
+              high-quantile-probs (or (:high-quantiles options) [0.99 0.999 0.9999])
+              high-quantiles (when gpd-fit
+                               (compute-high-quantiles-gpd
+                                sorted-samples threshold gpd-fit high-quantile-probs))]
+          {:n n
+           :threshold threshold
+           :threshold-quantile threshold-quantile
+           :tail-ratios tail-ratios
+           :hill (when (seq hill-results)
+                   {:k-range (mapv :k hill-results)
+                    :estimates (mapv :estimate hill-results)
+                    :tail-indices (mapv :tail-index hill-results)
+                    :stable-estimate stable-estimate})
+           :gpd (when gpd-fit
+                  {:threshold threshold
+                   :xi (:xi gpd-fit)
+                   :sigma (:sigma gpd-fit)
+                   :log-likelihood (:log-likelihood gpd-fit)
+                   :exceedances-count n-exceed})
+           :mrl (when (seq mrl-results)
+                  {:thresholds (mapv :threshold mrl-results)
+                   :values (mapv :mrl mrl-results)
+                   :n-exceed (mapv :n-exceed mrl-results)})
+           :high-quantiles high-quantiles
+           :empirical-quantiles {:p95 p95 :p99 p99 :p999 p999}})))
+    (catch Exception e
+      {:error (.getMessage e)})))
+
+(defmethod methods/tail-analysis :criterium/metrics-samples
+  [metrics-samples metric-configs options]
+  (let [metric->values (util/metric->values metrics-samples)
+        ;; Note: no outlier filtering - we use raw samples for tail analysis
+        tail-results
+        (->> metric-configs
+             (mapv
+              (fn [metric-config]
+                (let [p (:path metric-config)]
+                  [p (tail-analysis-for-metric metric->values metric-config options)])))
+             (filterv (comp some? second))
+             (into {}))]
+    (when (seq tail-results)
+      {:type :criterium/tail-analysis
+       :tail-analysis tail-results
+       :transform collect-plan/identity-transforms})))

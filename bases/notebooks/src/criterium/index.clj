@@ -29,3 +29,4 @@
 ;; - [Domain Builder](./criterium.domain_builder_notebook.html) - Automated domain construction and workflows
 ;; - [KDE Analysis](./criterium.kde_analysis_notebook.html) - Kernel density estimation for sample distributions
 ;; - [Distribution Fitting](./criterium.distribution_fitting_notebook.html) - Parametric distribution fitting with model selection
+;; - [Tail Analysis](./criterium.tail_analysis_notebook.html) - Extreme value analysis for worst-case latency

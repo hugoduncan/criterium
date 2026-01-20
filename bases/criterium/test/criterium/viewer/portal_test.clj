@@ -1379,3 +1379,88 @@
               "Should warn on stderr when view-spec is missing")
           (finally
             (remove-tap f)))))))
+
+;;; Tail Analysis Views
+
+(deftest portal-tail-summary-test
+  ;; Tests the portal viewer output for tail summary view.
+  (testing "tail-summary*"
+    (testing "produces heading and table with GPD/Hill parameters"
+      (let [outputs (with-tap-out-n 4
+                      (view/tail-summary*
+                       :portal
+                       {}
+                       (test-data/tail-analysis-data-map)))
+            headings (filter #(and (vector? %) (= :b (first %))) outputs)
+            tables (filter #(and (vector? %) (every? map? %)) outputs)]
+        (is (some #(str/includes? (second %) "Tail Summary") headings)
+            "Expected Tail Summary heading")
+        (is (>= (count tables) 1) "Expected at least 1 table")
+        (let [summary-table (first tables)]
+          (when summary-table
+            (is (some #(= "Threshold" (:parameter %)) summary-table)
+                "Expected Threshold row")
+            (is (some #(= "GPD shape (ξ)" (:parameter %)) summary-table)
+                "Expected GPD shape row")))))
+
+    (testing "handles nil tail-analysis gracefully"
+      (let [v (volatile! [])
+            f (fn [x] (when-not (= ::portal/_ x) (vswap! v conj x)))]
+        (try
+          (add-tap f)
+          (view/tail-summary* :portal {} {:tail-analysis nil})
+          (portal/flush)
+          (is (empty? @v))
+          (finally
+            (remove-tap f)))))))
+
+(deftest portal-tail-ratios-test
+  ;; Tests the portal viewer output for tail ratios view.
+  (testing "tail-ratios*"
+    (testing "produces heading and ratios table"
+      (let [outputs (with-tap-out-n 4
+                      (view/tail-ratios*
+                       :portal
+                       {}
+                       (test-data/tail-analysis-data-map)))
+            headings (filter #(and (vector? %) (= :b (first %))) outputs)]
+        (is (some #(str/includes? (second %) "Tail Ratios") headings)
+            "Expected Tail Ratios heading")))))
+
+(deftest portal-tail-high-quantiles-test
+  ;; Tests the portal viewer output for high quantiles view.
+  (testing "tail-high-quantiles*"
+    (testing "produces heading and quantiles table"
+      (let [outputs (with-tap-out-n 4
+                      (view/tail-high-quantiles*
+                       :portal
+                       {}
+                       (test-data/tail-analysis-data-map)))
+            headings (filter #(and (vector? %) (= :b (first %))) outputs)]
+        (is (some #(str/includes? (second %) "High Quantile") headings)
+            "Expected High Quantile heading")))))
+
+(deftest portal-tail-chart-views-test
+  ;; Tests the portal viewer output for tail chart views.
+  (testing "tail chart views produce Vega-Lite specs"
+    (let [data-map (test-data/tail-analysis-data-map)]
+      (testing "tail-ratios-chart*"
+        (let [outputs (with-tap-out-n 4
+                        (view/tail-ratios-chart* :portal {} data-map))
+              charts (filter #(and (map? %) (contains? % :$schema)) outputs)]
+          (when (seq charts)
+            (is (str/includes? (:$schema (first charts)) "vega-lite")))))
+
+      (testing "hill-plot*"
+        (let [outputs (with-tap-out-n 4
+                        (view/hill-plot* :portal {} data-map))
+              charts (filter #(and (map? %) (contains? % :$schema)) outputs)]
+          (when (seq charts)
+            (is (str/includes? (:$schema (first charts)) "vega-lite")))))
+
+      (testing "mrl-plot*"
+        (let [outputs (with-tap-out-n 4
+                        (view/mrl-plot* :portal {} data-map))
+              charts (filter #(and (map? %) (contains? % :$schema)) outputs)]
+          (when (seq charts)
+            (is (str/includes? (:$schema (first charts)) "vega-lite"))))))))

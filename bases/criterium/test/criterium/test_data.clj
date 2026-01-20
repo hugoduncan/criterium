@@ -496,3 +496,44 @@
                          :delta-aic 1.0
                          :ks-test {:statistic 0.11 :p-value 0.85}
                          :cvm-test {:statistic 0.055 :p-value 0.8}}}}}}}))
+
+(defn tail-analysis-data-map
+  "Create a data-map with samples and tail-analysis data for testing tail charts.
+  Includes sample data and tail analysis results (Hill, GPD, MRL, tail ratios)."
+  []
+  (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])
+        ;; Generate samples with a heavy tail - log-normal style
+        samples (double-array [1.0 1.2 1.5 1.8 2.0 2.2 2.5 2.8 3.0 3.5
+                               4.0 4.5 5.0 6.0 7.0 8.0 10.0 12.0 15.0 20.0])]
+    {:samples
+     {:type :criterium/metrics-samples
+      :metrics-defs metrics-defs
+      :metric->values {[:elapsed-time] (arr/->double-array samples)}
+      :transform {:sample-> identity :->sample identity}
+      :batch-size 1
+      :eval-count 20
+      :num-samples 20}
+     :tail-analysis
+     {:type :criterium/tail-analysis
+      :transform {:sample-> identity :->sample identity}
+      :metrics-defs metrics-defs
+      :tail-analysis
+      {[:elapsed-time]
+       {:n 20
+        :threshold 5.0
+        :threshold-quantile 0.9
+        :tail-ratios {:p99-p95 1.5 :p999-p99 1.8 :p999-p95 2.7}
+        :hill {:k-range [3 4 5 6 7 8]
+               :estimates [0.8 0.85 0.82 0.81 0.83 0.84]
+               :tail-indices [1.25 1.18 1.22 1.23 1.20 1.19]
+               :stable-estimate 0.82}
+        :gpd {:threshold 5.0
+              :xi 0.3
+              :sigma 2.5
+              :log-likelihood -25.0
+              :exceedances-count 6}
+        :mrl {:thresholds [2.0 3.0 4.0 5.0 6.0 7.0]
+              :values [4.5 5.2 6.0 7.0 8.5 10.0]
+              :n-exceed [15 12 9 6 4 2]}
+        :high-quantiles {0.99 18.0 0.999 25.0 0.9999 35.0}
+        :empirical-quantiles {:p95 12.0 :p99 18.0 :p999 20.0}}}}}))

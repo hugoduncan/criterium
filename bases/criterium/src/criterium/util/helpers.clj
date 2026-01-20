@@ -327,3 +327,8 @@
   "Identity wrapper for distribution-fit-map construction.
   Validation handled by malli instrumentation during development."
   [x] x)
+
+(defn ->tail-analysis-map
+  "Identity wrapper for tail-analysis-map construction.
+  Validation handled by malli instrumentation during development."
+  [x] x)

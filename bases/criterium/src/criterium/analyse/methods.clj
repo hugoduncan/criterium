@@ -51,3 +51,12 @@
   Returns nil if sample data is not available."
   (fn [sample-map _outliers _metric-configs _options]
     (:type sample-map)))
+
+(defmulti tail-analysis
+  "Compute tail statistics for extreme value analysis.
+  Includes Hill estimator, GPD fitting, mean residual life, tail ratios,
+  and high quantile estimation.
+  Uses raw samples without outlier filtering (tail analysis requires 'outliers').
+  Returns nil if sample data is not available."
+  (fn [sample-map _metric-configs _options]
+    (:type sample-map)))

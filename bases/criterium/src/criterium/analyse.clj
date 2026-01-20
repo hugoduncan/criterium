@@ -866,6 +866,70 @@
                  (assoc data-map id fit-map))
                data-map))))))))
 
+(defn tail-analysis
+  "Computes tail statistics for extreme value analysis.
+
+  Returns a function that performs tail analysis including Hill estimator,
+  GPD fitting, mean residual life, tail ratios, and high quantile estimation.
+  Uses raw samples WITHOUT outlier filtering - tail analysis requires the
+  extreme values that would normally be considered outliers.
+
+  Parameters:
+    opts - Optional map with keys:
+      :id               - Key for result in output (default: :tail-analysis)
+      :samples-id       - Key for source samples (default: :samples)
+      :metric-ids       - Set of metric ids to analyze (default: all quantitative)
+      :threshold        - Explicit threshold value for POT analysis
+      :threshold-quantile - Quantile to use as threshold (default: 0.9)
+      :k-range          - Range of k values for Hill estimator
+      :high-quantiles   - Quantiles to estimate via GPD (default: [0.99 0.999 0.9999])
+
+  The returned function:
+  - Takes a sampled data map containing samples
+  - Returns the map with tail analysis added under :id key
+  - For each metric provides:
+    - :tail-ratios - p99/p95, p999/p99 ratios indicating tail heaviness
+    - :hill - Hill estimator results with k-range, estimates, and stable-estimate
+    - :gpd - GPD fit parameters (xi, sigma) for exceedances over threshold
+    - :mrl - Mean residual life values for threshold selection guidance
+    - :high-quantiles - Extreme quantile estimates using GPD extrapolation
+    - :empirical-quantiles - Raw percentiles (p95, p99, p999)
+
+  Note: Unlike other analyses, tail analysis does NOT filter outliers because
+  extreme values ARE the tail we want to analyze.
+
+  Example:
+  (let [analyze (tail-analysis {:threshold-quantile 0.95})
+        result (analyze {:samples {...}})]
+    (get-in result [:tail-analysis :elapsed-time :gpd :xi]))"
+  ([] (tail-analysis {}))
+  ([{:keys [id samples-id metric-ids] :as options}]
+   (let [samples-id (or samples-id :samples)
+         id (or id :tail-analysis)]
+     (fn [data-map]
+       (let [metrics-samples (get data-map samples-id)]
+         (if-not metrics-samples
+           data-map
+           (let [metrics-defs (-> (have (:metrics-defs metrics-samples))
+                                  (metric/select-metrics metric-ids)
+                                  (metric/filter-metrics
+                                   (metric/type-pred :quantitative)))
+                 metric-configs (metric/all-metric-configs metrics-defs)
+                 tail-result (methods/tail-analysis
+                              metrics-samples
+                              metric-configs
+                              options)]
+             (if tail-result
+               (let [tail-map (util/->tail-analysis-map
+                               (merge
+                                {:type :criterium/tail-analysis
+                                 :metrics-defs metrics-defs
+                                 :source-id samples-id
+                                 :batch-size (:batch-size metrics-samples)}
+                                tail-result))]
+                 (assoc data-map id tail-map))
+               data-map))))))))
+
 (def bootstrap-stats
   "Analysis function that adds bootstrap statistics to the result.
 

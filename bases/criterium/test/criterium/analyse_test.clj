@@ -1189,3 +1189,225 @@
                                                :n-bootstrap 10})
                     data-map)]
         (is (contains? result :distribution-fit))))))
+
+;;; Tail Analysis Tests
+;; Tests the analyse/tail-analysis function for extreme value analysis including
+;; Hill estimator, GPD fitting, mean residual life, and tail ratios.
+
+(deftest tail-analysis-test
+  ;; Tests tail analysis function which computes statistics for understanding
+  ;; distribution tails - useful for latency analysis where p99/p999 matter.
+  ;; Key distinction: tail analysis uses raw samples WITHOUT outlier filtering
+  ;; because the "outliers" ARE the tail we want to analyze.
+  (testing "tail-analysis"
+    (testing "returns correct structure"
+      (let [;; Create data with a heavy tail (some large values)
+            ;; Need enough samples so 10% (threshold) gives >10 exceedances
+            raw-data (concat
+                      (mapv #(+ 10.0 (* 2.0 (double %))) (range 180))
+                      ;; Add some tail values (20 values to ensure >10 exceedances)
+                      [400.0 450.0 500.0 550.0 600.0 650.0 700.0 750.0
+                       800.0 850.0 900.0 950.0 1000.0 1100.0 1200.0
+                       1300.0 1400.0 1500.0 1600.0 1800.0])
+            samples (metrics-samples {[:elapsed-time] (vec raw-data)} 1)
+            data-map {:samples samples}
+            result ((analyse/tail-analysis) data-map)]
+        (is (contains? result :tail-analysis)
+            "result should have :tail-analysis key")
+        (let [tail-data (:tail-analysis result)]
+          (is (= :criterium/tail-analysis (:type tail-data)))
+          (is (= :samples (:source-id tail-data)))
+          (is (map? (:tail-analysis tail-data)))
+          (is (contains? (:tail-analysis tail-data) [:elapsed-time]))
+          (let [elapsed-tail (get-in tail-data [:tail-analysis [:elapsed-time]])]
+            (is (= 200 (:n elapsed-tail)) "should record sample size")
+            (is (number? (:threshold elapsed-tail)) "should have threshold")
+            (is (= 0.9 (:threshold-quantile elapsed-tail))
+                "default threshold quantile should be 0.9")
+            (is (map? (:tail-ratios elapsed-tail)) "should have tail-ratios")
+            (is (map? (:hill elapsed-tail)) "should have Hill estimator results")
+            (is (map? (:gpd elapsed-tail)) "should have GPD fit")
+            (is (map? (:mrl elapsed-tail)) "should have MRL results")
+            (is (map? (:high-quantiles elapsed-tail))
+                "should have high quantile estimates")
+            (is (map? (:empirical-quantiles elapsed-tail))
+                "should have empirical quantiles")))))
+
+    (testing "tail-ratios structure"
+      (let [;; Need enough samples for meaningful percentile ratios
+            raw-data (concat
+                      (mapv #(+ 10.0 (* 1.0 (double %))) (range 180))
+                      ;; Heavy tail values
+                      [200.0 250.0 300.0 350.0 400.0 450.0 500.0 600.0
+                       700.0 800.0 900.0 1000.0 1100.0 1200.0 1300.0
+                       1400.0 1500.0 1600.0 1800.0 2000.0])
+            samples (metrics-samples {[:elapsed-time] (vec raw-data)} 1)
+            data-map {:samples samples}
+            result ((analyse/tail-analysis) data-map)
+            tail-ratios (get-in result [:tail-analysis :tail-analysis
+                                        [:elapsed-time] :tail-ratios])]
+        (is (number? (:p99-p95 tail-ratios)) "should have p99/p95 ratio")
+        (is (number? (:p999-p99 tail-ratios)) "should have p999/p99 ratio")
+        (is (number? (:p999-p95 tail-ratios)) "should have p999/p95 ratio")
+        ;; For heavy-tailed data, ratios should be > 1
+        (is (> (double (:p99-p95 tail-ratios)) 1.0)
+            "p99/p95 ratio should be > 1 for heavy-tailed data")))
+
+    (testing "Hill estimator structure"
+      (let [;; Need enough samples for meaningful Hill estimator
+            raw-data (concat
+                      (mapv #(+ 10.0 (* 1.0 (double %))) (range 180))
+                      [200.0 300.0 400.0 500.0 600.0 700.0 800.0 900.0
+                       1000.0 1100.0 1200.0 1300.0 1400.0 1500.0 1600.0
+                       1700.0 1800.0 1900.0 2000.0 2200.0])
+            samples (metrics-samples {[:elapsed-time] (vec raw-data)} 1)
+            data-map {:samples samples}
+            result ((analyse/tail-analysis) data-map)
+            hill (get-in result [:tail-analysis :tail-analysis
+                                 [:elapsed-time] :hill])]
+        (is (vector? (:k-range hill)) "should have k-range vector")
+        (is (vector? (:estimates hill)) "should have estimates vector")
+        (is (vector? (:tail-indices hill)) "should have tail-indices vector")
+        (is (number? (:stable-estimate hill)) "should have stable-estimate")
+        ;; k-range and estimates should have same length
+        (is (= (count (:k-range hill)) (count (:estimates hill)))
+            "k-range and estimates should match in length")))
+
+    (testing "GPD fit structure"
+      (let [;; Need 200 samples with 90th percentile threshold to get 20 exceedances
+            raw-data (concat
+                      (mapv #(+ 10.0 (* 1.0 (double %))) (range 180))
+                      ;; 20 tail values for GPD fitting (need >10 exceedances)
+                      [200.0 250.0 300.0 350.0 400.0 450.0 500.0 550.0
+                       600.0 650.0 700.0 750.0 800.0 900.0 1000.0
+                       1100.0 1200.0 1300.0 1400.0 1500.0])
+            samples (metrics-samples {[:elapsed-time] (vec raw-data)} 1)
+            data-map {:samples samples}
+            result ((analyse/tail-analysis) data-map)
+            gpd (get-in result [:tail-analysis :tail-analysis
+                                [:elapsed-time] :gpd])]
+        (is (number? (:threshold gpd)) "should have threshold")
+        (is (number? (:xi gpd)) "should have xi (shape parameter)")
+        (is (number? (:sigma gpd)) "should have sigma (scale parameter)")
+        (is (number? (:log-likelihood gpd)) "should have log-likelihood")
+        (is (pos-int? (:exceedances-count gpd))
+            "should have positive exceedances count")))
+
+    (testing "MRL structure"
+      (let [raw-data (mapv #(+ 10.0 (* 5.0 (double %))) (range 100))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            result ((analyse/tail-analysis) data-map)
+            mrl (get-in result [:tail-analysis :tail-analysis
+                                [:elapsed-time] :mrl])]
+        (is (vector? (:thresholds mrl)) "should have thresholds vector")
+        (is (vector? (:values mrl)) "should have values (MRL) vector")
+        (is (vector? (:n-exceed mrl)) "should have n-exceed vector")
+        (is (= (count (:thresholds mrl)) (count (:values mrl)))
+            "thresholds and values should match in length")))
+
+    (testing "high quantiles via GPD extrapolation"
+      (let [;; Need 200 samples with 90th percentile threshold to get 20 exceedances
+            raw-data (concat
+                      (mapv #(+ 10.0 (* 1.0 (double %))) (range 180))
+                      [200.0 250.0 300.0 350.0 400.0 450.0 500.0 550.0
+                       600.0 650.0 700.0 750.0 800.0 900.0 1000.0
+                       1100.0 1200.0 1300.0 1400.0 1500.0])
+            samples (metrics-samples {[:elapsed-time] (vec raw-data)} 1)
+            data-map {:samples samples}
+            result ((analyse/tail-analysis) data-map)
+            high-qs (get-in result [:tail-analysis :tail-analysis
+                                    [:elapsed-time] :high-quantiles])]
+        ;; Default quantiles are 0.99, 0.999, 0.9999
+        (is (number? (get high-qs 0.99)) "should have 0.99 quantile")
+        (is (number? (get high-qs 0.999)) "should have 0.999 quantile")
+        (is (number? (get high-qs 0.9999)) "should have 0.9999 quantile")
+        ;; Higher quantiles should be larger
+        (is (< (double (get high-qs 0.99)) (double (get high-qs 0.999)))
+            "0.999 quantile should be larger than 0.99")))
+
+    (testing "uses raw samples without outlier filtering"
+      ;; The key design decision: tail analysis should NOT filter outliers
+      ;; because the outliers ARE the tail we want to analyze
+      (let [;; Create data with obvious outliers
+            raw-data (conj (vec (mapv #(+ 100.0 (* 0.5 (double %))) (range 199)))
+                           ;; This would be an outlier normally
+                           10000.0)
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            ;; Add outliers to data-map (which would normally cause filtering)
+            with-quantiles ((analyse/quantiles {:quantiles []}) data-map)
+            with-outliers ((analyse/outliers) with-quantiles)
+            ;; tail-analysis should ignore outliers
+            result ((analyse/tail-analysis) with-outliers)
+            tail-data (get-in result [:tail-analysis :tail-analysis [:elapsed-time]])]
+        ;; All 200 samples should be used (including the "outlier")
+        (is (= 200 (:n tail-data))
+            "tail analysis should use all samples including outliers")))
+
+    (testing "custom threshold-quantile"
+      (let [raw-data (mapv #(+ 10.0 (* 5.0 (double %))) (range 100))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            result ((analyse/tail-analysis {:threshold-quantile 0.95}) data-map)
+            tail-data (get-in result [:tail-analysis :tail-analysis [:elapsed-time]])]
+        (is (= 0.95 (:threshold-quantile tail-data))
+            "should use specified threshold quantile")))
+
+    (testing "custom explicit threshold"
+      (let [raw-data (mapv #(+ 10.0 (* 5.0 (double %))) (range 100))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            result ((analyse/tail-analysis {:threshold 200.0}) data-map)
+            tail-data (get-in result [:tail-analysis :tail-analysis [:elapsed-time]])]
+        (is (= 200.0 (:threshold tail-data))
+            "should use explicit threshold")))
+
+    (testing "custom high quantiles"
+      (let [;; Need 200 samples with 90th percentile threshold to get 20 exceedances
+            raw-data (concat
+                      (mapv #(+ 10.0 (* 1.0 (double %))) (range 180))
+                      [200.0 250.0 300.0 350.0 400.0 450.0 500.0 550.0
+                       600.0 650.0 700.0 750.0 800.0 900.0 1000.0
+                       1100.0 1200.0 1300.0 1400.0 1500.0])
+            samples (metrics-samples {[:elapsed-time] (vec raw-data)} 1)
+            data-map {:samples samples}
+            result ((analyse/tail-analysis {:high-quantiles [0.95 0.99 0.995]})
+                    data-map)
+            high-qs (get-in result [:tail-analysis :tail-analysis
+                                    [:elapsed-time] :high-quantiles])]
+        (is (number? (get high-qs 0.95)) "should have custom 0.95 quantile")
+        (is (number? (get high-qs 0.99)) "should have custom 0.99 quantile")
+        (is (number? (get high-qs 0.995)) "should have custom 0.995 quantile")
+        (is (nil? (get high-qs 0.9999)) "should not have default 0.9999")))
+
+    (testing "returns data-map unchanged when samples unavailable"
+      (let [data-map {:other-data 123}
+            result ((analyse/tail-analysis) data-map)]
+        (is (= data-map result))
+        (is (not (contains? result :tail-analysis)))))
+
+    (testing "returns data-map unchanged for insufficient samples"
+      (let [;; Less than 30 samples
+            raw-data (mapv #(+ 10.0 (double %)) (range 20))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            result ((analyse/tail-analysis) data-map)]
+        ;; Should return without tail analysis due to insufficient samples
+        (is (not (contains? (:tail-analysis result) [:elapsed-time]))
+            "should not compute tail analysis for < 30 samples")))
+
+    (testing "uses custom output id"
+      (let [raw-data (mapv #(+ 10.0 (* 5.0 (double %))) (range 100))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            result ((analyse/tail-analysis {:id :my-tail}) data-map)]
+        (is (contains? result :my-tail))
+        (is (not (contains? result :tail-analysis)))))
+
+    (testing "uses custom samples-id"
+      (let [raw-data (mapv #(+ 10.0 (* 5.0 (double %))) (range 100))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:my-samples samples}
+            result ((analyse/tail-analysis {:samples-id :my-samples}) data-map)]
+        (is (contains? result :tail-analysis))))))
