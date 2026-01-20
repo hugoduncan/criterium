@@ -142,13 +142,13 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         sudo Rscript -e 'install.packages("Rserve", repos="http://rforge.net")'
-        sudo Rscript -e 'install.packages(c("multimode", "e1071", "MASS", "statmod", "goftest", "evd"), repos="https://cloud.r-project.org")'
+        sudo Rscript -e 'install.packages(c("multimode", "e1071", "MASS", "statmod", "goftest", "evd", "ReIns"), repos="https://cloud.r-project.org")'
 
     - name: Install R packages (macOS)
       if: matrix.os == 'macOS-latest'
       run: |
         Rscript -e 'install.packages("Rserve", repos="http://rforge.net")'
-        Rscript -e 'install.packages(c("multimode", "e1071", "MASS", "statmod", "goftest", "evd"), repos="https://cloud.r-project.org")'
+        Rscript -e 'install.packages(c("multimode", "e1071", "MASS", "statmod", "goftest", "evd", "ReIns"), repos="https://cloud.r-project.org")'
 
     - name: Start Rserve
       run: |

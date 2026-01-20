@@ -4,13 +4,14 @@
   Tests skip gracefully when R/Rserve is unavailable.
 
   Tail statistics validated:
-  - hill-estimator: Hill estimator for tail index, against manual R computation
+  - hill-estimator: Hill estimator for tail index, against ReIns::Hill
   - gpd-mle: GPD maximum likelihood estimation, validates convergence and bounds
   - gpd-pdf/cdf/quantile: GPD distribution functions, against evd package
   - mean-residual-life: Mean excess function, computed in R
 
   References:
-  - R evd package: https://cran.r-project.org/package=evd"
+  - R evd package: https://cran.r-project.org/package=evd
+  - R ReIns package: https://cran.r-project.org/package=ReIns"
   (:require
    [clojure.test :refer [deftest is testing]]
    [criterium.array :as arr]
@@ -78,36 +79,29 @@
 ;;; Hill Estimator Validation
 
 (deftest hill-estimator-validation-test
-  ;; Validates stats/hill-estimator against manual R computation.
+  ;; Validates stats/hill-estimator against R's ReIns::Hill function.
   ;; The Hill estimator computes tail index for the k largest observations.
-  ;; Formula: H_k = (1/k) * sum(log(X_{n-i+1} / X_{n-k})) for i=1 to k
-  ;; where X is sorted ascending, so X_n is the largest.
   (testing "hill-estimator"
     (if-not (r/r-available?)
       (do
         (println "Skipping Hill estimator validation: R/Rserve not available")
         (is true "Skipped - R unavailable"))
       (do
-        ;; Define Hill estimator function in R
-        (r/r-eval "hill_estimate <- function(x, k) {
-                     n <- length(x)
-                     x_sorted <- sort(x)
-                     # k largest values are x_sorted[(n-k+1):n]
-                     # Reference point is x_sorted[n-k]
-                     x_ref <- x_sorted[n-k]
-                     x_top <- x_sorted[(n-k+1):n]
-                     mean(log(x_top / x_ref))
-                   }")
+        (r/r-eval "library(ReIns)")
 
-        (testing "against R manual computation for Pareto data"
+        (testing "against ReIns::Hill for Pareto data"
           (let [sorted-data (vec (sort pareto-data))
                 data-str (vec->r-str sorted-data)
                 test-k-values [10 20 30]
+                ;; Get all Hill estimates from R
+                _ (r/r-eval (str "hill_result <- ReIns::Hill(" data-str ")"))
                 clj-results (stats/hill-estimator (sorted-darr pareto-data)
                                                   test-k-values)]
             (doseq [{:keys [k estimate]} clj-results]
               (testing (str "at k=" k)
-                (let [r-result (r/r-eval (str "hill_estimate(" data-str ", " k ")"))
+                ;; Extract the Hill estimate for this k from R's result
+                (let [r-result (r/r-eval
+                                (str "hill_result$gamma[which(hill_result$k == " k ")]"))
                       r-estimate (if (sequential? r-result) (first r-result) r-result)]
                   (is (approx= r-estimate estimate 1e-6)
                       (format "Hill estimate mismatch at k=%d: R=%.10f, clj=%.10f"
