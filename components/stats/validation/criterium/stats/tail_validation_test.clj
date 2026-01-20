@@ -39,12 +39,6 @@
         result
         (recur (inc i) (conj result (arr/get-double typed-arr i)))))))
 
-(defn- evd-available?
-  "Check if R and the evd package are available."
-  []
-  (and (r/r-available?)
-       (r/r-package-available? "evd")))
-
 ;;; Test Data
 ;; Heavy-tailed data for meaningful EVT analysis.
 ;; Generated from Pareto distribution (power law tail).
@@ -88,10 +82,10 @@
   ;; Validates stats/hill-estimator against R's evd::hill function.
   ;; The Hill estimator computes tail index for the k largest observations.
   (testing "hill-estimator"
-    (if-not (evd-available?)
+    (if-not (r/r-available?)
       (do
-        (println "Skipping Hill estimator validation: R/Rserve or evd not available")
-        (is true "Skipped - R/evd unavailable"))
+        (println "Skipping Hill estimator validation: R/Rserve not available")
+        (is true "Skipped - R unavailable"))
       (do
         (r/r-eval "library(evd)")
 
@@ -131,10 +125,10 @@
   ;; Validates stats/gpd-mle against R's evd::fpot function.
   ;; fpot fits GPD to exceedances over a threshold.
   (testing "gpd-mle"
-    (if-not (evd-available?)
+    (if-not (r/r-available?)
       (do
-        (println "Skipping GPD MLE validation: R/Rserve or evd not available")
-        (is true "Skipped - R/evd unavailable"))
+        (println "Skipping GPD MLE validation: R/Rserve not available")
+        (is true "Skipped - R unavailable"))
       (do
         (r/r-eval "library(evd)")
 
@@ -202,10 +196,10 @@
 (deftest gpd-pdf-validation-test
   ;; Validates stats/gpd-pdf against R's evd::dgpd function.
   (testing "gpd-pdf"
-    (if-not (evd-available?)
+    (if-not (r/r-available?)
       (do
-        (println "Skipping GPD PDF validation: R/Rserve or evd not available")
-        (is true "Skipped - R/evd unavailable"))
+        (println "Skipping GPD PDF validation: R/Rserve not available")
+        (is true "Skipped - R unavailable"))
       (do
         (r/r-eval "library(evd)")
 
@@ -261,10 +255,10 @@
 (deftest gpd-cdf-validation-test
   ;; Validates stats/gpd-cdf against R's evd::pgpd function.
   (testing "gpd-cdf"
-    (if-not (evd-available?)
+    (if-not (r/r-available?)
       (do
-        (println "Skipping GPD CDF validation: R/Rserve or evd not available")
-        (is true "Skipped - R/evd unavailable"))
+        (println "Skipping GPD CDF validation: R/Rserve not available")
+        (is true "Skipped - R unavailable"))
       (do
         (r/r-eval "library(evd)")
 
@@ -319,10 +313,10 @@
 (deftest gpd-quantile-validation-test
   ;; Validates stats/gpd-quantile against R's evd::qgpd function.
   (testing "gpd-quantile"
-    (if-not (evd-available?)
+    (if-not (r/r-available?)
       (do
-        (println "Skipping GPD quantile validation: R/Rserve or evd not available")
-        (is true "Skipped - R/evd unavailable"))
+        (println "Skipping GPD quantile validation: R/Rserve not available")
+        (is true "Skipped - R unavailable"))
       (do
         (r/r-eval "library(evd)")
 

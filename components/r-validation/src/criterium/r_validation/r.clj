@@ -130,20 +130,6 @@
        nil)
      (do ~@body)))
 
-(defn r-package-available?
-  "Check if a specific R package is available.
-
-  Returns true if the package can be loaded, false otherwise.
-  Requires R to be available first."
-  [package-name]
-  (when (r-available?)
-    (try
-      (let [r-fn (requiring-resolve 'clojisr.v1.r/r)
-            result (r-fn (str "requireNamespace('" package-name "', quietly = TRUE)"))]
-        (boolean (first result)))
-      (catch Exception _
-        false))))
-
 (defn vec->r-str
   "Convert a Clojure vector of numbers to R's c() syntax.
 
