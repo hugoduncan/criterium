@@ -29,3 +29,4 @@ node_modules/
 bases/agent/resources/native/**/*.so
 bases/agent/resources/native/**/*.dylib
 bases/agent/resources/native/**/*.sha256
+/bases/criterium/.clj-kondo/imports/

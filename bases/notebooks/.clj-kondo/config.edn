@@ -1,0 +1,2 @@
+{:config-paths
+ ["../../../.clj-kondo"]}
