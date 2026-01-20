@@ -67,8 +67,14 @@ clojure -T:build notebooks :aliases :with-agent-linux
 
 ### Code Quality
 ```bash
-# Lint code
-clj-kondo --lint src
+# Build clj-kondo cache from classpath (run once after checkout or deps.edn changes)
+clj-kondo --lint "$(clojure -Spath -M:test)" --dependencies --parallel --copy-configs
+
+# Lint all source code
+clj-kondo --lint bases/*/src bases/*/test components/*/src components/*/test
+
+# Lint a specific base
+clj-kondo --lint bases/notebooks/src
 
 # Format code
 clojure -M:cljfmt check
