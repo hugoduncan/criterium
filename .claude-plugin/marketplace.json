@@ -1,0 +1,19 @@
+{
+  "name": "criterium",
+  "metadata": {
+    "description": "Claude Code plugin for Clojure benchmarking with criterium"
+  },
+  "owner": {
+    "name": "Criterium Team"
+  },
+  "plugins": [
+    {
+      "name": "criterium",
+      "source": "./",
+      "description": "Benchmarking library for Clojure",
+      "version": "0.5.0",
+      "license": "EPL-1.0",
+      "category": "development"
+    }
+  ]
+}
