@@ -39,6 +39,12 @@
         result
         (recur (inc i) (conj result (arr/get-double typed-arr i)))))))
 
+(defn- evd-available?
+  "Check if R and the evd package are available."
+  []
+  (and (r/r-available?)
+       (r/r-package-available? "evd")))
+
 ;;; Test Data
 ;; Heavy-tailed data for meaningful EVT analysis.
 ;; Generated from Pareto distribution (power law tail).
@@ -82,10 +88,10 @@
   ;; Validates stats/hill-estimator against R's evd::hill function.
   ;; The Hill estimator computes tail index for the k largest observations.
   (testing "hill-estimator"
-    (if-not (r/r-available?)
+    (if-not (evd-available?)
       (do
-        (println "Skipping Hill estimator validation: R/Rserve not available")
-        (is true "Skipped - R unavailable"))
+        (println "Skipping Hill estimator validation: R/Rserve or evd not available")
+        (is true "Skipped - R/evd unavailable"))
       (do
         (r/r-eval "library(evd)")
 
@@ -125,10 +131,10 @@
   ;; Validates stats/gpd-mle against R's evd::fpot function.
   ;; fpot fits GPD to exceedances over a threshold.
   (testing "gpd-mle"
-    (if-not (r/r-available?)
+    (if-not (evd-available?)
       (do
-        (println "Skipping GPD MLE validation: R/Rserve not available")
-        (is true "Skipped - R unavailable"))
+        (println "Skipping GPD MLE validation: R/Rserve or evd not available")
+        (is true "Skipped - R/evd unavailable"))
       (do
         (r/r-eval "library(evd)")
 
@@ -196,10 +202,10 @@
 (deftest gpd-pdf-validation-test
   ;; Validates stats/gpd-pdf against R's evd::dgpd function.
   (testing "gpd-pdf"
-    (if-not (r/r-available?)
+    (if-not (evd-available?)
       (do
-        (println "Skipping GPD PDF validation: R/Rserve not available")
-        (is true "Skipped - R unavailable"))
+        (println "Skipping GPD PDF validation: R/Rserve or evd not available")
+        (is true "Skipped - R/evd unavailable"))
       (do
         (r/r-eval "library(evd)")
 
@@ -255,10 +261,10 @@
 (deftest gpd-cdf-validation-test
   ;; Validates stats/gpd-cdf against R's evd::pgpd function.
   (testing "gpd-cdf"
-    (if-not (r/r-available?)
+    (if-not (evd-available?)
       (do
-        (println "Skipping GPD CDF validation: R/Rserve not available")
-        (is true "Skipped - R unavailable"))
+        (println "Skipping GPD CDF validation: R/Rserve or evd not available")
+        (is true "Skipped - R/evd unavailable"))
       (do
         (r/r-eval "library(evd)")
 
@@ -313,10 +319,10 @@
 (deftest gpd-quantile-validation-test
   ;; Validates stats/gpd-quantile against R's evd::qgpd function.
   (testing "gpd-quantile"
-    (if-not (r/r-available?)
+    (if-not (evd-available?)
       (do
-        (println "Skipping GPD quantile validation: R/Rserve not available")
-        (is true "Skipped - R unavailable"))
+        (println "Skipping GPD quantile validation: R/Rserve or evd not available")
+        (is true "Skipped - R/evd unavailable"))
       (do
         (r/r-eval "library(evd)")
 
@@ -469,7 +475,8 @@
           (let [data gpd-data-positive-xi
                 data-str (vec->r-str data)
                 threshold 2.0
-                r-result (r/r-eval (str "x <- " data-str "; x[x > " threshold "]"))
+                ;; Compute excesses (value - threshold) to match Clojure impl
+                r-result (r/r-eval (str "x <- " data-str "; x[x > " threshold "] - " threshold))
                 r-exceed (if (sequential? r-result) r-result [r-result])
                 clj-exceed (stats/exceedances-over-threshold (darr data) threshold)
                 clj-exceed-vec (darr->vec clj-exceed)]
