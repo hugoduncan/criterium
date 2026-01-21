@@ -38,10 +38,13 @@
 
 (defmethod collect-plan-config :one-shot
   [_collect-plan-id
-   {:keys [max-gc-attempts]
+   {:keys [max-gc-attempts num-warmup]
+    :or   {max-gc-attempts 3
+           num-warmup      0}
     :as   _options}]
   {:scheme-type     :one-shot
-   :max-gc-attempts (or max-gc-attempts 3)})
+   :max-gc-attempts max-gc-attempts
+   :num-warmup      num-warmup})
 
 (defmethod collect-plan-config :with-jit-warmup
   [_collect-plan-id
