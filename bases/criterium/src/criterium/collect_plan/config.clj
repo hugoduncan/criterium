@@ -29,7 +29,29 @@
 (def TARGET-WARMUP-SAMPLES 150000)
 (def TARGET-SAMPLES 200)
 
-(defmulti  collect-plan-config
+(defmulti collect-plan-config
+  "Create a collect-plan configuration map from an id and options.
+
+  Available collect-plan types:
+
+  :one-shot - Single measurement without JIT warmup.
+    Options:
+      :num-warmup-samples - Number of warmup invocations (not batched) before measurement.
+                         Use 1 to skip JVM first-invocation allocation overhead. Default: 0
+      :max-gc-attempts - Maximum GC attempts after warmup. Default: 3
+
+  :with-jit-warmup - Multiple samples with JIT warmup phase.
+    Options:
+      :num-estimation-samples - Samples for timing estimation. Default: 1000
+      :num-warmup-samples     - Samples for JIT warmup. Default: 150000
+      :num-measure-samples    - Samples for measurement. Default: 200
+      :max-gc-attempts        - Maximum GC attempts. Default: 6
+      :limit-time-ns          - Time limit in nanoseconds. Default: 10s
+      :batch-time-ns          - Target batch time. Default: 10µs
+      :thread-priority        - Optional thread priority during measurement
+
+  :without-jit-warmup - Multiple samples without warmup phase.
+    Same options as :with-jit-warmup but :num-warmup-samples defaults to 0."
   (fn [collect-plan-id _options] collect-plan-id))
 
 (defmethod collect-plan-config :default
@@ -37,11 +59,22 @@
   (throw (ex-info "Unknown collect-plan" {:collect-plan collect-plan-id})))
 
 (defmethod collect-plan-config :one-shot
+  ;; Configure a one-shot collection plan.
+  ;;
+  ;; Options:
+  ;;   :num-warmup-samples - Number of warmup invocations (not batched) before measurement.
+  ;;                         Use 1 to skip JVM first-invocation allocation overhead. Default: 0
+  ;;   :max-gc-attempts - Maximum GC attempts after warmup. Default: 3
+  ;;
+  ;; Returns config map with :scheme-type :one-shot.
   [_collect-plan-id
-   {:keys [max-gc-attempts]
+   {:keys [max-gc-attempts num-warmup-samples]
+    :or   {max-gc-attempts    3
+           num-warmup-samples 0}
     :as   _options}]
-  {:scheme-type     :one-shot
-   :max-gc-attempts (or max-gc-attempts 3)})
+  {:scheme-type        :one-shot
+   :max-gc-attempts    max-gc-attempts
+   :num-warmup-samples num-warmup-samples})
 
 (defmethod collect-plan-config :with-jit-warmup
   [_collect-plan-id
