@@ -50,8 +50,7 @@
   ;;
   ;; Returns a sampled data map.
   [collect-plan collector measured]
-  (let [{:keys [^long max-gc-attempts ^long num-warmup]
-         :or   {num-warmup 0}} collect-plan]
+  (let [{:keys [^long max-gc-attempts ^long num-warmup]} collect-plan]
     ;; Warmup invocations (if any)
     (dotimes [_ num-warmup]
       (collect/throw-away-collection measured))
