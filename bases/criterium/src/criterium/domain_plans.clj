@@ -73,6 +73,10 @@
   For median-based extraction with bootstrap fallback, use extract-metrics or
   complexity-analysis instead.
 
+  NOTE: This plan returns nil for :one-shot benchmarks because the explicit
+  :metric-path bypasses the samples fallback. For one-shot data, use
+  extract-metrics instead.
+
   Example:
     (analyse-domain extract-elapsed-time my-domain)"
   {:analyse [[:domain-extract-fn {:metric-path [:stats :elapsed-time :mean]}]]
