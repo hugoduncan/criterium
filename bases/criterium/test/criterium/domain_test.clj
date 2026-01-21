@@ -310,3 +310,42 @@
               "has lower bound from bootstrap")
           (is (some? (:upper value-map))
               "has upper bound from bootstrap"))))))
+
+;;; End-to-end integration tests with actual domain/bench
+;; Tests full pipeline using real benchmark execution (not mock data).
+
+(deftest ^:slow domain-bench-one-shot-end-to-end-test
+  ;; End-to-end test running actual domain/bench with :one-shot collect plan.
+  ;; Verifies full pipeline integration from benchmark execution through analysis.
+  (testing "domain/bench with :bench-options {:collect-plan :one-shot}"
+    (testing "runs benchmarks and extracts metrics from single samples"
+      (let [result (domain/bench
+                    (domain/domain-expr [n [10 100]] (reduce + (range n)))
+                    :domain-plan domain-plans/extract-metrics
+                    :bench-options {:collect-plan :one-shot}
+                    :reporter nil
+                    :viewer :none)
+            extract (:extract result)]
+        (is (= :criterium/domain-extract (:type extract))
+            "produces domain-extract result")
+        (is (contains? (:metrics extract) :elapsed-time)
+            "discovers elapsed-time metric")
+        (let [et-data (get-in extract [:metrics :elapsed-time])
+              coords (set (map first (:data et-data)))]
+          (is (= #{{:impl :default :n 10} {:impl :default :n 100}} coords)
+              "has data for all coordinates")
+          (is (every? #(number? (:value (second %))) (:data et-data))
+              "all values are numbers"))))
+    (testing "produces no error bounds (n=1)"
+      (let [result (domain/bench
+                    (domain/domain-expr [n [10]] (reduce + (range n)))
+                    :domain-plan domain-plans/extract-metrics
+                    :bench-options {:collect-plan :one-shot}
+                    :reporter nil
+                    :viewer :none)
+            et-data (get-in result [:extract :metrics :elapsed-time])
+            [_coord value-map] (first (:data et-data))]
+        (is (nil? (:lower value-map))
+            "no lower bound for one-shot")
+        (is (nil? (:upper value-map))
+            "no upper bound for one-shot")))))
