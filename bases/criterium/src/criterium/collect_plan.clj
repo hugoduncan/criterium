@@ -51,7 +51,6 @@
   ;; Returns a sampled data map.
   [collect-plan collector measured]
   (let [{:keys [^long max-gc-attempts ^long num-warmup-samples]} collect-plan]
-    ;; Warmup invocations (if any)
     (dotimes [_ num-warmup-samples]
       (collect/throw-away-collection measured))
     ;; Force GC after warmup
