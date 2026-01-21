@@ -150,14 +150,16 @@
   (e.g. :stats or :log-stats), a metric-id (e.g. :elapsed-time),
   and a value-key (e.g. :mean, :std-dev).
 
-  Returns the value with all transforms applied."
+  Returns the value with all transforms applied, or nil if the
+  stats-id entry is not present in the data map."
   [data-map stats-id metric-id value-key]
   {:pre [(have? keyword? stats-id)
          (have? keyword? value-key)]}
-  (let [transforms (get-transforms data-map stats-id)
-        raw-value (get-in data-map [stats-id :stats metric-id value-key])]
-    (when raw-value
-      (transform-sample-> raw-value transforms))))
+  (when (contains? data-map stats-id)
+    (let [transforms (get-transforms data-map stats-id)
+          raw-value (get-in data-map [stats-id :stats metric-id value-key])]
+      (when raw-value
+        (transform-sample-> raw-value transforms)))))
 
 (defn bootstrap-quantile-value
   "Extract a transformed bootstrap quantile value from a benchmark data map.
