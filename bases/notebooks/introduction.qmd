@@ -1,0 +1,104 @@
+---
+title: "Benchmarking Goals and Context"
+---
+
+Before diving into benchmarking, consider what you want to learn. Your goals
+determine which criterium features and analysis methods are most appropriate.
+
+## What is your goal in benchmarking?
+
+Common benchmarking goals include:
+
+- **Performance validation**: Verify code meets latency requirements
+- **Regression detection**: Catch performance degradations
+- **Implementation comparison**: Choose between alternative approaches
+- **Optimization guidance**: Identify where optimization effort pays off
+- **Capacity planning**: Understand throughput limits
+
+## Is this code on a hotpath?
+
+Code executed frequently (hotpaths) receives aggressive JIT optimization.
+Infrequently executed code may never be fully optimized.
+
+| Execution Pattern | Warmup Approach | See |
+|-------------------|-----------------|-----|
+| Hotpath (called millions of times) | Full JIT warmup with varied inputs | [Warmup](./criterium.warmup_notebook.html) |
+| Occasional (called periodically) | Reduced warmup, measure cold performance | [Basic Usage](./criterium.basic_usage_notebook.html) |
+| One-shot (startup, initialization) | Minimal warmup, focus on first-call time | [Bench Options](./criterium.bench_options_notebook.html) |
+
+## What is the normal calling pattern?
+
+The JIT optimizes based on observed inputs. Warmup should use representative
+arguments to avoid over-specialization.
+
+**Questions to consider:**
+
+- What argument sizes occur in production?
+- Is there variation in input characteristics?
+- Are there multiple calling contexts?
+
+Use `:warmup-args-fn` to provide varied inputs during warmup. See
+[Warmup](./criterium.warmup_notebook.html) and
+[Argument Generation](./criterium.arg_gen_notebook.html) for techniques.
+
+## In-place or isolated measurement?
+
+| Approach | Use When | See |
+|----------|----------|-----|
+| **Isolated** (standalone bench) | Measuring algorithm performance independent of system | [Basic Usage](./criterium.basic_usage_notebook.html) |
+| **In-place** (instrumented) | Understanding performance in production context | [Instrumented Functions](./criterium.instrument_fn_notebook.html) |
+| **Sampled** (periodic capture) | Long-running systems with minimal overhead | [Sampled Functions](./criterium.sampled_fn_notebook.html) |
+
+## Typical or unusual performance?
+
+| Interest | Analysis Method | See |
+|----------|-----------------|-----|
+| **Typical** (mean, median) | Standard statistics | [Basic Usage](./criterium.basic_usage_notebook.html) |
+| **Distribution shape** | KDE, histogram | [KDE Analysis](./criterium.kde_analysis_notebook.html) |
+| **Worst-case latency** | Tail analysis, percentiles | [Tail Analysis](./criterium.tail_analysis_notebook.html) |
+| **Fitting models** | Distribution fitting | [Distribution Fitting](./criterium.distribution_fitting_notebook.html) |
+
+## Single point or range of inputs?
+
+| Scope | Approach | See |
+|-------|----------|-----|
+| **Single input size** | Standard bench | [Basic Usage](./criterium.basic_usage_notebook.html) |
+| **Range of sizes** | Domain benchmarking | [Domain Bench](./criterium.domain_bench_notebook.html) |
+| **Complexity analysis** | Domain with model fitting | [Domain Analysis](./criterium.analyse_domain_notebook.html) |
+| **Automated sweeps** | Domain builder | [Domain Builder](./criterium.domain_builder_notebook.html) |
+
+## Comparing implementations?
+
+| Comparison Type | Approach | See |
+|-----------------|----------|-----|
+| **Two implementations** | Run bench on each, compare means | [Basic Usage](./criterium.basic_usage_notebook.html) |
+| **Multiple implementations** | Domain with :impl axis | [Domain Bench](./criterium.domain_bench_notebook.html) |
+| **Scaling comparison** | Domain analysis across sizes | [Domain Analysis](./criterium.analyse_domain_notebook.html) |
+
+## Additional considerations
+
+### Memory and allocations
+
+If allocation pressure matters, enable allocation tracking:
+
+- [Allocation Tracking](./criterium.allocation_tracking_notebook.html) - Analyze where allocations occur
+- [Allocation Bench](./criterium.allocation_bench_notebook.html) - Integrated allocation analysis
+
+### Call structure
+
+For understanding internal behavior:
+
+- [Call Tracing](./criterium.call_tracing_notebook.html) - Method call analysis with visualization
+
+## Quick reference
+
+| Goal | Start Here |
+|------|------------|
+| Simple timing | [Basic Usage](./criterium.basic_usage_notebook.html) |
+| Configure warmup/sampling | [Bench Options](./criterium.bench_options_notebook.html) |
+| Varied inputs during warmup | [Warmup](./criterium.warmup_notebook.html) |
+| Generated test inputs | [Argument Generation](./criterium.arg_gen_notebook.html) |
+| Compare across input sizes | [Domain Bench](./criterium.domain_bench_notebook.html) |
+| Analyze tail latency | [Tail Analysis](./criterium.tail_analysis_notebook.html) |
+| Track allocations | [Allocation Tracking](./criterium.allocation_tracking_notebook.html) |
+| Production monitoring | [Instrumented Functions](./criterium.instrument_fn_notebook.html) |
