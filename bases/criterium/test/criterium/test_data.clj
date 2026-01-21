@@ -37,6 +37,22 @@
                     (metrics/metrics)
                     [:elapsed-time])}}})
 
+(defn samples-with-1-value-map
+  "Create a samples map with a single sample for :one-shot testing."
+  []
+  (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])]
+    {:metrics-defs metrics-defs
+     :data
+     {:samples
+      {:type           :criterium/metrics-samples
+       :metrics-defs   metrics-defs
+       :metric->values {[:elapsed-time] (arr/->double-array (double-array [42.5]))}
+       :transform      collect-plan/identity-transforms
+       :batch-size     1
+       :eval-count     1
+       :num-samples    1
+       :elapsed-time   1}}}))
+
 (defn samples-with-2-values-map []
   (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])]
     {:metrics-defs metrics-defs

@@ -2,6 +2,7 @@
   "Criterium domain helpers and backward-compatible re-exports from utils."
   (:refer-clojure :exclude [update-vals])
   (:require
+   [criterium.array :as arr]
    [criterium.utils.interface :as utils :refer [have have?]]))
 
 ;;; Re-exports from utils component for backward compatibility
@@ -205,6 +206,21 @@
     (when (and p10 p50 p90)
       (merge {:median p50 :p10 p10 :p90 p90}
              (bootstrap-quantile-ci data-map metric-id 0.5)))))
+
+(defn samples-single-value
+  "Extract a metric value from raw samples when only a single sample exists.
+  For use with :one-shot benchmarks that produce a single data point without
+  statistical analysis.
+
+  Returns the transformed metric value, or nil if samples unavailable,
+  multi-sample, or the metric doesn't exist in the samples."
+  [data-map metric-id]
+  (let [samples (:samples data-map)]
+    (when (and samples (= 1 (:num-samples samples)))
+      (let [transforms (get-transforms data-map :samples)
+            metric-values (get (:metric->values samples) [metric-id])]
+        (when (and metric-values (pos? (arr/length metric-values)))
+          (transform-sample-> (arr/get-double metric-values 0) transforms))))))
 
 ;;; Thread
 
