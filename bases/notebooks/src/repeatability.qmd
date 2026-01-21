@@ -1,0 +1,219 @@
+---
+title: "Benchmark Repeatability"
+---
+
+You run a benchmark, note the result, make a change, run again—and the numbers
+differ by more than the confidence interval suggested. This is a common
+experience, and understanding why helps you interpret results correctly.
+
+## What confidence intervals tell you
+
+Criterium reports confidence intervals (typically 95%) for the mean execution
+time. These intervals describe the uncertainty in estimating the *true mean of
+the current benchmark run*, not the expected variation between separate runs.
+
+**Within a single run:** The confidence interval accounts for sample-to-sample
+variation during that measurement session. If criterium reports 1.5ms ± 0.02ms,
+it means the true mean for *that particular run* likely falls within that range.
+
+**Between runs:** Each run occurs in a different JVM state, OS context, and
+hardware condition. These external factors can shift the baseline, causing
+run-to-run differences that exceed the within-run confidence interval.
+
+Think of it like measuring room temperature: your thermometer might be accurate
+to ±0.1°C, but the room itself varies by several degrees throughout the day.
+
+## Sources of variability
+
+Benchmark variability comes from three layers: hardware, operating system, and
+JVM. Understanding each helps you decide which to control.
+
+### Hardware variability
+
+Modern processors dynamically adjust their behavior based on thermal and power
+conditions.
+
+| Source | Effect | Typical Impact |
+|--------|--------|----------------|
+| CPU frequency scaling | Clock speed varies with load and temperature | 10-40% variation |
+| Turbo boost | Higher frequencies for short bursts | 5-20% faster initially |
+| Thermal throttling | Reduced speed when hot | 10-30% slower after sustained load |
+| Cache state | Cold caches slower than warm | 2-10x for cache-sensitive code |
+| NUMA effects | Memory locality on multi-socket systems | 20-50% for memory-bound code |
+
+**Why it matters:** A benchmark started on a cool system with turbo boost
+available may run significantly faster than one started after the CPU has been
+under load.
+
+### Operating system variability
+
+The OS schedules processes and manages resources in ways that affect
+measurements.
+
+| Source | Effect | Typical Impact |
+|--------|--------|----------------|
+| Process scheduling | Other processes steal CPU time | Sporadic slowdowns |
+| Context switches | Interrupted execution | Microsecond-level jitter |
+| Background processes | System services, updates | Unpredictable interference |
+| ASLR | Randomized memory layout | Cache alignment effects |
+| File system caching | I/O performance variation | Large for I/O-bound code |
+
+**Why it matters:** Even on an "idle" system, background services periodically
+wake up. A benchmark that happened to run during a system update check will
+show different results.
+
+### JVM variability
+
+The JVM's adaptive optimization creates significant run-to-run variation.
+
+| Source | Effect | Typical Impact |
+|--------|--------|----------------|
+| JIT compilation | Code optimization during warmup | 10-100x faster when warmed |
+| Tiered compilation | Multiple optimization levels | Stepped performance changes |
+| Deoptimization | Reverting optimizations | Sudden slowdowns |
+| Garbage collection | Stop-the-world pauses | Millisecond-level spikes |
+| GC pressure | Allocation rate affects GC frequency | Throughput variation |
+| Class loading | Dynamic class initialization | First-call overhead |
+| Biased locking | Lock optimization based on contention | Variable lock performance |
+
+**Why it matters:** Two JVM instances, even running identical code, may make
+different JIT decisions based on timing, leading to different optimized code
+paths.
+
+## Practical steps to improve repeatability
+
+### Hardware-level controls
+
+**Disable CPU frequency scaling:**
+
+On Linux, set the CPU governor to performance mode:
+
+```bash
+# Check current governor
+cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
+
+# Set performance mode (requires root)
+echo performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
+```
+
+On macOS, frequency scaling cannot be fully disabled, but closing resource-heavy
+applications helps.
+
+**Disable turbo boost:**
+
+On Linux:
+
+```bash
+# Disable turbo (Intel)
+echo 1 | sudo tee /sys/devices/system/cpu/intel_pstate/no_turbo
+
+# Disable turbo (AMD)
+echo 0 | sudo tee /sys/devices/system/cpu/cpufreq/boost
+```
+
+**Control thermal state:**
+
+Allow the system to reach thermal equilibrium before benchmarking. Run a warmup
+workload for several minutes, then begin measurements.
+
+### Operating system controls
+
+**Minimize background processes:**
+
+- Close unnecessary applications
+- Disable automatic updates during benchmarking
+- On Linux, consider using `isolcpus` to reserve CPUs for benchmarking
+- Use `nice -n -20` (Linux) to give your benchmark highest priority
+
+**Pin processes to CPUs:**
+
+On Linux, use `taskset` to pin the JVM to specific cores:
+
+```bash
+taskset -c 0,1 java -jar benchmark.jar
+```
+
+This avoids migration between cores and improves cache consistency.
+
+**Disable ASLR (if needed):**
+
+```bash
+# Temporarily disable for one process
+setarch $(uname -m) -R java -jar benchmark.jar
+```
+
+### JVM-level controls
+
+**Ensure consistent warmup:**
+
+Criterium handles warmup automatically, but ensure sufficient iterations. Use
+`:limit-time-s` or `:limit-iters` to control warmup duration. See
+[Warmup](./criterium.warmup_notebook.html) for details.
+
+**Control GC behavior:**
+
+For more predictable GC, consider these JVM flags:
+
+```
+-XX:+UseG1GC              # Consistent collector choice
+-Xms4g -Xmx4g             # Fixed heap size (no resizing)
+-XX:+AlwaysPreTouch       # Pre-fault heap pages
+```
+
+**Disable tiered compilation (for consistency, not speed):**
+
+```
+-XX:-TieredCompilation    # Use C2 compiler only
+-XX:CompileThreshold=1    # Compile immediately
+```
+
+Note: Disabling tiered compilation may not reflect production performance but
+improves repeatability.
+
+**Pre-warm the JIT:**
+
+Run your benchmark code several times before measuring. Criterium does this
+automatically, but you can increase warmup with `:warmup-time-s`.
+
+## When perfect repeatability isn't needed
+
+Not all benchmarking requires tight control. Consider your goals:
+
+| Goal | Repeatability Needed | Approach |
+|------|---------------------|----------|
+| Detecting 2x regression | Low | Default settings suffice |
+| Comparing algorithms | Medium | Same machine, close in time |
+| Measuring 5% improvement | High | Full controls, multiple runs |
+| Publishing results | High | Document environment precisely |
+| Quick iteration during development | Low | Accept wider variance |
+
+For most development work, running benchmarks on the same machine within a short
+time window provides sufficient consistency without elaborate controls.
+
+## Robust statistics for comparisons
+
+When comparing results across runs, prefer statistics that resist outliers:
+
+**Median over mean:** The median is less affected by occasional slow samples
+from GC pauses or scheduling interruptions. Criterium reports both—use the
+median when comparing between runs.
+
+**Multiple runs:** Run your benchmark 3-5 times and look at the spread. If
+results vary by 20%, a 5% difference between implementations is not significant.
+
+**Relative comparisons:** When possible, compare implementations in the same
+run using [Domain Bench](./criterium.domain_bench_notebook.html) with an `:impl`
+axis. This controls for environmental factors that affect both equally.
+
+## Summary
+
+Benchmark repeatability is affected by:
+
+1. **Hardware:** CPU frequency, thermal state, cache conditions
+2. **Operating system:** Scheduling, background processes, memory layout
+3. **JVM:** JIT compilation decisions, GC timing, class loading
+
+For casual benchmarking, accept that results vary by 10-20% between runs. For
+precise measurements, control these factors systematically and run multiple
+times. When comparing implementations, use the same run or the median across
+multiple runs.
