@@ -15,6 +15,7 @@ title: "Criterium Notebooks"
 ## Notebooks
 
 - [Introduction](./introduction.html) - Benchmarking goals and choosing the right approach
+- [Quickstart](./quickstart.html) - Your first benchmark in 5 minutes
 - [Basic Usage](./criterium.basic_usage_notebook.html) - Introduction to benchmarking with criterium
 - [Bench Options](./criterium.bench_options_notebook.html) - Predefined bench plans and viewer options
 - [Warmup](./criterium.warmup_notebook.html) - JIT warmup customization with varied inputs
