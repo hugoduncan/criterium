@@ -2,6 +2,7 @@
   "Criterium domain helpers and backward-compatible re-exports from utils."
   (:refer-clojure :exclude [update-vals])
   (:require
+   [criterium.array :as arr]
    [criterium.utils.interface :as utils :refer [have have?]]))
 
 ;;; Re-exports from utils component for backward compatibility
@@ -149,14 +150,16 @@
   (e.g. :stats or :log-stats), a metric-id (e.g. :elapsed-time),
   and a value-key (e.g. :mean, :std-dev).
 
-  Returns the value with all transforms applied."
+  Returns the value with all transforms applied, or nil if the
+  stats-id entry is not present in the data map."
   [data-map stats-id metric-id value-key]
   {:pre [(have? keyword? stats-id)
          (have? keyword? value-key)]}
-  (let [transforms (get-transforms data-map stats-id)
-        raw-value (get-in data-map [stats-id :stats metric-id value-key])]
-    (when raw-value
-      (transform-sample-> raw-value transforms))))
+  (when (contains? data-map stats-id)
+    (let [transforms (get-transforms data-map stats-id)
+          raw-value (get-in data-map [stats-id :stats metric-id value-key])]
+      (when raw-value
+        (transform-sample-> raw-value transforms)))))
 
 (defn bootstrap-quantile-value
   "Extract a transformed bootstrap quantile value from a benchmark data map.
@@ -205,6 +208,21 @@
     (when (and p10 p50 p90)
       (merge {:median p50 :p10 p10 :p90 p90}
              (bootstrap-quantile-ci data-map metric-id 0.5)))))
+
+(defn samples-single-value
+  "Extract a metric value from raw samples when only a single sample exists.
+  For use with :one-shot benchmarks that produce a single data point without
+  statistical analysis.
+
+  Returns the transformed metric value, or nil if samples unavailable,
+  multi-sample, or the metric doesn't exist in the samples."
+  [data-map metric-id]
+  (let [samples (:samples data-map)]
+    (when (and samples (= 1 (:num-samples samples)))
+      (let [transforms (get-transforms data-map :samples)
+            metric-values (get (:metric->values samples) [metric-id])]
+        (when (and metric-values (pos? (arr/length metric-values)))
+          (transform-sample-> (arr/get-double metric-values 0) transforms))))))
 
 ;;; Thread
 

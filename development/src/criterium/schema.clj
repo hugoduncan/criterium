@@ -55,6 +55,27 @@
 
 ;;; Typed data maps
 
+(def raw-samples-map
+  "Schema for raw samples output from collect*.
+  This is the samples structure before analysis adds :source-id."
+  [:map
+   [:type [:= :criterium/metrics-samples]]
+   [:transform transform-map]
+   [:metric->values map?]
+   [:num-samples pos-int?]
+   [:batch-size pos-int?]
+   [:metrics-defs map?]
+   [:elapsed-time number?]
+   [:total-benchmark-time-ns number?]
+   [:eval-count pos-int?]
+   [:expr-value any?]])
+
+(def collect-output-map
+  "Schema for output of collect* multimethod.
+  Contains :samples key with raw metrics samples data."
+  [:map
+   [:samples raw-samples-map]])
+
 (def metrics-samples-map
   "Schema for metrics samples with :type :criterium/metrics-samples."
   [:map
@@ -344,6 +365,8 @@
     :criterium/collection-map         collection-map
     :criterium/data-entry-map         data-entry-map
     :criterium/collected-metrics-map  collected-metrics-map
+    :criterium/raw-samples-map        raw-samples-map
+    :criterium/collect-output-map     collect-output-map
     :criterium/metrics-samples-map    metrics-samples-map
     :criterium/digest-samples-map     digest-samples-map
     :criterium/quantiles-map          quantiles-map

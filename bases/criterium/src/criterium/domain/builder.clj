@@ -194,12 +194,8 @@
           extract-data
           (mapv
            (fn [{:keys [coord data]}]
-             (let [time-ns (if-let [projected
-                                    (get-in
-                                     data
-                                     [:samples :time-limit :projected-time-ns])]
-                             projected
-                             (get-in data [:samples :total-benchmark-time-ns]))]
+             (let [time-ns (or (get-in data [:samples :time-limit :projected-time-ns])
+                               (get-in data [:samples :total-benchmark-time-ns]))]
                [coord time-ns]))
            impl-runs)
           extract             {:type    :criterium/domain-extract

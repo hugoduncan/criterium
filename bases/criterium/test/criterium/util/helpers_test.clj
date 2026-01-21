@@ -109,3 +109,24 @@
                      data-without-p10 :elapsed-time)))))
       (testing "returns nil when bootstrap-stats is missing"
         (is (nil? (util/bootstrap-box-plot-stats {} :elapsed-time)))))))
+
+;;; Single-sample extraction tests
+;;;
+;;; Tests that samples-single-value correctly extracts raw values from
+;;; single-sample data produced by :one-shot benchmarks.
+
+(deftest samples-single-value-test
+  ;; Tests that samples-single-value extracts values from single-sample data,
+  ;; applies transforms, and returns nil for multi-sample or missing data.
+  (testing "samples-single-value"
+    (testing "extracts value from single-sample data"
+      (let [data-map (:data (test-data/samples-with-1-value-map))]
+        (is (= 42.5 (util/samples-single-value data-map :elapsed-time)))))
+    (testing "returns nil for multi-sample data"
+      (let [data-map (:data (test-data/samples-with-2-values-map))]
+        (is (nil? (util/samples-single-value data-map :elapsed-time)))))
+    (testing "returns nil when samples is missing"
+      (is (nil? (util/samples-single-value {} :elapsed-time))))
+    (testing "returns nil for non-existent metric"
+      (let [data-map (:data (test-data/samples-with-1-value-map))]
+        (is (nil? (util/samples-single-value data-map :nonexistent)))))))

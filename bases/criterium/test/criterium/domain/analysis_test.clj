@@ -6,7 +6,8 @@
    [criterium.domain.test-util :refer [sample-data sample-data-2
                                        mock-bench-result
                                        mock-bench-result-with-defs
-                                       mock-bench-result-with-bootstrap]]))
+                                       mock-bench-result-with-bootstrap
+                                       mock-one-shot-result]]))
 
 ;; Tests for AIC/BIC computation functions.
 ;; Validates information criterion formulas for model selection.
@@ -75,13 +76,36 @@
             bic-high-rss (analysis/compute-bic 5.0 10 2)]
         (is (< bic-low-rss bic-high-rss))))))
 
+;; Tests for discover-quantitative-metrics helper.
+;; Validates finding metric-ids from stats or samples.
+
+(deftest discover-quantitative-metrics-test
+  ;; Tests the discover-quantitative-metrics private helper.
+  ;; Prefers [:stats :metrics-defs], falls back to [:samples :metrics-defs].
+  (testing "discover-quantitative-metrics"
+    (testing "with stats present"
+      (testing "returns metric-ids from stats"
+        (let [data (mock-bench-result-with-defs {:elapsed-time {:mean 1.0}
+                                                 :thread-allocation {:mean 2.0}})]
+          (is (= #{:elapsed-time :thread-allocation}
+                 (set (#'analysis/discover-quantitative-metrics data)))))))
+    (testing "with one-shot data (samples only, no stats)"
+      (testing "falls back to samples metrics-defs"
+        (let [data (mock-one-shot-result {:elapsed-time 42.5})]
+          (is (= [:elapsed-time]
+                 (#'analysis/discover-quantitative-metrics data))))))
+    (testing "with neither stats nor samples metrics-defs"
+      (testing "returns empty sequence"
+        (is (empty? (#'analysis/discover-quantitative-metrics {})))))))
+
 ;; Tests for metric value extraction helpers.
 ;; Validates extract-metric-value and extract-error-bounds which prefer
 ;; bootstrapped median/CI with fallback to mean/±3σ from stats.
 
 (deftest extract-metric-value-test
   ;; Tests the extract-metric-value private helper.
-  ;; Prefers bootstrap median (quantile 0.5), falls back to stats mean.
+  ;; Prefers bootstrap median (quantile 0.5), falls back to stats mean,
+  ;; then to raw samples for :one-shot benchmarks.
   (testing "extract-metric-value"
     (testing "with bootstrap data present"
       (testing "returns bootstrapped median"
@@ -93,7 +117,11 @@
       (testing "falls back to stats mean"
         (let [data (mock-bench-result {:elapsed-time {:mean 2.5}})]
           (is (= 2.5 (#'analysis/extract-metric-value data :elapsed-time))))))
-    (testing "with neither bootstrap nor stats"
+    (testing "with one-shot data (samples only, no stats)"
+      (testing "falls back to raw sample value"
+        (let [data (mock-one-shot-result {:elapsed-time 42.5})]
+          (is (= 42.5 (#'analysis/extract-metric-value data :elapsed-time))))))
+    (testing "with neither bootstrap, stats, nor samples"
       (testing "returns nil"
         (let [data (mock-bench-result {:other-metric {:mean 1.0}})]
           (is (nil? (#'analysis/extract-metric-value data :elapsed-time))))))))

@@ -23,6 +23,7 @@
   Instruments:
   - criterium.bench public API functions
   - criterium.util.helpers typed accessor functions
+  - criterium.collect-plan.impl/collect* multimethod
 
   Usage:
     (require '[criterium.schema.instrument :as inst])
@@ -37,6 +38,7 @@
     (inst/unstrument!)"
   (:require
    [criterium.bench]
+   [criterium.collect-plan.impl]
    [criterium.schema :as schema]
    [criterium.util.helpers]
    [malli.core :as m]
@@ -161,6 +163,12 @@
       [:=> [:cat :criterium/outlier-significance-map]
        :criterium/outlier-significance-map])
 
+;;; Function schemas for criterium.collect-plan.impl
+
+(m/=> criterium.collect-plan.impl/collect*
+      [:=> [:cat :criterium/collect-plan :criterium/collector :criterium/measured]
+       :criterium/collect-output-map])
+
 ;;; Instrumentation functions
 
 (defn instrument!
@@ -180,7 +188,8 @@
    (mi/instrument!
     (merge
      {:filters [(mi/-filter-ns 'criterium.bench)
-                (mi/-filter-ns 'criterium.util.helpers)]}
+                (mi/-filter-ns 'criterium.util.helpers)
+                (mi/-filter-ns 'criterium.collect-plan.impl)]}
      options))))
 
 (defn unstrument!
@@ -195,7 +204,8 @@
    (mi/unstrument!
     (merge
      {:filters [(mi/-filter-ns 'criterium.bench)
-                (mi/-filter-ns 'criterium.util.helpers)]}
+                (mi/-filter-ns 'criterium.util.helpers)
+                (mi/-filter-ns 'criterium.collect-plan.impl)]}
      options))))
 
 (defn instrumented?

@@ -4,6 +4,7 @@
   Provides mock data constructors and sample data for testing
   domain types, analysis, and builder functions."
   (:require
+   [criterium.array :as arr]
    [criterium.collect-plan :as collect-plan]))
 
 ;;; Sample Data
@@ -91,3 +92,23 @@
      :samples {:type :criterium/metrics-samples
                :transform collect-plan/identity-transforms
                :batch-size 1}}))
+
+(defn mock-one-shot-result
+  "Create a mock :one-shot bench result with only samples (no stats/bootstrap).
+  metrics-data is a map of {metric-id value}."
+  [metrics-data]
+  (let [metrics-defs (into {}
+                           (map (fn [k] [k {:type :quantitative}]))
+                           (keys metrics-data))
+        metric->values (into {}
+                             (map (fn [[k v]]
+                                    [[k] (arr/->double-array (double-array [v]))]))
+                             metrics-data)]
+    {:samples {:type :criterium/metrics-samples
+               :metrics-defs metrics-defs
+               :metric->values metric->values
+               :transform collect-plan/identity-transforms
+               :batch-size 1
+               :eval-count 1
+               :num-samples 1
+               :elapsed-time 1}}))

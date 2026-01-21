@@ -13,12 +13,15 @@
 ;;; Analysis
 
 (defn- discover-quantitative-metrics
-  "Discover quantitative metric-ids from a benchmark result's stats.
+  "Discover quantitative metric-ids from a benchmark result.
+  Prefers [:stats :metrics-defs], falls back to [:samples :metrics-defs]
+  for :one-shot benchmarks that skip statistical analysis.
 
   Returns a sequence of metric-ids (keywords
   like :elapsed-time, :thread-allocation)."
   [bench-result]
-  (let [metrics-defs (get-in bench-result [:stats :metrics-defs])]
+  (let [metrics-defs (or (get-in bench-result [:stats :metrics-defs])
+                         (get-in bench-result [:samples :metrics-defs]))]
     (->> metrics-defs
          (filter (fn [[_k v]] (= :quantitative (:type v))))
          (map first))))
@@ -29,12 +32,13 @@
   "Extract the primary metric value from a benchmark data map.
 
   Prefers bootstrapped median (quantile 0.5) when available, falls back to
-  mean from stats when bootstrap stats are unavailable.
+  mean from stats, then to raw samples for :one-shot benchmarks.
 
-  Returns the transformed value, or nil if neither source has the metric."
+  Returns the transformed value, or nil if no source has the metric."
   [data-map metric-id]
   (or (helpers/bootstrap-quantile-value data-map metric-id 0.5)
-      (helpers/stats-value data-map :stats metric-id :mean)))
+      (helpers/stats-value data-map :stats metric-id :mean)
+      (helpers/samples-single-value data-map metric-id)))
 
 (defn- extract-error-bounds
   "Extract error bounds for a metric from a benchmark data map.
@@ -335,9 +339,9 @@
                                                             (extract-error-bounds
                                                              data metric-id)]
                                                         (when median-value
-                                                          {:value median-value
-                                                           :lower lower
-                                                           :upper upper}))
+                                                          (cond-> {:value median-value}
+                                                            lower (assoc :lower lower)
+                                                            upper (assoc :upper upper))))
                                                       median-value)
                                                     ;; Bootstrap stats (when available)
                                                     bootstrap (helpers/bootstrap-box-plot-stats
