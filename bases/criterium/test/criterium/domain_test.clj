@@ -263,7 +263,26 @@
           (is (= 10.0 (get-in fast-entry [:value :value]))
               "extracts fast impl value")
           (is (= 50.0 (get-in slow-entry [:value :value]))
-              "extracts slow impl value"))))))
+              "extracts slow impl value"))))
+    (testing "omits error bound keys when bounds are nil"
+      ;; Regression test: ensures :lower/:upper keys are absent (not nil)
+      ;; when error bounds unavailable. Presence of nil values causes NPE
+      ;; in chart rendering (values-have-error-bounds? uses contains?).
+      (let [d (domain/domain
+               {:coord {:impl :a}
+                :data (mock-one-shot-result {:elapsed-time 10.0})}
+               {:implementations [:a]})
+            plan (analysis/options->domain-plan
+                  domain-plans/implementation-comparison
+                  :viewer :none)
+            result (analysis/analyse-domain plan d)
+            et-metric (get-in result [:comparison :metrics :elapsed-time])
+            entry (first (get-in et-metric [:data :a]))
+            value-map (:value entry)]
+        (is (not (contains? value-map :lower))
+            "value map should not contain :lower key")
+        (is (not (contains? value-map :upper))
+            "value map should not contain :upper key")))))
 
 (deftest one-shot-extract-elapsed-time-test
   ;; Tests extract-elapsed-time plan with one-shot data.

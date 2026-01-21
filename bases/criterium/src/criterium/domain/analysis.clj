@@ -339,9 +339,9 @@
                                                             (extract-error-bounds
                                                              data metric-id)]
                                                         (when median-value
-                                                          {:value median-value
-                                                           :lower lower
-                                                           :upper upper}))
+                                                          (cond-> {:value median-value}
+                                                            lower (assoc :lower lower)
+                                                            upper (assoc :upper upper))))
                                                       median-value)
                                                     ;; Bootstrap stats (when available)
                                                     bootstrap (helpers/bootstrap-box-plot-stats
