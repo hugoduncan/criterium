@@ -39,27 +39,34 @@
                (* v batch-size))})
 
 (defmethod impl/collect* :one-shot
-  ;; Collects a Single sample measured with no warmup of the measured function.
-  ;; Forces GC.
+  ;; Collects a single sample of measured with optional warmup invocations.
+  ;; Forces GC after warmup, then measures.
   ;; Return a sampled data map.
   [collect-plan collector measured]
-  (let [args (measured/args measured)
-        sample (collector/collect collector measured args 1)
-        elapsed-time-ns (metric/elapsed-time sample)]
-    (collect/force-gc! (:max-gc-attempts collect-plan))
-    {:samples
-     {:type :criterium/metrics-samples
-      :metrics-defs (:metrics-defs collector)
-      :metric->values (collect/sample-maps->map-of-samples
-                       [sample]
-                       (:metrics-defs collector))
-      :transform identity-transforms
-      :batch-size 1
-      :elapsed-time elapsed-time-ns
-      :total-benchmark-time-ns elapsed-time-ns
-      :eval-count 1
-      :num-samples 1
-      :expr-value (:expr-value sample)}}))
+  (let [{:keys [^long max-gc-attempts ^long num-warmup]
+         :or   {num-warmup 0}} collect-plan]
+    ;; Warmup invocations (if any)
+    (dotimes [_ num-warmup]
+      (collect/throw-away-collection measured))
+    ;; Force GC after warmup
+    (collect/force-gc! max-gc-attempts)
+    ;; Actual measurement
+    (let [args            (measured/args measured)
+          sample          (collector/collect collector measured args 1)
+          elapsed-time-ns (metric/elapsed-time sample)]
+      {:samples
+       {:type                    :criterium/metrics-samples
+        :metrics-defs            (:metrics-defs collector)
+        :metric->values          (collect/sample-maps->map-of-samples
+                                  [sample]
+                                  (:metrics-defs collector))
+        :transform               identity-transforms
+        :batch-size              1
+        :elapsed-time            elapsed-time-ns
+        :total-benchmark-time-ns elapsed-time-ns
+        :eval-count              1
+        :num-samples             1
+        :expr-value              (:expr-value sample)}})))
 
 (defn- collected-data-map
   [collection-map]

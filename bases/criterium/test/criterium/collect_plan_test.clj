@@ -56,3 +56,71 @@
       (is (every? #(instance? ITypedArray %)
                   (vals (:metric->values (:samples data-map)))))
       (is (= 1 (:expr-value (:samples data-map)))))))
+
+;;; Tests for :num-warmup option in :one-shot collect-plan
+;; Verifies that warmup invocations execute before measurement.
+
+(deftest one-shot-num-warmup-test
+  ;; Tests :num-warmup option for :one-shot collect-plan.
+  ;; Uses an atom counter to verify the number of invocations.
+  (let [collector (collector/collector
+                   {:stages     []
+                    :terminator :elapsed-time})]
+    (testing ":one-shot with :num-warmup"
+      (testing "when :num-warmup is 0 (default)"
+        (testing "invokes measured exactly once"
+          (let [counter  (atom 0)
+                measured (measured/measured
+                          (fn [] [])
+                          (fn [_ _]
+                            (swap! counter inc)
+                            [1000 @counter]))]
+            (collect-plan/collect
+             (collect-plan-config/collect-plan-config :one-shot {})
+             collector
+             measured)
+            (is (= 1 @counter)
+                "Expected 1 invocation (measurement only)"))))
+      (testing "when :num-warmup is 1"
+        (testing "invokes measured twice (1 warmup + 1 measurement)"
+          (let [counter  (atom 0)
+                measured (measured/measured
+                          (fn [] [])
+                          (fn [_ _]
+                            (swap! counter inc)
+                            [1000 @counter]))]
+            (collect-plan/collect
+             (collect-plan-config/collect-plan-config :one-shot {:num-warmup 1})
+             collector
+             measured)
+            (is (= 2 @counter)
+                "Expected 2 invocations (1 warmup + 1 measurement)"))))
+      (testing "when :num-warmup is 3"
+        (testing "invokes measured four times (3 warmup + 1 measurement)"
+          (let [counter  (atom 0)
+                measured (measured/measured
+                          (fn [] [])
+                          (fn [_ _]
+                            (swap! counter inc)
+                            [1000 @counter]))]
+            (collect-plan/collect
+             (collect-plan-config/collect-plan-config :one-shot {:num-warmup 3})
+             collector
+             measured)
+            (is (= 4 @counter)
+                "Expected 4 invocations (3 warmup + 1 measurement)"))))
+      (testing "returns result from measurement invocation (not warmup)"
+        (let [counter  (atom 0)
+              measured (measured/measured
+                        (fn [] [])
+                        (fn [_ _]
+                          (swap! counter inc)
+                          [1000 @counter]))
+              result   (collect-plan/collect
+                        (collect-plan-config/collect-plan-config
+                         :one-shot
+                         {:num-warmup 2})
+                        collector
+                        measured)]
+          (is (= 3 (:expr-value (:samples result)))
+              "expr-value should be from the 3rd invocation (after 2 warmups)"))))))
