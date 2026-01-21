@@ -7,6 +7,7 @@
   "Source paths for notebooks to render."
   ["bases/notebooks/src/criterium/index.clj"
    "bases/notebooks/src/quickstart.clj"
+   "bases/notebooks/src/warmup.clj"
    "bases/notebooks/src/criterium/basic_usage_notebook.clj"
    "bases/notebooks/src/criterium/bench_options_notebook.clj"
    "bases/notebooks/src/criterium/arg_gen_notebook.clj"
