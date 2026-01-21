@@ -4,16 +4,16 @@
    [criterium.collect-plan.config :as config]))
 
 ;; Tests for collect-plan-config :one-shot method
-;; Verifies :num-warmup option handling and defaults.
+;; Verifies :num-warmup-samples option handling and defaults.
 
 (deftest collect-plan-config-one-shot-test
   (testing ":one-shot collect-plan-config"
-    (testing "returns default :num-warmup of 0 when not specified"
+    (testing "returns default :num-warmup-samples of 0 when not specified"
       (let [config (config/collect-plan-config :one-shot {})]
-        (is (= 0 (:num-warmup config)))))
-    (testing "returns provided :num-warmup value"
-      (let [config (config/collect-plan-config :one-shot {:num-warmup 5})]
-        (is (= 5 (:num-warmup config)))))
+        (is (= 0 (:num-warmup-samples config)))))
+    (testing "returns provided :num-warmup-samples value"
+      (let [config (config/collect-plan-config :one-shot {:num-warmup-samples 5})]
+        (is (= 5 (:num-warmup-samples config)))))
     (testing "returns default :max-gc-attempts when not specified"
       (let [config (config/collect-plan-config :one-shot {})]
         (is (= 3 (:max-gc-attempts config)))))

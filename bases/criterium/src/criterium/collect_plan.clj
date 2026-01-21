@@ -41,18 +41,18 @@
 (defmethod impl/collect* :one-shot
   ;; Collect a single sample with optional warmup invocations.
   ;;
-  ;; The :num-warmup option specifies how many throw-away invocations to run
-  ;; before measurement. This is useful for skipping JVM first-invocation
-  ;; allocation overhead (use :num-warmup 1).
+  ;; The :num-warmup-samples option specifies how many throw-away invocations (not
+  ;; batched samples) to run before measurement. This is useful for skipping JVM
+  ;; first-invocation allocation overhead (use :num-warmup-samples 1).
   ;;
-  ;; GC is forced after warmup invocations (even when :num-warmup is 0),
+  ;; GC is forced after warmup invocations (even when :num-warmup-samples is 0),
   ;; then a single measurement is taken.
   ;;
   ;; Returns a sampled data map.
   [collect-plan collector measured]
-  (let [{:keys [^long max-gc-attempts ^long num-warmup]} collect-plan]
+  (let [{:keys [^long max-gc-attempts ^long num-warmup-samples]} collect-plan]
     ;; Warmup invocations (if any)
-    (dotimes [_ num-warmup]
+    (dotimes [_ num-warmup-samples]
       (collect/throw-away-collection measured))
     ;; Force GC after warmup
     (collect/force-gc! max-gc-attempts)
