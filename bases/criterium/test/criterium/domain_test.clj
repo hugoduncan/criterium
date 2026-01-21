@@ -368,3 +368,50 @@
             "no lower bound for one-shot")
         (is (nil? (:upper value-map))
             "no upper bound for one-shot")))))
+
+(deftest ^:slow domain-bench-one-shot-impl-comparison-test
+  ;; End-to-end test for implementation-comparison with one-shot data.
+  ;; Verifies multiple implementations can be compared without NPE.
+  (testing "domain/bench with implementation-comparison and :one-shot"
+    (testing "compares multiple implementations"
+      (let [result (domain/bench
+                    (domain/domain-expr
+                     [n [100 1000]]
+                     {:reduce-range (reduce + (range n))
+                      :apply-range  (apply + (range n))})
+                    :domain-plan domain-plans/implementation-comparison
+                    :bench-options {:collect-plan :one-shot}
+                    :reporter nil
+                    :viewer :none)
+            comparison (:comparison result)]
+        (is (= :criterium/domain-comparison (:type comparison))
+            "produces domain-comparison result")
+        (is (= [:reduce-range :apply-range] (:implementations comparison))
+            "preserves implementation order")
+        (let [et-metric (get-in comparison [:metrics :elapsed-time])
+              reduce-data (get-in et-metric [:data :reduce-range])
+              apply-data (get-in et-metric [:data :apply-range])]
+          (is (= 2 (count reduce-data))
+              "has data for all n values in reduce-range")
+          (is (= 2 (count apply-data))
+              "has data for all n values in apply-range")
+          (is (every? #(number? (get-in % [:value :value])) reduce-data)
+              "reduce-range values are numbers")
+          (is (every? #(number? (get-in % [:value :value])) apply-data)
+              "apply-range values are numbers"))))
+    (testing "omits error bound keys from comparison data"
+      (let [result (domain/bench
+                    (domain/domain-expr
+                     [n [10]]
+                     {:impl-a (reduce + (range n))})
+                    :domain-plan domain-plans/implementation-comparison
+                    :bench-options {:collect-plan :one-shot}
+                    :reporter nil
+                    :viewer :none)
+            entry (first (get-in result [:comparison :metrics :elapsed-time
+                                         :data :impl-a]))
+            value-map (:value entry)]
+        (is (not (contains? value-map :lower))
+            "value map should not contain :lower key")
+        (is (not (contains? value-map :upper))
+            "value map should not contain :upper key")))))
