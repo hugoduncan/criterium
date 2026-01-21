@@ -44,7 +44,8 @@
   ;; Return a sampled data map.
   [collect-plan collector measured]
   (let [args (measured/args measured)
-        sample (collector/collect collector measured args 1)]
+        sample (collector/collect collector measured args 1)
+        elapsed-time-ns (metric/elapsed-time sample)]
     (collect/force-gc! (:max-gc-attempts collect-plan))
     {:samples
      {:type :criterium/metrics-samples
@@ -54,7 +55,8 @@
                        (:metrics-defs collector))
       :transform identity-transforms
       :batch-size 1
-      :elapsed-time (metric/elapsed-time sample)
+      :elapsed-time elapsed-time-ns
+      :total-benchmark-time-ns elapsed-time-ns
       :eval-count 1
       :num-samples 1
       :expr-value (:expr-value sample)}}))

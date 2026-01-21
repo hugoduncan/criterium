@@ -415,3 +415,29 @@
             "value map should not contain :lower key")
         (is (not (contains? value-map :upper))
             "value map should not contain :upper key")))))
+
+(deftest ^:slow domain-bench-one-shot-small-domain-test
+  ;; End-to-end test verifying domain/bench handles small domain values without crashing.
+  ;; Regression test for issue #820: estimate_limit_time_s crashed with "Wrong number of
+  ;; args (0) passed to: clojure.core/max" when model fitting returned empty results.
+  ;; Small, fast operations with tiny domain values often fail model fitting.
+  (testing "domain/bench with :one-shot and small domain values"
+    (testing "handles model fitting returning empty results"
+      (let [result (domain/bench
+                    (domain/domain-expr
+                     [n [1 2 3]]
+                     {:reduce-range (reduce + (range n))
+                      :apply-range  (apply + (range n))})
+                    :domain-plan domain-plans/implementation-comparison
+                    :bench-options {:collect-plan :one-shot}
+                    :reporter nil
+                    :viewer :none)
+            comparison (:comparison result)]
+        (is (= :criterium/domain-comparison (:type comparison))
+            "produces domain-comparison result without crashing")
+        (is (= [:reduce-range :apply-range] (:implementations comparison))
+            "preserves implementation order")
+        (let [et-metric (get-in comparison [:metrics :elapsed-time])
+              reduce-data (get-in et-metric [:data :reduce-range])]
+          (is (= 3 (count reduce-data))
+              "has data for all n values"))))))
