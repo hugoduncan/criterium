@@ -9,6 +9,7 @@
    [criterium.util.invariant :refer [have]]
    [criterium.view :as view]
    [criterium.viewer.call-graph :as call-graph]
+   [criterium.viewer.common-charts.autocorrelation :as charts.autocorrelation]
    [criterium.viewer.common-charts.comparison :as charts.comparison]
    [criterium.viewer.common-charts.distribution :as charts.distribution]
    [criterium.viewer.common-charts.profile :as charts.profile]
@@ -559,6 +560,33 @@
 (defmethod view/os* :portal [_ _ _])
 
 (defmethod view/runtime* :portal [_ _ _])
+
+;;; Autocorrelation Views
+
+(defmethod view/autocorrelation* :portal
+  [_ _view _data-map]
+  ;; Text summary not needed for portal - use acf-plot for visual output
+  nil)
+
+(defmethod view/acf-plot* :portal
+  [_ {:keys [autocorrelation-id]} data-map]
+  (let [autocorrelation-id (or autocorrelation-id :autocorrelation)
+        autocorr-map (data-map autocorrelation-id)]
+    (when autocorr-map
+      (let [autocorr (util/autocorrelation autocorr-map)
+            metrics-defs (:metrics-defs autocorr-map)
+            metric-configs (metric/all-metric-configs metrics-defs)]
+        (doseq [mc metric-configs]
+          (when-let [acf-data (get autocorr (:path mc))]
+            (when-let [spec (charts.autocorrelation/acf-plot-vega-spec
+                             acf-data
+                             {:height 400
+                              :title (str "ACF: " (:label mc)
+                                          " (n="
+                                          (get-in acf-data [:effective-sample-size :n-original])
+                                          ")")})]
+              (heading (str "Autocorrelation: " (:label mc)))
+              (portal-vega-lite spec))))))))
 
 ;;; Domain Views
 

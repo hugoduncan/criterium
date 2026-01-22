@@ -15,6 +15,7 @@
    [criterium.util.invariant :refer [have]]
    [criterium.view :as view]
    [criterium.viewer.call-graph :as call-graph]
+   [criterium.viewer.common-charts.autocorrelation :as charts.autocorrelation]
    [criterium.viewer.common-charts.comparison :as charts.comparison]
    [criterium.viewer.common-charts.distribution :as charts.distribution]
    [criterium.viewer.common-charts.profile :as charts.profile]
@@ -879,6 +880,34 @@
 (defmethod view/final-gc-warnings* :kindly [_ _ _])
 (defmethod view/os* :kindly [_ _ _])
 (defmethod view/runtime* :kindly [_ _ _])
+
+;;; Autocorrelation Views
+
+(defmethod view/autocorrelation* :kindly
+  [_ _view _data-map]
+  ;; Text summary not needed for kindly - use acf-plot for visual output
+  nil)
+
+(defmethod view/acf-plot* :kindly
+  [_ {:keys [autocorrelation-id]} data-map]
+  (let [autocorrelation-id (or autocorrelation-id :autocorrelation)
+        autocorr-map (data-map autocorrelation-id)]
+    (when autocorr-map
+      (let [autocorr (util/autocorrelation autocorr-map)
+            metrics-defs (:metrics-defs autocorr-map)
+            metric-configs (metric/all-metric-configs metrics-defs)]
+        (doseq [mc metric-configs]
+          (when-let [acf-data (get autocorr (:path mc))]
+            (when-let [spec (charts.autocorrelation/acf-plot-vega-spec
+                             acf-data
+                             {:width chart-width
+                              :height chart-height
+                              :title (str "ACF: " (:label mc)
+                                          " (n="
+                                          (get-in acf-data [:effective-sample-size :n-original])
+                                          ")")})]
+              (kindly-heading (str "Autocorrelation: " (:label mc)))
+              (kindly-vega-lite spec))))))))
 
 ;;; Modal Analysis Views
 
