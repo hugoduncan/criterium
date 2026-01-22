@@ -238,7 +238,7 @@
   (let [floor (noise-floor n)
         threshold (max 0.15 floor)
         ;; Find lags > 5
-        candidates (filter (fn [[lag _]] (> lag 5)) acf-map)]
+        candidates (filter (fn [[lag _]] (> (long lag) 5)) acf-map)]
     (when (seq candidates)
       (let [[peak-lag peak-r] (apply max-key (fn [[_ r]] (Math/abs (double r))) candidates)]
         (when (> (Math/abs (double peak-r)) threshold)
