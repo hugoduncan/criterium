@@ -7,7 +7,7 @@
   - Outlier detection: boxplot-outlier-thresholds
   - Sampling: sample-uniform, sample, sample-doubles, confidence-interval
   - Probability: log-gamma, digamma, trigamma, erf, normal-cdf, normal-pdf, normal-quantile
-  - Distributions: gamma, weibull, lognormal, inverse-gaussian (PDF and CDF)
+  - Distributions: gamma, weibull, lognormal, inverse-gaussian, chi-squared (PDF and CDF)
   - Model selection: aic, bic, aicc (information criteria)
   - Goodness-of-fit tests: ks-test, cvm-test (Kolmogorov-Smirnov, Cramér-von Mises)
   - Moment matching: parameter estimation, distribution suitability prefilter
@@ -22,6 +22,7 @@
   (:refer-clojure :exclude [min max])
   (:require
    [criterium.stats.bootstrap :as bootstrap]
+   [criterium.stats.chi-squared :as chi-squared]
    [criterium.stats.core :as core]
    [criterium.stats.histogram :as histogram]
    [criterium.stats.kde :as kde]
@@ -327,6 +328,24 @@
   Returns a function F(x) that computes P(X ≤ x)."
   [^double mu ^double lambda]
   (probability/inverse-gaussian-cdf mu lambda))
+
+;;; Chi-squared Distribution
+
+(defn chi-squared-cdf
+  "Cumulative distribution function for the chi-squared distribution.
+  Returns P(X ≤ x) for a chi-squared random variable with df degrees of freedom.
+
+  Uses the regularized incomplete gamma function:
+    P(x; df) = P(df/2, x/2) = γ(df/2, x/2) / Γ(df/2)
+
+  Edge cases:
+  - df ≤ 0: returns 0.0
+  - x ≤ 0: returns 0.0
+  - x = ∞: returns 1.0
+
+  Accuracy: within 1e-10 of R's pchisq()."
+  ^double [^double x ^long df]
+  (chi-squared/cdf x df))
 
 ;;; Information Criteria for Model Selection
 
