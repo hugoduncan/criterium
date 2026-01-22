@@ -35,6 +35,22 @@
                 :min-val 89.0}
                [collect-plan/identity-transforms])))))))
 
+(deftest print-extreme-test
+  ;; Tests print-extreme function for min/max display.
+  ;; Covers: SI unit formatting and value display.
+  (testing "print-extreme"
+    (testing "prints min and max values with SI units"
+      (is (= "Elapsed Time: 89.0 ns - 114 ns"
+             (str/trim
+              (with-out-str
+                (print/print-extreme
+                 {:label "Elapsed Time"
+                  :scale 1e-9
+                  :dimension :time}
+                 {:min-val 89.0
+                  :max-val 114.0}
+                 [collect-plan/identity-transforms]))))))))
+
 (defn identity-transform [samples]
   (with-meta samples {:transform {:sample-> identity :->sample identity}}))
 
@@ -42,6 +58,38 @@
   "Return indices where char c appears in string s."
   [c s]
   (keep-indexed (fn [i ch] (when (= ch c) i)) s))
+
+(deftest print-extremes-test
+  ;; Tests print-extremes function and view/extremes* multimethod.
+  ;; Covers: min/max display for quantitative metrics.
+  (testing "print-extremes"
+    (testing "prints via output-view"
+      (is (= ["Extremes:"
+              "Elapsed Time: 89.0 ns - 114 ns"]
+             (trimmed-lines
+              (with-out-str
+                (view/extremes*
+                 :print
+                 {}
+                 (:data (test-data/bench-stats-map))))))))
+
+    (testing "applies batch-size transform to per-execution values"
+      (is (= ["Extremes:"
+              "Elapsed Time: 0.500 ns - 4.50 ns"]
+             (let [data-map
+                   (-> (update-in
+                        (:data (test-data/samples-with-variance-12-map))
+                        [:samples]
+                        merge
+                        {:batch-size 2
+                         :transform (#'collect-plan/batch-transforms 2)}))
+                   stats (analyse/stats)
+                   view-extremes (view/extremes)]
+               (trimmed-lines
+                (with-out-str
+                  (->> data-map
+                       stats
+                       (view-extremes :print))))))))))
 
 (deftest print-stats-test
   (testing "print-stats"
