@@ -53,6 +53,29 @@
    []
    (filterv (metric/type-pred :quantitative) metric-configs)))
 
+(defn extremes-map
+  "Prepare min/max extremes for display in tabular format.
+  Returns a vector of maps with :metric, :min, and :max keys."
+  [stats metric-configs transforms]
+  (reduce
+   (fn [res metric]
+     (let [stat (util/transform-vals->
+                 (get-in stats (:path metric))
+                 transforms)
+           min-val (double (:min-val stat))
+           max-val (double (:max-val stat))
+           metric-scale (double (:scale metric))
+           [scale label] (format/scale
+                          (:dimension metric)
+                          (* metric-scale min-val))
+           scale (* (double scale) metric-scale)]
+       (conj res
+             {:metric (str (:label metric) " " label)
+              :min (format/round (* min-val scale) 4)
+              :max (format/round (* max-val scale) 4)})))
+   []
+   (filterv (metric/type-pred :quantitative) metric-configs)))
+
 (defn composite-key [path]
   (keyword (str/join "-" (mapv name path))))
 

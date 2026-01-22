@@ -54,6 +54,32 @@
                 {:metric-ids [:nonexistent-metric]}
                 (:data (test-data/bench-stats-map)))))))))
 
+(def expected-extremes
+  ["Extremes:"
+   ""
+   "|         :metric | :min |  :max |"
+   "|-----------------+------+-------|"
+   "| Elapsed Time ns | 89.0 | 114.0 |"])
+
+(deftest pprint-extremes-test
+  ;; Verifies extremes display with table output showing min/max values.
+  (testing "view/extremes*"
+    (testing "displays min and max values in table format"
+      (is (= expected-extremes
+             (trimmed-lines
+              (with-out-str
+                (view/extremes*
+                 :pprint
+                 {}
+                 (:data (test-data/bench-stats-map))))))))
+    (testing "outputs nothing when metric-ids filter yields no matching metrics"
+      (is (= ""
+             (with-out-str
+               (view/extremes*
+                :pprint
+                {:metric-ids [:nonexistent-metric]}
+                (:data (test-data/bench-stats-map)))))))))
+
 (def expected-counts
   [""
    "|     :_metric | :low-severe | :low-mild | :high-mild | :high-severe |"

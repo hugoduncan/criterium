@@ -182,6 +182,33 @@
           (finally
             (remove-tap f)))))))
 
+(deftest portal-extremes-test
+  ;; Verifies extremes display with conditional heading behavior.
+  (testing "view/extremes*"
+    (testing "displays extremes when metrics match"
+      (is (= [[:b "Extremes"]
+              [{:metric "Elapsed Time ns",
+                :min 89.0
+                :max 114.0}]]
+             (with-tap-out
+               (view/extremes*
+                :portal
+                {}
+                (:data (test-data/bench-stats-map)))))))
+    (testing "outputs nothing when metric-ids filter yields no matching metrics"
+      (let [v (volatile! [])
+            f (fn [x] (when-not (= ::portal/_ x) (vswap! v conj x)))]
+        (try
+          (add-tap f)
+          (view/extremes*
+           :portal
+           {:metric-ids [:nonexistent-metric]}
+           (:data (test-data/bench-stats-map)))
+          (portal/flush)
+          (is (empty? @v))
+          (finally
+            (remove-tap f)))))))
+
 (deftest portal-outlier-count-test
   (testing "print-outlier-count"
     (testing "prints via view"

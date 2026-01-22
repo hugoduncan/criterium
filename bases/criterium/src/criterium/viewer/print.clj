@@ -66,6 +66,31 @@
   (doseq [metric metrics]
     (print-stat metric (get-in stats (:path metric)) transforms)))
 
+(defn print-extreme
+  "Print min and max values for a metric."
+  [metric stat transforms]
+  (when (and (:min-val stat) (:max-val stat))
+    (let [stat (util/transform-vals-> stat transforms)
+          [scale unit] (format/scale
+                        (:dimension metric)
+                        (* (:scale metric) (:min-val stat)))
+          scale (* scale (:scale metric))]
+      (println
+       (format
+        "%32s: %s %s - %s %s"
+        (:label metric)
+        (format/format-scaled (:min-val stat) scale)
+        unit
+        (format/format-scaled (:max-val stat) scale)
+        unit)))))
+
+(defn print-extremes
+  "Print min/max extremes for all metrics."
+  [metrics stats transforms]
+  (println "Extremes:")
+  (doseq [metric metrics]
+    (print-extreme metric (get-in stats (:path metric)) transforms)))
+
 (defmethod view/stats* :print
   [_ {:keys [stats-id metric-ids]} data-map]
   (let [stats-id (or stats-id :stats)
@@ -75,6 +100,19 @@
                              (metric/select-metrics metric-ids))
             metric-configs (metric/all-metric-configs metrics-defs)]
         (print-stats
+         metric-configs
+         (util/stats stats-map)
+         (util/get-transforms data-map stats-id))))))
+
+(defmethod view/extremes* :print
+  [_ {:keys [stats-id metric-ids]} data-map]
+  (let [stats-id (or stats-id :stats)
+        stats-map (data-map stats-id)]
+    (when stats-map
+      (let [metrics-defs (-> (:metrics-defs stats-map)
+                             (metric/select-metrics metric-ids))
+            metric-configs (metric/all-metric-configs metrics-defs)]
+        (print-extremes
          metric-configs
          (util/stats stats-map)
          (util/get-transforms data-map stats-id))))))

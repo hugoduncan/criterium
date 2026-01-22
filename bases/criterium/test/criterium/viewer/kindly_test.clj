@@ -179,6 +179,39 @@
                    (:data (test-data/bench-stats-map)))
       (is (nil? (kindly/flush))))))
 
+(deftest extremes-view-test
+  ;; Tests the view/extremes* multimethod for :kindly viewer.
+  ;; Verifies that extremes data is rendered as a heading and table with correct
+  ;; Kindly metadata showing min and max values for quantitative metrics.
+  (testing "view/extremes* :kindly"
+    (testing "renders extremes as heading and table"
+      (reset! kindly/accumulated [])
+      (view/extremes* :kindly {} (:data (test-data/bench-stats-map)))
+      (let [result (kindly/flush)]
+        (is (= :kind/fragment (:kindly/kind (meta result))))
+        (is (= 2 (count result))
+            "Expected heading and table")
+        (let [[heading table] result]
+          (is (= :kind/md (:kindly/kind (meta heading))))
+          (is (= ["**Extremes**"] heading))
+          (is (= :kind/table (:kindly/kind (meta table))))
+          (is (= 1 (count table))
+              "Expected one metric row")
+          (let [row (first table)]
+            (is (string? (:metric row))
+                "Expected :metric column as string")
+            (is (number? (:min row))
+                "Expected :min column as number")
+            (is (number? (:max row))
+                "Expected :max column as number")))))
+
+    (testing "outputs nothing when metric-ids filter yields no matching metrics"
+      (reset! kindly/accumulated [])
+      (view/extremes* :kindly
+                      {:metric-ids [:nonexistent-metric]}
+                      (:data (test-data/bench-stats-map)))
+      (is (nil? (kindly/flush))))))
+
 (deftest quantiles-view-test
   ;; Tests the view/quantiles* multimethod for :kindly viewer.
   ;; Verifies that quantiles data is rendered as a heading and table with correct
