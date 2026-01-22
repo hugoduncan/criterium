@@ -338,6 +338,137 @@
         ;; No outliers data available, so outliers-id is nil
         (is (nil? (-> result-with-outliers :bootstrap-stats :outliers-id)))))))
 
+;;; ACF-adjusted confidence interval tests
+;; When :acf-id is provided and autocorrelation data exists,
+;; bootstrap-stats should inflate CI widths and add :adjusted-estimate-quantiles.
+
+(deftest bootstrap-stats-acf-adjustment-test
+  (testing "bootstrap-stats"
+    (testing "with :acf-id option"
+      (let [batch-size 100
+            num-samples 50
+            ;; Create simple samples
+            samples {[:v] (vec (range (* num-samples batch-size) 0 (- batch-size)))}
+            metric-samples (assoc
+                            (metrics-samples samples batch-size)
+                            :metrics-defs
+                            {:v {:type :quantitative
+                                 :values [{:path [:v]
+                                           :type :quantitative
+                                           :dimension :time
+                                           :scale 1
+                                           :label "v"}]}})
+            ;; Create autocorrelation data with a known inflation factor
+            ;; ci-inflation-factor of 2.0 means CIs should double in width
+            acf-data {:type :criterium/autocorrelation
+                      :autocorrelation {[:v] {:acf {1 0.6 2 0.3}
+                                              :lag-1 {:value 0.6 :severity :moderate}
+                                              :effective-sample-size {:n-original 50
+                                                                      :n-effective 12
+                                                                      :ratio 0.24}
+                                              :ci-inflation-factor 2.0
+                                              :ljung-box {:q-statistic 30.0 :df 10 :p-value 0.001}
+                                              :pattern :warmup
+                                              :classification :warning
+                                              :detected-period nil}}
+                      :transform collect-plan/identity-transforms}]
+
+        (testing "adds :adjusted-estimate-quantiles when acf data is present"
+          (let [result ((bootstrap/bootstrap-stats
+                         {:quantiles [0.99]
+                          :estimate-quantiles [0.025 0.975]
+                          :bootstrap-size 50
+                          :acf-id :autocorrelation})
+                        {:samples metric-samples
+                         :autocorrelation acf-data})
+                mean-stats (-> result :bootstrap-stats util/bootstrap :v :mean)]
+            ;; Should have both original and adjusted quantiles
+            (is (some? (:estimate-quantiles mean-stats)))
+            (is (some? (:adjusted-estimate-quantiles mean-stats)))
+            ;; Both should have same number of entries
+            (is (= (count (:estimate-quantiles mean-stats))
+                   (count (:adjusted-estimate-quantiles mean-stats))))
+            ;; Adjusted should be wider than original
+            (let [orig-lower (-> mean-stats :estimate-quantiles first :value)
+                  orig-upper (-> mean-stats :estimate-quantiles second :value)
+                  adj-lower (-> mean-stats :adjusted-estimate-quantiles first :value)
+                  adj-upper (-> mean-stats :adjusted-estimate-quantiles second :value)
+                  point (double (:point-estimate mean-stats))]
+              ;; Adjusted CI should be wider: adj-lower < orig-lower, adj-upper > orig-upper
+              (is (<= adj-lower orig-lower)
+                  (str "Adjusted lower bound " adj-lower " should be <= original " orig-lower))
+              (is (>= adj-upper orig-upper)
+                  (str "Adjusted upper bound " adj-upper " should be >= original " orig-upper))
+              ;; Check inflation factor is applied correctly
+              ;; adj-lower = p - 2.0 * (p - orig-lower)
+              ;; adj-upper = p + 2.0 * (orig-upper - p)
+              (is (test-max-error (- point (* 2.0 (- point orig-lower))) adj-lower 1e-6)
+                  "Lower bound should be inflated by factor 2.0")
+              (is (test-max-error (+ point (* 2.0 (- orig-upper point))) adj-upper 1e-6)
+                  "Upper bound should be inflated by factor 2.0"))))
+
+        (testing "includes :acf-id in result when acf data used"
+          (let [result ((bootstrap/bootstrap-stats
+                         {:quantiles [0.99]
+                          :estimate-quantiles [0.025 0.975]
+                          :acf-id :autocorrelation})
+                        {:samples metric-samples
+                         :autocorrelation acf-data})]
+            (is (= :autocorrelation (-> result :bootstrap-stats :acf-id)))))
+
+        (testing "does not add adjusted CIs when :acf-id not provided"
+          (let [result ((bootstrap/bootstrap-stats
+                         {:quantiles [0.99]
+                          :estimate-quantiles [0.025 0.975]
+                          :bootstrap-size 50})
+                        {:samples metric-samples
+                         :autocorrelation acf-data})
+                mean-stats (-> result :bootstrap-stats util/bootstrap :v :mean)]
+            (is (some? (:estimate-quantiles mean-stats)))
+            (is (nil? (:adjusted-estimate-quantiles mean-stats)))
+            (is (nil? (-> result :bootstrap-stats :acf-id)))))
+
+        (testing "does not add adjusted CIs when acf data missing"
+          (let [result ((bootstrap/bootstrap-stats
+                         {:quantiles [0.99]
+                          :estimate-quantiles [0.025 0.975]
+                          :bootstrap-size 50
+                          :acf-id :autocorrelation})
+                        {:samples metric-samples})
+                mean-stats (-> result :bootstrap-stats util/bootstrap :v :mean)]
+            (is (some? (:estimate-quantiles mean-stats)))
+            (is (nil? (:adjusted-estimate-quantiles mean-stats)))
+            ;; :acf-id should be nil when no data found
+            (is (nil? (-> result :bootstrap-stats :acf-id)))))
+
+        (testing "does not adjust CIs when inflation factor is 1.0"
+          (let [no-inflation-acf {:type :criterium/autocorrelation
+                                  :autocorrelation {[:v] {:ci-inflation-factor 1.0}}
+                                  :transform collect-plan/identity-transforms}
+                result ((bootstrap/bootstrap-stats
+                         {:quantiles [0.99]
+                          :estimate-quantiles [0.025 0.975]
+                          :bootstrap-size 50
+                          :acf-id :autocorrelation})
+                        {:samples metric-samples
+                         :autocorrelation no-inflation-acf})
+                mean-stats (-> result :bootstrap-stats util/bootstrap :v :mean)]
+            ;; Should not have adjusted quantiles when inflation is 1.0
+            (is (nil? (:adjusted-estimate-quantiles mean-stats)))))
+
+        (testing "adjusts :quantiles in addition to top-level stats"
+          (let [result ((bootstrap/bootstrap-stats
+                         {:quantiles [0.99]
+                          :estimate-quantiles [0.025 0.975]
+                          :bootstrap-size 50
+                          :acf-id :autocorrelation})
+                        {:samples metric-samples
+                         :autocorrelation acf-data})
+                q50-stats (-> result :bootstrap-stats util/bootstrap :v :quantiles (get 0.5))]
+            ;; Quantile stats should also have adjusted CIs
+            (is (some? (:estimate-quantiles q50-stats)))
+            (is (some? (:adjusted-estimate-quantiles q50-stats)))))))))
+
 ;; Verifies that all quantiles computed by bootstrap-stats-for share the same
 ;; bootstrap resamples. This is critical for statistical validity - if quantiles
 ;; were bootstrapped separately, they would use different resamples and lose
