@@ -360,6 +360,53 @@
       :else
       :warning)))
 
+(defn effective-sample-size-analysis
+  "Compute effective sample size and CI inflation factor from ACF results.
+
+  Takes ACF results (the :acf map) and original sample count.
+
+  Returns map with:
+    :effective-sample-size - {:n-original n :n-effective n_eff :ratio ratio}
+    :ci-inflation-factor - inflation factor for CIs
+
+  Returns nil if acf-map is nil."
+  [acf-map ^long n]
+  (when acf-map
+    (let [r1 (double (get acf-map 1 0.0))
+          n-eff (effective-sample-size r1 n)
+          ci-factor (ci-inflation-factor r1)]
+      {:effective-sample-size {:n-original n
+                               :n-effective n-eff
+                               :ratio (/ (double n-eff) (double n))}
+       :ci-inflation-factor ci-factor})))
+
+(defn autocorrelation-classification
+  "Compute pattern detection and classification from ACF results.
+
+  Takes ACF results (the :acf map) and original sample count.
+
+  Returns map with:
+    :ljung-box - {:q-statistic Q :df h :p-value p}
+    :pattern - :clean, :warmup, :drift, :periodic, :severe, or :alternating-pattern
+    :classification - :pass, :acceptable, :warning, or :fail
+    :detected-period - Integer period for :periodic pattern, nil otherwise
+
+  Returns nil if acf-map is nil."
+  [acf-map ^long n]
+  (when acf-map
+    (let [r1 (double (get acf-map 1 0.0))
+          lb (ljung-box acf-map n)
+          n-eff (effective-sample-size r1 n)
+          lag-sevs (classify-lag-severities acf-map n)
+          pattern (detect-pattern acf-map n)
+          classification (classify-overall lag-sevs lb n-eff n)
+          detected-period (when (= pattern :periodic)
+                            (detect-period acf-map n))]
+      {:ljung-box lb
+       :pattern pattern
+       :classification classification
+       :detected-period detected-period})))
+
 (defn analyse-autocorrelation
   "Perform full autocorrelation analysis on samples.
 
@@ -378,22 +425,12 @@
   (let [n (alength samples)]
     (when-let [acf-map (acf samples)]
       (let [r1 (double (get acf-map 1 0.0))
-            lb (ljung-box acf-map n)
-            n-eff (effective-sample-size r1 n)
-            ci-factor (ci-inflation-factor r1)
             lag-sevs (classify-lag-severities acf-map n)
-            pattern (detect-pattern acf-map n)
-            classification (classify-overall lag-sevs lb n-eff n)
-            detected-period (when (= pattern :periodic)
-                              (detect-period acf-map n))]
-        {:acf acf-map
-         :lag-1 {:value r1
-                 :severity (get lag-sevs 1 :none)}
-         :effective-sample-size {:n-original n
-                                 :n-effective n-eff
-                                 :ratio (/ (double n-eff) (double n))}
-         :ci-inflation-factor ci-factor
-         :ljung-box lb
-         :pattern pattern
-         :classification classification
-         :detected-period detected-period}))))
+            ess-analysis (effective-sample-size-analysis acf-map n)
+            class-analysis (autocorrelation-classification acf-map n)]
+        (merge
+         {:acf acf-map
+          :lag-1 {:value r1
+                  :severity (get lag-sevs 1 :none)}}
+         ess-analysis
+         class-analysis)))))

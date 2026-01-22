@@ -471,3 +471,105 @@
     (testing "returns nil for n < 20"
       (let [samples (double-array (range 19))]
         (is (nil? (acf/analyse-autocorrelation samples)))))))
+
+;;; effective-sample-size-analysis tests
+
+(deftest effective-sample-size-analysis-test
+  ;; Tests effective-sample-size-analysis function
+  ;; Contract: computes effective sample size and CI inflation from ACF map
+  (testing "effective-sample-size-analysis"
+    (testing "returns correct structure"
+      (let [acf-map {1 0.5, 2 0.25, 3 0.125}
+            result (acf/effective-sample-size-analysis acf-map 100)]
+        (is (map? result))
+        (is (contains? result :effective-sample-size))
+        (is (contains? result :ci-inflation-factor))
+        (is (contains? (:effective-sample-size result) :n-original))
+        (is (contains? (:effective-sample-size result) :n-effective))
+        (is (contains? (:effective-sample-size result) :ratio))))
+
+    (testing "computes values correctly for positive r1"
+      ;; r1 = 0.5 -> n_eff = 100 * 0.5/1.5 = 33
+      ;; CI inflation = sqrt(1.5/0.5) = sqrt(3) ≈ 1.732
+      (let [acf-map {1 0.5, 2 0.25}
+            result (acf/effective-sample-size-analysis acf-map 100)]
+        (is (= 100 (get-in result [:effective-sample-size :n-original])))
+        (is (= 33 (get-in result [:effective-sample-size :n-effective])))
+        (is (approx= (get-in result [:effective-sample-size :ratio]) 0.33 0.01))
+        (is (approx= (:ci-inflation-factor result) (Math/sqrt 3.0) 0.001))))
+
+    (testing "returns nil for nil acf-map"
+      (is (nil? (acf/effective-sample-size-analysis nil 100))))
+
+    (testing "returns full n-effective for zero r1"
+      (let [acf-map {1 0.0, 2 0.0}
+            result (acf/effective-sample-size-analysis acf-map 100)]
+        (is (= 100 (get-in result [:effective-sample-size :n-effective])))
+        (is (= 1.0 (:ci-inflation-factor result)))))))
+
+;;; autocorrelation-classification tests
+
+(deftest autocorrelation-classification-test
+  ;; Tests autocorrelation-classification function
+  ;; Contract: computes pattern, classification, Ljung-Box from ACF map
+  (testing "autocorrelation-classification"
+    (testing "returns correct structure"
+      (let [acf-map {1 0.05, 2 0.03, 3 0.02}
+            result (acf/autocorrelation-classification acf-map 100)]
+        (is (map? result))
+        (is (contains? result :ljung-box))
+        (is (contains? result :pattern))
+        (is (contains? result :classification))
+        (is (contains? result :detected-period))))
+
+    (testing "detects clean pattern for white noise ACF"
+      (let [acf-map {1 0.05, 2 0.03, 3 0.02, 4 0.01, 5 0.00}
+            result (acf/autocorrelation-classification acf-map 100)]
+        (is (= :clean (:pattern result)))
+        (is (= :pass (:classification result)))))
+
+    (testing "detects severe pattern for high r1"
+      (let [acf-map {1 0.5, 2 0.3, 3 0.2}
+            result (acf/autocorrelation-classification acf-map 100)]
+        (is (= :severe (:pattern result)))
+        (is (= :fail (:classification result)))))
+
+    (testing "detects periodic pattern and period"
+      (let [acf-map {1 0.05, 2 0.03, 3 0.02, 4 0.01, 5 0.01,
+                     6 0.02, 7 0.03, 8 0.02, 9 0.01, 10 0.30}
+            result (acf/autocorrelation-classification acf-map 100)]
+        (is (= :periodic (:pattern result)))
+        (is (= 10 (:detected-period result)))))
+
+    (testing "returns nil for nil acf-map"
+      (is (nil? (acf/autocorrelation-classification nil 100))))))
+
+;;; analyse-autocorrelation uses composable functions
+
+(deftest analyse-autocorrelation-uses-composable-functions-test
+  ;; Tests that analyse-autocorrelation uses the composable functions internally
+  ;; Contract: results should be consistent with calling composable functions directly
+  (testing "analyse-autocorrelation"
+    (testing "produces consistent results with composable functions"
+      (let [rng (java.util.Random. 42)
+            samples (double-array (repeatedly 100 #(.nextGaussian rng)))
+            full-result (acf/analyse-autocorrelation samples)
+            acf-map (:acf full-result)
+            n 100
+            ess-result (acf/effective-sample-size-analysis acf-map n)
+            class-result (acf/autocorrelation-classification acf-map n)]
+        ;; effective-sample-size should match
+        (is (= (:effective-sample-size full-result)
+               (:effective-sample-size ess-result)))
+        ;; ci-inflation-factor should match
+        (is (= (:ci-inflation-factor full-result)
+               (:ci-inflation-factor ess-result)))
+        ;; ljung-box should match
+        (is (= (:ljung-box full-result)
+               (:ljung-box class-result)))
+        ;; pattern should match
+        (is (= (:pattern full-result)
+               (:pattern class-result)))
+        ;; classification should match
+        (is (= (:classification full-result)
+               (:classification class-result)))))))

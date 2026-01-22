@@ -1526,3 +1526,107 @@
                                              [:elapsed-time]])]
         (is (= 50 (:n-original (:effective-sample-size elapsed-autocorr)))
             "autocorrelation should use all samples including outliers")))))
+
+;;; effective-sample-size-analysis tests
+;; Tests for effective-sample-size-analysis function.
+;; Contract: computes effective sample size and CI inflation from existing
+;; autocorrelation analysis, enabling different computation on filtered data.
+
+(deftest effective-sample-size-analysis-test
+  (testing "effective-sample-size-analysis"
+    (testing "extracts effective sample size from autocorrelation results"
+      (let [raw-data (mapv (fn [i] (* 100.0 (+ 1.0 (* 0.01 (double i)))))
+                           (range 50))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            with-autocorr ((analyse/autocorrelation) data-map)
+            result ((analyse/effective-sample-size-analysis) with-autocorr)]
+        (is (contains? result :effective-sample-size))
+        (is (= :criterium/effective-sample-size
+               (get-in result [:effective-sample-size :type])))
+        ;; Should have effective-sample-size-data
+        (is (contains? (:effective-sample-size result) :effective-sample-size-data))
+        ;; Should have data for elapsed-time
+        (is (contains? (get-in result [:effective-sample-size
+                                       :effective-sample-size-data])
+                       [:elapsed-time]))))
+
+    (testing "uses custom id"
+      (let [raw-data (mapv #(+ 100.0 (double %)) (range 50))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            with-autocorr ((analyse/autocorrelation) data-map)
+            result ((analyse/effective-sample-size-analysis {:id :my-ess})
+                    with-autocorr)]
+        (is (contains? result :my-ess))
+        (is (not (contains? result :effective-sample-size)))))
+
+    (testing "uses custom autocorrelation-id"
+      (let [raw-data (mapv #(+ 100.0 (double %)) (range 50))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            with-autocorr ((analyse/autocorrelation {:id :my-autocorr}) data-map)
+            result ((analyse/effective-sample-size-analysis
+                     {:autocorrelation-id :my-autocorr})
+                    with-autocorr)]
+        (is (contains? result :effective-sample-size))))
+
+    (testing "returns data-map unchanged when autocorrelation not present"
+      (let [raw-data (mapv #(+ 100.0 (double %)) (range 50))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}]
+        (is (= data-map ((analyse/effective-sample-size-analysis) data-map)))))))
+
+;;; autocorrelation-classification tests
+;; Tests for autocorrelation-classification function.
+;; Contract: computes pattern/classification from existing autocorrelation
+;; analysis, enabling pattern detection on unfiltered data.
+
+(deftest autocorrelation-classification-test
+  (testing "autocorrelation-classification"
+    (testing "extracts classification from autocorrelation results"
+      (let [raw-data (mapv (fn [i] (* 100.0 (+ 1.0 (* 0.01 (double i)))))
+                           (range 50))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            with-autocorr ((analyse/autocorrelation) data-map)
+            result ((analyse/autocorrelation-classification) with-autocorr)]
+        (is (contains? result :autocorrelation-classification))
+        (is (= :criterium/autocorrelation-classification
+               (get-in result [:autocorrelation-classification :type])))
+        ;; Should have classification-data
+        (is (contains? (:autocorrelation-classification result) :classification-data))
+        ;; Should have data for elapsed-time
+        (let [class-data (get-in result [:autocorrelation-classification
+                                         :classification-data
+                                         [:elapsed-time]])]
+          (is (some? class-data))
+          (is (contains? class-data :ljung-box))
+          (is (contains? class-data :pattern))
+          (is (contains? class-data :classification)))))
+
+    (testing "uses custom id"
+      (let [raw-data (mapv #(+ 100.0 (double %)) (range 50))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            with-autocorr ((analyse/autocorrelation) data-map)
+            result ((analyse/autocorrelation-classification {:id :my-class})
+                    with-autocorr)]
+        (is (contains? result :my-class))
+        (is (not (contains? result :autocorrelation-classification)))))
+
+    (testing "uses custom autocorrelation-id"
+      (let [raw-data (mapv #(+ 100.0 (double %)) (range 50))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            with-autocorr ((analyse/autocorrelation {:id :my-autocorr}) data-map)
+            result ((analyse/autocorrelation-classification
+                     {:autocorrelation-id :my-autocorr})
+                    with-autocorr)]
+        (is (contains? result :autocorrelation-classification))))
+
+    (testing "returns data-map unchanged when autocorrelation not present"
+      (let [raw-data (mapv #(+ 100.0 (double %)) (range 50))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}]
+        (is (= data-map ((analyse/autocorrelation-classification) data-map)))))))

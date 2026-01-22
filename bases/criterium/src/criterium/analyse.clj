@@ -7,6 +7,7 @@
    [criterium.analyse.metrics-samples]
    [criterium.collect-plan :as collect-plan]
    [criterium.metric :as metric]
+   [criterium.stats.interface :as stats]
    [criterium.util.bootstrap :as bootstrap]
    [criterium.util.debug :as debug]
    [criterium.util.helpers :as util]
@@ -991,6 +992,118 @@
                                     autocorr-result))]
                  (assoc data-map id autocorr-map))
                data-map))))))))
+
+(defn effective-sample-size-analysis
+  "Computes effective sample size and CI inflation from autocorrelation results.
+
+  Returns a function that takes autocorrelation analysis output and computes
+  effective sample size statistics. This enables computing effective sample size
+  on filtered data independently from pattern detection.
+
+  Parameters:
+    opts - Optional map with keys:
+      :id               - Key for result in output (default: :effective-sample-size)
+      :autocorrelation-id - Key for source autocorrelation analysis (default: :autocorrelation)
+      :metric-ids       - Set of metric ids to analyze (default: all from source)
+
+  The returned function:
+  - Takes a data map containing autocorrelation analysis results
+  - Returns the map with effective sample size analysis added under :id key
+  - For each metric provides:
+    - :effective-sample-size - {:n-original n :n-effective n_eff :ratio ratio}
+    - :ci-inflation-factor - Multiplier for confidence interval widths
+
+  Example:
+  (let [analyze (effective-sample-size-analysis {})
+        result (analyze {:autocorrelation {...}})]
+    (get-in result [:effective-sample-size :elapsed-time :ci-inflation-factor]))"
+  ([] (effective-sample-size-analysis {}))
+  ([{:keys [id autocorrelation-id metric-ids] :as _options}]
+   (let [autocorrelation-id (or autocorrelation-id :autocorrelation)
+         id (or id :effective-sample-size)]
+     (fn [data-map]
+       (let [autocorr-map (get data-map autocorrelation-id)]
+         (if-not autocorr-map
+           data-map
+           (let [autocorr-data (util/autocorrelation autocorr-map)
+                 metrics-defs (-> (:metrics-defs autocorr-map)
+                                  (metric/select-metrics metric-ids))
+                 metric-configs (metric/all-metric-configs metrics-defs)
+                 ess-results
+                 (reduce
+                  (fn [result metric-config]
+                    (let [p (:path metric-config)
+                          acf-data (get-in autocorr-data [p :acf])
+                          n (get-in autocorr-data [p :effective-sample-size :n-original])]
+                      (if (and acf-data n)
+                        (let [ess (stats/effective-sample-size-analysis acf-data n)]
+                          (assoc result p ess))
+                        result)))
+                  {}
+                  metric-configs)
+                 ess-map (util/->effective-sample-size-map
+                          {:type :criterium/effective-sample-size
+                           :effective-sample-size-data ess-results
+                           :metrics-defs metrics-defs
+                           :source-id autocorrelation-id})]
+             (assoc data-map id ess-map))))))))
+
+(defn autocorrelation-classification
+  "Computes pattern detection and classification from autocorrelation results.
+
+  Returns a function that takes autocorrelation analysis output and computes
+  pattern detection and classification. This enables computing classification
+  on unfiltered data independently from effective sample size.
+
+  Parameters:
+    opts - Optional map with keys:
+      :id               - Key for result in output (default: :autocorrelation-classification)
+      :autocorrelation-id - Key for source autocorrelation analysis (default: :autocorrelation)
+      :metric-ids       - Set of metric ids to analyze (default: all from source)
+
+  The returned function:
+  - Takes a data map containing autocorrelation analysis results
+  - Returns the map with classification analysis added under :id key
+  - For each metric provides:
+    - :ljung-box - {:q-statistic Q :df h :p-value p}
+    - :pattern - :clean, :warmup, :drift, :periodic, :severe, or :alternating-pattern
+    - :classification - :pass, :acceptable, :warning, or :fail
+    - :detected-period - Integer period for :periodic pattern, nil otherwise
+
+  Example:
+  (let [analyze (autocorrelation-classification {})
+        result (analyze {:autocorrelation {...}})]
+    (get-in result [:autocorrelation-classification :elapsed-time :pattern]))"
+  ([] (autocorrelation-classification {}))
+  ([{:keys [id autocorrelation-id metric-ids] :as _options}]
+   (let [autocorrelation-id (or autocorrelation-id :autocorrelation)
+         id (or id :autocorrelation-classification)]
+     (fn [data-map]
+       (let [autocorr-map (get data-map autocorrelation-id)]
+         (if-not autocorr-map
+           data-map
+           (let [autocorr-data (util/autocorrelation autocorr-map)
+                 metrics-defs (-> (:metrics-defs autocorr-map)
+                                  (metric/select-metrics metric-ids))
+                 metric-configs (metric/all-metric-configs metrics-defs)
+                 class-results
+                 (reduce
+                  (fn [result metric-config]
+                    (let [p (:path metric-config)
+                          acf-data (get-in autocorr-data [p :acf])
+                          n (get-in autocorr-data [p :effective-sample-size :n-original])]
+                      (if (and acf-data n)
+                        (let [classification (stats/autocorrelation-classification acf-data n)]
+                          (assoc result p classification))
+                        result)))
+                  {}
+                  metric-configs)
+                 class-map (util/->autocorrelation-classification-map
+                            {:type :criterium/autocorrelation-classification
+                             :classification-data class-results
+                             :metrics-defs metrics-defs
+                             :source-id autocorrelation-id})]
+             (assoc data-map id class-map))))))))
 
 (def bootstrap-stats
   "Analysis function that adds bootstrap statistics to the result.

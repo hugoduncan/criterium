@@ -1309,6 +1309,34 @@
   [lag-severities ljung-box-result n-eff n]
   (autocorrelation/classify-overall lag-severities ljung-box-result n-eff n))
 
+(defn effective-sample-size-analysis
+  "Compute effective sample size and CI inflation factor from ACF results.
+
+  Takes ACF results (the :acf map) and original sample count.
+
+  Returns map with:
+    :effective-sample-size - {:n-original n :n-effective n_eff :ratio ratio}
+    :ci-inflation-factor - inflation factor for CIs
+
+  Returns nil if acf-map is nil."
+  [acf-map n]
+  (autocorrelation/effective-sample-size-analysis acf-map n))
+
+(defn autocorrelation-classification
+  "Compute pattern detection and classification from ACF results.
+
+  Takes ACF results (the :acf map) and original sample count.
+
+  Returns map with:
+    :ljung-box - {:q-statistic Q :df h :p-value p}
+    :pattern - :clean, :warmup, :drift, :periodic, :severe, or :alternating-pattern
+    :classification - :pass, :acceptable, :warning, or :fail
+    :detected-period - Integer period for :periodic pattern, nil otherwise
+
+  Returns nil if acf-map is nil."
+  [acf-map n]
+  (autocorrelation/autocorrelation-classification acf-map n))
+
 (defn analyse-autocorrelation
   "Perform full autocorrelation analysis on samples.
 
