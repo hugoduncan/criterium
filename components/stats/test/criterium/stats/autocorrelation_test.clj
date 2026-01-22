@@ -31,7 +31,7 @@
         (is (map? result))
         (is (= 50 (count result))) ; n/2 lags
         ;; Most ACF values should be within noise threshold
-        (let [within-threshold (count (filter #(<= (Math/abs %) threshold)
+        (let [within-threshold (count (filter #(<= (Math/abs ^double %) threshold)
                                               (vals result)))]
           (is (>= within-threshold 40)
               "At least 80% of ACF values should be within noise threshold"))))))
@@ -61,7 +61,7 @@
         (is (< 0.3 r2 0.7)
             (format "Lag-2 ACF should be near %.2f, got %.3f" (* phi phi) r2))
         ;; ACF should decay exponentially
-        (is (< (Math/abs r2) (Math/abs r1))
+        (is (< (Math/abs ^double r2) (Math/abs ^double r1))
             "ACF should decay with lag")))))
 
 (deftest acf-periodic-test
