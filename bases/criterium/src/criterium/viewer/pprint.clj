@@ -43,6 +43,24 @@
             metric-configs
             transforms)))))))
 
+(defmethod view/extremes* :pprint
+  [_ {:keys [stats-id metric-ids]} data-map]
+  (let [stats-id (or stats-id :stats)
+        stats-map (data-map stats-id)]
+    (when stats-map
+      (let [metrics-defs (-> (:metrics-defs stats-map)
+                             (metric/select-metrics metric-ids))
+            metric-configs (metric/all-metric-configs metrics-defs)
+            transforms (util/get-transforms data-map stats-id)]
+        (when (seq metric-configs)
+          (println "Extremes:")
+          (pprint/print-table
+           [:metric :min :max]
+           (core/extremes-map
+            (util/stats stats-map)
+            metric-configs
+            transforms)))))))
+
 (defmethod view/quantiles* :pprint
   [_ {:keys [quantiles-id]} data-map]
   (let [quantiles-id (or quantiles-id :quantiles)
