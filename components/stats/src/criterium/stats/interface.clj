@@ -19,7 +19,8 @@
   - KDE: bandwidth selection, Gaussian KDE, mode detection, multimodality tests
   - Bootstrap: resampling, BCa confidence intervals, jacknife
   - Tail: Hill estimator, GPD fitting, mean residual life, tail ratios
-  - Autocorrelation: ACF computation, Ljung-Box test, effective sample size"
+  - Autocorrelation: ACF computation, Ljung-Box test, effective sample size,
+                     pattern detection, severity classification"
   (:refer-clojure :exclude [min max])
   (:require
    [criterium.stats.autocorrelation :as autocorrelation]
@@ -1227,3 +1228,100 @@
   Returns the inflation factor as a double."
   ^double [r1]
   (autocorrelation/ci-inflation-factor r1))
+
+(defn noise-floor
+  "Compute the noise floor threshold for ACF significance.
+  For a sample of size n, values below 2/√n are indistinguishable from noise."
+  ^double [n]
+  (autocorrelation/noise-floor n))
+
+(defn lag-1-severity
+  "Classify lag-1 autocorrelation severity.
+
+  Thresholds (above noise floor 2/√n):
+  - :none - |r₁| < max(0.10, 2/√n)
+  - :minor - 0.10 ≤ |r₁| < 0.20
+  - :moderate - 0.20 ≤ |r₁| < 0.35
+  - :severe - |r₁| ≥ 0.35
+
+  Returns keyword :none, :minor, :moderate, or :severe."
+  [r1 n]
+  (autocorrelation/lag-1-severity r1 n))
+
+(defn lag-severity
+  "Classify severity for lags other than lag-1.
+
+  Thresholds (above noise floor 2/√n):
+  - :none - |rₖ| < max(0.15, 2/√n)
+  - :minor - 0.15 ≤ |rₖ| < 0.25
+  - :moderate - 0.25 ≤ |rₖ| < 0.40
+  - :severe - |rₖ| ≥ 0.40
+
+  Returns keyword :none, :minor, :moderate, or :severe."
+  [rk n]
+  (autocorrelation/lag-severity rk n))
+
+(defn classify-lag-severities
+  "Classify severity for all lags in an ACF map.
+
+  Returns map of lag -> severity keyword."
+  [acf-map n]
+  (autocorrelation/classify-lag-severities acf-map n))
+
+(defn detect-period
+  "Detect periodic pattern by finding peak lag > 5 with max |rₖ|.
+
+  Returns the lag of the peak if it exceeds threshold, nil otherwise."
+  [acf-map n]
+  (autocorrelation/detect-period acf-map n))
+
+(defn detect-pattern
+  "Detect autocorrelation pattern from ACF values.
+
+  Patterns:
+  - :clean - all lags below 2/√n threshold
+  - :alternating-pattern - r₁ < 0 (negative lag-1)
+  - :severe - lag-1 at severe level
+  - :warmup - lag-1 elevated AND r₁ > r₂ > r₃ (exponential decay)
+  - :drift - slow decay; lag-⌊n/10⌋ still above threshold
+  - :periodic - lag-1 clean but peak at k > 5 exceeds threshold
+
+  Returns pattern keyword."
+  [acf-map n]
+  (autocorrelation/detect-pattern acf-map n))
+
+(defn classify-overall
+  "Classify overall autocorrelation assessment.
+
+  Classification:
+  - :pass - all lags at :none AND Ljung-Box p > 0.10
+  - :acceptable - lag-1 at :none or :minor AND no lag at :severe
+  - :warning - any lag at :moderate OR Ljung-Box p ≤ 0.01
+  - :fail - any lag at :severe OR n_eff < n/3
+
+  Parameters:
+    lag-severities - map of lag -> severity from classify-lag-severities
+    ljung-box-result - result from ljung-box function
+    n-eff - effective sample size
+    n - original sample size
+
+  Returns classification keyword."
+  [lag-severities ljung-box-result n-eff n]
+  (autocorrelation/classify-overall lag-severities ljung-box-result n-eff n))
+
+(defn analyse-autocorrelation
+  "Perform full autocorrelation analysis on samples.
+
+  Returns map with:
+    :acf - map of lag -> autocorrelation coefficient
+    :lag-1 - {:value r₁ :severity <keyword>}
+    :effective-sample-size - {:n-original n :n-effective n_eff :ratio ratio}
+    :ci-inflation-factor - inflation factor for CIs
+    :ljung-box - {:q-statistic Q :df h :p-value p}
+    :pattern - detected pattern keyword
+    :classification - overall assessment keyword
+    :detected-period - period if periodic pattern, nil otherwise
+
+  Returns nil if samples are insufficient (n < 20) or have zero variance."
+  [samples]
+  (autocorrelation/analyse-autocorrelation samples))

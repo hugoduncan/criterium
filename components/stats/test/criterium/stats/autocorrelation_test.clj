@@ -226,3 +226,248 @@
       (let [factor (acf/ci-inflation-factor 0.9)]
         (is (approx= factor (Math/sqrt 19.0) 1e-10))
         (is (< factor 6.0))))))
+
+;;; Noise floor tests
+
+(deftest noise-floor-test
+  ;; Tests noise floor calculation: 2/√n
+  ;; Contracts: returns correct threshold for various sample sizes
+  (testing "noise-floor"
+    (testing "computes 2/sqrt(n) correctly"
+      (is (approx= (acf/noise-floor 100) 0.2))
+      (is (approx= (acf/noise-floor 400) 0.1))
+      (is (approx= (acf/noise-floor 25) 0.4)))))
+
+;;; Severity classification tests
+
+(deftest lag-1-severity-test
+  ;; Tests lag-1 severity classification
+  ;; Contracts: thresholds at 0.10, 0.20, 0.35 (above noise floor)
+  ;; Use n=400 where floor=0.1, so thresholds are at their nominal values
+  (testing "lag-1-severity"
+    (testing "classifies as :none below threshold"
+      (is (= :none (acf/lag-1-severity 0.05 400)))
+      (is (= :none (acf/lag-1-severity -0.05 400))))
+
+    (testing "classifies as :minor between 0.10 and 0.20"
+      ;; For n=400, floor=0.1, so 0.15 is above floor -> :minor
+      (is (= :minor (acf/lag-1-severity 0.15 400)))
+      (is (= :minor (acf/lag-1-severity -0.15 400))))
+
+    (testing "classifies as :moderate between 0.20 and 0.35"
+      (is (= :moderate (acf/lag-1-severity 0.25 400)))
+      (is (= :moderate (acf/lag-1-severity -0.30 400))))
+
+    (testing "classifies as :severe above 0.35"
+      (is (= :severe (acf/lag-1-severity 0.40 400)))
+      (is (= :severe (acf/lag-1-severity -0.50 400))))
+
+    (testing "uses noise floor for small samples"
+      ;; For n=25, noise floor = 0.4, so 0.35 is below floor -> :none
+      (is (= :none (acf/lag-1-severity 0.35 25))))
+
+    (testing "noise floor dominates for n=100"
+      ;; For n=100, floor=0.2, so 0.15 < 0.2 -> :none
+      (is (= :none (acf/lag-1-severity 0.15 100))))))
+
+(deftest lag-severity-test
+  ;; Tests other lag severity classification
+  ;; Contracts: thresholds at 0.15, 0.25, 0.40 (above noise floor)
+  ;; Use n=400 where floor=0.1, so thresholds are at their nominal values
+  (testing "lag-severity"
+    (testing "classifies as :none below threshold"
+      (is (= :none (acf/lag-severity 0.10 400))))
+
+    (testing "classifies as :minor between 0.15 and 0.25"
+      (is (= :minor (acf/lag-severity 0.20 400))))
+
+    (testing "classifies as :moderate between 0.25 and 0.40"
+      (is (= :moderate (acf/lag-severity 0.30 400))))
+
+    (testing "classifies as :severe above 0.40"
+      (is (= :severe (acf/lag-severity 0.45 400))))))
+
+(deftest classify-lag-severities-test
+  ;; Tests classification of all lags
+  ;; Contract: lag 1 uses lag-1-severity, others use lag-severity
+  ;; Use n=400 where floor=0.1, so thresholds are at their nominal values
+  (testing "classify-lag-severities"
+    (testing "applies correct threshold for each lag"
+      (let [acf-map {1 0.15, 2 0.20, 3 0.30}
+            result (acf/classify-lag-severities acf-map 400)]
+        ;; Lag 1 at 0.15 -> :minor (lag-1 threshold: 0.10 <= 0.15 < 0.20)
+        (is (= :minor (get result 1)))
+        ;; Lag 2 at 0.20 -> :minor (other lag threshold: 0.15 <= 0.20 < 0.25)
+        (is (= :minor (get result 2)))
+        ;; Lag 3 at 0.30 -> :moderate (0.25 <= 0.30 < 0.40)
+        (is (= :moderate (get result 3)))))))
+
+;;; Pattern detection tests
+
+(deftest detect-pattern-clean-test
+  ;; Tests clean pattern detection
+  ;; Contract: all lags below noise floor -> :clean
+  (testing "detect-pattern"
+    (testing "returns :clean when all lags below noise floor"
+      (let [;; For n=100, noise floor = 0.2
+            acf-map {1 0.05, 2 0.03, 3 0.02, 4 0.01, 5 0.00}]
+        (is (= :clean (acf/detect-pattern acf-map 100)))))))
+
+(deftest detect-pattern-alternating-test
+  ;; Tests alternating pattern detection
+  ;; Contract: negative r1 -> :alternating-pattern
+  (testing "detect-pattern"
+    (testing "returns :alternating-pattern when r1 < 0"
+      (let [acf-map {1 -0.3, 2 0.1, 3 -0.05}]
+        (is (= :alternating-pattern (acf/detect-pattern acf-map 100)))))))
+
+(deftest detect-pattern-severe-test
+  ;; Tests severe pattern detection
+  ;; Contract: lag-1 at severe level -> :severe
+  (testing "detect-pattern"
+    (testing "returns :severe when lag-1 is severe"
+      (let [acf-map {1 0.5, 2 0.3, 3 0.2}]
+        (is (= :severe (acf/detect-pattern acf-map 100)))))))
+
+(deftest detect-pattern-warmup-test
+  ;; Tests warmup pattern detection
+  ;; Contract: lag-1 elevated with exponential decay -> :warmup
+  (testing "detect-pattern"
+    (testing "returns :warmup for exponential decay r1 > r2 > r3"
+      (let [acf-map {1 0.25, 2 0.15, 3 0.08, 4 0.04}]
+        (is (= :warmup (acf/detect-pattern acf-map 100)))))))
+
+(deftest detect-pattern-drift-test
+  ;; Tests drift pattern detection
+  ;; Contract: slow decay with lag at n/10 still elevated -> :drift
+  (testing "detect-pattern"
+    (testing "returns :drift when decay is slow"
+      ;; n=100, so drift-lag = 10, floor = 0.2
+      ;; drift-threshold = max(0.15, 0.2) = 0.2
+      ;; Need r1 elevated and r10 > 0.2
+      (let [acf-map (merge
+                     {1 0.30, 2 0.29, 3 0.28}
+                     (into {} (for [k (range 4 51)]
+                                [k (- 0.30 (* 0.005 k))])))]
+        ;; r10 = 0.30 - 0.05 = 0.25, above 0.2 threshold
+        (is (= :drift (acf/detect-pattern acf-map 100)))))))
+
+(deftest detect-pattern-periodic-test
+  ;; Tests periodic pattern detection
+  ;; Contract: lag-1 clean but peak at k > 5 -> :periodic
+  (testing "detect-pattern"
+    (testing "returns :periodic when lag-1 clean but peak at k > 5"
+      (let [acf-map {1 0.05, 2 0.03, 3 0.02, 4 0.01, 5 0.01,
+                     6 0.02, 7 0.03, 8 0.02, 9 0.01, 10 0.30}]
+        (is (= :periodic (acf/detect-pattern acf-map 100)))))))
+
+(deftest detect-period-test
+  ;; Tests period detection
+  ;; Contract: finds peak lag > 5 exceeding threshold
+  (testing "detect-period"
+    (testing "returns peak lag when above threshold"
+      (let [acf-map {1 0.05, 6 0.10, 10 0.30, 15 0.05}]
+        (is (= 10 (acf/detect-period acf-map 100)))))
+
+    (testing "returns nil when no peak above threshold"
+      (let [acf-map {1 0.05, 6 0.10, 10 0.10}]
+        (is (nil? (acf/detect-period acf-map 100)))))))
+
+;;; Overall classification tests
+
+(deftest classify-overall-pass-test
+  ;; Tests :pass classification
+  ;; Contract: all lags :none AND Ljung-Box p > 0.10
+  (testing "classify-overall"
+    (testing "returns :pass when all none and high p-value"
+      (let [lag-sevs {1 :none, 2 :none, 3 :none}
+            lb {:p-value 0.50}]
+        (is (= :pass (acf/classify-overall lag-sevs lb 100 100)))))))
+
+(deftest classify-overall-acceptable-test
+  ;; Tests :acceptable classification
+  ;; Contract: lag-1 none/minor AND no severe
+  (testing "classify-overall"
+    (testing "returns :acceptable when lag-1 minor and no severe"
+      (let [lag-sevs {1 :minor, 2 :none, 3 :none}
+            lb {:p-value 0.50}]
+        (is (= :acceptable (acf/classify-overall lag-sevs lb 80 100)))))))
+
+(deftest classify-overall-warning-test
+  ;; Tests :warning classification
+  ;; Contract: any moderate OR Ljung-Box p <= 0.01
+  (testing "classify-overall"
+    (testing "returns :warning when any lag is moderate"
+      (let [lag-sevs {1 :minor, 2 :moderate, 3 :none}
+            lb {:p-value 0.50}]
+        (is (= :warning (acf/classify-overall lag-sevs lb 80 100)))))
+
+    (testing "returns :warning when Ljung-Box p <= 0.01"
+      (let [lag-sevs {1 :minor, 2 :none}
+            lb {:p-value 0.005}]
+        (is (= :warning (acf/classify-overall lag-sevs lb 80 100)))))))
+
+(deftest classify-overall-fail-test
+  ;; Tests :fail classification
+  ;; Contract: any severe OR n_eff < n/3
+  (testing "classify-overall"
+    (testing "returns :fail when any lag is severe"
+      (let [lag-sevs {1 :severe, 2 :none}
+            lb {:p-value 0.50}]
+        (is (= :fail (acf/classify-overall lag-sevs lb 80 100)))))
+
+    (testing "returns :fail when n_eff < n/3"
+      (let [lag-sevs {1 :minor, 2 :none}
+            lb {:p-value 0.50}]
+        (is (= :fail (acf/classify-overall lag-sevs lb 20 100)))))))
+
+;;; Full analysis tests
+
+(deftest analyse-autocorrelation-white-noise-test
+  ;; Tests full analysis on white noise
+  ;; Contract: returns clean/pass for white noise
+  (testing "analyse-autocorrelation"
+    (testing "returns :clean pattern and :pass for white noise"
+      (let [rng (java.util.Random. 42)
+            samples (double-array (repeatedly 100 #(.nextGaussian rng)))
+            result (acf/analyse-autocorrelation samples)]
+        (is (map? result))
+        (is (contains? result :acf))
+        (is (contains? result :lag-1))
+        (is (contains? result :effective-sample-size))
+        (is (contains? result :ci-inflation-factor))
+        (is (contains? result :ljung-box))
+        (is (contains? result :pattern))
+        (is (contains? result :classification))
+        ;; White noise should be clean or acceptable
+        (is (#{:clean :pass :acceptable} (:classification result)))))))
+
+(deftest analyse-autocorrelation-ar1-test
+  ;; Tests full analysis on AR(1) process
+  ;; Contract: detects warmup pattern and appropriate classification
+  (testing "analyse-autocorrelation"
+    (testing "detects autocorrelation in AR(1) process"
+      (let [phi 0.7
+            n 200
+            rng (java.util.Random. 123)
+            samples (double-array n)
+            _ (aset samples 0 (.nextGaussian rng))
+            _ (dotimes [i (dec n)]
+                (aset samples (inc i)
+                      (+ (* phi (aget samples i))
+                         (* (Math/sqrt (- 1.0 (* phi phi))) (.nextGaussian rng)))))
+            result (acf/analyse-autocorrelation samples)]
+        (is (map? result))
+        ;; Should detect warmup or severe pattern
+        (is (#{:warmup :severe} (:pattern result)))
+        ;; Classification should be warning or fail
+        (is (#{:warning :fail} (:classification result)))
+        ;; Effective sample size should be reduced
+        (is (< (get-in result [:effective-sample-size :ratio]) 0.5))))))
+
+(deftest analyse-autocorrelation-insufficient-samples-test
+  ;; Tests full analysis returns nil for insufficient samples
+  (testing "analyse-autocorrelation"
+    (testing "returns nil for n < 20"
+      (let [samples (double-array (range 19))]
+        (is (nil? (acf/analyse-autocorrelation samples)))))))

@@ -169,3 +169,223 @@
     (<= r1 0.0) 1.0
     (>= r1 0.95) 6.0
     :else (Math/sqrt (/ (+ 1.0 r1) (- 1.0 r1)))))
+
+;;; Severity Classification
+
+(defn noise-floor
+  "Compute the noise floor threshold for ACF significance.
+  For a sample of size n, values below 2/√n are indistinguishable from noise."
+  ^double [^long n]
+  (/ 2.0 (Math/sqrt (double n))))
+
+(defn lag-1-severity
+  "Classify lag-1 autocorrelation severity.
+
+  Thresholds (above noise floor 2/√n):
+  - :none - |r₁| < max(0.10, 2/√n)
+  - :minor - 0.10 ≤ |r₁| < 0.20
+  - :moderate - 0.20 ≤ |r₁| < 0.35
+  - :severe - |r₁| ≥ 0.35
+
+  Returns keyword :none, :minor, :moderate, or :severe."
+  [^double r1 ^long n]
+  (let [abs-r1 (Math/abs r1)
+        floor (noise-floor n)]
+    (cond
+      (< abs-r1 (max 0.10 floor)) :none
+      (< abs-r1 0.20) :minor
+      (< abs-r1 0.35) :moderate
+      :else :severe)))
+
+(defn lag-severity
+  "Classify severity for lags other than lag-1.
+
+  Thresholds (above noise floor 2/√n):
+  - :none - |rₖ| < max(0.15, 2/√n)
+  - :minor - 0.15 ≤ |rₖ| < 0.25
+  - :moderate - 0.25 ≤ |rₖ| < 0.40
+  - :severe - |rₖ| ≥ 0.40
+
+  Returns keyword :none, :minor, :moderate, or :severe."
+  [^double rk ^long n]
+  (let [abs-rk (Math/abs rk)
+        floor (noise-floor n)]
+    (cond
+      (< abs-rk (max 0.15 floor)) :none
+      (< abs-rk 0.25) :minor
+      (< abs-rk 0.40) :moderate
+      :else :severe)))
+
+(defn classify-lag-severities
+  "Classify severity for all lags in an ACF map.
+
+  Returns map of lag -> severity keyword."
+  [acf-map ^long n]
+  (reduce-kv
+   (fn [result lag rk]
+     (assoc result lag
+            (if (= lag 1)
+              (lag-1-severity rk n)
+              (lag-severity rk n))))
+   {}
+   acf-map))
+
+(defn detect-period
+  "Detect periodic pattern by finding peak lag > 5 with max |rₖ|.
+
+  Returns the lag of the peak if it exceeds threshold, nil otherwise."
+  [acf-map ^long n]
+  (let [floor (noise-floor n)
+        threshold (max 0.15 floor)
+        ;; Find lags > 5
+        candidates (filter (fn [[lag _]] (> lag 5)) acf-map)]
+    (when (seq candidates)
+      (let [[peak-lag peak-r] (apply max-key (fn [[_ r]] (Math/abs (double r))) candidates)]
+        (when (> (Math/abs (double peak-r)) threshold)
+          peak-lag)))))
+
+(defn detect-pattern
+  "Detect autocorrelation pattern from ACF values.
+
+  Patterns:
+  - :clean - all lags below 2/√n threshold
+  - :alternating-pattern - r₁ < 0 (negative lag-1)
+  - :severe - lag-1 at severe level
+  - :drift - slow decay; lag-⌊n/10⌋ still above threshold
+  - :warmup - lag-1 elevated AND r₁ > r₂ > r₃ (exponential decay)
+  - :periodic - lag-1 clean but peak at k > 5 exceeds threshold
+
+  Returns pattern keyword."
+  [acf-map ^long n]
+  (let [floor (noise-floor n)
+        r1 (double (get acf-map 1 0.0))
+        r2 (double (get acf-map 2 0.0))
+        r3 (double (get acf-map 3 0.0))
+        lag-1-sev (lag-1-severity r1 n)
+        ;; Check if all lags below noise floor
+        all-clean? (every? (fn [[_ r]] (< (Math/abs (double r)) floor))
+                           acf-map)
+        ;; Check for drift: lag at n/10 still elevated
+        drift-lag (max 1 (quot n 10))
+        r-drift (double (get acf-map drift-lag 0.0))
+        drift-threshold (max 0.15 floor)
+        is-drift? (and (> r-drift drift-threshold)
+                       (not= lag-1-sev :none))]
+    (cond
+      ;; All lags below noise - clean
+      all-clean?
+      :clean
+
+      ;; Negative lag-1 - alternating pattern
+      (neg? r1)
+      :alternating-pattern
+
+      ;; Severe lag-1
+      (= lag-1-sev :severe)
+      :severe
+
+      ;; Drift: slow decay, lag at n/10 still elevated (check before warmup)
+      is-drift?
+      :drift
+
+      ;; Warmup: lag-1 elevated with exponential decay r1 > r2 > r3
+      (and (not= lag-1-sev :none)
+           (> r1 r2)
+           (> r2 r3)
+           (> r1 0)
+           (> r2 0))
+      :warmup
+
+      ;; Periodic: lag-1 clean but peak at k > 5
+      (and (= lag-1-sev :none)
+           (some? (detect-period acf-map n)))
+      :periodic
+
+      ;; Default: use lag-1 severity to determine pattern
+      (not= lag-1-sev :none)
+      :warmup
+
+      :else
+      :clean)))
+
+(defn classify-overall
+  "Classify overall autocorrelation assessment.
+
+  Classification:
+  - :pass - all lags at :none AND Ljung-Box p > 0.10
+  - :acceptable - lag-1 at :none or :minor AND no lag at :severe
+  - :warning - any lag at :moderate OR Ljung-Box p ≤ 0.01
+  - :fail - any lag at :severe OR n_eff < n/3
+
+  Parameters:
+    lag-severities - map of lag -> severity from classify-lag-severities
+    ljung-box-result - result from ljung-box function
+    n-eff - effective sample size
+    n - original sample size
+
+  Returns classification keyword."
+  [lag-severities ljung-box-result ^long n-eff ^long n]
+  (let [severities (set (vals lag-severities))
+        lag-1-sev (get lag-severities 1 :none)
+        p-value (double (get ljung-box-result :p-value 1.0))
+        has-severe? (contains? severities :severe)
+        has-moderate? (contains? severities :moderate)
+        all-none? (= severities #{:none})
+        n-eff-ratio (/ (double n-eff) (double n))]
+    (cond
+      ;; Fail: any severe OR n_eff < n/3
+      (or has-severe? (< n-eff-ratio (/ 1.0 3.0)))
+      :fail
+
+      ;; Warning: any moderate OR Ljung-Box p ≤ 0.01
+      (or has-moderate? (<= p-value 0.01))
+      :warning
+
+      ;; Pass: all none AND Ljung-Box p > 0.10
+      (and all-none? (> p-value 0.10))
+      :pass
+
+      ;; Acceptable: lag-1 none/minor AND no severe
+      (and (#{:none :minor} lag-1-sev) (not has-severe?))
+      :acceptable
+
+      :else
+      :warning)))
+
+(defn analyse-autocorrelation
+  "Perform full autocorrelation analysis on samples.
+
+  Returns map with:
+    :acf - map of lag -> autocorrelation coefficient
+    :lag-1 - {:value r₁ :severity <keyword>}
+    :effective-sample-size - {:n-original n :n-effective n_eff :ratio ratio}
+    :ci-inflation-factor - inflation factor for CIs
+    :ljung-box - {:q-statistic Q :df h :p-value p}
+    :pattern - detected pattern keyword
+    :classification - overall assessment keyword
+    :detected-period - period if periodic pattern, nil otherwise
+
+  Returns nil if samples are insufficient (n < 20) or have zero variance."
+  [^doubles samples]
+  (let [n (alength samples)]
+    (when-let [acf-map (acf samples)]
+      (let [r1 (double (get acf-map 1 0.0))
+            lb (ljung-box acf-map n)
+            n-eff (effective-sample-size r1 n)
+            ci-factor (ci-inflation-factor r1)
+            lag-sevs (classify-lag-severities acf-map n)
+            pattern (detect-pattern acf-map n)
+            classification (classify-overall lag-sevs lb n-eff n)
+            detected-period (when (= pattern :periodic)
+                              (detect-period acf-map n))]
+        {:acf acf-map
+         :lag-1 {:value r1
+                 :severity (get lag-sevs 1 :none)}
+         :effective-sample-size {:n-original n
+                                 :n-effective n-eff
+                                 :ratio (/ (double n-eff) (double n))}
+         :ci-inflation-factor ci-factor
+         :ljung-box lb
+         :pattern pattern
+         :classification classification
+         :detected-period detected-period}))))
