@@ -109,6 +109,11 @@
   {:post [(have? map? %)]}
   (:bootstrap bootstrap-stats-map))
 
+(defn autocorrelation
+  [autocorrelation-map]
+  {:post [(have? map? %)]}
+  (:autocorrelation autocorrelation-map))
+
 ;;; Value transforms
 
 (defn add-transform-paths
@@ -348,5 +353,10 @@
 
 (defn ->tail-analysis-map
   "Identity wrapper for tail-analysis-map construction.
+  Validation handled by malli instrumentation during development."
+  [x] x)
+
+(defn ->autocorrelation-map
+  "Identity wrapper for autocorrelation-map construction.
   Validation handled by malli instrumentation during development."
   [x] x)

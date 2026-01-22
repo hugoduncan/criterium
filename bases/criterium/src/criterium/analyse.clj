@@ -930,6 +930,68 @@
                  (assoc data-map id tail-map))
                data-map))))))))
 
+(defn autocorrelation
+  "Computes autocorrelation analysis to detect sample non-independence.
+
+  Returns a function that analyzes lag-1 and higher lag autocorrelations,
+  effective sample size, CI inflation factor, Ljung-Box test, pattern
+  detection, and overall classification.
+  Uses raw samples WITHOUT outlier filtering - autocorrelation analysis
+  should run before outlier removal to detect sample non-independence.
+
+  Parameters:
+    opts - Optional map with keys:
+      :id               - Key for result in output (default: :autocorrelation)
+      :samples-id       - Key for source samples (default: :samples)
+      :metric-ids       - Set of metric ids to analyze (default: all quantitative)
+
+  The returned function:
+  - Takes a sampled data map containing samples
+  - Returns the map with autocorrelation analysis added under :id key
+  - For each metric provides:
+    - :acf - Map of lag -> autocorrelation coefficient for lags 1 to n/2
+    - :lag-1 - {:value r1 :severity <:none|:minor|:moderate|:severe>}
+    - :effective-sample-size - {:n-original n :n-effective n_eff :ratio ratio}
+    - :ci-inflation-factor - Multiplier for confidence interval widths
+    - :ljung-box - {:q-statistic Q :df h :p-value p}
+    - :pattern - :clean, :warmup, :drift, :periodic, :severe, or :alternating-pattern
+    - :classification - :pass, :acceptable, :warning, or :fail
+    - :detected-period - Integer period for :periodic pattern, nil otherwise
+
+  Note: Like tail analysis, autocorrelation does NOT filter outliers because
+  it should detect non-independence before outlier removal.
+
+  Example:
+  (let [analyze (autocorrelation {})
+        result (analyze {:samples {...}})]
+    (get-in result [:autocorrelation :elapsed-time :classification]))"
+  ([] (autocorrelation {}))
+  ([{:keys [id samples-id metric-ids] :as _options}]
+   (let [samples-id (or samples-id :samples)
+         id (or id :autocorrelation)]
+     (fn [data-map]
+       (let [metrics-samples (get data-map samples-id)]
+         (if-not metrics-samples
+           data-map
+           (let [metrics-defs (-> (have (:metrics-defs metrics-samples))
+                                  (metric/select-metrics metric-ids)
+                                  (metric/filter-metrics
+                                   (metric/type-pred :quantitative)))
+                 metric-configs (metric/all-metric-configs metrics-defs)
+                 autocorr-result (methods/autocorrelation
+                                  metrics-samples
+                                  metric-configs
+                                  {})]
+             (if autocorr-result
+               (let [autocorr-map (util/->autocorrelation-map
+                                   (merge
+                                    {:type :criterium/autocorrelation
+                                     :metrics-defs metrics-defs
+                                     :source-id samples-id}
+                                    autocorr-result))]
+                 (assoc data-map id autocorr-map))
+               data-map))))))))
+
 (def bootstrap-stats
   "Analysis function that adds bootstrap statistics to the result.
 

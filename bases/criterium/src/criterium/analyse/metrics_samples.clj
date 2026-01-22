@@ -821,3 +821,40 @@
       {:type :criterium/tail-analysis
        :tail-analysis tail-results
        :transform collect-plan/identity-transforms})))
+
+;;; Autocorrelation Analysis
+
+(defn autocorrelation-for-metric
+  "Compute autocorrelation analysis for a single metric's samples.
+
+  Uses raw samples WITHOUT outlier filtering - autocorrelation analysis should
+  run before outlier removal to detect sample non-independence issues.
+
+  Returns nil for metrics with insufficient samples (n < 20)."
+  [metric->values metric-config _options]
+  (let [p (:path metric-config)
+        samples-arr (metric->values p)]
+    (when samples-arr
+      (let [n (arr/length samples-arr)
+            ;; Convert typed array to primitive double array
+            ^doubles samples-doubles (double-array n)]
+        (dotimes [i n]
+          (aset samples-doubles i (arr/get-double samples-arr i)))
+        (stats/analyse-autocorrelation samples-doubles)))))
+
+(defmethod methods/autocorrelation :criterium/metrics-samples
+  [metrics-samples metric-configs _options]
+  (let [metric->values (util/metric->values metrics-samples)
+        ;; Note: no outlier filtering - autocorrelation analysis uses raw samples
+        autocorr-results
+        (->> metric-configs
+             (mapv
+              (fn [metric-config]
+                (let [p (:path metric-config)]
+                  [p (autocorrelation-for-metric metric->values metric-config {})])))
+             (filterv (comp some? second))
+             (into {}))]
+    (when (seq autocorr-results)
+      {:type :criterium/autocorrelation
+       :autocorrelation autocorr-results
+       :transform collect-plan/identity-transforms})))

@@ -1411,3 +1411,118 @@
             data-map {:my-samples samples}
             result ((analyse/tail-analysis {:samples-id :my-samples}) data-map)]
         (is (contains? result :tail-analysis))))))
+
+;;; Autocorrelation Analysis Tests
+;; Tests the analyse/autocorrelation function for detecting sample non-independence.
+;; Validates output structure, severity classification, pattern detection,
+;; and proper handling of edge cases.
+
+(deftest autocorrelation-test
+  (testing "autocorrelation"
+    (testing "returns correct structure"
+      (let [;; Generate independent samples (low autocorrelation expected)
+            raw-data (mapv #(+ 100.0 (* (Math/random) 10.0) (double %)) (range 50))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            result ((analyse/autocorrelation) data-map)]
+        (is (contains? result :autocorrelation)
+            "result should have :autocorrelation key")
+        (let [autocorr-data (:autocorrelation result)]
+          (is (= :criterium/autocorrelation (:type autocorr-data)))
+          (is (= :samples (:source-id autocorr-data)))
+          (is (map? (util/autocorrelation autocorr-data)))
+          (is (contains? (util/autocorrelation autocorr-data) [:elapsed-time]))
+          (let [elapsed-autocorr (get-in autocorr-data
+                                         [:autocorrelation [:elapsed-time]])]
+            (is (map? (:acf elapsed-autocorr)) "should have :acf map")
+            (is (map? (:lag-1 elapsed-autocorr)) "should have :lag-1 map")
+            (is (number? (:value (:lag-1 elapsed-autocorr))))
+            (is (keyword? (:severity (:lag-1 elapsed-autocorr))))
+            (is (map? (:effective-sample-size elapsed-autocorr)))
+            (is (number? (:n-original (:effective-sample-size elapsed-autocorr))))
+            (is (number? (:n-effective (:effective-sample-size elapsed-autocorr))))
+            (is (number? (:ratio (:effective-sample-size elapsed-autocorr))))
+            (is (number? (:ci-inflation-factor elapsed-autocorr)))
+            (is (map? (:ljung-box elapsed-autocorr)))
+            (is (number? (:q-statistic (:ljung-box elapsed-autocorr))))
+            (is (number? (:df (:ljung-box elapsed-autocorr))))
+            (is (number? (:p-value (:ljung-box elapsed-autocorr))))
+            (is (keyword? (:pattern elapsed-autocorr)))
+            (is (keyword? (:classification elapsed-autocorr)))))))
+
+    (testing "detects high autocorrelation in correlated samples"
+      (let [;; Generate highly autocorrelated samples (each sample depends on previous)
+            n 50
+            raw-data (loop [i 1
+                            prev 100.0
+                            result [prev]]
+                       (if (>= i n)
+                         result
+                         (let [next-val (+ (* 0.9 prev) (* 0.1 (+ 100.0 (Math/random))))]
+                           (recur (inc i) next-val (conj result next-val)))))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            result ((analyse/autocorrelation) data-map)
+            elapsed-autocorr (get-in result [:autocorrelation
+                                             :autocorrelation
+                                             [:elapsed-time]])]
+        ;; With 0.9 correlation, lag-1 should be high
+        (is (> (double (:value (:lag-1 elapsed-autocorr))) 0.5)
+            "lag-1 autocorrelation should be high for correlated samples")
+        ;; Effective sample size should be reduced
+        (is (< (double (:ratio (:effective-sample-size elapsed-autocorr))) 0.5)
+            "effective sample ratio should be low for correlated samples")
+        ;; CI inflation factor should be elevated
+        (is (> (double (:ci-inflation-factor elapsed-autocorr)) 1.5)
+            "CI inflation should be elevated for correlated samples")
+        ;; Classification should not be :pass
+        (is (not= :pass (:classification elapsed-autocorr))
+            "classification should not be :pass for highly correlated samples")))
+
+    (testing "returns data-map unchanged for insufficient samples"
+      (let [;; Less than 20 samples
+            raw-data (mapv #(+ 10.0 (double %)) (range 15))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            result ((analyse/autocorrelation) data-map)]
+        ;; Should not have autocorrelation analysis due to insufficient samples
+        (is (not (contains? (:autocorrelation result) [:elapsed-time]))
+            "should not compute autocorrelation for < 20 samples")))
+
+    (testing "returns data-map unchanged when samples unavailable"
+      (let [data-map {:other-data 123}
+            result ((analyse/autocorrelation) data-map)]
+        (is (= data-map result))
+        (is (not (contains? result :autocorrelation)))))
+
+    (testing "uses custom output id"
+      (let [raw-data (mapv #(+ 100.0 (double %)) (range 50))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            result ((analyse/autocorrelation {:id :my-autocorr}) data-map)]
+        (is (contains? result :my-autocorr))
+        (is (not (contains? result :autocorrelation)))))
+
+    (testing "uses custom samples-id"
+      (let [raw-data (mapv #(+ 100.0 (double %)) (range 50))
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:my-samples samples}
+            result ((analyse/autocorrelation {:samples-id :my-samples}) data-map)]
+        (is (contains? result :autocorrelation))))
+
+    (testing "does not filter outliers"
+      ;; Autocorrelation should use raw samples including outliers
+      (let [raw-data (conj (vec (mapv #(+ 100.0 (double %)) (range 49)))
+                           10000.0) ; outlier
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            ;; Add outliers to data-map
+            with-quantiles ((analyse/quantiles {:quantiles []}) data-map)
+            with-outliers ((analyse/outliers) with-quantiles)
+            ;; Autocorrelation should still use all 50 samples
+            result ((analyse/autocorrelation) with-outliers)
+            elapsed-autocorr (get-in result [:autocorrelation
+                                             :autocorrelation
+                                             [:elapsed-time]])]
+        (is (= 50 (:n-original (:effective-sample-size elapsed-autocorr)))
+            "autocorrelation should use all samples including outliers")))))
