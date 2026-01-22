@@ -38,6 +38,7 @@
 (def-multi-view samples)
 (def-multi-view stats)
 (def-multi-view shape-stats)
+(def-multi-view extremes)
 
 ;;; Distribution Fit Views
 
@@ -110,6 +111,7 @@
 (defmethod samples* :none [_ _ _])
 (defmethod stats* :none [_ _ _])
 (defmethod shape-stats* :none [_ _ _])
+(defmethod extremes* :none [_ _ _])
 
 ;; Distribution Fit Null Viewer
 (defmethod distribution-models* :none [_ _ _])
