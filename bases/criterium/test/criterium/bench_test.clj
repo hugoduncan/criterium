@@ -14,13 +14,11 @@
     (is (nil? (bench/last-bench)))
     (let [out (with-out-str (bench/bench 1 :limit-time-s 0.1))]
       (testing "outputs the estimated time on stdout"
-        (is (re-find
-             #"Elapsed Time: [0-9.]+ [mn]s  3σ \[[0-9.e+-]+ [0-9.e+-]+]  min [0-9.]+"
-             out)))))
+        (is (re-find #"Elapsed Time median:" out)))))
   (testing "time with stats"
     (let [out (with-out-str (bench/bench 1 :limit-time-s 0.1))]
-      (testing "outputs statistics on stdout"
-        (is (re-find #"3σ" out)))))
+      (testing "outputs extremes on stdout"
+        (is (re-find #"Extremes:" out)))))
   (testing "time with one-shot"
     (let [out (with-out-str (bench/bench 1 :collect-plan :one-shot))]
       (testing "outputs statistics on stdout"
@@ -306,11 +304,10 @@
           (is (some? (:modes data))
               "modes analysis should be present")
           (is (= :criterium/modes (:type (:modes data)))
-              "modes should have correct type"))
+              "modes should have correct type"))))))
         ;; Note: multimodal-warning only displays when n-modes > 1
         ;; For a simple (+ 1 1) benchmark, distribution should be unimodal
         ;; so we don't test for warning output here
-        ))))
 
 ;;; warmup-args-fn option tests
 ;; Tests for the :warmup-args-fn option in the bench macro.

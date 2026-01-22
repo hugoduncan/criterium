@@ -68,8 +68,8 @@
           (let [html (slurp (io/file temp-dir ".clay.html"))]
             (is (str/includes? html "<table")
                 "HTML contains table elements")
-            (is (str/includes? html "Summary stats")
-                "HTML contains stats heading")
+            (is (str/includes? html "Extremes")
+                "HTML contains extremes heading")
             (is (str/includes? html "Quantiles")
                 "HTML contains quantiles heading")
             (is (str/includes? html "Histogram")
