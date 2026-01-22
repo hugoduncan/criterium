@@ -937,13 +937,11 @@
   Returns a function that analyzes lag-1 and higher lag autocorrelations,
   effective sample size, CI inflation factor, Ljung-Box test, pattern
   detection, and overall classification.
-  Uses raw samples WITHOUT outlier filtering - autocorrelation analysis
-  should run before outlier removal to detect sample non-independence.
-
   Parameters:
     opts - Optional map with keys:
       :id               - Key for result in output (default: :autocorrelation)
       :samples-id       - Key for source samples (default: :samples)
+      :outlier-id       - Key for outlier data to filter (default: nil, no filtering)
       :metric-ids       - Set of metric ids to analyze (default: all quantitative)
 
   The returned function:
@@ -959,28 +957,31 @@
     - :classification - :pass, :acceptable, :warning, or :fail
     - :detected-period - Integer period for :periodic pattern, nil otherwise
 
-  Note: Like tail analysis, autocorrelation does NOT filter outliers because
-  it should detect non-independence before outlier removal.
+  When :outlier-id is nil (default), uses all samples for pattern detection
+  before outlier removal. When :outlier-id is provided, filters outlier samples
+  before computing ACF for more accurate effective sample size estimation.
 
   Example:
   (let [analyze (autocorrelation {})
         result (analyze {:samples {...}})]
     (get-in result [:autocorrelation :elapsed-time :classification]))"
   ([] (autocorrelation {}))
-  ([{:keys [id samples-id metric-ids] :as _options}]
+  ([{:keys [id samples-id outlier-id metric-ids] :as _options}]
    (let [samples-id (or samples-id :samples)
          id (or id :autocorrelation)]
      (fn [data-map]
        (let [metrics-samples (get data-map samples-id)]
          (if-not metrics-samples
            data-map
-           (let [metrics-defs (-> (have (:metrics-defs metrics-samples))
+           (let [outliers (when outlier-id (get data-map outlier-id))
+                 metrics-defs (-> (have (:metrics-defs metrics-samples))
                                   (metric/select-metrics metric-ids)
                                   (metric/filter-metrics
                                    (metric/type-pred :quantitative)))
                  metric-configs (metric/all-metric-configs metrics-defs)
                  autocorr-result (methods/autocorrelation
                                   metrics-samples
+                                  outliers
                                   metric-configs
                                   {})]
              (if autocorr-result
@@ -988,7 +989,8 @@
                                    (merge
                                     {:type :criterium/autocorrelation
                                      :metrics-defs metrics-defs
-                                     :source-id samples-id}
+                                     :source-id samples-id
+                                     :outlier-id outlier-id}
                                     autocorr-result))]
                  (assoc data-map id autocorr-map))
                data-map))))))))

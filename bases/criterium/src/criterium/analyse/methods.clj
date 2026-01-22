@@ -64,8 +64,8 @@
 (defmulti autocorrelation
   "Compute autocorrelation analysis for sample data.
   Analyzes lag-1 and higher lag autocorrelations to detect sample non-independence.
-  Uses raw samples without outlier filtering (autocorrelation analysis should run
-  before outlier removal).
+  When outliers is provided, filters outlier samples before computing ACF.
+  When outliers is nil, uses all samples (for pattern detection before outlier removal).
   Returns nil if sample data is not available or has insufficient samples."
-  (fn [sample-map _metric-configs _options]
+  (fn [sample-map _outliers _metric-configs _options]
     (:type sample-map)))

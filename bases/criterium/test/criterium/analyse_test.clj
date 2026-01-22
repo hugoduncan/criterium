@@ -1510,8 +1510,8 @@
             result ((analyse/autocorrelation {:samples-id :my-samples}) data-map)]
         (is (contains? result :autocorrelation))))
 
-    (testing "does not filter outliers"
-      ;; Autocorrelation should use raw samples including outliers
+    (testing "does not filter outliers by default"
+      ;; When outlier-id is not provided, autocorrelation uses raw samples
       (let [raw-data (conj (vec (mapv #(+ 100.0 (double %)) (range 49)))
                            10000.0) ; outlier
             samples (metrics-samples {[:elapsed-time] raw-data} 1)
@@ -1525,7 +1525,28 @@
                                              :autocorrelation
                                              [:elapsed-time]])]
         (is (= 50 (:n-original (:effective-sample-size elapsed-autocorr)))
-            "autocorrelation should use all samples including outliers")))))
+            "autocorrelation should use all samples including outliers")))
+
+    (testing "filters outliers when outlier-id is provided"
+      ;; When outlier-id is provided, autocorrelation filters outlier samples
+      (let [raw-data (conj (vec (mapv #(+ 100.0 (double %)) (range 49)))
+                           10000.0) ; outlier at index 49
+            samples (metrics-samples {[:elapsed-time] raw-data} 1)
+            data-map {:samples samples}
+            ;; Add outliers to data-map
+            with-quantiles ((analyse/quantiles {:quantiles []}) data-map)
+            with-outliers ((analyse/outliers) with-quantiles)
+            ;; Autocorrelation with outlier filtering
+            result ((analyse/autocorrelation {:outlier-id :outliers}) with-outliers)
+            elapsed-autocorr (get-in result [:autocorrelation
+                                             :autocorrelation
+                                             [:elapsed-time]])]
+        ;; Should have fewer samples after filtering outlier
+        (is (< (:n-original (:effective-sample-size elapsed-autocorr)) 50)
+            "autocorrelation should filter outliers when outlier-id provided")
+        ;; Verify outlier-id is recorded in the result
+        (is (= :outliers (:outlier-id (:autocorrelation result)))
+            "result should record outlier-id")))))
 
 ;;; effective-sample-size-analysis tests
 ;; Tests for effective-sample-size-analysis function.
