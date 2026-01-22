@@ -37,7 +37,7 @@
              :allocation-treemap]
    :view [[:stats {:metric-ids [:memory]}]
           :bootstrap-stats
-          [:stats {:stats-id :log-stats}]
+          :extremes
           [:multimodal-warning {:modes-id :modes}]
           :event-stats
           :outlier-counts
@@ -67,7 +67,7 @@
              :allocation-treemap]
    :view [[:stats {:metric-ids [:memory]}]
           :bootstrap-stats
-          [:stats {:stats-id :log-stats}]
+          :extremes
           :quantiles
           :event-stats
           :outlier-counts
@@ -104,7 +104,7 @@
              :allocation-by-type
              :allocation-treemap]
    :view [[:stats {:metric-ids [:memory]}]
-          [:stats {:stats-id :log-stats}]
+          :extremes
           :quantiles
           :event-stats
           :outlier-counts
@@ -140,7 +140,7 @@
              :allocation-by-type
              :allocation-treemap]
    :view [[:stats {:metric-ids [:memory]}]
-          [:stats {:stats-id :log-stats}]
+          :extremes
           [:stats {:stats-id :kde-stats}]
           :quantiles
           :event-stats
@@ -181,7 +181,7 @@
              :allocation-by-type
              :allocation-treemap]
    :view [[:stats {:metric-ids [:memory]}]
-          [:stats {:stats-id :log-stats}]
+          :extremes
           [:stats {:stats-id :kde-stats}]
           :quantiles
           :event-stats
@@ -235,7 +235,7 @@
              [:allocation-hotspots {:limit 10}]
              :allocation-by-type]
    :view [[:stats {:metric-ids [:memory]}]
-          [:stats {:stats-id :log-stats}]
+          :extremes
           :bootstrap-stats
           :shape-stats
           :distribution-models
@@ -288,7 +288,7 @@
              :allocation-by-type]
    :view [[:stats {:metric-ids [:memory]}]
           :bootstrap-stats
-          [:stats {:stats-id :log-stats}]
+          :extremes
           :quantiles
           :tail-summary
           :tail-ratios
