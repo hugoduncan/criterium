@@ -18,9 +18,11 @@
   - Kernel: modal estimation, kernel density estimators
   - KDE: bandwidth selection, Gaussian KDE, mode detection, multimodality tests
   - Bootstrap: resampling, BCa confidence intervals, jacknife
-  - Tail: Hill estimator, GPD fitting, mean residual life, tail ratios"
+  - Tail: Hill estimator, GPD fitting, mean residual life, tail ratios
+  - Autocorrelation: ACF computation, Ljung-Box test, effective sample size"
   (:refer-clojure :exclude [min max])
   (:require
+   [criterium.stats.autocorrelation :as autocorrelation]
    [criterium.stats.bootstrap :as bootstrap]
    [criterium.stats.chi-squared :as chi-squared]
    [criterium.stats.core :as core]
@@ -1155,3 +1157,73 @@
   Returns map with :p99-p95, :p999-p99, :p999-p95 ratios."
   [percentiles]
   (tail/tail-ratios percentiles))
+
+;;; Autocorrelation
+
+(defn acf
+  "Compute autocorrelation function using FFT.
+
+  Algorithm:
+  1. Center samples (subtract mean)
+  2. Zero-pad to 2*next-power-of-2(n) for circular -> linear correlation
+  3. FFT, compute power spectrum (multiply by conjugate)
+  4. IFFT to get autocorrelation
+  5. Normalize by r0 (variance * n)
+
+  Returns map with ACF values for lags 1 to floor(n/2): {1 r1, 2 r2, ...}
+
+  Edge cases:
+  - n < 20: logs warning, returns nil
+  - Zero variance: logs warning, returns nil"
+  [samples]
+  (autocorrelation/acf samples))
+
+(defn ljung-box
+  "Compute Ljung-Box Q statistic for testing autocorrelation.
+
+  Q = n(n+2) * sum_k=1^h (rk^2/(n-k))
+
+  where h = min(20, floor(n/4))
+
+  Returns map with:
+    :q-statistic - the Q value
+    :df - degrees of freedom (h)
+    :p-value - 1 - chi-squared-cdf(Q, h)
+
+  Returns nil if acf-map is nil.
+
+  Parameters:
+    acf-map - map of lag -> autocorrelation from `acf` function
+    n - original sample size"
+  [acf-map n]
+  (autocorrelation/ljung-box acf-map n))
+
+(defn effective-sample-size
+  "Compute effective sample size accounting for lag-1 autocorrelation.
+
+  n_eff = n * (1 - r1) / (1 + r1)
+
+  Clamped to [1, n]. If r1 <= 0, returns n (negative autocorrelation
+  doesn't reduce effective sample size in the same way).
+
+  Parameters:
+    r1 - lag-1 autocorrelation coefficient
+    n - original sample size
+
+  Returns effective sample size as a long."
+  ^long [r1 n]
+  (autocorrelation/effective-sample-size r1 n))
+
+(defn ci-inflation-factor
+  "Compute confidence interval inflation factor due to autocorrelation.
+
+  CI_inflation = sqrt((1 + r1) / (1 - r1))
+
+  Minimum value is 1.0. Capped at 6.0 if r1 >= 0.95.
+
+  Parameters:
+    r1 - lag-1 autocorrelation coefficient
+
+  Returns the inflation factor as a double."
+  ^double [r1]
+  (autocorrelation/ci-inflation-factor r1))
