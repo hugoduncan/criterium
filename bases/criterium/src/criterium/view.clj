@@ -64,6 +64,11 @@
 
 (def-multi-view multimodal-warning)
 
+;;; Autocorrelation Views
+
+(def-multi-view autocorrelation)
+(def-multi-view acf-plot)
+
 ;;; Allocation Views
 
 (def-multi-view allocation-summary)
@@ -133,6 +138,10 @@
 
 ;; Modal Analysis Null Viewer
 (defmethod multimodal-warning* :none [_ _ _])
+
+;; Autocorrelation Null Viewer
+(defmethod autocorrelation* :none [_ _ _])
+(defmethod acf-plot* :none [_ _ _])
 
 ;; Allocation Null Viewer
 (defmethod allocation-summary* :none [_ _ _])

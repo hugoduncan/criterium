@@ -1491,6 +1491,101 @@
          (println (format "%32s  Mode locations: %s" ""
                           (str/join ", " locations))))))))
 
+;;; Autocorrelation Views
+
+(def ^:private severity-labels
+  {:none "none"
+   :minor "minor"
+   :moderate "moderate"
+   :severe "severe"})
+
+(def ^:private pattern-labels
+  {:clean "Clean"
+   :warmup "Warmup effects"
+   :drift "Drift detected"
+   :periodic "Periodic structure detected"
+   :severe "Severe autocorrelation"
+   :alternating-pattern "Alternating pattern—investigate methodology"})
+
+(def ^:private pattern-recommendations
+  {:warmup "Extend warmup iterations"
+   :drift "Shorter benchmark duration; check thermal throttling"
+   :periodic "Investigate GC logs; increase heap; check OS scheduler"
+   :severe "Review methodology; results unreliable"
+   :alternating-pattern "Review methodology; results unreliable"})
+
+(defn- format-severity
+  "Format a severity keyword for display."
+  [severity]
+  (get severity-labels severity (name severity)))
+
+(defn print-autocorrelation
+  "Print autocorrelation analysis summary for a metric.
+
+  Output format:
+  Sample Independence:
+                      Lag-1 autocorrelation: 0.12 (minor)
+                    Effective sample size: 157 of 200 (78%)
+                       CI inflation factor: 1.13×
+                        Ljung-Box p-value: 0.08
+                           Assessment: Acceptable
+
+  For warning/fail, adds pattern and recommendation lines."
+  [{:keys [lag-1 effective-sample-size ci-inflation-factor
+           ljung-box pattern classification detected-period]}
+   metric-label]
+  (println "Sample Independence:")
+  (println (format "%36s: %.2f (%s)"
+                   (str metric-label " Lag-1 autocorrelation")
+                   (:value lag-1)
+                   (format-severity (:severity lag-1))))
+  (println (format "%36s: %d of %d (%.0f%%)"
+                   "Effective sample size"
+                   (:n-effective effective-sample-size)
+                   (:n-original effective-sample-size)
+                   (* 100.0 (:ratio effective-sample-size))))
+  (println (format "%36s: %.2f×"
+                   "CI inflation factor"
+                   ci-inflation-factor))
+  (println (format "%36s: %.2f"
+                   "Ljung-Box p-value"
+                   (:p-value ljung-box)))
+  (println (format "%36s: %s"
+                   "Assessment"
+                   (str/capitalize (name classification))))
+  (when (#{:warning :fail} classification)
+    (println (format "%36s: %s"
+                     "Pattern"
+                     (get pattern-labels pattern (name pattern))))
+    (when (and (= pattern :periodic) detected-period)
+      (println (format "%36s: %d samples"
+                       "Suspected period"
+                       detected-period)))
+    (when-let [rec (get pattern-recommendations pattern)]
+      (println (format "%36s: %s"
+                       "Recommendation"
+                       rec)))))
+
+(defn print-autocorrelations
+  "Print autocorrelation analysis for all metrics."
+  [{:keys [autocorrelation-id] :as _view} data-map]
+  (let [autocorrelation-id (or autocorrelation-id :autocorrelation)
+        autocorr-map (data-map autocorrelation-id)]
+    (when autocorr-map
+      (let [autocorr (util/autocorrelation autocorr-map)
+            metrics-defs (:metrics-defs autocorr-map)
+            metric-configs (metric/all-metric-configs metrics-defs)]
+        (doseq [mc metric-configs]
+          (when-let [acf-data (get autocorr (:path mc))]
+            (print-autocorrelation acf-data (:label mc))))))))
+
+(defmethod view/autocorrelation* :print
+  [_ view data-map]
+  (print-autocorrelations view data-map))
+
+;; ACF plot is a no-op for print viewer (charts not supported)
+(defmethod view/acf-plot* :print [_ _ _])
+
 ;;; Domain Apply View
 
 (defmethod view/domain-apply* :print
