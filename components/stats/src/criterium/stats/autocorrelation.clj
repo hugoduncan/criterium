@@ -15,6 +15,13 @@
    [criterium.stats.fft :as fft]
    [criterium.utils.interface :as util]))
 
+;;; Local helpers for double arrays
+;;
+;; These helpers work directly with primitive double arrays rather than using
+;; criterium.stats.core, which requires ITypedArray. The ACF algorithm uses
+;; raw double arrays throughout for FFT compatibility and to avoid typed array
+;; overhead. Also, variance here is population variance (÷n) not sample (÷n-1).
+
 (defn- mean
   "Compute arithmetic mean of double array."
   ^double [^doubles arr]
