@@ -12,7 +12,8 @@
   - `ci-inflation-factor` - Factor to widen confidence intervals"
   (:require
    [criterium.stats.chi-squared :as chi-squared]
-   [criterium.stats.fft :as fft]))
+   [criterium.stats.fft :as fft]
+   [criterium.utils.interface :as util]))
 
 (defn- mean
   "Compute arithmetic mean of double array."
@@ -55,7 +56,7 @@
     (cond
       (< n 20)
       (do
-        (println "WARN: ACF requires at least 20 samples, got" n)
+        (util/report "WARN: ACF requires at least 20 samples, got %d\n" n)
         nil)
 
       :else
@@ -63,7 +64,7 @@
             v (variance samples m)]
         (if (< v 1e-15)
           (do
-            (println "WARN: ACF undefined for zero variance data")
+            (util/report "WARN: ACF undefined for zero variance data\n")
             nil)
           (let [;; Center the samples
                 ^doubles centered (double-array n)
