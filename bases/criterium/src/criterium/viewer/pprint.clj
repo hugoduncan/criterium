@@ -500,7 +500,7 @@
 (defn- autocorrelation-summary-table
   "Build autocorrelation summary table rows for pprint."
   [acf-data _metric-label]
-  (let [{:keys [lag-1 effective-sample-size ci-inflation-factor
+  (let [{:keys [acf lag-1 effective-sample-size ci-inflation-factor
                 ljung-box classification pattern detected-period
                 anomalous-lags lag-severities]} acf-data
         rows [{:metric "Lag-1 autocorrelation"
@@ -528,9 +528,9 @@
       (conj {:metric "Pattern"
              :value (get acf-common/pattern-labels pattern (name pattern))})
 
-      (and (= pattern :periodic) detected-period)
+      (acf-common/format-detected-period detected-period acf lag-severities)
       (conj {:metric "Suspected period"
-             :value (format "%d samples" detected-period)})
+             :value (acf-common/format-detected-period detected-period acf lag-severities)})
 
       (and (#{:warning :fail} classification)
            (acf-common/displayable-patterns pattern)
@@ -553,9 +553,10 @@
 (defn- classification-table-rows
   "Build classification table rows for pprint."
   [class-data acf-data metric-label]
-  (let [combined (merge class-data (select-keys acf-data [:lag-1]))
-        {:keys [lag-1 ljung-box classification pattern detected-period
-                anomalous-lags lag-severities]} combined
+  (let [combined (merge class-data
+                        (select-keys acf-data [:lag-1 :acf :lag-severities]))
+        {:keys [acf lag-1 lag-severities ljung-box classification pattern
+                detected-period anomalous-lags]} combined
         rows [{:metric (str metric-label " Lag-1")
                :value (format "%.2f (%s)"
                               (:value lag-1)
@@ -574,9 +575,9 @@
       (conj {:metric "Pattern"
              :value (get acf-common/pattern-labels pattern (name pattern))})
 
-      (and (= pattern :periodic) detected-period)
+      (acf-common/format-detected-period detected-period acf lag-severities)
       (conj {:metric "Suspected period"
-             :value (format "%d samples" detected-period)})
+             :value (acf-common/format-detected-period detected-period acf lag-severities)})
 
       (and (#{:warning :fail} classification)
            (acf-common/displayable-patterns pattern)

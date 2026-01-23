@@ -1506,7 +1506,7 @@
                            Assessment: Acceptable
 
   For warning/fail, adds pattern and recommendation lines."
-  [{:keys [lag-1 effective-sample-size ci-inflation-factor
+  [{:keys [acf lag-1 effective-sample-size ci-inflation-factor
            ljung-box pattern classification detected-period
            anomalous-lags lag-severities]}
    metric-label]
@@ -1538,10 +1538,11 @@
     (println (format "%36s: %s"
                      "Pattern"
                      (get acf-common/pattern-labels pattern (name pattern))))
-    (when (and (= pattern :periodic) detected-period)
-      (println (format "%36s: %d samples"
+    (when-let [period-str (acf-common/format-detected-period
+                           detected-period acf lag-severities)]
+      (println (format "%36s: %s"
                        "Suspected period"
-                       detected-period)))
+                       period-str)))
     (when-let [rec (get acf-common/pattern-recommendations pattern)]
       (println (format "%36s: %s"
                        "Recommendation"
@@ -1563,7 +1564,8 @@
 
 (defn- print-classification-for-metric
   "Print classification analysis for a single metric."
-  [{:keys [lag-1 ljung-box pattern classification detected-period]} metric-label]
+  [{:keys [acf lag-1 lag-severities ljung-box pattern classification detected-period]}
+   metric-label]
   (println (format "%36s:" "Sample Independence Classification"))
   (println (format "%36s: %.2f (%s)"
                    (str metric-label " Lag-1 autocorrelation")
@@ -1580,10 +1582,11 @@
     (println (format "%36s: %s"
                      "Pattern"
                      (get acf-common/pattern-labels pattern (name pattern))))
-    (when (and (= pattern :periodic) detected-period)
-      (println (format "%36s: %d samples"
+    (when-let [period-str (acf-common/format-detected-period
+                           detected-period acf lag-severities)]
+      (println (format "%36s: %s"
                        "Suspected period"
-                       detected-period)))
+                       period-str)))
     (when-let [rec (get acf-common/pattern-recommendations pattern)]
       (println (format "%36s: %s"
                        "Recommendation"
@@ -1596,7 +1599,8 @@
   (let [metrics (acf-common/collect-classification-metrics view data-map)]
     (when (some #(not= :pass (:classification (first %))) metrics)
       (doseq [[class-data acf-data mc] metrics]
-        (let [combined (merge class-data (select-keys acf-data [:lag-1]))]
+        (let [combined (merge class-data
+                              (select-keys acf-data [:lag-1 :acf :lag-severities]))]
           (print-classification-for-metric combined (:label mc)))))))
 
 (defmethod view/autocorrelation-classification* :print

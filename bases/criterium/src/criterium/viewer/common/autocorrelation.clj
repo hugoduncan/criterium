@@ -66,6 +66,20 @@
                              (format-severity (get lag-severities lag :none))))
                    anomalous-lags))))
 
+(defn format-detected-period
+  "Format detected period with ACF value and severity.
+  Returns a string like '60 samples (r=0.35, moderate)' or nil if period is nil."
+  [detected-period acf-map lag-severities]
+  (when detected-period
+    (let [acf-val (get acf-map detected-period)
+          severity (get lag-severities detected-period :none)]
+      (if acf-val
+        (format "%d samples (r=%.2f, %s)"
+                detected-period
+                (double acf-val)
+                (format-severity severity))
+        (format "%d samples" detected-period)))))
+
 ;;; Data Collection Functions
 
 (defn with-autocorrelation-metrics

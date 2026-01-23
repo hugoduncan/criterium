@@ -983,6 +983,20 @@
                              (get severity-labels (get lag-severities lag :none) "unknown")))
                    anomalous-lags))))
 
+(defn- format-detected-period
+  "Format detected period with ACF value and severity.
+  Returns a string like '60 samples (r=0.35, moderate)' or nil if period is nil."
+  [detected-period acf-map lag-severities]
+  (when detected-period
+    (let [acf-val (get acf-map detected-period)
+          severity (get lag-severities detected-period :none)]
+      (if acf-val
+        (format "%d samples (r=%.2f, %s)"
+                detected-period
+                (double acf-val)
+                (get severity-labels severity "unknown"))
+        (format "%d samples" detected-period)))))
+
 (defmethod view/autocorrelation-classification* :kindly
   [_ view data-map]
   (let [metrics (collect-classification-metrics view data-map)]
@@ -990,6 +1004,7 @@
       (doseq [[class-data acf-data mc] metrics]
         (let [{:keys [ljung-box classification pattern detected-period]} class-data
               lag-1 (:lag-1 acf-data)
+              acf-map (:acf acf-data)
               anomalous-lags (:anomalous-lags acf-data)
               lag-severities (:lag-severities acf-data)]
           (kindly-heading "Sample Independence Classification")
@@ -1011,8 +1026,9 @@
                   (displayable-patterns pattern))
              (conj {:metric "Pattern" :value (name pattern)})
 
-             (and (= pattern :periodic) detected-period)
-             (conj {:metric "Suspected period" :value (str detected-period " samples")})
+             (format-detected-period detected-period acf-map lag-severities)
+             (conj {:metric "Suspected period"
+                    :value (format-detected-period detected-period acf-map lag-severities)})
 
              true
              (->> (remove nil?) vec))))))))
