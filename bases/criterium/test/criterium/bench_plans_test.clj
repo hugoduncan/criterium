@@ -236,3 +236,29 @@
         (testing (pr-str plan)
           (is (some? (find-view-entry plan :autocorrelation-classification))
               "Plan should include :autocorrelation-classification view (displays anomalous lags)"))))))
+
+(deftest warmup-plans-include-acf-plot-test
+  ;; ACF plot is displayed only when moderate or above severity is detected.
+  ;; All warmup-based bench-plans should include the acf-plot view with :min-severity :moderate.
+  (testing "all warmup-based plans include acf-plot with :min-severity :moderate"
+    (let [warmup-plans [bench-plans/default-with-warmup
+                        bench-plans/log-histogram
+                        bench-plans/knuth-histogram
+                        bench-plans/kde-histogram
+                        bench-plans/kde-modes
+                        bench-plans/distribution-analysis
+                        bench-plans/tail-analysis]]
+      (doseq [plan warmup-plans]
+        (testing (pr-str plan)
+          (let [entry (find-view-entry plan :acf-plot)]
+            (is (some? entry)
+                "Plan should include :acf-plot view")
+            (is (= :moderate (:min-severity (second entry)))
+                "acf-plot should have :min-severity :moderate")
+            (is (= :autocorrelation-raw (:autocorrelation-id (second entry)))
+                "acf-plot should use :autocorrelation-raw")))))))
+
+(deftest default-one-shot-excludes-acf-plot-test
+  (testing "default-one-shot does NOT include acf-plot"
+    (let [plan bench-plans/default-one-shot]
+      (is (nil? (find-view-entry plan :acf-plot))))))

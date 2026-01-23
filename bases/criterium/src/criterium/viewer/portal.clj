@@ -570,7 +570,7 @@
   nil)
 
 (defmethod view/acf-plot* :portal
-  [_ {:keys [autocorrelation-id]} data-map]
+  [_ {:keys [autocorrelation-id min-severity]} data-map]
   (let [autocorrelation-id (or autocorrelation-id :autocorrelation)
         autocorr-map (data-map autocorrelation-id)]
     (when autocorr-map
@@ -581,11 +581,12 @@
           (when-let [acf-data (get autocorr (:path mc))]
             (when-let [spec (charts.autocorrelation/acf-plot-vega-spec
                              acf-data
-                             {:height 400
-                              :title (str "ACF: " (:label mc)
-                                          " (n="
-                                          (get-in acf-data [:effective-sample-size :n-original])
-                                          ")")})]
+                             (cond-> {:height 400
+                                      :title (str "ACF: " (:label mc)
+                                                  " (n="
+                                                  (get-in acf-data [:effective-sample-size :n-original])
+                                                  ")")}
+                               min-severity (assoc :min-severity min-severity)))]
               (heading (str "Autocorrelation: " (:label mc)))
               (portal-vega-lite spec))))))))
 

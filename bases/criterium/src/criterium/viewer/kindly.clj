@@ -890,7 +890,7 @@
   nil)
 
 (defmethod view/acf-plot* :kindly
-  [_ {:keys [autocorrelation-id]} data-map]
+  [_ {:keys [autocorrelation-id min-severity]} data-map]
   (let [autocorrelation-id (or autocorrelation-id :autocorrelation)
         autocorr-map (data-map autocorrelation-id)]
     (when autocorr-map
@@ -901,12 +901,13 @@
           (when-let [acf-data (get autocorr (:path mc))]
             (when-let [spec (charts.autocorrelation/acf-plot-vega-spec
                              acf-data
-                             {:width chart-width
-                              :height chart-height
-                              :title (str "ACF: " (:label mc)
-                                          " (n="
-                                          (get-in acf-data [:effective-sample-size :n-original])
-                                          ")")})]
+                             (cond-> {:width chart-width
+                                      :height chart-height
+                                      :title (str "ACF: " (:label mc)
+                                                  " (n="
+                                                  (get-in acf-data [:effective-sample-size :n-original])
+                                                  ")")}
+                               min-severity (assoc :min-severity min-severity)))]
               (kindly-heading (str "Autocorrelation: " (:label mc)))
               (kindly-vega-lite spec))))))))
 

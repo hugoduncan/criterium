@@ -12,11 +12,27 @@
   {:acf {1 0.25, 2 0.18, 3 0.12, 4 0.08, 5 0.05,
          6 0.03, 7 0.02, 8 0.01, 9 0.005, 10 0.002}
    :lag-1 {:value 0.25 :severity :moderate}
+   :lag-severities {1 :moderate, 2 :minor, 3 :none, 4 :none, 5 :none,
+                    6 :none, 7 :none, 8 :none, 9 :none, 10 :none}
    :effective-sample-size {:n-original 100 :n-effective 60 :ratio 0.6}
    :ci-inflation-factor 1.29
    :ljung-box {:q-statistic 15.2 :df 10 :p-value 0.12}
    :pattern :transient-effects
    :classification :warning
+   :detected-period nil})
+
+(def ^:private sample-acf-data-clean
+  "Synthetic autocorrelation data with all lags at :none severity."
+  {:acf {1 0.05, 2 0.03, 3 0.02, 4 0.01, 5 0.005,
+         6 0.003, 7 0.002, 8 0.001, 9 0.0005, 10 0.0002}
+   :lag-1 {:value 0.05 :severity :none}
+   :lag-severities {1 :none, 2 :none, 3 :none, 4 :none, 5 :none,
+                    6 :none, 7 :none, 8 :none, 9 :none, 10 :none}
+   :effective-sample-size {:n-original 100 :n-effective 100 :ratio 1.0}
+   :ci-inflation-factor 1.0
+   :ljung-box {:q-statistic 2.1 :df 10 :p-value 0.85}
+   :pattern :clean
+   :classification :pass
    :detected-period nil})
 
 (def ^:private sample-acf-data-with-period
@@ -25,6 +41,8 @@
          :acf {1 0.05, 2 0.03, 3 0.02, 4 0.01, 5 0.005,
                6 0.25, 7 0.02, 8 0.01, 9 0.005, 10 0.002}
          :lag-1 {:value 0.05 :severity :none}
+         :lag-severities {1 :none, 2 :none, 3 :none, 4 :none, 5 :none,
+                          6 :moderate, 7 :none, 8 :none, 9 :none, 10 :none}
          :pattern :periodic
          :detected-period 6))
 
@@ -122,3 +140,59 @@
         (is (some #(= % "minor") domain))
         (is (some #(= % "moderate") domain))
         (is (some #(= % "severe") domain))))))
+
+(deftest has-severity-at-or-above?-test
+  (testing "has-severity-at-or-above?"
+    (testing "returns true when severity meets threshold"
+      (is (acf-chart/has-severity-at-or-above?
+           {1 :moderate, 2 :none} :moderate))
+      (is (acf-chart/has-severity-at-or-above?
+           {1 :severe, 2 :none} :moderate))
+      (is (acf-chart/has-severity-at-or-above?
+           {1 :minor, 2 :moderate} :moderate)))
+
+    (testing "returns false when no severity meets threshold"
+      (is (not (acf-chart/has-severity-at-or-above?
+                {1 :none, 2 :none} :minor)))
+      (is (not (acf-chart/has-severity-at-or-above?
+                {1 :minor, 2 :none} :moderate)))
+      (is (not (acf-chart/has-severity-at-or-above?
+                {1 :moderate, 2 :minor} :severe))))
+
+    (testing "handles alternating severities correctly"
+      ;; alternating-moderate should still count as moderate level
+      (is (acf-chart/has-severity-at-or-above?
+           {1 :alternating-moderate, 2 :none} :moderate))
+      (is (not (acf-chart/has-severity-at-or-above?
+                {1 :alternating-minor, 2 :none} :moderate))))
+
+    (testing "handles empty or nil input"
+      (is (not (acf-chart/has-severity-at-or-above? {} :moderate)))
+      (is (not (acf-chart/has-severity-at-or-above? nil :moderate))))))
+
+(deftest acf-plot-min-severity-test
+  (testing "acf-plot-vega-spec with :min-severity option"
+    (testing "returns spec when threshold met"
+      (let [spec (acf-chart/acf-plot-vega-spec
+                  sample-acf-data
+                  {:min-severity :moderate})]
+        (is (some? spec))
+        (is (map? spec))))
+
+    (testing "returns nil when threshold not met"
+      (let [spec (acf-chart/acf-plot-vega-spec
+                  sample-acf-data-clean
+                  {:min-severity :moderate})]
+        (is (nil? spec))))
+
+    (testing "returns spec with :minor threshold on clean data"
+      (let [spec (acf-chart/acf-plot-vega-spec
+                  sample-acf-data-clean
+                  {:min-severity :none})]
+        (is (some? spec))))
+
+    (testing "returns spec when no threshold specified"
+      (let [spec (acf-chart/acf-plot-vega-spec
+                  sample-acf-data-clean
+                  {})]
+        (is (some? spec))))))

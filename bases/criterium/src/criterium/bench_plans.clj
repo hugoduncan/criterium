@@ -47,6 +47,8 @@
           :bootstrap-stats
           [:autocorrelation-classification {:classification-id :autocorrelation-classification-raw}]
           [:effective-sample-size {:ess-id :effective-sample-size-filtered}]
+          [:acf-plot {:autocorrelation-id :autocorrelation-raw
+                      :min-severity :moderate}]
           :extremes
           [:multimodal-warning {:modes-id :modes}]
           :event-stats
@@ -87,6 +89,8 @@
           :bootstrap-stats
           [:autocorrelation-classification {:classification-id :autocorrelation-classification-raw}]
           [:effective-sample-size {:ess-id :effective-sample-size-filtered}]
+          [:acf-plot {:autocorrelation-id :autocorrelation-raw
+                      :min-severity :moderate}]
           :extremes
           :quantiles
           :event-stats
@@ -135,6 +139,8 @@
           :bootstrap-stats
           [:autocorrelation-classification {:classification-id :autocorrelation-classification-raw}]
           [:effective-sample-size {:ess-id :effective-sample-size-filtered}]
+          [:acf-plot {:autocorrelation-id :autocorrelation-raw
+                      :min-severity :moderate}]
           :extremes
           :quantiles
           :event-stats
@@ -182,6 +188,8 @@
           :bootstrap-stats
           [:autocorrelation-classification {:classification-id :autocorrelation-classification-raw}]
           [:effective-sample-size {:ess-id :effective-sample-size-filtered}]
+          [:acf-plot {:autocorrelation-id :autocorrelation-raw
+                      :min-severity :moderate}]
           :extremes
           [:stats {:stats-id :kde-stats}]
           :quantiles
@@ -234,6 +242,8 @@
           :bootstrap-stats
           [:autocorrelation-classification {:classification-id :autocorrelation-classification-raw}]
           [:effective-sample-size {:ess-id :effective-sample-size-filtered}]
+          [:acf-plot {:autocorrelation-id :autocorrelation-raw
+                      :min-severity :moderate}]
           :extremes
           [:stats {:stats-id :kde-stats}]
           :quantiles
@@ -303,6 +313,8 @@
           :bootstrap-stats
           [:autocorrelation-classification {:classification-id :autocorrelation-classification-raw}]
           [:effective-sample-size {:ess-id :effective-sample-size-filtered}]
+          [:acf-plot {:autocorrelation-id :autocorrelation-raw
+                      :min-severity :moderate}]
           :extremes
           :shape-stats
           :distribution-models
@@ -365,6 +377,8 @@
           :bootstrap-stats
           [:autocorrelation-classification {:classification-id :autocorrelation-classification-raw}]
           [:effective-sample-size {:ess-id :effective-sample-size-raw}]
+          [:acf-plot {:autocorrelation-id :autocorrelation-raw
+                      :min-severity :moderate}]
           :extremes
           :quantiles
           :tail-summary

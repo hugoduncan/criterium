@@ -19,6 +19,31 @@
   "Canonical ordering of severity levels for consistent legend display."
   [:none :minor :moderate :severe])
 
+(def severity-rank
+  "Numeric ranking for severity comparison. Higher = more severe."
+  {:none 0
+   :minor 1
+   :moderate 2
+   :severe 3
+   :alternating-none 0
+   :alternating-minor 1
+   :alternating-moderate 2
+   :alternating-severe 3})
+
+(defn has-severity-at-or-above?
+  "Check if any lag has severity at or above the given threshold.
+
+  Parameters:
+    lag-severities - map of lag -> severity keyword
+    min-severity - minimum severity to check for (:none, :minor, :moderate, :severe)
+
+  Returns true if any lag meets or exceeds the threshold."
+  [lag-severities min-severity]
+  (let [min-rank (get severity-rank min-severity 0)]
+    (some (fn [[_ sev]]
+            (>= (get severity-rank sev 0) min-rank))
+          lag-severities)))
+
 (def severity-color-scale
   "Vega-Lite color scale for severity."
   {:domain (mapv name severity-order)
@@ -128,15 +153,22 @@
 
   Parameters:
     acf-data - autocorrelation analysis result with :acf, :effective-sample-size, etc.
-    chart-options - map with :width, :height, :title (optional)
+    chart-options - map with :width, :height, :title, :min-severity (optional)
+      :min-severity - if provided, returns nil unless at least one lag has
+                      severity at or above this level (:none, :minor, :moderate, :severe)
 
-  Returns Vega-Lite spec map."
+  Returns Vega-Lite spec map, or nil if suppressed by min-severity threshold."
   [acf-data chart-options]
   (let [chart-data (acf->chart-data acf-data)
         n (get-in acf-data [:effective-sample-size :n-original])
+        lag-severities (:lag-severities acf-data)
+        min-severity (:min-severity chart-options)
         title (or (:title chart-options)
                   (str "Autocorrelation Function (n=" n ")"))]
-    (when (and chart-data n (seq chart-data))
+    (when (and chart-data n (seq chart-data)
+               ;; Check min-severity threshold if specified
+               (or (nil? min-severity)
+                   (has-severity-at-or-above? lag-severities min-severity)))
       (let [layers (cond-> [(zero-line-layer)
                             (threshold-rule-layer n)
                             (acf-bar-layer chart-data)]
