@@ -73,7 +73,8 @@
       (let [samples (darr (sort (range 1 21)))
             results (stats/hill-estimator samples [5])]
         (is (= 1 (count results)))
-        (let [{:keys [estimate tail-index]} (first results)]
+        (let [{:keys [estimate tail-index]} (first results)
+              estimate (double estimate)]
           (when (pos? estimate)
             (is (< (abs-error (/ 1.0 estimate) tail-index) 1e-10))))))))
 
@@ -206,7 +207,7 @@
         (is (contains? result :converged?))
         (is (:converged? result))
         ;; For exponential-like data, xi should be close to 0
-        (is (< (Math/abs (:xi result)) 1.0))))
+        (is (< (Math/abs (double (:xi result))) 1.0))))
     (testing "returns positive sigma"
       (let [samples (darr [1.0 2.0 3.0 4.0 5.0])
             result (stats/gpd-mle samples)]
