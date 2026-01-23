@@ -1523,14 +1523,22 @@
    :drift "Drift detected"
    :periodic "Periodic structure detected"
    :severe "Severe autocorrelation"
-   :alternating-pattern "Alternating pattern—investigate methodology"})
+   :alternating-moderate "Alternating pattern—investigate methodology"
+   :alternating-severe "Alternating pattern—investigate methodology"})
+
+(def ^:private displayable-patterns
+  "Patterns that warrant display of pattern label and recommendations.
+  Excludes :clean, :alternating-none, and :alternating-minor."
+  #{:transient-effects :drift :periodic :severe
+    :alternating-moderate :alternating-severe})
 
 (def ^:private pattern-recommendations
   {:transient-effects "Check: warmup iterations, system load, thermal throttling, GC pressure"
    :drift "Shorter benchmark duration; check thermal throttling"
    :periodic "Investigate GC logs; increase heap; check OS scheduler"
    :severe "Review methodology; results unreliable"
-   :alternating-pattern "Review methodology; results unreliable"})
+   :alternating-moderate "Review methodology; results unreliable"
+   :alternating-severe "Review methodology; results unreliable"})
 
 (defn- format-severity
   "Format a severity keyword for display."
@@ -1589,7 +1597,8 @@
     (println (format "%36s: %s"
                      "Anomalous lags"
                      formatted)))
-  (when (#{:warning :fail} classification)
+  (when (and (#{:warning :fail} classification)
+             (displayable-patterns pattern))
     (println (format "%36s: %s"
                      "Pattern"
                      (get pattern-labels pattern (name pattern))))
@@ -1630,7 +1639,8 @@
   (println (format "%36s: %s"
                    "Assessment"
                    (str/capitalize (name classification))))
-  (when (#{:warning :fail} classification)
+  (when (and (#{:warning :fail} classification)
+             (displayable-patterns pattern))
     (println (format "%36s: %s"
                      "Pattern"
                      (get pattern-labels pattern (name pattern))))

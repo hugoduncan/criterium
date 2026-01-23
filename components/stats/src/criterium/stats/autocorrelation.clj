@@ -281,7 +281,10 @@
 
   Patterns:
   - :clean - all lags below 2/√n threshold
-  - :alternating-pattern - r₁ < 0 (negative lag-1)
+  - :alternating-none - negative r₁ below noise floor
+  - :alternating-minor - negative r₁ at minor severity
+  - :alternating-moderate - negative r₁ at moderate severity
+  - :alternating-severe - negative r₁ at severe severity
   - :severe - lag-1 at severe level
   - :drift - slow decay; lag-⌊n/10⌋ still above threshold
   - :transient-effects - lag-1 elevated with decaying correlation (r₁ > r₂ > r₃)
@@ -304,13 +307,14 @@
         is-drift? (and (> r-drift drift-threshold)
                        (not= lag-1-sev :none))]
     (cond
+      ;; Negative lag-1 - return severity-qualified alternating pattern
+      ;; Check this before all-clean to ensure alternating is reported
+      (neg? r1)
+      lag-1-sev
+
       ;; All lags below noise - clean
       all-clean?
       :clean
-
-      ;; Negative lag-1 - alternating pattern
-      (neg? r1)
-      :alternating-pattern
 
       ;; Severe lag-1
       (= lag-1-sev :severe)
@@ -424,7 +428,7 @@
 
   Returns map with:
     :ljung-box - {:q-statistic Q :df h :p-value p}
-    :pattern - :clean, :warmup, :drift, :periodic, :severe, or :alternating-pattern
+    :pattern - :clean, :transient-effects, :drift, :periodic, :severe, or :alternating-*
     :classification - :pass, :acceptable, :warning, or :fail
     :detected-period - Integer period for :periodic pattern, nil otherwise
 

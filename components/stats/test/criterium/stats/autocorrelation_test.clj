@@ -309,12 +309,25 @@
         (is (= :clean (acf/detect-pattern acf-map 100)))))))
 
 (deftest detect-pattern-alternating-test
-  ;; Tests alternating pattern detection
-  ;; Contract: negative r1 -> :alternating-pattern
+  ;; Tests alternating pattern detection with severity levels
+  ;; Contract: negative r1 returns severity-qualified alternating pattern
+  ;; For n=400, noise floor = 0.1, so thresholds are at nominal values
   (testing "detect-pattern"
-    (testing "returns :alternating-pattern when r1 < 0"
-      (let [acf-map {1 -0.3, 2 0.1, 3 -0.05}]
-        (is (= :alternating-pattern (acf/detect-pattern acf-map 100)))))))
+    (testing "returns :alternating-none for small negative r1"
+      (let [acf-map {1 -0.05, 2 0.02, 3 -0.01}]
+        (is (= :alternating-none (acf/detect-pattern acf-map 400)))))
+
+    (testing "returns :alternating-minor for r1 between -0.20 and -0.10"
+      (let [acf-map {1 -0.15, 2 0.05, 3 -0.02}]
+        (is (= :alternating-minor (acf/detect-pattern acf-map 400)))))
+
+    (testing "returns :alternating-moderate for r1 between -0.35 and -0.20"
+      (let [acf-map {1 -0.30, 2 0.10, 3 -0.05}]
+        (is (= :alternating-moderate (acf/detect-pattern acf-map 400)))))
+
+    (testing "returns :alternating-severe for r1 below -0.35"
+      (let [acf-map {1 -0.50, 2 0.15, 3 -0.08}]
+        (is (= :alternating-severe (acf/detect-pattern acf-map 400)))))))
 
 (deftest detect-pattern-severe-test
   ;; Tests severe pattern detection

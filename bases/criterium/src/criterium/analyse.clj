@@ -1064,7 +1064,7 @@
   - Returns the map with classification analysis added under :id key
   - For each metric provides:
     - :ljung-box - {:q-statistic Q :df h :p-value p}
-    - :pattern - :clean, :warmup, :drift, :periodic, :severe, or :alternating-pattern
+    - :pattern - :clean, :transient-effects, :drift, :periodic, :severe, or :alternating-*
     - :classification - :pass, :acceptable, :warning, or :fail
     - :detected-period - Integer period for :periodic pattern, nil otherwise
 

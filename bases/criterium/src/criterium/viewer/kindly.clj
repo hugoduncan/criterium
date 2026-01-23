@@ -921,6 +921,12 @@
    :alternating-moderate "alternating"
    :alternating-severe "alternating"})
 
+(def ^:private displayable-patterns
+  "Patterns that warrant display of pattern label and recommendations.
+  Excludes :clean, :alternating-none, and :alternating-minor."
+  #{:transient-effects :drift :periodic :severe
+    :alternating-moderate :alternating-severe})
+
 (defn- collect-classification-metrics
   "Collect classification data for all metrics. Returns seq of [class-data acf-data mc].
   Uses :classification-id to get classification analysis results, and looks up
@@ -1001,7 +1007,8 @@
              (conj {:metric "Anomalous lags"
                     :value (format-anomalous-lags anomalous-lags lag-severities)})
 
-             (#{:warning :fail} classification)
+             (and (#{:warning :fail} classification)
+                  (displayable-patterns pattern))
              (conj {:metric "Pattern" :value (name pattern)})
 
              (and (= pattern :periodic) detected-period)
