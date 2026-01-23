@@ -1,0 +1,4 @@
+{:dynamic-vars
+ {clojure.core/*warn-on-reflection*      true
+  clojure.core/*unchecked-math*          :warn-on-boxed
+  clojure.core/*warn-on-late-bound-call* true}}
