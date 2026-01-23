@@ -172,3 +172,9 @@ jobs:
       run: |
         set -x
         clj-kondo --lint bases projects --fail-level warning
+
+    - name: Check for boxed math and reflection warnings
+      if: matrix.os == 'ubuntu-latest' && matrix.with-agent == false
+      run: |
+        set -x
+        clojure -M:dev:test:check-warnings
