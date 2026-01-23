@@ -42,7 +42,8 @@
   [lag-severities min-severity]
   (let [min-rank (get severity-rank min-severity 0)]
     (some (fn [[_ sev]]
-            (>= (get severity-rank sev 0) min-rank))
+            (>= (long (get severity-rank sev 0))
+                (long min-rank)))
           lag-severities)))
 
 (def severity-color-scale
@@ -117,13 +118,13 @@
   (let [lag-1-thresholds (:lag-1 thresholds)
         other-thresholds (:other thresholds)
         ;; Collect crossed thresholds
-        lag-1-lines (for [[level threshold] lag-1-thresholds
+        lag-1-lines (for [[level ^double threshold] lag-1-thresholds
                           :when (lag-1-threshold-crossed? chart-data threshold)]
                       {:threshold threshold
                        :neg-threshold (- threshold)
                        :color (get lag-1-threshold-colors level)
                        :label (str "lag-1 " (name level))})
-        other-lines (for [[level threshold] other-thresholds
+        other-lines (for [[level ^double threshold] other-thresholds
                           :when (other-lag-threshold-crossed? chart-data threshold)]
                       {:threshold threshold
                        :neg-threshold (- threshold)
