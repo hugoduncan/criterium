@@ -12,6 +12,7 @@
    [criterium.util.invariant :refer [have have?]]
    [criterium.view :as view]
    [criterium.viewer.common.allocation :as allocation]
+   [criterium.viewer.common.autocorrelation :as acf-common]
    [criterium.viewer.common.core :as core]
    [criterium.viewer.common.domain.comparison :as comparison]
    [criterium.viewer.common.domain.detection :as detection]
@@ -1493,71 +1494,6 @@
 
 ;;; Autocorrelation Views
 
-(defn- with-autocorrelation-metrics
-  "Helper for autocorrelation views. Calls f for each metric with acf-data.
-  f receives acf-data and metric-config."
-  [{:keys [autocorrelation-id]} data-map f]
-  (let [autocorrelation-id (or autocorrelation-id :autocorrelation)
-        autocorr-map (data-map autocorrelation-id)]
-    (when autocorr-map
-      (let [autocorr (util/autocorrelation autocorr-map)
-            metrics-defs (:metrics-defs autocorr-map)
-            metric-configs (metric/all-metric-configs metrics-defs)]
-        (doseq [mc metric-configs]
-          (when-let [acf-data (get autocorr (:path mc))]
-            (f acf-data mc)))))))
-
-(def ^:private severity-labels
-  {:none "none"
-   :minor "minor"
-   :moderate "moderate"
-   :severe "severe"
-   :alternating-none "alternating"
-   :alternating-minor "alternating"
-   :alternating-moderate "alternating"
-   :alternating-severe "alternating"})
-
-(def ^:private pattern-labels
-  {:clean "Clean"
-   :transient-effects "Transient effects"
-   :drift "Drift detected"
-   :periodic "Periodic structure detected"
-   :severe "Severe autocorrelation"
-   :alternating-moderate "Alternating pattern—investigate methodology"
-   :alternating-severe "Alternating pattern—investigate methodology"})
-
-(def ^:private displayable-patterns
-  "Patterns that warrant display of pattern label and recommendations.
-  Excludes :clean, :alternating-none, and :alternating-minor."
-  #{:transient-effects :drift :periodic :severe
-    :alternating-moderate :alternating-severe})
-
-(def ^:private pattern-recommendations
-  {:transient-effects "Check: warmup iterations, system load, thermal throttling, GC pressure"
-   :drift "Shorter benchmark duration; check thermal throttling"
-   :periodic "Investigate GC logs; increase heap; check OS scheduler"
-   :severe "Review methodology; results unreliable"
-   :alternating-moderate "Review methodology; results unreliable"
-   :alternating-severe "Review methodology; results unreliable"})
-
-(defn- format-severity
-  "Format a severity keyword for display."
-  [severity]
-  (get severity-labels severity (name severity)))
-
-(defn- format-anomalous-lags
-  "Format anomalous lags for display.
-  Takes a vector of lag numbers and a map of lag -> severity.
-  Returns a string like '1 (minor), 12 (moderate)' or nil if empty."
-  [anomalous-lags lag-severities]
-  (when (seq anomalous-lags)
-    (str/join ", "
-              (map (fn [lag]
-                     (format "%d (%s)"
-                             lag
-                             (format-severity (get lag-severities lag :none))))
-                   anomalous-lags))))
-
 (defn print-autocorrelation
   "Print autocorrelation analysis summary for a metric.
 
@@ -1578,7 +1514,7 @@
   (println (format "%36s: %.2f (%s)"
                    (str metric-label " Lag-1 autocorrelation")
                    (:value lag-1)
-                   (format-severity (:severity lag-1))))
+                   (acf-common/format-severity (:severity lag-1))))
   (println (format "%36s: %d of %d (%.0f%%)"
                    "Effective sample size"
                    (:n-effective effective-sample-size)
@@ -1593,20 +1529,20 @@
   (println (format "%36s: %s"
                    "Assessment"
                    (str/capitalize (name classification))))
-  (when-let [formatted (format-anomalous-lags anomalous-lags lag-severities)]
+  (when-let [formatted (acf-common/format-anomalous-lags anomalous-lags lag-severities)]
     (println (format "%36s: %s"
                      "Anomalous lags"
                      formatted)))
   (when (and (#{:warning :fail} classification)
-             (displayable-patterns pattern))
+             (acf-common/displayable-patterns pattern))
     (println (format "%36s: %s"
                      "Pattern"
-                     (get pattern-labels pattern (name pattern))))
+                     (get acf-common/pattern-labels pattern (name pattern))))
     (when (and (= pattern :periodic) detected-period)
       (println (format "%36s: %d samples"
                        "Suspected period"
                        detected-period)))
-    (when-let [rec (get pattern-recommendations pattern)]
+    (when-let [rec (get acf-common/pattern-recommendations pattern)]
       (println (format "%36s: %s"
                        "Recommendation"
                        rec)))))
@@ -1614,7 +1550,7 @@
 (defn print-autocorrelations
   "Print autocorrelation analysis for all metrics."
   [view data-map]
-  (with-autocorrelation-metrics view data-map
+  (acf-common/with-autocorrelation-metrics view data-map
     (fn [acf-data mc]
       (print-autocorrelation acf-data (:label mc)))))
 
@@ -1632,7 +1568,7 @@
   (println (format "%36s: %.2f (%s)"
                    (str metric-label " Lag-1 autocorrelation")
                    (:value lag-1)
-                   (format-severity (:severity lag-1))))
+                   (acf-common/format-severity (:severity lag-1))))
   (println (format "%36s: %.2f"
                    (str metric-label " Ljung-Box p-value")
                    (:p-value ljung-box)))
@@ -1640,46 +1576,24 @@
                    "Assessment"
                    (str/capitalize (name classification))))
   (when (and (#{:warning :fail} classification)
-             (displayable-patterns pattern))
+             (acf-common/displayable-patterns pattern))
     (println (format "%36s: %s"
                      "Pattern"
-                     (get pattern-labels pattern (name pattern))))
+                     (get acf-common/pattern-labels pattern (name pattern))))
     (when (and (= pattern :periodic) detected-period)
       (println (format "%36s: %d samples"
                        "Suspected period"
                        detected-period)))
-    (when-let [rec (get pattern-recommendations pattern)]
+    (when-let [rec (get acf-common/pattern-recommendations pattern)]
       (println (format "%36s: %s"
                        "Recommendation"
                        rec)))))
-
-(defn- collect-classification-metrics
-  "Collect classification data for all metrics. Returns seq of [class-data acf-data mc].
-  Uses :classification-id to get classification analysis results, and looks up
-  the source autocorrelation for lag-1 data."
-  [{:keys [classification-id autocorrelation-id]} data-map]
-  (let [classification-id (or classification-id :autocorrelation-classification)
-        class-map (data-map classification-id)]
-    (when class-map
-      (let [class-data (util/autocorrelation-classification-data class-map)
-            ;; Get autocorrelation data for lag-1
-            autocorr-id (or autocorrelation-id (:source-id class-map))
-            autocorr-map (when autocorr-id (data-map autocorr-id))
-            autocorr (when autocorr-map (util/autocorrelation autocorr-map))
-            metrics-defs (:metrics-defs class-map)
-            metric-configs (metric/all-metric-configs metrics-defs)]
-        (for [mc metric-configs
-              :let [p (:path mc)
-                    cd (get class-data p)
-                    acf (when autocorr (get autocorr p))]
-              :when cd]
-          [cd acf mc])))))
 
 (defn print-autocorrelation-classifications
   "Print autocorrelation classification for all metrics.
   Only outputs if at least one metric is not classified as :pass."
   [view data-map]
-  (let [metrics (collect-classification-metrics view data-map)]
+  (let [metrics (acf-common/collect-classification-metrics view data-map)]
     (when (some #(not= :pass (:classification (first %))) metrics)
       (doseq [[class-data acf-data mc] metrics]
         (let [combined (merge class-data (select-keys acf-data [:lag-1]))]
@@ -1689,28 +1603,6 @@
   [_ view data-map]
   (print-autocorrelation-classifications view data-map))
 
-(defn- collect-ess-metrics
-  "Collect ESS data for all metrics. Returns seq of [ess-data acf-data mc].
-  Uses :ess-id to get ESS analysis results, and looks up
-  the source autocorrelation for lag-1 data."
-  [{:keys [ess-id autocorrelation-id]} data-map]
-  (let [ess-id (or ess-id :effective-sample-size)
-        ess-map (data-map ess-id)]
-    (when ess-map
-      (let [ess-data (util/effective-sample-size-data ess-map)
-            ;; Get autocorrelation data for lag-1
-            autocorr-id (or autocorrelation-id (:source-id ess-map))
-            autocorr-map (when autocorr-id (data-map autocorr-id))
-            autocorr (when autocorr-map (util/autocorrelation autocorr-map))
-            metrics-defs (:metrics-defs ess-map)
-            metric-configs (metric/all-metric-configs metrics-defs)]
-        (for [mc metric-configs
-              :let [p (:path mc)
-                    ed (get ess-data p)
-                    acf (when autocorr (get autocorr p))]
-              :when ed]
-          [ed acf mc])))))
-
 (defn- print-effective-sample-size-for-metric
   "Print effective sample size analysis for a single metric."
   [{:keys [lag-1 effective-sample-size ci-inflation-factor]} metric-label]
@@ -1719,7 +1611,7 @@
     (println (format "%36s: %.2f (%s)"
                      (str metric-label " Lag-1 autocorrelation")
                      (:value lag-1)
-                     (format-severity (:severity lag-1)))))
+                     (acf-common/format-severity (:severity lag-1)))))
   (println (format "%36s: %d of %d (%.0f%%)"
                    "Effective sample size"
                    (:n-effective effective-sample-size)
@@ -1733,7 +1625,7 @@
   "Print effective sample size analysis for all metrics.
   Only outputs if at least one metric has CI inflation factor other than 1.0."
   [view data-map]
-  (let [metrics (collect-ess-metrics view data-map)]
+  (let [metrics (acf-common/collect-ess-metrics view data-map)]
     (when (some #(not= 1.0 (:ci-inflation-factor (first %))) metrics)
       (doseq [[ess-data acf-data mc] metrics]
         (let [combined (merge ess-data (select-keys acf-data [:lag-1]))]
