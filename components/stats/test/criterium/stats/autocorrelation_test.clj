@@ -324,13 +324,13 @@
       (let [acf-map {1 0.5, 2 0.3, 3 0.2}]
         (is (= :severe (acf/detect-pattern acf-map 100)))))))
 
-(deftest detect-pattern-warmup-test
-  ;; Tests warmup pattern detection
-  ;; Contract: lag-1 elevated with exponential decay -> :warmup
+(deftest detect-pattern-transient-effects-test
+  ;; Tests transient-effects pattern detection
+  ;; Contract: lag-1 elevated with exponential decay -> :transient-effects
   (testing "detect-pattern"
-    (testing "returns :warmup for exponential decay r1 > r2 > r3"
+    (testing "returns :transient-effects for exponential decay r1 > r2 > r3"
       (let [acf-map {1 0.25, 2 0.15, 3 0.08, 4 0.04}]
-        (is (= :warmup (acf/detect-pattern acf-map 100)))))))
+        (is (= :transient-effects (acf/detect-pattern acf-map 100)))))))
 
 (deftest detect-pattern-drift-test
   ;; Tests drift pattern detection
@@ -439,7 +439,7 @@
 
 (deftest analyse-autocorrelation-ar1-test
   ;; Tests full analysis on AR(1) process
-  ;; Contract: detects warmup pattern and appropriate classification
+  ;; Contract: detects transient-effects pattern and appropriate classification
   (testing "analyse-autocorrelation"
     (testing "detects autocorrelation in AR(1) process"
       (let [phi 0.7
@@ -453,8 +453,8 @@
                          (* (Math/sqrt (- 1.0 (* phi phi))) (.nextGaussian rng)))))
             result (acf/analyse-autocorrelation samples)]
         (is (map? result))
-        ;; Should detect warmup or severe pattern
-        (is (#{:warmup :severe} (:pattern result)))
+        ;; Should detect transient-effects or severe pattern
+        (is (#{:transient-effects :severe} (:pattern result)))
         ;; Classification should be warning or fail
         (is (#{:warning :fail} (:classification result)))
         ;; Effective sample size should be reduced

@@ -15,7 +15,7 @@
    :effective-sample-size {:n-original 100 :n-effective 60 :ratio 0.6}
    :ci-inflation-factor 1.29
    :ljung-box {:q-statistic 15.2 :df 10 :p-value 0.12}
-   :pattern :warmup
+   :pattern :transient-effects
    :classification :warning
    :detected-period nil})
 

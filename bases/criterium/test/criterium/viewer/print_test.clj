@@ -1591,7 +1591,7 @@
                                                :ratio 0.60}
                        :ci-inflation-factor 1.67
                        :ljung-box {:q-statistic 42.5 :df 20 :p-value 0.008}
-                       :pattern :warmup
+                       :pattern :transient-effects
                        :classification :warning
                        :detected-period nil}
                       "Elapsed Time"))
@@ -1600,9 +1600,9 @@
             "Should show severity as moderate")
         (is (some #(str/includes? % "Warning") lines))
         (is (some #(str/includes? % "Pattern") lines))
-        (is (some #(str/includes? % "Warmup effects") lines))
+        (is (some #(str/includes? % "Transient effects") lines))
         (is (some #(str/includes? % "Recommendation") lines))
-        (is (some #(str/includes? % "Extend warmup") lines))))
+        (is (some #(str/includes? % "Check:") lines))))
 
     (testing "displays pattern and period for :periodic"
       (let [output (with-out-str

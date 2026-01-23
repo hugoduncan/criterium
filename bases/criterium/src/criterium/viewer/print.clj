@@ -1519,14 +1519,14 @@
 
 (def ^:private pattern-labels
   {:clean "Clean"
-   :warmup "Warmup effects"
+   :transient-effects "Transient effects"
    :drift "Drift detected"
    :periodic "Periodic structure detected"
    :severe "Severe autocorrelation"
    :alternating-pattern "Alternating pattern—investigate methodology"})
 
 (def ^:private pattern-recommendations
-  {:warmup "Extend warmup iterations"
+  {:transient-effects "Check: warmup iterations, system load, thermal throttling, GC pressure"
    :drift "Shorter benchmark duration; check thermal throttling"
    :periodic "Investigate GC logs; increase heap; check OS scheduler"
    :severe "Review methodology; results unreliable"

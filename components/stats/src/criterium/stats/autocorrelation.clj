@@ -271,7 +271,7 @@
   - :alternating-pattern - r₁ < 0 (negative lag-1)
   - :severe - lag-1 at severe level
   - :drift - slow decay; lag-⌊n/10⌋ still above threshold
-  - :warmup - lag-1 elevated AND r₁ > r₂ > r₃ (exponential decay)
+  - :transient-effects - lag-1 elevated with decaying correlation (r₁ > r₂ > r₃)
   - :periodic - lag-1 clean but peak at k > 5 exceeds threshold
 
   Returns pattern keyword."
@@ -303,26 +303,26 @@
       (= lag-1-sev :severe)
       :severe
 
-      ;; Drift: slow decay, lag at n/10 still elevated (check before warmup)
+      ;; Drift: slow decay, lag at n/10 still elevated
       is-drift?
       :drift
 
-      ;; Warmup: lag-1 elevated with exponential decay r1 > r2 > r3
+      ;; Transient effects: lag-1 elevated with decaying correlation r1 > r2 > r3
       (and (not= lag-1-sev :none)
            (> r1 r2)
            (> r2 r3)
            (> r1 0)
            (> r2 0))
-      :warmup
+      :transient-effects
 
       ;; Periodic: lag-1 clean but peak at k > 5
       (and (= lag-1-sev :none)
            (some? (detect-period acf-map n)))
       :periodic
 
-      ;; Default: use lag-1 severity to determine pattern
+      ;; Default: elevated lag-1 without clear pattern
       (not= lag-1-sev :none)
-      :warmup
+      :transient-effects
 
       :else
       :clean)))
