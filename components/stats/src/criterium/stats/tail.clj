@@ -15,6 +15,7 @@
   - Coles (2001), An Introduction to Statistical Modeling of Extreme Values"
   (:require
    [criterium.array :as arr]
+   [criterium.primitive-fn :as prim]
    [criterium.utils.interface :refer [have?]]))
 
 ;;; Exceedances
@@ -91,16 +92,15 @@
             log-vals (arr/dmap sorted-samples (fn ^double [^double x] (Math/log x)))]
         (into []
               (comp
-               (filter (fn [k] (and (>= k 1) (< k n))))
-               (map (fn [k]
-                      (let [k (long k)
-                            ;; X_{(n-k)} is the (k+1)-th largest, at index n-k-1
+               (filter (fn [^long k] (and (>= k 1) (< k n))))
+               (map (fn [^long k]
+                      (let [;; X_{(n-k)} is the (k+1)-th largest, at index n-k-1
                             threshold-idx (- n k 1)
                             log-threshold (arr/get-double log-vals threshold-idx)
                             ;; Sum log(X_{(n-i+1)}) - log(X_{(n-k)}) for i=1..k
                             ;; X_{(n-i+1)} for i=1..k are the k largest values
                             ;; at indices n-1, n-2, ..., n-k
-                            sum-log-diff
+                            ^double sum-log-diff
                             (loop [i 0
                                    acc 0.0]
                               (if (>= i k)
@@ -108,7 +108,7 @@
                                 (let [idx (- n 1 i)
                                       log-xi (arr/get-double log-vals idx)]
                                   (recur (inc i) (+ acc (- log-xi log-threshold))))))
-                            h-k (/ sum-log-diff (double k))]
+                            h-k (/ sum-log-diff k)]
                         {:k k
                          :estimate h-k
                          :tail-index (if (pos? h-k) (/ 1.0 h-k) Double/POSITIVE_INFINITY)}))))
@@ -271,7 +271,7 @@
   Returns {:xi xi :sigma sigma :log-likelihood ll :converged? bool}"
   [exceedances opts]
   (let [n (arr/length exceedances)
-        {:keys [max-iter tol xi-min xi-max]
+        {:keys [^long max-iter ^double tol ^double xi-min ^double xi-max]
          :or {max-iter 100 tol 1e-8 xi-min -0.5 xi-max 2.0}} opts
         ;; Sample statistics
         sum-y (arr/fold-double exceedances
@@ -332,19 +332,19 @@
         ;; Grid search
         grid-points 20
         xi-step (/ (- xi-max effective-xi-min) grid-points)
-        best-xi
+        ^double best-xi
         (loop [xi effective-xi-min
                best-xi 0.0
                best-ll Double/NEGATIVE_INFINITY]
           (if (> xi xi-max)
             best-xi
-            (let [ll (profile-ll xi)]
+            (let [ll (prim/invoke-dd profile-ll xi)]
               (if (> ll best-ll)
                 (recur (+ xi xi-step) xi ll)
                 (recur (+ xi xi-step) best-xi best-ll)))))
 
         ;; Golden section refinement around best-xi
-        final-xi
+        ^double final-xi
         (let [golden (/ (- (Math/sqrt 5.0) 1.0) 2.0)
               refine-width (* 2.0 xi-step)]
           (loop [a (Math/max effective-xi-min (- best-xi refine-width))
@@ -354,8 +354,8 @@
               (/ (+ a b) 2.0)
               (let [c (- b (* golden (- b a)))
                     d (+ a (* golden (- b a)))
-                    fc (profile-ll c)
-                    fd (profile-ll d)]
+                    fc (prim/invoke-dd profile-ll c)
+                    fd (prim/invoke-dd profile-ll d)]
                 (if (> fc fd)
                   (recur a d (inc iter))
                   (recur c b (inc iter)))))))
@@ -453,16 +453,16 @@
       (into []
             (comp
              (map (fn [u]
-                    (let [u (double u)
+                    (let [u        (double u)
                           ;; Find first index where sample > u
                           ;; Since sorted, we can binary search
-                          exceed-start
+                          ^long exceed-start
                           (loop [lo 0
                                  hi n]
                             (if (>= lo hi)
                               lo
                               (let [mid (quot (+ lo hi) 2)
-                                    v (arr/get-double sorted-samples mid)]
+                                    v   (arr/get-double sorted-samples mid)]
                                 (if (<= v u)
                                   (recur (inc mid) hi)
                                   (recur lo mid)))))
@@ -470,8 +470,8 @@
                       (if (zero? n-exceed)
                         {:threshold u :mrl Double/NaN :n-exceed 0}
                         (let [;; Sum of exceedances: Σ(xᵢ - u) for xᵢ > u
-                              sum-excess
-                              (loop [i exceed-start
+                              ^double sum-excess
+                              (loop [i   exceed-start
                                      acc 0.0]
                                 (if (>= i n)
                                   acc
@@ -495,11 +495,11 @@
    {:pre [(have? arr/typed-array? sorted-samples)]}
    (let [n (arr/length sorted-samples)]
      (when (pos? n)
-       (let [q-min 0.5
-             q-max 0.95
+       (let [q-min  0.5
+             q-max  0.95
              q-step (/ (- q-max q-min) (dec n-points))]
-         (for [i (range n-points)]
-           (let [q (+ q-min (* i q-step))
+         (for [^long i (range n-points)]
+           (let [q   (+ q-min (* i q-step))
                  idx (min (dec n) (long (* q (dec n))))]
              (arr/get-double sorted-samples idx))))))))
 
