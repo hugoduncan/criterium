@@ -7,6 +7,7 @@
   All functions require typed arrays (DoubleArray, LongArray)."
   (:require
    [criterium.array :as arr]
+   [criterium.array.interface]
    [criterium.random.interface :as random]
    [criterium.stats.core :as core]
    [criterium.stats.sampling :as sampling]

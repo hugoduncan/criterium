@@ -14,6 +14,7 @@
   All functions require typed arrays (DoubleArray, LongArray)."
   (:require
    [criterium.array :as arr]
+   [criterium.array.interface]
    [criterium.stats.probability :as probability]
    [criterium.utils.interface :refer [have?]])
   (:import
