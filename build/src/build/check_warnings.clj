@@ -310,3 +310,66 @@
       :checked-namespaces (count namespaces-to-check)
       :results with-issues
       :warning-count warning-count})))
+
+;;; Reporting
+
+(defn report-warnings
+  "Print human-readable report of warnings.
+
+   Groups warnings by namespace and prints in format:
+   namespace.name: N warnings
+     - Reflection warning: ...
+     - Boxed math warning: ...
+
+   Prints summary at end: Found N warnings in M namespaces"
+  [check-result]
+  (let [{:keys [preload-result total-namespaces exempt-namespaces
+                checked-namespaces results warning-count]} check-result
+        namespaces-with-warnings (filter :warnings results)
+        namespaces-with-errors (filter :error results)]
+    ;; Header
+    (println "=== Boxed Math and Reflection Warning Check ===")
+    (println)
+    ;; Preload summary
+    (println "Pre-loaded" (count (:loaded preload-result)) "third-party namespaces")
+    (when (seq (:missing preload-result))
+      (println "  (skipped" (count (:missing preload-result)) "missing namespaces)"))
+    (println)
+    ;; Namespace counts
+    (println "Total project namespaces:" total-namespaces)
+    (when (seq exempt-namespaces)
+      (println "Exempt namespaces:" (count exempt-namespaces))
+      (doseq [ns-sym exempt-namespaces]
+        (println "  -" ns-sym)))
+    (println "Checked namespaces:" checked-namespaces)
+    (println)
+    ;; Errors
+    (when (seq namespaces-with-errors)
+      (println "=== Compilation Errors ===")
+      (doseq [{:keys [namespace error]} namespaces-with-errors]
+        (println (str namespace ": " error)))
+      (println))
+    ;; Warnings
+    (if (seq namespaces-with-warnings)
+      (do
+        (println "=== Warnings ===")
+        (doseq [{:keys [namespace warnings]} namespaces-with-warnings]
+          (println (str namespace ": " (count warnings) " warning(s)"))
+          (doseq [{:keys [message]} warnings]
+            (println "  -" message)))
+        (println)
+        (println "Found" warning-count "warning(s) in"
+                 (count namespaces-with-warnings) "namespace(s)"))
+      (println "No warnings found."))
+    (println)))
+
+(defn -main
+  "Run warning check and exit with appropriate code.
+
+   Exits with 0 if no warnings found, 1 otherwise."
+  [& _args]
+  (let [result (check-all-namespaces)
+        {:keys [warning-count results]} result
+        error-count (count (filter :error results))]
+    (report-warnings result)
+    (System/exit (if (or (< 0 warning-count) (< 0 error-count)) 1 0))))
