@@ -97,6 +97,9 @@
                              org.clojure/clojure {:mvn/version "1.12.0"}}
                 :jvm-opts ["-Djdk.attach.allowAttachSelf"]
                 :main-opts ["-m" "criterium.notebook.render"]}
+  :check-warnings {:extra-paths ["development/src"]
+                   :extra-deps {local/build {:local/root "build"}}
+                   :main-opts ["-m" "build.check-warnings"]}
   :validation {:extra-paths ["bases/criterium/validation"
                              "components/stats/validation"
                              "components/optimisation/validation"
