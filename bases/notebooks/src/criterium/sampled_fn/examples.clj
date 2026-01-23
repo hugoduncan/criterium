@@ -81,7 +81,7 @@
   "Simulate a network call with variable latency"
   []
   (let [base-latency 50
-        jitter       (rand-int 20)]
+        ^long jitter (rand-int 20)]
     (Thread/sleep (long (+ base-latency jitter)))
     {:status :success}))
 
