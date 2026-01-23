@@ -218,3 +218,21 @@
         (is (nil? (find-view-entry plan :autocorrelation)))
         (is (nil? (find-view-entry plan :autocorrelation-classification)))
         (is (nil? (find-view-entry plan :effective-sample-size)))))))
+
+(deftest warmup-plans-include-anomalous-lags-via-classification-test
+  ;; Anomalous lags are displayed via the autocorrelation-classification view.
+  ;; This test documents that all warmup-based bench-plans include the classification
+  ;; view, which is responsible for displaying anomalous lags when present.
+  ;; See Task 890: anomalous lags display is integrated into autocorrelation-classification.
+  (testing "all warmup-based plans include autocorrelation-classification"
+    (let [warmup-plans [bench-plans/default-with-warmup
+                        bench-plans/log-histogram
+                        bench-plans/knuth-histogram
+                        bench-plans/kde-histogram
+                        bench-plans/kde-modes
+                        bench-plans/distribution-analysis
+                        bench-plans/tail-analysis]]
+      (doseq [plan warmup-plans]
+        (testing (pr-str plan)
+          (is (some? (find-view-entry plan :autocorrelation-classification))
+              "Plan should include :autocorrelation-classification view (displays anomalous lags)"))))))
