@@ -131,18 +131,29 @@
                        :label (str "other " (name level))})]
     (->> (concat lag-1-lines other-lines)
          (mapcat (fn [{:keys [threshold neg-threshold color label]}]
-                   [{:data {:values [{:y threshold :label (str "+" label)}]}
-                     :mark {:type "rule"
-                            :strokeDash [4 4]
-                            :strokeWidth 1}
-                     :encoding {:y {:field "y" :type "quantitative"}
-                                :color {:value color}}}
-                    {:data {:values [{:y neg-threshold :label (str "-" label)}]}
-                     :mark {:type "rule"
-                            :strokeDash [4 4]
-                            :strokeWidth 1}
-                     :encoding {:y {:field "y" :type "quantitative"}
-                                :color {:value color}}}]))
+                   (let [display-label (if (.startsWith ^String label "lag-1")
+                                         (str "Lag-1 " (subs label 6))
+                                         (str "Other lags " (subs label 6)))]
+                     [{:data {:values [{:y threshold
+                                        :category display-label
+                                        :threshold (format "%.2f" threshold)}]}
+                       :mark {:type "rule"
+                              :strokeDash [4 4]
+                              :strokeWidth 1}
+                       :encoding {:y {:field "y" :type "quantitative"}
+                                  :color {:value color}
+                                  :tooltip [{:field "category" :type "nominal" :title "Threshold"}
+                                            {:field "threshold" :type "nominal" :title "Value"}]}}
+                      {:data {:values [{:y neg-threshold
+                                        :category display-label
+                                        :threshold (format "%.2f" neg-threshold)}]}
+                       :mark {:type "rule"
+                              :strokeDash [4 4]
+                              :strokeWidth 1}
+                       :encoding {:y {:field "y" :type "quantitative"}
+                                  :color {:value color}
+                                  :tooltip [{:field "category" :type "nominal" :title "Threshold"}
+                                            {:field "threshold" :type "nominal" :title "Value"}]}}])))
          vec)))
 
 (defn period-annotation-layer
