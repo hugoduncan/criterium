@@ -235,7 +235,7 @@
                          *unchecked-math* :warn-on-boxed
                          *err* (java.io.PrintWriter. err-writer)]
                  (try
-                   (require ns-sym :reload)
+                   (require ns-sym)
                    {:namespace ns-sym}
                    (catch Exception e
                      {:namespace ns-sym
