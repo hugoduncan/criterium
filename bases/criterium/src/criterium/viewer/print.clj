@@ -1511,7 +1511,11 @@
   {:none "none"
    :minor "minor"
    :moderate "moderate"
-   :severe "severe"})
+   :severe "severe"
+   :alternating-none "alternating"
+   :alternating-minor "alternating"
+   :alternating-moderate "alternating"
+   :alternating-severe "alternating"})
 
 (def ^:private pattern-labels
   {:clean "Clean"

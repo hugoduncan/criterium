@@ -189,21 +189,32 @@
 (defn lag-1-severity
   "Classify lag-1 autocorrelation severity.
 
-  Thresholds (above noise floor 2/√n):
+  For positive autocorrelation (consecutive samples correlated):
   - :none - |r₁| < max(0.10, 2/√n)
   - :minor - 0.10 ≤ |r₁| < 0.20
   - :moderate - 0.20 ≤ |r₁| < 0.35
   - :severe - |r₁| ≥ 0.35
 
-  Returns keyword :none, :minor, :moderate, or :severe."
+  For negative autocorrelation (alternating pattern), uses :alternating-*
+  variants. Negative autocorrelation doesn't reduce effective sample size
+  the same way positive does, so these are informational rather than warnings.
+
+  Returns keyword :none, :minor, :moderate, :severe, or :alternating-* variant."
   [^double r1 ^long n]
   (let [abs-r1 (Math/abs r1)
-        floor (noise-floor n)]
-    (cond
-      (< abs-r1 (max 0.10 floor)) :none
-      (< abs-r1 0.20) :minor
-      (< abs-r1 0.35) :moderate
-      :else :severe)))
+        floor (noise-floor n)
+        base-severity (cond
+                        (< abs-r1 (max 0.10 floor)) :none
+                        (< abs-r1 0.20) :minor
+                        (< abs-r1 0.35) :moderate
+                        :else :severe)]
+    (if (neg? r1)
+      (case base-severity
+        :none :alternating-none
+        :minor :alternating-minor
+        :moderate :alternating-moderate
+        :severe :alternating-severe)
+      base-severity)))
 
 (defn lag-severity
   "Classify severity for lags other than lag-1.
@@ -316,6 +327,14 @@
       :else
       :clean)))
 
+(def ^:private none-equivalent
+  "Severities treated as :none for classification purposes."
+  #{:none :alternating-none})
+
+(def ^:private minor-equivalent
+  "Severities treated as :minor or better for classification purposes."
+  #{:none :minor :alternating-none :alternating-minor})
+
 (defn classify-overall
   "Classify overall autocorrelation assessment.
 
@@ -324,6 +343,9 @@
   - :acceptable - lag-1 at :none or :minor AND no lag at :severe
   - :warning - any lag at :moderate OR Ljung-Box p ≤ 0.01
   - :fail - any lag at :severe OR n_eff < n/3
+
+  Alternating severities (negative autocorrelation) are treated more leniently
+  since they don't reduce effective sample size.
 
   Parameters:
     lag-severities - map of lag -> severity from classify-lag-severities
@@ -336,25 +358,27 @@
   (let [severities (set (vals lag-severities))
         lag-1-sev (get lag-severities 1 :none)
         p-value (double (get ljung-box-result :p-value 1.0))
+        ;; Only positive :severe triggers failure (not alternating-severe)
         has-severe? (contains? severities :severe)
         has-moderate? (contains? severities :moderate)
-        all-none? (= severities #{:none})
+        ;; Allow alternating-none to count as "none" for pass check
+        all-none-equivalent? (every? none-equivalent severities)
         n-eff-ratio (/ (double n-eff) (double n))]
     (cond
-      ;; Fail: any severe OR n_eff < n/3
+      ;; Fail: any severe (positive) OR n_eff < n/3
       (or has-severe? (< n-eff-ratio (/ 1.0 3.0)))
       :fail
 
-      ;; Warning: any moderate OR Ljung-Box p ≤ 0.01
+      ;; Warning: any moderate (positive) OR Ljung-Box p ≤ 0.01
       (or has-moderate? (<= p-value 0.01))
       :warning
 
-      ;; Pass: all none AND Ljung-Box p > 0.10
-      (and all-none? (> p-value 0.10))
+      ;; Pass: all none/alternating-none AND Ljung-Box p > 0.10
+      (and all-none-equivalent? (> p-value 0.10))
       :pass
 
-      ;; Acceptable: lag-1 none/minor AND no severe
-      (and (#{:none :minor} lag-1-sev) (not has-severe?))
+      ;; Acceptable: lag-1 none/minor/alternating equiv AND no positive severe
+      (and (minor-equivalent lag-1-sev) (not has-severe?))
       :acceptable
 
       :else

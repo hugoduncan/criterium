@@ -245,22 +245,17 @@
   ;; Contracts: thresholds at 0.10, 0.20, 0.35 (above noise floor)
   ;; Use n=400 where floor=0.1, so thresholds are at their nominal values
   (testing "lag-1-severity"
-    (testing "classifies as :none below threshold"
+    (testing "classifies positive values"
       (is (= :none (acf/lag-1-severity 0.05 400)))
-      (is (= :none (acf/lag-1-severity -0.05 400))))
-
-    (testing "classifies as :minor between 0.10 and 0.20"
-      ;; For n=400, floor=0.1, so 0.15 is above floor -> :minor
       (is (= :minor (acf/lag-1-severity 0.15 400)))
-      (is (= :minor (acf/lag-1-severity -0.15 400))))
-
-    (testing "classifies as :moderate between 0.20 and 0.35"
       (is (= :moderate (acf/lag-1-severity 0.25 400)))
-      (is (= :moderate (acf/lag-1-severity -0.30 400))))
+      (is (= :severe (acf/lag-1-severity 0.40 400))))
 
-    (testing "classifies as :severe above 0.35"
-      (is (= :severe (acf/lag-1-severity 0.40 400)))
-      (is (= :severe (acf/lag-1-severity -0.50 400))))
+    (testing "classifies negative values with alternating prefix"
+      (is (= :alternating-none (acf/lag-1-severity -0.05 400)))
+      (is (= :alternating-minor (acf/lag-1-severity -0.15 400)))
+      (is (= :alternating-moderate (acf/lag-1-severity -0.30 400)))
+      (is (= :alternating-severe (acf/lag-1-severity -0.50 400))))
 
     (testing "uses noise floor for small samples"
       ;; For n=25, noise floor = 0.4, so 0.35 is below floor -> :none
