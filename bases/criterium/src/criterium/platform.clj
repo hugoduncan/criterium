@@ -13,7 +13,7 @@
 
 (def ^:private benchmark
   {:analyse [:transform-log
-             [:quantiles {:quantiles [0.9 0.99 0.99]}]
+             [:quantiles {:quantiles [0.9 0.99]}]
              :outliers
              [:stats {:samples-id :log-samples}]
              :event-stats]

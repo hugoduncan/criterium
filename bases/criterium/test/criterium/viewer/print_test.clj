@@ -280,7 +280,7 @@
               "[    6] 10.0 µs high-severe"]
              (let [bench-map
                    (:data (test-data/samples-with-outliers-values-map))
-                   quantiles (analyse/quantiles {:quantiles [0.9 0.99 0.99]})
+                   quantiles (analyse/quantiles {:quantiles [0.9 0.99]})
                    outliers (analyse/outliers)
                    stats (analyse/stats)
                    view (view/samples)]

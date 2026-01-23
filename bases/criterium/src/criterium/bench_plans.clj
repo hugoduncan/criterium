@@ -23,7 +23,7 @@
   {:collector-config default-collector-config
    :analyse [:transform-log
              [:autocorrelation {:id :autocorrelation-raw}]
-             [:quantiles {:quantiles [0.9 0.99 0.99]}]
+             [:quantiles {:quantiles [0.9 0.99]}]
              :outliers
              [:autocorrelation {:id :autocorrelation-filtered
                                 :outlier-id :outliers}]
@@ -60,7 +60,7 @@
   {:collector-config default-collector-config
    :analyse [:transform-log
              [:autocorrelation {:id :autocorrelation-raw}]
-             [:quantiles {:quantiles [0.9 0.99 0.99]}]
+             [:quantiles {:quantiles [0.9 0.99]}]
              :outliers
              [:autocorrelation {:id :autocorrelation-filtered
                                 :outlier-id :outliers}]
@@ -104,7 +104,7 @@
   {:collector-config default-collector-config
    :analyse [:transform-log
              [:autocorrelation {:id :autocorrelation-raw}]
-             [:quantiles {:quantiles [0.9 0.99 0.99]}]
+             [:quantiles {:quantiles [0.9 0.99]}]
              :outliers
              [:autocorrelation {:id :autocorrelation-filtered
                                 :outlier-id :outliers}]
@@ -145,7 +145,7 @@
   {:collector-config default-collector-config
    :analyse [:transform-log
              [:autocorrelation {:id :autocorrelation-raw}]
-             [:quantiles {:quantiles [0.9 0.99 0.99]}]
+             [:quantiles {:quantiles [0.9 0.99]}]
              :outliers
              [:autocorrelation {:id :autocorrelation-filtered
                                 :outlier-id :outliers}]
@@ -192,7 +192,7 @@
   {:collector-config default-collector-config
    :analyse [:transform-log
              [:autocorrelation {:id :autocorrelation-raw}]
-             [:quantiles {:quantiles [0.9 0.99 0.99]}]
+             [:quantiles {:quantiles [0.9 0.99]}]
              :outliers
              [:autocorrelation {:id :autocorrelation-filtered
                                 :outlier-id :outliers}]
@@ -256,7 +256,7 @@
   {:collector-config default-collector-config
    :analyse [:transform-log
              [:autocorrelation {:id :autocorrelation-raw}]
-             [:quantiles {:quantiles [0.9 0.99 0.99]}]
+             [:quantiles {:quantiles [0.9 0.99]}]
              :outliers
              [:autocorrelation {:id :autocorrelation-filtered
                                 :outlier-id :outliers}]

@@ -227,7 +227,7 @@
                     [:compilation :time-ms] [0 0 0]}
                    1)
           data-map {:samples samples}
-          quantiles (analyse/quantiles {:quantiles [0.9 0.99 0.99]})
+          quantiles (analyse/quantiles {:quantiles [0.9 0.99]})
           outliers (analyse/outliers)
           stats (analyse/stats)
           result (-> data-map
@@ -262,7 +262,7 @@
                      {[:elapsed-time] raw-data
                       [:compilation :time-ms] [0 0 0]}
                      2)
-            quantiles (analyse/quantiles {:quantiles [0.9 0.99 0.99]})
+            quantiles (analyse/quantiles {:quantiles [0.9 0.99]})
             data-map {:samples samples}
             outliers (analyse/outliers)
             stats (analyse/stats)
