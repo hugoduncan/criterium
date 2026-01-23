@@ -1586,6 +1586,80 @@
 ;; ACF plot is a no-op for print viewer (charts not supported)
 (defmethod view/acf-plot* :print [_ _ _])
 
+(defn- print-classification-for-metric
+  "Print classification analysis for a single metric."
+  [{:keys [ljung-box pattern classification detected-period]} metric-label]
+  (println "Sample Independence Classification:")
+  (println (format "%36s: %.2f"
+                   (str metric-label " Ljung-Box p-value")
+                   (:p-value ljung-box)))
+  (println (format "%36s: %s"
+                   "Assessment"
+                   (str/capitalize (name classification))))
+  (when (#{:warning :fail} classification)
+    (println (format "%36s: %s"
+                     "Pattern"
+                     (get pattern-labels pattern (name pattern))))
+    (when (and (= pattern :periodic) detected-period)
+      (println (format "%36s: %d samples"
+                       "Suspected period"
+                       detected-period)))
+    (when-let [rec (get pattern-recommendations pattern)]
+      (println (format "%36s: %s"
+                       "Recommendation"
+                       rec)))))
+
+(defn print-autocorrelation-classifications
+  "Print autocorrelation classification for all metrics."
+  [{:keys [autocorrelation-id] :as _view} data-map]
+  (let [autocorrelation-id (or autocorrelation-id :autocorrelation)
+        autocorr-map (data-map autocorrelation-id)]
+    (when autocorr-map
+      (let [autocorr (util/autocorrelation autocorr-map)
+            metrics-defs (:metrics-defs autocorr-map)
+            metric-configs (metric/all-metric-configs metrics-defs)]
+        (doseq [mc metric-configs]
+          (when-let [acf-data (get autocorr (:path mc))]
+            (print-classification-for-metric acf-data (:label mc))))))))
+
+(defmethod view/autocorrelation-classification* :print
+  [_ view data-map]
+  (print-autocorrelation-classifications view data-map))
+
+(defn- print-effective-sample-size-for-metric
+  "Print effective sample size analysis for a single metric."
+  [{:keys [lag-1 effective-sample-size ci-inflation-factor]} metric-label]
+  (println "Effective Sample Size:")
+  (println (format "%36s: %.2f (%s)"
+                   (str metric-label " Lag-1 autocorrelation")
+                   (:value lag-1)
+                   (format-severity (:severity lag-1))))
+  (println (format "%36s: %d of %d (%.0f%%)"
+                   "Effective sample size"
+                   (:n-effective effective-sample-size)
+                   (:n-original effective-sample-size)
+                   (* 100.0 (:ratio effective-sample-size))))
+  (println (format "%36s: %.2f×"
+                   "CI inflation factor"
+                   ci-inflation-factor)))
+
+(defn print-effective-sample-sizes
+  "Print effective sample size analysis for all metrics."
+  [{:keys [autocorrelation-id] :as _view} data-map]
+  (let [autocorrelation-id (or autocorrelation-id :autocorrelation)
+        autocorr-map (data-map autocorrelation-id)]
+    (when autocorr-map
+      (let [autocorr (util/autocorrelation autocorr-map)
+            metrics-defs (:metrics-defs autocorr-map)
+            metric-configs (metric/all-metric-configs metrics-defs)]
+        (doseq [mc metric-configs]
+          (when-let [acf-data (get autocorr (:path mc))]
+            (print-effective-sample-size-for-metric acf-data (:label mc))))))))
+
+(defmethod view/effective-sample-size* :print
+  [_ view data-map]
+  (print-effective-sample-sizes view data-map))
+
 ;;; Domain Apply View
 
 (defmethod view/domain-apply* :print

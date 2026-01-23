@@ -588,6 +588,11 @@
               (heading (str "Autocorrelation: " (:label mc)))
               (portal-vega-lite spec))))))))
 
+;; Classification and effective sample size views are no-ops for portal
+;; Use acf-plot for visual output
+(defmethod view/autocorrelation-classification* :portal [_ _ _])
+(defmethod view/effective-sample-size* :portal [_ _ _])
+
 ;;; Domain Views
 
 (defmethod view/domain-extract-table* :portal

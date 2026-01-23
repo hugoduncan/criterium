@@ -909,6 +909,11 @@
               (kindly-heading (str "Autocorrelation: " (:label mc)))
               (kindly-vega-lite spec))))))))
 
+;; Classification and effective sample size views are no-ops for kindly
+;; Use acf-plot for visual output
+(defmethod view/autocorrelation-classification* :kindly [_ _ _])
+(defmethod view/effective-sample-size* :kindly [_ _ _])
+
 ;;; Modal Analysis Views
 
 (defmethod view/multimodal-warning* :kindly

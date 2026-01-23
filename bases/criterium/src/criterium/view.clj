@@ -68,6 +68,8 @@
 
 (def-multi-view autocorrelation)
 (def-multi-view acf-plot)
+(def-multi-view autocorrelation-classification)
+(def-multi-view effective-sample-size)
 
 ;;; Allocation Views
 
@@ -142,6 +144,8 @@
 ;; Autocorrelation Null Viewer
 (defmethod autocorrelation* :none [_ _ _])
 (defmethod acf-plot* :none [_ _ _])
+(defmethod autocorrelation-classification* :none [_ _ _])
+(defmethod effective-sample-size* :none [_ _ _])
 
 ;; Allocation Null Viewer
 (defmethod allocation-summary* :none [_ _ _])
