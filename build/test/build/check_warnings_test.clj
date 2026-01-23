@@ -54,12 +54,12 @@ Reflection warning, test.clj:30:1 - reference to field bar"
         (is (some? (:error result)))))
 
     (testing "captures warnings from namespace with known issues"
-      ;; criterium.stats.tail has boxed math and reflection warnings
-      (let [result (sut/check-namespace-warnings 'criterium.stats.tail)]
-        (is (= 'criterium.stats.tail (:namespace result)))
+      ;; Use a dedicated test fixture that won't be pre-loaded by kaocha hooks
+      (let [result (sut/check-namespace-warnings 'build.fixtures.warning-examples)]
+        (is (= 'build.fixtures.warning-examples (:namespace result)))
         (is (vector? (:warnings result)))
         (is (pos? (count (:warnings result)))
-            "Expected warnings from criterium.stats.tail")
+            "Expected warnings from build.fixtures.warning-examples")
         (is (some #(= :boxed-math (:type %)) (:warnings result))
             "Expected boxed-math warnings")
         (is (some #(= :reflection (:type %)) (:warnings result))
