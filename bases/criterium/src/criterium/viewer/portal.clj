@@ -588,10 +588,75 @@
               (heading (str "Autocorrelation: " (:label mc)))
               (portal-vega-lite spec))))))))
 
-;; Classification and effective sample size views are no-ops for portal
-;; Use acf-plot for visual output
-(defmethod view/autocorrelation-classification* :portal [_ _ _])
-(defmethod view/effective-sample-size* :portal [_ _ _])
+(def ^:private severity-labels
+  {:none "none"
+   :minor "minor"
+   :moderate "moderate"
+   :severe "severe"
+   :alternating-none "alternating"
+   :alternating-minor "alternating"
+   :alternating-moderate "alternating"
+   :alternating-severe "alternating"})
+
+(defn- collect-acf-metrics
+  "Collect autocorrelation data for all metrics. Returns seq of [acf-data mc]."
+  [{:keys [autocorrelation-id]} data-map]
+  (let [autocorrelation-id (or autocorrelation-id :autocorrelation)
+        autocorr-map (data-map autocorrelation-id)]
+    (when autocorr-map
+      (let [autocorr (util/autocorrelation autocorr-map)
+            metrics-defs (:metrics-defs autocorr-map)
+            metric-configs (metric/all-metric-configs metrics-defs)]
+        (for [mc metric-configs
+              :let [acf-data (get autocorr (:path mc))]
+              :when acf-data]
+          [acf-data mc])))))
+
+(defn- capitalize [^String s]
+  (when s
+    (str (Character/toUpperCase ^char (first s)) (subs s 1))))
+
+(defmethod view/autocorrelation-classification* :portal
+  [_ view data-map]
+  (let [metrics (collect-acf-metrics view data-map)]
+    (when (some #(not= :pass (:classification (first %))) metrics)
+      (doseq [[acf-data mc] metrics]
+        (let [{:keys [lag-1 ljung-box classification pattern detected-period]} acf-data]
+          (heading "Sample Independence Classification")
+          (portal-table
+           (cond-> [{:metric (str (:label mc) " Lag-1 autocorrelation")
+                     :value (format "%.2f (%s)"
+                                    (:value lag-1)
+                                    (get severity-labels (:severity lag-1) "unknown"))}
+                    {:metric (str (:label mc) " Ljung-Box p-value")
+                     :value (format "%.2f" (:p-value ljung-box))}
+                    {:metric "Assessment"
+                     :value (capitalize (name classification))}]
+             (#{:warning :fail} classification)
+             (conj {:metric "Pattern" :value (name pattern)})
+
+             (and (= pattern :periodic) detected-period)
+             (conj {:metric "Suspected period" :value (str detected-period " samples")}))))))))
+
+(defmethod view/effective-sample-size* :portal
+  [_ view data-map]
+  (let [metrics (collect-acf-metrics view data-map)]
+    (when (some #(not= 1.0 (:ci-inflation-factor (first %))) metrics)
+      (doseq [[acf-data mc] metrics]
+        (let [{:keys [lag-1 effective-sample-size ci-inflation-factor]} acf-data]
+          (heading "Effective Sample Size")
+          (portal-table
+           [{:metric (str (:label mc) " Lag-1 autocorrelation")
+             :value (format "%.2f (%s)"
+                            (:value lag-1)
+                            (get severity-labels (:severity lag-1) "unknown"))}
+            {:metric "Effective sample size"
+             :value (format "%d of %d (%.0f%%)"
+                            (:n-effective effective-sample-size)
+                            (:n-original effective-sample-size)
+                            (* 100.0 (:ratio effective-sample-size)))}
+            {:metric "CI inflation factor"
+             :value (format "%.2f×" ci-inflation-factor)}]))))))
 
 ;;; Domain Views
 

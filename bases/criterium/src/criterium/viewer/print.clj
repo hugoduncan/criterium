@@ -1600,8 +1600,12 @@
 
 (defn- print-classification-for-metric
   "Print classification analysis for a single metric."
-  [{:keys [ljung-box pattern classification detected-period]} metric-label]
+  [{:keys [lag-1 ljung-box pattern classification detected-period]} metric-label]
   (println (format "%36s:" "Sample Independence Classification"))
+  (println (format "%36s: %.2f (%s)"
+                   (str metric-label " Lag-1 autocorrelation")
+                   (:value lag-1)
+                   (format-severity (:severity lag-1))))
   (println (format "%36s: %.2f"
                    (str metric-label " Ljung-Box p-value")
                    (:p-value ljung-box)))
