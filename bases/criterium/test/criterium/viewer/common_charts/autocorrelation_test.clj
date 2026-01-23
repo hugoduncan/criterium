@@ -93,21 +93,36 @@
                   {:title "Custom ACF Title"})]
         (is (= "Custom ACF Title" (:title spec)))))
 
-    (testing "creates layers for zero line, threshold, and bars"
+    (testing "creates layers for zero line, points, and thresholds"
       (let [spec (acf-chart/acf-plot-vega-spec sample-acf-data {})
             layers (:layer spec)]
-        ;; Should have: zero line, threshold rules, bar chart
-        (is (>= (count layers) 3))))
+        ;; Should have: zero line, point chart, threshold rules (variable count)
+        (is (>= (count layers) 2))))
 
     (testing "includes period annotation when detected"
       (let [spec (acf-chart/acf-plot-vega-spec sample-acf-data-with-period {})
-            layers (:layer spec)]
-        ;; Should have: zero line, threshold rules, bar chart, period annotation
-        (is (= 4 (count layers)))))
+            layers (:layer spec)
+            ;; Find text layer for period annotation
+            text-layers (filter #(= "text" (get-in % [:mark :type])) layers)]
+        ;; Should have period annotation text layer
+        (is (= 1 (count text-layers)))))
 
     (testing "returns nil for invalid data"
       (is (nil? (acf-chart/acf-plot-vega-spec {} {})))
-      (is (nil? (acf-chart/acf-plot-vega-spec nil {}))))))
+      (is (nil? (acf-chart/acf-plot-vega-spec nil {}))))
+
+    (testing "uses point markers instead of bars"
+      (let [spec (acf-chart/acf-plot-vega-spec sample-acf-data {})
+            layers (:layer spec)
+            point-layers (filter #(= "point" (get-in % [:mark :type])) layers)]
+        (is (= 1 (count point-layers)))))
+
+    (testing "generates threshold rule layers for crossed thresholds"
+      (let [spec (acf-chart/acf-plot-vega-spec sample-acf-data {})
+            layers (:layer spec)
+            rule-layers (filter #(= "rule" (get-in % [:mark :type])) layers)]
+        ;; Should have rule layers (at least zero line plus any crossed thresholds)
+        (is (>= (count rule-layers) 1))))))
 
 (deftest acf-plot-schema-validation-test
   (testing "acf-plot-vega-spec"

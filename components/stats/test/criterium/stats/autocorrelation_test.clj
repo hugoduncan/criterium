@@ -628,7 +628,19 @@
         (is (contains? result :ljung-box))
         (is (contains? result :pattern))
         (is (contains? result :classification))
-        (is (contains? result :detected-period))))
+        (is (contains? result :detected-period))
+        (is (contains? result :noise-floor))
+        (is (contains? result :thresholds))))
+
+    (testing "includes noise-floor value"
+      (let [result (acf/autocorrelation-classification {1 0.05} 100)]
+        (is (= 0.2 (:noise-floor result)))))
+
+    (testing "includes threshold values"
+      (let [result (acf/autocorrelation-classification {1 0.05} 100)
+            thresholds (:thresholds result)]
+        (is (= {:minor 0.10 :moderate 0.20 :severe 0.35} (:lag-1 thresholds)))
+        (is (= {:minor 0.15 :moderate 0.25 :severe 0.40} (:other thresholds)))))
 
     (testing "detects clean pattern for white noise ACF"
       (let [acf-map {1 0.05, 2 0.03, 3 0.02, 4 0.01, 5 0.00}

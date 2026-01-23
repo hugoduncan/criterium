@@ -431,6 +431,9 @@
     :pattern - :clean, :transient-effects, :drift, :periodic, :severe, or :alternating-*
     :classification - :pass, :acceptable, :warning, or :fail
     :detected-period - Integer period for :periodic pattern, nil otherwise
+    :noise-floor - 2/√n threshold value
+    :thresholds - {:lag-1 {:minor 0.10 :moderate 0.20 :severe 0.35}
+                   :other {:minor 0.15 :moderate 0.25 :severe 0.40}}
 
   Returns nil if acf-map is nil."
   [acf-map ^long n]
@@ -446,7 +449,10 @@
       {:ljung-box lb
        :pattern pattern
        :classification classification
-       :detected-period detected-period})))
+       :detected-period detected-period
+       :noise-floor (noise-floor n)
+       :thresholds {:lag-1 {:minor 0.10 :moderate 0.20 :severe 0.35}
+                    :other {:minor 0.15 :moderate 0.25 :severe 0.40}}})))
 
 (defn analyse-autocorrelation
   "Compute autocorrelation function and lag severity from samples.

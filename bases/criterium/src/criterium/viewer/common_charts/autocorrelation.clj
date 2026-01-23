@@ -1,8 +1,9 @@
 (ns criterium.viewer.common-charts.autocorrelation
   "Vega-Lite chart specification for ACF (Autocorrelation Function) plots.
 
-  Provides bar charts showing autocorrelation coefficients for all lags,
-  with bars colored by severity and horizontal threshold bands at ±2/√n."
+  Provides point charts showing autocorrelation coefficients for all lags,
+  with points colored by severity and horizontal threshold lines for
+  lag-1 (blue) and other-lag (gray) thresholds."
   (:require
    [criterium.stats.interface :as stats]))
 
@@ -72,22 +73,77 @@
                     :acf r
                     :severity (name (get lag-severities lag :none))}))))))
 
+;;; Threshold Colors
+
+(def lag-1-threshold-colors
+  "Blue tones for lag-1 threshold lines."
+  {:minor "#93c5fd"     ; light blue
+   :moderate "#3b82f6"  ; medium blue
+   :severe "#1d4ed8"})  ; dark blue
+
+(def other-lag-threshold-colors
+  "Gray tones for other-lag threshold lines."
+  {:minor "#d1d5db"     ; light gray
+   :moderate "#9ca3af"  ; medium gray
+   :severe "#6b7280"})  ; dark gray
+
 ;;; Chart Layers
 
-(defn threshold-rule-layer
-  "Create horizontal rule layer for threshold lines at ±2/√n.
+(defn- lag-1-threshold-crossed?
+  "Check if lag-1 ACF value exceeds the given threshold."
+  [chart-data ^double threshold]
+  (when-let [lag-1-data (first (filter #(= 1 (:lag %)) chart-data))]
+    (> (Math/abs (double (:acf lag-1-data))) threshold)))
 
-  Returns Vega-Lite layer spec with dashed lines at positive and negative thresholds."
-  [^long n]
-  (let [threshold (stats/noise-floor n)]
-    {:data {:values [{:threshold threshold :label "+2/√n"}
-                     {:threshold (- threshold) :label "-2/√n"}]}
-     :mark {:type "rule"
-            :strokeDash [4 4]
-            :strokeWidth 1}
-     :encoding {:y {:field "threshold"
-                    :type "quantitative"}
-                :color {:value "#666666"}}}))
+(defn- other-lag-threshold-crossed?
+  "Check if any non-lag-1 ACF value exceeds the given threshold."
+  [chart-data ^double threshold]
+  (some #(and (not= 1 (:lag %))
+              (> (Math/abs (double (:acf %))) threshold))
+        chart-data))
+
+(defn threshold-rule-layers
+  "Create horizontal rule layers for crossed threshold lines.
+
+  Shows lag-1 thresholds in blue tones and other-lag thresholds in gray tones.
+  Only shows thresholds that are actually crossed by at least one data point.
+
+  Parameters:
+    chart-data - vector of {:lag :acf :severity} maps
+    thresholds - map with :lag-1 and :other threshold maps (from analysis)
+
+  Returns vector of Vega-Lite layer specs."
+  [chart-data thresholds]
+  (let [lag-1-thresholds (:lag-1 thresholds)
+        other-thresholds (:other thresholds)
+        ;; Collect crossed thresholds
+        lag-1-lines (for [[level threshold] lag-1-thresholds
+                          :when (lag-1-threshold-crossed? chart-data threshold)]
+                      {:threshold threshold
+                       :neg-threshold (- threshold)
+                       :color (get lag-1-threshold-colors level)
+                       :label (str "lag-1 " (name level))})
+        other-lines (for [[level threshold] other-thresholds
+                          :when (other-lag-threshold-crossed? chart-data threshold)]
+                      {:threshold threshold
+                       :neg-threshold (- threshold)
+                       :color (get other-lag-threshold-colors level)
+                       :label (str "other " (name level))})]
+    (->> (concat lag-1-lines other-lines)
+         (mapcat (fn [{:keys [threshold neg-threshold color label]}]
+                   [{:data {:values [{:y threshold :label (str "+" label)}]}
+                     :mark {:type "rule"
+                            :strokeDash [4 4]
+                            :strokeWidth 1}
+                     :encoding {:y {:field "y" :type "quantitative"}
+                                :color {:value color}}}
+                    {:data {:values [{:y neg-threshold :label (str "-" label)}]}
+                     :mark {:type "rule"
+                            :strokeDash [4 4]
+                            :strokeWidth 1}
+                     :encoding {:y {:field "y" :type "quantitative"}
+                                :color {:value color}}}]))
+         vec)))
 
 (defn period-annotation-layer
   "Create text annotation layer for detected period.
@@ -109,14 +165,15 @@
                     :text {:field "label"}
                     :color {:value "#dc3545"}}}))))
 
-(defn acf-bar-layer
-  "Create bar layer for ACF values.
+(defn acf-point-layer
+  "Create point layer for ACF values.
 
-  Returns Vega-Lite layer spec with bars colored by severity."
+  Returns Vega-Lite layer spec with points colored by severity."
   [chart-data]
   {:data {:values chart-data}
-   :mark {:type "bar"
-          :width {:band 0.8}}
+   :mark {:type "point"
+          :filled true
+          :size 60}
    :encoding {:x {:field "lag"
                   :type "quantitative"
                   :axis {:title "Lag"
@@ -163,18 +220,21 @@
         n (get-in acf-data [:effective-sample-size :n-original])
         lag-severities (:lag-severities acf-data)
         min-severity (:min-severity chart-options)
+        thresholds (or (:thresholds acf-data)
+                       {:lag-1 {:minor 0.10 :moderate 0.20 :severe 0.35}
+                        :other {:minor 0.15 :moderate 0.25 :severe 0.40}})
         title (or (:title chart-options)
                   (str "Autocorrelation Function (n=" n ")"))]
     (when (and chart-data n (seq chart-data)
                ;; Check min-severity threshold if specified
                (or (nil? min-severity)
                    (has-severity-at-or-above? lag-severities min-severity)))
-      (let [layers (cond-> [(zero-line-layer)
-                            (threshold-rule-layer n)
-                            (acf-bar-layer chart-data)]
-                     ;; Add period annotation if detected
-                     (:detected-period acf-data)
-                     (conj (period-annotation-layer acf-data chart-data)))]
+      (let [threshold-layers (threshold-rule-layers chart-data thresholds)
+            layers (-> [(zero-line-layer)
+                        (acf-point-layer chart-data)]
+                       (into threshold-layers)
+                       (cond-> (:detected-period acf-data)
+                         (conj (period-annotation-layer acf-data chart-data))))]
         (merge
          {:title title
           :layer (vec (remove nil? layers))}
