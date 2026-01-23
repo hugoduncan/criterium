@@ -229,3 +229,84 @@
           (catch Exception _
             (swap! results update :missing conj ns-sym)))))
     @results))
+
+;;; Warning Capture and Compilation
+
+(defn- parse-warnings
+  "Parse warning messages from compiler output.
+
+   Returns a vector of maps with :type (:reflection or :boxed-math) and :message."
+  [output]
+  (let [lines (str/split-lines output)]
+    (->> lines
+         (keep (fn [line]
+                 (cond
+                   (str/includes? line "Reflection warning")
+                   {:type :reflection :message line}
+
+                   (str/includes? line "Boxed math warning")
+                   {:type :boxed-math :message line}
+
+                   :else nil)))
+         vec)))
+
+(defn check-namespace-warnings
+  "Check a single namespace for reflection and boxed math warnings.
+
+   Compiles the namespace with warnings enabled and captures any emitted warnings.
+   Returns a map with:
+   - :namespace - the namespace symbol
+   - :warnings - vector of {:type :message} maps
+   - :error - exception message if compilation failed (optional)"
+  [ns-sym]
+  (let [err-writer (java.io.StringWriter.)
+        result (binding [*warn-on-reflection* true
+                         *unchecked-math* :warn-on-boxed
+                         *err* (java.io.PrintWriter. err-writer)]
+                 (try
+                   (require ns-sym :reload)
+                   {:namespace ns-sym}
+                   (catch Exception e
+                     {:namespace ns-sym
+                      :error (.getMessage e)})))
+        err-output (str err-writer)
+        warnings (parse-warnings err-output)]
+    (if (seq warnings)
+      (assoc result :warnings warnings)
+      result)))
+
+(defn check-all-namespaces
+  "Check all project namespaces for reflection and boxed math warnings.
+
+   Process:
+   1. Pre-loads third-party namespaces with warnings disabled
+   2. Discovers project namespaces
+   3. Filters out namespaces with explicit exemptions
+   4. Checks each namespace for warnings
+
+   Returns a map with:
+   - :preload-result - result from preload-noisy-namespaces!
+   - :total-namespaces - count of discovered namespaces
+   - :exempt-namespaces - namespaces skipped due to exemptions
+   - :checked-namespaces - count of namespaces checked
+   - :results - vector of check results (only those with warnings or errors)
+   - :warning-count - total number of warnings found"
+  ([]
+   (check-all-namespaces "."))
+  ([project-root]
+   (let [preload-result (preload-noisy-namespaces!)
+         all-namespaces (discover-project-namespaces project-root)
+         exempt-nses (filterv #(namespace-has-exemption? % project-root) all-namespaces)
+         exempt-set (set exempt-nses)
+         namespaces-to-check (remove exempt-set all-namespaces)
+         results (mapv check-namespace-warnings namespaces-to-check)
+         with-issues (filterv #(or (:warnings %) (:error %)) results)
+         warning-count (->> results
+                            (mapcat :warnings)
+                            count)]
+     {:preload-result preload-result
+      :total-namespaces (count all-namespaces)
+      :exempt-namespaces exempt-nses
+      :checked-namespaces (count namespaces-to-check)
+      :results with-issues
+      :warning-count warning-count})))
