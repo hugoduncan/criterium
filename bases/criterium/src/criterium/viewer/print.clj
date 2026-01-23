@@ -1493,6 +1493,20 @@
 
 ;;; Autocorrelation Views
 
+(defn- with-autocorrelation-metrics
+  "Helper for autocorrelation views. Calls f for each metric with acf-data.
+  f receives acf-data and metric-config."
+  [{:keys [autocorrelation-id]} data-map f]
+  (let [autocorrelation-id (or autocorrelation-id :autocorrelation)
+        autocorr-map (data-map autocorrelation-id)]
+    (when autocorr-map
+      (let [autocorr (util/autocorrelation autocorr-map)
+            metrics-defs (:metrics-defs autocorr-map)
+            metric-configs (metric/all-metric-configs metrics-defs)]
+        (doseq [mc metric-configs]
+          (when-let [acf-data (get autocorr (:path mc))]
+            (f acf-data mc)))))))
+
 (def ^:private severity-labels
   {:none "none"
    :minor "minor"
@@ -1568,16 +1582,10 @@
 
 (defn print-autocorrelations
   "Print autocorrelation analysis for all metrics."
-  [{:keys [autocorrelation-id] :as _view} data-map]
-  (let [autocorrelation-id (or autocorrelation-id :autocorrelation)
-        autocorr-map (data-map autocorrelation-id)]
-    (when autocorr-map
-      (let [autocorr (util/autocorrelation autocorr-map)
-            metrics-defs (:metrics-defs autocorr-map)
-            metric-configs (metric/all-metric-configs metrics-defs)]
-        (doseq [mc metric-configs]
-          (when-let [acf-data (get autocorr (:path mc))]
-            (print-autocorrelation acf-data (:label mc))))))))
+  [view data-map]
+  (with-autocorrelation-metrics view data-map
+    (fn [acf-data mc]
+      (print-autocorrelation acf-data (:label mc)))))
 
 (defmethod view/autocorrelation* :print
   [_ view data-map]
@@ -1611,16 +1619,10 @@
 
 (defn print-autocorrelation-classifications
   "Print autocorrelation classification for all metrics."
-  [{:keys [autocorrelation-id] :as _view} data-map]
-  (let [autocorrelation-id (or autocorrelation-id :autocorrelation)
-        autocorr-map (data-map autocorrelation-id)]
-    (when autocorr-map
-      (let [autocorr (util/autocorrelation autocorr-map)
-            metrics-defs (:metrics-defs autocorr-map)
-            metric-configs (metric/all-metric-configs metrics-defs)]
-        (doseq [mc metric-configs]
-          (when-let [acf-data (get autocorr (:path mc))]
-            (print-classification-for-metric acf-data (:label mc))))))))
+  [view data-map]
+  (with-autocorrelation-metrics view data-map
+    (fn [acf-data mc]
+      (print-classification-for-metric acf-data (:label mc)))))
 
 (defmethod view/autocorrelation-classification* :print
   [_ view data-map]
@@ -1645,16 +1647,10 @@
 
 (defn print-effective-sample-sizes
   "Print effective sample size analysis for all metrics."
-  [{:keys [autocorrelation-id] :as _view} data-map]
-  (let [autocorrelation-id (or autocorrelation-id :autocorrelation)
-        autocorr-map (data-map autocorrelation-id)]
-    (when autocorr-map
-      (let [autocorr (util/autocorrelation autocorr-map)
-            metrics-defs (:metrics-defs autocorr-map)
-            metric-configs (metric/all-metric-configs metrics-defs)]
-        (doseq [mc metric-configs]
-          (when-let [acf-data (get autocorr (:path mc))]
-            (print-effective-sample-size-for-metric acf-data (:label mc))))))))
+  [view data-map]
+  (with-autocorrelation-metrics view data-map
+    (fn [acf-data mc]
+      (print-effective-sample-size-for-metric acf-data (:label mc)))))
 
 (defmethod view/effective-sample-size* :print
   [_ view data-map]
