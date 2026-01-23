@@ -208,7 +208,7 @@ combined-filter
   [items]
   (->> items
        (filter even?)
-       (map #(* % %))
+       (map #(* (long %) (long %)))
        (take 10)
        (reduce +)))
 

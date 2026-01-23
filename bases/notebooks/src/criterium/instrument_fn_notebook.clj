@@ -28,8 +28,8 @@
 (defn slow
   "A computation with variable execution time."
   [n]
-  (Thread/sleep (long (+ 1 (rand-int 5))))
-  (* n n))
+  (Thread/sleep (+ 1 (long (rand-int 5))))
+  (* (long n) (long n)))
 
 (def instrumented-slow
   "Instrumented version of slow-computation."
@@ -115,11 +115,13 @@
   "Process data with multiple arguments."
   [data multiplier offset]
   (Thread/sleep 1)
-  (+ (* data multiplier) offset))
+  (+ (* (long data) (long multiplier)) (long offset)))
 
 (def instrumented-process
   "Instrumented version of process-data."
-  (inst-fn/instrument-fn process-data collector-configs/default-collector-config))
+  (inst-fn/instrument-fn
+   process-data
+   collector-configs/default-collector-config))
 
 (do
   (sampler/reset-samples! instrumented-process)
@@ -191,7 +193,7 @@
 (defn handle-request
   "Simulate handling an HTTP request."
   [request]
-  (Thread/sleep (long (+ 5 (rand-int 10))))
+  (Thread/sleep (+ 5 (long (rand-int 10))))
   {:status  200
    :headers {"Content-Type" "application/json"}
    :body    (str "Processed: " (:path request))})
