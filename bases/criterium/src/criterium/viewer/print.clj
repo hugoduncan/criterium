@@ -87,7 +87,7 @@
 (defn print-extremes
   "Print min/max extremes for all metrics."
   [metrics stats transforms]
-  (println "Extremes:")
+  (println (format "%36s:" "Extremes"))
   (doseq [metric metrics]
     (print-extreme metric (get-in stats (:path metric)) transforms)))
 
@@ -1552,7 +1552,7 @@
   [{:keys [lag-1 effective-sample-size ci-inflation-factor
            ljung-box pattern classification detected-period]}
    metric-label]
-  (println "Sample Independence:")
+  (println (format "%36s:" "Sample Independence"))
   (println (format "%36s: %.2f (%s)"
                    (str metric-label " Lag-1 autocorrelation")
                    (:value lag-1)
@@ -1601,7 +1601,7 @@
 (defn- print-classification-for-metric
   "Print classification analysis for a single metric."
   [{:keys [ljung-box pattern classification detected-period]} metric-label]
-  (println "Sample Independence Classification:")
+  (println (format "%36s:" "Sample Independence Classification"))
   (println (format "%36s: %.2f"
                    (str metric-label " Ljung-Box p-value")
                    (:p-value ljung-box)))
@@ -1621,12 +1621,28 @@
                        "Recommendation"
                        rec)))))
 
+(defn- collect-autocorrelation-metrics
+  "Collect autocorrelation data for all metrics. Returns seq of [acf-data mc]."
+  [{:keys [autocorrelation-id]} data-map]
+  (let [autocorrelation-id (or autocorrelation-id :autocorrelation)
+        autocorr-map (data-map autocorrelation-id)]
+    (when autocorr-map
+      (let [autocorr (util/autocorrelation autocorr-map)
+            metrics-defs (:metrics-defs autocorr-map)
+            metric-configs (metric/all-metric-configs metrics-defs)]
+        (for [mc metric-configs
+              :let [acf-data (get autocorr (:path mc))]
+              :when acf-data]
+          [acf-data mc])))))
+
 (defn print-autocorrelation-classifications
-  "Print autocorrelation classification for all metrics."
+  "Print autocorrelation classification for all metrics.
+  Only outputs if at least one metric is not classified as :pass."
   [view data-map]
-  (with-autocorrelation-metrics view data-map
-    (fn [acf-data mc]
-      (print-classification-for-metric acf-data (:label mc)))))
+  (let [metrics (collect-autocorrelation-metrics view data-map)]
+    (when (some #(not= :pass (:classification (first %))) metrics)
+      (doseq [[acf-data mc] metrics]
+        (print-classification-for-metric acf-data (:label mc))))))
 
 (defmethod view/autocorrelation-classification* :print
   [_ view data-map]
@@ -1635,7 +1651,7 @@
 (defn- print-effective-sample-size-for-metric
   "Print effective sample size analysis for a single metric."
   [{:keys [lag-1 effective-sample-size ci-inflation-factor]} metric-label]
-  (println "Effective Sample Size:")
+  (println (format "%36s:" "Effective Sample Size"))
   (println (format "%36s: %.2f (%s)"
                    (str metric-label " Lag-1 autocorrelation")
                    (:value lag-1)
@@ -1650,11 +1666,13 @@
                    ci-inflation-factor)))
 
 (defn print-effective-sample-sizes
-  "Print effective sample size analysis for all metrics."
+  "Print effective sample size analysis for all metrics.
+  Only outputs if at least one metric has CI inflation factor other than 1.0."
   [view data-map]
-  (with-autocorrelation-metrics view data-map
-    (fn [acf-data mc]
-      (print-effective-sample-size-for-metric acf-data (:label mc)))))
+  (let [metrics (collect-autocorrelation-metrics view data-map)]
+    (when (some #(not= 1.0 (:ci-inflation-factor (first %))) metrics)
+      (doseq [[acf-data mc] metrics]
+        (print-effective-sample-size-for-metric acf-data (:label mc))))))
 
 (defmethod view/effective-sample-size* :print
   [_ view data-map]
