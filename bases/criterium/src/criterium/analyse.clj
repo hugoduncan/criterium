@@ -932,11 +932,12 @@
                data-map))))))))
 
 (defn autocorrelation
-  "Computes autocorrelation analysis to detect sample non-independence.
+  "Computes autocorrelation function (ACF) to detect sample non-independence.
 
-  Returns a function that analyzes lag-1 and higher lag autocorrelations,
-  effective sample size, CI inflation factor, Ljung-Box test, pattern
-  detection, and overall classification.
+  Returns a function that analyzes lag-1 and higher lag autocorrelations.
+  Use effective-sample-size-analysis and autocorrelation-classification
+  separately to compute ESS and pattern/classification results.
+
   Parameters:
     opts - Optional map with keys:
       :id               - Key for result in output (default: :autocorrelation)
@@ -950,12 +951,7 @@
   - For each metric provides:
     - :acf - Map of lag -> autocorrelation coefficient for lags 1 to n/2
     - :lag-1 - {:value r1 :severity <:none|:minor|:moderate|:severe>}
-    - :effective-sample-size - {:n-original n :n-effective n_eff :ratio ratio}
-    - :ci-inflation-factor - Multiplier for confidence interval widths
-    - :ljung-box - {:q-statistic Q :df h :p-value p}
-    - :pattern - :clean, :warmup, :drift, :periodic, :severe, or :alternating-pattern
-    - :classification - :pass, :acceptable, :warning, or :fail
-    - :detected-period - Integer period for :periodic pattern, nil otherwise
+    - :effective-sample-size - {:n-original n} (for downstream analyses)
 
   When :outlier-id is nil (default), uses all samples for pattern detection
   before outlier removal. When :outlier-id is provided, filters outlier samples
@@ -964,7 +960,7 @@
   Example:
   (let [analyze (autocorrelation {})
         result (analyze {:samples {...}})]
-    (get-in result [:autocorrelation :elapsed-time :classification]))"
+    (get-in result [:autocorrelation :elapsed-time :acf]))"
   ([] (autocorrelation {}))
   ([{:keys [id samples-id outlier-id metric-ids] :as _options}]
    (let [samples-id (or samples-id :samples)
@@ -1119,6 +1115,8 @@
       :id                 - Key for result in output (default: :bootstrap-stats)
       :samples-id         - Key for source samples (default: :samples)
       :outliers-id        - Key for outlier analysis (default: :outliers)
+      :ess-id             - Key for effective sample size analysis (default: nil).
+                            When provided, CI widths are inflated by ci-inflation-factor.
       :metric-ids         - Set of metric ids to analyze (default: all quantitative)
       :quantiles          - Additional quantiles beyond defaults (e.g., [0.99])
       :estimate-quantiles - Confidence interval bounds (e.g., [0.025 0.975])
@@ -1133,7 +1131,11 @@
     - quantiles (0.1, 0.25, 0.5, 0.75, 0.9 plus configured)
 
   When :outliers-id is provided, outliers are removed from samples before
-  bootstrap resampling."
+  bootstrap resampling.
+
+  When :ess-id is provided and effective sample size analysis exists,
+  CI widths are inflated by ci-inflation-factor and stored as
+  :adjusted-estimate-quantiles."
   bootstrap/bootstrap-stats)
 
 ;;; Call Graph Analysis

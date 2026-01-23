@@ -338,13 +338,13 @@
         ;; No outliers data available, so outliers-id is nil
         (is (nil? (-> result-with-outliers :bootstrap-stats :outliers-id)))))))
 
-;;; ACF-adjusted confidence interval tests
-;; When :acf-id is provided and autocorrelation data exists,
+;;; ESS-adjusted confidence interval tests
+;; When :ess-id is provided and effective sample size data exists,
 ;; bootstrap-stats should inflate CI widths and add :adjusted-estimate-quantiles.
 
-(deftest bootstrap-stats-acf-adjustment-test
+(deftest bootstrap-stats-ess-adjustment-test
   (testing "bootstrap-stats"
-    (testing "with :acf-id option"
+    (testing "with :ess-id option"
       (let [batch-size 100
             num-samples 50
             ;; Create simple samples
@@ -358,29 +358,24 @@
                                            :dimension :time
                                            :scale 1
                                            :label "v"}]}})
-            ;; Create autocorrelation data with a known inflation factor
+            ;; Create effective-sample-size data with a known inflation factor
             ;; ci-inflation-factor of 2.0 means CIs should double in width
-            acf-data {:type :criterium/autocorrelation
-                      :autocorrelation {[:v] {:acf {1 0.6 2 0.3}
-                                              :lag-1 {:value 0.6 :severity :moderate}
-                                              :effective-sample-size {:n-original 50
-                                                                      :n-effective 12
-                                                                      :ratio 0.24}
-                                              :ci-inflation-factor 2.0
-                                              :ljung-box {:q-statistic 30.0 :df 10 :p-value 0.001}
-                                              :pattern :warmup
-                                              :classification :warning
-                                              :detected-period nil}}
-                      :transform collect-plan/identity-transforms}]
+            ess-data {:type :criterium/effective-sample-size
+                      :effective-sample-size-data {[:v] {:effective-sample-size {:n-original 50
+                                                                                 :n-effective 12
+                                                                                 :ratio 0.24}
+                                                         :ci-inflation-factor 2.0}}
+                      :metrics-defs {:v {:type :quantitative
+                                         :values [{:path [:v]}]}}}]
 
-        (testing "adds :adjusted-estimate-quantiles when acf data is present"
+        (testing "adds :adjusted-estimate-quantiles when ess data is present"
           (let [result ((bootstrap/bootstrap-stats
                          {:quantiles [0.99]
                           :estimate-quantiles [0.025 0.975]
                           :bootstrap-size 50
-                          :acf-id :autocorrelation})
+                          :ess-id :effective-sample-size})
                         {:samples metric-samples
-                         :autocorrelation acf-data})
+                         :effective-sample-size ess-data})
                 mean-stats (-> result :bootstrap-stats util/bootstrap :v :mean)]
             ;; Should have both original and adjusted quantiles
             (is (some? (:estimate-quantiles mean-stats)))
@@ -407,51 +402,52 @@
               (is (test-max-error (+ point (* 2.0 (- orig-upper point))) adj-upper 1e-6)
                   "Upper bound should be inflated by factor 2.0"))))
 
-        (testing "includes :acf-id in result when acf data used"
+        (testing "includes :ess-id in result when ess data used"
           (let [result ((bootstrap/bootstrap-stats
                          {:quantiles [0.99]
                           :estimate-quantiles [0.025 0.975]
-                          :acf-id :autocorrelation})
+                          :ess-id :effective-sample-size})
                         {:samples metric-samples
-                         :autocorrelation acf-data})]
-            (is (= :autocorrelation (-> result :bootstrap-stats :acf-id)))))
+                         :effective-sample-size ess-data})]
+            (is (= :effective-sample-size (-> result :bootstrap-stats :ess-id)))))
 
-        (testing "does not add adjusted CIs when :acf-id not provided"
+        (testing "does not add adjusted CIs when :ess-id not provided"
           (let [result ((bootstrap/bootstrap-stats
                          {:quantiles [0.99]
                           :estimate-quantiles [0.025 0.975]
                           :bootstrap-size 50})
                         {:samples metric-samples
-                         :autocorrelation acf-data})
+                         :effective-sample-size ess-data})
                 mean-stats (-> result :bootstrap-stats util/bootstrap :v :mean)]
             (is (some? (:estimate-quantiles mean-stats)))
             (is (nil? (:adjusted-estimate-quantiles mean-stats)))
-            (is (nil? (-> result :bootstrap-stats :acf-id)))))
+            (is (nil? (-> result :bootstrap-stats :ess-id)))))
 
-        (testing "does not add adjusted CIs when acf data missing"
+        (testing "does not add adjusted CIs when ess data missing"
           (let [result ((bootstrap/bootstrap-stats
                          {:quantiles [0.99]
                           :estimate-quantiles [0.025 0.975]
                           :bootstrap-size 50
-                          :acf-id :autocorrelation})
+                          :ess-id :effective-sample-size})
                         {:samples metric-samples})
                 mean-stats (-> result :bootstrap-stats util/bootstrap :v :mean)]
             (is (some? (:estimate-quantiles mean-stats)))
             (is (nil? (:adjusted-estimate-quantiles mean-stats)))
-            ;; :acf-id should be nil when no data found
-            (is (nil? (-> result :bootstrap-stats :acf-id)))))
+            ;; :ess-id should be nil when no data found
+            (is (nil? (-> result :bootstrap-stats :ess-id)))))
 
         (testing "does not adjust CIs when inflation factor is 1.0"
-          (let [no-inflation-acf {:type :criterium/autocorrelation
-                                  :autocorrelation {[:v] {:ci-inflation-factor 1.0}}
-                                  :transform collect-plan/identity-transforms}
+          (let [no-inflation-ess {:type :criterium/effective-sample-size
+                                  :effective-sample-size-data {[:v] {:ci-inflation-factor 1.0}}
+                                  :metrics-defs {:v {:type :quantitative
+                                                     :values [{:path [:v]}]}}}
                 result ((bootstrap/bootstrap-stats
                          {:quantiles [0.99]
                           :estimate-quantiles [0.025 0.975]
                           :bootstrap-size 50
-                          :acf-id :autocorrelation})
+                          :ess-id :effective-sample-size})
                         {:samples metric-samples
-                         :autocorrelation no-inflation-acf})
+                         :effective-sample-size no-inflation-ess})
                 mean-stats (-> result :bootstrap-stats util/bootstrap :v :mean)]
             ;; Should not have adjusted quantiles when inflation is 1.0
             (is (nil? (:adjusted-estimate-quantiles mean-stats)))))
@@ -461,9 +457,9 @@
                          {:quantiles [0.99]
                           :estimate-quantiles [0.025 0.975]
                           :bootstrap-size 50
-                          :acf-id :autocorrelation})
+                          :ess-id :effective-sample-size})
                         {:samples metric-samples
-                         :autocorrelation acf-data})
+                         :effective-sample-size ess-data})
                 q50-stats (-> result :bootstrap-stats util/bootstrap :v :quantiles (get 0.5))]
             ;; Quantile stats should also have adjusted CIs
             (is (some? (:estimate-quantiles q50-stats)))

@@ -5,7 +5,7 @@
 
 ;; Tests verify that autocorrelation analysis is integrated into bench plans.
 ;; Autocorrelation detects sample non-independence and adjusts confidence intervals
-;; via the :acf-id parameter in bootstrap-stats.
+;; via the :ess-id parameter in bootstrap-stats.
 ;;
 ;; Plans with outlier filtering have two autocorrelation analyses:
 ;; - :autocorrelation-raw - for pattern detection on unfiltered data
@@ -86,20 +86,20 @@
         (is (< (analyse-position plan :outliers)
                (analyse-position-by-id plan :autocorrelation-filtered))))
 
-      (testing "configures bootstrap-stats with :acf-id :autocorrelation-filtered"
+      (testing "configures bootstrap-stats with :ess-id :effective-sample-size-filtered"
         (let [bs-entry (find-analyse-entry plan :bootstrap-stats)]
           (is (vector? bs-entry))
-          (is (= :autocorrelation-filtered (:acf-id (second bs-entry))))))
+          (is (= :effective-sample-size-filtered (:ess-id (second bs-entry))))))
 
-      (testing "includes :autocorrelation-classification view with raw id"
+      (testing "includes :autocorrelation-classification view with classification id"
         (let [entry (find-view-entry plan :autocorrelation-classification)]
           (is (some? entry))
-          (is (= :autocorrelation-raw (:autocorrelation-id (second entry))))))
+          (is (= :autocorrelation-classification-raw (:classification-id (second entry))))))
 
-      (testing "includes :effective-sample-size view with filtered id"
+      (testing "includes :effective-sample-size view with ess id"
         (let [entry (find-view-entry plan :effective-sample-size)]
           (is (some? entry))
-          (is (= :autocorrelation-filtered (:autocorrelation-id (second entry)))))))))
+          (is (= :effective-sample-size-filtered (:ess-id (second entry)))))))))
 
 (deftest log-histogram-test
   (testing "log-histogram"
@@ -109,9 +109,9 @@
         (is (some? (find-analyse-entry-by-id plan :autocorrelation-raw)))
         (is (some? (find-analyse-entry-by-id plan :autocorrelation-filtered))))
 
-      (testing "configures bootstrap-stats with :acf-id :autocorrelation-filtered"
+      (testing "configures bootstrap-stats with :ess-id :effective-sample-size-filtered"
         (let [bs-entry (find-analyse-entry plan :bootstrap-stats)]
-          (is (= :autocorrelation-filtered (:acf-id (second bs-entry))))))
+          (is (= :effective-sample-size-filtered (:ess-id (second bs-entry))))))
 
       (testing "includes separate views"
         (is (some? (find-view-entry plan :autocorrelation-classification)))
@@ -125,9 +125,9 @@
         (is (some? (find-analyse-entry-by-id plan :autocorrelation-raw)))
         (is (some? (find-analyse-entry-by-id plan :autocorrelation-filtered))))
 
-      (testing "configures bootstrap-stats with :acf-id :autocorrelation-filtered"
+      (testing "configures bootstrap-stats with :ess-id :effective-sample-size-filtered"
         (let [bs-entry (find-analyse-entry plan :bootstrap-stats)]
-          (is (= :autocorrelation-filtered (:acf-id (second bs-entry))))))
+          (is (= :effective-sample-size-filtered (:ess-id (second bs-entry))))))
 
       (testing "includes separate views"
         (is (some? (find-view-entry plan :autocorrelation-classification)))
@@ -141,9 +141,9 @@
         (is (some? (find-analyse-entry-by-id plan :autocorrelation-raw)))
         (is (some? (find-analyse-entry-by-id plan :autocorrelation-filtered))))
 
-      (testing "configures bootstrap-stats with :acf-id :autocorrelation-filtered"
+      (testing "configures bootstrap-stats with :ess-id :effective-sample-size-filtered"
         (let [bs-entry (find-analyse-entry plan :bootstrap-stats)]
-          (is (= :autocorrelation-filtered (:acf-id (second bs-entry))))))
+          (is (= :effective-sample-size-filtered (:ess-id (second bs-entry))))))
 
       (testing "includes separate views"
         (is (some? (find-view-entry plan :autocorrelation-classification)))
@@ -157,9 +157,9 @@
         (is (some? (find-analyse-entry-by-id plan :autocorrelation-raw)))
         (is (some? (find-analyse-entry-by-id plan :autocorrelation-filtered))))
 
-      (testing "configures bootstrap-stats with :acf-id :autocorrelation-filtered"
+      (testing "configures bootstrap-stats with :ess-id :effective-sample-size-filtered"
         (let [bs-entry (find-analyse-entry plan :bootstrap-stats)]
-          (is (= :autocorrelation-filtered (:acf-id (second bs-entry))))))
+          (is (= :effective-sample-size-filtered (:ess-id (second bs-entry))))))
 
       (testing "includes separate views"
         (is (some? (find-view-entry plan :autocorrelation-classification)))
@@ -173,9 +173,9 @@
         (is (some? (find-analyse-entry-by-id plan :autocorrelation-raw)))
         (is (some? (find-analyse-entry-by-id plan :autocorrelation-filtered))))
 
-      (testing "configures bootstrap-stats with :acf-id :autocorrelation-filtered"
+      (testing "configures bootstrap-stats with :ess-id :effective-sample-size-filtered"
         (let [bs-entry (find-analyse-entry plan :bootstrap-stats)]
-          (is (= :autocorrelation-filtered (:acf-id (second bs-entry))))))
+          (is (= :effective-sample-size-filtered (:ess-id (second bs-entry))))))
 
       (testing "includes separate views"
         (is (some? (find-view-entry plan :autocorrelation-classification)))
@@ -191,17 +191,17 @@
         (is (some? (find-analyse-entry-by-id plan :autocorrelation-raw)))
         (is (nil? (find-analyse-entry-by-id plan :autocorrelation-filtered))))
 
-      (testing "configures bootstrap-stats with :acf-id :autocorrelation-raw"
+      (testing "configures bootstrap-stats with :ess-id :effective-sample-size-raw"
         (let [bs-entry (find-analyse-entry plan :bootstrap-stats)]
-          (is (= :autocorrelation-raw (:acf-id (second bs-entry))))))
+          (is (= :effective-sample-size-raw (:ess-id (second bs-entry))))))
 
-      (testing "includes separate views referencing :autocorrelation-raw"
+      (testing "includes separate views referencing raw analysis ids"
         (let [class-entry (find-view-entry plan :autocorrelation-classification)
               ess-entry (find-view-entry plan :effective-sample-size)]
           (is (some? class-entry))
-          (is (= :autocorrelation-raw (:autocorrelation-id (second class-entry))))
+          (is (= :autocorrelation-classification-raw (:classification-id (second class-entry))))
           (is (some? ess-entry))
-          (is (= :autocorrelation-raw (:autocorrelation-id (second ess-entry)))))))))
+          (is (= :effective-sample-size-raw (:ess-id (second ess-entry)))))))))
 
 (deftest default-one-shot-test
   ;; Tests verify that default-one-shot does NOT include autocorrelation.

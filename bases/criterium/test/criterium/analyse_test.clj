@@ -1438,17 +1438,9 @@
             (is (map? (:lag-1 elapsed-autocorr)) "should have :lag-1 map")
             (is (number? (:value (:lag-1 elapsed-autocorr))))
             (is (keyword? (:severity (:lag-1 elapsed-autocorr))))
+            ;; Core autocorrelation now only has :n-original in :effective-sample-size
             (is (map? (:effective-sample-size elapsed-autocorr)))
-            (is (number? (:n-original (:effective-sample-size elapsed-autocorr))))
-            (is (number? (:n-effective (:effective-sample-size elapsed-autocorr))))
-            (is (number? (:ratio (:effective-sample-size elapsed-autocorr))))
-            (is (number? (:ci-inflation-factor elapsed-autocorr)))
-            (is (map? (:ljung-box elapsed-autocorr)))
-            (is (number? (:q-statistic (:ljung-box elapsed-autocorr))))
-            (is (number? (:df (:ljung-box elapsed-autocorr))))
-            (is (number? (:p-value (:ljung-box elapsed-autocorr))))
-            (is (keyword? (:pattern elapsed-autocorr)))
-            (is (keyword? (:classification elapsed-autocorr)))))))
+            (is (number? (:n-original (:effective-sample-size elapsed-autocorr))))))))
 
     (testing "detects high autocorrelation in correlated samples"
       (let [;; Generate highly autocorrelated samples (each sample depends on previous)
@@ -1468,16 +1460,7 @@
                                              [:elapsed-time]])]
         ;; With 0.9 correlation, lag-1 should be high
         (is (> (double (:value (:lag-1 elapsed-autocorr))) 0.5)
-            "lag-1 autocorrelation should be high for correlated samples")
-        ;; Effective sample size should be reduced
-        (is (< (double (:ratio (:effective-sample-size elapsed-autocorr))) 0.5)
-            "effective sample ratio should be low for correlated samples")
-        ;; CI inflation factor should be elevated
-        (is (> (double (:ci-inflation-factor elapsed-autocorr)) 1.5)
-            "CI inflation should be elevated for correlated samples")
-        ;; Classification should not be :pass
-        (is (not= :pass (:classification elapsed-autocorr))
-            "classification should not be :pass for highly correlated samples")))
+            "lag-1 autocorrelation should be high for correlated samples")))
 
     (testing "returns data-map unchanged for insufficient samples"
       (let [;; Less than 20 samples

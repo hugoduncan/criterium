@@ -254,26 +254,26 @@
    metric-stats))
 
 (defn- add-adjusted-cis
-  "Add adjusted CIs to bootstrap results using autocorrelation inflation factors.
+  "Add adjusted CIs to bootstrap results using ESS inflation factors.
 
-  For each metric path, looks up the ci-inflation-factor from autocorrelation
-  analysis and applies it to all stats for that metric.
+  For each metric path, looks up the ci-inflation-factor from effective
+  sample size analysis and applies it to all stats for that metric.
 
   The bootstrap result uses nested maps (from assoc-in with vector paths like
-  [:elapsed-time]), while autocorrelation data uses vector path keys like
+  [:elapsed-time]), while ESS data uses vector path keys like
   {[:elapsed-time] {...}}. This function processes each top-level key in the
   bootstrap result as a metric path.
 
   Returns the modified bootstrap result with :adjusted-estimate-quantiles
-  added alongside original :estimate-quantiles where autocorrelation data exists."
-  [bootstrap-result autocorrelation-data]
+  added alongside original :estimate-quantiles where ESS data exists."
+  [bootstrap-result ess-data]
   (reduce-kv
    (fn [result metric-key metric-stats]
-     ;; Convert keyword key to vector path for ACF lookup
+     ;; Convert keyword key to vector path for ESS lookup
      (let [metric-path [metric-key]
-           acf-analysis (get autocorrelation-data metric-path)]
-       (if acf-analysis
-         (let [inflation (double (:ci-inflation-factor acf-analysis 1.0))]
+           ess-analysis (get ess-data metric-path)]
+       (if ess-analysis
+         (let [inflation (double (:ci-inflation-factor ess-analysis 1.0))]
            (if (> inflation 1.0)
              (assoc result metric-key (adjust-stat-within-metric metric-stats inflation))
              (assoc result metric-key metric-stats)))
@@ -289,8 +289,8 @@
       :id            - Key for bootstrap stats in output (default: :bootstrap-stats)
       :samples-id    - Key for source samples (default: :samples)
       :outliers-id   - Key for outlier analysis if available (default: :outliers)
-      :acf-id        - Key for autocorrelation analysis (default: nil). When provided
-                       and autocorrelation data exists, CI widths are inflated by the
+      :ess-id        - Key for effective sample size analysis (default: nil). When
+                       provided and ESS data exists, CI widths are inflated by the
                        ci-inflation-factor and stored as :adjusted-estimate-quantiles.
       :metric-ids    - Set of metric ids to analyze (default: all quantitative)
       :quantiles     - Additional quantiles to compute (default: none)
@@ -304,13 +304,13 @@
   are removed from samples before bootstrap resampling. This prevents outliers
   from propagating and amplifying in resamples.
 
-  When :acf-id is provided and the data-map contains autocorrelation analysis
-  under that key, confidence intervals are inflated by the ci-inflation-factor
-  for each metric. The adjusted CIs are stored as :adjusted-estimate-quantiles
-  alongside the original :estimate-quantiles. If autocorrelation analysis is
-  not present for a metric, only the original CIs are included."
+  When :ess-id is provided and the data-map contains effective sample size
+  analysis under that key, confidence intervals are inflated by the
+  ci-inflation-factor for each metric. The adjusted CIs are stored as
+  :adjusted-estimate-quantiles alongside the original :estimate-quantiles.
+  If ESS data is not present for a metric, only the original CIs are included."
   ([] (bootstrap-stats {}))
-  ([{:keys [id metric-ids samples-id outliers-id acf-id] :as analysis}]
+  ([{:keys [id metric-ids samples-id outliers-id ess-id] :as analysis}]
    (fn [data-map]
      (let [id              (or id :bootstrap-stats)
            samples-id      (or samples-id :samples)
@@ -319,9 +319,9 @@
            outliers-data   (data-map outliers-id)
            outliers        (when outliers-data
                              (util/outliers outliers-data))
-           acf-data        (when acf-id
-                             (when-let [acf-entry (data-map acf-id)]
-                               (util/autocorrelation acf-entry)))
+           ess-data        (when ess-id
+                             (when-let [ess-entry (data-map ess-id)]
+                               (util/effective-sample-size-data ess-entry)))
            metrics-defs    (-> (:metrics-defs metrics-samples)
                                (metric/select-metrics metric-ids)
                                (metric/filter-metrics
@@ -332,9 +332,9 @@
                             outliers
                             metric-configs
                             analysis)
-           ;; Apply ACF-adjusted CIs if autocorrelation data is available
-           adjusted-result (if acf-data
-                             (add-adjusted-cis result acf-data)
+           ;; Apply ESS-adjusted CIs if effective sample size data is available
+           adjusted-result (if ess-data
+                             (add-adjusted-cis result ess-data)
                              result)]
        (assoc
         data-map
@@ -346,4 +346,4 @@
                  :batch-size   (:batch-size metrics-samples)
                  :source-id    samples-id
                  :outliers-id  (when outliers-data outliers-id)}
-          acf-id (assoc :acf-id (when acf-data acf-id))))))))
+          ess-id (assoc :ess-id (when ess-data ess-id))))))))
