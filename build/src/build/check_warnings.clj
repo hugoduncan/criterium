@@ -109,3 +109,65 @@
           distinct
           sort
           vec))))
+
+;;; Noisy Namespace Pre-loading
+
+(def noisy-namespaces
+  "Third-party namespaces that emit reflection or boxed math warnings.
+
+   These must be loaded before enabling warnings to avoid false positives.
+   Kept in sync with criterium.kaocha-hooks/noisy-namespaces."
+  '[aero.alpha.core
+    babashka.fs
+    cider.nrepl.inlined.deps.toolsreader.v1v4v1.clojure.tools.reader
+    cider.nrepl.middleware.test
+    cider.nrepl.middleware.util.instrument
+    clj-http.client
+    clj-http.headers
+    clojure.data.json
+    clojure.test.check
+    clojure.test.check.clojure-test
+    clojure.tools.cli
+    clojure.tools.deps
+    clojure.tools.gitlibs
+    clojure.tools.reader
+    fipp
+    kaocha.plugin.profiling
+    kaocha.report
+    kaocha.runner
+    lambdaisland.deep-diff2
+    malli.core
+    malli.generator
+    malli.instrument
+    nextjournal.beholder
+    nextjournal.markdown.transform
+    nextjournal.markdown.utils
+    nrepl.core
+    nrepl.middleware
+    nrepl.middleware.session
+    orchard.inspect
+    potemkin.utils
+    scicloj.clay.v2.make
+    scicloj.clay.v2.notebook
+    scicloj.clay.v2.util.image
+    scicloj.kindly-render.note.to-hiccup])
+
+(defn preload-noisy-namespaces!
+  "Pre-load third-party namespaces that emit warnings with warnings disabled.
+
+   Loads each namespace in `noisy-namespaces` with *warn-on-reflection* and
+   *unchecked-math* set to false. Missing namespaces are silently ignored
+   since not all dependencies may be on the classpath in all configurations.
+
+   Returns a map with :loaded and :missing vectors of namespace symbols."
+  []
+  (let [results (atom {:loaded [] :missing []})]
+    (binding [*warn-on-reflection* false
+              *unchecked-math* false]
+      (doseq [ns-sym noisy-namespaces]
+        (try
+          (require ns-sym)
+          (swap! results update :loaded conj ns-sym)
+          (catch Exception _
+            (swap! results update :missing conj ns-sym)))))
+    @results))
