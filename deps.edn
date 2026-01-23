@@ -109,6 +109,7 @@
                {poly/criterium {:local/root "bases/criterium"}
                 poly/r-validation {:local/root "components/r-validation"}
                 poly/test-assert {:local/root "components/test-assert"}
+                local/build {:local/root "build"}
                 lambdaisland/kaocha {:mvn/version "1.91.1392"}
                 metosin/malli {:mvn/version "0.20.0"}}
                :main-opts ["-m" "kaocha.runner"
