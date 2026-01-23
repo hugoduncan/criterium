@@ -920,61 +920,118 @@
    :alternating-moderate "alternating"
    :alternating-severe "alternating"})
 
-(defn- collect-acf-metrics
-  "Collect autocorrelation data for all metrics. Returns seq of [acf-data mc]."
-  [{:keys [autocorrelation-id]} data-map]
-  (let [autocorrelation-id (or autocorrelation-id :autocorrelation)
-        autocorr-map (data-map autocorrelation-id)]
-    (when autocorr-map
-      (let [autocorr (util/autocorrelation autocorr-map)
-            metrics-defs (:metrics-defs autocorr-map)
+(defn- collect-classification-metrics
+  "Collect classification data for all metrics. Returns seq of [class-data acf-data mc].
+  Uses :classification-id to get classification analysis results, and looks up
+  the source autocorrelation for lag-1 data."
+  [{:keys [classification-id autocorrelation-id]} data-map]
+  (let [classification-id (or classification-id :autocorrelation-classification)
+        class-map (data-map classification-id)]
+    (when class-map
+      (let [class-data (util/autocorrelation-classification-data class-map)
+            ;; Get autocorrelation data for lag-1
+            autocorr-id (or autocorrelation-id (:source-id class-map))
+            autocorr-map (when autocorr-id (data-map autocorr-id))
+            autocorr (when autocorr-map (util/autocorrelation autocorr-map))
+            metrics-defs (:metrics-defs class-map)
             metric-configs (metric/all-metric-configs metrics-defs)]
         (for [mc metric-configs
-              :let [acf-data (get autocorr (:path mc))]
-              :when acf-data]
-          [acf-data mc])))))
+              :let [p (:path mc)
+                    cd (get class-data p)
+                    acf (when autocorr (get autocorr p))]
+              :when cd]
+          [cd acf mc])))))
+
+(defn- collect-ess-metrics
+  "Collect ESS data for all metrics. Returns seq of [ess-data acf-data mc].
+  Uses :ess-id to get ESS analysis results, and looks up
+  the source autocorrelation for lag-1 data."
+  [{:keys [ess-id autocorrelation-id]} data-map]
+  (let [ess-id (or ess-id :effective-sample-size)
+        ess-map (data-map ess-id)]
+    (when ess-map
+      (let [ess-data (util/effective-sample-size-data ess-map)
+            ;; Get autocorrelation data for lag-1
+            autocorr-id (or autocorrelation-id (:source-id ess-map))
+            autocorr-map (when autocorr-id (data-map autocorr-id))
+            autocorr (when autocorr-map (util/autocorrelation autocorr-map))
+            metrics-defs (:metrics-defs ess-map)
+            metric-configs (metric/all-metric-configs metrics-defs)]
+        (for [mc metric-configs
+              :let [p (:path mc)
+                    ed (get ess-data p)
+                    acf (when autocorr (get autocorr p))]
+              :when ed]
+          [ed acf mc])))))
+
+(defn- format-anomalous-lags
+  "Format anomalous lags for display.
+  Returns a string like '1 (minor), 12 (moderate)' or nil if empty."
+  [anomalous-lags lag-severities]
+  (when (seq anomalous-lags)
+    (str/join ", "
+              (map (fn [lag]
+                     (format "%d (%s)"
+                             lag
+                             (get severity-labels (get lag-severities lag :none) "unknown")))
+                   anomalous-lags))))
 
 (defmethod view/autocorrelation-classification* :kindly
   [_ view data-map]
-  (let [metrics (collect-acf-metrics view data-map)]
+  (let [metrics (collect-classification-metrics view data-map)]
     (when (some #(not= :pass (:classification (first %))) metrics)
-      (doseq [[acf-data mc] metrics]
-        (let [{:keys [lag-1 ljung-box classification pattern detected-period]} acf-data]
+      (doseq [[class-data acf-data mc] metrics]
+        (let [{:keys [ljung-box classification pattern detected-period]} class-data
+              lag-1 (:lag-1 acf-data)
+              anomalous-lags (:anomalous-lags acf-data)
+              lag-severities (:lag-severities acf-data)]
           (kindly-heading "Sample Independence Classification")
           (kindly-table
-           (cond-> [{:metric (str (:label mc) " Lag-1 autocorrelation")
-                     :value (format "%.2f (%s)"
-                                    (:value lag-1)
-                                    (get severity-labels (:severity lag-1) "unknown"))}
+           (cond-> [(when lag-1
+                      {:metric (str (:label mc) " Lag-1 autocorrelation")
+                       :value (format "%.2f (%s)"
+                                      (:value lag-1)
+                                      (get severity-labels (:severity lag-1) "unknown"))})
                     {:metric (str (:label mc) " Ljung-Box p-value")
                      :value (format "%.2f" (:p-value ljung-box))}
                     {:metric "Assessment"
                      :value (str/capitalize (name classification))}]
+             (seq anomalous-lags)
+             (conj {:metric "Anomalous lags"
+                    :value (format-anomalous-lags anomalous-lags lag-severities)})
+
              (#{:warning :fail} classification)
              (conj {:metric "Pattern" :value (name pattern)})
 
              (and (= pattern :periodic) detected-period)
-             (conj {:metric "Suspected period" :value (str detected-period " samples")}))))))))
+             (conj {:metric "Suspected period" :value (str detected-period " samples")})
+
+             true
+             (->> (remove nil?) vec))))))))
 
 (defmethod view/effective-sample-size* :kindly
   [_ view data-map]
-  (let [metrics (collect-acf-metrics view data-map)]
+  (let [metrics (collect-ess-metrics view data-map)]
     (when (some #(not= 1.0 (:ci-inflation-factor (first %))) metrics)
-      (doseq [[acf-data mc] metrics]
-        (let [{:keys [lag-1 effective-sample-size ci-inflation-factor]} acf-data]
+      (doseq [[ess-data acf-data mc] metrics]
+        (let [{:keys [effective-sample-size ci-inflation-factor]} ess-data
+              lag-1 (:lag-1 acf-data)]
           (kindly-heading "Effective Sample Size")
           (kindly-table
-           [{:metric (str (:label mc) " Lag-1 autocorrelation")
-             :value (format "%.2f (%s)"
-                            (:value lag-1)
-                            (get severity-labels (:severity lag-1) "unknown"))}
-            {:metric "Effective sample size"
-             :value (format "%d of %d (%.0f%%)"
-                            (:n-effective effective-sample-size)
-                            (:n-original effective-sample-size)
-                            (* 100.0 (:ratio effective-sample-size)))}
-            {:metric "CI inflation factor"
-             :value (format "%.2f×" ci-inflation-factor)}]))))))
+           (cond-> [(when lag-1
+                      {:metric (str (:label mc) " Lag-1 autocorrelation")
+                       :value (format "%.2f (%s)"
+                                      (:value lag-1)
+                                      (get severity-labels (:severity lag-1) "unknown"))})
+                    {:metric "Effective sample size"
+                     :value (format "%d of %d (%.0f%%)"
+                                    (:n-effective effective-sample-size)
+                                    (:n-original effective-sample-size)
+                                    (* 100.0 (:ratio effective-sample-size)))}
+                    {:metric "CI inflation factor"
+                     :value (format "%.2f×" ci-inflation-factor)}]
+             true
+             (->> (remove nil?) vec))))))))
 
 ;;; Modal Analysis Views
 

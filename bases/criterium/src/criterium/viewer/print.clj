@@ -1537,6 +1537,19 @@
   [severity]
   (get severity-labels severity (name severity)))
 
+(defn- format-anomalous-lags
+  "Format anomalous lags for display.
+  Takes a vector of lag numbers and a map of lag -> severity.
+  Returns a string like '1 (minor), 12 (moderate)' or nil if empty."
+  [anomalous-lags lag-severities]
+  (when (seq anomalous-lags)
+    (str/join ", "
+              (map (fn [lag]
+                     (format "%d (%s)"
+                             lag
+                             (format-severity (get lag-severities lag :none))))
+                   anomalous-lags))))
+
 (defn print-autocorrelation
   "Print autocorrelation analysis summary for a metric.
 
@@ -1550,7 +1563,8 @@
 
   For warning/fail, adds pattern and recommendation lines."
   [{:keys [lag-1 effective-sample-size ci-inflation-factor
-           ljung-box pattern classification detected-period]}
+           ljung-box pattern classification detected-period
+           anomalous-lags lag-severities]}
    metric-label]
   (println (format "%36s:" "Sample Independence"))
   (println (format "%36s: %.2f (%s)"
@@ -1571,6 +1585,10 @@
   (println (format "%36s: %s"
                    "Assessment"
                    (str/capitalize (name classification))))
+  (when-let [formatted (format-anomalous-lags anomalous-lags lag-severities)]
+    (println (format "%36s: %s"
+                     "Anomalous lags"
+                     formatted)))
   (when (#{:warning :fail} classification)
     (println (format "%36s: %s"
                      "Pattern"
@@ -1625,41 +1643,73 @@
                        "Recommendation"
                        rec)))))
 
-(defn- collect-autocorrelation-metrics
-  "Collect autocorrelation data for all metrics. Returns seq of [acf-data mc]."
-  [{:keys [autocorrelation-id]} data-map]
-  (let [autocorrelation-id (or autocorrelation-id :autocorrelation)
-        autocorr-map (data-map autocorrelation-id)]
-    (when autocorr-map
-      (let [autocorr (util/autocorrelation autocorr-map)
-            metrics-defs (:metrics-defs autocorr-map)
+(defn- collect-classification-metrics
+  "Collect classification data for all metrics. Returns seq of [class-data acf-data mc].
+  Uses :classification-id to get classification analysis results, and looks up
+  the source autocorrelation for lag-1 data."
+  [{:keys [classification-id autocorrelation-id]} data-map]
+  (let [classification-id (or classification-id :autocorrelation-classification)
+        class-map (data-map classification-id)]
+    (when class-map
+      (let [class-data (util/autocorrelation-classification-data class-map)
+            ;; Get autocorrelation data for lag-1
+            autocorr-id (or autocorrelation-id (:source-id class-map))
+            autocorr-map (when autocorr-id (data-map autocorr-id))
+            autocorr (when autocorr-map (util/autocorrelation autocorr-map))
+            metrics-defs (:metrics-defs class-map)
             metric-configs (metric/all-metric-configs metrics-defs)]
         (for [mc metric-configs
-              :let [acf-data (get autocorr (:path mc))]
-              :when acf-data]
-          [acf-data mc])))))
+              :let [p (:path mc)
+                    cd (get class-data p)
+                    acf (when autocorr (get autocorr p))]
+              :when cd]
+          [cd acf mc])))))
 
 (defn print-autocorrelation-classifications
   "Print autocorrelation classification for all metrics.
   Only outputs if at least one metric is not classified as :pass."
   [view data-map]
-  (let [metrics (collect-autocorrelation-metrics view data-map)]
+  (let [metrics (collect-classification-metrics view data-map)]
     (when (some #(not= :pass (:classification (first %))) metrics)
-      (doseq [[acf-data mc] metrics]
-        (print-classification-for-metric acf-data (:label mc))))))
+      (doseq [[class-data acf-data mc] metrics]
+        (let [combined (merge class-data (select-keys acf-data [:lag-1]))]
+          (print-classification-for-metric combined (:label mc)))))))
 
 (defmethod view/autocorrelation-classification* :print
   [_ view data-map]
   (print-autocorrelation-classifications view data-map))
 
+(defn- collect-ess-metrics
+  "Collect ESS data for all metrics. Returns seq of [ess-data acf-data mc].
+  Uses :ess-id to get ESS analysis results, and looks up
+  the source autocorrelation for lag-1 data."
+  [{:keys [ess-id autocorrelation-id]} data-map]
+  (let [ess-id (or ess-id :effective-sample-size)
+        ess-map (data-map ess-id)]
+    (when ess-map
+      (let [ess-data (util/effective-sample-size-data ess-map)
+            ;; Get autocorrelation data for lag-1
+            autocorr-id (or autocorrelation-id (:source-id ess-map))
+            autocorr-map (when autocorr-id (data-map autocorr-id))
+            autocorr (when autocorr-map (util/autocorrelation autocorr-map))
+            metrics-defs (:metrics-defs ess-map)
+            metric-configs (metric/all-metric-configs metrics-defs)]
+        (for [mc metric-configs
+              :let [p (:path mc)
+                    ed (get ess-data p)
+                    acf (when autocorr (get autocorr p))]
+              :when ed]
+          [ed acf mc])))))
+
 (defn- print-effective-sample-size-for-metric
   "Print effective sample size analysis for a single metric."
   [{:keys [lag-1 effective-sample-size ci-inflation-factor]} metric-label]
   (println (format "%36s:" "Effective Sample Size"))
-  (println (format "%36s: %.2f (%s)"
-                   (str metric-label " Lag-1 autocorrelation")
-                   (:value lag-1)
-                   (format-severity (:severity lag-1))))
+  (when lag-1
+    (println (format "%36s: %.2f (%s)"
+                     (str metric-label " Lag-1 autocorrelation")
+                     (:value lag-1)
+                     (format-severity (:severity lag-1)))))
   (println (format "%36s: %d of %d (%.0f%%)"
                    "Effective sample size"
                    (:n-effective effective-sample-size)
@@ -1673,10 +1723,11 @@
   "Print effective sample size analysis for all metrics.
   Only outputs if at least one metric has CI inflation factor other than 1.0."
   [view data-map]
-  (let [metrics (collect-autocorrelation-metrics view data-map)]
+  (let [metrics (collect-ess-metrics view data-map)]
     (when (some #(not= 1.0 (:ci-inflation-factor (first %))) metrics)
-      (doseq [[acf-data mc] metrics]
-        (print-effective-sample-size-for-metric acf-data (:label mc))))))
+      (doseq [[ess-data acf-data mc] metrics]
+        (let [combined (merge ess-data (select-keys acf-data [:lag-1]))]
+          (print-effective-sample-size-for-metric combined (:label mc)))))))
 
 (defmethod view/effective-sample-size* :print
   [_ view data-map]

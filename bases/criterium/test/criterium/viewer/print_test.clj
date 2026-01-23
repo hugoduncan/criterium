@@ -1728,3 +1728,66 @@
                          :classification :acceptable
                          :detected-period nil}}}}]
         (is (nil? (view/acf-plot* :print {} data-map)))))))
+
+(deftest print-autocorrelation-anomalous-lags-test
+  ;; Tests display of anomalous lags in autocorrelation output.
+  ;; Covers: anomalous lags display when present, no display when empty.
+  (testing "print-autocorrelation"
+    (testing "displays anomalous lags when present"
+      (let [output (with-out-str
+                     (print/print-autocorrelation
+                      {:lag-1 {:value 0.15 :severity :minor}
+                       :effective-sample-size {:n-original 200
+                                               :n-effective 160
+                                               :ratio 0.80}
+                       :ci-inflation-factor 1.18
+                       :ljung-box {:q-statistic 25.0 :df 20 :p-value 0.20}
+                       :pattern :clean
+                       :classification :acceptable
+                       :detected-period nil
+                       :anomalous-lags [1 12]
+                       :lag-severities {1 :minor 12 :moderate}}
+                      "Elapsed Time"))
+            lines (trimmed-lines output)]
+        (is (some #(str/includes? % "Anomalous lags") lines)
+            "Should display anomalous lags label")
+        (is (some #(str/includes? % "1 (minor)") lines)
+            "Should show lag 1 with minor severity")
+        (is (some #(str/includes? % "12 (moderate)") lines)
+            "Should show lag 12 with moderate severity")))
+
+    (testing "does not display anomalous lags when empty"
+      (let [output (with-out-str
+                     (print/print-autocorrelation
+                      {:lag-1 {:value 0.05 :severity :none}
+                       :effective-sample-size {:n-original 200
+                                               :n-effective 190
+                                               :ratio 0.95}
+                       :ci-inflation-factor 1.05
+                       :ljung-box {:q-statistic 15.2 :df 20 :p-value 0.75}
+                       :pattern :clean
+                       :classification :pass
+                       :detected-period nil
+                       :anomalous-lags []
+                       :lag-severities {1 :none 2 :none}}
+                      "Elapsed Time"))
+            lines (trimmed-lines output)]
+        (is (not (some #(str/includes? % "Anomalous lags") lines))
+            "Should not display anomalous lags when empty")))
+
+    (testing "does not display anomalous lags when nil"
+      (let [output (with-out-str
+                     (print/print-autocorrelation
+                      {:lag-1 {:value 0.05 :severity :none}
+                       :effective-sample-size {:n-original 200
+                                               :n-effective 190
+                                               :ratio 0.95}
+                       :ci-inflation-factor 1.05
+                       :ljung-box {:q-statistic 15.2 :df 20 :p-value 0.75}
+                       :pattern :clean
+                       :classification :pass
+                       :detected-period nil}
+                      "Elapsed Time"))
+            lines (trimmed-lines output)]
+        (is (not (some #(str/includes? % "Anomalous lags") lines))
+            "Should not display anomalous lags when not present")))))
