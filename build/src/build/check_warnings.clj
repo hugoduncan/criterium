@@ -152,6 +152,64 @@
     scicloj.clay.v2.util.image
     scicloj.kindly-render.note.to-hiccup])
 
+;;; Exemption Detection
+
+(def ^:private exemption-patterns
+  "Regex patterns that indicate a namespace explicitly disables warnings."
+  [#"\(\s*set!\s+\*warn-on-reflection\*\s+false\s*\)"
+   #"\(\s*set!\s+\*unchecked-math\*\s+false\s*\)"])
+
+(defn- ns-symbol->file-path
+  "Convert a namespace symbol to a relative file path."
+  [ns-sym]
+  (-> (str ns-sym)
+      (str/replace "." "/")
+      (str/replace "-" "_")
+      (str ".clj")))
+
+(defn- find-namespace-source-file
+  "Find the source file for a namespace symbol.
+
+   Searches the classpath roots from tools.deps for a matching file.
+   Returns the absolute path as a string, or nil if not found."
+  [ns-sym project-root]
+  (let [basis (deps/create-basis {:aliases [:dev :test]
+                                  :dir project-root})
+        classpath-roots (:classpath-roots basis)
+        rel-path (ns-symbol->file-path ns-sym)
+        ;; Resolve classpath roots relative to project root
+        resolve-root (fn [root]
+                       (let [root-path (fs/path project-root root)]
+                         (when (fs/directory? root-path)
+                           root-path)))]
+    (some->> classpath-roots
+             (keep resolve-root)
+             (filter project-source-path?)
+             (map #(fs/path % rel-path))
+             (filter fs/exists?)
+             first
+             str)))
+
+(defn namespace-has-exemption?
+  "Check if a namespace source file contains an exemption declaration.
+
+   Reads the source file and checks for patterns like:
+   - (set! *warn-on-reflection* false)
+   - (set! *unchecked-math* false)
+
+   Returns true if any exemption pattern is found, false otherwise.
+   Returns false if the source file cannot be found or read."
+  ([ns-sym]
+   (namespace-has-exemption? ns-sym "."))
+  ([ns-sym project-root]
+   (if-let [source-file (find-namespace-source-file ns-sym project-root)]
+     (try
+       (let [content (slurp source-file)]
+         (boolean (some #(re-find % content) exemption-patterns)))
+       (catch Exception _
+         false))
+     false)))
+
 (defn preload-noisy-namespaces!
   "Pre-load third-party namespaces that emit warnings with warnings disabled.
 
