@@ -9,49 +9,22 @@
   This namespace pre-loads noisy third-party namespaces with warnings
   disabled BEFORE loading criterium.schema.instrument. This prevents
   warning noise from malli.generator and other libraries that are
-  pulled in transitively by the instrumentation system.")
+  pulled in transitively by the instrumentation system."
+  (:require
+   [clojure.edn :as edn]
+   [clojure.java.io :as io]))
 
 ;;; Third-party namespaces with known reflection or boxed math warnings
 ;;
 ;; Must be loaded before criterium.schema.instrument to prevent warnings.
+;; Loaded from build/noisy-namespaces.edn resource (shared with build.check-warnings).
 
 (def ^:private noisy-namespaces
   "Third-party namespaces that emit reflection or boxed math warnings.
   Each require wrapped in try/catch for silent failure when deps aren't on classpath."
-  '[aero.alpha.core
-    babashka.fs
-    cider.nrepl.inlined.deps.toolsreader.v1v4v1.clojure.tools.reader
-    cider.nrepl.middleware.test
-    cider.nrepl.middleware.util.instrument
-    clj-http.client
-    clj-http.headers
-    clojure.data.json
-    clojure.test.check
-    clojure.test.check.clojure-test
-    clojure.tools.cli
-    clojure.tools.deps
-    clojure.tools.gitlibs
-    clojure.tools.reader
-    fipp
-    kaocha.plugin.profiling
-    kaocha.report
-    kaocha.runner
-    lambdaisland.deep-diff2
-    malli.core
-    malli.generator
-    malli.instrument
-    nextjournal.beholder
-    nextjournal.markdown.transform
-    nextjournal.markdown.utils
-    nrepl.core
-    nrepl.middleware
-    nrepl.middleware.session
-    orchard.inspect
-    potemkin.utils
-    scicloj.clay.v2.make
-    scicloj.clay.v2.notebook
-    scicloj.clay.v2.util.image
-    scicloj.kindly-render.note.to-hiccup])
+  (-> (io/resource "build/noisy-namespaces.edn")
+      slurp
+      edn/read-string))
 
 ;;; Pre-load noisy namespaces at compile time
 ;;

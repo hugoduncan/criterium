@@ -1,0 +1,41 @@
+;; Third-party namespaces that emit reflection or boxed math warnings.
+;;
+;; These must be loaded before enabling warnings to avoid false positives
+;; in project code. Used by:
+;; - build.check-warnings (CI warning check)
+;; - criterium.kaocha-hooks (test runs)
+
+[aero.alpha.core
+ babashka.fs
+ cider.nrepl.inlined.deps.toolsreader.v1v4v1.clojure.tools.reader
+ cider.nrepl.middleware.test
+ cider.nrepl.middleware.util.instrument
+ clj-http.client
+ clj-http.headers
+ clojure.data.json
+ clojure.test.check
+ clojure.test.check.clojure-test
+ clojure.tools.cli
+ clojure.tools.deps
+ clojure.tools.gitlibs
+ clojure.tools.reader
+ fipp
+ kaocha.plugin.profiling
+ kaocha.report
+ kaocha.runner
+ lambdaisland.deep-diff2
+ malli.core
+ malli.generator
+ malli.instrument
+ nextjournal.beholder
+ nextjournal.markdown.transform
+ nextjournal.markdown.utils
+ nrepl.core
+ nrepl.middleware
+ nrepl.middleware.session
+ orchard.inspect
+ potemkin.utils
+ scicloj.clay.v2.make
+ scicloj.clay.v2.notebook
+ scicloj.clay.v2.util.image
+ scicloj.kindly-render.note.to-hiccup]

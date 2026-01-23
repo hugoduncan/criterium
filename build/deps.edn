@@ -1,4 +1,5 @@
-{:deps {babashka/fs {:mvn/version "0.5.27"}
+{:paths ["src" "resources"]
+ :deps {babashka/fs {:mvn/version "0.5.27"}
         com.taoensso/truss {:mvn/version "1.12.0"}
         io.github.clojure/tools.build {:git/tag "v0.10.11"
                                        :git/sha "c6c670a"}

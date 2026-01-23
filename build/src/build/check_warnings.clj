@@ -5,6 +5,8 @@
    utilities for checking boxed math and reflection warnings."
   (:require
    [babashka.fs :as fs]
+   [clojure.edn :as edn]
+   [clojure.java.io :as io]
    [clojure.string :as str]
    [clojure.tools.deps :as deps]))
 
@@ -116,41 +118,10 @@
   "Third-party namespaces that emit reflection or boxed math warnings.
 
    These must be loaded before enabling warnings to avoid false positives.
-   Kept in sync with criterium.kaocha-hooks/noisy-namespaces."
-  '[aero.alpha.core
-    babashka.fs
-    cider.nrepl.inlined.deps.toolsreader.v1v4v1.clojure.tools.reader
-    cider.nrepl.middleware.test
-    cider.nrepl.middleware.util.instrument
-    clj-http.client
-    clj-http.headers
-    clojure.data.json
-    clojure.test.check
-    clojure.test.check.clojure-test
-    clojure.tools.cli
-    clojure.tools.deps
-    clojure.tools.gitlibs
-    clojure.tools.reader
-    fipp
-    kaocha.plugin.profiling
-    kaocha.report
-    kaocha.runner
-    lambdaisland.deep-diff2
-    malli.core
-    malli.generator
-    malli.instrument
-    nextjournal.beholder
-    nextjournal.markdown.transform
-    nextjournal.markdown.utils
-    nrepl.core
-    nrepl.middleware
-    nrepl.middleware.session
-    orchard.inspect
-    potemkin.utils
-    scicloj.clay.v2.make
-    scicloj.clay.v2.notebook
-    scicloj.clay.v2.util.image
-    scicloj.kindly-render.note.to-hiccup])
+   Loaded from build/noisy-namespaces.edn resource."
+  (-> (io/resource "build/noisy-namespaces.edn")
+      slurp
+      edn/read-string))
 
 ;;; Exemption Detection
 
