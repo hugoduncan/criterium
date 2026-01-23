@@ -91,7 +91,7 @@
             log-vals (arr/dmap sorted-samples (fn ^double [^double x] (Math/log x)))]
         (into []
               (comp
-               (filter (fn [k] (let [k (long k)] (and (>= k 1) (< k n)))))
+               (filter (fn [k] (and (>= k 1) (< k n))))
                (map (fn [k]
                       (let [k (long k)
                             ;; X_{(n-k)} is the (k+1)-th largest, at index n-k-1
@@ -101,14 +101,13 @@
                             ;; X_{(n-i+1)} for i=1..k are the k largest values
                             ;; at indices n-1, n-2, ..., n-k
                             sum-log-diff
-                            (double
-                             (loop [i (long 0)
-                                    acc 0.0]
-                               (if (>= i k)
-                                 acc
-                                 (let [idx (- n 1 i)
-                                       log-xi (arr/get-double log-vals idx)]
-                                   (recur (inc i) (+ acc (- log-xi log-threshold)))))))
+                            (loop [i 0
+                                   acc 0.0]
+                              (if (>= i k)
+                                acc
+                                (let [idx (- n 1 i)
+                                      log-xi (arr/get-double log-vals idx)]
+                                  (recur (inc i) (+ acc (- log-xi log-threshold))))))
                             h-k (/ sum-log-diff (double k))]
                         {:k k
                          :estimate h-k
@@ -274,15 +273,11 @@
   (let [n (arr/length exceedances)
         {:keys [max-iter tol xi-min xi-max]
          :or {max-iter 100 tol 1e-8 xi-min -0.5 xi-max 2.0}} opts
-        ^long max-iter max-iter
-        ^double tol tol
-        ^double xi-min xi-min
-        ^double xi-max xi-max
         ;; Sample statistics
         sum-y (arr/fold-double exceedances
                                (fn ^double [^double acc ^double y] (+ acc y))
                                0.0)
-        mean-y (/ sum-y (double n))
+        mean-y (/ sum-y n)
         max-y (arr/fold-double exceedances
                                (fn ^double [^double acc ^double y] (Math/max acc y))
                                Double/NEGATIVE_INFINITY)
@@ -301,8 +296,8 @@
                   init-sigma mean-y
                   ;; Newton iteration to find σ
                   sigma
-                  (loop [sigma (double init-sigma)
-                         iter (long 0)]
+                  (loop [sigma init-sigma
+                         iter 0]
                     (if (>= iter 50)
                       sigma
                       (let [;; Compute Σlog(1 + ξyᵢ/σ)
@@ -319,7 +314,7 @@
                           ;; Profile equation: n/σ - (1/ξ + 1) * Σ(ξyᵢ/(σ(σ + ξyᵢ))) = 0
                           ;; Simplified: σ = (1 + ξ) * Σyᵢ / (n + ξ*Σlog(1 + ξyᵢ/σ))
                           (let [new-sigma (/ (* (+ 1.0 xi) sum-y)
-                                             (+ (double n) (* xi sum-log)))]
+                                             (+ n (* xi sum-log)))]
                             (if (or (<= new-sigma 0.0)
                                     (< (Math/abs (- new-sigma sigma)) (* tol sigma)))
                               (if (pos? new-sigma) new-sigma sigma)
@@ -335,48 +330,43 @@
         effective-xi-min (Math/max xi-min (- (/ mean-y max-y) 0.1))
 
         ;; Grid search
-        grid-points (long 20)
-        xi-step (/ (- xi-max effective-xi-min) (double grid-points))
+        grid-points 20
+        xi-step (/ (- xi-max effective-xi-min) grid-points)
         best-xi
-        (double
-         (loop [xi (double effective-xi-min)
-                best-xi 0.0
-                best-ll Double/NEGATIVE_INFINITY]
-           (if (> xi xi-max)
-             best-xi
-             (let [ll #_{:clj-kondo/ignore [:redundant-primitive-coercion]}
-                   (double (profile-ll xi))]
-               (if (> ll best-ll)
-                 (recur (+ xi xi-step) xi ll)
-                 (recur (+ xi xi-step) best-xi best-ll))))))
+        (loop [xi effective-xi-min
+               best-xi 0.0
+               best-ll Double/NEGATIVE_INFINITY]
+          (if (> xi xi-max)
+            best-xi
+            (let [ll (profile-ll xi)]
+              (if (> ll best-ll)
+                (recur (+ xi xi-step) xi ll)
+                (recur (+ xi xi-step) best-xi best-ll)))))
 
         ;; Golden section refinement around best-xi
         final-xi
         (let [golden (/ (- (Math/sqrt 5.0) 1.0) 2.0)
               refine-width (* 2.0 xi-step)]
-          (loop [a (double (Math/max (double effective-xi-min) (- best-xi refine-width)))
-                 b (double (Math/min xi-max (+ best-xi refine-width)))
-                 iter (long 0)]
+          (loop [a (Math/max effective-xi-min (- best-xi refine-width))
+                 b (Math/min xi-max (+ best-xi refine-width))
+                 iter 0]
             (if (or (>= iter max-iter) (< (- b a) tol))
               (/ (+ a b) 2.0)
               (let [c (- b (* golden (- b a)))
                     d (+ a (* golden (- b a)))
-                    fc #_{:clj-kondo/ignore [:redundant-primitive-coercion]}
-                    (double (profile-ll c))
-                    fd #_{:clj-kondo/ignore [:redundant-primitive-coercion]}
-                    (double (profile-ll d))]
+                    fc (profile-ll c)
+                    fd (profile-ll d)]
                 (if (> fc fd)
                   (recur a d (inc iter))
                   (recur c b (inc iter)))))))
 
         ;; Compute final σ for the optimal ξ
-        final-xi (double final-xi)
         final-sigma
         (if (< (Math/abs final-xi) 1e-10)
           mean-y
           ;; Iterate to get correct σ
-          (loop [sigma (double mean-y)
-                 iter (long 0)]
+          (loop [sigma mean-y
+                 iter 0]
             (if (>= iter 50)
               sigma
               (let [sum-log-curr
@@ -388,7 +378,7 @@
                                            (+ acc (Math/log z)))))
                                      0.0)
                     new-sigma (/ (* (+ 1.0 final-xi) sum-y)
-                                 (+ (double n) (* final-xi sum-log-curr)))]
+                                 (+ n (* final-xi sum-log-curr)))]
                 (if (or (<= new-sigma 0.0)
                         (< (Math/abs (- new-sigma sigma)) (* tol sigma)))
                   (if (pos? new-sigma) new-sigma sigma)
@@ -467,29 +457,27 @@
                           ;; Find first index where sample > u
                           ;; Since sorted, we can binary search
                           exceed-start
-                          (long
-                           (loop [lo (long 0)
-                                  hi n]
-                             (if (>= lo hi)
-                               lo
-                               (let [mid (quot (+ lo hi) 2)
-                                     v (arr/get-double sorted-samples mid)]
-                                 (if (<= v u)
-                                   (recur (inc mid) hi)
-                                   (recur lo mid))))))
+                          (loop [lo 0
+                                 hi n]
+                            (if (>= lo hi)
+                              lo
+                              (let [mid (quot (+ lo hi) 2)
+                                    v (arr/get-double sorted-samples mid)]
+                                (if (<= v u)
+                                  (recur (inc mid) hi)
+                                  (recur lo mid)))))
                           n-exceed (- n exceed-start)]
                       (if (zero? n-exceed)
                         {:threshold u :mrl Double/NaN :n-exceed 0}
                         (let [;; Sum of exceedances: Σ(xᵢ - u) for xᵢ > u
                               sum-excess
-                              (double
-                               (loop [i exceed-start
-                                      acc 0.0]
-                                 (if (>= i n)
-                                   acc
-                                   (recur (inc i)
-                                          (+ acc (- (arr/get-double sorted-samples i) u))))))
-                              mrl (/ sum-excess (double n-exceed))]
+                              (loop [i exceed-start
+                                     acc 0.0]
+                                (if (>= i n)
+                                  acc
+                                  (recur (inc i)
+                                         (+ acc (- (arr/get-double sorted-samples i) u)))))
+                              mrl (/ sum-excess n-exceed)]
                           {:threshold u :mrl mrl :n-exceed n-exceed}))))))
             threshold-range))))
 
@@ -509,11 +497,10 @@
      (when (pos? n)
        (let [q-min 0.5
              q-max 0.95
-             q-step (/ (- q-max q-min) (double (dec n-points)))]
+             q-step (/ (- q-max q-min) (dec n-points))]
          (for [i (range n-points)]
-           (let [i (long i)
-                 q (+ q-min (* (double i) q-step))
-                 idx (min (dec n) (long (* q (double (dec n)))))]
+           (let [q (+ q-min (* i q-step))
+                 idx (min (dec n) (long (* q (dec n))))]
              (arr/get-double sorted-samples idx))))))))
 
 ;;; Tail Ratios
