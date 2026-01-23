@@ -372,4 +372,4 @@
         {:keys [warning-count results]} result
         error-count (count (filter :error results))]
     (report-warnings result)
-    (System/exit (if (or (< 0 warning-count) (< 0 error-count)) 1 0))))
+    (System/exit (if (or (pos? warning-count) (pos? error-count)) 1 0))))
