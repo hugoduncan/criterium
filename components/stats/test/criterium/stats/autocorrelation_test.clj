@@ -419,10 +419,10 @@
 ;;; Full analysis tests
 
 (deftest analyse-autocorrelation-white-noise-test
-  ;; Tests full analysis on white noise
-  ;; Contract: returns clean/pass for white noise
+  ;; Tests analyse-autocorrelation on white noise
+  ;; Contract: returns ACF, lag-1, and n-original for downstream analyses
   (testing "analyse-autocorrelation"
-    (testing "returns :clean pattern and :pass for white noise"
+    (testing "returns core ACF data for white noise"
       (let [rng (java.util.Random. 42)
             samples (double-array (repeatedly 100 #(.nextGaussian rng)))
             result (acf/analyse-autocorrelation samples)]
@@ -430,18 +430,18 @@
         (is (contains? result :acf))
         (is (contains? result :lag-1))
         (is (contains? result :effective-sample-size))
-        (is (contains? result :ci-inflation-factor))
-        (is (contains? result :ljung-box))
-        (is (contains? result :pattern))
-        (is (contains? result :classification))
-        ;; White noise should be clean or acceptable
-        (is (#{:clean :pass :acceptable} (:classification result)))))))
+        ;; effective-sample-size only contains :n-original now
+        (is (= #{:n-original} (set (keys (:effective-sample-size result)))))
+        (is (= 100 (get-in result [:effective-sample-size :n-original])))
+        ;; Classification and CI inflation are now in separate functions
+        (let [class-result (acf/autocorrelation-classification (:acf result) 100)]
+          (is (#{:clean :pass :acceptable} (:classification class-result))))))))
 
 (deftest analyse-autocorrelation-ar1-test
-  ;; Tests full analysis on AR(1) process
-  ;; Contract: detects transient-effects pattern and appropriate classification
+  ;; Tests analyse-autocorrelation on AR(1) process
+  ;; Contract: returns ACF data that classification functions can detect
   (testing "analyse-autocorrelation"
-    (testing "detects autocorrelation in AR(1) process"
+    (testing "returns ACF data for AR(1) process"
       (let [phi 0.7
             n 200
             rng (java.util.Random. 123)
@@ -451,14 +451,17 @@
                 (aset samples (inc i)
                       (+ (* phi (aget samples i))
                          (* (Math/sqrt (- 1.0 (* phi phi))) (.nextGaussian rng)))))
-            result (acf/analyse-autocorrelation samples)]
+            result (acf/analyse-autocorrelation samples)
+            acf-map (:acf result)
+            class-result (acf/autocorrelation-classification acf-map n)
+            ess-result (acf/effective-sample-size-analysis acf-map n)]
         (is (map? result))
         ;; Should detect transient-effects or severe pattern
-        (is (#{:transient-effects :severe} (:pattern result)))
+        (is (#{:transient-effects :severe} (:pattern class-result)))
         ;; Classification should be warning or fail
-        (is (#{:warning :fail} (:classification result)))
+        (is (#{:warning :fail} (:classification class-result)))
         ;; Effective sample size should be reduced
-        (is (< (get-in result [:effective-sample-size :ratio]) 0.5))))))
+        (is (< (get-in ess-result [:effective-sample-size :ratio]) 0.5))))))
 
 (deftest analyse-autocorrelation-insufficient-samples-test
   ;; Tests full analysis returns nil for insufficient samples
@@ -466,6 +469,103 @@
     (testing "returns nil for n < 20"
       (let [samples (double-array (range 19))]
         (is (nil? (acf/analyse-autocorrelation samples)))))))
+
+;;; anomalous-lags tests
+
+(deftest anomalous-lags-test
+  ;; Tests anomalous-lags helper function
+  ;; Contracts: filters out :none and :alternating-none, sorts by lag
+  (testing "anomalous-lags"
+    (testing "returns empty vector when all lags are :none"
+      (let [lag-sevs {1 :none, 2 :none, 3 :none}]
+        (is (= [] (acf/anomalous-lags lag-sevs)))))
+
+    (testing "returns empty vector when all lags are :alternating-none"
+      (let [lag-sevs {1 :alternating-none, 2 :alternating-none}]
+        (is (= [] (acf/anomalous-lags lag-sevs)))))
+
+    (testing "filters out :none and :alternating-none severities"
+      (let [lag-sevs {1 :minor, 2 :none, 3 :moderate, 4 :alternating-none, 5 :severe}]
+        (is (= [1 3 5] (acf/anomalous-lags lag-sevs)))))
+
+    (testing "sorts results by lag number"
+      (let [lag-sevs {5 :minor, 2 :moderate, 10 :severe, 1 :minor}]
+        (is (= [1 2 5 10] (acf/anomalous-lags lag-sevs)))))
+
+    (testing "includes alternating severities that are not :alternating-none"
+      (let [lag-sevs {1 :alternating-minor, 2 :alternating-moderate, 3 :alternating-severe}]
+        (is (= [1 2 3] (acf/anomalous-lags lag-sevs)))))))
+
+;;; analyse-autocorrelation with new fields tests
+
+(deftest analyse-autocorrelation-lag-severities-test
+  ;; Tests analyse-autocorrelation includes :lag-severities field
+  ;; Contract: lag-severities map contains severity for all lags in ACF
+  (testing "analyse-autocorrelation"
+    (testing "includes :lag-severities map"
+      (let [rng (java.util.Random. 42)
+            samples (double-array (repeatedly 100 #(.nextGaussian rng)))
+            result (acf/analyse-autocorrelation samples)]
+        (is (contains? result :lag-severities))
+        (is (map? (:lag-severities result)))
+        ;; Should have same keys as ACF map
+        (is (= (set (keys (:acf result)))
+               (set (keys (:lag-severities result)))))
+        ;; All values should be severity keywords
+        (is (every? #{:none :minor :moderate :severe
+                      :alternating-none :alternating-minor
+                      :alternating-moderate :alternating-severe}
+                    (vals (:lag-severities result))))))))
+
+(deftest analyse-autocorrelation-anomalous-lags-test
+  ;; Tests analyse-autocorrelation includes :anomalous-lags field
+  ;; Contract: anomalous-lags is vector of lag numbers with non-trivial severities
+  (testing "analyse-autocorrelation"
+    (testing "includes :anomalous-lags vector"
+      (let [rng (java.util.Random. 42)
+            samples (double-array (repeatedly 100 #(.nextGaussian rng)))
+            result (acf/analyse-autocorrelation samples)]
+        (is (contains? result :anomalous-lags))
+        (is (vector? (:anomalous-lags result)))))
+
+    (testing "anomalous-lags matches filtered lag-severities"
+      (let [;; Generate AR(1) process with some autocorrelation
+            phi 0.5
+            n 100
+            rng (java.util.Random. 789)
+            samples (double-array n)
+            _ (aset samples 0 (.nextGaussian rng))
+            _ (dotimes [i (dec n)]
+                (aset samples (inc i)
+                      (+ (* phi (aget samples i))
+                         (* (Math/sqrt (- 1.0 (* phi phi))) (.nextGaussian rng)))))
+            result (acf/analyse-autocorrelation samples)
+            lag-sevs (:lag-severities result)
+            anomalous (:anomalous-lags result)]
+        ;; anomalous-lags should match what anomalous-lags fn produces
+        (is (= anomalous (acf/anomalous-lags lag-sevs)))
+        ;; All entries should be integers
+        (is (every? integer? anomalous))
+        ;; Should be sorted ascending
+        (is (= anomalous (sort anomalous)))
+        ;; Severity can be looked up in lag-severities
+        (is (every? #(contains? lag-sevs %) anomalous))))))
+
+(deftest analyse-autocorrelation-clean-data-test
+  ;; Tests analyse-autocorrelation with clean data has empty anomalous-lags
+  ;; Contract: white noise should have no anomalous lags
+  (testing "analyse-autocorrelation"
+    (testing "clean white noise has empty or near-empty anomalous-lags"
+      (let [rng (java.util.Random. 42)
+            ;; Use larger sample for lower noise floor
+            samples (double-array (repeatedly 400 #(.nextGaussian rng)))
+            result (acf/analyse-autocorrelation samples)
+            anomalous (:anomalous-lags result)]
+        ;; Most ACF values should be below noise floor for white noise
+        ;; Allow up to 5% of lags to be spuriously significant
+        (is (<= (count anomalous) 10)
+            (format "Expected few anomalous lags for white noise, got %d"
+                    (count anomalous)))))))
 
 ;;; effective-sample-size-analysis tests
 
@@ -542,29 +642,26 @@
 ;;; analyse-autocorrelation uses composable functions
 
 (deftest analyse-autocorrelation-uses-composable-functions-test
-  ;; Tests that analyse-autocorrelation uses the composable functions internally
-  ;; Contract: results should be consistent with calling composable functions directly
+  ;; Tests that analyse-autocorrelation provides data for composable functions
+  ;; Contract: analyse-autocorrelation returns core data that ESS and classification
+  ;;           functions can use independently
   (testing "analyse-autocorrelation"
-    (testing "produces consistent results with composable functions"
+    (testing "provides data for composable functions"
       (let [rng (java.util.Random. 42)
             samples (double-array (repeatedly 100 #(.nextGaussian rng)))
-            full-result (acf/analyse-autocorrelation samples)
-            acf-map (:acf full-result)
-            n 100
+            result (acf/analyse-autocorrelation samples)
+            acf-map (:acf result)
+            n (get-in result [:effective-sample-size :n-original])
             ess-result (acf/effective-sample-size-analysis acf-map n)
             class-result (acf/autocorrelation-classification acf-map n)]
-        ;; effective-sample-size should match
-        (is (= (:effective-sample-size full-result)
-               (:effective-sample-size ess-result)))
-        ;; ci-inflation-factor should match
-        (is (= (:ci-inflation-factor full-result)
-               (:ci-inflation-factor ess-result)))
-        ;; ljung-box should match
-        (is (= (:ljung-box full-result)
-               (:ljung-box class-result)))
-        ;; pattern should match
-        (is (= (:pattern full-result)
-               (:pattern class-result)))
-        ;; classification should match
-        (is (= (:classification full-result)
-               (:classification class-result)))))))
+        ;; analyse-autocorrelation only contains :n-original
+        (is (= {:n-original n} (:effective-sample-size result)))
+        ;; ESS analysis has full effective-sample-size data
+        (is (contains? (:effective-sample-size ess-result) :n-effective))
+        (is (contains? (:effective-sample-size ess-result) :ratio))
+        ;; ESS analysis has ci-inflation-factor
+        (is (contains? ess-result :ci-inflation-factor))
+        ;; Classification has pattern and classification
+        (is (contains? class-result :ljung-box))
+        (is (contains? class-result :pattern))
+        (is (contains? class-result :classification))))))

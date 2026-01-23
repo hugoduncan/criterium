@@ -249,6 +249,19 @@
    {}
    acf-map))
 
+(defn anomalous-lags
+  "Extract lags with non-trivial severity from a lag-severities map.
+
+  Returns vector of lag numbers where severity is not :none or
+  :alternating-none, sorted ascending. Severity can be looked up
+  in the lag-severities map."
+  [lag-severities]
+  (->> lag-severities
+       (remove (fn [[_ sev]] (#{:none :alternating-none} sev)))
+       (map first)
+       sort
+       vec))
+
 (defn detect-period
   "Detect periodic pattern by finding peak lag > 5 with max |rₖ|.
 
@@ -432,29 +445,27 @@
        :detected-period detected-period})))
 
 (defn analyse-autocorrelation
-  "Perform full autocorrelation analysis on samples.
+  "Compute autocorrelation function and lag severity from samples.
 
   Returns map with:
     :acf - map of lag -> autocorrelation coefficient
     :lag-1 - {:value r₁ :severity <keyword>}
-    :effective-sample-size - {:n-original n :n-effective n_eff :ratio ratio}
-    :ci-inflation-factor - inflation factor for CIs
-    :ljung-box - {:q-statistic Q :df h :p-value p}
-    :pattern - detected pattern keyword
-    :classification - overall assessment keyword
-    :detected-period - period if periodic pattern, nil otherwise
+    :lag-severities - map of lag -> severity for all lags
+    :anomalous-lags - vector of lag numbers with non-trivial severity
+    :effective-sample-size - {:n-original n} (for downstream analyses)
+
+  Use effective-sample-size-analysis and autocorrelation-classification
+  separately to compute ESS and pattern/classification results.
 
   Returns nil if samples are insufficient (n < 20) or have zero variance."
   [^doubles samples]
   (let [n (alength samples)]
     (when-let [acf-map (acf samples)]
       (let [r1 (double (get acf-map 1 0.0))
-            lag-sevs (classify-lag-severities acf-map n)
-            ess-analysis (effective-sample-size-analysis acf-map n)
-            class-analysis (autocorrelation-classification acf-map n)]
-        (merge
-         {:acf acf-map
-          :lag-1 {:value r1
-                  :severity (get lag-sevs 1 :none)}}
-         ess-analysis
-         class-analysis)))))
+            lag-sevs (classify-lag-severities acf-map n)]
+        {:acf acf-map
+         :lag-1 {:value r1
+                 :severity (get lag-sevs 1 :none)}
+         :lag-severities lag-sevs
+         :anomalous-lags (anomalous-lags lag-sevs)
+         :effective-sample-size {:n-original n}}))))
