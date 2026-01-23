@@ -1084,8 +1084,8 @@
             y (double (get point "y"))
             y-lower (get point "yLower")
             y-upper (get point "yUpper")
-            lower-ratio (/ y-lower y)
-            upper-ratio (/ y-upper y)]
+            lower-ratio (/ (double y-lower) y)
+            upper-ratio (/ (double y-upper) y)]
         ;; 0.8/1.0 = 0.8, 1.2/1.0 = 1.2
         (is (< 0.79 lower-ratio 0.81))
         (is (< 1.19 upper-ratio 1.21))))
