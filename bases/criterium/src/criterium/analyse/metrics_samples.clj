@@ -691,9 +691,10 @@
               ;; Compute rolling variance
               rolling-vars
               (for [i (range (- n window-size))]
-                (let [window (subvec estimates i (+ i window-size))
-                      mean (/ (reduce + window) window-size)
-                      var (/ (reduce + (map #(Math/pow (- % mean) 2) window))
+                (let [i (long i)
+                      window (subvec estimates i (+ i window-size))
+                      mean (/ (double (reduce + window)) window-size)
+                      var (/ (double (reduce + (map #(Math/pow (- (double %) mean) 2) window)))
                              window-size)]
                   {:start i :variance var :mean mean}))
               ;; Find region with minimum variance
@@ -726,7 +727,7 @@
                 ;; Above threshold, use GPD extrapolation
                 (let [;; Transform p to GPD scale
                       p-excess (/ (- p f-u) (- 1.0 f-u))
-                      gpd-q (gpd-quantile-fn p-excess)]
+                      gpd-q (double (gpd-quantile-fn p-excess))]
                   [p (+ threshold gpd-q)])))))))
 
 (defn tail-analysis-for-metric
