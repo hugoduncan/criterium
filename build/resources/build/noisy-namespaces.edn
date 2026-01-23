@@ -33,7 +33,10 @@
  nrepl.core
  nrepl.middleware
  nrepl.middleware.session
+ org.httpkit.client
  orchard.inspect
+ portal.runtime
+ portal.runtime.shell
  potemkin.utils
  scicloj.clay.v2.make
  scicloj.clay.v2.notebook
