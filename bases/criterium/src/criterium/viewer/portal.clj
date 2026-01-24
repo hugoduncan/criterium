@@ -2,32 +2,28 @@
   "A viewer that outputs to portal using tap>.
 
   Core functionality (tap infrastructure, metrics, stats, extremes, bootstrap,
-  samples, outliers, events, KDE) is in criterium.viewer.portal.core."
+  samples, outliers, events, KDE) is in criterium.viewer.portal.core.
+
+  Domain analysis views (grouped, extract, comparison, regression, apply)
+  are in criterium.viewer.portal.domain."
   (:refer-clojure :exclude [flush])
   (:require
    [clojure.string :as str]
-   [criterium.benchmark :as benchmark]
-   [criterium.domain.types :as domain.types]
    [criterium.metric :as metric]
    [criterium.util.helpers :as util]
    [criterium.view :as view]
    [criterium.viewer.call-graph :as call-graph]
    [criterium.viewer.common-charts.autocorrelation :as charts.autocorrelation]
-   [criterium.viewer.common-charts.comparison :as charts.comparison]
    [criterium.viewer.common-charts.distribution :as charts.distribution]
    [criterium.viewer.common-charts.profile :as charts.profile]
    [criterium.viewer.common-charts.quantile :as charts.quantile]
-   [criterium.viewer.common-charts.regression :as charts.regression]
    [criterium.viewer.common-charts.tail :as charts.tail]
    [criterium.viewer.common.allocation :as allocation]
    [criterium.viewer.common.core :as core]
-   [criterium.viewer.common.domain.comparison :as comparison]
-   [criterium.viewer.common.domain.detection :as detection]
-   [criterium.viewer.common.domain.extract :as extract]
    [criterium.viewer.common.modal :as modal]
-   [criterium.viewer.common.regression :as regression]
    [criterium.viewer.common.shape :as shape]
-   [criterium.viewer.portal.core :as portal.core]))
+   [criterium.viewer.portal.core :as portal.core]
+   [criterium.viewer.portal.domain]))
 
 ;;; Re-exported from portal.core for backwards compatibility
 
@@ -536,170 +532,6 @@
              true
              (->> (remove nil?) vec))))))))
 
-;;; Domain Views
-
-(defmethod view/domain-extract-table* :portal
-  [_ {:keys [extract-id]} data-map]
-  (let [extract-id (or extract-id :extract)
-        extract (data-map extract-id)]
-    (case (detection/visualization-strategy extract)
-      :single-point
-      (when-let [{:keys [rows] heading-text :heading}
-                 (extract/prepare-domain-extract-table-transposed extract)]
-        (heading heading-text)
-        (portal-table rows))
-
-      :multi-point
-      (when-let [table-data (extract/prepare-domain-extract-table
-                             extract {:header-sep " "})]
-        (heading (:heading table-data))
-        (portal-table (:rows table-data)))
-
-      :default-table
-      (when-let [table-data (extract/prepare-domain-extract-table
-                             extract {:header-sep " "})]
-        (heading (:heading table-data))
-        (portal-table (:rows table-data))))))
-
-(defmethod view/domain-extract-chart* :portal
-  [_ {:keys [extract-id]} data-map]
-  (let [extract-id (or extract-id :extract)
-        extract (data-map extract-id)]
-    (case (detection/visualization-strategy extract)
-      :single-point
-      (when extract
-        (let [box-spec (charts.comparison/single-point-box-chart-spec extract {:height 400})]
-          ;; Fall back to bar chart if box plot has no data (missing bootstrap stats)
-          (if (seq (:vconcat box-spec))
-            (portal-vega-lite box-spec)
-            (portal-vega-lite
-             (charts.comparison/single-point-bar-chart-spec extract {:height 400})))))
-
-      :multi-point
-      (when extract
-        (portal-vega-lite
-         (charts.comparison/domain-line-chart-spec extract {:height 400})))
-
-      ;; :default-table - no chart output
-      nil)))
-
-(defmethod view/domain-grouped* :portal
-  [_ {:keys [grouped-id]} data-map]
-  (let [grouped-id (or grouped-id :grouped)
-        grouped (data-map grouped-id)]
-    (when-let [{:keys [rows] heading-text :heading}
-               (extract/prepare-domain-grouped-table grouped)]
-      (heading heading-text)
-      (portal-table rows))))
-
-(defmethod view/domain-comparison-table* :portal
-  [_ {:keys [comparison-id]} data-map]
-  (let [comparison-id (or comparison-id :comparison)
-        comparison (data-map comparison-id)]
-    (case (detection/comparison-visualization-strategy comparison)
-      :single-point
-      (when-let [{:keys [rows] heading-text :heading}
-                 (comparison/prepare-domain-comparison-table-transposed comparison)]
-        (heading heading-text)
-        (portal-table rows))
-
-      :multi-point
-      (when-let [tables (comparison/prepare-domain-comparison-tables comparison)]
-        (doseq [{:keys [rows] heading-text :heading} tables]
-          (heading heading-text)
-          (portal-table rows)))
-
-      :default-table
-      (when-let [tables (comparison/prepare-domain-comparison-tables comparison)]
-        (doseq [{:keys [rows] heading-text :heading} tables]
-          (heading heading-text)
-          (portal-table rows))))))
-
-(defmethod view/domain-comparison-chart* :portal
-  [_ {:keys [comparison-id]} data-map]
-  (let [comparison-id (or comparison-id :comparison)
-        comparison (data-map comparison-id)]
-    (case (detection/comparison-visualization-strategy comparison)
-      :single-point
-      (when comparison
-        (let [box-spec (charts.comparison/comparison-box-chart-spec comparison {:height 400})]
-          ;; Fall back to bar chart if box plot has no data (missing bootstrap stats)
-          (if (seq (:vconcat box-spec))
-            (portal-vega-lite box-spec)
-            (portal-vega-lite
-             (charts.comparison/comparison-bar-chart-spec comparison {:height 400})))))
-
-      :multi-point
-      (when comparison
-        (portal-vega-lite
-         (charts.comparison/comparison-line-chart-spec comparison {:height 400})))
-
-      ;; :default-table - no chart output
-      nil)))
-
-(defmethod view/domain-regression* :portal
-  [_ {:keys [regression-id extract-id log-log-id tolerance]} data-map]
-  (let [tolerance (double (or tolerance 0.01))
-        chart-width 600
-        chart-height 400]
-    (regression/with-domain-regression-data
-      data-map
-      {:regression-id regression-id
-       :extract-id extract-id
-       :log-log-id log-log-id
-       :tolerance tolerance
-       :table-options {:best-fit-marker "✓"
-                       :plotted-marker ""
-                       :tolerance tolerance}}
-      {:render-log-log-charts
-       (fn [{:keys [title metric points line-pts residual-pts chart-opts]}]
-         (heading title)
-         (when (seq points)
-           (portal-vega-lite
-            (charts.regression/log-log-chart-spec
-             points line-pts
-             (assoc chart-opts
-                    :width chart-width
-                    :height chart-height
-                    :metric-name (name (second metric)))))
-           (when (seq residual-pts)
-             (heading "Log-Log Residual Plot")
-             (portal-vega-lite
-              (charts.regression/log-log-residual-spec
-               residual-pts
-               (assoc chart-opts
-                      :width chart-width
-                      :height (/ chart-height 2)))))))
-
-       :render-model-heading
-       (fn [{:keys [title]}]
-         (heading title))
-
-       :render-model-table
-       (fn [{:keys [table-rows]}]
-         (when (seq table-rows)
-           (portal-table table-rows)))
-
-       :render-regression-charts
-       (fn [{:keys [points line-pts residual-pts y-title residual-title chart-opts]}]
-         (when (seq points)
-           (portal-vega-lite
-            (charts.regression/regression-chart-spec
-             points line-pts
-             (assoc chart-opts
-                    :width chart-width
-                    :height chart-height
-                    :y-title y-title)))
-           (when (seq residual-pts)
-             (heading "Residual Plot")
-             (portal-vega-lite
-              (charts.regression/regression-residual-spec
-               residual-pts
-               (assoc chart-opts
-                      :width chart-width
-                      :height (/ chart-height 2)
-                      :residual-title residual-title))))))})))
-
 ;;; Allocation Views
 
 (defmethod view/allocation-summary* :portal
@@ -818,22 +650,3 @@
                  :density (format "%.4g" density)})
               modes))))))
 
-;;; Domain Apply View
-
-(defmethod view/domain-apply* :portal
-  [viewer {:keys [domain-id view-spec]} data-map]
-  (let [domain-id (or domain-id :domain)
-        domain (get data-map domain-id)]
-    (cond
-      (nil? view-spec)
-      (binding [*out* *err*]
-        (println "WARNING: domain-apply requires :view-spec option"))
-
-      (nil? domain)
-      nil
-
-      :else
-      (let [view-fn (benchmark/->view [view-spec])]
-        (doseq [{:keys [coord data]} (domain.types/runs domain)]
-          (heading (format "Run: %s" (pr-str coord)))
-          (view-fn viewer data))))))
