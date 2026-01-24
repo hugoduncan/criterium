@@ -1,6 +1,7 @@
 (ns criterium.notebook.render
   "Render notebooks to HTML documentation site."
   (:require
+   [clojure.edn :as edn]
    [scicloj.clay.v2.api :as clay]))
 
 (def notebook-sources
@@ -34,16 +35,19 @@
      {:source-path notebook-sources
       :base-target-path "docs"
       :clean-up-target-dir false
-      :format [:html]
+      :format [:quarto :html]
       :show false
       :run-quarto false}
      opts))))
 
 (defn -main
-  "Entry point for rendering notebooks."
-  [& _args]
+  "Entry point for rendering notebooks.
+  Accepts optional EDN map of options to merge with defaults."
+  [& args]
   (try
-    (render-site!)
+    (let [opts (when (seq args)
+                 (edn/read-string (first args)))]
+      (render-site! (or opts {})))
     (catch Throwable t
       (binding [*out* *err*]
         (println "Notebook generation failed")

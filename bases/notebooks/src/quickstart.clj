@@ -25,6 +25,12 @@
 ;; - Runs your expression thousands of times
 ;; - Computes statistics from the samples
 ;; - Detects and reports outliers
+;; - Detects and reports multimodal distributions of execution time
+
+;; ::: {.callout-note}
+;; The default output relies mainly on parametric free,
+;; distribution free statistics.
+;; :::
 
 ;; ## Reading the Output
 ;;
@@ -43,6 +49,10 @@
 ;; a 95% confidence interval for the statistic.  The spread show the
 ;; bootstrapped p10 and p90 values.
 ;;
+;; ::: {.callout-note}
+;; The statistics are bootstrapped to get most accuracy out of limited samples
+;;and to get confidence intervals.
+;; :::
 ;; ```
 ;; Elapsed Time: 3.21 ns  3σ [2.98 3.44]  min 2.89
 ;; ```
