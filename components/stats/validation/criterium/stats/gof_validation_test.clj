@@ -52,58 +52,66 @@
         (is true "Skipped - R unavailable"))
       (do
         (testing "against R's ks.test for normal distribution"
-          (let [data-str (str "c(" (str/join "," normal-test-data) ")")
-                mean-val (/ (reduce + normal-test-data) (count normal-test-data))
-                var-val (/ (reduce + (map #(* (- % mean-val) (- % mean-val))
-                                          normal-test-data))
-                           (dec (count normal-test-data)))
-                sd-val (Math/sqrt var-val)
-                r-result (r/r-eval (str "ks.test(" data-str
-                                        ", 'pnorm', mean=" mean-val
-                                        ", sd=" sd-val ")$statistic"))
-                r-d (if (map? r-result)
-                      (first (vals r-result))
-                      (first r-result))
+          (let [data-str      (str "c(" (str/join "," normal-test-data) ")")
+                mean-val      (/ (double (reduce + normal-test-data))
+                                 (count normal-test-data))
+                var-val       (/ (double
+                                  (reduce
+                                   +
+                                   (map
+                                    #(* (- ^double % mean-val)
+                                        (- ^double % mean-val))
+                                    normal-test-data)))
+                                 (dec (count normal-test-data)))
+                sd-val        (Math/sqrt var-val)
+                r-result      (r/r-eval (str "ks.test(" data-str
+                                             ", 'pnorm', mean=" mean-val
+                                             ", sd=" sd-val ")$statistic"))
+                r-d           (if (map? r-result)
+                                (first (vals r-result))
+                                (first r-result))
                 ;; Use normal CDF for the test
                 normal-cdf-fn (fn ^double [^double x]
                                 (stats/normal-cdf (/ (- x mean-val) sd-val)))
-                clj-d (stats/ks-test-statistic (darr normal-test-data) normal-cdf-fn)]
+                clj-d         (stats/ks-test-statistic
+                               (darr normal-test-data)
+                               normal-cdf-fn)]
             (is (approx= r-d clj-d 1e-5)
                 (format "D statistic mismatch: R=%.10f, clj=%.10f" r-d clj-d))))
 
         (testing "against R's ks.test for uniform distribution"
-          (let [data-str (str "c(" (str/join "," uniform-test-data) ")")
-                r-result (r/r-eval (str "ks.test(" data-str
-                                        ", 'punif', min=0, max=1)$statistic"))
-                r-d (if (map? r-result)
-                      (first (vals r-result))
-                      (first r-result))
+          (let [data-str       (str "c(" (str/join "," uniform-test-data) ")")
+                r-result       (r/r-eval (str "ks.test(" data-str
+                                              ", 'punif', min=0, max=1)$statistic"))
+                r-d            (if (map? r-result)
+                                 (first (vals r-result))
+                                 (first r-result))
                 ;; Uniform(0,1) CDF: F(x) = x for x in [0,1]
                 uniform-cdf-fn (fn ^double [^double x]
                                  (cond
                                    (<= x 0.0) 0.0
                                    (>= x 1.0) 1.0
-                                   :else x))
-                clj-d (stats/ks-test-statistic (darr uniform-test-data) uniform-cdf-fn)]
+                                   :else      x))
+                clj-d          (stats/ks-test-statistic (darr uniform-test-data) uniform-cdf-fn)]
             (is (approx= r-d clj-d 1e-10)
                 (format "D statistic mismatch: R=%.10f, clj=%.10f" r-d clj-d))))
 
         (testing "against R's ks.test for gamma distribution"
-          (let [data-str (str "c(" (str/join "," gamma-test-data) ")")
+          (let [data-str     (str "c(" (str/join "," gamma-test-data) ")")
                 ;; Fit gamma parameters via MLE
-                mle-result (stats/gamma-mle (darr gamma-test-data))
-                shape (get-in mle-result [:params :shape])
-                scale (get-in mle-result [:params :scale])
-                rate (/ 1.0 scale)
+                mle-result   (stats/gamma-mle (darr gamma-test-data))
+                shape        (double (get-in mle-result [:params :shape]))
+                scale        (double (get-in mle-result [:params :scale]))
+                rate         (/ 1.0 scale)
                 ;; R uses rate parameterization
-                r-result (r/r-eval (str "ks.test(" data-str
-                                        ", 'pgamma', shape=" shape
-                                        ", rate=" rate ")$statistic"))
-                r-d (if (map? r-result)
-                      (first (vals r-result))
-                      (first r-result))
+                r-result     (r/r-eval (str "ks.test(" data-str
+                                            ", 'pgamma', shape=" shape
+                                            ", rate=" rate ")$statistic"))
+                r-d          (if (map? r-result)
+                               (first (vals r-result))
+                               (first r-result))
                 gamma-cdf-fn (stats/gamma-cdf shape scale)
-                clj-d (stats/ks-test-statistic (darr gamma-test-data) gamma-cdf-fn)]
+                clj-d        (stats/ks-test-statistic (darr gamma-test-data) gamma-cdf-fn)]
             (is (approx= r-d clj-d 1e-10)
                 (format "D statistic mismatch: R=%.10f, clj=%.10f" r-d clj-d))))))))
 
@@ -118,30 +126,32 @@
       (do
         (testing "is reasonable for well-fitting data"
           ;; For data from the true distribution, p-value should not be tiny
-          (let [data-str (str "c(" (str/join "," uniform-test-data) ")")
-                r-result (r/r-eval (str "ks.test(" data-str ", 'punif')$p.value"))
-                r-p (first r-result)
+          (let [data-str       (str "c(" (str/join "," uniform-test-data) ")")
+                r-result       (r/r-eval (str "ks.test(" data-str ", 'punif')$p.value"))
+                r-p            (first r-result)
                 uniform-cdf-fn (fn ^double [^double x] (cond (<= x 0) 0.0 (>= x 1) 1.0 :else x))
-                clj-result (stats/ks-test (darr uniform-test-data) uniform-cdf-fn)
-                clj-p (:p-value clj-result)]
+                clj-result     (stats/ks-test (darr uniform-test-data) uniform-cdf-fn)
+                clj-p          (:p-value clj-result)]
             ;; Both should reject the null at high p (data is from uniform)
             (is (> r-p 0.01) "R p-value should not reject good fit")
             (is (> clj-p 0.01) "Clj p-value should not reject good fit")))
 
         (testing "detects poor fit"
           ;; Use gamma data but test against wrong distribution (exponential)
-          (let [data-str (str "c(" (str/join "," gamma-test-data) ")")
+          (let [data-str   (str "c(" (str/join "," gamma-test-data) ")")
                 ;; Fit with wrong distribution: exponential (gamma with shape=1)
-                mean-val (/ (reduce + gamma-test-data) (count gamma-test-data))
-                rate (/ 1.0 mean-val)
-                r-result (r/r-eval (str "ks.test(" data-str
-                                        ", 'pexp', rate=" rate ")$p.value"))
-                r-p (first r-result)
+                mean-val   (/ (double (reduce + gamma-test-data))
+                              (count gamma-test-data))
+                rate       (/ 1.0 mean-val)
+                r-result   (r/r-eval (str "ks.test(" data-str
+                                          ", 'pexp', rate=" rate ")$p.value"))
+                r-p        (first r-result)
                 ;; Use exponential CDF (gamma with shape=1)
                 exp-cdf-fn (stats/gamma-cdf 1.0 mean-val)
                 clj-result (stats/ks-test (darr gamma-test-data) exp-cdf-fn)
-                clj-p (:p-value clj-result)]
-            ;; Both should have low p-value (data is from gamma, not exponential)
+                clj-p      (:p-value clj-result)]
+            ;; Both should have low p-value (data is from gamma, not
+            ;; exponential)
             (is (< r-p 0.5) "R p-value should indicate poor fit")
             (is (< clj-p 0.5) "Clj p-value should indicate poor fit")))))))
 
@@ -159,38 +169,43 @@
       (do
         (r/r-eval "library(goftest)")
         (testing "against R's cvm.test for uniform distribution"
-          (let [data-str (str "c(" (str/join "," uniform-test-data) ")")
-                r-result (r/r-eval (str "cvm.test(" data-str
-                                        ", 'punif', min=0, max=1)$statistic"))
-                r-w2 (if (map? r-result)
-                       (first (vals r-result))
-                       (first r-result))
+          (let [data-str       (str "c(" (str/join "," uniform-test-data) ")")
+                r-result       (r/r-eval (str "cvm.test(" data-str
+                                              ", 'punif', min=0, max=1)$statistic"))
+                r-w2           (if (map? r-result)
+                                 (first (vals r-result))
+                                 (first r-result))
                 uniform-cdf-fn (fn ^double [^double x]
                                  (cond
                                    (<= x 0.0) 0.0
                                    (>= x 1.0) 1.0
-                                   :else x))
-                clj-w2 (stats/cvm-test-statistic (darr uniform-test-data) uniform-cdf-fn)]
+                                   :else      x))
+                clj-w2         (stats/cvm-test-statistic (darr uniform-test-data) uniform-cdf-fn)]
             (is (approx= r-w2 clj-w2 1e-10)
                 (format "W² statistic mismatch: R=%.10f, clj=%.10f" r-w2 clj-w2))))
 
         (testing "against R's cvm.test for gamma distribution"
-          (let [data-str (str "c(" (str/join "," gamma-test-data) ")")
-                mle-result (stats/gamma-mle (darr gamma-test-data))
-                shape (get-in mle-result [:params :shape])
-                scale (get-in mle-result [:params :scale])
-                rate (/ 1.0 scale)
-                r-result (r/r-eval (str "cvm.test(" data-str
-                                        ", 'pgamma', shape=" shape
-                                        ", rate=" rate ")$statistic"))
-                r-w2 (if (map? r-result)
-                       (first (vals r-result))
-                       (first r-result))
+          (let [data-str     (str "c(" (str/join "," gamma-test-data) ")")
+                mle-result   (stats/gamma-mle (darr gamma-test-data))
+                shape        (double (get-in mle-result [:params :shape]))
+                scale        (double (get-in mle-result [:params :scale]))
+                rate         (/ 1.0 scale)
+                r-result     (r/r-eval (str "cvm.test(" data-str
+                                            ", 'pgamma', shape=" shape
+                                            ", rate=" rate ")$statistic"))
+                r-w2         (double
+                              (if (map? r-result)
+                                (first (vals r-result))
+                                (first r-result)))
                 gamma-cdf-fn (stats/gamma-cdf shape scale)
-                clj-w2 (stats/cvm-test-statistic (darr gamma-test-data) gamma-cdf-fn)]
-            ;; Looser tolerance: gamma-cdf approximation errors accumulate in CvM statistic
+                clj-w2       (stats/cvm-test-statistic
+                              (darr gamma-test-data)
+                              gamma-cdf-fn)]
+            ;; Looser tolerance: gamma-cdf approximation errors accumulate in
+            ;; CvM statistic
             (is (approx= r-w2 clj-w2 0.1)
-                (format "W² statistic mismatch: R=%.10f, clj=%.10f" r-w2 clj-w2))))))))
+                (format "W² statistic mismatch: R=%.10f, clj=%.10f"
+                        r-w2 clj-w2))))))))
 
 (deftest cvm-test-pvalue-validation-test
   ;; Validates that CvM p-values are in reasonable agreement with R.
@@ -203,25 +218,26 @@
       (do
         (r/r-eval "library(goftest)")
         (testing "is reasonable for well-fitting data"
-          (let [data-str (str "c(" (str/join "," uniform-test-data) ")")
-                r-result (r/r-eval (str "cvm.test(" data-str ", 'punif')$p.value"))
-                r-p (first r-result)
+          (let [data-str       (str "c(" (str/join "," uniform-test-data) ")")
+                r-result       (r/r-eval (str "cvm.test(" data-str ", 'punif')$p.value"))
+                r-p            (first r-result)
                 uniform-cdf-fn (fn ^double [^double x] (cond (<= x 0) 0.0 (>= x 1) 1.0 :else x))
-                clj-result (stats/cvm-test (darr uniform-test-data) uniform-cdf-fn)
-                clj-p (:p-value clj-result)]
+                clj-result     (stats/cvm-test (darr uniform-test-data) uniform-cdf-fn)
+                clj-p          (:p-value clj-result)]
             (is (> r-p 0.01) "R p-value should not reject good fit")
             (is (> clj-p 0.01) "Clj p-value should not reject good fit")))
 
         (testing "detects poor fit"
-          (let [data-str (str "c(" (str/join "," gamma-test-data) ")")
-                mean-val (/ (reduce + gamma-test-data) (count gamma-test-data))
-                rate (/ 1.0 mean-val)
-                r-result (r/r-eval (str "cvm.test(" data-str
-                                        ", 'pexp', rate=" rate ")$p.value"))
-                r-p (first r-result)
+          (let [data-str   (str "c(" (str/join "," gamma-test-data) ")")
+                mean-val   (/ (double (reduce + gamma-test-data))
+                              (count gamma-test-data))
+                rate       (/ 1.0 mean-val)
+                r-result   (r/r-eval (str "cvm.test(" data-str
+                                          ", 'pexp', rate=" rate ")$p.value"))
+                r-p        (first r-result)
                 exp-cdf-fn (stats/gamma-cdf 1.0 mean-val)
                 clj-result (stats/cvm-test (darr gamma-test-data) exp-cdf-fn)
-                clj-p (:p-value clj-result)]
+                clj-p      (:p-value clj-result)]
             (is (< r-p 0.5) "R p-value should indicate poor fit")
             (is (< clj-p 0.5) "Clj p-value should indicate poor fit")))))))
 
