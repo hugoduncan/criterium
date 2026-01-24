@@ -13,7 +13,6 @@
    [criterium.domain.types :as domain.types]
    [criterium.metric :as metric]
    [criterium.util.helpers :as util]
-   [criterium.util.invariant :refer [have]]
    [criterium.view :as view]
    [criterium.viewer.call-graph :as call-graph]
    [criterium.viewer.common-charts.autocorrelation :as charts.autocorrelation]
@@ -22,25 +21,55 @@
    [criterium.viewer.common-charts.profile :as charts.profile]
    [criterium.viewer.common-charts.quantile :as charts.quantile]
    [criterium.viewer.common-charts.regression :as charts.regression]
-   [criterium.viewer.common-charts.samples :as charts.samples]
    [criterium.viewer.common-charts.tail :as charts.tail]
    [criterium.viewer.common.allocation :as allocation]
-   [criterium.viewer.common.bootstrap :as bootstrap]
-   [criterium.viewer.common.core :as core]
    [criterium.viewer.common.domain.comparison :as comparison]
    [criterium.viewer.common.domain.detection :as detection]
    [criterium.viewer.common.domain.extract :as extract]
    [criterium.viewer.common.modal :as modal]
    [criterium.viewer.common.regression :as regression]
-   [criterium.viewer.common.shape :as shape]))
+   [criterium.viewer.common.core :as common.core]
+   [criterium.viewer.common.shape :as shape]
+   ;; Core sub-namespace - provides basic views
+   [criterium.viewer.kindly.core :as core]))
 
-(defonce ^{:doc "Accumulator for Kindly-annotated values."}
-  accumulated
-  (atom []))
+;;; Re-export from core for backwards compatibility
 
-(defonce ^{:doc "Last flushed Kindly fragment for retrieval after bench completes."}
-  last-fragment
-  (atom nil))
+(def accumulated
+  "Accumulator for Kindly-annotated values."
+  core/accumulated)
+
+(def last-fragment
+  "Last flushed Kindly fragment for retrieval after bench completes."
+  core/last-fragment)
+
+(def kindly-add
+  "Add a value to the accumulator."
+  core/kindly-add)
+
+(def kindly-heading
+  "Add a markdown heading to the accumulator."
+  core/kindly-heading)
+
+(def kindly-table
+  "Add a table to the accumulator.
+  Optionally accepts :column-names in opts for explicit column ordering."
+  core/kindly-table)
+
+(def kindly-vega-lite
+  "Add a Vega-Lite chart to the accumulator."
+  core/kindly-vega-lite)
+
+(def kindly-vega
+  "Add a full Vega chart to the accumulator."
+  core/kindly-vega)
+
+(def flush
+  "Return accumulated values as a kind/fragment and clear the accumulator.
+  Also stores the fragment in `last-fragment` for retrieval after bench completes."
+  core/flush)
+
+;;; Chart Dimensions
 
 (def ^:private chart-width
   "Width for Kindly vega-lite charts, sized for notebook display."
@@ -49,234 +78,6 @@
 (def ^:private chart-height
   "Height for Kindly vega-lite charts, sized for notebook display."
   350)
-
-(defn kindly-add
-  "Add a value to the accumulator."
-  [value]
-  (swap! accumulated conj value)
-  nil)
-
-(defn kindly-heading
-  "Add a markdown heading to the accumulator."
-  [s]
-  (kindly-add
-   (with-meta
-     [(str "**" s "**")]
-     {:kindly/kind :kind/md})))
-
-(defn kindly-table
-  "Add a table to the accumulator.
-  Optionally accepts :column-names in opts for explicit column ordering."
-  ([data] (kindly-table data nil))
-  ([data {:keys [column-names]}]
-   (kindly-add
-    (with-meta
-      (if column-names
-        {:row-maps data :column-names column-names}
-        data)
-      {:kindly/kind :kind/table}))))
-
-(defn kindly-vega-lite
-  "Add a Vega-Lite chart to the accumulator."
-  [spec]
-  (kindly-add
-   (with-meta
-     (assoc spec :$schema "https://vega.github.io/schema/vega-lite/v5.json")
-     {:kindly/kind :kind/vega-lite})))
-
-(defn kindly-vega
-  "Add a full Vega chart to the accumulator."
-  [spec]
-  (kindly-add
-   (with-meta
-     (assoc spec :$schema "https://vega.github.io/schema/vega/v5.json")
-     {:kindly/kind :kind/vega})))
-
-(defn flush
-  "Return accumulated values as a kind/fragment and clear the accumulator.
-  Also stores the fragment in `last-fragment` for retrieval after bench completes."
-  []
-  (let [[values _] (swap-vals! accumulated (constantly []))]
-    (when (seq values)
-      (let [fragment (with-meta values {:kindly/kind :kind/fragment})]
-        (reset! last-fragment fragment)
-        fragment))))
-
-(defmethod view/flush-viewer :kindly [_]
-  (flush))
-
-(defmethod view/stats* :kindly
-  [_ {:keys [stats-id metric-ids]} data-map]
-  (let [stats-id (or stats-id :stats)
-        stats-map (data-map stats-id)]
-    (when stats-map
-      (let [metrics-defs (-> (:metrics-defs stats-map)
-                             (metric/select-metrics metric-ids))
-            metric-configs (metric/all-metric-configs metrics-defs)
-            transforms (util/get-transforms data-map stats-id)]
-        (when (seq metric-configs)
-          (kindly-heading "Summary stats")
-          (kindly-table
-           (core/stats-map
-            (util/stats stats-map)
-            metric-configs
-            transforms)))))))
-
-(defmethod view/extremes* :kindly
-  [_ {:keys [stats-id metric-ids]} data-map]
-  (let [stats-id (or stats-id :stats)
-        stats-map (data-map stats-id)]
-    (when stats-map
-      (let [metrics-defs (-> (:metrics-defs stats-map)
-                             (metric/select-metrics metric-ids))
-            metric-configs (metric/all-metric-configs metrics-defs)
-            transforms (util/get-transforms data-map stats-id)]
-        (when (seq metric-configs)
-          (kindly-heading "Extremes")
-          (kindly-table
-           (core/extremes-map
-            (util/stats stats-map)
-            metric-configs
-            transforms)))))))
-
-(defmethod view/quantiles* :kindly
-  [_ {:keys [quantiles-id]} data-map]
-  (let [quantiles-id (or quantiles-id :quantiles)
-        quantiles-map (data-map quantiles-id)
-        metrics-defs (:metrics-defs quantiles-map)
-        metric-configs (metric/all-metric-configs metrics-defs)
-        transforms (util/get-transforms data-map quantiles-id)]
-    (kindly-heading "Quantiles")
-    (kindly-table
-     (core/quantiles
-      metric-configs
-      (util/quantiles quantiles-map)
-      transforms))))
-
-(defmethod view/outlier-counts* :kindly
-  [_ {:keys [outliers-id] :as _view} data-map]
-  (let [outliers-id (or outliers-id :outliers)
-        outliers-map (data-map outliers-id)
-        metrics-defs (:metrics-defs outliers-map)
-        metric-configs (metric/all-metric-configs metrics-defs)]
-    (kindly-heading "Outliers")
-    (kindly-table
-     (core/outlier-counts
-      metric-configs
-      (util/outliers outliers-map)))))
-
-(defmethod view/collect-plan* :kindly
-  [_ _view data-map]
-  (kindly-heading "Collect plan")
-  (kindly-table
-   (core/collect-plan-data data-map)))
-
-(defmethod view/samples* :kindly
-  [_ view data-map]
-  (kindly-heading "Samples")
-  (kindly-vega-lite
-   (charts.samples/samples-vega-spec data-map view {:width chart-width
-                                                    :height chart-height})))
-
-(defmethod view/histogram* :kindly
-  [_ view data-map]
-  (kindly-heading "Histogram")
-  (kindly-vega-lite
-   (charts.samples/histogram-vega-spec data-map view {:width chart-width
-                                                      :height chart-height})))
-
-(defmethod view/kde* :kindly
-  [_ view data-map]
-  (let [kde-id (or (:kde-id view) :kde)
-        kde-map (get data-map kde-id)]
-    (when kde-map
-      (kindly-heading "Kernel Density Estimation")
-      (kindly-vega-lite
-       (charts.distribution/kde-vega-spec data-map view {:width chart-width
-                                                         :height chart-height})))))
-
-(defmethod view/sample-percentiles* :kindly
-  [_ view data-map]
-  (let [quant-samples-id (:samples-id view :samples)
-        quant-samples (data-map quant-samples-id)
-        metrics-defs (-> (:metrics-defs quant-samples)
-                         (metric/filter-metrics
-                          (metric/type-pred :quantitative)))
-        metric-configs (metric/all-metric-configs metrics-defs)
-        transforms (util/get-transforms data-map quant-samples-id)]
-    (kindly-heading "Percentiles")
-    (kindly-vega-lite
-     {:data {:values []}
-      :resolve {:scale {:y "independent"}}
-      :vconcat
-      (into
-       [{:width chart-width
-         :height chart-height
-         :layer
-         (vec
-          (into
-           [(charts.samples/metric-percentile-layer
-             (util/metric->values quant-samples)
-             transforms
-             (first metric-configs))]))}])})))
-
-(defmethod view/metrics* :kindly
-  [_ {:keys [samples-id]} data-map]
-  (let [samples-id (or samples-id :samples)
-        metrics-samples (data-map samples-id)
-        metrics-defs (:metrics-defs metrics-samples)
-        metric-configs (metric/all-metric-configs metrics-defs)]
-    (kindly-heading "Metrics")
-    (kindly-table
-     (core/metrics-map
-      (util/metric->values metrics-samples)
-      metric-configs))))
-
-(defmethod view/event-stats* :kindly
-  [_ {:keys [event-stats-id]} data-map]
-  (let [event-stats-id (or event-stats-id :event-stats)
-        event-stats-map (data-map event-stats-id)]
-    (when event-stats-map
-      (let [metrics-defs (have (:metrics-defs event-stats-map))
-            stats (core/event-stats
-                   metrics-defs
-                   (util/event-stats event-stats-map))]
-        (when (seq stats)
-          (kindly-heading "Event stats")
-          (kindly-table stats))))))
-
-(defmethod view/outlier-significance* :kindly
-  [_ {:keys [outlier-significance-id] :as _view} data-map]
-  (let [outlier-sig-id (or outlier-significance-id :outlier-significance)
-        outlier-sig-map (data-map outlier-sig-id)
-        outlier-sig (util/outlier-significance outlier-sig-map)
-        metrics-defs (:metrics-defs outlier-sig-map)
-        metric-configs (metric/all-metric-configs metrics-defs)]
-    (kindly-heading "Outlier Significance")
-    (kindly-table
-     (vec
-      (for [m metric-configs]
-        (get-in outlier-sig (:path m)))))))
-
-(defmethod view/sample-diffs* :kindly
-  [_ {:keys [] :as view} data-map]
-  (let [quant-samples-id (:samples-id view :samples)
-        quant-samples (data-map quant-samples-id)
-        metric-configs (:metric-configs quant-samples)]
-    (kindly-heading "Sample diffs")
-    (kindly-vega-lite
-     {:data {:values []}
-      :resolve {:scale {:y "independent"}}
-      :vconcat
-      (into
-       [{:width chart-width
-         :height chart-height
-         :layer
-         (vec
-          (into
-           [(charts.samples/metric-diff-layer
-             (util/metric->values quant-samples)
-             (first metric-configs))]))}])})))
 
 ;;; Domain view implementations
 
@@ -527,29 +328,6 @@
       (kindly-heading "Allocation Treemap")
       (kindly-vega (charts.profile/treemap-vega-spec treemap-data {})))))
 
-;;; Bootstrap statistics view
-
-(defmethod view/bootstrap-stats* :kindly
-  [_ {:keys [bootstrap-stats-id]} data-map]
-  (let [bootstrap-stats-id (or bootstrap-stats-id :bootstrap-stats)
-        bootstrap-map (data-map bootstrap-stats-id)]
-    (when bootstrap-map
-      (let [metrics-defs (:metrics-defs bootstrap-map)
-            metric-configs (metric/all-metric-configs metrics-defs)
-            bootstrap (util/bootstrap bootstrap-map)
-            transforms (util/get-transforms data-map bootstrap-stats-id)]
-        (when (seq metric-configs)
-          (kindly-heading "Bootstrap Statistics")
-          (kindly-table
-           (vec
-            (for [m metric-configs
-                  :let [stat (get-in bootstrap (:path m))]
-                  :when stat]
-              (bootstrap/bootstrap-stat-row m stat transforms)))
-           {:column-names [:metric :median :median-ci-lower :median-ci-upper
-                           :mean :mean-ci-lower :mean-ci-upper
-                           :p10 :p90]}))))))
-
 ;;; Shape statistics view
 
 (defmethod view/shape-stats* :kindly
@@ -780,7 +558,7 @@
              (get-tail-context view data-map)]
     (doseq [mc metric-configs]
       (when-let [tail-data (get tail-results (:path mc))]
-        (let [summary-rows (core/tail-summary-table tail-data transforms)]
+        (let [summary-rows (common.core/tail-summary-table tail-data transforms)]
           (when (seq summary-rows)
             (kindly-heading (str "Tail Summary: " (:label mc)))
             (kindly-table summary-rows
@@ -792,7 +570,7 @@
              (get-tail-context view data-map)]
     (doseq [mc metric-configs]
       (when-let [tail-data (get tail-results (:path mc))]
-        (let [ratios-rows (core/tail-ratios-table-data tail-data)]
+        (let [ratios-rows (common.core/tail-ratios-table-data tail-data)]
           (when (seq ratios-rows)
             (kindly-heading (str "Tail Ratios: " (:label mc)))
             (kindly-table ratios-rows
@@ -804,7 +582,7 @@
              (get-tail-context view data-map)]
     (doseq [mc metric-configs]
       (when-let [tail-data (get tail-results (:path mc))]
-        (let [quantiles-rows (core/tail-high-quantiles-table tail-data transforms)]
+        (let [quantiles-rows (common.core/tail-high-quantiles-table tail-data transforms)]
           (when (seq quantiles-rows)
             (kindly-heading (str "High Quantile Estimates: " (:label mc)))
             (kindly-table quantiles-rows
@@ -875,12 +653,6 @@
               (when-let [chart (charts.tail/gpd-qq-plot samples threshold gpd transforms)]
                 (kindly-heading (str "GPD Q-Q Plot: " (:label mc)))
                 (kindly-vega-lite (merge {:width chart-width :height chart-height} chart))))))))))
-
-;;; Noop implementations for views not applicable to Kindly output
-
-(defmethod view/final-gc-warnings* :kindly [_ _ _])
-(defmethod view/os* :kindly [_ _ _])
-(defmethod view/runtime* :kindly [_ _ _])
 
 ;;; Autocorrelation Views
 
