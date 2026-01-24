@@ -1,6 +1,6 @@
 (ns criterium.transducer
   (:refer-clojure
-   :exclude [reduce])
+   :exclude [into reduce transduce])
   (:require
    [criterium.array :as arr]
    [criterium.transducer.interface])
@@ -10,66 +10,59 @@
     LongArray]
    [criterium.transducer.interface
     IDDDReducible
-    IDoubleBuilder
     ILLLReducible
-    ILongBuilder
     IODOReducible
     IOLOReducible
     IPrimOps]))
 
-;; (deftype LongArrayBuilder
-;;   [^:unsynchronized-mutable ^longs arr
-;;    ^:unsynchronized-mutable ^long idx]
-;;   ILongBuilder
-;;   (acceptLong [this x]
-;;     (when (>= idx (alength arr))
-;;       (let [new-arr (long-array (* 2 (alength arr)))]
-;;         (System/arraycopy arr 0 new-arr 0 (alength arr))
-;;         (set! arr new-arr)))
-;;     (aset arr idx x)
-;;     (set! idx (unchecked-inc idx))
-;;     this)
-;;   (build [_]
-;;     (let [result (long-array idx)]
-;;       (System/arraycopy arr 0 result 0 idx)
-;;       (arr/->LongArray result))))
+(deftype ArraySetter
+         [^:unsynchronized-mutable ^long idx]
+  clojure.lang.IFn$OLO
+  (invokePrim [_ acc ^long x]
+    (arr/set-at! ^LongArray acc idx x)
+    (set! idx (unchecked-inc idx))
+    acc)
+  clojure.lang.IFn$ODO
+  (invokePrim [_ acc ^double x]
+    (prn :set-at! idx x)
+    (arr/set-at! ^DoubleArray acc idx x)
+    (set! idx (unchecked-inc idx))
+    acc))
 
-;; (deftype DoubleArrayBuilder
-;;   [^:unsynchronized-mutable ^doubles arr
-;;    ^:unsynchronized-mutable ^long idx]
-;;   IDoubleBuilder
-;;   (acceptDouble [this x]
-;;     (when (>= idx (alength arr))
-;;       (let [new-arr (double-array (* 2 (alength arr)))]
-;;         (System/arraycopy arr 0 new-arr 0 (alength arr))
-;;         (set! arr new-arr)))
-;;     (aset arr idx x)
-;;     (set! idx (unchecked-inc idx))
-;;     this)
-;;   (build [_]
-;;     (let [result (double-array idx)]
-;;       (System/arraycopy arr 0 result 0 idx)
-;;       (DoubleArray. result))))
+(defn prim-set-at
+  ^ArraySetter []
+  (ArraySetter. 0))
 
-;; (defn long-builder [] (LongArrayBuilder. (long-array 16) 0))
-;; (defn double-builder [] (DoubleArrayBuilder. (double-array 16) 0))
-
-(def ^:private ^criterium.transducer.interface.IPrimOps ops
+(def ^:private ^IPrimOps ops
   (reify IPrimOps
     (^long transduce [_ xform rf ^long init ^ILLLReducible source]
       (.reduce source ^clojure.lang.IFn$LLL (xform rf) init))
     (^double transduce [_ xform rf ^double init ^IDDDReducible source]
       (.reduce source ^clojure.lang.IFn$DDD (xform rf) init))
+    (^criterium.array.LongArray transduce
+      [_
+       xform
+       rf
+       ^criterium.array.LongArray init
+       ^IOLOReducible source]
+      (.reduceLong source ^clojure.lang.IFn$OLO (xform rf) init))
+    (^criterium.array.DoubleArray transduce
+      [_
+       xform
+       rf
+       ^criterium.array.DoubleArray init
+       ^IODOReducible source]
+      (.reduceDouble source ^clojure.lang.IFn$OLO (xform rf) init))
     (^long reduce [_ rf ^long init ^ILLLReducible source]
       (.reduce source ^clojure.lang.IFn$LLL rf init))
     (^double reduce [_ rf ^double init ^IDDDReducible source]
       (.reduce source ^clojure.lang.IFn$DDD rf init))
-    (^LongArray into
-      [_ ^LongArray target xform ^IOLOReducible source]
-      (.reduceLong source xform target))
-    (^DoubleArray into
-      [_ ^DoubleArray target xform ^IODOReducible source]
-      (.reduceDouble source xform target))))
+    #_(^LongArray into
+       [_ ^LongArray target xform ^IOLOReducible source]
+       (.reduceLong source xform target))
+    (^criterium.array.DoubleArray into
+      [_ ^criterium.array.DoubleArray target xform ^IODOReducible source]
+      (.reduceDouble source (xform (prim-set-at)) target))))
 
 ;; ============================================================
 ;; Sources
@@ -82,6 +75,13 @@
       (if (< i end)
         (recur (unchecked-inc i)
                (.invokePrim ^clojure.lang.IFn$LLL f acc i))
+        acc)))
+  IOLOReducible
+  (reduceLong [_ f init]
+    (loop [i start, acc init]
+      (if (< i end)
+        (recur (unchecked-inc i)
+               (.invokePrim ^clojure.lang.IFn$OLO f acc i))
         acc))))
 
 (deftype DoubleRange
@@ -94,21 +94,17 @@
                (.invokePrim ^clojure.lang.IFn$DDD f acc x))
         acc)))
   IODOReducible
-  (^criterium.array.DoubleArray reduceDouble
-    [_ f ^criterium.array.DoubleArray acc]
-    (loop [i 0
-           x start]
+  (reduceDouble
+    [_ f init]
+    (loop [x start, acc init]
       (if (< x end)
-        (do
-          (arr/set! acc i (.invokePrim ^clojure.lang.IFn$DDD f acc x))
-          (recur
-           (unchecked-inc i)
-           (+ x step)))
+        (recur (+ x step)
+               (.invokePrim ^clojure.lang.IFn$ODO f acc x))
         acc))))
 
 (defn prim-map
-  [f]
-  (fn [rf]
+  ^clojure.lang.IFn [f]
+  (fn prim-map-impl [rf]
     (reify
       clojure.lang.IFn$LLL
       (^long invokePrim [_ ^long acc ^long x]
@@ -118,15 +114,14 @@
       (^double invokePrim [_ ^double acc ^double x]
         (.invokePrim ^clojure.lang.IFn$DDD rf acc
                      (.invokePrim ^clojure.lang.IFn$DD f x)))
-      ;; clojure.lang.IFn$OLO
-      ;; (invokePrim [_ acc ^long x]
-      ;;   (.invokePrim ^clojure.lang.IFn$OLO rf acc
-      ;;                (.invokePrim ^clojure.lang.IFn$LL f x)))
-      ;; clojure.lang.IFn$ODO
-      ;; (invokePrim [_ acc ^double x]
-      ;;   (.invokePrim ^clojure.lang.IFn$ODO rf acc
-      ;;                (.invokePrim ^clojure.lang.IFn$DD f x)))
-      )))
+      clojure.lang.IFn$OLO
+      (invokePrim [_ acc ^long x]
+        (.invokePrim ^clojure.lang.IFn$OLO rf acc
+                     (.invokePrim ^clojure.lang.IFn$LL f x)))
+      clojure.lang.IFn$ODO
+      (invokePrim [_ acc ^double x]
+        (.invokePrim ^clojure.lang.IFn$ODO rf acc
+                     (.invokePrim ^clojure.lang.IFn$DD f x))))))
 
 (def prim-sum
   (reify
@@ -134,6 +129,12 @@
     (^long invokePrim [_ ^long acc ^long x] (unchecked-add acc x))
     clojure.lang.IFn$DDD
     (^double invokePrim [_ ^double acc ^double x] (+ acc x))))
+
+(.transduce ops
+            (prim-map (fn ^long [^long x] (* x x)))
+            prim-sum
+            0
+            (LongRange. 0 1000))
 
 ;; (.transduce ops
 ;;             (comp (prim-filter (fn ^long [^long x] (- 1 (rem x 2))))
@@ -154,6 +155,22 @@
 (.reduce ops prim-sum 0 (LongRange. 0 1000000))
 (.reduce ops prim-sum 0.0 (DoubleRange. 0.0 1000000.0 1.0))
 
+(arr/get-at
+ (.transduce ops
+             (prim-map (fn ^long [^long x] (* x x)))
+             (prim-set-at)
+             (LongArray. (long-array 10))
+             (LongRange. 0 10))
+ 3)
+
+(arr/get-at
+ (.transduce ops
+             (prim-map (fn ^double [^double x] (* x x)))
+             (prim-set-at)
+             (DoubleArray. (double-array 10))
+             (DoubleRange. 0.0 10.0 1.0))
+ 3)
+
 (.into ops
        (arr/->DoubleArray (double-array 3))
        (prim-map (fn ^double [^double x] (Math/sqrt x)))
@@ -165,3 +182,12 @@
 
 (reduce prim-sum 0 (LongRange. 0 1000000))
 (reduce prim-sum 0.0 (DoubleRange. 0.0 1000000.0 1.0))
+
+(defmacro into
+  [target rf source]
+  `(.into ~'criterium.transducer/ops ~target ~rf ~source))
+
+(into
+ (arr/->DoubleArray (double-array 3))
+ (prim-map (fn ^double [^double x] (Math/sqrt x)))
+ (DoubleRange. 1.0 5.0 1.0))

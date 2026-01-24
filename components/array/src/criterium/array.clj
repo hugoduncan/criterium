@@ -17,7 +17,7 @@
     IDoubleAny ILongAny IArrayEquals ISortable
     IDoubleFoldSkip IDoubleObjectFoldSkip
     IFilterIndices IIndexedDoubleFold IIndexedDoubleObjectFold
-    IIndexed IArrayOps]
+    IIndexed IIndexedSet IArrayOps]
    [java.util Arrays]))
 
 (deftype DoubleArray [^doubles array]
@@ -29,6 +29,17 @@
   (^double getDouble [_ ^long index] (aget array index))
   (^long getLong [_ ^long index] (long (aget array index)))
   (getObject [_ ^long index] (aget array index))
+
+  IIndexedSet
+  (^double setDouble [_ ^long index ^double v] (aset array index v))
+  (^long setLong [_ ^long index ^long v]
+    (do
+      (aset array index (double v))
+      v))
+  (setObject [_ ^long index v]
+    (do
+      (aset array index (double v))
+      v))
 
   IDoubleFold
   (^double fold [_ ^clojure.lang.IFn$DDD f ^double init]
@@ -417,9 +428,13 @@
   (^long getAt [_ ^LongArray arr ^long index]
     (aget ^longs (.array arr) index))
   (^double getAt [_ ^DoubleArray arr ^long index]
-    (aget ^doubles (.array arr) index)))
+    (aget ^doubles (.array arr) index))
+  (^long setAt [_ ^LongArray arr ^long index ^long value]
+    (aset ^longs (.array arr) index value))
+  (^double setAt [_ ^DoubleArray arr ^long index ^double value]
+    (aset ^doubles (.array arr) index value)))
 
-(def ^:private ^IArrayOps array-ops (ArrayOps.))
+(def ^IArrayOps array-ops (ArrayOps.))
 
 (defn sum-double
   "Returns the sum of elements as a primitive double.
@@ -612,6 +627,12 @@
 
     (instance? ObjectArray arr)
     (aget ^objects (.array ^ObjectArray arr) index)))
+
+(defmacro set-at!
+  "Returns the element at index.
+  Works with DoubleArray, LongArray, and ObjectArray."
+  [arr index value]
+  `(.setAt array-ops ~arr ~index ~value))
 
 (defn dmap
   "Maps f over elements, returning a new DoubleArray.

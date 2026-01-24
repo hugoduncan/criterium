@@ -13,19 +13,12 @@
   (^double reduce [^clojure.lang.IFn$DDD f ^double init]))
 
 (definterface IOLOReducible
-  (reduceLong [^clojure.lang.IFn$OLO f init]))
+  (^criterium.array.LongArray reduceLong
+   [^clojure.lang.IFn$OLO f ^criterium.array.LongArray init]))
 
 (definterface IODOReducible
   (^criterium.array.DoubleArray reduceDouble
    [^clojure.lang.IFn$ODO f ^criterium.array.DoubleArray init]))
-
-(definterface ILongBuilder
-  (^ILongBuilder acceptLong [^long x])
-  (^criterium.array.LongArray build []))
-
-(definterface IDoubleBuilder
-  (^IDoubleBuilder acceptDouble [^double x])
-  (^criterium.array.DoubleArray build []))
 
 (definterface IPrimOps
   (^long transduce
@@ -38,6 +31,16 @@
     rf
     ^double init
     ^criterium.transducer.interface.IDDDReducible source])
+  (^criterium.array.LongArray transduce
+   [xform
+    rf
+    ^criterium.array.LongArray init
+    ^criterium.transducer.interface.IOLOReducible source])
+  (^criterium.array.DoubleArray transduce
+   [xform
+    rf
+    ^criterium.array.DoubleArray init
+    ^criterium.transducer.interface.IODOReducible source])
   (^long reduce
    [rf
     ^long init
@@ -51,6 +54,7 @@
    [^criterium.array.LongArray target
     xform
     ^criterium.transducer.interface.IOLOReducible source])
+
   (^criterium.array.DoubleArray into
    [^criterium.array.DoubleArray target
     xform
