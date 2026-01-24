@@ -6,7 +6,8 @@
    [clojure.test :refer [deftest is testing]]
    [criterium.collector.metrics :as metrics]
    [criterium.view :as view]
-   [criterium.viewer.kindly :as kindly]))
+   [criterium.viewer.kindly :as kindly]
+   [criterium.viewer.kindly.autocorrelation]))
 
 (deftest autocorrelation-classification-anomalous-lags-test
   ;; Tests that autocorrelation-classification* displays anomalous lags when present.
