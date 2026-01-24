@@ -2,124 +2,16 @@
   (:refer-clojure
    :exclude [into reduce range transduce])
   (:require
-   [criterium.array :as arr]
-   [criterium.transducer.interface])
-  (:import
-   [criterium.array
-    DoubleArray
-    LongArray]
-   [criterium.transducer.interface
-    IDDDReducible
-    IDoubleReducible
-    ILLLReducible
-    ILongReducible
-    IODOReducible
-    IOLOReducible
-    IPrimOps]))
-
-(deftype ArraySetter
-         [^:unsynchronized-mutable ^long idx]
-  clojure.lang.IFn$OLO
-  (invokePrim [_ acc ^long x]
-    (arr/set-at! ^LongArray acc idx x)
-    (set! idx (unchecked-inc idx))
-    acc)
-  clojure.lang.IFn$ODO
-  (invokePrim [_ acc ^double x]
-    (arr/set-at! ^DoubleArray acc idx x)
-    (set! idx (unchecked-inc idx))
-    acc))
+   [criterium.transducer.impl :as impl]
+   [criterium.transducer.interface]))
 
 (defn prim-set-at
-  ^ArraySetter []
-  (ArraySetter. 0))
-
-;; ============================================================
-;; Sources
-;; ============================================================
-
-(deftype LongRange [^long start ^long end]
-  ILongReducible
-  ILLLReducible
-  (reduce [_ f init]
-    (loop [i start, acc init]
-      (if (< i end)
-        (recur (unchecked-inc i)
-               (.invokePrim ^clojure.lang.IFn$LLL f acc i))
-        acc)))
-  IOLOReducible
-  (reduceLong [_ f init]
-    (loop [i start, acc init]
-      (if (< i end)
-        (recur (unchecked-inc i)
-               (.invokePrim ^clojure.lang.IFn$OLO f acc i))
-        acc))))
-
-(deftype DoubleRange
-         [^double start ^double end ^double step]
-  IDoubleReducible
-  IDDDReducible
-  (reduce [_ f init]
-    (loop [x start, acc init]
-      (if (< x end)
-        (recur (+ x step)
-               (.invokePrim ^clojure.lang.IFn$DDD f acc x))
-        acc)))
-  IODOReducible
-  (reduceDouble
-    [_ f init]
-    (loop [x start, acc init]
-      (if (< x end)
-        (recur (+ x step)
-               (.invokePrim ^clojure.lang.IFn$ODO f acc x))
-        acc))))
-
-(def ^IPrimOps ops
-  (reify IPrimOps
-    (^long transduce [_ xform rf ^long init ^ILLLReducible source]
-      (.reduce source ^clojure.lang.IFn$LLL (xform rf) init))
-    (^double transduce [_ xform rf ^double init ^IDDDReducible source]
-      (.reduce source ^clojure.lang.IFn$DDD (xform rf) init))
-    (^criterium.array.interface.ILongArray transduce
-      [_
-       xform
-       rf
-       ^criterium.array.interface.ILongArray init
-       ^IOLOReducible source]
-      (.reduceLong source ^clojure.lang.IFn$OLO (xform rf) init))
-    (^criterium.array.interface.IDoubleArray transduce
-      [_
-       xform
-       rf
-       ^criterium.array.interface.IDoubleArray init
-       ^IODOReducible source]
-      (.reduceDouble source ^clojure.lang.IFn$OLO (xform rf) init))
-    (^long reduce [_ rf ^long init ^ILLLReducible source]
-      (.reduce source ^clojure.lang.IFn$LLL rf init))
-    (^double reduce [_ rf ^double init ^IDDDReducible source]
-      (.reduce source ^clojure.lang.IFn$DDD rf init))
-    (^criterium.array.interface.ILongArray into
-      [this
-       ^criterium.array.interface.ILongArray target
-       xform
-       ^IOLOReducible source]
-      (.transduce this xform (prim-set-at) target source))
-    (^criterium.array.interface.IDoubleArray into
-      [this
-       ^criterium.array.interface.IDoubleArray target
-       xform
-       ^IODOReducible source]
-      (.transduce this xform (prim-set-at) target source))
-
-    (^criterium.transducer.interface.ILongReducible range
-      [_ ^long start ^long end]
-      (LongRange. start end))
-
-    (^criterium.transducer.interface.IDoubleReducible range
-      [_ ^double start ^double end ^double step]
-      (DoubleRange. start end step))))
+  "Create a reducing function that sets array elements sequentially."
+  ^criterium.transducer.impl.ArraySetter []
+  (impl/prim-set-at))
 
 (defn prim-map
+  "Return a transducer that applies f to each primitive element."
   ^clojure.lang.IFn [f]
   (fn prim-map-impl [rf]
     (reify
@@ -141,6 +33,7 @@
                      (.invokePrim ^clojure.lang.IFn$DD f x))))))
 
 (defn prim-filter
+  "Return a transducer that filters primitive elements with pred."
   ^clojure.lang.IFn [pred]
   (fn prim-filter-impl [rf]
     (reify
@@ -166,6 +59,7 @@
           acc)))))
 
 (def prim-sum
+  "Reducing function that sums primitive values."
   (reify
     clojure.lang.IFn$LLL
     (^long invokePrim [_ ^long acc ^long x] (unchecked-add acc x))
@@ -174,87 +68,18 @@
 
 (defmacro transduce
   [xform rf init source]
-  `(.transduce ~'criterium.transducer/ops ~xform ~rf ~init ~source))
+  `(.transduce impl/ops ~xform ~rf ~init ~source))
 
 (defmacro reduce
   [rf init source]
-  `(.reduce ~'criterium.transducer/ops ~rf ~init ~source))
+  `(.reduce impl/ops ~rf ~init ~source))
 
 (defmacro into
   [target rf source]
-  `(.into ~'criterium.transducer/ops ~target ~rf ~source))
+  `(.into impl/ops ~target ~rf ~source))
 
 (defmacro range
   ([start end]
-   `(.range ~'criterium.transducer/ops ~start ~end))
+   `(.range impl/ops ~start ~end))
   ([start end step]
-   `(.range ~'criterium.transducer/ops ~start ~end ~step)))
-
-(comment
-  (.transduce ops
-              (prim-map (fn ^long [^long x] (* x x)))
-              prim-sum
-              0
-              (LongRange. 0 1000))
-
-  ;; Simple reduce
-  (.reduce ops prim-sum 0 (LongRange. 0 1000000))
-  (.reduce ops prim-sum 0.0 (DoubleRange. 0.0 1000000.0 1.0))
-
-  (arr/get-at
-   (.transduce ops
-               (prim-map (fn ^long [^long x] (* x x)))
-               (prim-set-at)
-               (arr/->long-array (long-array 10))
-               (LongRange. 0 10))
-   3)
-
-  (arr/get-at
-   (.transduce ops
-               (prim-map (fn ^double [^double x] (* x x)))
-               (prim-set-at)
-               (DoubleArray. (double-array 10))
-               (DoubleRange. 0.0 10.0 1.0))
-   3)
-
-  (arr/get-at
-   (transduce
-    (comp
-     (prim-map (fn ^double [^double x] (* x x)))
-     (prim-map (fn ^double [^double x] (Math/sqrt x))))
-    (prim-set-at)
-    (DoubleArray. (double-array 10))
-    (DoubleRange. 0.0 10.0 1.0))
-   3)
-
-  (let [a (arr/->double-array (double-array [0.0 1.0 2.0 3.0]))]
-    (.transduce ops
-                (prim-map (fn ^double [^double x] (* x x)))
-                (prim-set-at)
-                a
-                a)
-    (arr/get-at a 3))
-
-  (.into ops
-         (DoubleArray. (double-array 5))
-         (prim-map (fn ^double [^double x] (Math/sqrt x)))
-         (DoubleRange. 1.0 5.0 1.0))
-
-  (reduce prim-sum 0 (LongRange. 0 1000000))
-  (reduce prim-sum 0.0 (DoubleRange. 0.0 1000000.0 1.0))
-
-  (into
-   (DoubleArray. (double-array 5))
-   (prim-map (fn ^double [^double x] (Math/sqrt x)))
-   (DoubleRange. 1.0 5.0 1.0))
-
-  (arr/get-at
-   (into
-    (LongArray. (long-array 2))
-    (prim-filter criterium.primitive-fn/leven?)
-    (range 1 5))
-   0)
-
-  (let [a (arr/->double-array (double-array [0.0 1.0 2.0 3.0]))]
-    (into a (prim-map (fn ^double [^double x] (* x x))) a)
-    (arr/get-at a 3)))
+   `(.range impl/ops ~start ~end ~step)))
