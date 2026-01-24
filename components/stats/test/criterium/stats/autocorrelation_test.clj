@@ -355,7 +355,7 @@
       ;; Need r1 elevated and r10 > 0.2
       (let [acf-map (merge
                      {1 0.30, 2 0.29, 3 0.28}
-                     (into {} (for [k (range 4 51)]
+                     (into {} (for [^long k (range 4 51)]
                                 [k (- 0.30 (* 0.005 k))])))]
         ;; r10 = 0.30 - 0.05 = 0.25, above 0.2 threshold
         (is (= :drift (acf/detect-pattern acf-map 100)))))))

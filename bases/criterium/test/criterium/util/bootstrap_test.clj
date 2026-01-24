@@ -384,8 +384,8 @@
             (is (= (count (:estimate-quantiles mean-stats))
                    (count (:adjusted-estimate-quantiles mean-stats))))
             ;; Adjusted should be wider than original
-            (let [orig-lower (-> mean-stats :estimate-quantiles first :value)
-                  orig-upper (-> mean-stats :estimate-quantiles second :value)
+            (let [orig-lower (double (-> mean-stats :estimate-quantiles first :value))
+                  orig-upper (double (-> mean-stats :estimate-quantiles second :value))
                   adj-lower (-> mean-stats :adjusted-estimate-quantiles first :value)
                   adj-upper (-> mean-stats :adjusted-estimate-quantiles second :value)
                   point (double (:point-estimate mean-stats))]
@@ -397,9 +397,11 @@
               ;; Check inflation factor is applied correctly
               ;; adj-lower = p - 2.0 * (p - orig-lower)
               ;; adj-upper = p + 2.0 * (orig-upper - p)
-              (is (test-max-error (- point (* 2.0 (- point orig-lower))) adj-lower 1e-6)
+              (is (test-max-error
+                   (- point (* 2.0 (- point orig-lower))) adj-lower 1e-6)
                   "Lower bound should be inflated by factor 2.0")
-              (is (test-max-error (+ point (* 2.0 (- orig-upper point))) adj-upper 1e-6)
+              (is (test-max-error
+                   (+ point (* 2.0 (- orig-upper point))) adj-upper 1e-6)
                   "Upper bound should be inflated by factor 2.0"))))
 
         (testing "includes :ess-id in result when ess data used"

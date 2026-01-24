@@ -511,7 +511,8 @@
                :value (format "%d of %d (%.0f%%)"
                               (:n-effective effective-sample-size)
                               (:n-original effective-sample-size)
-                              (* 100.0 (:ratio effective-sample-size)))}
+                              (* 100.0
+                                 (double (:ratio effective-sample-size))))}
               {:metric "CI inflation factor"
                :value (format "%.2f×" ci-inflation-factor)}
               {:metric "Ljung-Box p-value"
@@ -605,13 +606,14 @@
                (conj {:metric (str metric-label " Lag-1")
                       :value (format "%.2f (%s)"
                                      (:value lag-1)
-                                     (acf-common/format-severity (:severity lag-1)))}))]
+                                     (acf-common/format-severity
+                                      (:severity lag-1)))}))]
     (conj rows
           {:metric "Effective sample size"
            :value (format "%d of %d (%.0f%%)"
                           (:n-effective effective-sample-size)
                           (:n-original effective-sample-size)
-                          (* 100.0 (:ratio effective-sample-size)))}
+                          (* 100.0 (double (:ratio effective-sample-size))))}
           {:metric "CI inflation factor"
            :value (format "%.2f×" ci-inflation-factor)})))
 
