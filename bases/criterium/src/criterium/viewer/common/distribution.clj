@@ -1,10 +1,17 @@
 (ns criterium.viewer.common.distribution
   "Common distribution formatting utilities for viewer implementations.
 
-  This namespace provides shared functions used by portal and kindly viewers
-  for formatting distribution fit results in tables."
-  (:require
-   [criterium.viewer.common-charts.distribution :as charts.distribution]))
+  This namespace provides shared functions used by all viewers
+  for formatting distribution fit results in tables and text output.")
+
+;;; Distribution Constants
+
+(def distribution-labels
+  "Human-readable labels for distributions."
+  {:gamma "Gamma"
+   :lognormal "Log-normal"
+   :inverse-gaussian "Inverse Gaussian"
+   :weibull "Weibull"})
 
 ;;; Table Formatting
 
@@ -19,7 +26,7 @@
   - :cvm-stat, :cvm-pvalue - Cramér-von Mises test results
   - :best? - true if this is the best model"
   [dist result best-model]
-  (let [label (get charts.distribution/distribution-labels dist (name dist))
+  (let [label (get distribution-labels dist (name dist))
         is-best? (= dist best-model)]
     (cond
       (:error result)
@@ -73,7 +80,7 @@
   - :ci-lower, :ci-upper - confidence interval bounds"
   [best-model parameter-cis]
   (when (and best-model (get parameter-cis best-model))
-    (let [label (get charts.distribution/distribution-labels best-model (name best-model))
+    (let [label (get distribution-labels best-model (name best-model))
           cis (get parameter-cis best-model)]
       (mapv (fn [[param {:keys [point-estimate ci-lower ci-upper]}]]
               {:distribution label
