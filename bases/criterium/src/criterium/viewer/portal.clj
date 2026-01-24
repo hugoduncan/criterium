@@ -17,7 +17,10 @@
   are in criterium.viewer.portal.tail.
 
   Shape statistics views (skewness, kurtosis, CV)
-  are in criterium.viewer.portal.shape."
+  are in criterium.viewer.portal.shape.
+
+  Modal analysis views (multimodal warnings)
+  are in criterium.viewer.portal.modal."
   (:refer-clojure :exclude [flush])
   (:require
    [clojure.string :as str]
@@ -27,11 +30,11 @@
    [criterium.viewer.call-graph :as call-graph]
    [criterium.viewer.common-charts.autocorrelation :as charts.autocorrelation]
    [criterium.viewer.common-charts.profile :as charts.profile]
-   [criterium.viewer.common.modal :as modal]
    [criterium.viewer.portal.allocation]
    [criterium.viewer.portal.core :as portal.core]
    [criterium.viewer.portal.distribution]
    [criterium.viewer.portal.domain]
+   [criterium.viewer.portal.modal]
    [criterium.viewer.portal.shape]
    [criterium.viewer.portal.tail]))
 
@@ -284,23 +287,4 @@
                          (count methods) total-in-list))
         (portal-vega-lite (charts.profile/most-called-vega-lite-spec most-called-data {}))))))
 
-;;; Modal Analysis Views
-
-(defmethod view/multimodal-warning* :portal
-  [_ {:keys [modes-id]} data-map]
-  (modal/for-each-multimodal-metric
-   data-map modes-id
-   (fn [{:keys [metric-config n-modes modes transforms]}]
-     (heading (str "WARNING: Multimodal distribution - "
-                   (:label metric-config)))
-     (portal-table
-      [{:metric "Mode count" :value n-modes}])
-     (when (seq modes)
-       (portal-heading [:em "Mode locations:"])
-       (portal-table
-        (mapv (fn [{:keys [location density]}]
-                {:location (modal/format-mode-location
-                            location metric-config transforms)
-                 :density (format "%.4g" density)})
-              modes))))))
 
