@@ -390,6 +390,11 @@
   [x]
   (instance? ITypedArray x))
 
+(defn long-array?
+  "Returns true if x is a LongArray."
+  [x]
+  (instance? LongArray x))
+
 (defn double-array?
   "Returns true if x is a DoubleArray."
   [x]

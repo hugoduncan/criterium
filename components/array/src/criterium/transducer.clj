@@ -24,7 +24,6 @@
     acc)
   clojure.lang.IFn$ODO
   (invokePrim [_ acc ^double x]
-    (prn :set-at! idx x)
     (arr/set-at! ^DoubleArray acc idx x)
     (set! idx (unchecked-inc idx))
     acc))
@@ -57,12 +56,12 @@
       (.reduce source ^clojure.lang.IFn$LLL rf init))
     (^double reduce [_ rf ^double init ^IDDDReducible source]
       (.reduce source ^clojure.lang.IFn$DDD rf init))
-    #_(^LongArray into
-       [_ ^LongArray target xform ^IOLOReducible source]
-       (.reduceLong source xform target))
+    (^criterium.array.LongArray into
+      [this ^criterium.array.LongArray target xform ^IOLOReducible source]
+      (.transduce this xform (prim-set-at) target source))
     (^criterium.array.DoubleArray into
-      [_ ^criterium.array.DoubleArray target xform ^IODOReducible source]
-      (.reduceDouble source (xform (prim-set-at)) target))))
+      [this ^criterium.array.DoubleArray target xform ^IODOReducible source]
+      (.transduce this xform (prim-set-at) target source))))
 
 ;; ============================================================
 ;; Sources
@@ -171,8 +170,18 @@
              (DoubleRange. 0.0 10.0 1.0))
  3)
 
+(arr/get-at
+ (.transduce ops
+             (comp
+              (prim-map (fn ^double [^double x] (* x x)))
+              (prim-map (fn ^double [^double x] (Math/sqrt x))))
+             (prim-set-at)
+             (DoubleArray. (double-array 10))
+             (DoubleRange. 0.0 10.0 1.0))
+ 3)
+
 (.into ops
-       (arr/->DoubleArray (double-array 3))
+       (DoubleArray. (double-array 5))
        (prim-map (fn ^double [^double x] (Math/sqrt x)))
        (DoubleRange. 1.0 5.0 1.0))
 
@@ -188,6 +197,6 @@
   `(.into ~'criterium.transducer/ops ~target ~rf ~source))
 
 (into
- (arr/->DoubleArray (double-array 3))
+ (DoubleArray. (double-array 5))
  (prim-map (fn ^double [^double x] (Math/sqrt x)))
  (DoubleRange. 1.0 5.0 1.0))
