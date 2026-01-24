@@ -110,8 +110,8 @@
              (api/list-node (cons (api/token-node 'do) defns))
              (meta node))}))
 
-(defn defbfn-wrappers
-  "Hook for defbfn-wrappers macro.
+(defn defpred-wrappers
+  "Hook for defpred-wrappers macro.
   Transforms specs into defn forms for linting."
   [{:keys [node]}]
   (let [[_ prim-type & specs] (:children node)

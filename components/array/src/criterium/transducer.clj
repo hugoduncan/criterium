@@ -47,22 +47,22 @@
     (reify
       clojure.lang.IFn$LLL
       (^long invokePrim [_ ^long acc ^long x]
-        (if (.invokePrim ^criterium.primitive_fn.interface.LB pred x)
+        (if (.invokePrim ^clojure.lang.IFn$LO pred x)
           (.invokePrim ^clojure.lang.IFn$LLL rf acc x)
           acc))
       clojure.lang.IFn$DDD
       (^double invokePrim [_ ^double acc ^double x]
-        (if (.invokePrim ^criterium.primitive_fn.interface.DB pred x)
+        (if (.invokePrim ^clojure.lang.IFn$DO pred x)
           (.invokePrim ^clojure.lang.IFn$DDD rf acc x)
           acc))
       clojure.lang.IFn$OLO
       (invokePrim [_ acc ^long x]
-        (if (.invokePrim ^criterium.primitive_fn.interface.LB pred x)
+        (if (.invokePrim ^clojure.lang.IFn$LO pred x)
           (.invokePrim ^clojure.lang.IFn$OLO rf acc x)
           acc))
       clojure.lang.IFn$ODO
       (invokePrim [_ acc ^double x]
-        (if (.invokePrim ^criterium.primitive_fn.interface.DB pred x)
+        (if (.invokePrim ^clojure.lang.IFn$DO pred x)
           (.invokePrim ^clojure.lang.IFn$ODO rf acc x)
           acc)))))
 
