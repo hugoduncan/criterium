@@ -40,8 +40,8 @@
 (defn slow-computation
   "A computation with variable execution time."
   [n]
-  (Thread/sleep (long (+ 1 (rand-int 5))))
-  (* n n))
+  (Thread/sleep (+ 1 (long (rand-int 5))))
+  (* (long n) (long n)))
 
 (def sampled-slow
   "Sampled version of slow-computation."
@@ -61,7 +61,7 @@
 
 (defn process-item
   "Process a single item."
-  [x]
+  [^long x]
   (Thread/sleep 1)
   (* x 2))
 

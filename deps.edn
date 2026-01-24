@@ -97,6 +97,9 @@
                              org.clojure/clojure {:mvn/version "1.12.0"}}
                 :jvm-opts ["-Djdk.attach.allowAttachSelf"]
                 :main-opts ["-m" "criterium.notebook.render"]}
+  :check-warnings {:extra-paths ["development/src"]
+                   :extra-deps {local/build {:local/root "build"}}
+                   :main-opts ["-m" "build.check-warnings"]}
   :validation {:extra-paths ["bases/criterium/validation"
                              "components/stats/validation"
                              "components/optimisation/validation"
@@ -106,6 +109,7 @@
                {poly/criterium {:local/root "bases/criterium"}
                 poly/r-validation {:local/root "components/r-validation"}
                 poly/test-assert {:local/root "components/test-assert"}
+                local/build {:local/root "build"}
                 lambdaisland/kaocha {:mvn/version "1.91.1392"}
                 metosin/malli {:mvn/version "0.20.0"}}
                :main-opts ["-m" "kaocha.runner"

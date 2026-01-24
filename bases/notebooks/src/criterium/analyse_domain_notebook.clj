@@ -219,19 +219,22 @@
 
 ;; Extract times and observe scaling:
 
-(let [extract (analysis/extract scaling-domain [:stats :elapsed-time :mean])]
-  (kind/table
-   {:column-names [:n :time-ns :ratio-to-previous]
-    :row-vectors
-    (let [data (:data extract)]
-      (map-indexed
-       (fn [i [coord value]]
-         [(:n coord)
-          (format "%.1f" value)
-          (if (zero? i)
-            "-"
-            (format "%.2fx" (/ value (second (nth data (dec i))))))])
-       data))}))
+(binding [*unchecked-math* nil]
+  (let [extract (analysis/extract scaling-domain [:stats :elapsed-time :mean])]
+    (kind/table
+     {:column-names [:n :time-ns :ratio-to-previous]
+      :row-vectors
+      (let [data (:data extract)]
+        (map-indexed
+         (fn [^long i [coord value]]
+           [(:n coord)
+            (format "%.1f" value)
+            (if (zero? i)
+              "-"
+              (format
+               "%.2fx"
+               (/ (double value) (double (second (nth data (dec i)))))))])
+         data))})))
 
 ;; ### Regression Fitting
 ;;
@@ -259,7 +262,7 @@
 (let [result (analysis/fit-complexity
               (analysis/extract scaling-domain [:stats :elapsed-time :mean])
               :n
-              {:cubic {:transform (fn [n] (* n n n)) :label "O(n³)"}
+              {:cubic  {:transform (fn [^double n] (* n n n)) :label "O(n³)"}
                :linear {:transform identity :label "O(n)"}})]
   (get-in result [:regressions :elapsed-time :best-fit]))
 
