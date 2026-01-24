@@ -17,16 +17,18 @@
   criterium.viewer.print.tail.
 
   Shape statistics (skewness, kurtosis, CV) is in
-  criterium.viewer.print.shape."
+  criterium.viewer.print.shape.
+
+  Modal analysis (multimodal warnings) is in criterium.viewer.print.modal."
   (:require
    [clojure.string :as str]
    [criterium.view :as view]
    [criterium.viewer.common.autocorrelation :as acf-common]
-   [criterium.viewer.common.modal :as modal]
    [criterium.viewer.print.allocation]
    [criterium.viewer.print.core :as print.core]
    [criterium.viewer.print.distribution]
    [criterium.viewer.print.domain]
+   [criterium.viewer.print.modal]
    [criterium.viewer.print.shape]
    [criterium.viewer.print.tail]))
 
@@ -48,25 +50,6 @@
   print.core/print-outlier-count)
 
 (set! *unchecked-math* false)
-
-;;; Modal Analysis Views
-
-(defmethod view/multimodal-warning* :print
-  [_ {:keys [modes-id]} data-map]
-  (modal/for-each-multimodal-metric
-   data-map modes-id
-   (fn [{:keys [metric-config modes transforms]}]
-     (println
-      (format "%32s: Multimodal distribution detected"
-              (:label metric-config)))
-     (when (seq modes)
-       (let [locations (map #(modal/format-mode-location
-                              (:location %)
-                              metric-config
-                              transforms)
-                            modes)]
-         (println (format "%32s  Mode locations: %s" ""
-                          (str/join ", " locations))))))))
 
 ;;; Autocorrelation Views
 
