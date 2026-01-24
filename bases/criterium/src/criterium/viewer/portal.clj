@@ -5,7 +5,10 @@
   samples, outliers, events, KDE) is in criterium.viewer.portal.core.
 
   Domain analysis views (grouped, extract, comparison, regression, apply)
-  are in criterium.viewer.portal.domain."
+  are in criterium.viewer.portal.domain.
+
+  Allocation profiling views (summary, hotspots, by-type, treemap)
+  are in criterium.viewer.portal.allocation."
   (:refer-clojure :exclude [flush])
   (:require
    [clojure.string :as str]
@@ -18,10 +21,10 @@
    [criterium.viewer.common-charts.profile :as charts.profile]
    [criterium.viewer.common-charts.quantile :as charts.quantile]
    [criterium.viewer.common-charts.tail :as charts.tail]
-   [criterium.viewer.common.allocation :as allocation]
    [criterium.viewer.common.core :as core]
    [criterium.viewer.common.modal :as modal]
    [criterium.viewer.common.shape :as shape]
+   [criterium.viewer.portal.allocation]
    [criterium.viewer.portal.core :as portal.core]
    [criterium.viewer.portal.domain]))
 
@@ -531,73 +534,6 @@
                      :value (format "%.2f×" ci-inflation-factor)}]
              true
              (->> (remove nil?) vec))))))))
-
-;;; Allocation Views
-
-(defmethod view/allocation-summary* :portal
-  [_ {:keys [summary-id]} data-map]
-  (let [summary-id (or summary-id :allocation-summary)
-        summary (data-map summary-id)]
-    (when summary
-      (let [{:keys [total-allocated total-freed num-allocations num-freed
-                    freed-ratio]}
-            summary
-            total-allocated (long total-allocated)
-            total-freed (long total-freed)
-            retained (- total-allocated total-freed)]
-        (heading "Allocation Summary")
-        (portal-table
-         [{:metric "Total allocated" :value total-allocated}
-          {:metric "Total freed" :value total-freed}
-          {:metric "Retained" :value retained}
-          {:metric "Allocation count" :value num-allocations}
-          {:metric "Freed count" :value num-freed}
-          {:metric "Freed ratio"
-           :value (format "%.1f%%" (* 100.0 (double freed-ratio)))}])))))
-
-(defmethod view/allocation-hotspots* :portal
-  [_ {:keys [hotspots-id]} data-map]
-  (let [hotspots-id (or hotspots-id :allocation-hotspots)
-        hotspots-map (data-map hotspots-id)]
-    (when hotspots-map
-      (let [hotspots (:hotspots hotspots-map)]
-        (when (seq hotspots)
-          (heading "Allocation Hotspots")
-          (portal-table
-           (mapv (fn [{:keys [call-site object-type count bytes freed-count freed-bytes]}]
-                   {:call-site (allocation/format-call-site call-site nil)
-                    :object-type (or object-type "")
-                    :count count
-                    :bytes bytes
-                    :freed-count freed-count
-                    :freed-bytes freed-bytes})
-                 hotspots)))))))
-
-(defmethod view/allocation-by-type* :portal
-  [_ {:keys [by-type-id]} data-map]
-  (let [by-type-id (or by-type-id :allocation-by-type)
-        by-type-map (data-map by-type-id)]
-    (when by-type-map
-      (let [by-type (:by-type by-type-map)
-            sorted (sort-by (comp :bytes second) > by-type)]
-        (when (seq sorted)
-          (heading "Allocations by Type")
-          (portal-table
-           (mapv (fn [[type-name {:keys [count bytes freed-count freed-bytes]}]]
-                   {:type type-name
-                    :count count
-                    :bytes bytes
-                    :freed-count freed-count
-                    :freed-bytes freed-bytes})
-                 sorted)))))))
-
-(defmethod view/allocation-treemap* :portal
-  [_ {:keys [treemap-id]} data-map]
-  (let [treemap-id (or treemap-id :allocation-treemap)
-        treemap-data (data-map treemap-id)]
-    (when (and treemap-data (:root treemap-data))
-      (heading "Allocation Treemap")
-      (portal-vega (charts.profile/treemap-vega-spec treemap-data {})))))
 
 ;;; Call Tree Views
 
