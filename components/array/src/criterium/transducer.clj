@@ -1,6 +1,6 @@
 (ns criterium.transducer
   (:refer-clojure
-   :exclude [into reduce range transduce])
+   :exclude [filter into map reduce range transduce])
   (:require
    [criterium.transducer.impl :as impl]
    [criterium.transducer.interface]))
@@ -10,7 +10,15 @@
   ^criterium.transducer.impl.ArraySetter []
   (impl/prim-set-at))
 
-(defn prim-map
+(def prim-sum
+  "Reducing function that sums primitive values."
+  (reify
+    clojure.lang.IFn$LLL
+    (^long invokePrim [_ ^long acc ^long x] (unchecked-add acc x))
+    clojure.lang.IFn$DDD
+    (^double invokePrim [_ ^double acc ^double x] (+ acc x))))
+
+(defn map
   "Return a transducer that applies f to each primitive element."
   ^clojure.lang.IFn [f]
   (fn prim-map-impl [rf]
@@ -32,7 +40,7 @@
         (.invokePrim ^clojure.lang.IFn$ODO rf acc
                      (.invokePrim ^clojure.lang.IFn$DD f x))))))
 
-(defn prim-filter
+(defn filter
   "Return a transducer that filters primitive elements with pred."
   ^clojure.lang.IFn [pred]
   (fn prim-filter-impl [rf]
@@ -57,14 +65,6 @@
         (if (.invokePrim ^criterium.primitive_fn.interface.DB pred x)
           (.invokePrim ^clojure.lang.IFn$ODO rf acc x)
           acc)))))
-
-(def prim-sum
-  "Reducing function that sums primitive values."
-  (reify
-    clojure.lang.IFn$LLL
-    (^long invokePrim [_ ^long acc ^long x] (unchecked-add acc x))
-    clojure.lang.IFn$DDD
-    (^double invokePrim [_ ^double acc ^double x] (+ acc x))))
 
 (defmacro transduce
   [xform rf init source]
