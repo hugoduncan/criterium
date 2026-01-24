@@ -13,8 +13,8 @@
    [criterium.primitive-fn.interface])
   (:import
    [criterium.primitive_fn.interface
-    DB
-    LB]))
+    DB DDB
+    LB LLB]))
 
 ;;; Double arithmetic
 
@@ -94,38 +94,80 @@
   "Create a primitive boolean function.
 
    Like fn, but implements both IFn and the appropriate primitive interface
-   (DB for double argument, LB for long argument) to support .invokePrim calls
-   without boxing.
+   to support .invokePrim calls without boxing.
 
-   The argument must be hinted with ^double or ^long.
+   Supports one or two arguments:
+   - 1 arg: DB for double, LB for long
+   - 2 args: DDB for (double, double), LLB for (long, long)
+
+   All arguments must be hinted with ^double or ^long (and must match
+   for 2-arg forms).
 
    Example:
      (bfn [^double x] (> x 0.0))
-     (bfn [^long n] (pos? n))"
-  [[arg] & body]
-  (let [tag (-> arg meta :tag)]
-    (case tag
-      double `(reify
-                clojure.lang.IFn
-                (invoke [_# v#] (let [~arg v#] ~@body))
-                DB
-                (~'invokePrim [_# ~(vary-meta arg dissoc :tag)] ~@body))
-      long   `(reify
-                clojure.lang.IFn
-                (invoke [_# v#] (let [~arg v#] ~@body))
-                LB
-                (~'invokePrim [_# ~(vary-meta arg dissoc :tag)] ~@body))
-      (throw (ex-info "bfn requires ^double or ^long hint on argument"
-                      {:arg arg :tag tag})))))
+     (bfn [^long n] (pos? n))
+     (bfn [^double a ^double b] (< a b))
+     (bfn [^long a ^long b] (< a b))"
+  [args & body]
+  (case (count args)
+    1 (let [[arg] args
+            tag   (-> arg meta :tag)]
+        (case tag
+          double `(reify
+                    clojure.lang.IFn
+                    (invoke [_# v#] (let [~arg v#] ~@body))
+                    DB
+                    (~'invokePrim [_# ~(vary-meta arg dissoc :tag)] ~@body))
+          long   `(reify
+                    clojure.lang.IFn
+                    (invoke [_# v#] (let [~arg v#] ~@body))
+                    LB
+                    (~'invokePrim [_# ~(vary-meta arg dissoc :tag)] ~@body))
+          (throw (ex-info "bfn requires ^double or ^long hint on argument"
+                          {:arg arg :tag tag}))))
+    2 (let [[arg1 arg2] args
+            tag1        (-> arg1 meta :tag)
+            tag2        (-> arg2 meta :tag)]
+        (when (not= tag1 tag2)
+          (throw (ex-info "bfn requires matching type hints on both arguments"
+                          {:arg1 arg1 :tag1 tag1 :arg2 arg2 :tag2 tag2})))
+        (case tag1
+          double `(reify
+                    clojure.lang.IFn
+                    (invoke [_# v1# v2#]
+                      (let [~arg1 v1# ~arg2 v2#] ~@body))
+                    DDB
+                    (~'invokePrim [_#
+                                   ~(vary-meta arg1 dissoc :tag)
+                                   ~(vary-meta arg2 dissoc :tag)]
+                      ~@body))
+          long   `(reify
+                    clojure.lang.IFn
+                    (invoke [_# v1# v2#]
+                      (let [~arg1 v1# ~arg2 v2#] ~@body))
+                    LLB
+                    (~'invokePrim [_#
+                                   ~(vary-meta arg1 dissoc :tag)
+                                   ~(vary-meta arg2 dissoc :tag)]
+                      ~@body))
+          (throw (ex-info "bfn requires ^double or ^long hint on arguments"
+                          {:arg1 arg1 :tag1 tag1}))))
+    (throw (ex-info "bfn requires 1 or 2 arguments"
+                    {:args args :count (count args)}))))
 
 (defmacro defbfn
   "Define a named primitive boolean function.
 
    Like defn, but the defined function implements both IFn and the
-   appropriate primitive interface (DB for double argument, LB for long
-   argument) to support .invokePrim calls without boxing.
+   appropriate primitive interface to support .invokePrim calls
+   without boxing.
 
-   The argument must be hinted with ^double or ^long.
+   Supports one or two arguments:
+   - 1 arg: DB for double, LB for long
+   - 2 args: DDB for (double, double), LLB for (long, long)
+
+   All arguments must be hinted with ^double or ^long (and must match
+   for 2-arg forms).
 
    Example:
      (defbfn positive-double?
@@ -135,8 +177,14 @@
 
      (defbfn positive-long?
        [^long n]
-       (pos? n))"
-  {:arglists '([name docstring? [arg] & body])}
+       (pos? n))
+
+     (defbfn d<?
+       \"Primitive double less-than comparison.\"
+       [^double a ^double b]
+       (< a b))"
+  {:arglists '([name docstring? [arg] & body]
+               [name docstring? [arg1 arg2] & body])}
   [name & args]
   (let [[docstring args] (if (string? (first args))
                            [(first args) (rest args)]
