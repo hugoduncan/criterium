@@ -329,6 +329,7 @@
           d (/ 1.0 b)
           h d]
       (loop [i 1
+             b b
              d d
              c c
              h h]
@@ -345,7 +346,7 @@
                 h (* h del)]
             (if (< (Math/abs (- del 1.0)) eps)
               (- 1.0 (* h (Math/exp (- (* a (Math/log x)) x log-gamma-a))))
-              (recur (inc i) d c h))))))))
+              (recur (inc i) b d c h))))))))
 
 ;;; Gamma Distribution
 
