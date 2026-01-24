@@ -16,6 +16,9 @@
   (^clojure.lang.Keyword elemType [])
   (^long length []))
 
+(definterface IDoubleArray)
+(definterface ILongArray)
+
 (definterface IFold
   (fold [f init]))
 

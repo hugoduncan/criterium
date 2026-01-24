@@ -9,18 +9,26 @@
     - ObjectArray for :nominal metrics"
   (:require
    [criterium.array.interface]
+   [criterium.transducer.interface]
    [criterium.util.invariant :refer [have?]])
   (:import
    [criterium.array.interface
-    ITypedArray IFold IDoubleFold ILongFold IDoubleObjectFold ILongObjectFold
+    ITypedArray IDoubleArray ILongArray
+    IFold IDoubleFold ILongFold IDoubleObjectFold ILongObjectFold
     IDoubleMap IDoubleMapIndexed ILongMap ILongMapIndexed
     IDoubleAny ILongAny IArrayEquals ISortable
     IDoubleFoldSkip IDoubleObjectFoldSkip
     IFilterIndices IIndexedDoubleFold IIndexedDoubleObjectFold
     IIndexed IIndexedSet IArrayOps]
+   [criterium.transducer.interface
+    IDDDReducible
+    ILLLReducible
+    IODOReducible
+    IOLOReducible]
    [java.util Arrays]))
 
 (deftype DoubleArray [^doubles array]
+  IDoubleArray
   ITypedArray
   (elemType [_] :double)
   (length [_] (alength array))
@@ -168,9 +176,28 @@
         (if (< i len)
           (recur (unchecked-inc i)
                  (.invokePrim f acc i (aget array i)))
+          acc))))
+
+  IDDDReducible
+  (reduce [_ f init]
+    (let [n (alength array)]
+      (loop [i 0 acc init]
+        (if (< i n)
+          (recur (inc i)
+                 (.invokePrim ^clojure.lang.IFn$DDD f acc (aget array i)))
+          acc))))
+  IODOReducible
+  (reduceDouble
+    [_ f init]
+    (let [n (alength array)]
+      (loop [i 0 acc init]
+        (if (< i n)
+          (recur (inc i)
+                 (.invokePrim ^clojure.lang.IFn$ODO f acc (aget array i)))
           acc)))))
 
 (deftype LongArray [^longs array]
+  ILongArray
   ITypedArray
   (elemType [_] :long)
   (length [_] (alength array))
@@ -351,6 +378,24 @@
         (if (< i len)
           (recur (unchecked-inc i)
                  (.invokePrim f acc i (double (aget array i))))
+          acc))))
+
+  ILLLReducible
+  (reduce [_ f init]
+    (let [n (dec (alength array))]
+      (loop [i 0 acc init]
+        (if (< i n)
+          (recur (inc i)
+                 (.invokePrim ^clojure.lang.IFn$LLL f acc (aget array i)))
+          acc))))
+  IOLOReducible
+  (reduceLong
+    [_ f init]
+    (let [n (dec (alength array))]
+      (loop [i 0 acc init]
+        (if (< i n)
+          (recur (inc i)
+                 (.invokePrim ^clojure.lang.IFn$OLO f acc (aget array i)))
           acc)))))
 
 (deftype ObjectArray [^objects array]

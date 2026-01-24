@@ -180,3 +180,13 @@
   "Primitive long zero check."
   [^long v]
   (zero? v))
+
+(defbfn lodd?
+  "Primitive double zero check."
+  [^long v]
+  (odd? v))
+
+(defbfn leven?
+  "Primitive double zero check."
+  [^long v]
+  (even? v))

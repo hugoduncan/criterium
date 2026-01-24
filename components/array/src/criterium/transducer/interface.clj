@@ -1,10 +1,6 @@
 (ns criterium.transducer.interface
   (:require
-   [criterium.array])
-  (:import
-   [criterium.array
-    DoubleArray
-    LongArray]))
+   [criterium.array.interface]))
 
 (definterface ILLLReducible
   (^long reduce [^clojure.lang.IFn$LLL f ^long init]))
@@ -13,12 +9,12 @@
   (^double reduce [^clojure.lang.IFn$DDD f ^double init]))
 
 (definterface IOLOReducible
-  (^criterium.array.LongArray reduceLong
-   [^clojure.lang.IFn$OLO f ^criterium.array.LongArray init]))
+  (^criterium.array.interface.ILongArray reduceLong
+   [^clojure.lang.IFn$OLO f ^criterium.array.interface.ILongArray init]))
 
 (definterface IODOReducible
-  (^criterium.array.DoubleArray reduceDouble
-   [^clojure.lang.IFn$ODO f ^criterium.array.DoubleArray init]))
+  (^criterium.array.interface.IDoubleArray reduceDouble
+   [^clojure.lang.IFn$ODO f ^criterium.array.interface.IDoubleArray init]))
 
 (definterface IPrimOps
   (^long transduce
@@ -31,15 +27,15 @@
     rf
     ^double init
     ^criterium.transducer.interface.IDDDReducible source])
-  (^criterium.array.LongArray transduce
+  (^criterium.array.interface.ILongArray transduce
    [xform
     rf
-    ^criterium.array.LongArray init
+    ^criterium.array.interface.ILongArray init
     ^criterium.transducer.interface.IOLOReducible source])
-  (^criterium.array.DoubleArray transduce
+  (^criterium.array.interface.IDoubleArray transduce
    [xform
     rf
-    ^criterium.array.DoubleArray init
+    ^criterium.array.interface.IDoubleArray init
     ^criterium.transducer.interface.IODOReducible source])
   (^long reduce
    [rf
@@ -50,12 +46,12 @@
     ^double init
     ^criterium.transducer.interface.IDDDReducible source])
 
-  (^criterium.array.LongArray into
-   [^criterium.array.LongArray target
+  (^criterium.array.interface.ILongArray into
+   [^criterium.array.interface.ILongArray target
     xform
     ^criterium.transducer.interface.IOLOReducible source])
 
-  (^criterium.array.DoubleArray into
-   [^criterium.array.DoubleArray target
+  (^criterium.array.interface.IDoubleArray into
+   [^criterium.array.interface.IDoubleArray target
     xform
     ^criterium.transducer.interface.IODOReducible source]))
