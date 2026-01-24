@@ -80,14 +80,14 @@
         (println "Skipping ACF white noise validation: R/Rserve not available")
         (is true "Skipped - R unavailable"))
       (testing "with white noise"
-        (let [n 100
-              samples (generate-white-noise n 42)
-              lag-max (quot n 2)
-              clj-acf (acf/acf samples)
+        (let [n          100
+              samples    (generate-white-noise n 42)
+              lag-max    (quot n 2)
+              clj-acf    (acf/acf samples)
               r-acf-vals (r-acf samples lag-max)]
-          (doseq [lag (range 1 (inc (min lag-max (count r-acf-vals))))]
+          (doseq [^long lag (range 1 (inc (min lag-max (count r-acf-vals))))]
             (let [clj-val (get clj-acf lag)
-                  r-val (nth r-acf-vals (dec lag))]
+                  r-val   (nth r-acf-vals (dec lag))]
               (is (approx= r-val clj-val 1e-6)
                   (format "ACF mismatch at lag %d: R=%.10f, clj=%.10f"
                           lag r-val clj-val)))))))))
@@ -104,16 +104,16 @@
       (testing "with AR(1) process"
         (doseq [phi [0.3 0.7 0.9]]
           (testing (str "phi=" phi)
-            (let [n 200
-                  samples (generate-ar1 n phi 123)
-                  lag-max (quot n 2)
-                  clj-acf (acf/acf samples)
+            (let [n          200
+                  samples    (generate-ar1 n phi 123)
+                  lag-max    (quot n 2)
+                  clj-acf    (acf/acf samples)
                   r-acf-vals (r-acf samples lag-max)
                   ;; Test first 20 lags (most relevant for AR(1))
-                  test-lags (min 20 (count r-acf-vals))]
-              (doseq [lag (range 1 (inc test-lags))]
+                  test-lags  (min 20 (count r-acf-vals))]
+              (doseq [^long lag (range 1 (inc test-lags))]
                 (let [clj-val (get clj-acf lag)
-                      r-val (nth r-acf-vals (dec lag))]
+                      r-val   (nth r-acf-vals (dec lag))]
                   (is (approx= r-val clj-val 1e-6)
                       (format "ACF mismatch at lag %d (phi=%.1f): R=%.10f, clj=%.10f"
                               lag phi r-val clj-val)))))))))))
@@ -127,17 +127,17 @@
         (println "Skipping ACF periodic validation: R/Rserve not available")
         (is true "Skipped - R unavailable"))
       (testing "with periodic signal"
-        (let [n 100
-              period 10
-              samples (generate-periodic n period 0.1 456)
-              lag-max (quot n 2)
-              clj-acf (acf/acf samples)
+        (let [n          100
+              period     10
+              samples    (generate-periodic n period 0.1 456)
+              lag-max    (quot n 2)
+              clj-acf    (acf/acf samples)
               r-acf-vals (r-acf samples lag-max)
               ;; Test lags around and including the period
-              test-lags (min 25 (count r-acf-vals))]
-          (doseq [lag (range 1 (inc test-lags))]
+              test-lags  (min 25 (count r-acf-vals))]
+          (doseq [^long lag (range 1 (inc test-lags))]
             (let [clj-val (get clj-acf lag)
-                  r-val (nth r-acf-vals (dec lag))]
+                  r-val   (nth r-acf-vals (dec lag))]
               (is (approx= r-val clj-val 1e-6)
                   (format "ACF mismatch at lag %d: R=%.10f, clj=%.10f"
                           lag r-val clj-val)))))))))
@@ -150,14 +150,14 @@
         (println "Skipping ACF larger sample validation: R/Rserve not available")
         (is true "Skipped - R unavailable"))
       (testing "with larger sample (n=500)"
-        (let [n 500
-              samples (generate-white-noise n 789)
-              lag-max 50  ; Test first 50 lags
-              clj-acf (acf/acf samples)
+        (let [n          500
+              samples    (generate-white-noise n 789)
+              lag-max    50  ; Test first 50 lags
+              clj-acf    (acf/acf samples)
               r-acf-vals (r-acf samples lag-max)]
-          (doseq [lag (range 1 (inc (min lag-max (count r-acf-vals))))]
+          (doseq [^long lag (range 1 (inc (min lag-max (count r-acf-vals))))]
             (let [clj-val (get clj-acf lag)
-                  r-val (nth r-acf-vals (dec lag))]
+                  r-val   (nth r-acf-vals (dec lag))]
               (is (approx= r-val clj-val 1e-6)
                   (format "ACF mismatch at lag %d: R=%.10f, clj=%.10f"
                           lag r-val clj-val)))))))))
@@ -241,21 +241,24 @@
         (println "Skipping Ljung-Box various lags validation: R/Rserve not available")
         (is true "Skipped - R unavailable"))
       (testing "with various lag values"
-        (let [n 200
+        (let [n       200
               samples (generate-ar1 n 0.5 999)
               clj-acf (acf/acf samples)]
-          (doseq [h [5 10 15 20]]
+          (doseq [^long h [5 10 15 20]]
             (testing (str "h=" h)
               (let [;; Manually compute Ljung-Box with specific h
-                    n+2 (+ n 2)
-                    sum (loop [k 1, acc 0.0]
-                          (if (> k h)
-                            acc
-                            (let [rk (double (get clj-acf k 0.0))]
-                              (recur (inc k)
-                                     (+ acc (/ (* rk rk) (double (- n k))))))))
-                    clj-q (* (double n) (double n+2) sum)
-                    clj-p (- 1.0 (chi-squared/cdf clj-q h))
+                    n+2       (+ n 2)
+                    sum       (double
+                               (loop [k 1, acc 0.0]
+                                 (if (> k h)
+                                   acc
+                                   (let [rk (double (get clj-acf k 0.0))]
+                                     (recur (inc k)
+                                            (+ acc
+                                               (/ (* rk rk)
+                                                  (- n k))))))))
+                    clj-q     (* (double n) (double n+2) sum)
+                    clj-p     (- 1.0 (chi-squared/cdf clj-q h))
                     [r-q r-p] (r-ljung-box samples h)]
                 (is (approx= r-q clj-q 1e-6)
                     (format "Q-statistic mismatch (h=%d): R=%.10f, clj=%.10f"
