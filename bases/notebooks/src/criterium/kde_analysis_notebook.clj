@@ -203,7 +203,7 @@
   (-> bench-plans/kde-modes
       (assoc :analyse
              [:transform-log
-              [:quantiles {:quantiles [0.9 0.99 0.99]}]
+              [:quantiles {:quantiles [0.9 0.99]}]
               :outliers
               [:stats {}]
               [:stats {:samples-id :log-samples :id :log-stats}]

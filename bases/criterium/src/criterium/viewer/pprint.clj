@@ -2,11 +2,13 @@
   "A pretty print viewer"
   (:require
    [clojure.pprint :as pprint]
+   [clojure.string :as str]
    [criterium.metric :as metric]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have]]
    [criterium.view :as view]
    [criterium.viewer.common.allocation :as allocation]
+   [criterium.viewer.common.autocorrelation :as acf-common]
    [criterium.viewer.common.bootstrap :as bootstrap]
    [criterium.viewer.common.core :as core]
    [criterium.viewer.common.domain.comparison :as comparison]
@@ -492,6 +494,138 @@
        (pprint/print-table
         [:location :density]
         (modes-table modes metric-config transforms))))))
+
+;;; Autocorrelation Views
+
+(defn- autocorrelation-summary-table
+  "Build autocorrelation summary table rows for pprint."
+  [acf-data _metric-label]
+  (let [{:keys [acf lag-1 effective-sample-size ci-inflation-factor
+                ljung-box classification pattern detected-period
+                anomalous-lags lag-severities]} acf-data
+        rows [{:metric "Lag-1 autocorrelation"
+               :value (format "%.2f (%s)"
+                              (:value lag-1)
+                              (acf-common/format-severity (:severity lag-1)))}
+              {:metric "Effective sample size"
+               :value (format "%d of %d (%.0f%%)"
+                              (:n-effective effective-sample-size)
+                              (:n-original effective-sample-size)
+                              (* 100.0
+                                 (double (:ratio effective-sample-size))))}
+              {:metric "CI inflation factor"
+               :value (format "%.2f×" ci-inflation-factor)}
+              {:metric "Ljung-Box p-value"
+               :value (format "%.2f" (:p-value ljung-box))}
+              {:metric "Assessment"
+               :value (str/capitalize (name classification))}]]
+    (cond-> rows
+      (seq anomalous-lags)
+      (conj {:metric "Anomalous lags"
+             :value (acf-common/format-anomalous-lags anomalous-lags lag-severities)})
+
+      (and (#{:warning :fail} classification)
+           (acf-common/displayable-patterns pattern))
+      (conj {:metric "Pattern"
+             :value (get acf-common/pattern-labels pattern (name pattern))})
+
+      (acf-common/format-detected-period detected-period acf lag-severities)
+      (conj {:metric "Suspected period"
+             :value (acf-common/format-detected-period detected-period acf lag-severities)})
+
+      (and (#{:warning :fail} classification)
+           (acf-common/displayable-patterns pattern)
+           (get acf-common/pattern-recommendations pattern))
+      (conj {:metric "Recommendation"
+             :value (get acf-common/pattern-recommendations pattern)}))))
+
+(defmethod view/autocorrelation* :pprint
+  [_ view data-map]
+  (acf-common/with-autocorrelation-metrics view data-map
+    (fn [acf-data mc]
+      (println (format "\nSample Independence (%s):" (:label mc)))
+      (pprint/print-table
+       [:metric :value]
+       (autocorrelation-summary-table acf-data (:label mc))))))
+
+;; ACF plot is a no-op for pprint viewer (charts not supported)
+(defmethod view/acf-plot* :pprint [_ _ _])
+
+(defn- classification-table-rows
+  "Build classification table rows for pprint."
+  [class-data acf-data metric-label]
+  (let [combined (merge class-data
+                        (select-keys acf-data [:lag-1 :acf :lag-severities]))
+        {:keys [acf lag-1 lag-severities ljung-box classification pattern
+                detected-period anomalous-lags]} combined
+        rows [{:metric (str metric-label " Lag-1")
+               :value (format "%.2f (%s)"
+                              (:value lag-1)
+                              (acf-common/format-severity (:severity lag-1)))}
+              {:metric "Ljung-Box p-value"
+               :value (format "%.2f" (:p-value ljung-box))}
+              {:metric "Assessment"
+               :value (str/capitalize (name classification))}]]
+    (cond-> rows
+      (seq anomalous-lags)
+      (conj {:metric "Anomalous lags"
+             :value (acf-common/format-anomalous-lags anomalous-lags lag-severities)})
+
+      (and (#{:warning :fail} classification)
+           (acf-common/displayable-patterns pattern))
+      (conj {:metric "Pattern"
+             :value (get acf-common/pattern-labels pattern (name pattern))})
+
+      (acf-common/format-detected-period detected-period acf lag-severities)
+      (conj {:metric "Suspected period"
+             :value (acf-common/format-detected-period detected-period acf lag-severities)})
+
+      (and (#{:warning :fail} classification)
+           (acf-common/displayable-patterns pattern)
+           (get acf-common/pattern-recommendations pattern))
+      (conj {:metric "Recommendation"
+             :value (get acf-common/pattern-recommendations pattern)}))))
+
+(defmethod view/autocorrelation-classification* :pprint
+  [_ view data-map]
+  (let [metrics (acf-common/collect-classification-metrics view data-map)]
+    (when (some #(not= :pass (:classification (first %))) metrics)
+      (println "\nSample Independence Classification:")
+      (doseq [[class-data acf-data mc] metrics]
+        (pprint/print-table
+         [:metric :value]
+         (classification-table-rows class-data acf-data (:label mc)))))))
+
+(defn- ess-table-rows
+  "Build effective sample size table rows for pprint."
+  [ess-data acf-data metric-label]
+  (let [combined (merge ess-data (select-keys acf-data [:lag-1]))
+        {:keys [lag-1 effective-sample-size ci-inflation-factor]} combined
+        rows (cond-> []
+               lag-1
+               (conj {:metric (str metric-label " Lag-1")
+                      :value (format "%.2f (%s)"
+                                     (:value lag-1)
+                                     (acf-common/format-severity
+                                      (:severity lag-1)))}))]
+    (conj rows
+          {:metric "Effective sample size"
+           :value (format "%d of %d (%.0f%%)"
+                          (:n-effective effective-sample-size)
+                          (:n-original effective-sample-size)
+                          (* 100.0 (double (:ratio effective-sample-size))))}
+          {:metric "CI inflation factor"
+           :value (format "%.2f×" ci-inflation-factor)})))
+
+(defmethod view/effective-sample-size* :pprint
+  [_ view data-map]
+  (let [metrics (acf-common/collect-ess-metrics view data-map)]
+    (when (some #(not= 1.0 (:ci-inflation-factor (first %))) metrics)
+      (println "\nEffective Sample Size:")
+      (doseq [[ess-data acf-data mc] metrics]
+        (pprint/print-table
+         [:metric :value]
+         (ess-table-rows ess-data acf-data (:label mc)))))))
 
 ;;; Domain Apply View
 

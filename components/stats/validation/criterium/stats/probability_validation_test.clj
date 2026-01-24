@@ -11,6 +11,7 @@
   - Inverse Gaussian: dinvgauss, pinvgauss (requires statmod package)"
   (:require
    [clojure.test :refer [deftest is testing]]
+   [criterium.primitive-fn :as prim]
    [criterium.r-validation.r :as r]
    [criterium.stats.interface :as stats]
    [criterium.test.assert :refer [approx=]]))
@@ -57,7 +58,7 @@
 
         (testing "at symmetric probability pairs"
           ;; qnorm(p) = -qnorm(1-p) for any p
-          (doseq [p [0.1 0.25 0.05 0.01]]
+          (doseq [^double p [0.1 0.25 0.05 0.01]]
             (testing (str "p=" p " and p=" (- 1.0 p))
               (let [q-low (stats/normal-quantile p)
                     q-high (stats/normal-quantile (- 1.0 p))]
@@ -121,7 +122,7 @@
 
         (testing "symmetry around the mean"
           ;; pnorm(x) + pnorm(-x) = 1 for any x
-          (doseq [x [0.5 1.0 2.0 3.0]]
+          (doseq [^double x [0.5 1.0 2.0 3.0]]
             (testing (str "x=" x " and x=" (- x))
               (let [p-pos (stats/normal-cdf x)
                     p-neg (stats/normal-cdf (- x))]
@@ -231,9 +232,10 @@
             pdf-fn (stats/gamma-pdf shape scale)
             cdf-fn (stats/gamma-cdf shape scale)
             h 1e-6]
-        (doseq [x [0.5 1.0 2.0 3.0]]
+        (doseq [^double x [0.5 1.0 2.0 3.0]]
           (testing (str "at x=" x)
-            (let [numerical-deriv (/ (- (cdf-fn (+ x h)) (cdf-fn (- x h)))
+            (let [numerical-deriv (/ (- (prim/invoke-dd cdf-fn (+ x h))
+                                        (prim/invoke-dd cdf-fn (- x h)))
                                      (* 2.0 h))
                   pdf-value (pdf-fn x)]
               (is (approx= numerical-deriv pdf-value 1e-4)
@@ -302,9 +304,10 @@
             pdf-fn (stats/weibull-pdf shape scale)
             cdf-fn (stats/weibull-cdf shape scale)
             h 1e-6]
-        (doseq [x [0.5 1.0 2.0 3.0]]
+        (doseq [^double x [0.5 1.0 2.0 3.0]]
           (testing (str "at x=" x)
-            (let [numerical-deriv (/ (- (cdf-fn (+ x h)) (cdf-fn (- x h)))
+            (let [numerical-deriv (/ (- (prim/invoke-dd cdf-fn (+ x h))
+                                        (prim/invoke-dd cdf-fn (- x h)))
                                      (* 2.0 h))
                   pdf-value (pdf-fn x)]
               (is (approx= numerical-deriv pdf-value 1e-4)
@@ -356,10 +359,11 @@
           (let [cdf-fn (stats/lognormal-cdf mu sigma)]
             (doseq [x lognormal-x-values]
               (testing (str "at x=" x)
-                (let [r-p (first (r/r-eval
-                                  (format "plnorm(%s, meanlog=%s, sdlog=%s)"
-                                          x mu sigma)))
-                      clj-p (cdf-fn x)]
+                (let [^double r-p (first
+                                   (r/r-eval
+                                    (format "plnorm(%s, meanlog=%s, sdlog=%s)"
+                                            x mu sigma)))
+                      clj-p       (prim/invoke-dd cdf-fn x)]
                   ;; Looser relative tolerance for erf approximation (1%)
                   ;; and accept underflow (both values < 1e-15)
                   (is (or (approx= r-p clj-p 0.01)
@@ -372,16 +376,17 @@
   ;; Uses looser tolerance (2e-3) due to erf approximation in normal-cdf.
   (testing "lognormal-cdf and lognormal-pdf"
     (testing "are consistent"
-      (let [mu 0.0
-            sigma 1.0
+      (let [mu     0.0
+            sigma  1.0
             pdf-fn (stats/lognormal-pdf mu sigma)
             cdf-fn (stats/lognormal-cdf mu sigma)
-            h 1e-6]
-        (doseq [x [0.5 1.0 2.0 3.0]]
+            h      1e-6]
+        (doseq [^double x [0.5 1.0 2.0 3.0]]
           (testing (str "at x=" x)
-            (let [numerical-deriv (/ (- (cdf-fn (+ x h)) (cdf-fn (- x h)))
+            (let [numerical-deriv (/ (- (prim/invoke-dd cdf-fn (+ x h))
+                                        (prim/invoke-dd cdf-fn (- x h)))
                                      (* 2.0 h))
-                  pdf-value (pdf-fn x)]
+                  pdf-value       (pdf-fn x)]
               ;; Looser tolerance due to erf approximation error propagation
               ;; The erf polynomial has max error 1.5e-7 which propagates
               (is (approx= numerical-deriv pdf-value 2e-3)
@@ -453,16 +458,17 @@
   ;; Uses looser tolerance (2e-3) due to erf approximation in normal-cdf.
   (testing "inverse-gaussian-cdf and inverse-gaussian-pdf"
     (testing "are consistent"
-      (let [mu 1.0
+      (let [mu     1.0
             lambda 1.0
             pdf-fn (stats/inverse-gaussian-pdf mu lambda)
             cdf-fn (stats/inverse-gaussian-cdf mu lambda)
-            h 1e-6]
-        (doseq [x [0.5 1.0 2.0 3.0]]
+            h      1e-6]
+        (doseq [^double x [0.5 1.0 2.0 3.0]]
           (testing (str "at x=" x)
-            (let [numerical-deriv (/ (- (cdf-fn (+ x h)) (cdf-fn (- x h)))
+            (let [numerical-deriv (/ (- (prim/invoke-dd cdf-fn (+ x h))
+                                        (prim/invoke-dd cdf-fn (- x h)))
                                      (* 2.0 h))
-                  pdf-value (pdf-fn x)]
+                  pdf-value       (pdf-fn x)]
               ;; Looser tolerance due to erf approximation error propagation
               ;; The erf polynomial has max error 1.5e-7 which propagates
               (is (approx= numerical-deriv pdf-value 2e-3)

@@ -109,6 +109,11 @@
   {:post [(have? map? %)]}
   (:bootstrap bootstrap-stats-map))
 
+(defn autocorrelation
+  [autocorrelation-map]
+  {:post [(have? map? %)]}
+  (:autocorrelation autocorrelation-map))
+
 ;;; Value transforms
 
 (defn add-transform-paths
@@ -350,3 +355,32 @@
   "Identity wrapper for tail-analysis-map construction.
   Validation handled by malli instrumentation during development."
   [x] x)
+
+(defn ->autocorrelation-map
+  "Identity wrapper for autocorrelation-map construction.
+  Validation handled by malli instrumentation during development."
+  [x] x)
+
+(defn ->effective-sample-size-map
+  "Identity wrapper for effective-sample-size-map construction.
+  Validation handled by malli instrumentation during development."
+  [x] x)
+
+(defn ->autocorrelation-classification-map
+  "Identity wrapper for autocorrelation-classification-map construction.
+  Validation handled by malli instrumentation during development."
+  [x] x)
+
+;;; Accessors for new analysis types
+
+(defn effective-sample-size-data
+  "Extract effective sample size data from an effective-sample-size-map."
+  [ess-map]
+  {:post [(have? map? %)]}
+  (:effective-sample-size-data ess-map))
+
+(defn autocorrelation-classification-data
+  "Extract classification data from an autocorrelation-classification-map."
+  [class-map]
+  {:post [(have? map? %)]}
+  (:classification-data class-map))

@@ -7,6 +7,7 @@
    [criterium.analyse.metrics-samples]
    [criterium.collect-plan :as collect-plan]
    [criterium.metric :as metric]
+   [criterium.stats.interface :as stats]
    [criterium.util.bootstrap :as bootstrap]
    [criterium.util.debug :as debug]
    [criterium.util.helpers :as util]
@@ -930,6 +931,178 @@
                  (assoc data-map id tail-map))
                data-map))))))))
 
+(defn autocorrelation
+  "Computes autocorrelation function (ACF) to detect sample non-independence.
+
+  Returns a function that analyzes lag-1 and higher lag autocorrelations.
+  Use effective-sample-size-analysis and autocorrelation-classification
+  separately to compute ESS and pattern/classification results.
+
+  Parameters:
+    opts - Optional map with keys:
+      :id               - Key for result in output (default: :autocorrelation)
+      :samples-id       - Key for source samples (default: :samples)
+      :outlier-id       - Key for outlier data to filter (default: nil, no filtering)
+      :metric-ids       - Set of metric ids to analyze (default: all quantitative)
+
+  The returned function:
+  - Takes a sampled data map containing samples
+  - Returns the map with autocorrelation analysis added under :id key
+  - For each metric provides:
+    - :acf - Map of lag -> autocorrelation coefficient for lags 1 to n/2
+    - :lag-1 - {:value r1 :severity <:none|:minor|:moderate|:severe>}
+    - :effective-sample-size - {:n-original n} (for downstream analyses)
+
+  When :outlier-id is nil (default), uses all samples for pattern detection
+  before outlier removal. When :outlier-id is provided, filters outlier samples
+  before computing ACF for more accurate effective sample size estimation.
+
+  Example:
+  (let [analyze (autocorrelation {})
+        result (analyze {:samples {...}})]
+    (get-in result [:autocorrelation :elapsed-time :acf]))"
+  ([] (autocorrelation {}))
+  ([{:keys [id samples-id outlier-id metric-ids] :as _options}]
+   (let [samples-id (or samples-id :samples)
+         id (or id :autocorrelation)]
+     (fn [data-map]
+       (let [metrics-samples (get data-map samples-id)]
+         (if-not metrics-samples
+           data-map
+           (let [outliers (when outlier-id (get data-map outlier-id))
+                 metrics-defs (-> (have (:metrics-defs metrics-samples))
+                                  (metric/select-metrics metric-ids)
+                                  (metric/filter-metrics
+                                   (metric/type-pred :quantitative)))
+                 metric-configs (metric/all-metric-configs metrics-defs)
+                 autocorr-result (methods/autocorrelation
+                                  metrics-samples
+                                  outliers
+                                  metric-configs
+                                  {})]
+             (if autocorr-result
+               (let [autocorr-map (util/->autocorrelation-map
+                                   (merge
+                                    {:type :criterium/autocorrelation
+                                     :metrics-defs metrics-defs
+                                     :source-id samples-id
+                                     :outlier-id outlier-id}
+                                    autocorr-result))]
+                 (assoc data-map id autocorr-map))
+               data-map))))))))
+
+(defn effective-sample-size-analysis
+  "Computes effective sample size and CI inflation from autocorrelation results.
+
+  Returns a function that takes autocorrelation analysis output and computes
+  effective sample size statistics. This enables computing effective sample size
+  on filtered data independently from pattern detection.
+
+  Parameters:
+    opts - Optional map with keys:
+      :id               - Key for result in output (default: :effective-sample-size)
+      :autocorrelation-id - Key for source autocorrelation analysis (default: :autocorrelation)
+      :metric-ids       - Set of metric ids to analyze (default: all from source)
+
+  The returned function:
+  - Takes a data map containing autocorrelation analysis results
+  - Returns the map with effective sample size analysis added under :id key
+  - For each metric provides:
+    - :effective-sample-size - {:n-original n :n-effective n_eff :ratio ratio}
+    - :ci-inflation-factor - Multiplier for confidence interval widths
+
+  Example:
+  (let [analyze (effective-sample-size-analysis {})
+        result (analyze {:autocorrelation {...}})]
+    (get-in result [:effective-sample-size :elapsed-time :ci-inflation-factor]))"
+  ([] (effective-sample-size-analysis {}))
+  ([{:keys [id autocorrelation-id metric-ids] :as _options}]
+   (let [autocorrelation-id (or autocorrelation-id :autocorrelation)
+         id (or id :effective-sample-size)]
+     (fn [data-map]
+       (let [autocorr-map (get data-map autocorrelation-id)]
+         (if-not autocorr-map
+           data-map
+           (let [autocorr-data (util/autocorrelation autocorr-map)
+                 metrics-defs (-> (:metrics-defs autocorr-map)
+                                  (metric/select-metrics metric-ids))
+                 metric-configs (metric/all-metric-configs metrics-defs)
+                 ess-results
+                 (reduce
+                  (fn [result metric-config]
+                    (let [p (:path metric-config)
+                          acf-data (get-in autocorr-data [p :acf])
+                          n (get-in autocorr-data [p :effective-sample-size :n-original])]
+                      (if (and acf-data n)
+                        (let [ess (stats/effective-sample-size-analysis acf-data n)]
+                          (assoc result p ess))
+                        result)))
+                  {}
+                  metric-configs)
+                 ess-map (util/->effective-sample-size-map
+                          {:type :criterium/effective-sample-size
+                           :effective-sample-size-data ess-results
+                           :metrics-defs metrics-defs
+                           :source-id autocorrelation-id})]
+             (assoc data-map id ess-map))))))))
+
+(defn autocorrelation-classification
+  "Computes pattern detection and classification from autocorrelation results.
+
+  Returns a function that takes autocorrelation analysis output and computes
+  pattern detection and classification. This enables computing classification
+  on unfiltered data independently from effective sample size.
+
+  Parameters:
+    opts - Optional map with keys:
+      :id               - Key for result in output (default: :autocorrelation-classification)
+      :autocorrelation-id - Key for source autocorrelation analysis (default: :autocorrelation)
+      :metric-ids       - Set of metric ids to analyze (default: all from source)
+
+  The returned function:
+  - Takes a data map containing autocorrelation analysis results
+  - Returns the map with classification analysis added under :id key
+  - For each metric provides:
+    - :ljung-box - {:q-statistic Q :df h :p-value p}
+    - :pattern - :clean, :transient-effects, :drift, :periodic, :severe, or :alternating-*
+    - :classification - :pass, :acceptable, :warning, or :fail
+    - :detected-period - Integer period for :periodic pattern, nil otherwise
+
+  Example:
+  (let [analyze (autocorrelation-classification {})
+        result (analyze {:autocorrelation {...}})]
+    (get-in result [:autocorrelation-classification :elapsed-time :pattern]))"
+  ([] (autocorrelation-classification {}))
+  ([{:keys [id autocorrelation-id metric-ids] :as _options}]
+   (let [autocorrelation-id (or autocorrelation-id :autocorrelation)
+         id (or id :autocorrelation-classification)]
+     (fn [data-map]
+       (let [autocorr-map (get data-map autocorrelation-id)]
+         (if-not autocorr-map
+           data-map
+           (let [autocorr-data (util/autocorrelation autocorr-map)
+                 metrics-defs (-> (:metrics-defs autocorr-map)
+                                  (metric/select-metrics metric-ids))
+                 metric-configs (metric/all-metric-configs metrics-defs)
+                 class-results
+                 (reduce
+                  (fn [result metric-config]
+                    (let [p (:path metric-config)
+                          acf-data (get-in autocorr-data [p :acf])
+                          n (get-in autocorr-data [p :effective-sample-size :n-original])]
+                      (if (and acf-data n)
+                        (let [classification (stats/autocorrelation-classification acf-data n)]
+                          (assoc result p classification))
+                        result)))
+                  {}
+                  metric-configs)
+                 class-map (util/->autocorrelation-classification-map
+                            {:type :criterium/autocorrelation-classification
+                             :classification-data class-results
+                             :metrics-defs metrics-defs
+                             :source-id autocorrelation-id})]
+             (assoc data-map id class-map))))))))
+
 (def bootstrap-stats
   "Analysis function that adds bootstrap statistics to the result.
 
@@ -942,6 +1115,8 @@
       :id                 - Key for result in output (default: :bootstrap-stats)
       :samples-id         - Key for source samples (default: :samples)
       :outliers-id        - Key for outlier analysis (default: :outliers)
+      :ess-id             - Key for effective sample size analysis (default: nil).
+                            When provided, CI widths are inflated by ci-inflation-factor.
       :metric-ids         - Set of metric ids to analyze (default: all quantitative)
       :quantiles          - Additional quantiles beyond defaults (e.g., [0.99])
       :estimate-quantiles - Confidence interval bounds (e.g., [0.025 0.975])
@@ -956,7 +1131,11 @@
     - quantiles (0.1, 0.25, 0.5, 0.75, 0.9 plus configured)
 
   When :outliers-id is provided, outliers are removed from samples before
-  bootstrap resampling."
+  bootstrap resampling.
+
+  When :ess-id is provided and effective sample size analysis exists,
+  CI widths are inflated by ci-inflation-factor and stored as
+  :adjusted-estimate-quantiles."
   bootstrap/bootstrap-stats)
 
 ;;; Call Graph Analysis

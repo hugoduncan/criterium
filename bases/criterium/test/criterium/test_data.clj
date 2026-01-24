@@ -251,7 +251,7 @@
   "Create a data-map suitable for histogram-vega-spec testing."
   []
   (let [base-map (:data (samples-with-outliers-values-map))
-        quantiles (analyse/quantiles {:quantiles [0.9 0.99 0.99]})
+        quantiles (analyse/quantiles {:quantiles [0.9 0.99]})
         outliers (analyse/outliers)
         stats (analyse/stats)
         histogram (analyse/histogram)]

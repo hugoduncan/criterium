@@ -72,13 +72,13 @@
         (is true "Skipped - R unavailable"))
       (do
         (testing "at various parameter combinations"
-          (doseq [[k n log-lik desc] ic-test-cases
-                  :when (> n (+ k 1))] ; AICc requires n > k + 1
+          (doseq [[^long k ^long n log-lik desc] ic-test-cases
+                  :when                          (> n (+ k 1))] ; AICc requires n > k + 1
             (testing (str "for " desc " (k=" k ", n=" n ", logLik=" log-lik ")")
               ;; R's AICc formula: AIC + (2*k*(k+1))/(n-k-1)
-              (let [r-aicc (first (r/r-eval
-                                   (format "(2*%d - 2*%f) + (2*%d*(%d+1))/(%d-%d-1)"
-                                           k log-lik k k n k)))
+              (let [r-aicc   (first (r/r-eval
+                                     (format "(2*%d - 2*%f) + (2*%d*(%d+1))/(%d-%d-1)"
+                                             k log-lik k k n k)))
                     clj-aicc (stats/aicc k n log-lik)]
                 (is (approx= r-aicc clj-aicc 1e-10)
                     (format "AICc mismatch: R=%.15f, clj=%.15f"
@@ -127,13 +127,13 @@
   ;; The correction term (2k² + 2k)/(n - k - 1) → 0 as n → ∞.
   (testing "AICc"
     (testing "converges to AIC for large n"
-      (let [k 5
+      (let [k       5
             log-lik -500.0
-            aic (stats/aic k log-lik)]
-        (doseq [n [100 1000 10000 100000]]
+            aic     (stats/aic k log-lik)]
+        (doseq [^long n [100 1000 10000 100000]]
           (testing (str "at n=" n)
-            (let [aicc (stats/aicc k n log-lik)
-                  diff (Math/abs (- aicc aic))
+            (let [aicc                (stats/aicc k n log-lik)
+                  diff                (Math/abs (- aicc aic))
                   ;; Expected correction term: (2k² + 2k)/(n - k - 1)
                   expected-correction (/ (+ (* 2.0 k k) (* 2.0 k))
                                          (- n k 1.0))]

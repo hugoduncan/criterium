@@ -821,3 +821,45 @@
       {:type :criterium/tail-analysis
        :tail-analysis tail-results
        :transform collect-plan/identity-transforms})))
+
+;;; Autocorrelation Analysis
+
+(defn autocorrelation-for-metric
+  "Compute autocorrelation analysis for a single metric's samples.
+
+  When outliers is provided, filters outlier samples before computing ACF.
+  When outliers is nil, uses all samples (for pattern detection before outlier removal).
+
+  Returns nil for metrics with insufficient samples (n < 20)."
+  [metric->values outliers metric-config _options]
+  (let [p (:path metric-config)
+        samples-arr (metric->values p)
+        outliers-data (get-in outliers p)
+        samples-arr (if-let [ols (:outliers outliers-data)]
+                      (remove-outliers samples-arr ols)
+                      samples-arr)]
+    (when samples-arr
+      (let [n (arr/length samples-arr)
+            ;; Convert typed array to primitive double array
+            ^doubles samples-doubles (double-array n)]
+        (dotimes [i n]
+          (aset samples-doubles i (arr/get-double samples-arr i)))
+        (stats/analyse-autocorrelation samples-doubles)))))
+
+(defmethod methods/autocorrelation :criterium/metrics-samples
+  [metrics-samples outliers metric-configs _options]
+  (let [metric->values (util/metric->values metrics-samples)
+        outliers (when outliers (util/outliers outliers))
+        autocorr-results
+        (->> metric-configs
+             (mapv
+              (fn [metric-config]
+                (let [p (:path metric-config)]
+                  [p (autocorrelation-for-metric
+                      metric->values outliers metric-config {})])))
+             (filterv (comp some? second))
+             (into {}))]
+    (when (seq autocorr-results)
+      {:type :criterium/autocorrelation
+       :autocorrelation autocorr-results
+       :transform collect-plan/identity-transforms})))

@@ -15,6 +15,7 @@
   (:require
    [clojure.test :refer [deftest is testing]]
    [criterium.array :as arr]
+   [criterium.primitive-fn :as prim]
    [criterium.r-validation.r :as r :refer [vec->r-str]]
    [criterium.stats.interface :as stats]
    [criterium.test.assert :refer [approx=]]))
@@ -357,13 +358,13 @@
         (is true "Skipped - R unavailable"))
       (do
         (testing "against R manual computation"
-          (let [sorted-data (vec (sort gpd-data-positive-xi))
-                data-str (vec->r-str sorted-data)
+          (let [sorted-data     (vec (sort gpd-data-positive-xi))
+                data-str        (vec->r-str sorted-data)
                 ;; Test at specific thresholds
                 test-thresholds [0.5 1.0 1.5 2.0]
-                clj-results (stats/mean-residual-life (sorted-darr gpd-data-positive-xi)
-                                                      test-thresholds)]
-            (doseq [{:keys [threshold mrl n-exceed]} clj-results]
+                clj-results     (stats/mean-residual-life (sorted-darr gpd-data-positive-xi)
+                                                          test-thresholds)]
+            (doseq [{:keys [threshold mrl ^long n-exceed]} clj-results]
               (when (pos? n-exceed)
                 (testing (str "at threshold=" threshold)
                   ;; R computation: mean(x[x > u] - u)
@@ -372,7 +373,7 @@
                                        "u <- " threshold "; "
                                        "exc <- x[x > u]; "
                                        "if(length(exc) > 0) mean(exc - u) else NA"))
-                        r-mrl (first r-result)]
+                        r-mrl    (first r-result)]
                     (when-not (Double/isNaN r-mrl)
                       (is (approx= r-mrl mrl 1e-6)
                           (format "MRL mismatch at u=%.1f: R=%.10f, clj=%.10f"
@@ -380,13 +381,13 @@
 
         (testing "n-exceed count is correct"
           (let [sorted-data (vec (sort gpd-data-positive-xi))
-                data-str (vec->r-str sorted-data)
-                threshold 1.5
-                clj-result (first (stats/mean-residual-life
-                                   (sorted-darr gpd-data-positive-xi)
-                                   [threshold]))
-                r-count (first (r/r-eval
-                                (str "x <- " data-str "; sum(x > " threshold ")")))]
+                data-str    (vec->r-str sorted-data)
+                threshold   1.5
+                clj-result  (first (stats/mean-residual-life
+                                    (sorted-darr gpd-data-positive-xi)
+                                    [threshold]))
+                r-count     (first (r/r-eval
+                                    (str "x <- " data-str "; sum(x > " threshold ")")))]
             (is (= (long r-count) (:n-exceed clj-result))
                 (format "n-exceed mismatch: R=%d, clj=%d"
                         (long r-count) (:n-exceed clj-result)))))))))
@@ -403,21 +404,27 @@
         (is true "Skipped - R unavailable"))
       (do
         (testing "computed correctly from R quantiles"
-          (let [sorted-data (vec (sort pareto-data))
-                data-str (vec->r-str sorted-data)
+          (let [sorted-data       (vec (sort pareto-data))
+                data-str          (vec->r-str sorted-data)
                 ;; Get percentiles from R
-                r-p95 (first (r/r-eval
-                              (str "quantile(" data-str ", 0.95, type=7)")))
-                r-p99 (first (r/r-eval
-                              (str "quantile(" data-str ", 0.99, type=7)")))
-                r-p999 (first (r/r-eval
-                               (str "quantile(" data-str ", 0.999, type=7)")))
+                r-p95             (double
+                                   (first
+                                    (r/r-eval
+                                     (str "quantile(" data-str ", 0.95, type=7)"))))
+                r-p99             (double
+                                   (first
+                                    (r/r-eval
+                                     (str "quantile(" data-str ", 0.99, type=7)"))))
+                r-p999            (double
+                                   (first
+                                    (r/r-eval
+                                     (str "quantile(" data-str ", 0.999, type=7)"))))
                 ;; Compute expected ratios
-                expected-p99-p95 (/ r-p99 r-p95)
+                expected-p99-p95  (/ r-p99 r-p95)
                 expected-p999-p99 (/ r-p999 r-p99)
                 ;; Compute via our function
-                percentiles {:p95 r-p95 :p99 r-p99 :p999 r-p999}
-                ratios (stats/tail-ratios percentiles)]
+                percentiles       {:p95 r-p95 :p99 r-p99 :p999 r-p999}
+                ratios            (stats/tail-ratios percentiles)]
             (is (approx= expected-p99-p95 (:p99-p95 ratios) 1e-10)
                 (format "p99/p95 mismatch: expected=%.10f, got=%.10f"
                         expected-p99-p95 (:p99-p95 ratios)))
@@ -427,7 +434,7 @@
 
         (testing "with numeric keys"
           (let [percentiles {0.95 10.0 0.99 15.0 0.999 25.0}
-                ratios (stats/tail-ratios percentiles)]
+                ratios      (stats/tail-ratios percentiles)]
             (is (approx= 1.5 (:p99-p95 ratios) 1e-10))
             (is (approx= (/ 25.0 15.0) (:p999-p99 ratios) 1e-10))))))))
 
@@ -472,21 +479,21 @@
   ;; Tests that PDF integrates to CDF (numerical check).
   (testing "gpd-cdf and gpd-pdf"
     (testing "are consistent"
-      (let [xi 0.3
-            sigma 2.0
-            cdf-fn (stats/gpd-cdf xi sigma)
-            pdf-fn (stats/gpd-pdf xi sigma)
+      (let [xi       0.3
+            sigma    2.0
+            cdf-fn   (stats/gpd-cdf xi sigma)
+            pdf-fn   (stats/gpd-pdf xi sigma)
             ;; Numerical integration via trapezoid rule
-            y-max 10.0
-            n-steps 1000
-            dy (/ y-max n-steps)
-            integral (loop [i 1
-                            acc (* 0.5 (pdf-fn 0.0) dy)]
+            y-max    10.0
+            n-steps  1000
+            dy       (/ y-max n-steps)
+            integral (loop [i   1
+                            acc (* 0.5 (prim/invoke-dd pdf-fn 0.0) dy)]
                        (if (>= i n-steps)
                          acc
                          (let [y (* i dy)]
                            (recur (inc i)
-                                  (+ acc (* (pdf-fn y) dy))))))]
+                                  (+ acc (* (prim/invoke-dd pdf-fn y) dy))))))]
         ;; Integral should approximate CDF at y-max
         (is (approx= (cdf-fn y-max) integral 0.01)
             (format "CDF(%.1f)=%.6f but integral=%.6f"

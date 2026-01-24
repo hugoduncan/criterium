@@ -22,12 +22,20 @@
 (def default-with-warmup
   {:collector-config default-collector-config
    :analyse [:transform-log
-             [:quantiles {:quantiles [0.9 0.99 0.99]}]
+             [:autocorrelation {:id :autocorrelation-raw}]
+             [:autocorrelation-classification {:id :autocorrelation-classification-raw
+                                               :autocorrelation-id :autocorrelation-raw}]
+             [:quantiles {:quantiles [0.9 0.99]}]
              :outliers
+             [:autocorrelation {:id :autocorrelation-filtered
+                                :outlier-id :outliers}]
+             [:effective-sample-size-analysis {:id :effective-sample-size-filtered
+                                               :autocorrelation-id :autocorrelation-filtered}]
              [:stats {}]
              [:stats {:samples-id :log-samples :id :log-stats}]
              [:bootstrap-stats {:quantiles [0.99]
-                                :estimate-quantiles [0.025 0.975]}]
+                                :estimate-quantiles [0.025 0.975]
+                                :ess-id :effective-sample-size-filtered}]
              :kde
              :modes
              :event-stats
@@ -37,6 +45,10 @@
              :allocation-treemap]
    :view [[:stats {:metric-ids [:memory]}]
           :bootstrap-stats
+          [:autocorrelation-classification {:classification-id :autocorrelation-classification-raw}]
+          [:effective-sample-size {:ess-id :effective-sample-size-filtered}]
+          [:acf-plot {:autocorrelation-id :autocorrelation-raw
+                      :min-severity :moderate}]
           :extremes
           [:multimodal-warning {:modes-id :modes}]
           :event-stats
@@ -53,12 +65,20 @@
 (def log-histogram
   {:collector-config default-collector-config
    :analyse [:transform-log
-             [:quantiles {:quantiles [0.9 0.99 0.99]}]
+             [:autocorrelation {:id :autocorrelation-raw}]
+             [:autocorrelation-classification {:id :autocorrelation-classification-raw
+                                               :autocorrelation-id :autocorrelation-raw}]
+             [:quantiles {:quantiles [0.9 0.99]}]
              :outliers
+             [:autocorrelation {:id :autocorrelation-filtered
+                                :outlier-id :outliers}]
+             [:effective-sample-size-analysis {:id :effective-sample-size-filtered
+                                               :autocorrelation-id :autocorrelation-filtered}]
              [:stats {}]
              [:stats {:samples-id :log-samples :id :log-stats}]
              [:bootstrap-stats {:quantiles [0.99]
-                                :estimate-quantiles [0.025 0.975]}]
+                                :estimate-quantiles [0.025 0.975]
+                                :ess-id :effective-sample-size-filtered}]
              :histogram
              :event-stats
              :allocation-summary
@@ -67,6 +87,10 @@
              :allocation-treemap]
    :view [[:stats {:metric-ids [:memory]}]
           :bootstrap-stats
+          [:autocorrelation-classification {:classification-id :autocorrelation-classification-raw}]
+          [:effective-sample-size {:ess-id :effective-sample-size-filtered}]
+          [:acf-plot {:autocorrelation-id :autocorrelation-raw
+                      :min-severity :moderate}]
           :extremes
           :quantiles
           :event-stats
@@ -91,12 +115,20 @@
   The histogram includes :optimal-bins and :log-posterior keys."
   {:collector-config default-collector-config
    :analyse [:transform-log
-             [:quantiles {:quantiles [0.9 0.99 0.99]}]
+             [:autocorrelation {:id :autocorrelation-raw}]
+             [:autocorrelation-classification {:id :autocorrelation-classification-raw
+                                               :autocorrelation-id :autocorrelation-raw}]
+             [:quantiles {:quantiles [0.9 0.99]}]
              :outliers
+             [:autocorrelation {:id :autocorrelation-filtered
+                                :outlier-id :outliers}]
+             [:effective-sample-size-analysis {:id :effective-sample-size-filtered
+                                               :autocorrelation-id :autocorrelation-filtered}]
              [:stats {}]
              [:stats {:samples-id :log-samples :id :log-stats}]
              [:bootstrap-stats {:quantiles [0.99]
-                                :estimate-quantiles [0.025 0.975]}]
+                                :estimate-quantiles [0.025 0.975]
+                                :ess-id :effective-sample-size-filtered}]
              [:histogram {:method :knuth}]
              :event-stats
              :allocation-summary
@@ -104,6 +136,11 @@
              :allocation-by-type
              :allocation-treemap]
    :view [[:stats {:metric-ids [:memory]}]
+          :bootstrap-stats
+          [:autocorrelation-classification {:classification-id :autocorrelation-classification-raw}]
+          [:effective-sample-size {:ess-id :effective-sample-size-filtered}]
+          [:acf-plot {:autocorrelation-id :autocorrelation-raw
+                      :min-severity :moderate}]
           :extremes
           :quantiles
           :event-stats
@@ -125,12 +162,20 @@
   Not part of default-with-warmup; use explicitly when density analysis is needed."
   {:collector-config default-collector-config
    :analyse [:transform-log
-             [:quantiles {:quantiles [0.9 0.99 0.99]}]
+             [:autocorrelation {:id :autocorrelation-raw}]
+             [:autocorrelation-classification {:id :autocorrelation-classification-raw
+                                               :autocorrelation-id :autocorrelation-raw}]
+             [:quantiles {:quantiles [0.9 0.99]}]
              :outliers
+             [:autocorrelation {:id :autocorrelation-filtered
+                                :outlier-id :outliers}]
+             [:effective-sample-size-analysis {:id :effective-sample-size-filtered
+                                               :autocorrelation-id :autocorrelation-filtered}]
              [:stats {}]
              [:stats {:samples-id :log-samples :id :log-stats}]
              [:bootstrap-stats {:quantiles [0.99]
-                                :estimate-quantiles [0.025 0.975]}]
+                                :estimate-quantiles [0.025 0.975]
+                                :ess-id :effective-sample-size-filtered}]
              :histogram
              :kde
              :kde-stats
@@ -140,6 +185,11 @@
              :allocation-by-type
              :allocation-treemap]
    :view [[:stats {:metric-ids [:memory]}]
+          :bootstrap-stats
+          [:autocorrelation-classification {:classification-id :autocorrelation-classification-raw}]
+          [:effective-sample-size {:ess-id :effective-sample-size-filtered}]
+          [:acf-plot {:autocorrelation-id :autocorrelation-raw
+                      :min-severity :moderate}]
           :extremes
           [:stats {:stats-id :kde-stats}]
           :quantiles
@@ -165,12 +215,20 @@
   Silverman test methods via :modes analysis options."
   {:collector-config default-collector-config
    :analyse [:transform-log
-             [:quantiles {:quantiles [0.9 0.99 0.99]}]
+             [:autocorrelation {:id :autocorrelation-raw}]
+             [:autocorrelation-classification {:id :autocorrelation-classification-raw
+                                               :autocorrelation-id :autocorrelation-raw}]
+             [:quantiles {:quantiles [0.9 0.99]}]
              :outliers
+             [:autocorrelation {:id :autocorrelation-filtered
+                                :outlier-id :outliers}]
+             [:effective-sample-size-analysis {:id :effective-sample-size-filtered
+                                               :autocorrelation-id :autocorrelation-filtered}]
              [:stats {}]
              [:stats {:samples-id :log-samples :id :log-stats}]
              [:bootstrap-stats {:quantiles [0.99]
-                                :estimate-quantiles [0.025 0.975]}]
+                                :estimate-quantiles [0.025 0.975]
+                                :ess-id :effective-sample-size-filtered}]
              :histogram
              :kde
              :kde-stats
@@ -181,6 +239,11 @@
              :allocation-by-type
              :allocation-treemap]
    :view [[:stats {:metric-ids [:memory]}]
+          :bootstrap-stats
+          [:autocorrelation-classification {:classification-id :autocorrelation-classification-raw}]
+          [:effective-sample-size {:ess-id :effective-sample-size-filtered}]
+          [:acf-plot {:autocorrelation-id :autocorrelation-raw
+                      :min-severity :moderate}]
           :extremes
           [:stats {:stats-id :kde-stats}]
           :quantiles
@@ -213,21 +276,33 @@
 
   The analysis pipeline order is:
   1. transform-log - for log-scale analysis
-  2. quantiles - for percentile calculations
-  3. outliers - for outlier detection
-  4. kde - required for distribution-fit visualizations
-  5. bootstrap-stats - for shape statistics (skewness, kurtosis, CV)
-  6. distribution-fit - MLE fitting with model selection"
+  2. autocorrelation-raw - for sample independence analysis (pattern detection)
+  3. autocorrelation-classification - for pattern classification
+  4. quantiles - for percentile calculations
+  5. outliers - for outlier detection
+  6. autocorrelation-filtered - for effective sample size (on filtered samples)
+  7. effective-sample-size-analysis - for ESS computation
+  8. kde - required for distribution-fit visualizations
+  9. bootstrap-stats - for shape statistics (skewness, kurtosis, CV)
+  10. distribution-fit - MLE fitting with model selection"
   {:collector-config default-collector-config
    :analyse [:transform-log
-             [:quantiles {:quantiles [0.9 0.99 0.99]}]
+             [:autocorrelation {:id :autocorrelation-raw}]
+             [:autocorrelation-classification {:id :autocorrelation-classification-raw
+                                               :autocorrelation-id :autocorrelation-raw}]
+             [:quantiles {:quantiles [0.9 0.99]}]
              :outliers
+             [:autocorrelation {:id :autocorrelation-filtered
+                                :outlier-id :outliers}]
+             [:effective-sample-size-analysis {:id :effective-sample-size-filtered
+                                               :autocorrelation-id :autocorrelation-filtered}]
              [:stats {}]
              [:stats {:samples-id :log-samples :id :log-stats}]
              :histogram
              :kde
              [:bootstrap-stats {:quantiles [0.99]
-                                :estimate-quantiles [0.025 0.975]}]
+                                :estimate-quantiles [0.025 0.975]
+                                :ess-id :effective-sample-size-filtered}]
              :distribution-fit
              :outlier-significance
              :event-stats
@@ -235,8 +310,12 @@
              [:allocation-hotspots {:limit 10}]
              :allocation-by-type]
    :view [[:stats {:metric-ids [:memory]}]
-          :extremes
           :bootstrap-stats
+          [:autocorrelation-classification {:classification-id :autocorrelation-classification-raw}]
+          [:effective-sample-size {:ess-id :effective-sample-size-filtered}]
+          [:acf-plot {:autocorrelation-id :autocorrelation-raw
+                      :min-severity :moderate}]
+          :extremes
           :shape-stats
           :distribution-models
           :distribution-parameter-cis
@@ -270,17 +349,25 @@
   - Q-Q plots against exponential and GPD distributions
 
   Unlike other analyses, tail analysis uses raw samples WITHOUT outlier
-  filtering because extreme values ARE the tail being analyzed.
+  filtering because extreme values ARE the tail being analyzed. Only one
+  autocorrelation analysis is computed (on raw samples) since there is no
+  outlier filtering.
 
   Recommended: Use sufficient iterations (1000+ samples) for reliable
   tail estimation. The default collect plan targets adequate sample sizes."
   {:collector-config default-collector-config
    :analyse [:transform-log
+             [:autocorrelation {:id :autocorrelation-raw}]
+             [:autocorrelation-classification {:id :autocorrelation-classification-raw
+                                               :autocorrelation-id :autocorrelation-raw}]
+             [:effective-sample-size-analysis {:id :effective-sample-size-raw
+                                               :autocorrelation-id :autocorrelation-raw}]
              [:quantiles {:quantiles [0.9 0.95 0.99 0.999]}]
              [:stats {}]
              [:stats {:samples-id :log-samples :id :log-stats}]
              [:bootstrap-stats {:quantiles [0.99 0.999]
-                                :estimate-quantiles [0.025 0.975]}]
+                                :estimate-quantiles [0.025 0.975]
+                                :ess-id :effective-sample-size-raw}]
              :tail-analysis
              :event-stats
              :allocation-summary
@@ -288,6 +375,10 @@
              :allocation-by-type]
    :view [[:stats {:metric-ids [:memory]}]
           :bootstrap-stats
+          [:autocorrelation-classification {:classification-id :autocorrelation-classification-raw}]
+          [:effective-sample-size {:ess-id :effective-sample-size-raw}]
+          [:acf-plot {:autocorrelation-id :autocorrelation-raw
+                      :min-severity :moderate}]
           :extremes
           :quantiles
           :tail-summary

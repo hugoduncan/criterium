@@ -201,7 +201,7 @@
     (testing "renders samples with outlier coloring via analyse pipeline"
       (reset! kindly/accumulated [])
       (let [data-map (:data (test-data/samples-with-outliers-values-map))
-            quantiles (analyse/quantiles {:quantiles [0.9 0.99 0.99]})
+            quantiles (analyse/quantiles {:quantiles [0.9 0.99]})
             outliers (analyse/outliers)
             stats (analyse/stats)
             view (view/samples)]
@@ -229,7 +229,7 @@
     (testing "renders histogram as heading and Vega-Lite chart"
       (reset! kindly/accumulated [])
       (let [data-map (:data (test-data/samples-with-outliers-values-map))
-            quantiles (analyse/quantiles {:quantiles [0.9 0.99 0.99]})
+            quantiles (analyse/quantiles {:quantiles [0.9 0.99]})
             outliers (analyse/outliers)
             stats (analyse/stats)
             histogram (analyse/histogram)

@@ -338,6 +338,135 @@
         ;; No outliers data available, so outliers-id is nil
         (is (nil? (-> result-with-outliers :bootstrap-stats :outliers-id)))))))
 
+;;; ESS-adjusted confidence interval tests
+;; When :ess-id is provided and effective sample size data exists,
+;; bootstrap-stats should inflate CI widths and add :adjusted-estimate-quantiles.
+
+(deftest bootstrap-stats-ess-adjustment-test
+  (testing "bootstrap-stats"
+    (testing "with :ess-id option"
+      (let [batch-size 100
+            num-samples 50
+            ;; Create simple samples
+            samples {[:v] (vec (range (* num-samples batch-size) 0 (- batch-size)))}
+            metric-samples (assoc
+                            (metrics-samples samples batch-size)
+                            :metrics-defs
+                            {:v {:type :quantitative
+                                 :values [{:path [:v]
+                                           :type :quantitative
+                                           :dimension :time
+                                           :scale 1
+                                           :label "v"}]}})
+            ;; Create effective-sample-size data with a known inflation factor
+            ;; ci-inflation-factor of 2.0 means CIs should double in width
+            ess-data {:type :criterium/effective-sample-size
+                      :effective-sample-size-data {[:v] {:effective-sample-size {:n-original 50
+                                                                                 :n-effective 12
+                                                                                 :ratio 0.24}
+                                                         :ci-inflation-factor 2.0}}
+                      :metrics-defs {:v {:type :quantitative
+                                         :values [{:path [:v]}]}}}]
+
+        (testing "adds :adjusted-estimate-quantiles when ess data is present"
+          (let [result ((bootstrap/bootstrap-stats
+                         {:quantiles [0.99]
+                          :estimate-quantiles [0.025 0.975]
+                          :bootstrap-size 50
+                          :ess-id :effective-sample-size})
+                        {:samples metric-samples
+                         :effective-sample-size ess-data})
+                mean-stats (-> result :bootstrap-stats util/bootstrap :v :mean)]
+            ;; Should have both original and adjusted quantiles
+            (is (some? (:estimate-quantiles mean-stats)))
+            (is (some? (:adjusted-estimate-quantiles mean-stats)))
+            ;; Both should have same number of entries
+            (is (= (count (:estimate-quantiles mean-stats))
+                   (count (:adjusted-estimate-quantiles mean-stats))))
+            ;; Adjusted should be wider than original
+            (let [orig-lower (double (-> mean-stats :estimate-quantiles first :value))
+                  orig-upper (double (-> mean-stats :estimate-quantiles second :value))
+                  adj-lower (-> mean-stats :adjusted-estimate-quantiles first :value)
+                  adj-upper (-> mean-stats :adjusted-estimate-quantiles second :value)
+                  point (double (:point-estimate mean-stats))]
+              ;; Adjusted CI should be wider: adj-lower < orig-lower, adj-upper > orig-upper
+              (is (<= adj-lower orig-lower)
+                  (str "Adjusted lower bound " adj-lower " should be <= original " orig-lower))
+              (is (>= adj-upper orig-upper)
+                  (str "Adjusted upper bound " adj-upper " should be >= original " orig-upper))
+              ;; Check inflation factor is applied correctly
+              ;; adj-lower = p - 2.0 * (p - orig-lower)
+              ;; adj-upper = p + 2.0 * (orig-upper - p)
+              (is (test-max-error
+                   (- point (* 2.0 (- point orig-lower))) adj-lower 1e-6)
+                  "Lower bound should be inflated by factor 2.0")
+              (is (test-max-error
+                   (+ point (* 2.0 (- orig-upper point))) adj-upper 1e-6)
+                  "Upper bound should be inflated by factor 2.0"))))
+
+        (testing "includes :ess-id in result when ess data used"
+          (let [result ((bootstrap/bootstrap-stats
+                         {:quantiles [0.99]
+                          :estimate-quantiles [0.025 0.975]
+                          :ess-id :effective-sample-size})
+                        {:samples metric-samples
+                         :effective-sample-size ess-data})]
+            (is (= :effective-sample-size (-> result :bootstrap-stats :ess-id)))))
+
+        (testing "does not add adjusted CIs when :ess-id not provided"
+          (let [result ((bootstrap/bootstrap-stats
+                         {:quantiles [0.99]
+                          :estimate-quantiles [0.025 0.975]
+                          :bootstrap-size 50})
+                        {:samples metric-samples
+                         :effective-sample-size ess-data})
+                mean-stats (-> result :bootstrap-stats util/bootstrap :v :mean)]
+            (is (some? (:estimate-quantiles mean-stats)))
+            (is (nil? (:adjusted-estimate-quantiles mean-stats)))
+            (is (nil? (-> result :bootstrap-stats :ess-id)))))
+
+        (testing "does not add adjusted CIs when ess data missing"
+          (let [result ((bootstrap/bootstrap-stats
+                         {:quantiles [0.99]
+                          :estimate-quantiles [0.025 0.975]
+                          :bootstrap-size 50
+                          :ess-id :effective-sample-size})
+                        {:samples metric-samples})
+                mean-stats (-> result :bootstrap-stats util/bootstrap :v :mean)]
+            (is (some? (:estimate-quantiles mean-stats)))
+            (is (nil? (:adjusted-estimate-quantiles mean-stats)))
+            ;; :ess-id should be nil when no data found
+            (is (nil? (-> result :bootstrap-stats :ess-id)))))
+
+        (testing "does not adjust CIs when inflation factor is 1.0"
+          (let [no-inflation-ess {:type :criterium/effective-sample-size
+                                  :effective-sample-size-data {[:v] {:ci-inflation-factor 1.0}}
+                                  :metrics-defs {:v {:type :quantitative
+                                                     :values [{:path [:v]}]}}}
+                result ((bootstrap/bootstrap-stats
+                         {:quantiles [0.99]
+                          :estimate-quantiles [0.025 0.975]
+                          :bootstrap-size 50
+                          :ess-id :effective-sample-size})
+                        {:samples metric-samples
+                         :effective-sample-size no-inflation-ess})
+                mean-stats (-> result :bootstrap-stats util/bootstrap :v :mean)]
+            ;; Should not have adjusted quantiles when inflation is 1.0
+            (is (nil? (:adjusted-estimate-quantiles mean-stats)))))
+
+        (testing "adjusts :quantiles in addition to top-level stats"
+          (let [result ((bootstrap/bootstrap-stats
+                         {:quantiles [0.99]
+                          :estimate-quantiles [0.025 0.975]
+                          :bootstrap-size 50
+                          :ess-id :effective-sample-size})
+                        {:samples metric-samples
+                         :effective-sample-size ess-data})
+                q50-stats (-> result :bootstrap-stats util/bootstrap :v :quantiles (get 0.5))]
+            ;; Quantile stats should also have adjusted CIs
+            (is (some? (:estimate-quantiles q50-stats)))
+            (is (some? (:adjusted-estimate-quantiles q50-stats)))))))))
+
 ;; Verifies that all quantiles computed by bootstrap-stats-for share the same
 ;; bootstrap resamples. This is critical for statistical validity - if quantiles
 ;; were bootstrapped separately, they would use different resamples and lose
