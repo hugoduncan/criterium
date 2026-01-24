@@ -65,6 +65,7 @@
    Excludes:
    - development/ directory
    - projects/ directory (contains test fixtures, not real code)
+   - bases/notebooks/ directory (notebooks have external dependencies)
    - */resources directories (contain clj-kondo exports, not project code)"
   [project-root path]
   (let [path-str (str path)
@@ -76,6 +77,7 @@
                    rel-path)]
     (or (str/starts-with? rel-path "development")
         (str/starts-with? rel-path "projects/")
+        (str/starts-with? rel-path "bases/notebooks")
         (str/ends-with? path-str "/resources"))))
 
 (defn discover-project-namespaces
