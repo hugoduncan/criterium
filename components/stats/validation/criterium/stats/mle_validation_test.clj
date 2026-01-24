@@ -34,7 +34,7 @@
         (is true "Skipped - R unavailable"))
       (do
         (testing "at various x values"
-          (doseq [x [0.5 1.0 1.5 2.0 3.0 5.0 10.0 50.0 100.0]]
+          (doseq [^double x [0.5 1.0 1.5 2.0 3.0 5.0 10.0 50.0 100.0]]
             (testing (str "at x=" x)
               (let [r-val (first (r/r-eval (str "digamma(" x ")")))
                     clj-val (stats/digamma x)]
@@ -43,7 +43,7 @@
                             x r-val clj-val))))))
 
         (testing "at small x values near zero"
-          (doseq [x [0.1 0.01 0.001]]
+          (doseq [^double x [0.1 0.01 0.001]]
             (testing (str "at x=" x)
               (let [r-val (first (r/r-eval (str "digamma(" x ")")))
                     clj-val (stats/digamma x)]
@@ -52,7 +52,7 @@
                             x r-val clj-val))))))
 
         (testing "satisfies recurrence relation: ψ(x+1) = ψ(x) + 1/x"
-          (doseq [x [0.5 1.0 2.0 5.0]]
+          (doseq [^double x [0.5 1.0 2.0 5.0]]
             (testing (str "at x=" x)
               (let [psi-x (stats/digamma x)
                     psi-x1 (stats/digamma (+ x 1.0))
@@ -70,7 +70,7 @@
         (is true "Skipped - R unavailable"))
       (do
         (testing "at various x values"
-          (doseq [x [0.5 1.0 1.5 2.0 3.0 5.0 10.0 50.0 100.0]]
+          (doseq [^double x [0.5 1.0 1.5 2.0 3.0 5.0 10.0 50.0 100.0]]
             (testing (str "at x=" x)
               (let [r-val (first (r/r-eval (str "trigamma(" x ")")))
                     clj-val (stats/trigamma x)]
@@ -79,7 +79,7 @@
                             x r-val clj-val))))))
 
         (testing "at small x values near zero"
-          (doseq [x [0.1 0.01 0.001]]
+          (doseq [^double x [0.1 0.01 0.001]]
             (testing (str "at x=" x)
               (let [r-val (first (r/r-eval (str "trigamma(" x ")")))
                     clj-val (stats/trigamma x)]
@@ -89,7 +89,7 @@
                             x r-val clj-val))))))
 
         (testing "satisfies recurrence relation: ψ'(x+1) = ψ'(x) - 1/x²"
-          (doseq [x [0.5 1.0 2.0 5.0]]
+          (doseq [^double x [0.5 1.0 2.0 5.0]]
             (testing (str "at x=" x)
               (let [psi-x (stats/trigamma x)
                     psi-x1 (stats/trigamma (+ x 1.0))
@@ -136,10 +136,11 @@
           (let [data-str (str "c(" (str/join "," gamma-test-data) ")")
                 ;; Load MASS and fit gamma distribution
                 _ (r/r-eval "library(MASS)")
-                r-result (r/r-eval (str "fit <- fitdistr(" data-str ", 'gamma'); "
-                                        "c(fit$estimate['shape'], fit$estimate['rate'], fit$loglik)"))
-                r-shape (first r-result)
-                r-rate (second r-result)
+                r-result (r/r-eval
+                          (str "fit <- fitdistr(" data-str ", 'gamma'); "
+                               "c(fit$estimate['shape'], fit$estimate['rate'], fit$loglik)"))
+                r-shape (double (first r-result))
+                r-rate (double (second r-result))
                 r-scale (/ 1.0 r-rate)
                 r-loglik (nth r-result 2)
                 clj-result (stats/gamma-mle (darr gamma-test-data))
@@ -163,10 +164,11 @@
                    ["high shape (k~5)" [4.2 5.1 4.8 5.5 4.0 5.8 4.5 5.2 4.3 5.6]]]]
             (testing desc
               (let [data-str (str "c(" (str/join "," data) ")")
-                    r-result (r/r-eval (str "fit <- fitdistr(" data-str ", 'gamma'); "
-                                            "c(fit$estimate['shape'], fit$estimate['rate'])"))
-                    r-shape (first r-result)
-                    r-rate (second r-result)
+                    r-result (r/r-eval
+                              (str "fit <- fitdistr(" data-str ", 'gamma'); "
+                                   "c(fit$estimate['shape'], fit$estimate['rate'])"))
+                    ^double r-shape (first r-result)
+                    ^double r-rate (second r-result)
                     r-scale (/ 1.0 r-rate)
                     clj-result (stats/gamma-mle (darr data))
                     clj-shape (get-in clj-result [:params :shape])
@@ -219,14 +221,15 @@
 
         (testing "closed-form matches direct calculation"
           ;; The MLE for lognormal is simply the mean and SD of log(data)
-          (let [log-data (mapv #(Math/log %) lognormal-test-data)
+          (let [log-data (mapv #(Math/log ^double %) lognormal-test-data)
                 n (count log-data)
-                expected-mu (/ (reduce + 0.0 log-data) n)
-                sum-sq (reduce (fn [acc lx]
-                                 (let [diff (- lx expected-mu)]
-                                   (+ acc (* diff diff))))
-                               0.0
-                               log-data)
+                expected-mu (/ (double (reduce + 0.0 log-data)) n)
+                ^double sum-sq (reduce
+                                (fn [^double acc ^double lx]
+                                  (let [diff (- lx expected-mu)]
+                                    (+ acc (* diff diff))))
+                                0.0
+                                log-data)
                 expected-sigma (Math/sqrt (/ sum-sq n))
                 result (stats/lognormal-mle (darr lognormal-test-data))]
             (is (approx= expected-mu (get-in result [:params :mu]) 1e-15)
