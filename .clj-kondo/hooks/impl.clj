@@ -77,3 +77,58 @@
   (let [[_ f v] (:children node)
         new-node (api/list-node (list f v))]
     {:node (with-meta new-node (meta node))}))
+
+(defn defprim-wrappers
+  "Hook for defprim-wrappers macro.
+  Transforms specs into defn forms for linting."
+  [{:keys [node]}]
+  (let [[_ prim-type arg-count & specs] (:children node)
+        type-sym   (api/sexpr prim-type)
+        prefix     (case type-sym double "d" long "l" "")
+        arity      (api/sexpr arg-count)
+        arg-vec    (if (= arity 2)
+                     (api/vector-node [(api/token-node 'a) (api/token-node 'b)])
+                     (api/vector-node [(api/token-node 'v)]))
+        defns      (for [spec specs]
+                     (let [[suffix docstring wrapped-fn] (:children spec)
+                           fn-name (symbol (str prefix (api/sexpr suffix)))]
+                       (api/list-node
+                        (list
+                         (api/token-node 'defn)
+                         (api/token-node fn-name)
+                         docstring
+                         arg-vec
+                         (if (= arity 2)
+                           (api/list-node
+                            (list wrapped-fn
+                                  (api/token-node 'a)
+                                  (api/token-node 'b)))
+                           (api/list-node
+                            (list wrapped-fn
+                                  (api/token-node 'v))))))))]
+    {:node (with-meta
+             (api/list-node (cons (api/token-node 'do) defns))
+             (meta node))}))
+
+(defn defbfn-wrappers
+  "Hook for defbfn-wrappers macro.
+  Transforms specs into defn forms for linting."
+  [{:keys [node]}]
+  (let [[_ prim-type & specs] (:children node)
+        type-sym (api/sexpr prim-type)
+        prefix   (case type-sym double "d" long "l" "")
+        arg-vec  (api/vector-node [(api/token-node 'v)])
+        defns    (for [spec specs]
+                   (let [[suffix docstring wrapped-fn] (:children spec)
+                         fn-name (symbol (str prefix (api/sexpr suffix)))]
+                     (api/list-node
+                      (list
+                       (api/token-node 'defn)
+                       (api/token-node fn-name)
+                       docstring
+                       arg-vec
+                       (api/list-node
+                        (list wrapped-fn (api/token-node 'v)))))))]
+    {:node (with-meta
+             (api/list-node (cons (api/token-node 'do) defns))
+             (meta node))}))

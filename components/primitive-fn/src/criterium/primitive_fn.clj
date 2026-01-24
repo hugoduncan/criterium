@@ -16,74 +16,63 @@
     DB DDB
     LB LLB]))
 
+;;; Macro definitions
+
+(defmacro ^:private defprim-wrappers
+  "Define primitive wrapper functions for a given type and arity.
+
+   Takes the primitive type (double or long), the argument count (1 or 2),
+   and a list of wrapper specifications. Each spec is a vector of
+   [suffix docstring wrapped-fn].
+
+   The wrapper name is constructed by prefixing the suffix with 'd' for
+   double or 'l' for long.
+
+   Example:
+     (defprim-wrappers double 2
+       [add \"Primitive double addition.\" +]
+       [min \"Primitive double minimum.\" Math/min])
+
+   Expands to:
+     (defn dadd \"Primitive double addition.\" ^double [^double a ^double b] (+ a b))
+     (defn dmin \"Primitive double minimum.\" ^double [^double a ^double b] (Math/min a b))"
+  [prim-type arg-count & specs]
+  (let [prefix   (case prim-type double "d" long "l")
+        type-sym (case prim-type double 'double long 'long)
+        arg-a    (with-meta 'a {:tag type-sym})
+        arg-b    (with-meta 'b {:tag type-sym})
+        arg-v    (with-meta 'v {:tag type-sym})]
+    (cons 'do
+          (for [[suffix docstring wrapped-fn] specs]
+            (let [fn-name (symbol (str prefix suffix))
+                  args-1  (with-meta [arg-v] {:tag type-sym})
+                  args-2  (with-meta [arg-a arg-b] {:tag type-sym})]
+              (case (long arg-count)
+                1 (list 'defn fn-name docstring args-1
+                        (list wrapped-fn arg-v))
+                2 (list 'defn fn-name docstring args-2
+                        (list wrapped-fn arg-a arg-b))))))))
+
 ;;; Double arithmetic
 
-(defn dadd
-  "Primitive double addition."
-  ^double [^double a ^double b]
-  (+ a b))
-
-(defn dadd-unchecked
-  "Unchecked primitive double addition."
-  ^double [^double a ^double b]
-  (unchecked-add a b))
-
-(defn dsubtract
-  "Primitive double subtraction."
-  ^double [^double a ^double b]
-  (- a b))
-
-(defn dmultiply
-  "Primitive double multiplication."
-  ^double [^double a ^double b]
-  (* a b))
-
-(defn ddivide
-  "Primitive double division."
-  ^double [^double a ^double b]
-  (/ a b))
-
-(defn dmin
-  "Primitive double minimum."
-  ^double [^double a ^double b]
-  (Math/min a b))
-
-(defn dmax
-  "Primitive double maximum."
-  ^double [^double a ^double b]
-  (Math/max a b))
+(defprim-wrappers double 2
+  [add "Primitive double addition." +]
+  [add-unchecked "Unchecked primitive double addition." unchecked-add]
+  [subtract "Primitive double subtraction." -]
+  [multiply "Primitive double multiplication." *]
+  [divide "Primitive double division." /]
+  [min "Primitive double minimum." Math/min]
+  [max "Primitive double maximum." Math/max])
 
 ;;; Long arithmetic
 
-(defn ladd
-  "Primitive long addition."
-  ^long [^long a ^long b]
-  (+ a b))
-
-(defn lsubtract
-  "Primitive long subtraction."
-  ^long [^long a ^long b]
-  (- a b))
-
-(defn lmultiply
-  "Primitive long multiplication."
-  ^long [^long a ^long b]
-  (* a b))
-
-(defn ldivide
-  "Primitive long division (integer division)."
-  ^long [^long a ^long b]
-  (quot a b))
-
-(defn lmin
-  "Primitive long minimum."
-  ^long [^long a ^long b]
-  (Math/min a b))
-
-(defn lmax
-  "Primitive long maximum."
-  ^long [^long a ^long b]
-  (Math/max a b))
+(defprim-wrappers long 2
+  [add "Primitive long addition." +]
+  [subtract "Primitive long subtraction." -]
+  [multiply "Primitive long multiplication." *]
+  [divide "Primitive long division (integer division)." quot]
+  [min "Primitive long minimum." Math/min]
+  [max "Primitive long maximum." Math/max])
 
 (defmacro invoke-dd
   "Invoke a primitive double -> double function."
@@ -195,46 +184,46 @@
              name)
        (bfn ~params ~@body))))
 
+(defmacro ^:private defbfn-wrappers
+  "Define primitive boolean wrapper functions for a given type.
+
+   Takes the primitive type (double or long) and a list of wrapper
+   specifications. Each spec is a vector of [suffix docstring wrapped-fn].
+
+   The wrapper name is constructed by prefixing the suffix with 'd' for
+   double or 'l' for long.
+
+   Example:
+     (defbfn-wrappers double
+       [pos? \"Primitive double positive check.\" pos?]
+       [neg? \"Primitive double negative check.\" neg?])
+
+   Expands to:
+     (defbfn dpos? \"Primitive double positive check.\" [^double v] (pos? v))
+     (defbfn dneg? \"Primitive double negative check.\" [^double v] (neg? v))"
+  [prim-type & specs]
+  (let [prefix   (case prim-type double "d" long "l")
+        type-sym (case prim-type double 'double long 'long)]
+    `(do
+       ~@(for [[suffix docstring wrapped-fn] specs]
+           (let [fn-name (symbol (str prefix suffix))]
+             `(defbfn ~fn-name
+                ~docstring
+                [~(with-meta 'v {:tag type-sym})]
+                (~wrapped-fn ~'v)))))))
+
 ;;; Double predicates
 
-(defbfn dpos?
-  "Primitive double positive check."
-  [^double v]
-  (pos? v))
-
-(defbfn dneg?
-  "Primitive double negative check."
-  [^double v]
-  (neg? v))
-
-(defbfn dzero?
-  "Primitive double zero check."
-  [^double v]
-  (zero? v))
+(defbfn-wrappers double
+  [pos? "Primitive double positive check." pos?]
+  [neg? "Primitive double negative check." neg?]
+  [zero? "Primitive double zero check." zero?])
 
 ;;; Long predicates
 
-(defbfn lpos?
-  "Primitive long positive check."
-  [^long v]
-  (pos? v))
-
-(defbfn lneg?
-  "Primitive long negative check."
-  [^long v]
-  (neg? v))
-
-(defbfn lzero?
-  "Primitive long zero check."
-  [^long v]
-  (zero? v))
-
-(defbfn lodd?
-  "Primitive double zero check."
-  [^long v]
-  (odd? v))
-
-(defbfn leven?
-  "Primitive double zero check."
-  [^long v]
-  (even? v))
+(defbfn-wrappers long
+  [pos? "Primitive long positive check." pos?]
+  [neg? "Primitive long negative check." neg?]
+  [zero? "Primitive long zero check." zero?]
+  [odd? "Primitive long odd check." odd?]
+  [even? "Primitive long even check." even?])
