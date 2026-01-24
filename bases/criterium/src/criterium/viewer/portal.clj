@@ -14,7 +14,10 @@
   are in criterium.viewer.portal.distribution.
 
   Tail analysis views (summary, ratios, high quantiles, charts)
-  are in criterium.viewer.portal.tail."
+  are in criterium.viewer.portal.tail.
+
+  Shape statistics views (skewness, kurtosis, CV)
+  are in criterium.viewer.portal.shape."
   (:refer-clojure :exclude [flush])
   (:require
    [clojure.string :as str]
@@ -25,11 +28,11 @@
    [criterium.viewer.common-charts.autocorrelation :as charts.autocorrelation]
    [criterium.viewer.common-charts.profile :as charts.profile]
    [criterium.viewer.common.modal :as modal]
-   [criterium.viewer.common.shape :as shape]
    [criterium.viewer.portal.allocation]
    [criterium.viewer.portal.core :as portal.core]
    [criterium.viewer.portal.distribution]
    [criterium.viewer.portal.domain]
+   [criterium.viewer.portal.shape]
    [criterium.viewer.portal.tail]))
 
 ;;; Re-exported from portal.core for backwards compatibility
@@ -66,33 +69,6 @@
 (def heading
   "Send bold heading to tap>. Delegates to criterium.viewer.portal.core."
   portal.core/heading)
-
-;;; Shape Statistics Views
-
-(defmethod view/shape-stats* :portal
-  [_ {:keys [bootstrap-stats-id] :as _view} data-map]
-  (let [bootstrap-stats-id (or bootstrap-stats-id :bootstrap-stats)
-        bootstrap-map (data-map bootstrap-stats-id)]
-    (when bootstrap-map
-      (let [metrics-defs (-> (:metrics-defs bootstrap-map)
-                             (metric/filter-metrics
-                              (metric/type-pred :quantitative)))
-            metric-configs (metric/all-metric-configs metrics-defs)
-            bootstrap (util/bootstrap bootstrap-map)
-            shape-data (shape/shape-stats-data metric-configs bootstrap)]
-        (when (seq shape-data)
-          (heading "Shape Statistics")
-          (portal-table
-           (mapv (fn [{:keys [metric skewness skewness-class
-                              kurtosis kurtosis-class cv cv-class]}]
-                   {:metric metric
-                    :skewness skewness
-                    :skewness-interpretation (name skewness-class)
-                    :kurtosis kurtosis
-                    :kurtosis-interpretation (name kurtosis-class)
-                    :cv cv
-                    :cv-interpretation (name cv-class)})
-                 shape-data)))))))
 
 ;;; Autocorrelation Views
 
