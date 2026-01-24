@@ -16,6 +16,9 @@
   (^criterium.array.interface.IDoubleArray reduceDouble
    [^clojure.lang.IFn$ODO f ^criterium.array.interface.IDoubleArray init]))
 
+(definterface ILongReducible)
+(definterface IDoubleReducible)
+
 (definterface IPrimOps
   (^long transduce
    [xform
@@ -54,4 +57,9 @@
   (^criterium.array.interface.IDoubleArray into
    [^criterium.array.interface.IDoubleArray target
     xform
-    ^criterium.transducer.interface.IODOReducible source]))
+    ^criterium.transducer.interface.IODOReducible source])
+
+  (^criterium.transducer.interface.ILongReducible range
+   [^long start ^long end])
+  (^criterium.transducer.interface.IDoubleReducible range
+   [^double start ^double end ^double step]))
