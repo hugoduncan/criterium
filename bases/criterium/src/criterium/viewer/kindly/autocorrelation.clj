@@ -12,16 +12,6 @@
    [criterium.viewer.common-charts.autocorrelation :as charts.autocorrelation]
    [criterium.viewer.kindly.core :as kindly.core]))
 
-;;; Chart Dimensions
-
-(def ^:private chart-width
-  "Width for Kindly vega-lite charts, sized for notebook display."
-  700)
-
-(def ^:private chart-height
-  "Height for Kindly vega-lite charts, sized for notebook display."
-  350)
-
 ;;; Autocorrelation Views
 
 (defmethod view/autocorrelation* :kindly
@@ -41,8 +31,8 @@
           (when-let [acf-data (get autocorr (:path mc))]
             (when-let [spec (charts.autocorrelation/acf-plot-vega-spec
                              acf-data
-                             (cond-> {:width chart-width
-                                      :height chart-height
+                             (cond-> {:width kindly.core/chart-width
+                                      :height kindly.core/chart-height
                                       :title (str "ACF: " (:label mc)
                                                   " (n="
                                                   (get-in acf-data [:effective-sample-size :n-original])

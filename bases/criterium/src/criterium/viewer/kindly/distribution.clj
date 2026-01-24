@@ -11,16 +11,6 @@
    [criterium.viewer.common-charts.quantile :as charts.quantile]
    [criterium.viewer.kindly.core :as kindly.core]))
 
-;;; Chart Dimensions
-
-(def ^:private chart-width
-  "Width for Kindly vega-lite charts, sized for notebook display."
-  700)
-
-(def ^:private chart-height
-  "Height for Kindly vega-lite charts, sized for notebook display."
-  350)
-
 ;;; Helper Functions
 
 (def ^:private distribution-labels
@@ -141,8 +131,8 @@
         (cond-> view
           (and (not histogram-id) (data-map :histograms))
           (assoc :histogram-id :histograms))
-        {:width chart-width
-         :height chart-height})))))
+        {:width kindly.core/chart-width
+         :height kindly.core/chart-height})))))
 
 ;;; Distribution CDF View
 
@@ -153,8 +143,8 @@
     (when kde-map
       (kindly.core/kindly-heading "Distribution CDF")
       (kindly.core/kindly-vega-lite
-       (charts.distribution/distribution-cdf-vega-spec data-map view {:width chart-width
-                                                                      :height chart-height})))))
+       (charts.distribution/distribution-cdf-vega-spec data-map view {:width kindly.core/chart-width
+                                                                      :height kindly.core/chart-height})))))
 
 ;;; Distribution Q-Q View
 
@@ -165,5 +155,5 @@
     (when kde-map
       (kindly.core/kindly-heading "Q-Q Plot")
       (kindly.core/kindly-vega-lite
-       (charts.quantile/distribution-qq-vega-spec data-map view {:width chart-width
-                                                                 :height chart-height})))))
+       (charts.quantile/distribution-qq-vega-spec data-map view {:width kindly.core/chart-width
+                                                                 :height kindly.core/chart-height})))))

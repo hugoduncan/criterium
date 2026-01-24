@@ -16,16 +16,6 @@
    [criterium.viewer.common.regression :as regression]
    [criterium.viewer.kindly.core :as core]))
 
-;;; Chart Dimensions
-
-(def ^:private chart-width
-  "Width for Kindly vega-lite charts, sized for notebook display."
-  700)
-
-(def ^:private chart-height
-  "Height for Kindly vega-lite charts, sized for notebook display."
-  350)
-
 ;;; Domain view implementations
 
 (defmethod view/domain-extract-table* :kindly
@@ -60,20 +50,20 @@
     (case (detection/visualization-strategy extract)
       :single-point
       (when extract
-        (let [box-spec (charts.comparison/single-point-box-chart-spec extract {:width chart-width
-                                                                               :height chart-height})]
+        (let [box-spec (charts.comparison/single-point-box-chart-spec extract {:width core/chart-width
+                                                                               :height core/chart-height})]
           ;; Fall back to bar chart if box plot has no data (missing bootstrap stats)
           (if (seq (:vconcat box-spec))
             (core/kindly-vega-lite box-spec)
             (core/kindly-vega-lite
-             (charts.comparison/single-point-bar-chart-spec extract {:width chart-width
-                                                                     :height chart-height})))))
+             (charts.comparison/single-point-bar-chart-spec extract {:width core/chart-width
+                                                                     :height core/chart-height})))))
 
       :multi-point
       (when extract
         (core/kindly-vega-lite
-         (charts.comparison/domain-line-chart-spec extract {:width chart-width
-                                                            :height chart-height})))
+         (charts.comparison/domain-line-chart-spec extract {:width core/chart-width
+                                                            :height core/chart-height})))
 
       ;; :default-table - no chart output
       nil)))
@@ -117,20 +107,20 @@
     (case (detection/comparison-visualization-strategy comparison)
       :single-point
       (when comparison
-        (let [box-spec (charts.comparison/comparison-box-chart-spec comparison {:width chart-width
-                                                                                :height chart-height})]
+        (let [box-spec (charts.comparison/comparison-box-chart-spec comparison {:width core/chart-width
+                                                                                :height core/chart-height})]
           ;; Fall back to bar chart if box plot has no data (missing bootstrap stats)
           (if (seq (:vconcat box-spec))
             (core/kindly-vega-lite box-spec)
             (core/kindly-vega-lite
-             (charts.comparison/comparison-bar-chart-spec comparison {:width chart-width
-                                                                      :height chart-height})))))
+             (charts.comparison/comparison-bar-chart-spec comparison {:width core/chart-width
+                                                                      :height core/chart-height})))))
 
       :multi-point
       (when comparison
         (core/kindly-vega-lite
-         (charts.comparison/comparison-line-chart-spec comparison {:width chart-width
-                                                                   :height chart-height})))
+         (charts.comparison/comparison-line-chart-spec comparison {:width core/chart-width
+                                                                   :height core/chart-height})))
 
       ;; :default-table - no chart output
       nil)))
@@ -158,8 +148,8 @@
             (charts.regression/log-log-chart-spec
              points line-pts
              (assoc chart-opts
-                    :width chart-width
-                    :height chart-height
+                    :width core/chart-width
+                    :height core/chart-height
                     :metric-name (name (second metric))
                     :legend-options legend-options)))
            (when (seq residual-pts)
@@ -168,8 +158,8 @@
               (charts.regression/log-log-residual-spec
                residual-pts
                (assoc chart-opts
-                      :width chart-width
-                      :height (long (/ (long chart-height) 2))
+                      :width core/chart-width
+                      :height (long (/ (long core/chart-height) 2))
                       :legend-options legend-options))))))
 
        :render-model-heading
@@ -188,8 +178,8 @@
             (charts.regression/regression-chart-spec
              points line-pts
              (assoc chart-opts
-                    :width chart-width
-                    :height chart-height
+                    :width core/chart-width
+                    :height core/chart-height
                     :y-title y-title
                     :legend-options legend-options)))
            (when (seq residual-pts)
@@ -198,7 +188,7 @@
               (charts.regression/regression-residual-spec
                residual-pts
                (assoc chart-opts
-                      :width chart-width
-                      :height (long (/ (long chart-height) 2))
+                      :width core/chart-width
+                      :height (long (/ (long core/chart-height) 2))
                       :residual-title residual-title
                       :legend-options legend-options))))))})))

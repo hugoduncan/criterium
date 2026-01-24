@@ -39,11 +39,11 @@
 
 ;;; Chart Dimensions
 
-(def ^:private chart-width
+(def chart-width
   "Width for Kindly vega-lite charts, sized for notebook display."
   700)
 
-(def ^:private chart-height
+(def chart-height
   "Height for Kindly vega-lite charts, sized for notebook display."
   350)
 
