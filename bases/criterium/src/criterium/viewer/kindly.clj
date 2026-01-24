@@ -18,12 +18,12 @@
    [criterium.viewer.common-charts.autocorrelation :as charts.autocorrelation]
    [criterium.viewer.common-charts.profile :as charts.profile]
    [criterium.viewer.common.modal :as modal]
-   [criterium.viewer.common.shape :as shape]
    ;; Sub-namespaces - provide specialized views
    [criterium.viewer.kindly.allocation]
    [criterium.viewer.kindly.core :as core]
    [criterium.viewer.kindly.distribution]
    [criterium.viewer.kindly.domain]
+   [criterium.viewer.kindly.shape]
    [criterium.viewer.kindly.tail]))
 
 ;;; Re-export from core for backwards compatibility
@@ -71,33 +71,6 @@
 (def ^:private chart-height
   "Height for Kindly vega-lite charts, sized for notebook display."
   350)
-
-;;; Shape statistics view
-
-(defmethod view/shape-stats* :kindly
-  [_ {:keys [bootstrap-stats-id] :as _view} data-map]
-  (let [bootstrap-stats-id (or bootstrap-stats-id :bootstrap-stats)
-        bootstrap-map (data-map bootstrap-stats-id)]
-    (when bootstrap-map
-      (let [metrics-defs (-> (:metrics-defs bootstrap-map)
-                             (metric/filter-metrics
-                              (metric/type-pred :quantitative)))
-            metric-configs (metric/all-metric-configs metrics-defs)
-            bootstrap (util/bootstrap bootstrap-map)
-            shape-data (shape/shape-stats-data metric-configs bootstrap)]
-        (when (seq shape-data)
-          (kindly-heading "Shape Statistics")
-          (kindly-table
-           (mapv (fn [{:keys [metric skewness skewness-class
-                              kurtosis kurtosis-class cv cv-class]}]
-                   {:metric metric
-                    :skewness skewness
-                    :skewness-interpretation (name skewness-class)
-                    :kurtosis kurtosis
-                    :kurtosis-interpretation (name kurtosis-class)
-                    :cv cv
-                    :cv-interpretation (name cv-class)})
-                 shape-data)))))))
 
 ;;; Call Tree Views
 
