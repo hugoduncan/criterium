@@ -9,76 +9,8 @@
    [criterium.view :as view]
    [criterium.viewer.common-charts.distribution :as charts.distribution]
    [criterium.viewer.common-charts.quantile :as charts.quantile]
+   [criterium.viewer.common.distribution :as common.distribution]
    [criterium.viewer.kindly.core :as kindly.core]))
-
-;;; Helper Functions
-
-(def ^:private distribution-labels
-  "Human-readable labels for distributions."
-  {:gamma "Gamma"
-   :lognormal "Log-normal"
-   :inverse-gaussian "Inverse Gaussian"
-   :weibull "Weibull"})
-
-(defn- format-distribution-table-row
-  "Format a distribution fit result as a table row."
-  [dist result best-model]
-  (let [label (get distribution-labels dist (name dist))
-        is-best? (= dist best-model)]
-    (cond
-      (:error result)
-      {:distribution label
-       :status "error"
-       :aic "-"
-       :delta-aic "-"
-       :bic "-"
-       :ks-stat "-"
-       :ks-pvalue "-"
-       :cvm-stat "-"
-       :cvm-pvalue "-"
-       :best? false}
-
-      (:skipped result)
-      {:distribution label
-       :status (name (:skipped result))
-       :aic "-"
-       :delta-aic "-"
-       :bic "-"
-       :ks-stat "-"
-       :ks-pvalue "-"
-       :cvm-stat "-"
-       :cvm-pvalue "-"
-       :best? false}
-
-      :else
-      {:distribution label
-       :status "fitted"
-       :aic (format "%.1f" (:aic result))
-       :delta-aic (format "%.1f" (or (:delta-aic result) 0.0))
-       :bic (format "%.1f" (:bic result))
-       :ks-stat (if-let [ks (:ks-test result)]
-                  (format "%.4f" (:statistic ks)) "-")
-       :ks-pvalue (if-let [ks (:ks-test result)]
-                    (format "%.4f" (:p-value ks)) "-")
-       :cvm-stat (if-let [cvm (:cvm-test result)]
-                   (format "%.4f" (:statistic cvm)) "-")
-       :cvm-pvalue (if-let [cvm (:cvm-test result)]
-                     (format "%.4f" (:p-value cvm)) "-")
-       :best? is-best?})))
-
-(defn- format-parameter-ci-rows
-  "Format parameter CIs as table rows."
-  [best-model parameter-cis]
-  (when (and best-model (get parameter-cis best-model))
-    (let [label (get distribution-labels best-model (name best-model))
-          cis (get parameter-cis best-model)]
-      (mapv (fn [[param {:keys [point-estimate ci-lower ci-upper]}]]
-              {:distribution label
-               :parameter (name param)
-               :estimate (format "%.4g" point-estimate)
-               :ci-lower (format "%.4g" ci-lower)
-               :ci-upper (format "%.4g" ci-upper)})
-            cis))))
 
 ;;; Distribution Models View
 
@@ -96,7 +28,8 @@
                                                " (n=" n (when warning " - small sample") ")"))
               (kindly.core/kindly-table
                (mapv (fn [[dist result]]
-                       (format-distribution-table-row dist result best-model))
+                       (common.distribution/format-distribution-table-row
+                        dist result best-model))
                      (sort-by (fn [[_ r]] (or (:delta-aic r) Double/MAX_VALUE))
                               distributions))))))))))
 
@@ -112,7 +45,8 @@
           (doseq [[path fit-data] fits]
             (let [{:keys [best-model parameter-cis]} fit-data
                   metric-label (name (first path))]
-              (when-let [ci-rows (format-parameter-ci-rows best-model parameter-cis)]
+              (when-let [ci-rows (common.distribution/format-parameter-ci-rows
+                                  best-model parameter-cis)]
                 (kindly.core/kindly-heading (str "Parameter CIs: " metric-label))
                 (kindly.core/kindly-table ci-rows)))))))))
 
