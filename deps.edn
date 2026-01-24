@@ -23,6 +23,7 @@
                        "bases/blackhole/test"
                        "bases/arg-gen/test"
                        "components/optimisation/test"
+                       "components/primitive-fn/test"
                        "components/random/test"
                        "components/stats/test"
                        "components/utils/test"

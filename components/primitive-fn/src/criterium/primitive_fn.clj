@@ -8,7 +8,13 @@
   Use these instead of inline lambdas when the operation matches
   a standard function (add, min, max, etc.).
 
-  Naming convention: d-prefix for double, l-prefix for long.")
+  Naming convention: d-prefix for double, l-prefix for long."
+  (:require
+   [criterium.primitive-fn.interface])
+  (:import
+   [criterium.primitive_fn.interface
+    DB
+    LB]))
 
 ;;; Double arithmetic
 
@@ -47,23 +53,6 @@
   ^double [^double a ^double b]
   (Math/max a b))
 
-;;; Double predicates
-
-(defn dpos?
-  "Primitive double positive check."
-  [^double v]
-  (pos? v))
-
-(defn dneg?
-  "Primitive double negative check."
-  [^double v]
-  (neg? v))
-
-(defn dzero?
-  "Primitive double zero check."
-  [^double v]
-  (zero? v))
-
 ;;; Long arithmetic
 
 (defn ladd
@@ -96,24 +85,98 @@
   ^long [^long a ^long b]
   (Math/max a b))
 
-;;; Long predicates
-
-(defn lpos?
-  "Primitive long positive check."
-  [^long v]
-  (pos? v))
-
-(defn lneg?
-  "Primitive long negative check."
-  [^long v]
-  (neg? v))
-
-(defn lzero?
-  "Primitive long zero check."
-  [^long v]
-  (zero? v))
-
 (defmacro invoke-dd
   "Invoke a primitive double -> double function."
   [f v]
   `(.invokePrim ~(vary-meta f assoc :tag 'clojure.lang.IFn$DD) ~v))
+
+(defmacro bfn
+  "Create a primitive boolean function.
+
+   Like fn, but implements both IFn and the appropriate primitive interface
+   (DB for double argument, LB for long argument) to support .invokePrim calls
+   without boxing.
+
+   The argument must be hinted with ^double or ^long.
+
+   Example:
+     (bfn [^double x] (> x 0.0))
+     (bfn [^long n] (pos? n))"
+  [[arg] & body]
+  (let [tag (-> arg meta :tag)]
+    (case tag
+      double `(reify
+                clojure.lang.IFn
+                (invoke [_# v#] (let [~arg v#] ~@body))
+                DB
+                (~'invokePrim [_# ~(vary-meta arg dissoc :tag)] ~@body))
+      long   `(reify
+                clojure.lang.IFn
+                (invoke [_# v#] (let [~arg v#] ~@body))
+                LB
+                (~'invokePrim [_# ~(vary-meta arg dissoc :tag)] ~@body))
+      (throw (ex-info "bfn requires ^double or ^long hint on argument"
+                      {:arg arg :tag tag})))))
+
+(defmacro defbfn
+  "Define a named primitive boolean function.
+
+   Like defn, but the defined function implements both IFn and the
+   appropriate primitive interface (DB for double argument, LB for long
+   argument) to support .invokePrim calls without boxing.
+
+   The argument must be hinted with ^double or ^long.
+
+   Example:
+     (defbfn positive-double?
+       \"Check if double is positive.\"
+       [^double x]
+       (> x 0.0))
+
+     (defbfn positive-long?
+       [^long n]
+       (pos? n))"
+  {:arglists '([name docstring? [arg] & body])}
+  [name & args]
+  (let [[docstring args] (if (string? (first args))
+                           [(first args) (rest args)]
+                           [nil args])
+        [params & body]  args]
+    `(def ~(if docstring
+             (vary-meta name assoc :doc docstring)
+             name)
+       (bfn ~params ~@body))))
+
+;;; Double predicates
+
+(defbfn dpos?
+  "Primitive double positive check."
+  [^double v]
+  (pos? v))
+
+(defbfn dneg?
+  "Primitive double negative check."
+  [^double v]
+  (neg? v))
+
+(defbfn dzero?
+  "Primitive double zero check."
+  [^double v]
+  (zero? v))
+
+;;; Long predicates
+
+(defbfn lpos?
+  "Primitive long positive check."
+  [^long v]
+  (pos? v))
+
+(defbfn lneg?
+  "Primitive long negative check."
+  [^long v]
+  (neg? v))
+
+(defbfn lzero?
+  "Primitive long zero check."
+  [^long v]
+  (zero? v))
