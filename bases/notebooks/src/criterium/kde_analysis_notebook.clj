@@ -332,7 +332,7 @@
 
 ;; Compare results on the multimodal example:
 (compare-test-methods
- (measured/callable #(variable-work 100 (zero? (mod (rand-int 100) 3)))))
+ (measured/callable #(variable-work 100 (zero? (long (mod (rand-int 100) 3))))))
 
 ;; ## Comparing KDE to Histograms
 ;;

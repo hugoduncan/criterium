@@ -134,21 +134,21 @@
 (do
   (println "With reduce")
   (bench/bench (reduce + numbers-for-sum))
-  (let [reduce-mean (util/stats-value
-                     (:data (bench/last-bench))
-                     :stats
-                     :elapsed-time
-                     :mean)]
+  (let [^double reduce-mean (util/stats-value
+                             (:data (bench/last-bench))
+                             :stats
+                             :elapsed-time
+                             :mean)]
     (println "With apply")
     (bench/bench (apply + numbers-for-sum))
-    (let [apply-mean (util/stats-value
-                      (:data (bench/last-bench))
-                      :stats
-                      :elapsed-time
-                      :mean)]
+    (let [^double apply-mean (util/stats-value
+                              (:data (bench/last-bench))
+                              :stats
+                              :elapsed-time
+                              :mean)]
       {:reduce-ns reduce-mean
-       :apply-ns apply-mean
-       :ratio (/ apply-mean reduce-mean)})))
+       :apply-ns  apply-mean
+       :ratio     (/ apply-mean reduce-mean)})))
 
 ;; ## Best Practices
 
