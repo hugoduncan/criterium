@@ -7,14 +7,8 @@
   - No-op chart views (PDF, CDF, Q-Q plots not supported in print)"
   (:require
    [criterium.metric :as metric]
-   [criterium.view :as view]))
-
-(def ^:private distribution-labels
-  "Human-readable labels for distributions."
-  {:gamma "Gamma"
-   :lognormal "Log-normal"
-   :inverse-gaussian "Inverse Gaussian"
-   :weibull "Weibull"})
+   [criterium.view :as view]
+   [criterium.viewer.common-charts.distribution :as charts.distribution]))
 
 (defn- format-gof-result
   "Format a goodness-of-fit test result."
@@ -31,7 +25,7 @@
 (defn- print-distribution-result
   "Print a single distribution's fit result."
   [dist result is-best?]
-  (let [label (get distribution-labels dist (name dist))
+  (let [label (get charts.distribution/distribution-labels dist (name dist))
         marker (if is-best? " <- BEST" "")]
     (cond
       (:error result)
@@ -55,7 +49,7 @@
   "Print parameter confidence intervals for best model."
   [dist cis]
   (when (seq cis)
-    (let [label (get distribution-labels dist (name dist))]
+    (let [label (get charts.distribution/distribution-labels dist (name dist))]
       (println (format "%20s  Parameter CIs:" label))
       (doseq [[param ci-data] cis]
         (println (format "%20s    %s: %s"
@@ -115,7 +109,7 @@
     (when (and best-model (get parameter-cis best-model))
       (println (format "%32s: %s Parameter CIs"
                        label
-                       (get distribution-labels best-model (name best-model))))
+                       (get charts.distribution/distribution-labels best-model (name best-model))))
       (print-parameter-cis best-model (get parameter-cis best-model))
       (println))))
 
