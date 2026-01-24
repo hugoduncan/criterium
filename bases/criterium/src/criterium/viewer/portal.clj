@@ -8,7 +8,10 @@
   are in criterium.viewer.portal.domain.
 
   Allocation profiling views (summary, hotspots, by-type, treemap)
-  are in criterium.viewer.portal.allocation."
+  are in criterium.viewer.portal.allocation.
+
+  Distribution fit views (models, parameter CIs, PDF, CDF, Q-Q charts)
+  are in criterium.viewer.portal.distribution."
   (:refer-clojure :exclude [flush])
   (:require
    [clojure.string :as str]
@@ -17,15 +20,14 @@
    [criterium.view :as view]
    [criterium.viewer.call-graph :as call-graph]
    [criterium.viewer.common-charts.autocorrelation :as charts.autocorrelation]
-   [criterium.viewer.common-charts.distribution :as charts.distribution]
    [criterium.viewer.common-charts.profile :as charts.profile]
-   [criterium.viewer.common-charts.quantile :as charts.quantile]
    [criterium.viewer.common-charts.tail :as charts.tail]
    [criterium.viewer.common.core :as core]
    [criterium.viewer.common.modal :as modal]
    [criterium.viewer.common.shape :as shape]
    [criterium.viewer.portal.allocation]
    [criterium.viewer.portal.core :as portal.core]
+   [criterium.viewer.portal.distribution]
    [criterium.viewer.portal.domain]))
 
 ;;; Re-exported from portal.core for backwards compatibility
@@ -89,137 +91,6 @@
                     :cv cv
                     :cv-interpretation (name cv-class)})
                  shape-data)))))))
-
-;;; Distribution Fit Views
-
-(def ^:private distribution-labels
-  "Human-readable labels for distributions."
-  {:gamma "Gamma"
-   :lognormal "Log-normal"
-   :inverse-gaussian "Inverse Gaussian"
-   :weibull "Weibull"})
-
-(defn- format-distribution-table-row
-  "Format a distribution fit result as a table row."
-  [dist result best-model]
-  (let [label (get distribution-labels dist (name dist))
-        is-best? (= dist best-model)]
-    (cond
-      (:error result)
-      {:distribution label
-       :status "error"
-       :aic "-"
-       :delta-aic "-"
-       :bic "-"
-       :ks-stat "-"
-       :ks-pvalue "-"
-       :cvm-stat "-"
-       :cvm-pvalue "-"
-       :best? false}
-
-      (:skipped result)
-      {:distribution label
-       :status (name (:skipped result))
-       :aic "-"
-       :delta-aic "-"
-       :bic "-"
-       :ks-stat "-"
-       :ks-pvalue "-"
-       :cvm-stat "-"
-       :cvm-pvalue "-"
-       :best? false}
-
-      :else
-      {:distribution label
-       :status "fitted"
-       :aic (format "%.1f" (:aic result))
-       :delta-aic (format "%.1f" (or (:delta-aic result) 0.0))
-       :bic (format "%.1f" (:bic result))
-       :ks-stat (if-let [ks (:ks-test result)]
-                  (format "%.4f" (:statistic ks)) "-")
-       :ks-pvalue (if-let [ks (:ks-test result)]
-                    (format "%.4f" (:p-value ks)) "-")
-       :cvm-stat (if-let [cvm (:cvm-test result)]
-                   (format "%.4f" (:statistic cvm)) "-")
-       :cvm-pvalue (if-let [cvm (:cvm-test result)]
-                     (format "%.4f" (:p-value cvm)) "-")
-       :best? is-best?})))
-
-(defn- format-parameter-ci-rows
-  "Format parameter CIs as table rows."
-  [best-model parameter-cis]
-  (when (and best-model (get parameter-cis best-model))
-    (let [label (get distribution-labels best-model (name best-model))
-          cis (get parameter-cis best-model)]
-      (mapv (fn [[param {:keys [point-estimate ci-lower ci-upper]}]]
-              {:distribution label
-               :parameter (name param)
-               :estimate (format "%.4g" point-estimate)
-               :ci-lower (format "%.4g" ci-lower)
-               :ci-upper (format "%.4g" ci-upper)})
-            cis))))
-
-(defmethod view/distribution-models* :portal
-  [_ {:keys [distribution-fit-id] :as _view} data-map]
-  (let [distribution-fit-id (or distribution-fit-id :distribution-fit)
-        distribution-fit-map (data-map distribution-fit-id)]
-    (when distribution-fit-map
-      (let [fits (:fits distribution-fit-map)]
-        (when (seq fits)
-          (doseq [[path fit-data] fits]
-            (let [{:keys [n warning distributions best-model]} fit-data
-                  metric-label (name (first path))]
-              (heading (str "Distribution Models: " metric-label
-                            " (n=" n (when warning " - small sample") ")"))
-              (portal-table
-               (mapv (fn [[dist result]]
-                       (format-distribution-table-row dist result best-model))
-                     (sort-by (fn [[_ r]] (or (:delta-aic r) Double/MAX_VALUE))
-                              distributions))))))))))
-
-(defmethod view/distribution-parameter-cis* :portal
-  [_ {:keys [distribution-fit-id] :as _view} data-map]
-  (let [distribution-fit-id (or distribution-fit-id :distribution-fit)
-        distribution-fit-map (data-map distribution-fit-id)]
-    (when distribution-fit-map
-      (let [fits (:fits distribution-fit-map)]
-        (when (seq fits)
-          (doseq [[path fit-data] fits]
-            (let [{:keys [best-model parameter-cis]} fit-data
-                  metric-label (name (first path))]
-              (when-let [ci-rows (format-parameter-ci-rows best-model parameter-cis)]
-                (heading (str "Parameter CIs: " metric-label))
-                (portal-table ci-rows)))))))))
-
-(defmethod view/distribution-pdf* :portal
-  [_ {:keys [kde-id] :as view} data-map]
-  (let [kde-id (or kde-id :kde)
-        kde-map (data-map kde-id)]
-    (when kde-map
-      (heading "Distribution PDF")
-      (portal-vega-lite
-       (charts.distribution/distribution-pdf-vega-spec
-        data-map
-        (assoc view :histogram-id :histograms)
-        {:height 400})))))
-
-(defmethod view/distribution-cdf* :portal
-  [_ {:keys [kde-id] :as view} data-map]
-  (let [kde-id (or kde-id :kde)
-        kde-map (data-map kde-id)]
-    (when kde-map
-      (heading "Distribution CDF")
-      (portal-vega-lite
-       (charts.distribution/distribution-cdf-vega-spec data-map view {:height 400})))))
-
-(defmethod view/distribution-qq* :portal
-  [_ {:keys [kde-id] :as view} data-map]
-  (let [kde-id (or kde-id :kde)
-        kde-map (data-map kde-id)]
-    (when kde-map
-      (heading "Q-Q Plot")
-      (portal-vega-lite
-       (charts.quantile/distribution-qq-vega-spec data-map view {:height 400})))))
 
 ;;; Tail Analysis Views
 
