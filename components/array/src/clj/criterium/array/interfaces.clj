@@ -10,9 +10,10 @@
   - IDoubleFold/ILongFold: primitive-in, primitive-out folds
   - IDoubleObjectFold/ILongObjectFold: primitive-in, object-out folds
   - IIndexed: indexed access to elements
-  - IArrayOps: type-specific operations (sum, getAt)"
-  (:import
-   [criterium.array.interfaces ITypedArray ILongArray IDoubleArray]))
+  - IArrayOps: type-specific operations (sum, getAt)
+
+  Base interfaces ITypedArray, ILongArray, IDoubleArray are defined in Java
+  at criterium.array.interfaces to support proper inheritance hierarchies.")
 
 (definterface IFold
   (fold [f init]))

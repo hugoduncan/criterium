@@ -12,13 +12,6 @@
   - IODOReducible: reduce double elements into array
   - ILongReducible: extends ILLLReducible, IOLOReducible
   - IDoubleReducible: extends IDDDReducible, IODOReducible
-  - IPrimOps: transduce/reduce/into/range operations"
-  (:import
-   [criterium.transducer.interfaces
-    IDDDReducible
-    IDoubleReducible
-    ILLLReducible
-    ILongReducible
-    IODOReducible
-    IOLOReducible
-    IPrimOps]))
+  - IPrimOps: transduce/reduce/into/range operations
+
+  All interfaces are defined in Java at criterium.transducer.interfaces.")
