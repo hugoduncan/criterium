@@ -2,12 +2,12 @@
   "Implementation types for primitive transducers."
   (:require
    [criterium.array :as arr]
-   [criterium.transducer.interface])
+   [criterium.transducer.interfaces])
   (:import
    [criterium.array
     DoubleArray
     LongArray]
-   [criterium.transducer.interface
+   [criterium.transducer.interfaces
     IDDDReducible
     IDoubleReducible
     ILLLReducible
@@ -77,41 +77,41 @@
       (.reduce source ^clojure.lang.IFn$LLL (xform rf) init))
     (^double transduce [_ xform rf ^double init ^IDDDReducible source]
       (.reduce source ^clojure.lang.IFn$DDD (xform rf) init))
-    (^criterium.array.interface.ILongArray transduce
+    (^criterium.array.interfaces.ILongArray transduce
       [_
        xform
        rf
-       ^criterium.array.interface.ILongArray init
+       ^criterium.array.interfaces.ILongArray init
        ^IOLOReducible source]
       (.reduceLong source ^clojure.lang.IFn$OLO (xform rf) init))
-    (^criterium.array.interface.IDoubleArray transduce
+    (^criterium.array.interfaces.IDoubleArray transduce
       [_
        xform
        rf
-       ^criterium.array.interface.IDoubleArray init
+       ^criterium.array.interfaces.IDoubleArray init
        ^IODOReducible source]
       (.reduceDouble source ^clojure.lang.IFn$OLO (xform rf) init))
     (^long reduce [_ rf ^long init ^ILLLReducible source]
       (.reduce source ^clojure.lang.IFn$LLL rf init))
     (^double reduce [_ rf ^double init ^IDDDReducible source]
       (.reduce source ^clojure.lang.IFn$DDD rf init))
-    (^criterium.array.interface.ILongArray into
+    (^criterium.array.interfaces.ILongArray into
       [this
-       ^criterium.array.interface.ILongArray target
+       ^criterium.array.interfaces.ILongArray target
        xform
        ^IOLOReducible source]
       (.transduce this xform (prim-set-at) target source))
-    (^criterium.array.interface.IDoubleArray into
+    (^criterium.array.interfaces.IDoubleArray into
       [this
-       ^criterium.array.interface.IDoubleArray target
+       ^criterium.array.interfaces.IDoubleArray target
        xform
        ^IODOReducible source]
       (.transduce this xform (prim-set-at) target source))
 
-    (^criterium.transducer.interface.ILongReducible range
+    (^criterium.transducer.interfaces.ILongReducible range
       [_ ^long start ^long end]
       (LongRange. start end))
 
-    (^criterium.transducer.interface.IDoubleReducible range
+    (^criterium.transducer.interfaces.IDoubleReducible range
       [_ ^double start ^double end ^double step]
       (DoubleRange. start end step))))

@@ -1,1 +1,19 @@
-{:paths ["src"]}
+{:paths ["src/clj" "target/classes"]
+ :java-paths ["src/java"]
+ :deps {}
+ :deps/prep-lib {:ensure "target/classes/criterium"
+                 :alias :build
+                 :fn javac}
+ :aliases {:test
+           {:extra-paths ["test"]
+            :extra-deps
+            {org.clojure/clojure {:mvn/version "1.12.0"}
+             polylith-kaocha/kaocha-wrapper
+             {:git/url "https://github.com/imrekoszo/polylith-kaocha"
+              :git/tag "v0.8.4"
+              :git/sha "f096de8"
+              :deps/root "projects/kaocha-wrapper"}}}
+           :build {:deps {local/build {:local/root "../../build"}}
+                   :ns-default build.tasks
+                   :exec-fn javac
+                   :exec-args {:class-dir "target/classes"}}}}

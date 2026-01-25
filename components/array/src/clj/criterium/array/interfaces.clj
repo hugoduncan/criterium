@@ -1,4 +1,4 @@
-(ns criterium.array.interface
+(ns criterium.array.interfaces
   "Interfaces for typed array collections with primitive support.
 
   These interfaces define the contract for typed array wrappers that
@@ -10,14 +10,10 @@
   - IDoubleFold/ILongFold: primitive-in, primitive-out folds
   - IDoubleObjectFold/ILongObjectFold: primitive-in, object-out folds
   - IIndexed: indexed access to elements
-  - IArrayOps: type-specific operations (sum, getAt)")
+  - IArrayOps: type-specific operations (sum, getAt)
 
-(definterface ITypedArray
-  (^clojure.lang.Keyword elemType [])
-  (^long length []))
-
-(definterface IDoubleArray)
-(definterface ILongArray)
+  Base interfaces ITypedArray, ILongArray, IDoubleArray are defined in Java
+  at criterium.array.interfaces to support proper inheritance hierarchies.")
 
 (definterface IFold
   (fold [f init]))

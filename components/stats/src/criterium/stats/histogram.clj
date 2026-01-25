@@ -9,21 +9,9 @@
   (:require
    [clojure.math :as math]
    [criterium.array :as arr]
-   [criterium.array.interface :as iarr]
    [criterium.stats.knuth :as knuth])
   (:import
-   [criterium.array DoubleArray]
-   [criterium.array.interface ITypedArray]))
-
-(defn- data-length
-  "Returns the length of a typed array."
-  ^long [^ITypedArray data]
-  (.length data))
-
-(defn- data-empty?
-  "Returns true if typed array is empty."
-  [^ITypedArray data]
-  (zero? (.length data)))
+   [criterium.array DoubleArray]))
 
 (defn- data-min-max
   "Returns [min max] for typed array data."
@@ -63,7 +51,7 @@
   "Compute bin width using Freedman-Diaconis rule:
    width = 2 * IQR * n^(-1/3)"
   [data ^double iqr]
-  (let [n (data-length data)]
+  (let [n (arr/length data)]
     (* 2.0 iqr (math/pow n minus-one-third))))
 
 (defn- generate-bins
@@ -130,7 +118,7 @@
         {:keys [edges centers width num-bins]}
         (generate-bins min-val max-val bin-width)
         counts  (count-values-in-bins data edges)
-        n       (data-length data)
+        n       (arr/length data)
         density (compute-density counts n)]
     {:type     :criterium/histogram-fixed-width
      :counts   counts
@@ -150,7 +138,7 @@
         {:keys [edges centers width num-bins]}
         (generate-bins-for-count min-val max-val optimal-bins)
         counts  (count-values-in-bins data edges)
-        n       (data-length data)
+        n       (arr/length data)
         density (compute-density counts n)]
     {:type          :criterium/histogram-knuth
      :counts        counts
@@ -201,7 +189,7 @@
   ([data]
    (histogram data {}))
   ([data opts-or-iqr]
-   (when (data-empty? data)
+   (when (zero? (arr/length data))
      (throw (ex-info
              "Input cannot be empty"
              {:error :histogram/no-values})))

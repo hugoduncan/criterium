@@ -7,11 +7,11 @@
   All functions require typed arrays (ITypedArray) as input."
   (:require
    [criterium.array :as arr]
-   criterium.array.interface
+   criterium.array.interfaces
    [criterium.stats.core :as core]
    [criterium.utils.interface :refer [have?]])
   (:import
-   [criterium.array.interface ITypedArray IIndexed]))
+   [criterium.array.interfaces IIndexed]))
 
 (defn boxplot-outlier-thresholds
   "Outlier thresholds for given quartiles.
@@ -62,11 +62,6 @@
       0.0
       (/ (- (- xj med) (- med xi)) diff))))
 
-(defn- typed-array-length
-  "Returns the length of a typed array."
-  ^long [^ITypedArray arr]
-  (.length arr))
-
 (defn- typed-array-get-double
   "Get element at index as double from typed array."
   ^double [^IIndexed arr ^long index]
@@ -87,7 +82,7 @@
   Takes sorted data as input. Returns 0.0 for constant data or n < 3."
   ^double [sorted-data]
   {:pre [(have? arr/typed-array? sorted-data)]}
-  (let [n (typed-array-length sorted-data)]
+  (let [n (arr/length sorted-data)]
     (if (< n 3)
       0.0
       (let [med       (core/median-value sorted-data)

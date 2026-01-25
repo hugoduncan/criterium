@@ -8,19 +8,19 @@
     - LongArray for :event metrics
     - ObjectArray for :nominal metrics"
   (:require
-   [criterium.array.interface]
-   [criterium.transducer.interface]
+   [criterium.array.interfaces]
+   [criterium.transducer.interfaces]
    [criterium.util.invariant :refer [have?]])
   (:import
-   [criterium.array.interface
-    ITypedArray IDoubleArray ILongArray
+   [criterium.array.interfaces ITypedArray IDoubleArray ILongArray]
+   [criterium.array.interfaces
     IFold IDoubleFold ILongFold IDoubleObjectFold ILongObjectFold
     IDoubleMap IDoubleMapIndexed ILongMap ILongMapIndexed
     IDoubleAny ILongAny IArrayEquals ISortable
     IDoubleFoldSkip IDoubleObjectFoldSkip
     IFilterIndices IIndexedDoubleFold IIndexedDoubleObjectFold
     IIndexed IIndexedSet IArrayOps]
-   [criterium.transducer.interface
+   [criterium.transducer.interfaces
     IDDDReducible
     ILLLReducible
     IODOReducible

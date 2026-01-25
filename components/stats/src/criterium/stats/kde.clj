@@ -7,20 +7,13 @@
   All functions require typed arrays (DoubleArray, LongArray)."
   (:require
    [criterium.array :as arr]
-   [criterium.array.interface]
    [criterium.random.interface :as random]
    [criterium.stats.core :as core]
    [criterium.stats.sampling :as sampling]
    [criterium.utils.interface :refer [have?]])
   (:import
    [criterium.array DoubleArray LongArray]
-   [criterium.array.interface ITypedArray]
    [criterium.random.well WellRng1024a]))
-
-(defn- data-length
-  "Returns the length of a typed array."
-  ^long [^ITypedArray data]
-  (.length data))
 
 (defn- data-min-max
   "Returns [min max] for typed array data."
@@ -206,7 +199,7 @@
   ([data k {:keys [rng-factory]
             :or {rng-factory #(random/make-well-rng-1024a)}}]
    {:pre [(have? arr/typed-array? data)]}
-   (let [n (data-length data)
+   (let [n (arr/length data)
          k (long k)]
      (when (< n 3)
        (throw (ex-info "Need at least 3 data points for excess mass"
@@ -335,7 +328,7 @@
         x-min (aget grid 0)
         x-max (aget grid (dec n))
         dx (/ (- x-max x-min) (dec n))
-        n-data (data-length data)
+        n-data (arr/length data)
         add-weight! (fn [^double x]
                       (let [x (max x-min (min x-max x))
                             pos (/ (- x x-min) dx)
@@ -407,7 +400,7 @@
   Requires a typed array (DoubleArray or LongArray)."
   ^double [data]
   {:pre [(have? arr/typed-array? data)]}
-  (let [n (data-length data)
+  (let [n (arr/length data)
         sigma (Math/sqrt (core/variance data))
         sorted (arr/sorted data)
         q1 (double (core/quantile 0.25 sorted))
@@ -428,7 +421,7 @@
   Requires a typed array (DoubleArray or LongArray)."
   ^double [data]
   {:pre [(have? arr/typed-array? data)]}
-  (let [n (data-length data)
+  (let [n (arr/length data)
         n-grid 1024
         [x-min x-max] (data-min-max data)
         x-min (double x-min)
@@ -474,7 +467,7 @@
   Requires a typed array (DoubleArray or LongArray)."
   ^doubles [data ^double bandwidth ^doubles grid]
   {:pre [(have? arr/typed-array? data)]}
-  (let [n (data-length data)
+  (let [n (arr/length data)
         n-grid (alength grid)
         density (double-array n-grid)
         h bandwidth
@@ -748,7 +741,7 @@
   Requires a typed array (DoubleArray or LongArray)."
   ^DoubleArray [data ^double bandwidth ^WellRng1024a rng]
   {:pre [(have? arr/typed-array? data)]}
-  (let [n (data-length data)
+  (let [n (arr/length data)
         sigma-sq (core/variance data)
         mean-val (core/mean data)
         scale (Math/sqrt (+ 1.0 (/ (* bandwidth bandwidth) sigma-sq)))
@@ -932,7 +925,7 @@
                alpha 0.05
                rng-factory #(random/make-well-rng-1024a)}}]
    {:pre [(have? arr/typed-array? data)]}
-   (let [n (data-length data)]
+   (let [n (arr/length data)]
      (when (zero? n)
        (throw (ex-info "Input data cannot be empty"
                        {:error :kde/no-data})))

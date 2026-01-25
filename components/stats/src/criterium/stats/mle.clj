@@ -14,16 +14,8 @@
   All functions require typed arrays (DoubleArray, LongArray)."
   (:require
    [criterium.array :as arr]
-   [criterium.array.interface]
    [criterium.stats.probability :as probability]
-   [criterium.utils.interface :refer [have?]])
-  (:import
-   [criterium.array.interface ITypedArray]))
-
-(defn- data-length
-  "Returns the length of a typed array."
-  ^long [^ITypedArray data]
-  (.length data))
+   [criterium.utils.interface :refer [have?]]))
 
 ;;; Log-normal MLE (closed-form)
 
@@ -46,7 +38,7 @@
   Throws if any sample is non-positive."
   [samples]
   {:pre [(have? arr/typed-array? samples)]}
-  (let [n (data-length samples)
+  (let [n (arr/length samples)
         _ (when (zero? n)
             (throw (IllegalArgumentException. "samples cannot be empty")))
         ;; Transform to log space and compute sum in one pass
@@ -104,7 +96,7 @@
   Throws if any sample is non-positive."
   [samples]
   {:pre [(have? arr/typed-array? samples)]}
-  (let [n (data-length samples)
+  (let [n (arr/length samples)
         _ (when (zero? n)
             (throw (IllegalArgumentException. "samples cannot be empty")))
         ;; Validate and compute sum and sum of reciprocals
@@ -183,7 +175,7 @@
   ([samples {:keys [max-iter tol init-shape]
              :or {max-iter 100 tol 1e-10}}]
    {:pre [(have? arr/typed-array? samples)]}
-   (let [n (data-length samples)
+   (let [n (arr/length samples)
          _ (when (zero? n)
              (throw (IllegalArgumentException. "samples cannot be empty")))
          max-iter (long max-iter)
@@ -289,7 +281,7 @@
   ([samples {:keys [max-iter tol init-shape]
              :or {max-iter 100 tol 1e-10}}]
    {:pre [(have? arr/typed-array? samples)]}
-   (let [n (data-length samples)
+   (let [n (arr/length samples)
          _ (when (zero? n)
              (throw (IllegalArgumentException. "samples cannot be empty")))
          max-iter (long max-iter)

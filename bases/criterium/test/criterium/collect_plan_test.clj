@@ -2,13 +2,10 @@
   (:require
    [clojure.test :refer [deftest is testing]]
    [criterium.array :as arr]
-   criterium.array.interface
    [criterium.collect-plan :as collect-plan]
    [criterium.collect-plan.config :as collect-plan-config]
    [criterium.collector :as collector]
-   [criterium.measured :as measured])
-  (:import
-   [criterium.array.interface ITypedArray]))
+   [criterium.measured :as measured]))
 
 (deftest one-shot-test
   (testing "one-shot"
@@ -26,11 +23,11 @@
                      measured)]
       (is (map? data-map))
       (is (= :criterium/metrics-samples (:type (:samples data-map))))
-      (is (instance? ITypedArray
-                     ((:metric->values (:samples data-map)) [:elapsed-time])))
+      (is (arr/typed-array?
+           ((:metric->values (:samples data-map)) [:elapsed-time])))
       (is (= 1
              (arr/length ((:metric->values (:samples data-map)) [:elapsed-time]))))
-      (is (every? #(instance? ITypedArray %)
+      (is (every? arr/typed-array?
                   (vals (:metric->values (:samples data-map)))))
       (is (= 1 (:expr-value (:samples data-map)))))))
 
@@ -49,11 +46,11 @@
                      measured)]
       (is (map? data-map))
       (is (= :criterium/metrics-samples (:type (:samples data-map))))
-      (is (instance? ITypedArray
-                     ((:metric->values (:samples data-map)) [:elapsed-time])))
+      (is (arr/typed-array?
+           ((:metric->values (:samples data-map)) [:elapsed-time])))
       (is (<= 10
               (arr/length ((:metric->values (:samples data-map)) [:elapsed-time]))))
-      (is (every? #(instance? ITypedArray %)
+      (is (every? arr/typed-array?
                   (vals (:metric->values (:samples data-map)))))
       (is (= 1 (:expr-value (:samples data-map)))))))
 

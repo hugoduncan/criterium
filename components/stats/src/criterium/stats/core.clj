@@ -6,11 +6,11 @@
   (:refer-clojure :exclude [min max])
   (:require
    [criterium.array :as arr]
-   criterium.array.interface
+   criterium.array.interfaces
    [criterium.primitive-fn :as prim]
    [criterium.utils.interface :as utils :refer [have?]])
   (:import
-   [criterium.array.interface IDoubleFold]))
+   [criterium.array.interfaces IDoubleFold]))
 
 (defn transpose
   "Transpose a vector of vectors."

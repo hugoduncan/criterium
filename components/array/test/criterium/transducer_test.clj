@@ -8,10 +8,6 @@
    [criterium.primitive-fn :as pf]
    [criterium.transducer :as t]))
 
-;; Disable reflection warnings - IPrimOps has overloaded methods that
-;; cause unavoidable reflection when used via macros. See issue #XXX.
-(set! *warn-on-reflection* false)
-
 (deftest long-range-test
   (testing "LongRange"
     (testing "implements ILLLReducible"
