@@ -19,7 +19,8 @@
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have have?]]
    [criterium.view :as view]
-   [criterium.viewer.common.core :as core]))
+   [criterium.viewer.common.core :as core]
+   [criterium.viewer.common.shape :as shape]))
 
 (set! *unchecked-math* false)
 
@@ -481,18 +482,6 @@
     (<= mc 0.6) :moderately-right-skewed
     :else :strongly-right-skewed))
 
-(defn- format-skewness
-  "Format skewness classification for display."
-  [classification]
-  (case classification
-    :strongly-left-skewed "strongly left-skewed"
-    :moderately-left-skewed "moderately left-skewed"
-    :slightly-left-skewed "slightly left-skewed"
-    :symmetric "symmetric"
-    :slightly-right-skewed "slightly right-skewed"
-    :moderately-right-skewed "moderately right-skewed"
-    :strongly-right-skewed "strongly right-skewed"))
-
 (defn- format-outlier-method
   "Format outlier detection method for display."
   [method]
@@ -527,7 +516,7 @@
         (util/report "%s medcouple %.4f (%s)\n"
                      (format-label (:label metric-config))
                      mc
-                     (format-skewness classification))))))
+                     (shape/format-classification classification))))))
 
 (defn print-outlier-counts
   "Print outlier counts for all metrics.

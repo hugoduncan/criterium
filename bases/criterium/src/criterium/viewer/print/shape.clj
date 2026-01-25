@@ -10,37 +10,6 @@
    [criterium.viewer.common.shape :as shape]
    [criterium.viewer.print.core :as print-core :refer [get-analysis-context]]))
 
-(defn- format-skewness-class
-  "Format skewness classification for display."
-  [classification]
-  (case classification
-    :strongly-left-skewed "strongly left-skewed"
-    :moderately-left-skewed "moderately left-skewed"
-    :slightly-left-skewed "slightly left-skewed"
-    :symmetric "symmetric"
-    :slightly-right-skewed "slightly right-skewed"
-    :moderately-right-skewed "moderately right-skewed"
-    :strongly-right-skewed "strongly right-skewed"
-    (name classification)))
-
-(defn- format-kurtosis-class
-  "Format kurtosis classification for display."
-  [classification]
-  (case classification
-    :heavy-tails "heavy tails (leptokurtic)"
-    :light-tails "light tails (platykurtic)"
-    :normal-tails "normal tails (mesokurtic)"
-    (name classification)))
-
-(defn- format-cv-class
-  "Format CV classification for display."
-  [classification]
-  (case classification
-    :low-variability "low variability"
-    :moderate-variability "moderate variability"
-    :high-variability "high variability"
-    (name classification)))
-
 (defn print-shape-stats
   "Print shape statistics (skewness, kurtosis, CV) for bootstrap results."
   [view data-map]
@@ -56,13 +25,19 @@
                         cv cv-class]} shape-data]
           (println
            (format "%s skewness %s (%s)"
-                   (print-core/format-label metric) skewness (format-skewness-class skewness-class)))
+                   (print-core/format-label metric)
+                   skewness
+                   (shape/format-classification skewness-class)))
           (println
            (format "%s  kurtosis %s (%s)"
-                   (print-core/label-str "") kurtosis (format-kurtosis-class kurtosis-class)))
+                   (print-core/label-str "")
+                   kurtosis
+                   (shape/format-classification kurtosis-class)))
           (println
            (format "%s  CV %s (%s)"
-                   (print-core/label-str "") cv (format-cv-class cv-class))))))))
+                   (print-core/label-str "")
+                   cv
+                   (shape/format-classification cv-class))))))))
 
 (defmethod view/shape-stats* :print
   [_ view data-map]
