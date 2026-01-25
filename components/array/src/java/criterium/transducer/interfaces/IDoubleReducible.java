@@ -1,4 +1,4 @@
-package criterium.transducer.types;
+package criterium.transducer.interfaces;
 
 /**
  * Composite interface for double-based reducible sources.

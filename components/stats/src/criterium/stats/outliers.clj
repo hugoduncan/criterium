@@ -7,11 +7,11 @@
   All functions require typed arrays (ITypedArray) as input."
   (:require
    [criterium.array :as arr]
-   criterium.array.interface
+   criterium.array.interfaces
    [criterium.stats.core :as core]
    [criterium.utils.interface :refer [have?]])
   (:import
-   [criterium.array.interface IIndexed]))
+   [criterium.array.interfaces IIndexed]))
 
 (defn boxplot-outlier-thresholds
   "Outlier thresholds for given quartiles.

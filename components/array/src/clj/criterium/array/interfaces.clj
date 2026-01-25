@@ -1,4 +1,4 @@
-(ns criterium.array.interface
+(ns criterium.array.interfaces
   "Interfaces for typed array collections with primitive support.
 
   These interfaces define the contract for typed array wrappers that
@@ -12,7 +12,7 @@
   - IIndexed: indexed access to elements
   - IArrayOps: type-specific operations (sum, getAt)"
   (:import
-   [criterium.array.types ITypedArray ILongArray IDoubleArray]))
+   [criterium.array.interfaces ITypedArray ILongArray IDoubleArray]))
 
 (definterface IFold
   (fold [f init]))

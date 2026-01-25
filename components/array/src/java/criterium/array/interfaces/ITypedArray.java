@@ -1,4 +1,4 @@
-package criterium.array.types;
+package criterium.array.interfaces;
 
 import clojure.lang.Keyword;
 

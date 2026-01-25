@@ -1,7 +1,7 @@
-package criterium.transducer.types;
+package criterium.transducer.interfaces;
 
 import clojure.lang.IFn;
-import criterium.array.types.ILongArray;
+import criterium.array.interfaces.ILongArray;
 
 /**
  * Interface for reducible sources that can reduce into a long array.

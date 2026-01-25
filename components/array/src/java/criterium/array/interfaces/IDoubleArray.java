@@ -1,4 +1,4 @@
-package criterium.array.types;
+package criterium.array.interfaces;
 
 /**
  * Marker interface for double array wrappers.

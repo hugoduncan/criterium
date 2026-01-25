@@ -1,4 +1,4 @@
-package criterium.transducer.types;
+package criterium.transducer.interfaces;
 
 import clojure.lang.IFn;
 

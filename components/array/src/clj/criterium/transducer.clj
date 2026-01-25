@@ -3,7 +3,7 @@
    :exclude [filter into map reduce range transduce])
   (:require
    [criterium.transducer.impl :as impl]
-   [criterium.transducer.interface]))
+   [criterium.transducer.interfaces]))
 
 (defn prim-set-at
   "Create a reducing function that sets array elements sequentially."
@@ -71,7 +71,7 @@
   `(.transduce
     ~(vary-meta
       'criterium.transducer.impl/ops
-      assoc :tag 'criterium.transducer.types.IPrimOps)
+      assoc :tag 'criterium.transducer.interfaces.IPrimOps)
     ~xform ~rf ~init ~source))
 
 (defmacro reduce
@@ -79,7 +79,7 @@
   `(.reduce
     ~(vary-meta
       'criterium.transducer.impl/ops
-      assoc :tag 'criterium.transducer.types.IPrimOps)
+      assoc :tag 'criterium.transducer.interfaces.IPrimOps)
     ~rf ~init ~source))
 
 (defmacro into
@@ -87,7 +87,7 @@
   `(.into
     ~(vary-meta
       'criterium.transducer.impl/ops
-      assoc :tag 'criterium.transducer.types.IPrimOps)
+      assoc :tag 'criterium.transducer.interfaces.IPrimOps)
     ~target ~rf ~source))
 
 (defmacro range
@@ -95,11 +95,11 @@
    `(.range
      ~(vary-meta
        'criterium.transducer.impl/ops
-       assoc :tag 'criterium.transducer.types.IPrimOps)
+       assoc :tag 'criterium.transducer.interfaces.IPrimOps)
      ~start ~end))
   ([start end step]
    `(.range
      ~(vary-meta
        'criterium.transducer.impl/ops
-       assoc :tag 'criterium.transducer.types.IPrimOps)
+       assoc :tag 'criterium.transducer.interfaces.IPrimOps)
      ~start ~end ~step)))

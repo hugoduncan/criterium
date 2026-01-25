@@ -2,7 +2,7 @@
   (:require
    [criterium.analyse.methods :as methods]
    [criterium.array :as arr]
-   criterium.array.interface
+   criterium.array.interfaces
    [criterium.collect-plan :as collect-plan]
    [criterium.random.interface :as random]
    [criterium.stats.interface :as stats]

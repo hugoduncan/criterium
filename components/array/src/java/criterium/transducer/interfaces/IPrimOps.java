@@ -1,7 +1,7 @@
-package criterium.transducer.types;
+package criterium.transducer.interfaces;
 
-import criterium.array.types.IDoubleArray;
-import criterium.array.types.ILongArray;
+import criterium.array.interfaces.IDoubleArray;
+import criterium.array.interfaces.ILongArray;
 
 /**
  * Interface for primitive transducer operations.

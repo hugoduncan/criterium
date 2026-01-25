@@ -1,4 +1,4 @@
-(ns criterium.transducer.interface
+(ns criterium.transducer.interfaces
   "Interfaces for primitive transducer operations.
 
   These interfaces are defined in Java to support proper inheritance
@@ -14,7 +14,7 @@
   - IDoubleReducible: extends IDDDReducible, IODOReducible
   - IPrimOps: transduce/reduce/into/range operations"
   (:import
-   [criterium.transducer.types
+   [criterium.transducer.interfaces
     IDDDReducible
     IDoubleReducible
     ILLLReducible
