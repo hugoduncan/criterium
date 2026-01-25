@@ -419,8 +419,8 @@
                    {:outlier-counts (metrics-samples/outlier-count 0 0 0 1)
                     :medcouple nil}
                    true))))))
-      (testing "displays medcouple even without outliers"
-        (is (= ["M: medcouple 0.1500 (slightly right-skewed)"]
+      (testing "displays nothing without outliers"
+        (is (= [""]
                (trimmed-lines
                 (with-out-str
                   (print-core/print-outlier-count

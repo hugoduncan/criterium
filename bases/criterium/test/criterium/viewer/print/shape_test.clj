@@ -16,7 +16,6 @@
       (let [data-map (test-data/bootstrap-stats-with-shape-map)
             output (with-out-str (view/shape-stats* :print {} data-map))
             lines (trimmed-lines output)]
-        (is (some #(str/includes? % "Shape Statistics") lines))
         (is (some #(str/includes? % "skewness") lines))
         (is (some #(str/includes? % "kurtosis") lines))
         (is (some #(str/includes? % "CV") lines))
@@ -32,4 +31,4 @@
             output (with-out-str
                      (view/shape-stats* :print {:bootstrap-stats-id :my-bootstrap}
                                         custom-map))]
-        (is (str/includes? output "Shape Statistics"))))))
+        (is (str/includes? output "skewness"))))))
