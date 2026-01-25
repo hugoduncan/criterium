@@ -466,3 +466,17 @@
                          formatted (format/format-value :time tval)]
                      {:quantile (clojure.core/format "p%.4g" (* (double q) 100))
                       :estimate formatted})))))))
+
+(defn strip-uniform-axes
+  "Strip uniform-value axes from coordinates.
+  Only strips axes if doing so leaves at least one key in each coord.
+  Returns coords unchanged if any coord is not a map."
+  [coords]
+  (if-not (every? map? coords)
+    coords
+    (let [uniform-axes (detect-uniform-axes coords)
+          first-coord (first coords)
+          remaining-keys (count (apply dissoc first-coord uniform-axes))]
+      (if (and (seq uniform-axes) (pos? remaining-keys))
+        (mapv #(apply dissoc % uniform-axes) coords)
+        coords))))
