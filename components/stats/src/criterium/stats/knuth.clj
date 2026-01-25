@@ -12,21 +12,8 @@
    All functions require typed arrays (DoubleArray, LongArray)."
   (:require
    [criterium.array :as arr]
-   [criterium.array.interface :as iarr]
    [criterium.stats.probability :as prob]
-   [criterium.utils.interface :refer [have?]])
-  (:import
-   [criterium.array.interface ITypedArray]))
-
-(defn- data-length
-  "Returns the length of a typed array."
-  ^long [^ITypedArray data]
-  (.length data))
-
-(defn- data-empty?
-  "Returns true if typed array is empty."
-  [^ITypedArray data]
-  (zero? (.length data)))
+   [criterium.utils.interface :refer [have?]]))
 
 (defn- data-min-max
   "Returns [min max] for typed array data."
@@ -124,7 +111,7 @@
   ([data] (optimal-bins data {}))
   ([data {:keys [max-bins min max] :or {max-bins 50}}]
    {:pre [(have? arr/typed-array? data)]}
-   (when (data-empty? data)
+   (when (zero? (arr/length data))
      (throw (ex-info "Input samples cannot be empty"
                      {:error :knuth/no-samples})))
    (let [[computed-min computed-max] (when-not (and min max)
@@ -136,7 +123,7 @@
                        {:error   :knuth/same-values
                         :min-val min-val
                         :max-val max-val})))
-     (let [n             (data-length data)
+     (let [n             (arr/length data)
            max-bins-long (long max-bins)]
        ;; Search over M = 1 to max-bins
        (loop [m       (long 1)

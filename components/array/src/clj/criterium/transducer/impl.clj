@@ -77,33 +77,33 @@
       (.reduce source ^clojure.lang.IFn$LLL (xform rf) init))
     (^double transduce [_ xform rf ^double init ^IDDDReducible source]
       (.reduce source ^clojure.lang.IFn$DDD (xform rf) init))
-    (^criterium.array.interface.ILongArray transduce
+    (^criterium.array.types.ILongArray transduce
       [_
        xform
        rf
-       ^criterium.array.interface.ILongArray init
+       ^criterium.array.types.ILongArray init
        ^IOLOReducible source]
       (.reduceLong source ^clojure.lang.IFn$OLO (xform rf) init))
-    (^criterium.array.interface.IDoubleArray transduce
+    (^criterium.array.types.IDoubleArray transduce
       [_
        xform
        rf
-       ^criterium.array.interface.IDoubleArray init
+       ^criterium.array.types.IDoubleArray init
        ^IODOReducible source]
       (.reduceDouble source ^clojure.lang.IFn$OLO (xform rf) init))
     (^long reduce [_ rf ^long init ^ILLLReducible source]
       (.reduce source ^clojure.lang.IFn$LLL rf init))
     (^double reduce [_ rf ^double init ^IDDDReducible source]
       (.reduce source ^clojure.lang.IFn$DDD rf init))
-    (^criterium.array.interface.ILongArray into
+    (^criterium.array.types.ILongArray into
       [this
-       ^criterium.array.interface.ILongArray target
+       ^criterium.array.types.ILongArray target
        xform
        ^IOLOReducible source]
       (.transduce this xform (prim-set-at) target source))
-    (^criterium.array.interface.IDoubleArray into
+    (^criterium.array.types.IDoubleArray into
       [this
-       ^criterium.array.interface.IDoubleArray target
+       ^criterium.array.types.IDoubleArray target
        xform
        ^IODOReducible source]
       (.transduce this xform (prim-set-at) target source))

@@ -10,14 +10,9 @@
   - IDoubleFold/ILongFold: primitive-in, primitive-out folds
   - IDoubleObjectFold/ILongObjectFold: primitive-in, object-out folds
   - IIndexed: indexed access to elements
-  - IArrayOps: type-specific operations (sum, getAt)")
-
-(definterface ITypedArray
-  (^clojure.lang.Keyword elemType [])
-  (^long length []))
-
-(definterface IDoubleArray)
-(definterface ILongArray)
+  - IArrayOps: type-specific operations (sum, getAt)"
+  (:import
+   [criterium.array.types ITypedArray ILongArray IDoubleArray]))
 
 (definterface IFold
   (fold [f init]))

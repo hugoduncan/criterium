@@ -12,8 +12,8 @@
    [criterium.transducer.interface]
    [criterium.util.invariant :refer [have?]])
   (:import
+   [criterium.array.types ITypedArray IDoubleArray ILongArray]
    [criterium.array.interface
-    ITypedArray IDoubleArray ILongArray
     IFold IDoubleFold ILongFold IDoubleObjectFold ILongObjectFold
     IDoubleMap IDoubleMapIndexed ILongMap ILongMapIndexed
     IDoubleAny ILongAny IArrayEquals ISortable

@@ -511,7 +511,7 @@
   Accepts both vectors and typed arrays."
   [dist samples {:keys [n-bootstrap alpha]
                  :or {n-bootstrap 200 alpha 0.05}}]
-  (let [typed? (instance? criterium.array.interface.ITypedArray samples)
+  (let [typed? (arr/typed-array? samples)
         ^long n (if typed?
                   (arr/length samples)
                   (count samples))
@@ -574,7 +574,7 @@
   (let [{:keys [distributions n-bootstrap alpha]
          :or {n-bootstrap 200 alpha 0.05}} options
         ;; Support both typed arrays and vectors
-        ^long n (if (instance? criterium.array.interface.ITypedArray samples)
+        ^long n (if (arr/typed-array? samples)
                   (arr/length samples)
                   (count samples))
         ;; Compute sample statistics for moment-match prefilter
