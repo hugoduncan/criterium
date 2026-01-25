@@ -171,9 +171,10 @@
         (is (str/blank? output))))))
 
 (deftest acf-plot-print-test
-  ;; Tests that acf-plot* is a no-op for print viewer.
+  ;; Tests ASCII ACF plot rendering for print viewer.
+  ;; Verifies output format, severity filtering, bar rendering, and threshold legend.
   (testing "acf-plot*"
-    (testing "returns nil for print viewer"
+    (testing "renders ACF plot when severity threshold met"
       (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])
             data-map {:autocorrelation
                       {:type :criterium/autocorrelation
@@ -181,17 +182,117 @@
                        :source-id :samples
                        :autocorrelation
                        {[:elapsed-time]
-                        {:acf {1 0.12 2 0.08}
-                         :lag-1 {:value 0.12 :severity :minor}
-                         :effective-sample-size {:n-original 100
-                                                 :n-effective 88
-                                                 :ratio 0.88}
+                        {:acf {1 0.25 2 0.18 3 0.05 12 -0.22}
+                         :lag-1 {:value 0.25 :severity :moderate}
+                         :effective-sample-size {:n-original 200
+                                                 :n-effective 157
+                                                 :ratio 0.785}
                          :ci-inflation-factor 1.13
+                         :lag-severities {1 :moderate 2 :minor 3 :none 12 :minor}
+                         :thresholds {:lag-1 {:minor 0.10 :moderate 0.20 :severe 0.35}
+                                      :other {:minor 0.15 :moderate 0.25 :severe 0.40}}
                          :ljung-box {:q-statistic 15.0 :df 10 :p-value 0.5}
                          :pattern :clean
                          :classification :acceptable
-                         :detected-period nil}}}}]
-        (is (nil? (view/acf-plot* :print {} data-map)))))))
+                         :detected-period nil}}}}
+            output (with-out-str
+                     (view/acf-plot* :print {:min-severity :minor} data-map))
+            lines (trimmed-lines output)]
+        (is (some #(str/includes? % "ACF Plot") lines)
+            "Should show ACF Plot header")
+        (is (some #(str/includes? % "n=200") lines)
+            "Should show sample count")
+        (is (some #(str/includes? % "Lag") lines)
+            "Should show Lag column header")
+        (is (some #(str/includes? % "ACF") lines)
+            "Should show ACF column header")
+        (is (some #(str/includes? % "0.25") lines)
+            "Should show lag-1 ACF value")
+        (is (some #(str/includes? % "(moderate)") lines)
+            "Should show severity annotation")
+        (is (some #(str/includes? % "|") lines)
+            "Should have bar center markers")
+        (is (some #(str/includes? % "█") lines)
+            "Should have bar characters")))
+
+    (testing "filters lags by min-severity"
+      (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])
+            data-map {:autocorrelation
+                      {:type :criterium/autocorrelation
+                       :metrics-defs metrics-defs
+                       :source-id :samples
+                       :autocorrelation
+                       {[:elapsed-time]
+                        {:acf {1 0.25 2 0.05}
+                         :lag-1 {:value 0.25 :severity :moderate}
+                         :effective-sample-size {:n-original 200
+                                                 :n-effective 157
+                                                 :ratio 0.785}
+                         :lag-severities {1 :moderate 2 :none}
+                         :thresholds {:lag-1 {:minor 0.10 :moderate 0.20 :severe 0.35}
+                                      :other {:minor 0.15 :moderate 0.25 :severe 0.40}}}}}}
+            ;; With min-severity :moderate, only lag 1 should appear
+            output (with-out-str
+                     (view/acf-plot* :print {:min-severity :moderate} data-map))
+            lines (trimmed-lines output)]
+        (is (some #(and (str/includes? % "1") (str/includes? % "0.25")) lines)
+            "Should show lag 1")
+        ;; Lag 2 with :none severity should not appear
+        (is (not (some #(str/includes? % "0.05") lines))
+            "Should not show lag 2 with :none severity")))
+
+    (testing "does not render when no lags meet severity threshold"
+      (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])
+            data-map {:autocorrelation
+                      {:type :criterium/autocorrelation
+                       :metrics-defs metrics-defs
+                       :source-id :samples
+                       :autocorrelation
+                       {[:elapsed-time]
+                        {:acf {1 0.05 2 0.03}
+                         :lag-1 {:value 0.05 :severity :none}
+                         :effective-sample-size {:n-original 200
+                                                 :n-effective 190
+                                                 :ratio 0.95}
+                         :lag-severities {1 :none 2 :none}
+                         :thresholds {:lag-1 {:minor 0.10 :moderate 0.20 :severe 0.35}
+                                      :other {:minor 0.15 :moderate 0.25 :severe 0.40}}}}}}
+            ;; With default min-severity :moderate, should not render
+            output (with-out-str
+                     (view/acf-plot* :print {} data-map))]
+        (is (str/blank? output)
+            "Should not render when no lags meet severity threshold")))
+
+    (testing "shows threshold legend with crossed thresholds"
+      (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])
+            data-map {:autocorrelation
+                      {:type :criterium/autocorrelation
+                       :metrics-defs metrics-defs
+                       :source-id :samples
+                       :autocorrelation
+                       {[:elapsed-time]
+                        {:acf {1 0.25 12 0.20}
+                         :lag-1 {:value 0.25 :severity :moderate}
+                         :effective-sample-size {:n-original 200
+                                                 :n-effective 157
+                                                 :ratio 0.785}
+                         :lag-severities {1 :moderate 12 :minor}
+                         :thresholds {:lag-1 {:minor 0.10 :moderate 0.20 :severe 0.35}
+                                      :other {:minor 0.15 :moderate 0.25 :severe 0.40}}}}}}
+            output (with-out-str
+                     (view/acf-plot* :print {:min-severity :minor} data-map))
+            lines (trimmed-lines output)]
+        (is (some #(str/includes? % "Thresholds:") lines)
+            "Should show threshold legend")
+        (is (some #(str/includes? % "lag-1") lines)
+            "Should mention lag-1 thresholds")
+        (is (some #(str/includes? % "0.10") lines)
+            "Should show crossed minor threshold value")))
+
+    (testing "handles missing autocorrelation data gracefully"
+      (let [output (with-out-str
+                     (view/acf-plot* :print {} {}))]
+        (is (str/blank? output))))))
 
 (deftest print-autocorrelation-anomalous-lags-test
   ;; Tests display of anomalous lags in autocorrelation output.

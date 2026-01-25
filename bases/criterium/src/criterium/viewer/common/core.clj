@@ -382,6 +382,45 @@
                                (keys first-coord))]
       (set uniform-keys))))
 
+;;; ASCII Bar Rendering
+
+(defn ascii-bar
+  "Generate a bar of █ characters proportional to value/max-value.
+  Returns a string of at most `width` characters."
+  ^String [^double value ^double max-value ^long width]
+  (if (or (<= max-value 0) (<= value 0))
+    ""
+    (let [ratio (min 1.0 (/ value max-value))
+          bar-len (max 0 (long (Math/round (* ratio width))))]
+      (apply str (repeat bar-len \█)))))
+
+(defn ascii-bar-bidirectional
+  "Generate a bidirectional bar centered on a vertical line.
+  Negative values extend left, positive values extend right.
+  Returns a string of exactly (2 * half-width + 1) characters.
+
+  Example outputs for half-width=10:
+    value  0.5 -> '          |█████     '
+    value -0.3 -> '       ███|          '
+    value  0.0 -> '          |          '"
+  ^String [^double value ^double max-abs-value ^long half-width]
+  (if (<= max-abs-value 0)
+    (str (apply str (repeat half-width \space)) "|" (apply str (repeat half-width \space)))
+    (let [ratio (min 1.0 (/ (Math/abs value) max-abs-value))
+          bar-len (max 0 (long (Math/round (* ratio half-width))))
+          left-spaces (apply str (repeat half-width \space))
+          right-spaces (apply str (repeat half-width \space))]
+      (if (neg? value)
+        ;; Negative: bar extends left from center
+        (let [padding (- half-width bar-len)
+              left-part (str (apply str (repeat padding \space))
+                             (apply str (repeat bar-len \█)))]
+          (str left-part "|" right-spaces))
+        ;; Positive or zero: bar extends right from center
+        (let [right-part (str (apply str (repeat bar-len \█))
+                              (apply str (repeat (- half-width bar-len) \space)))]
+          (str left-spaces "|" right-part))))))
+
 ;;; Tail Analysis Table Helpers
 
 (defn tail-summary-table

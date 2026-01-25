@@ -2,11 +2,13 @@
   "Print viewer for autocorrelation analysis.
 
   Provides views for lag analysis, effective sample size,
-  CI inflation factors, and pattern classification."
+  CI inflation factors, pattern classification, and ACF plots."
   (:require
    [clojure.string :as str]
    [criterium.view :as view]
+   [criterium.viewer.common-charts.autocorrelation :as acf-charts]
    [criterium.viewer.common.autocorrelation :as acf-common]
+   [criterium.viewer.common.core :as core]
    [criterium.viewer.print.core :as print-core]))
 
 (set! *unchecked-math* false)
@@ -76,8 +78,99 @@
   [_ view data-map]
   (print-autocorrelations view data-map))
 
-;; ACF plot is a no-op for print viewer (charts not supported)
-(defmethod view/acf-plot* :print [_ _ _])
+;;; ACF Plot
+
+(defn- format-threshold-legend
+  "Format threshold legend showing only crossed thresholds.
+  Returns string like 'lag-1 [minor 0.10, moderate 0.20], other [minor 0.15]'."
+  [acf-map thresholds]
+  (let [lag-1-acf (Math/abs (double (get acf-map 1 0)))
+        other-max-acf (if (> (count acf-map) 1)
+                        (apply max 0 (map #(Math/abs (double %))
+                                          (vals (dissoc acf-map 1))))
+                        0)
+        lag-1-thresholds (:lag-1 thresholds)
+        other-thresholds (:other thresholds)
+        ;; Find crossed thresholds for lag-1
+        lag-1-crossed (for [[level ^double threshold] (sort-by val lag-1-thresholds)
+                            :when (> lag-1-acf threshold)]
+                        (format "%s %.2f" (name level) threshold))
+        ;; Find crossed thresholds for other lags
+        other-crossed (for [[level ^double threshold] (sort-by val other-thresholds)
+                            :when (> other-max-acf threshold)]
+                        (format "%s %.2f" (name level) threshold))]
+    (cond-> []
+      (seq lag-1-crossed)
+      (conj (str "lag-1 [" (str/join ", " lag-1-crossed) "]"))
+      (seq other-crossed)
+      (conj (str "other [" (str/join ", " other-crossed) "]")))))
+
+(defn print-acf-plot
+  "Print ASCII ACF plot for a single metric.
+
+  Shows autocorrelation coefficients as bidirectional ASCII bar charts.
+  Only renders if at least one lag meets the min-severity threshold.
+
+  Options:
+    :min-severity - minimum severity to display (default :moderate)
+    :bar-width    - half-width of bar in characters (default 15)"
+  [{:keys [acf effective-sample-size lag-severities thresholds]} metric-label opts]
+  (let [{:keys [min-severity bar-width]
+         :or {min-severity :moderate bar-width 15}} opts
+        n (get effective-sample-size :n-original)
+        ;; Default thresholds if not provided
+        thresholds (or thresholds
+                       {:lag-1 {:minor 0.10 :moderate 0.20 :severe 0.35}
+                        :other {:minor 0.15 :moderate 0.25 :severe 0.40}})]
+    (when (and acf n lag-severities
+               (acf-charts/has-severity-at-or-above? lag-severities min-severity))
+      ;; Filter lags by severity
+      (let [min-rank (get acf-charts/severity-rank min-severity 0)
+            qualifying-lags (for [[lag sev] lag-severities
+                                  :when (>= (long (get acf-charts/severity-rank sev 0))
+                                            (long min-rank))]
+                              lag)
+            ;; Calculate max |acf| for scaling
+            max-abs-acf (apply max 0.01 (map #(Math/abs (double (get acf % 0)))
+                                             qualifying-lags))
+            ;; Sort lags numerically
+            sorted-lags (sort qualifying-lags)
+            ;; Calculate column widths
+            max-lag-width (max 3 (count (str (apply max 1 sorted-lags))))
+            ;; Print header
+            indent "  "
+            ;; Build format strings with dynamic width
+            header-fmt (str "%s%" max-lag-width "s   %s")
+            row-fmt (str "%s%" max-lag-width "d  %6.2f  %s (%s)")]
+        (println (format "%s ACF Plot (n=%d):" (print-core/format-sublabel metric-label) n))
+        (println (format header-fmt indent "Lag" "ACF"))
+        ;; Print each lag
+        (doseq [lag sorted-lags]
+          (let [acf-val (double (get acf lag))
+                severity (get lag-severities lag :none)
+                bar (core/ascii-bar-bidirectional acf-val max-abs-acf bar-width)]
+            (println (format row-fmt
+                             indent
+                             lag
+                             acf-val
+                             bar
+                             (acf-common/format-severity severity)))))
+        ;; Print threshold legend
+        (let [legend-parts (format-threshold-legend acf thresholds)]
+          (when (seq legend-parts)
+            (println)
+            (println (format "%sThresholds: %s" indent (str/join ", " legend-parts)))))))))
+
+(defn print-acf-plots
+  "Print ACF plots for all metrics."
+  [view data-map]
+  (acf-common/with-autocorrelation-metrics view data-map
+    (fn [acf-data mc]
+      (print-acf-plot acf-data (:label mc) view))))
+
+(defmethod view/acf-plot* :print
+  [_ view data-map]
+  (print-acf-plots view data-map))
 
 (defn- print-classification-for-metric
   "Print classification analysis for a single metric."

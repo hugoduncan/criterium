@@ -5,7 +5,8 @@
   ASCII treemap rendering for allocation visualization."
   (:require
    [clojure.string :as str]
-   [criterium.util.format :as format]))
+   [criterium.util.format :as format]
+   [criterium.viewer.common.core :as core]))
 
 ;;; Call site and object type formatting
 
@@ -45,16 +46,6 @@
 
 ;;; ASCII Treemap rendering
 
-(defn ascii-bar
-  "Generate a bar of █ characters proportional to value/max-value.
-  Returns a string of at most `width` characters."
-  ^String [^double value ^double max-value ^long width]
-  (if (or (<= max-value 0) (<= value 0))
-    ""
-    (let [ratio (min 1.0 (/ value max-value))
-          bar-len (max 0 (long (Math/round (* ratio width))))]
-      (apply str (repeat bar-len \█)))))
-
 ;;; Treemap box-drawing constants
 
 (def ^:private ^String tree-branch
@@ -91,7 +82,7 @@
         node-name (if is-leaf? name (str name "/"))
         size-str (str "[" (format/format-value :memory value) "]")
         bar-str (when is-leaf?
-                  (ascii-bar (double value) max-value bar-width))
+                  (core/ascii-bar (double value) max-value bar-width))
         ;; Keep prefix + connector intact, only truncate the name if needed
         prefix-connector (str prefix connector)
         prefix-len (long (count prefix-connector))
