@@ -25,33 +25,11 @@
   is in criterium.viewer.print.autocorrelation."
   (:require
    [criterium.viewer.print.allocation]
-   [criterium.viewer.print.autocorrelation :as print.autocorrelation]
-   [criterium.viewer.print.core :as print.core]
+   [criterium.viewer.print.autocorrelation]
+   [criterium.viewer.print.core]
    [criterium.viewer.print.distribution]
    [criterium.viewer.print.domain]
    [criterium.viewer.print.modal]
    [criterium.viewer.print.shape]
    [criterium.viewer.print.tail]))
-
-;;; Re-exported functions from print.core for backwards compatibility
-(def print-stat
-  "Print a single metric's stats. Delegates to criterium.viewer.print.core."
-  print.core/print-stat)
-
-(def print-extreme
-  "Print a single metric's min/max values. Delegates to criterium.viewer.print.core."
-  print.core/print-extreme)
-
-(def print-bootstrap-stat
-  "Print bootstrap statistics for a metric. Delegates to criterium.viewer.print.core."
-  print.core/print-bootstrap-stat)
-
-(def print-outlier-count
-  "Print outlier counts for a metric. Delegates to criterium.viewer.print.core."
-  print.core/print-outlier-count)
-
-;;; Re-exported functions from print.autocorrelation for backwards compatibility
-(def print-autocorrelation
-  "Print autocorrelation analysis summary. Delegates to criterium.viewer.print.autocorrelation."
-  print.autocorrelation/print-autocorrelation)
 
