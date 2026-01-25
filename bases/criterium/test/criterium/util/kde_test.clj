@@ -6,7 +6,7 @@
    [clojure.test :refer [deftest is testing]]
    [criterium.array :as arr]
    [criterium.test-utils :as tu]
-   [criterium.util.kde :as kde]))
+   [criterium.stats.kde :as kde]))
 
 (defn- darr
   "Create a DoubleArray from a sequence."

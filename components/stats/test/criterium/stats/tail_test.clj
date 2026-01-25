@@ -5,7 +5,7 @@
   (:require
    [clojure.test :refer [deftest is testing]]
    [criterium.array :as arr]
-   [criterium.stats.interface :as stats]))
+   [criterium.stats.tail :as stats]))
 
 (defn- darr
   "Create a DoubleArray from a sequence."

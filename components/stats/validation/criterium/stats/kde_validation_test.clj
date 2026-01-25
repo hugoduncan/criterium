@@ -1,12 +1,12 @@
 (ns criterium.stats.kde-validation-test
-  "Validation tests for criterium.stats.interface KDE functions against R reference.
+  "Validation tests for criterium.stats.kde functions against R reference.
 
   Tests skip gracefully when R/Rserve is unavailable."
   (:require
    [clojure.test :refer [deftest is testing]]
    [criterium.array :as arr]
    [criterium.r-validation.r :as r :refer [vec->r-str]]
-   [criterium.stats.interface :as stats]
+   [criterium.stats.kde :as stats]
    [criterium.test.assert :refer [approx=]]))
 
 (defn- darr

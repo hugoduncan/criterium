@@ -7,7 +7,7 @@
    [criterium.analyse.metrics-samples]
    [criterium.collect-plan :as collect-plan]
    [criterium.metric :as metric]
-   [criterium.stats.interface :as stats]
+   [criterium.stats.autocorrelation :as stats]
    [criterium.util.bootstrap :as bootstrap]
    [criterium.util.debug :as debug]
    [criterium.util.helpers :as util]

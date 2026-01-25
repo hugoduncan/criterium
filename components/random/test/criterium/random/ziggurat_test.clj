@@ -8,7 +8,7 @@
    [criterium.array :as arr]
    [criterium.random.well :as well]
    [criterium.random.ziggurat :as ziggurat]
-   [criterium.stats.interface :as stats]
+   [criterium.stats.core :as stats]
    [criterium.test-utils :refer [abs-error
                                  autocorrelation
                                  make-xoshiro-rng

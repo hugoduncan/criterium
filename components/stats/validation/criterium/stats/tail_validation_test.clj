@@ -17,7 +17,7 @@
    [criterium.array :as arr]
    [criterium.primitive-fn :as prim]
    [criterium.r-validation.r :as r :refer [vec->r-str]]
-   [criterium.stats.interface :as stats]
+   [criterium.stats.tail :as stats]
    [criterium.test.assert :refer [approx=]]))
 
 (defn- darr

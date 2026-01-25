@@ -8,7 +8,7 @@
    [criterium.metric :as metric]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have have?]]
-   [criterium.util.probability :as probability]
+   [criterium.stats.probability :as probability]
    [criterium.viewer.common.core :as core]))
 
 ;;; Scatter plots

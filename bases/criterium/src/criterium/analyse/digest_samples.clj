@@ -10,7 +10,7 @@
   (:require
    [criterium.analyse.methods :as methods]
    [criterium.collect-plan :as collect-plan]
-   [criterium.stats.interface :as stats]
+   [criterium.stats.outliers :as stats]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have]]
    [criterium.util.t-digest :as t-digest]))

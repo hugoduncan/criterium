@@ -8,7 +8,7 @@
    [criterium.random.interface :as random]
    [criterium.stats.t-digest.merging-digest :as stats-md]
    [criterium.test-utils :refer [approx= gen-double]]
-   [criterium.util.probability :as probability]
+   [criterium.stats.probability :as probability]
    [criterium.util.t-digest.merging-digest :as md]
    [criterium.util.t-digest.scale :as scale]))
 

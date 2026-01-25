@@ -5,11 +5,18 @@
    criterium.array.interfaces
    [criterium.collect-plan :as collect-plan]
    [criterium.random.interface :as random]
-   [criterium.stats.interface :as stats]
+   [criterium.stats.autocorrelation :as autocorrelation]
+   [criterium.stats.core :as core]
+   [criterium.stats.histogram :as histogram]
+   [criterium.stats.kde :as kde]
+   [criterium.stats.mle :as mle]
+   [criterium.stats.moment-match :as moment-match]
+   [criterium.stats.outliers :as outliers]
+   [criterium.stats.probability :as probability]
+   [criterium.stats.sampling :as sampling]
+   [criterium.stats.tail :as tail]
    [criterium.util.helpers :as util]
-   [criterium.util.histogram :as histogram]
    [criterium.util.invariant :refer [have]]
-   [criterium.util.kde :as kde]
    [criterium.util.sampled-stats :as sampled-stats]))
 
 (def ^:private metrics-samples-keys
@@ -94,10 +101,10 @@
              sample-values (get samples path)
              sorted-samples (arr/sorted sample-values)
              mc (when use-medcouple?
-                  (stats/medcouple sorted-samples))
+                  (outliers/medcouple sorted-samples))
              thresholds (if use-medcouple?
-                          (stats/adjusted-boxplot-outlier-thresholds q1 q3 mc)
-                          (stats/boxplot-outlier-thresholds q1 q3))
+                          (outliers/adjusted-boxplot-outlier-thresholds q1 q3 mc)
+                          (outliers/boxplot-outlier-thresholds q1 q3))
              actual-method (if use-medcouple? :medcouple :tukey)
              classifier (classifier thresholds)
              outliers (when (apply not= thresholds)
@@ -474,10 +481,10 @@
   [dist samples]
   (try
     (case dist
-      :gamma (stats/gamma-mle samples)
-      :lognormal (stats/lognormal-mle samples)
-      :inverse-gaussian (stats/inverse-gaussian-mle samples)
-      :weibull (stats/weibull-mle samples))
+      :gamma (mle/gamma-mle samples)
+      :lognormal (mle/lognormal-mle samples)
+      :inverse-gaussian (mle/inverse-gaussian-mle samples)
+      :weibull (mle/weibull-mle samples))
     (catch Exception e
       {:error (.getMessage e)})))
 
@@ -485,26 +492,26 @@
   "Create a CDF function for the given distribution and parameters."
   [dist params]
   (case dist
-    :gamma (stats/gamma-cdf (:shape params) (:scale params))
-    :lognormal (stats/lognormal-cdf (:mu params) (:sigma params))
-    :inverse-gaussian (stats/inverse-gaussian-cdf (:mu params) (:lambda params))
-    :weibull (stats/weibull-cdf (:shape params) (:scale params))))
+    :gamma (probability/gamma-cdf (:shape params) (:scale params))
+    :lognormal (probability/lognormal-cdf (:mu params) (:sigma params))
+    :inverse-gaussian (probability/inverse-gaussian-cdf (:mu params) (:lambda params))
+    :weibull (probability/weibull-cdf (:shape params) (:scale params))))
 
 (defn- compute-gof-tests
   "Compute goodness-of-fit tests (K-S and CvM) for fitted distribution."
   [samples cdf-fn]
-  {:ks-test (stats/ks-test samples cdf-fn)
-   :cvm-test (stats/cvm-test samples cdf-fn)})
+  {:ks-test (probability/ks-test samples cdf-fn)
+   :cvm-test (probability/cvm-test samples cdf-fn)})
 
 (defn- compute-information-criteria
   "Compute AIC, BIC, and AICc for a fitted model."
   [dist n log-likelihood]
   (let [k (long (get distribution-num-params dist 2))
         n (long n)]
-    {:aic (stats/aic k log-likelihood)
-     :bic (stats/bic k n log-likelihood)
+    {:aic (probability/aic k log-likelihood)
+     :bic (probability/bic k n log-likelihood)
      :aicc (when (> n (inc k))
-             (stats/aicc k n log-likelihood))}))
+             (probability/aicc k n log-likelihood))}))
 
 (defn- bootstrap-parameter-ci
   "Bootstrap confidence intervals for distribution parameters.
@@ -539,7 +546,7 @@
           (if (>= i n-bootstrap)
             results
             (let [rng (rng-factory)
-                  indices (stats/sample-uniform bootstrap-size n rng)
+                  indices (sampling/sample-uniform bootstrap-size n rng)
                   boot-samples (resample-fn indices)
                   fit (fit-fn boot-samples)]
               (recur (inc i)
@@ -579,16 +586,16 @@
                   (arr/length samples)
                   (count samples))
         ;; Compute sample statistics for moment-match prefilter
-        ;; stats/mean and stats/variance work with typed arrays directly
-        mean-val (stats/mean samples)
-        var-val (stats/variance samples)
+        ;; core/mean and core/variance work with typed arrays directly
+        mean-val (core/mean samples)
+        var-val (core/variance samples)
         ;; Determine which distributions to fit
         requested-dists (if distributions
                           (set distributions)
                           all-distributions)
         ;; Use moment-match prefilter to screen distributions
-        prefilter-results (stats/moment-match-prefilter mean-val var-val requested-dists)
-        suitable-dists (stats/suitable-distributions mean-val var-val requested-dists)
+        prefilter-results (moment-match/moment-match-prefilter mean-val var-val requested-dists)
+        suitable-dists (moment-match/suitable-distributions mean-val var-val requested-dists)
         ;; Fit each distribution - MLE/GOF functions now accept typed arrays
         fit-results
         (into {}
@@ -649,8 +656,8 @@
           n (arr/length samples-arr)]
       (when (> n 2)
         ;; Use stats functions that accept typed arrays for min/max
-        (let [sample-min (stats/min samples-arr)
-              sample-max (stats/max samples-arr)]
+        (let [sample-min (core/min samples-arr)
+              sample-max (core/max samples-arr)]
           (assoc (fit-distributions-for-metric samples-arr options)
                  :sample-range [sample-min sample-max]))))
     (catch Exception e
@@ -717,7 +724,7 @@
                     (recur (inc i))))
         f-u (/ (double n-below) n)
         {:keys [xi sigma]} gpd-fit
-        gpd-quantile-fn (stats/gpd-quantile xi sigma)]
+        gpd-quantile-fn (tail/gpd-quantile xi sigma)]
     (into {}
           (for [p quantiles]
             (let [p (double p)]
@@ -753,30 +760,30 @@
               ;; Determine threshold
               threshold-quantile (or (:threshold-quantile options) 0.9)
               threshold (or (:threshold options)
-                            (stats/quantile threshold-quantile sorted-samples))
+                            (core/quantile threshold-quantile sorted-samples))
               threshold (double threshold)
               ;; Compute percentiles for tail ratios
-              p95 (stats/quantile 0.95 sorted-samples)
-              p99 (stats/quantile 0.99 sorted-samples)
-              p999 (stats/quantile 0.999 sorted-samples)
-              tail-ratios (stats/tail-ratios {:p95 p95 :p99 p99 :p999 p999})
+              p95 (core/quantile 0.95 sorted-samples)
+              p99 (core/quantile 0.99 sorted-samples)
+              p999 (core/quantile 0.999 sorted-samples)
+              tail-ratios (tail/tail-ratios {:p95 p95 :p99 p99 :p999 p999})
               ;; Hill estimator
               k-range (or (:k-range options)
-                          (stats/hill-estimator-default-k-range n))
+                          (tail/hill-estimator-default-k-range n))
               hill-results (when (seq k-range)
-                             (stats/hill-estimator sorted-samples k-range))
+                             (tail/hill-estimator sorted-samples k-range))
               stable-estimate (find-stable-hill-estimate hill-results)
               ;; GPD fitting on exceedances
-              exceedances (stats/exceedances-over-threshold sorted-samples threshold)
+              exceedances (tail/exceedances-over-threshold sorted-samples threshold)
               n-exceed (arr/length exceedances)
               gpd-fit (when (> n-exceed 10)
                         (try
-                          (stats/gpd-mle exceedances)
+                          (tail/gpd-mle exceedances)
                           (catch Exception _e nil)))
               ;; Mean residual life
-              mrl-thresholds (stats/mean-residual-life-default-thresholds sorted-samples)
+              mrl-thresholds (tail/mean-residual-life-default-thresholds sorted-samples)
               mrl-results (when (seq mrl-thresholds)
-                            (stats/mean-residual-life sorted-samples mrl-thresholds))
+                            (tail/mean-residual-life sorted-samples mrl-thresholds))
               ;; High quantile estimation using GPD
               high-quantile-probs (or (:high-quantiles options) [0.99 0.999 0.9999])
               high-quantiles (when gpd-fit
@@ -845,7 +852,7 @@
             ^doubles samples-doubles (double-array n)]
         (dotimes [i n]
           (aset samples-doubles i (arr/get-double samples-arr i)))
-        (stats/analyse-autocorrelation samples-doubles)))))
+        (autocorrelation/analyse-autocorrelation samples-doubles)))))
 
 (defmethod methods/autocorrelation :criterium/metrics-samples
   [metrics-samples outliers metric-configs _options]

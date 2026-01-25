@@ -74,20 +74,20 @@ The validation tests compare the following criterium functions against R:
 
 | Criterium Function | R Reference |
 |--------------------|-------------|
-| `criterium.util.stats/mean` | `mean()` |
-| `criterium.util.stats/variance` | `var()` |
-| `criterium.util.stats/median` | `median()` |
-| `criterium.util.stats/quantile` | `quantile(..., type=7)` |
-| `criterium.util.stats/linear-regression` | `lm()` |
-| `criterium.util.bootstrap/bootstrap-estimate` | `boot::boot()` |
-| `criterium.util.bootstrap/bca-ci` | `boot::boot.ci(..., type="bca")` |
-| `criterium.util.bootstrap/jackknife` | manual jackknife |
-| `criterium.util.kde/silverman-bandwidth` | `bw.nrd0()` |
-| `criterium.util.kde/gaussian-kde` | `density(..., kernel="gaussian")` |
-| `criterium.util.kde/silverman-test` | `multimode::modetest(..., method="SI")` |
-| `criterium.util.kde/acr-test` | `multimode::modetest(..., method="ACR")` |
-| `criterium.util.probability/normal-quantile` | `qnorm()` |
-| `criterium.util.probability/normal-cdf` | `pnorm()` |
+| `criterium.stats.core/mean` | `mean()` |
+| `criterium.stats.core/variance` | `var()` |
+| `criterium.stats.core/median` | `median()` |
+| `criterium.stats.core/quantile` | `quantile(..., type=7)` |
+| `criterium.stats.core/linear-regression` | `lm()` |
+| `criterium.stats.bootstrap/bootstrap-estimate` | `boot::boot()` |
+| `criterium.stats.bootstrap/bca-ci` | `boot::boot.ci(..., type="bca")` |
+| `criterium.stats.bootstrap/jackknife` | manual jackknife |
+| `criterium.stats.kde/silverman-bandwidth` | `bw.nrd0()` |
+| `criterium.stats.kde/gaussian-kde` | `density(..., kernel="gaussian")` |
+| `criterium.stats.kde/silverman-test` | `multimode::modetest(..., method="SI")` |
+| `criterium.stats.kde/acr-test` | `multimode::modetest(..., method="ACR")` |
+| `criterium.stats.probability/normal-quantile` | `qnorm()` |
+| `criterium.stats.probability/normal-cdf` | `pnorm()` |
 
 ## Tolerance Levels
 

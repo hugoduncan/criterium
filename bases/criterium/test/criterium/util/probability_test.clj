@@ -2,7 +2,7 @@
   (:require
    [clojure.test :refer [deftest is testing]]
    [criterium.test-utils :refer [test-max-error]]
-   [criterium.util.probability :as probability]))
+   [criterium.stats.probability :as probability]))
 
 ;; Values from R, qnorm (with options(digits=15))
 (deftest normal-quantile-test

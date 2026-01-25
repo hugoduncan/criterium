@@ -5,7 +5,7 @@
    [clojure.test.check.generators :as gen]
    [criterium.array :as arr]
    [criterium.random.interface :as random]
-   [criterium.stats.interface :as stats]
+   [criterium.stats.core :as stats]
    [criterium.test.assert :as assert]))
 
 (defn darr

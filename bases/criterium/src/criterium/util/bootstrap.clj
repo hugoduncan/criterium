@@ -1,14 +1,14 @@
 (ns criterium.util.bootstrap
   "Bootstrap statistics for criterium.
 
-  Core bootstrap algorithms are provided by criterium.stats.interface. This namespace
+  Core bootstrap algorithms are provided by criterium.stats.bootstrap. This namespace
   provides criterium-specific integration with metrics and collect plans."
   (:require
    [criterium.array :as arr]
    [criterium.collect-plan :as collect-plan]
    [criterium.metric :as metric]
    [criterium.random.interface :as random]
-   [criterium.stats.interface :as stats]
+   [criterium.stats.bootstrap :as stats]
    [criterium.util.helpers :as util])
   (:import
    [criterium.array DoubleArray LongArray ObjectArray]))
