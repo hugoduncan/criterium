@@ -45,11 +45,11 @@
              :allocation-treemap]
    :view [[:stats {:metric-ids [:memory]}]
           :bootstrap-stats
+          :extremes
           [:autocorrelation-classification {:classification-id :autocorrelation-classification-raw}]
           [:effective-sample-size {:ess-id :effective-sample-size-filtered}]
           [:acf-plot {:autocorrelation-id :autocorrelation-raw
                       :min-severity :moderate}]
-          :extremes
           [:multimodal-warning {:modes-id :modes}]
           :event-stats
           :outlier-counts
