@@ -1,10 +1,9 @@
-(ns criterium.util.knuth-test
+(ns criterium.stats.knuth-test
   (:require
    [clojure.test :refer [deftest is testing]]
    [criterium.array :as arr]
-   [criterium.stats.knuth :as stats.knuth]
-   [criterium.test-utils :refer [gaussian-samples test-max-error]]
-   [criterium.util.knuth :as knuth]))
+   [criterium.stats.knuth :as knuth]
+   [criterium.test-utils :refer [gaussian-samples test-max-error]]))
 
 (defn- darr
   "Create a DoubleArray from a sequence."
@@ -130,7 +129,7 @@
             "Should compute valid log-posterior")))))
 
 ;; Test private data-min-max function directly
-(def ^:private data-min-max #'stats.knuth/data-min-max)
+(def ^:private data-min-max #'knuth/data-min-max)
 
 (deftest data-min-max-test
   ;; Tests the private data-min-max function which computes min/max

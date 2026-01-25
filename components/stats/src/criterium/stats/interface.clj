@@ -13,7 +13,6 @@
   - Moment matching: parameter estimation, distribution suitability prefilter
   - MLE fitting: gamma-mle, lognormal-mle, inverse-gaussian-mle, weibull-mle
   - Histogram: histogram (Freedman-Diaconis or Knuth Bayesian binning)
-  - Knuth: optimal-bins, log-posterior (Bayesian histogram binning)
   - T-digest: streaming quantile estimation
   - Kernel: modal estimation, kernel density estimators
   - KDE: bandwidth selection, Gaussian KDE, mode detection, multimodality tests
@@ -30,7 +29,6 @@
    [criterium.stats.histogram :as histogram]
    [criterium.stats.kde :as kde]
    [criterium.stats.kernel :as kernel]
-   [criterium.stats.knuth :as knuth]
    [criterium.stats.mle :as mle]
    [criterium.stats.moment-match :as moment-match]
    [criterium.stats.outliers :as outliers]
@@ -659,39 +657,6 @@
   Throws if any sample is non-positive."
   ([samples] (mle/weibull-mle samples))
   ([samples opts] (mle/weibull-mle samples opts)))
-
-;;; Knuth Bayesian histogram binning
-
-(defn knuth-log-posterior
-  "Compute Knuth's log-posterior for M bins given sample count and bin counts.
-
-  F(M|x,I) = n·log(M) + logΓ(M/2) - M·logΓ(1/2) - logΓ((2n+M)/2) + Σₖ₌₁ᴹ logΓ(nₖ + 1/2)
-
-  Parameters:
-    n - total sample count
-    bin-counts - sequence of counts per bin
-
-  Returns the log-posterior value (higher is better)."
-  ^double [^long n bin-counts]
-  (knuth/log-posterior n bin-counts))
-
-(defn knuth-optimal-bins
-  "Find optimal number of bins using Knuth's Bayesian method.
-
-  Searches M ∈ [1, max-bins] for the value that maximizes the log-posterior.
-
-  Parameters:
-    samples - sequence of numeric values
-    opts - optional map with:
-      :max-bins - maximum M to search (default: 50)
-      :min - pre-computed minimum value (avoids redundant scan)
-      :max - pre-computed maximum value (avoids redundant scan)
-
-  Returns map with:
-    :optimal-bins - the optimal number of bins M
-    :log-posterior - the log-posterior value at optimal M"
-  ([samples] (knuth/optimal-bins samples))
-  ([samples opts] (knuth/optimal-bins samples opts)))
 
 ;;; Histogram
 

@@ -12,21 +12,19 @@
    All functions require typed arrays (DoubleArray, LongArray)."
   (:require
    [criterium.array :as arr]
+   [criterium.primitive-fn :as pf]
    [criterium.stats.probability :as prob]
-   [criterium.utils.interface :refer [have?]]))
+   [criterium.transducer :as xd]
+   [criterium.utils.interface :refer [have?]])
+  (:import
+   [criterium.array
+    DoubleArray]))
 
 (defn- data-min-max
   "Returns [min max] for typed array data."
-  [data]
-  (let [mn (arr/fold-double data
-                            (fn ^double [^double acc ^double v]
-                              (min acc v))
-                            Double/POSITIVE_INFINITY)
-        mx (arr/fold-double data
-                            (fn ^double [^double acc ^double v]
-                              (max acc v))
-                            Double/NEGATIVE_INFINITY)]
-    [mn mx]))
+  [^DoubleArray data]
+  [(xd/reduce pf/dmin Double/POSITIVE_INFINITY data)
+   (xd/reduce pf/dmax Double/NEGATIVE_INFINITY data)])
 
 ;;; Constants
 
