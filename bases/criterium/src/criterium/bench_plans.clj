@@ -46,14 +46,14 @@
    :view [[:stats {:metric-ids [:memory]}]
           :bootstrap-stats
           :extremes
+          :collect-plan
+          :outlier-counts
+          [:multimodal-warning {:modes-id :modes}]
           [:autocorrelation-classification {:classification-id :autocorrelation-classification-raw}]
           [:effective-sample-size {:ess-id :effective-sample-size-filtered}]
           [:acf-plot {:autocorrelation-id :autocorrelation-raw
                       :min-severity :moderate}]
-          [:multimodal-warning {:modes-id :modes}]
           :event-stats
-          :outlier-counts
-          :collect-plan
           :allocation-summary
           :allocation-hotspots
           :allocation-by-type

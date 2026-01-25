@@ -18,7 +18,7 @@
   (testing "time with stats"
     (let [out (with-out-str (bench/bench 1 :limit-time-s 0.1))]
       (testing "outputs extremes on stdout"
-        (is (re-find #"Extremes:" out)))))
+        (is (re-find #"extremes:" out)))))
   (testing "time with one-shot"
     (let [out (with-out-str (bench/bench 1 :collect-plan :one-shot))]
       (testing "outputs statistics on stdout"
