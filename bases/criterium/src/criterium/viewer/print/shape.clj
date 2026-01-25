@@ -14,13 +14,13 @@
   "Format skewness classification for display."
   [classification]
   (case classification
-    :highly-left-skewed "highly left-skewed"
+    :strongly-left-skewed "strongly left-skewed"
     :moderately-left-skewed "moderately left-skewed"
     :slightly-left-skewed "slightly left-skewed"
     :symmetric "symmetric"
     :slightly-right-skewed "slightly right-skewed"
     :moderately-right-skewed "moderately right-skewed"
-    :highly-right-skewed "highly right-skewed"
+    :strongly-right-skewed "strongly right-skewed"
     (name classification)))
 
 (defn- format-kurtosis-class

@@ -8,11 +8,11 @@
 
 (defn- classify-skewness
   "Classify skewness based on absolute value.
-  Uses standard thresholds: |s| > 1 highly skewed, |s| > 0.5 moderately skewed."
+  Uses standard thresholds: |s| > 1 strongly skewed, |s| > 0.5 moderately skewed."
   [^double s]
   (let [abs-s (Math/abs s)]
     (cond
-      (> abs-s 1.0) (if (neg? s) :highly-left-skewed :highly-right-skewed)
+      (> abs-s 1.0) (if (neg? s) :strongly-left-skewed :strongly-right-skewed)
       (> abs-s 0.5) (if (neg? s) :moderately-left-skewed :moderately-right-skewed)
       (> abs-s 0.1) (if (neg? s) :slightly-left-skewed :slightly-right-skewed)
       :else :symmetric)))
