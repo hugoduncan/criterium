@@ -7,7 +7,7 @@
    [clojure.test :refer [deftest is testing]]
    [criterium.array :as arr])
   (:import
-   [criterium.array ResizableDoubleArray ResizableLongArray]))
+   [criterium.array ResizableDoubleArray ResizableLongArray ResizableObjectArray]))
 
 (deftest type-predicates-test
   (testing "type predicates"
@@ -1010,3 +1010,161 @@
           (.setLong arr i (long i)))
         (is (arr/array= arr [0 1 2]))
         (is (not (arr/array= arr [0 1 2 3])))))))
+
+;;; ResizableObjectArray tests
+
+(deftest resizable-object-array-construction-test
+  ;; Tests construction of ResizableObjectArray with capacity and initial size.
+  ;; Contracts: capacity-only creates array with size=capacity,
+  ;; capacity+size creates with specified size, validates bounds.
+  (testing "resizable-object-array"
+    (testing "with capacity only"
+      (testing "creates array with size equal to capacity"
+        (let [^ResizableObjectArray arr (arr/resizable-object-array 5)]
+          (is (= 5 (arr/length arr)))
+          (is (= 5 (arr/capacity arr)))))
+      (testing "creates array with zero capacity"
+        (let [^ResizableObjectArray arr (arr/resizable-object-array 0)]
+          (is (= 0 (arr/length arr)))
+          (is (= 0 (arr/capacity arr))))))
+    (testing "with capacity and initial-size"
+      (testing "creates array with specified size less than capacity"
+        (let [^ResizableObjectArray arr (arr/resizable-object-array 10 3)]
+          (is (= 3 (arr/length arr)))
+          (is (= 10 (arr/capacity arr)))))
+      (testing "creates array with size equal to capacity"
+        (let [^ResizableObjectArray arr (arr/resizable-object-array 5 5)]
+          (is (= 5 (arr/length arr)))
+          (is (= 5 (arr/capacity arr)))))
+      (testing "creates array with zero initial size"
+        (let [^ResizableObjectArray arr (arr/resizable-object-array 10 0)]
+          (is (= 0 (arr/length arr)))
+          (is (= 10 (arr/capacity arr)))))
+      (testing "throws on negative initial-size"
+        (is (thrown-with-msg? IllegalArgumentException
+                              #"initial-size must be between 0 and capacity"
+                              (arr/resizable-object-array 5 -1))))
+      (testing "throws on initial-size exceeding capacity"
+        (is (thrown-with-msg? IllegalArgumentException
+                              #"initial-size must be between 0 and capacity"
+                              (arr/resizable-object-array 5 6)))))))
+
+(deftest resizable-object-array-predicate-test
+  ;; Tests the resizable-object-array? type predicate.
+  ;; Contracts: returns true only for ResizableObjectArray instances.
+  (testing "resizable-object-array?"
+    (testing "returns true for ResizableObjectArray"
+      (is (arr/resizable-object-array? (arr/resizable-object-array 5))))
+    (testing "returns false for ObjectArray"
+      (is (not (arr/resizable-object-array?
+                (arr/->object-array (object-array [:a]))))))
+    (testing "returns false for other types"
+      (is (not (arr/resizable-object-array? [:a :b])))
+      (is (not (arr/resizable-object-array? nil))))))
+
+(deftest resizable-object-array-resize-test
+  ;; Tests the resize! operation on ResizableObjectArray.
+  ;; Contracts: shrinking works, growing beyond capacity throws,
+  ;; resize to same size works, resize to zero works.
+  (testing "resize!"
+    (testing "shrinks the array"
+      (let [^ResizableObjectArray arr (arr/resizable-object-array 10 10)]
+        (arr/resize! arr 5)
+        (is (= 5 (arr/length arr)))
+        (is (= 10 (arr/capacity arr)))))
+    (testing "resizes to zero"
+      (let [^ResizableObjectArray arr (arr/resizable-object-array 5)]
+        (arr/resize! arr 0)
+        (is (= 0 (arr/length arr)))))
+    (testing "resizes to same size"
+      (let [^ResizableObjectArray arr (arr/resizable-object-array 5 3)]
+        (arr/resize! arr 3)
+        (is (= 3 (arr/length arr)))))
+    (testing "can grow back up to capacity after shrinking"
+      (let [^ResizableObjectArray arr (arr/resizable-object-array 10 10)]
+        (arr/resize! arr 3)
+        (is (= 3 (arr/length arr)))
+        (arr/resize! arr 8)
+        (is (= 8 (arr/length arr)))))
+    (testing "throws on negative size"
+      (let [^ResizableObjectArray arr (arr/resizable-object-array 5)]
+        (is (thrown-with-msg? IllegalArgumentException
+                              #"new-size must be between 0 and capacity"
+                              (arr/resize! arr -1)))))
+    (testing "throws on size exceeding capacity"
+      (let [^ResizableObjectArray arr (arr/resizable-object-array 5)]
+        (is (thrown-with-msg? IllegalArgumentException
+                              #"new-size must be between 0 and capacity"
+                              (arr/resize! arr 6)))))))
+
+(deftest resizable-object-array-elem-type-test
+  ;; Tests that ResizableObjectArray reports correct element type.
+  (testing "elem-type"
+    (testing "returns :object"
+      (is (= :object (arr/elem-type (arr/resizable-object-array 5)))))))
+
+(deftest resizable-object-array-fold-test
+  ;; Tests fold operations on ResizableObjectArray respect current size.
+  ;; Contracts: fold only iterates over active elements, not capacity.
+  (testing "fold operations"
+    (testing "fold respects current size"
+      (let [^ResizableObjectArray arr (arr/resizable-object-array 10 5)]
+        (dotimes [i 10]
+          (aset ^objects (.array arr) i (keyword (str "k" i))))
+        (is (= [:k0 :k1 :k2 :k3 :k4]
+               (arr/fold arr #(conj %1 %2) [])))))
+    (testing "fold on resized array uses new size"
+      (let [^ResizableObjectArray arr (arr/resizable-object-array 10 10)]
+        (dotimes [i 10]
+          (aset ^objects (.array arr) i (keyword (str "k" i))))
+        (arr/resize! arr 3)
+        (is (= [:k0 :k1 :k2]
+               (arr/fold arr #(conj %1 %2) [])))))
+    (testing "fold on empty array returns init"
+      (let [arr (arr/resizable-object-array 10 0)]
+        (is (= []
+               (arr/fold arr #(conj %1 %2) [])))))))
+
+(deftest resizable-object-array-to-fixed-test
+  ;; Tests conversion from ResizableObjectArray to ObjectArray.
+  ;; Contracts: to-fixed creates new ObjectArray with only active elements.
+  (testing "to-fixed"
+    (testing "creates ObjectArray with current size elements"
+      (let [^ResizableObjectArray arr (arr/resizable-object-array 10 5)]
+        (dotimes [i 5]
+          (aset ^objects (.array arr) i (keyword (str "v" i))))
+        (let [fixed (arr/to-fixed arr)]
+          (is (arr/object-array? fixed))
+          (is (= 5 (arr/length fixed)))
+          (is (= [:v0 :v1 :v2 :v3 :v4]
+                 (arr/fold fixed #(conj %1 %2) []))))))
+    (testing "creates copy not sharing backing array"
+      (let [^ResizableObjectArray arr (arr/resizable-object-array 5 5)
+            _                         (dotimes [i 5]
+                                        (aset ^objects (.array arr) i (keyword (str "k" i))))
+            fixed                     (arr/to-fixed arr)]
+        (aset ^objects (.array arr) 0 :changed)
+        (is (= :k0 (aget ^objects (.array ^criterium.array.ObjectArray fixed) 0)))))
+    (testing "works with zero size"
+      (let [arr   (arr/resizable-object-array 10 0)
+            fixed (arr/to-fixed arr)]
+        (is (= 0 (arr/length fixed)))))
+    (testing "works after resize"
+      (let [^ResizableObjectArray arr (arr/resizable-object-array 10 10)]
+        (dotimes [i 10]
+          (aset ^objects (.array arr) i (keyword (str "k" i))))
+        (arr/resize! arr 3)
+        (let [fixed (arr/to-fixed arr)]
+          (is (= 3 (arr/length fixed)))
+          (is (= [:k0 :k1 :k2]
+                 (arr/fold fixed #(conj %1 %2) []))))))))
+
+(deftest resizable-object-array-array-equals-test
+  ;; Tests arrayEquals respects current size.
+  (testing "array="
+    (testing "compares only current size elements"
+      (let [^ResizableObjectArray arr (arr/resizable-object-array 10 3)]
+        (dotimes [i 3]
+          (aset ^objects (.array arr) i (keyword (str "k" i))))
+        (is (arr/array= arr [:k0 :k1 :k2]))
+        (is (not (arr/array= arr [:k0 :k1 :k2 :k3])))))))

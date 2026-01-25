@@ -807,6 +807,43 @@
                  false)
                true))))))
 
+(deftype ResizableObjectArray [^objects array
+                               ^:unsynchronized-mutable ^long size]
+  IResizable
+  (^long resize [_ ^long new-size]
+    (when (or (neg? new-size) (> new-size (alength array)))
+      (throw (IllegalArgumentException.
+              (str "new-size must be between 0 and capacity ("
+                   (alength array) "), got: " new-size))))
+    (set! size new-size)
+    new-size)
+  (^long capacity [_] (alength array))
+
+  ITypedArray
+  (elemType [_] :object)
+  (length [_] size)
+
+  IFold
+  (^Object fold [_ f init]
+    (loop [i   0
+           acc init]
+      (if (< i size)
+        (recur (unchecked-inc i)
+               (f acc (aget array i)))
+        acc)))
+
+  IArrayEquals
+  (^boolean arrayEquals [_ expected]
+    (let [expected-vec (vec expected)
+          n            (count expected-vec)]
+      (and (== n size)
+           (loop [i 0]
+             (if (< i n)
+               (if (= (aget array i) (nth expected-vec i))
+                 (recur (unchecked-inc i))
+                 false)
+               true))))))
+
 (defn elem-type
   "Returns the element type keyword: :double, :long, or :object."
   [^ITypedArray arr]
@@ -846,6 +883,11 @@
   "Returns true if x is a ResizableLongArray."
   [x]
   (instance? ResizableLongArray x))
+
+(defn resizable-object-array?
+  "Returns true if x is a ResizableObjectArray."
+  [x]
+  (instance? ResizableObjectArray x))
 
 (deftype ArrayOps []
   IArrayOps
@@ -986,6 +1028,20 @@
                   capacity "), got: " initial-size))))
    (ResizableLongArray. (long-array capacity) initial-size)))
 
+(defn resizable-object-array
+  "Creates a ResizableObjectArray with given capacity.
+  With one argument, creates array with size equal to capacity.
+  With two arguments, creates array with given capacity and initial size.
+  The initial size must be between 0 and capacity (inclusive)."
+  (^ResizableObjectArray [^long capacity]
+   (ResizableObjectArray. (object-array capacity) capacity))
+  (^ResizableObjectArray [^long capacity ^long initial-size]
+   (when (or (neg? initial-size) (> initial-size capacity))
+     (throw (IllegalArgumentException.
+             (str "initial-size must be between 0 and capacity ("
+                  capacity "), got: " initial-size))))
+   (ResizableObjectArray. (object-array capacity) initial-size)))
+
 (defn resize!
   "Resizes a resizable array to a new size.
   The new size must be between 0 and capacity (inclusive).
@@ -1001,7 +1057,8 @@
 (defn to-fixed
   "Converts a resizable array to a fixed array of the same element type.
   Creates a new array containing only the active elements (0 to size-1).
-  ResizableDoubleArray -> DoubleArray, ResizableLongArray -> LongArray."
+  ResizableDoubleArray -> DoubleArray, ResizableLongArray -> LongArray,
+  ResizableObjectArray -> ObjectArray."
   [arr]
   (cond
     (instance? ResizableDoubleArray arr)
@@ -1017,6 +1074,13 @@
           ^longs src (.array a)
           ^longs dst (Arrays/copyOf src (int size))]
       (LongArray. dst))
+
+    (instance? ResizableObjectArray arr)
+    (let [^ResizableObjectArray a arr
+          size    (.length a)
+          ^objects src (.array a)
+          ^objects dst (Arrays/copyOf src (int size))]
+      (ObjectArray. dst))
 
     :else
     (throw (IllegalArgumentException.
