@@ -57,6 +57,36 @@
   [label]
   (str (sublabel-str label) ":"))
 
+;;; Analysis Context
+
+(defn get-analysis-context
+  "Extract common context for print viewer functions.
+
+  Looks up analysis data from data-map using the ID from view options
+  (or default-id), extracts metrics-defs (optionally filtered by
+  metric-filter), and computes transforms.
+
+  Arguments:
+    id-key       - keyword to look up in view for the analysis ID
+    default-id   - fallback ID if not specified in view
+    view         - view options map
+    data-map     - benchmark data map
+    metric-filter - predicate to filter metrics, or nil for no filtering
+
+  Returns map with :analysis-map, :metric-configs, :transforms,
+  or nil if no data found."
+  [id-key default-id view data-map metric-filter]
+  (let [analysis-id (or (get view id-key) default-id)
+        analysis-map (data-map analysis-id)]
+    (when analysis-map
+      (let [metrics-defs (cond-> (:metrics-defs analysis-map)
+                           metric-filter (metric/filter-metrics metric-filter))
+            metric-configs (metric/all-metric-configs metrics-defs)
+            transforms (util/get-transforms data-map analysis-id)]
+        {:analysis-map analysis-map
+         :metric-configs metric-configs
+         :transforms transforms}))))
+
 ;;; Metrics
 
 (defn print-metrics
@@ -246,17 +276,13 @@
                units)))))
 
 (defn print-bootstrap-stats
-  [{:keys [bootstrap-stats-id]} data-map]
-  (let [bootstrap-stats-id (or bootstrap-stats-id :bootstrap-stats)
-        bootstrap-map (data-map bootstrap-stats-id)]
-    (when bootstrap-map
-      (let [metrics-defs (:metrics-defs bootstrap-map)
-            metric-configs (metric/all-metric-configs metrics-defs)
-            bootstrap (util/bootstrap bootstrap-map)
-            transforms (util/get-transforms data-map bootstrap-stats-id)]
-        (doseq [metric metric-configs]
-          (when-let [stat (get-in bootstrap (:path metric))]
-            (print-bootstrap-stat metric stat transforms)))))))
+  [view data-map]
+  (when-let [{:keys [analysis-map metric-configs transforms]}
+             (get-analysis-context :bootstrap-stats-id :bootstrap-stats view data-map nil)]
+    (let [bootstrap (util/bootstrap analysis-map)]
+      (doseq [metric metric-configs]
+        (when-let [stat (get-in bootstrap (:path metric))]
+          (print-bootstrap-stat metric stat transforms))))))
 
 (defmethod view/bootstrap-stats* :print
   [_ view data-map]
@@ -396,19 +422,16 @@
                  (-> outlier-significance :effect labels))))
 
 (defn print-outlier-significances
-  [{:keys [outlier-significance-id] :as _view} data-map]
-  (let [outlier-sig-id (or outlier-significance-id :outlier-significance)
-        outlier-sig-map (data-map outlier-sig-id)
-        metrics-defs (-> (:metrics-defs outlier-sig-map)
-                         (metric/filter-metrics
-                          (metric/type-pred :quantitative)))
-        metric-configs (metric/all-metric-configs metrics-defs)
-        outlier-sig (util/outlier-significance outlier-sig-map)]
-    (doseq [m metric-configs]
-      (print-outlier-significance
-       m
-       (have seq (get-in outlier-sig (:path m))
-             {:metric m :outlier-sig outlier-sig})))))
+  [view data-map]
+  (when-let [{:keys [analysis-map metric-configs]}
+             (get-analysis-context :outlier-significance-id :outlier-significance
+                                   view data-map (metric/type-pred :quantitative))]
+    (let [outlier-sig (util/outlier-significance analysis-map)]
+      (doseq [m metric-configs]
+        (print-outlier-significance
+         m
+         (have seq (get-in outlier-sig (:path m))
+               {:metric m :outlier-sig outlier-sig}))))))
 
 (defmethod view/outlier-significance* :print
   [_ view data-map]

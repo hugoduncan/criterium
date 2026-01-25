@@ -8,7 +8,7 @@
    [criterium.util.helpers :as util]
    [criterium.view :as view]
    [criterium.viewer.common.shape :as shape]
-   [criterium.viewer.print.core :as print-core]))
+   [criterium.viewer.print.core :as print-core :refer [get-analysis-context]]))
 
 (defn- format-skewness-class
   "Format skewness classification for display."
@@ -43,30 +43,26 @@
 
 (defn print-shape-stats
   "Print shape statistics (skewness, kurtosis, CV) for bootstrap results."
-  [{:keys [bootstrap-stats-id] :as _view} data-map]
-  (let [bootstrap-stats-id (or bootstrap-stats-id :bootstrap-stats)
-        bootstrap-map (data-map bootstrap-stats-id)]
-    (when bootstrap-map
-      (let [metrics-defs (-> (:metrics-defs bootstrap-map)
-                             (metric/filter-metrics
-                              (metric/type-pred :quantitative)))
-            metric-configs (metric/all-metric-configs metrics-defs)
-            bootstrap (util/bootstrap bootstrap-map)
-            shape-data (shape/shape-stats-data metric-configs bootstrap)]
-        (when (seq shape-data)
-          (println "Shape Statistics:")
-          (doseq [{:keys [metric skewness skewness-class
-                          kurtosis kurtosis-class
-                          cv cv-class]} shape-data]
-            (println
-             (format "%s skewness %s (%s)"
-                     (print-core/format-label metric) skewness (format-skewness-class skewness-class)))
-            (println
-             (format "%s  kurtosis %s (%s)"
-                     (print-core/label-str "") kurtosis (format-kurtosis-class kurtosis-class)))
-            (println
-             (format "%s  CV %s (%s)"
-                     (print-core/label-str "") cv (format-cv-class cv-class)))))))))
+  [view data-map]
+  (when-let [{:keys [analysis-map metric-configs]}
+             (get-analysis-context :bootstrap-stats-id :bootstrap-stats view data-map
+                                   (metric/type-pred :quantitative))]
+    (let [bootstrap (util/bootstrap analysis-map)
+          shape-data (shape/shape-stats-data metric-configs bootstrap)]
+      (when (seq shape-data)
+        (println "Shape Statistics:")
+        (doseq [{:keys [metric skewness skewness-class
+                        kurtosis kurtosis-class
+                        cv cv-class]} shape-data]
+          (println
+           (format "%s skewness %s (%s)"
+                   (print-core/format-label metric) skewness (format-skewness-class skewness-class)))
+          (println
+           (format "%s  kurtosis %s (%s)"
+                   (print-core/label-str "") kurtosis (format-kurtosis-class kurtosis-class)))
+          (println
+           (format "%s  CV %s (%s)"
+                   (print-core/label-str "") cv (format-cv-class cv-class))))))))
 
 (defmethod view/shape-stats* :print
   [_ view data-map]

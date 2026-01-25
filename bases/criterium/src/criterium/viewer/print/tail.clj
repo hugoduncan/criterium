@@ -13,33 +13,28 @@
    [criterium.util.helpers :as util]
    [criterium.view :as view]
    [criterium.viewer.common.core :as core]
-   [criterium.viewer.print.core :as print-core]))
+   [criterium.viewer.print.core :as print-core :refer [get-analysis-context]]))
 
 (set! *unchecked-math* false)
 
-(defn- get-tail-analysis-context
-  "Extract common context for tail analysis views.
+(defn- get-tail-context
+  "Extract tail analysis context using common helper plus tail-specific data.
   Returns map with :tail-results, :metric-configs, :transforms, or nil if no data."
-  [{:keys [tail-analysis-id]} data-map]
-  (let [tail-analysis-id (or tail-analysis-id :tail-analysis)
-        tail-analysis-map (data-map tail-analysis-id)]
-    (when tail-analysis-map
-      (let [metrics-defs (-> (:metrics-defs tail-analysis-map)
-                             (metric/filter-metrics
-                              (metric/type-pred :quantitative)))
-            metric-configs (metric/all-metric-configs metrics-defs)
-            tail-results (:tail-analysis tail-analysis-map)
-            transforms (util/get-transforms data-map tail-analysis-id)]
-        (when (seq tail-results)
-          {:tail-results tail-results
-           :metric-configs metric-configs
-           :transforms transforms})))))
+  [view data-map]
+  (when-let [{:keys [analysis-map metric-configs transforms]}
+             (get-analysis-context :tail-analysis-id :tail-analysis view data-map
+                                   (metric/type-pred :quantitative))]
+    (let [tail-results (:tail-analysis analysis-map)]
+      (when (seq tail-results)
+        {:tail-results tail-results
+         :metric-configs metric-configs
+         :transforms transforms}))))
 
 (defn print-tail-summary
   "Print GPD/Hill summary statistics for all metrics."
   [view data-map]
   (when-let [{:keys [tail-results metric-configs transforms]}
-             (get-tail-analysis-context view data-map)]
+             (get-tail-context view data-map)]
     (println "Tail Summary:")
     (doseq [mc metric-configs]
       (when-let [tail-data (get tail-results (:path mc))]
@@ -70,7 +65,7 @@
   "Print tail ratio statistics for all metrics."
   [view data-map]
   (when-let [{:keys [tail-results metric-configs]}
-             (get-tail-analysis-context view data-map)]
+             (get-tail-context view data-map)]
     (println "Tail Ratios:")
     (doseq [mc metric-configs]
       (when-let [tail-data (get tail-results (:path mc))]
@@ -95,7 +90,7 @@
   "Print high quantile estimates from GPD extrapolation for all metrics."
   [view data-map]
   (when-let [{:keys [tail-results metric-configs transforms]}
-             (get-tail-analysis-context view data-map)]
+             (get-tail-context view data-map)]
     (println "High Quantile Estimates (GPD):")
     (doseq [mc metric-configs]
       (when-let [tail-data (get tail-results (:path mc))]
