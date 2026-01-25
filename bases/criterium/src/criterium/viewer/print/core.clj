@@ -516,29 +516,32 @@
         method (:outlier-method outliers)]
     (when (pos? sum)
       (util/report "%s Found %d outliers in %d samples (%.3g %%)%s\n"
-                   (format-label (:label metric-config))
+                   (format-sublabel (:label metric-config))
                    sum
                    num-samples
                    (* 100.0 (/ sum num-samples))
                    (if method (str " [" (format-outlier-method method) "]") ""))
       (doseq [[c v] (->> outlier-counts
-                         (filter #(pos? (val %))))]
+                         (filterv #(pos? (val %))))]
         (util/report
-         "                                 %12s\t %d (%2.4f %%)\n"
-         (name c) v (* 100.0 (/ v num-samples)))))
-    (when (and show-medcouple? mc)
-      (let [classification (skewness-classification mc)]
-        (util/report "%s medcouple %.4f (%s)\n"
-                     (format-label (:label metric-config))
-                     mc
-                     (shape/format-classification classification))))))
+         "                                     %12s\t %d (%2.4f %%)\n"
+         (name c) v (* 100.0 (/ v num-samples))))
+      (when (and show-medcouple? mc)
+        (let [classification (skewness-classification mc)]
+          (util/report "%s medcouple %.4f (%s)\n"
+                       (format-sublabel (:label metric-config))
+                       mc
+                       (shape/format-classification classification)))))))
 
 (defn print-outlier-counts
   "Print outlier counts for all metrics.
   Options:
     :outliers-id - key for outliers in data-map (default :outliers)
     :show-medcouple - if true, display medcouple and skewness classification"
-  [{:keys [outliers-id show-medcouple] :as _view} data-map]
+  [{:keys [outliers-id show-medcouple]
+    :or {show-medcouple true}
+    :as _view}
+   data-map]
   (let [outliers-id (or outliers-id :outliers)
         outliers-map (data-map outliers-id)
         metrics-defs (:metrics-defs outliers-map)
@@ -634,7 +637,7 @@
         samples (-> data-map :samples)
         fmt-val (fn [label n bs evals]
                   (format "%s %d samples with batch-size %d (%d evaluations)"
-                          (format-label label) n bs evals))]
+                          (format-sublabel label) n bs evals))]
     (println
      (fmt-val "Sample Scheme"
               (:num-samples samples)

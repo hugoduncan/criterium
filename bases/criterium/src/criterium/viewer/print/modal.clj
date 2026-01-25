@@ -15,12 +15,12 @@
    (fn [{:keys [metric-config modes transforms]}]
      (println
       (format "%s Multimodal distribution detected"
-              (print-core/format-label (:label metric-config))))
+              (print-core/format-sublabel (:label metric-config))))
      (when (seq modes)
        (let [locations (map #(modal/format-mode-location
                               (:location %)
                               metric-config
                               transforms)
                             modes)]
-         (println (format "%s  Mode locations: %s" (print-core/label-str "")
+         (println (format "%s  Mode locations: %s" (print-core/sublabel-str "")
                           (str/join ", " locations))))))))

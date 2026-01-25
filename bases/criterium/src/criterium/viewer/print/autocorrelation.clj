@@ -83,31 +83,29 @@
   "Print classification analysis for a single metric."
   [{:keys [acf lag-1 lag-severities ljung-box pattern classification detected-period]}
    metric-label]
-  (println (print-core/format-sublabel "Sample Independence Classification"))
-  (println (format "%s %.2f (%s)"
-                   (print-core/format-sublabel (str metric-label " Lag-1 autocorrelation"))
-                   (:value lag-1)
-                   (acf-common/format-severity (:severity lag-1))))
-  (println (format "%s %.2f"
-                   (print-core/format-sublabel (str metric-label " Ljung-Box p-value"))
-                   (:p-value ljung-box)))
-  (println (format "%s %s"
-                   (print-core/format-sublabel "Assessment")
-                   (str/capitalize (name classification))))
+  (println)
+  (println (print-core/format-sublabel metric-label)
+           "Sample Independence Classification")
+  (println (print-core/format-sublabel "Lag-1 autocorrelation")
+           (format
+            "%.2f (%s)"
+            (:value lag-1)
+            (acf-common/format-severity (:severity lag-1))))
+  (println (print-core/format-sublabel "Ljung-Box p-value")
+           (format "%.2f" (:p-value ljung-box)))
+  (println (print-core/format-sublabel "Assessment")
+           (str/capitalize (name classification)))
   (when (and (#{:warning :fail} classification)
              (acf-common/displayable-patterns pattern))
-    (println (format "%s %s"
-                     (print-core/format-sublabel "Pattern")
-                     (get acf-common/pattern-labels pattern (name pattern))))
+    (println (print-core/format-sublabel "Pattern")
+             (get acf-common/pattern-labels pattern (name pattern)))
     (when-let [period-str (acf-common/format-detected-period
                            detected-period acf lag-severities)]
-      (println (format "%s %s"
-                       (print-core/format-sublabel "Suspected period")
-                       period-str)))
+      (println (print-core/format-sublabel "Suspected period")
+               period-str))
     (when-let [rec (get acf-common/pattern-recommendations pattern)]
-      (println (format "%s %s"
-                       (print-core/format-sublabel "Recommendation")
-                       rec)))))
+      (println (print-core/format-sublabel "Recommendation")
+               rec))))
 
 (defn print-autocorrelation-classifications
   "Print autocorrelation classification for all metrics.
@@ -127,20 +125,20 @@
 (defn- print-effective-sample-size-for-metric
   "Print effective sample size analysis for a single metric."
   [{:keys [lag-1 effective-sample-size ci-inflation-factor]} metric-label]
-  (println (print-core/format-sublabel "Effective Sample Size"))
+  (println)
+  (println (print-core/format-sublabel metric-label) "Effective Sample Size")
   (when lag-1
-    (println (format "%s %.2f (%s)"
-                     (print-core/format-sublabel (str metric-label " Lag-1 autocorrelation"))
+    (println (print-core/format-sublabel "Lag-1 autocorrelation (no outliers)")
+             (format "%.2f (%s)"
                      (:value lag-1)
                      (acf-common/format-severity (:severity lag-1)))))
-  (println (format "%s %d of %d (%.0f%%)"
-                   (print-core/format-sublabel "Effective sample size")
+  (println (print-core/format-sublabel "Effective sample size")
+           (format "%d of %d (%.0f%%)"
                    (:n-effective effective-sample-size)
                    (:n-original effective-sample-size)
-                   (* 100.0 (:ratio effective-sample-size))))
-  (println (format "%s %.2f×"
-                   (print-core/format-sublabel "CI inflation factor")
-                   ci-inflation-factor)))
+                   (* 100.0 (double (:ratio effective-sample-size)))))
+  (println (print-core/format-sublabel "CI inflation factor")
+           (format "%.2f×" ci-inflation-factor)))
 
 (defn print-effective-sample-sizes
   "Print effective sample size analysis for all metrics.

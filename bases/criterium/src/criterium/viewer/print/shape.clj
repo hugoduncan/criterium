@@ -16,26 +16,25 @@
   (when-let [{:keys [analysis-map metric-configs]}
              (get-analysis-context :bootstrap-stats-id :bootstrap-stats view data-map
                                    (metric/type-pred :quantitative))]
-    (let [bootstrap (util/bootstrap analysis-map)
+    (let [bootstrap  (util/bootstrap analysis-map)
           shape-data (shape/shape-stats-data metric-configs bootstrap)]
       (when (seq shape-data)
-        (println "Shape Statistics:")
         (doseq [{:keys [metric skewness skewness-class
                         kurtosis kurtosis-class
                         cv cv-class]} shape-data]
           (println
-           (format "%s skewness %s (%s)"
-                   (print-core/format-label metric)
+           (format "%s %s (%s)"
+                   (print-core/format-sublabel (str metric " skewness"))
                    skewness
                    (shape/format-classification skewness-class)))
           (println
-           (format "%s  kurtosis %s (%s)"
-                   (print-core/label-str "")
+           (format "%s %s (%s)"
+                   (print-core/format-sublabel "kurtosis")
                    kurtosis
                    (shape/format-classification kurtosis-class)))
           (println
-           (format "%s  CV %s (%s)"
-                   (print-core/label-str "")
+           (format "%s %s (%s)"
+                   (print-core/format-sublabel "CV")
                    cv
                    (shape/format-classification cv-class))))))))
 

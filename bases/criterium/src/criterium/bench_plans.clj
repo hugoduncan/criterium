@@ -43,13 +43,15 @@
              [:allocation-hotspots {:limit 10}]
              :allocation-by-type
              :allocation-treemap]
-   :view [[:stats {:metric-ids [:memory]}]
+   :view [:collect-plan
+          [:stats {:metric-ids [:memory]}]
           :bootstrap-stats
           :extremes
-          :collect-plan
+          :shape-stats
           :outlier-counts
           [:multimodal-warning {:modes-id :modes}]
-          [:autocorrelation-classification {:classification-id :autocorrelation-classification-raw}]
+          [:autocorrelation-classification
+           {:classification-id :autocorrelation-classification-raw}]
           [:effective-sample-size {:ess-id :effective-sample-size-filtered}]
           [:acf-plot {:autocorrelation-id :autocorrelation-raw
                       :min-severity :moderate}]
