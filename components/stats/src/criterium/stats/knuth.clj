@@ -18,14 +18,15 @@
 (defn- data-min-max
   "Returns [min max] for typed array data."
   [data]
-  (let [init-min Double/POSITIVE_INFINITY
-        init-max Double/NEGATIVE_INFINITY
-        [mn mx] (arr/dfold data
-                           (fn [acc ^double v]
-                             (let [[^double min-v ^double max-v] acc]
-                               [(min min-v v) (max max-v v)]))
-                           [init-min init-max])]
-    [(double mn) (double mx)]))
+  (let [mn (arr/fold-double data
+                            (fn ^double [^double acc ^double v]
+                              (min acc v))
+                            Double/POSITIVE_INFINITY)
+        mx (arr/fold-double data
+                            (fn ^double [^double acc ^double v]
+                              (max acc v))
+                            Double/NEGATIVE_INFINITY)]
+    [mn mx]))
 
 ;;; Constants
 
@@ -116,8 +117,8 @@
                      {:error :knuth/no-samples})))
    (let [[computed-min computed-max] (when-not (and min max)
                                        (data-min-max data))
-         min-val (double (or min computed-min))
-         max-val (double (or max computed-max))]
+         min-val                     (double (or min computed-min))
+         max-val                     (double (or max computed-max))]
      (when (= min-val max-val)
        (throw (ex-info "All sample values are identical - cannot determine optimal bins"
                        {:error   :knuth/same-values

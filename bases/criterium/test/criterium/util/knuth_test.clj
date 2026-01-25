@@ -2,6 +2,7 @@
   (:require
    [clojure.test :refer [deftest is testing]]
    [criterium.array :as arr]
+   [criterium.stats.knuth :as stats.knuth]
    [criterium.test-utils :refer [gaussian-samples test-max-error]]
    [criterium.util.knuth :as knuth]))
 
@@ -127,3 +128,36 @@
             result  (knuth/optimal-bins samples {:max-bins 10})]
         (is (number? (:log-posterior result))
             "Should compute valid log-posterior")))))
+
+;; Test private data-min-max function directly
+(def ^:private data-min-max #'stats.knuth/data-min-max)
+
+(deftest data-min-max-test
+  ;; Tests the private data-min-max function which computes min/max
+  ;; using primitive double folds for efficiency.
+  (testing "data-min-max"
+    (testing "returns correct min and max for simple sequence"
+      (let [[mn mx] (data-min-max (darr [3 1 4 1 5 9 2 6]))]
+        (is (= 1.0 mn))
+        (is (= 9.0 mx))))
+
+    (testing "handles single element"
+      (let [[mn mx] (data-min-max (darr [42]))]
+        (is (= 42.0 mn))
+        (is (= 42.0 mx))))
+
+    (testing "handles negative values"
+      (let [[mn mx] (data-min-max (darr [-5 -2 -8 -1]))]
+        (is (= -8.0 mn))
+        (is (= -1.0 mx))))
+
+    (testing "handles mixed positive and negative"
+      (let [[mn mx] (data-min-max (darr [-3 0 5 -1 2]))]
+        (is (= -3.0 mn))
+        (is (= 5.0 mx))))
+
+    (testing "handles large arrays"
+      (let [data (darr (range 10000))
+            [mn mx] (data-min-max data)]
+        (is (= 0.0 mn))
+        (is (= 9999.0 mx))))))
