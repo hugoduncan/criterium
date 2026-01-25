@@ -370,16 +370,23 @@
 
 ;;; Bootstrap Stats
 
+(def ^:private default-bootstrap-stats
+  "Default statistics shown by bootstrap-stats view."
+  #{:median :spread})
+
 (defn print-bootstrap-stat
   "Print bootstrap statistics for a metric.
 
-  Output format:
-  1. Median with 95% CI
-  2. Mean with 95% CI
-  3. p10-p90 percentile spread"
+  The show-stats set controls which statistics are displayed:
+    :median - Median with 95% CI
+    :mean   - Mean with 95% CI
+    :spread - p10-p90 percentile spread
+
+  Default shows :median and :spread."
   [metric
    {:keys [mean quantiles]}
-   transforms]
+   transforms
+   show-stats]
   (let [{:keys [dimension label]} metric
         tform #(util/transform-sample-> % transforms)
         mean-val (tform (:point-estimate mean))
@@ -389,8 +396,9 @@
         median-ci (:estimate-quantiles median-est)
         p10-est (get quantiles 0.1)
         p90-est (get quantiles 0.9)
-        scale (* (:scale metric) scale)]
-    (when (and median-est (seq median-ci))
+        scale (* (:scale metric) scale)
+        show-stats (if (seq show-stats) (set show-stats) default-bootstrap-stats)]
+    (when (and (show-stats :median) median-est (seq median-ci))
       (println
        (format "%s %.3g %s CI [%.3g %.3g] (%.3f %.3f)"
                (format-sublabel (str label " median"))
@@ -400,16 +408,17 @@
                (* scale (tform (-> median-ci second :value)))
                (-> median-ci first :alpha)
                (-> median-ci second :alpha))))
-    (println
-     (format "%s %.3g %s CI [%.3g %.3g] (%.3f %.3f)"
-             (format-sublabel (str label " mean"))
-             (* scale mean-val)
-             units
-             (* scale (tform (-> mean-ci first :value)))
-             (* scale (tform (-> mean-ci second :value)))
-             (-> mean-ci first :alpha)
-             (-> mean-ci second :alpha)))
-    (when (and p10-est p90-est)
+    (when (show-stats :mean)
+      (println
+       (format "%s %.3g %s CI [%.3g %.3g] (%.3f %.3f)"
+               (format-sublabel (str label " mean"))
+               (* scale mean-val)
+               units
+               (* scale (tform (-> mean-ci first :value)))
+               (* scale (tform (-> mean-ci second :value)))
+               (-> mean-ci first :alpha)
+               (-> mean-ci second :alpha))))
+    (when (and (show-stats :spread) p10-est p90-est)
       (println
        (format "%s [%.3g %.3g] %s (10th-90th percentile)"
                (format-sublabel (str label " spread"))
@@ -418,12 +427,19 @@
                units)))))
 
 (defn print-bootstrap-stats
+  "Print bootstrap statistics for all metrics.
+
+  View options:
+    :bootstrap-stats-id - key for bootstrap data (default :bootstrap-stats)
+    :show-stats         - set of stats to display: #{:median :mean :spread}
+                          Default: #{:median :spread}"
   [view data-map]
   (when-let [{:keys [analysis-map metric-configs transforms]}
              (get-analysis-context :bootstrap-stats-id :bootstrap-stats view data-map nil)]
-    (let [bootstrap (util/bootstrap analysis-map)]
+    (let [bootstrap (util/bootstrap analysis-map)
+          show-stats (:show-stats view)]
       (for-each-metric metric-configs bootstrap
-                       #(print-bootstrap-stat %1 %2 transforms)))))
+                       #(print-bootstrap-stat %1 %2 transforms show-stats)))))
 
 (defmethod view/bootstrap-stats* :print
   [_ view data-map]
