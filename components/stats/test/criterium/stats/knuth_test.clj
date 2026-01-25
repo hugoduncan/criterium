@@ -10,6 +10,11 @@
   [coll]
   (arr/->double-array (double-array coll)))
 
+(defn- larr
+  "Create a LongArray from a sequence."
+  [coll]
+  (arr/->long-array (long-array coll)))
+
 ;; Tests for Knuth's Bayesian histogram binning algorithm.
 ;; Validates log-posterior computation and optimal bin selection
 ;; for various data distributions.
@@ -19,25 +24,25 @@
     (testing "returns 0.0 for single bin with all samples"
       ;; When M=1, all samples in one bin, log-posterior simplifies
       ;; For n samples in 1 bin: most terms cancel out
-      (let [result (knuth/log-posterior 100 [100])]
+      (let [result (knuth/log-posterior 100 (larr [100]))]
         (test-max-error 0.0 result 1e-10)))
 
     (testing "returns negative value for uniform split into 2 bins"
       ;; M=2 with equal split has lower log-posterior than M=1 for uniform data
-      (let [result (knuth/log-posterior 100 [50 50])]
+      (let [result (knuth/log-posterior 100 (larr [50 50]))]
         (is (< result 0.0) "log-posterior should be negative for M=2 uniform split")))
 
     (testing "rewards concentrated data structure"
       ;; Knuth method finds structure - concentrated data has higher log-posterior
       ;; because it represents a simpler model that explains the data well
-      (let [even-split   (knuth/log-posterior 100 [50 50])
-            uneven-split (knuth/log-posterior 100 [90 10])]
+      (let [even-split   (knuth/log-posterior 100 (larr [50 50]))
+            uneven-split (knuth/log-posterior 100 (larr [90 10]))]
         (is (> uneven-split even-split)
             "Concentrated data should have higher log-posterior")))
 
     (testing "handles empty bins"
       ;; Empty bins (count=0) should work - logΓ(0.5) is well-defined
-      (let [result (knuth/log-posterior 100 [100 0])]
+      (let [result (knuth/log-posterior 100 (larr [100 0]))]
         (is (number? result) "Should handle bins with zero counts")))))
 
 (deftest optimal-bins-test
