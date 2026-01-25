@@ -13,7 +13,9 @@
    [criterium.util.helpers :as util]
    [criterium.view :as view]
    [criterium.viewer.common.core :as core]
-   [criterium.viewer.print.core :as print-core :refer [get-analysis-context]]))
+   [criterium.viewer.print.core
+    :as print-core
+    :refer [get-analysis-context for-each-metric-keyed]]))
 
 (set! *unchecked-math* false)
 
@@ -30,19 +32,23 @@
          :metric-configs metric-configs
          :transforms transforms}))))
 
+(defn- print-tail-summary-metric
+  "Print GPD/Hill summary for a single metric."
+  [mc tail-data transforms]
+  (let [summary-rows (core/tail-summary-table tail-data transforms)]
+    (when (seq summary-rows)
+      (println (print-core/format-label (:label mc)))
+      (doseq [{:keys [parameter value]} summary-rows]
+        (println (format "%s  %s: %s" (print-core/label-str "") parameter value))))))
+
 (defn print-tail-summary
   "Print GPD/Hill summary statistics for all metrics."
   [view data-map]
   (when-let [{:keys [tail-results metric-configs transforms]}
              (get-tail-context view data-map)]
     (println "Tail Summary:")
-    (doseq [mc metric-configs]
-      (when-let [tail-data (get tail-results (:path mc))]
-        (let [summary-rows (core/tail-summary-table tail-data transforms)]
-          (when (seq summary-rows)
-            (println (print-core/format-label (:label mc)))
-            (doseq [{:keys [parameter value]} summary-rows]
-              (println (format "%s  %s: %s" (print-core/label-str "") parameter value)))))))
+    (for-each-metric-keyed metric-configs tail-results
+                           #(print-tail-summary-metric %1 %2 transforms))
     (println)))
 
 (defmethod view/tail-summary* :print
@@ -61,30 +67,49 @@
                       ratio-val (double p999) (double p95))
     (format "%s = %.3f" (name ratio-name) ratio-val)))
 
+(defn- print-tail-ratios-metric
+  "Print tail ratios for a single metric."
+  [mc tail-data]
+  (let [{:keys [tail-ratios empirical-quantiles]} tail-data]
+    (when (and tail-ratios (seq tail-ratios))
+      (let [sorted-ratios (sort-by first tail-ratios)]
+        (doseq [[i [rname rval]] (map-indexed vector sorted-ratios)]
+          (if (zero? i)
+            (println (format "%s %s"
+                             (print-core/format-label (str (:label mc) " tail ratios"))
+                             (format-tail-ratio [rname rval] empirical-quantiles)))
+            (println (format "%s  %s"
+                             (print-core/label-str "")
+                             (format-tail-ratio [rname rval] empirical-quantiles)))))))))
+
 (defn print-tail-ratios
   "Print tail ratio statistics for all metrics."
   [view data-map]
   (when-let [{:keys [tail-results metric-configs]}
              (get-tail-context view data-map)]
     (println "Tail Ratios:")
-    (doseq [mc metric-configs]
-      (when-let [tail-data (get tail-results (:path mc))]
-        (let [{:keys [tail-ratios empirical-quantiles]} tail-data]
-          (when (and tail-ratios (seq tail-ratios))
-            (let [sorted-ratios (sort-by first tail-ratios)]
-              (doseq [[i [rname rval]] (map-indexed vector sorted-ratios)]
-                (if (zero? i)
-                  (println (format "%s %s"
-                                   (print-core/format-label (str (:label mc) " tail ratios"))
-                                   (format-tail-ratio [rname rval] empirical-quantiles)))
-                  (println (format "%s  %s"
-                                   (print-core/label-str "")
-                                   (format-tail-ratio [rname rval] empirical-quantiles))))))))))
+    (for-each-metric-keyed metric-configs tail-results print-tail-ratios-metric)
     (println)))
 
 (defmethod view/tail-ratios* :print
   [_ view data-map]
   (print-tail-ratios view data-map))
+
+(defn- print-tail-high-quantiles-metric
+  "Print high quantile estimates for a single metric."
+  [mc tail-data transforms]
+  (let [{:keys [high-quantiles]} tail-data]
+    (when (seq high-quantiles)
+      (println (print-core/format-label (:label mc)))
+      (doseq [[q val] (sort-by first high-quantiles)]
+        (let [tval (util/transform-sample-> val transforms)
+              [scale unit] (format/scale :time tval)
+              scaled (* scale tval)]
+          (println (format "%s  p%.4g = %s %s"
+                           (print-core/label-str "")
+                           (* q 100)
+                           (format/format-scaled scaled 1.0)
+                           unit)))))))
 
 (defn print-tail-high-quantiles
   "Print high quantile estimates from GPD extrapolation for all metrics."
@@ -92,20 +117,8 @@
   (when-let [{:keys [tail-results metric-configs transforms]}
              (get-tail-context view data-map)]
     (println "High Quantile Estimates (GPD):")
-    (doseq [mc metric-configs]
-      (when-let [tail-data (get tail-results (:path mc))]
-        (let [{:keys [high-quantiles]} tail-data]
-          (when (seq high-quantiles)
-            (println (print-core/format-label (:label mc)))
-            (doseq [[q val] (sort-by first high-quantiles)]
-              (let [tval (util/transform-sample-> val transforms)
-                    [scale unit] (format/scale :time tval)
-                    scaled (* scale tval)]
-                (println (format "%s  p%.4g = %s %s"
-                                 (print-core/label-str "")
-                                 (* q 100)
-                                 (format/format-scaled scaled 1.0)
-                                 unit))))))))
+    (for-each-metric-keyed metric-configs tail-results
+                           #(print-tail-high-quantiles-metric %1 %2 transforms))
     (println)))
 
 (defmethod view/tail-high-quantiles* :print

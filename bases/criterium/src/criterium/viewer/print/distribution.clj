@@ -9,7 +9,7 @@
    [criterium.metric :as metric]
    [criterium.view :as view]
    [criterium.viewer.common.distribution :as common.distribution]
-   [criterium.viewer.print.core :as print-core]))
+   [criterium.viewer.print.core :as print-core :refer [for-each-metric-keyed]]))
 
 (defn- format-gof-result
   "Format a goodness-of-fit test result."
@@ -89,9 +89,8 @@
         (when (seq fits)
           (println "Distribution Model Comparison:")
           (if metric-configs
-            (doseq [mc metric-configs]
-              (when-let [fit-data (get fits (:path mc))]
-                (print-distribution-models-for-metric mc fit-data)))
+            (for-each-metric-keyed metric-configs fits
+                                   print-distribution-models-for-metric)
             ;; Fallback if no metric-configs available
             (doseq [[path fit-data] fits]
               (print-distribution-models-for-metric
@@ -130,9 +129,8 @@
         (when (seq fits)
           (println "Distribution Parameter Confidence Intervals:")
           (if metric-configs
-            (doseq [mc metric-configs]
-              (when-let [fit-data (get fits (:path mc))]
-                (print-distribution-parameter-cis-for-metric mc fit-data)))
+            (for-each-metric-keyed metric-configs fits
+                                   print-distribution-parameter-cis-for-metric)
             ;; Fallback if no metric-configs available
             (doseq [[path fit-data] fits]
               (print-distribution-parameter-cis-for-metric

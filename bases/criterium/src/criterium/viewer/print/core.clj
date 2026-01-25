@@ -57,6 +57,46 @@
   [label]
   (str (sublabel-str label) ":"))
 
+;;; Metric Iteration
+
+(defn for-each-metric
+  "Iterate over metrics, calling f for each with data present.
+
+  Extracts data from results using each metric's :path. Calls f only when
+  data is non-nil. Designed for the common print viewer pattern:
+    (doseq [mc metric-configs]
+      (when-let [data (get-in results (:path mc))]
+        (print-fn mc data)))
+
+  Arguments:
+    metric-configs - sequence of metric configs with :path keys
+    results        - nested map to look up data from (via get-in)
+    f              - function of (metric-config data)
+
+  Returns nil."
+  [metric-configs results f]
+  (doseq [mc metric-configs]
+    (when-let [data (get-in results (:path mc))]
+      (f mc data))))
+
+(defn for-each-metric-keyed
+  "Iterate over metrics, calling f for each with data present.
+
+  Like for-each-metric but uses (get results path) instead of get-in.
+  Use this when the results map has vector paths as keys:
+    {[:elapsed-time] {:data ...}}
+
+  Arguments:
+    metric-configs - sequence of metric configs with :path keys
+    results        - map with path vectors as keys
+    f              - function of (metric-config data)
+
+  Returns nil."
+  [metric-configs results f]
+  (doseq [mc metric-configs]
+    (when-let [data (get results (:path mc))]
+      (f mc data))))
+
 ;;; Analysis Context
 
 (defn get-analysis-context
@@ -132,8 +172,7 @@
 
 (defn print-stats
   [metrics stats transforms]
-  (doseq [metric metrics]
-    (print-stat metric (get-in stats (:path metric)) transforms)))
+  (for-each-metric metrics stats #(print-stat %1 %2 transforms)))
 
 (defmethod view/stats* :print
   [_ {:keys [stats-id metric-ids]} data-map]
@@ -172,8 +211,7 @@
   "Print min/max extremes for all metrics."
   [metrics stats transforms]
   (println (format-sublabel "Extremes"))
-  (doseq [metric metrics]
-    (print-extreme metric (get-in stats (:path metric)) transforms)))
+  (for-each-metric metrics stats #(print-extreme %1 %2 transforms)))
 
 (defmethod view/extremes* :print
   [_ {:keys [stats-id metric-ids]} data-map]
@@ -280,9 +318,8 @@
   (when-let [{:keys [analysis-map metric-configs transforms]}
              (get-analysis-context :bootstrap-stats-id :bootstrap-stats view data-map nil)]
     (let [bootstrap (util/bootstrap analysis-map)]
-      (doseq [metric metric-configs]
-        (when-let [stat (get-in bootstrap (:path metric))]
-          (print-bootstrap-stat metric stat transforms))))))
+      (for-each-metric metric-configs bootstrap
+                       #(print-bootstrap-stat %1 %2 transforms)))))
 
 (defmethod view/bootstrap-stats* :print
   [_ view data-map]
@@ -400,8 +437,8 @@
         metric-configs (metric/all-metric-configs metrics-defs)
         num-samples (have (:num-samples outliers-map))
         outliers (util/outliers outliers-map)]
-    (doseq [m metric-configs]
-      (print-outlier-count m num-samples (get-in outliers (:path m)) show-medcouple))))
+    (for-each-metric metric-configs outliers
+                     #(print-outlier-count %1 num-samples %2 show-medcouple))))
 
 (defmethod view/outlier-counts* :print
   [_ view data-map]
@@ -427,11 +464,10 @@
              (get-analysis-context :outlier-significance-id :outlier-significance
                                    view data-map (metric/type-pred :quantitative))]
     (let [outlier-sig (util/outlier-significance analysis-map)]
-      (doseq [m metric-configs]
-        (print-outlier-significance
-         m
-         (have seq (get-in outlier-sig (:path m))
-               {:metric m :outlier-sig outlier-sig}))))))
+      (for-each-metric
+       metric-configs outlier-sig
+       (fn [m data]
+         (print-outlier-significance m (have seq data {:metric m})))))))
 
 (defmethod view/outlier-significance* :print
   [_ view data-map]
@@ -603,10 +639,11 @@
             transforms (util/get-transforms data-map kde-id)
             kdes (:kdes kde-map)
             all-modes (when modes-map (:modes modes-map))]
-        (doseq [metric-config metric-configs]
-          (when-let [kde-data (get kdes (:path metric-config))]
-            (let [modes-data (when all-modes (get all-modes (:path metric-config)))]
-              (print-kde-metric metric-config kde-data modes-data transforms))))))))
+        (for-each-metric-keyed
+         metric-configs kdes
+         (fn [mc kde-data]
+           (let [modes-data (when all-modes (get all-modes (:path mc)))]
+             (print-kde-metric mc kde-data modes-data transforms))))))))
 
 ;;; Quantiles
 
