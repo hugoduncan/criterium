@@ -9,18 +9,26 @@
     - ObjectArray for :nominal metrics"
   (:require
    [criterium.array.interface]
+   [criterium.transducer.interface]
    [criterium.util.invariant :refer [have?]])
   (:import
    [criterium.array.interface
-    ITypedArray IFold IDoubleFold ILongFold IDoubleObjectFold ILongObjectFold
+    ITypedArray IDoubleArray ILongArray
+    IFold IDoubleFold ILongFold IDoubleObjectFold ILongObjectFold
     IDoubleMap IDoubleMapIndexed ILongMap ILongMapIndexed
     IDoubleAny ILongAny IArrayEquals ISortable
     IDoubleFoldSkip IDoubleObjectFoldSkip
     IFilterIndices IIndexedDoubleFold IIndexedDoubleObjectFold
-    IIndexed IArrayOps]
+    IIndexed IIndexedSet IArrayOps]
+   [criterium.transducer.interface
+    IDDDReducible
+    ILLLReducible
+    IODOReducible
+    IOLOReducible]
    [java.util Arrays]))
 
 (deftype DoubleArray [^doubles array]
+  IDoubleArray
   ITypedArray
   (elemType [_] :double)
   (length [_] (alength array))
@@ -29,6 +37,17 @@
   (^double getDouble [_ ^long index] (aget array index))
   (^long getLong [_ ^long index] (long (aget array index)))
   (getObject [_ ^long index] (aget array index))
+
+  IIndexedSet
+  (^double setDouble [_ ^long index ^double v] (aset array index v))
+  (^long setLong [_ ^long index ^long v]
+    (do
+      (aset array index (double v))
+      v))
+  (setObject [_ ^long index v]
+    (do
+      (aset array index (double v))
+      v))
 
   IDoubleFold
   (^double fold [_ ^clojure.lang.IFn$DDD f ^double init]
@@ -157,9 +176,28 @@
         (if (< i len)
           (recur (unchecked-inc i)
                  (.invokePrim f acc i (aget array i)))
+          acc))))
+
+  IDDDReducible
+  (reduce [_ f init]
+    (let [n (alength array)]
+      (loop [i 0 acc init]
+        (if (< i n)
+          (recur (inc i)
+                 (.invokePrim ^clojure.lang.IFn$DDD f acc (aget array i)))
+          acc))))
+  IODOReducible
+  (reduceDouble
+    [_ f init]
+    (let [n (alength array)]
+      (loop [i 0 acc init]
+        (if (< i n)
+          (recur (inc i)
+                 (.invokePrim ^clojure.lang.IFn$ODO f acc (aget array i)))
           acc)))))
 
 (deftype LongArray [^longs array]
+  ILongArray
   ITypedArray
   (elemType [_] :long)
   (length [_] (alength array))
@@ -340,6 +378,24 @@
         (if (< i len)
           (recur (unchecked-inc i)
                  (.invokePrim f acc i (double (aget array i))))
+          acc))))
+
+  ILLLReducible
+  (reduce [_ f init]
+    (let [n (dec (alength array))]
+      (loop [i 0 acc init]
+        (if (< i n)
+          (recur (inc i)
+                 (.invokePrim ^clojure.lang.IFn$LLL f acc (aget array i)))
+          acc))))
+  IOLOReducible
+  (reduceLong
+    [_ f init]
+    (let [n (dec (alength array))]
+      (loop [i 0 acc init]
+        (if (< i n)
+          (recur (inc i)
+                 (.invokePrim ^clojure.lang.IFn$OLO f acc (aget array i)))
           acc)))))
 
 (deftype ObjectArray [^objects array]
@@ -417,9 +473,13 @@
   (^long getAt [_ ^LongArray arr ^long index]
     (aget ^longs (.array arr) index))
   (^double getAt [_ ^DoubleArray arr ^long index]
-    (aget ^doubles (.array arr) index)))
+    (aget ^doubles (.array arr) index))
+  (^long setAt [_ ^LongArray arr ^long index ^long value]
+    (aset ^longs (.array arr) index value))
+  (^double setAt [_ ^DoubleArray arr ^long index ^double value]
+    (aset ^doubles (.array arr) index value)))
 
-(def ^:private ^IArrayOps array-ops (ArrayOps.))
+(def ^IArrayOps array-ops (ArrayOps.))
 
 (defn sum-double
   "Returns the sum of elements as a primitive double.
@@ -612,6 +672,12 @@
 
     (instance? ObjectArray arr)
     (aget ^objects (.array ^ObjectArray arr) index)))
+
+(defmacro set-at!
+  "Returns the element at index.
+  Works with DoubleArray, LongArray, and ObjectArray."
+  [arr index value]
+  `(.setAt array-ops ~arr ~index ~value))
 
 (defn dmap
   "Maps f over elements, returning a new DoubleArray.

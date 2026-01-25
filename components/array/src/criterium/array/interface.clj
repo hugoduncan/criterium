@@ -16,6 +16,9 @@
   (^clojure.lang.Keyword elemType [])
   (^long length []))
 
+(definterface IDoubleArray)
+(definterface ILongArray)
+
 (definterface IFold
   (fold [f init]))
 
@@ -57,6 +60,11 @@
   (^long getLong [^long index])
   (getObject [^long index]))
 
+(definterface IIndexedSet
+  (^double setDouble [^long index ^double v])
+  (^long setLong [^long index ^long v])
+  (setObject [^long index value]))
+
 (definterface ISortable
   (sorted []))
 
@@ -70,7 +78,9 @@
   (^double sum [^criterium.array.DoubleArray arr])
   (^long sum [^criterium.array.LongArray arr])
   (^long getAt [^criterium.array.LongArray arr ^long index])
-  (^double getAt [^criterium.array.DoubleArray arr ^long index]))
+  (^double getAt [^criterium.array.DoubleArray arr ^long index])
+  (^long setAt [^criterium.array.LongArray arr ^long index ^long value])
+  (^double setAt [^criterium.array.DoubleArray arr ^long index ^double value]))
 
 (definterface IFilterIndices
   (filterIndices [exclude-set]))
