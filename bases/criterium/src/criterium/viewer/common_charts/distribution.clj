@@ -10,7 +10,8 @@
    [criterium.primitive-fn :as prim]
    [criterium.stats.interface :as si]
    [criterium.util.helpers :as util]
-   [criterium.viewer.common-charts.samples :as samples]))
+   [criterium.viewer.common-charts.samples :as samples]
+   [criterium.viewer.common.distribution :as common.distribution]))
 
 ;;; Distribution constants
 
@@ -27,11 +28,9 @@
    :weibull "#984ea3"})
 
 (def distribution-labels
-  "Human-readable labels for distributions."
-  {:gamma "Gamma"
-   :lognormal "Log-normal"
-   :inverse-gaussian "Inverse Gaussian"
-   :weibull "Weibull"})
+  "Human-readable labels for distributions.
+  Re-exported from common.distribution for backwards compatibility."
+  common.distribution/distribution-labels)
 
 (def distribution-color-scale
   "Vega-Lite color scale with domain and range in consistent order."
