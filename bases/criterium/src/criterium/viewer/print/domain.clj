@@ -17,7 +17,8 @@
    [criterium.viewer.common.domain.comparison :as comparison]
    [criterium.viewer.common.domain.detection :as detection]
    [criterium.viewer.common.domain.extract :as extract]
-   [criterium.viewer.common.regression :as regression]))
+   [criterium.viewer.common.regression :as regression]
+   [criterium.viewer.print.core :as print.core]))
 
 (set! *unchecked-math* false)
 
@@ -101,33 +102,14 @@
   "Print a transposed table with implementation rows and metric columns.
   Takes {:heading :col-headers :rows} from prepare-*-table-transposed functions."
   [{:keys [heading col-headers rows]}]
-  (println heading)
-  (let [;; Calculate column widths
-        col-widths (mapv
-                    (fn [col-idx]
-                      (let [header (nth col-headers col-idx)
-                            values (map #(str (get % header "")) rows)]
-                        (apply max (count header) (map count values))))
-                    (range (count col-headers)))]
-    ;; Print header row
-    (print "  ")
-    (doseq [[i header] (map-indexed vector col-headers)]
-      (when (pos? i) (print " │ "))
-      (print (format (str "%" (nth col-widths i) "s") header)))
-    (println)
-    ;; Print separator
-    (print "  ")
-    (doseq [[i w] (map-indexed vector col-widths)]
-      (when (pos? i) (print "─┼─"))
-      (print (apply str (repeat w "─"))))
-    (println)
-    ;; Print data rows
-    (doseq [row rows]
-      (print "  ")
-      (doseq [[i header] (map-indexed vector col-headers)]
-        (when (pos? i) (print " │ "))
-        (print (format (str "%" (nth col-widths i) "s") (or (get row header) "-"))))
-      (println))))
+  (let [;; Convert rows from maps to vectors based on col-headers order
+        row-vectors (mapv (fn [row]
+                            (mapv #(or (get row %) "-") col-headers))
+                          rows)]
+    (print.core/print-table
+     {:heading heading
+      :columns (mapv (fn [h] {:header h}) col-headers)
+      :rows row-vectors})))
 
 ;;; Domain Extract Views
 
@@ -233,26 +215,14 @@
                              rows)
         col-headers (mapv format-axis-val columns)
         row-keys (mapv #(format-row-key (:key %)) rows)
-        col-widths (mapv (fn [col-idx]
-                           (apply max
-                                  (count (nth col-headers col-idx))
-                                  (map #(count (nth % col-idx)) formatted-vals)))
-                         (range (count columns)))
-        row-key-width (apply max 8 (map count row-keys))]
-    (println (format "Domain Comparison by %s: %s" (name axis) (pr-str metric)))
-    (print (format "  %s" (format (str "%" row-key-width "s") "")))
-    (doseq [[i header] (map-indexed vector col-headers)]
-      (print (format " │ %s" (format (str "%" (nth col-widths i) "s") header))))
-    (println)
-    (print (format "  %s" (apply str (repeat row-key-width "─"))))
-    (doseq [w col-widths]
-      (print (format "─┼─%s" (apply str (repeat w "─")))))
-    (println)
-    (doseq [[row-key vals] (map vector row-keys formatted-vals)]
-      (print (format "  %s" (format (str "%" row-key-width "s") row-key)))
-      (doseq [[i v] (map-indexed vector vals)]
-        (print (format " │ %s" (format (str "%" (nth col-widths i) "s") v))))
-      (println))))
+        table-rows (mapv (fn [row-key vals]
+                           (into [row-key] vals))
+                         row-keys formatted-vals)]
+    (print.core/print-table
+     {:heading (format "Domain Comparison by %s: %s" (name axis) (pr-str metric))
+      :row-key-col {:header ""}
+      :columns (mapv (fn [h] {:header h}) col-headers)
+      :rows table-rows})))
 
 (defn- print-single-metric-factor-table
   "Print single-metric comparison with factor display.
@@ -305,26 +275,14 @@
                                (mapv #(format-cell % row-key) col-specs))
                              all-row-keys)
         row-keys-formatted (mapv format-row-key all-row-keys)
-        col-widths (mapv (fn [col-idx]
-                           (apply max
-                                  (count (nth col-headers col-idx))
-                                  (map #(count (nth % col-idx)) formatted-rows)))
-                         (range (count col-specs)))
-        row-key-width (apply max 8 (map count row-keys-formatted))]
-    (println (format "Domain Comparison by %s: %s" (name axis) (pr-str metric)))
-    (print (format "  %s" (format (str "%" row-key-width "s") "")))
-    (doseq [[i header] (map-indexed vector col-headers)]
-      (print (format " │ %s" (format (str "%" (nth col-widths i) "s") header))))
-    (println)
-    (print (format "  %s" (apply str (repeat row-key-width "─"))))
-    (doseq [w col-widths]
-      (print (format "─┼─%s" (apply str (repeat w "─")))))
-    (println)
-    (doseq [[row-key vals] (map vector row-keys-formatted formatted-rows)]
-      (print (format "  %s" (format (str "%" row-key-width "s") row-key)))
-      (doseq [[i v] (map-indexed vector vals)]
-        (print (format " │ %s" (format (str "%" (nth col-widths i) "s") v))))
-      (println))))
+        table-rows (mapv (fn [row-key vals]
+                           (into [row-key] vals))
+                         row-keys-formatted formatted-rows)]
+    (print.core/print-table
+     {:heading (format "Domain Comparison by %s: %s" (name axis) (pr-str metric))
+      :row-key-col {:header ""}
+      :columns (mapv (fn [h] {:header h}) col-headers)
+      :rows table-rows})))
 
 (defn- print-multi-metric-comparison-table
   "Print multi-metric comparison with factor display.
@@ -356,19 +314,19 @@
                        {}
                        metrics)
         ;; Build columns: baseline metric (unit), other impl × for each metric
-        col-specs (mapcat (fn [metric-id]
-                            (let [metric-path (get-in metrics [metric-id :metric])]
-                              (cons {:type :baseline
-                                     :metric-id metric-id
-                                     :metric-path metric-path
-                                     :impl baseline-impl}
-                                    (map (fn [impl]
-                                           {:type :factor
-                                            :metric-id metric-id
-                                            :metric-path metric-path
-                                            :impl impl})
-                                         other-impls))))
-                          metric-ids)
+        col-specs (vec (mapcat (fn [metric-id]
+                                 (let [metric-path (get-in metrics [metric-id :metric])]
+                                   (cons {:type :baseline
+                                          :metric-id metric-id
+                                          :metric-path metric-path
+                                          :impl baseline-impl}
+                                         (map (fn [impl]
+                                                {:type :factor
+                                                 :metric-id metric-id
+                                                 :metric-path metric-path
+                                                 :impl impl})
+                                              other-impls))))
+                               metric-ids))
         ;; Format column headers
         col-headers (mapv (fn [{:keys [type metric-id impl]}]
                             (if (= type :baseline)
@@ -394,26 +352,14 @@
                                (mapv #(format-cell % row-key) col-specs))
                              all-row-keys)
         row-keys-formatted (mapv format-row-key all-row-keys)
-        col-widths (mapv (fn [col-idx]
-                           (apply max
-                                  (count (nth col-headers col-idx))
-                                  (map #(count (nth % col-idx)) formatted-rows)))
-                         (range (count col-specs)))
-        row-key-width (apply max 8 (map count row-keys-formatted))]
-    (println (format "Domain Comparison by %s" (name axis)))
-    (print (format "  %s" (format (str "%" row-key-width "s") "")))
-    (doseq [[i header] (map-indexed vector col-headers)]
-      (print (format " │ %s" (format (str "%" (nth col-widths i) "s") header))))
-    (println)
-    (print (format "  %s" (apply str (repeat row-key-width "─"))))
-    (doseq [w col-widths]
-      (print (format "─┼─%s" (apply str (repeat w "─")))))
-    (println)
-    (doseq [[row-key vals] (map vector row-keys-formatted formatted-rows)]
-      (print (format "  %s" (format (str "%" row-key-width "s") row-key)))
-      (doseq [[i v] (map-indexed vector vals)]
-        (print (format " │ %s" (format (str "%" (nth col-widths i) "s") v))))
-      (println))))
+        table-rows (mapv (fn [row-key vals]
+                           (into [row-key] vals))
+                         row-keys-formatted formatted-rows)]
+    (print.core/print-table
+     {:heading (format "Domain Comparison by %s" (name axis))
+      :row-key-col {:header ""}
+      :columns (mapv (fn [h] {:header h}) col-headers)
+      :rows table-rows})))
 
 (defmethod view/domain-comparison-table* :print
   [_ {:keys [comparison-id]} data-map]
