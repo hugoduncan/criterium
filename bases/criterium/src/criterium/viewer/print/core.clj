@@ -680,11 +680,15 @@
        (format "%s %s Histogram"
                (format-label (-> h :metric-config :label))
                (-> h :unit)))
-      (run!
-       (fn [[x bin-count density]]
-         (println
-          (format "%34s %-7.3f %5d  %-7.3g" "" x (long bin-count) density)))
-       (mapv vector (:centers h) (:counts h) (:density h)))
+      (let [max-count (double (apply max 1 (:counts h)))
+            bar-width (long 20)]
+        (run!
+         (fn [[x bin-count density]]
+           (println
+            (format "%34s %-7.3f %5d  %-7.3g  %s"
+                    "" x (long bin-count) density
+                    (core/ascii-bar bin-count max-count bar-width))))
+         (mapv vector (:centers h) (:counts h) (:density h))))
       (println))))
 
 ;;; KDE
