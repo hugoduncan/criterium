@@ -83,10 +83,10 @@
            (>= x high-severe) :high-severe)])))
 
 (defn digest-outliers
-  "Compute outliers for a digest using standard boxplot thresholds.
+  "Compute outliers for a digest using Tukey's boxplot thresholds.
 
-  Uses symmetric 1.5×IQR whiskers rather than the adjusted boxplot method
-  used by metrics-samples. The adjusted boxplot requires computing the
+  Uses symmetric 1.5×IQR whiskers rather than the medcouple-adjusted method
+  used by metrics-samples. The medcouple method requires computing the
   medcouple (a robust skewness measure) from individual sample values,
   which are not available in a t-digest structure—only weighted centroids
   are preserved. This may result in more false-positive outlier detection
@@ -108,12 +108,13 @@
                         outliers)]
     {:thresholds thresholds
      :outliers outliers
-     :outlier-counts outlier-counts}))
+     :outlier-counts outlier-counts
+     :outlier-method :tukey}))
 
 (defmethod methods/outliers :criterium/digest
   [digest-samples all-quantiles metric-configs _options]
   ;; Note: :outlier-method option is ignored for digest samples.
-  ;; Always uses standard boxplot (symmetric 1.5×IQR) because medcouple
+  ;; Always uses Tukey boxplot (symmetric 1.5×IQR) because medcouple
   ;; requires individual sample values which t-digest does not preserve.
   (let [metric->digest (util/metric->digest digest-samples)
         quantiles (util/quantiles all-quantiles)

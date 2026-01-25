@@ -255,10 +255,10 @@
 
 (deftest outlier-method-test
   ;; Tests the :outlier-method option for outlier detection.
-  ;; Verifies that :standard uses symmetric thresholds and :adjusted uses
-  ;; medcouple-adjusted thresholds.
+  ;; Verifies that :tukey uses symmetric thresholds and :medcouple uses
+  ;; medcouple-adjusted thresholds. Also tests that the method is recorded.
   (testing ":outlier-method option"
-    (testing "with :standard uses symmetric thresholds"
+    (testing "with :tukey uses symmetric thresholds"
       (let [;; Right-skewed data
             raw-data [1 2 2 3 3 3 4 4 5 10 15 20]
             samples (metrics-samples
@@ -267,26 +267,28 @@
                      1)
             data-map {:samples samples}
             quantiles (analyse/quantiles {:quantiles []})
-            outliers-standard (analyse/outliers {:outlier-method :standard})
-            result (-> data-map quantiles outliers-standard)
+            outliers-tukey (analyse/outliers {:outlier-method :tukey})
+            result (-> data-map quantiles outliers-tukey)
             outlier-data (-> result :outliers util/outliers :elapsed-time)
             [low-severe low-mild high-mild high-severe] (:thresholds outlier-data)
             ^double q1 (-> result :quantiles util/quantiles :elapsed-time (get 0.25))
             ^double q3 (-> result :quantiles util/quantiles :elapsed-time (get 0.75))
             iqr (- q3 q1)]
-        ;; With :standard, thresholds should be symmetric
+        ;; With :tukey, thresholds should be symmetric
         (is (approx= (- q1 (* 1.5 iqr)) low-mild)
-            "low-mild should be standard Q1 - 1.5*IQR")
+            "low-mild should be Tukey Q1 - 1.5*IQR")
         (is (approx= (+ q3 (* 1.5 iqr)) high-mild)
-            "high-mild should be standard Q3 + 1.5*IQR")
+            "high-mild should be Tukey Q3 + 1.5*IQR")
         (is (approx= (- q1 (* 3.0 iqr)) low-severe)
-            "low-severe should be standard Q1 - 3*IQR")
+            "low-severe should be Tukey Q1 - 3*IQR")
         (is (approx= (+ q3 (* 3.0 iqr)) high-severe)
-            "high-severe should be standard Q3 + 3*IQR")
+            "high-severe should be Tukey Q3 + 3*IQR")
         (is (nil? (:medcouple outlier-data))
-            "medcouple should be nil for :standard method")))
+            "medcouple should be nil for :tukey method")
+        (is (= :tukey (:outlier-method outlier-data))
+            "outlier-method should be recorded as :tukey")))
 
-    (testing "with :adjusted uses asymmetric thresholds"
+    (testing "with :medcouple uses asymmetric thresholds"
       (let [;; Right-skewed data
             raw-data [1 2 2 3 3 3 4 4 5 10 15 20]
             samples (metrics-samples
@@ -295,24 +297,26 @@
                      1)
             data-map {:samples samples}
             quantiles (analyse/quantiles {:quantiles []})
-            outliers-adjusted (analyse/outliers {:outlier-method :adjusted})
-            result (-> data-map quantiles outliers-adjusted)
+            outliers-medcouple (analyse/outliers {:outlier-method :medcouple})
+            result (-> data-map quantiles outliers-medcouple)
             outlier-data (-> result :outliers util/outliers :elapsed-time)
             [_low-severe low-mild high-mild _high-severe] (:thresholds outlier-data)
             ^double q1 (-> result :quantiles util/quantiles :elapsed-time (get 0.25))
             ^double q3 (-> result :quantiles util/quantiles :elapsed-time (get 0.75))
             iqr (- q3 q1)
-            std-low-mild (- q1 (* 1.5 iqr))
-            std-high-mild (+ q3 (* 1.5 iqr))]
-        ;; With :adjusted on right-skewed data, upper fence should be wider
-        (is (> high-mild std-high-mild)
-            "upper fence should be wider than standard for right-skewed")
-        (is (> low-mild std-low-mild)
-            "lower fence should be narrower than standard for right-skewed")
+            tukey-low-mild (- q1 (* 1.5 iqr))
+            tukey-high-mild (+ q3 (* 1.5 iqr))]
+        ;; With :medcouple on right-skewed data, upper fence should be wider
+        (is (> high-mild tukey-high-mild)
+            "upper fence should be wider than Tukey for right-skewed")
+        (is (> low-mild tukey-low-mild)
+            "lower fence should be narrower than Tukey for right-skewed")
         (is (number? (:medcouple outlier-data))
-            "medcouple should be present for :adjusted method")))
+            "medcouple should be present for :medcouple method")
+        (is (= :medcouple (:outlier-method outlier-data))
+            "outlier-method should be recorded as :medcouple")))
 
-    (testing "default method is :adjusted"
+    (testing "default method is :medcouple"
       (let [raw-data [1 2 2 3 3 3 4 4 5 10 15 20]
             samples (metrics-samples
                      {[:elapsed-time] raw-data
@@ -321,28 +325,14 @@
             data-map {:samples samples}
             with-quantiles ((analyse/quantiles {:quantiles []}) data-map)
             outliers-default (analyse/outliers {})
-            outliers-adjusted (analyse/outliers {:outlier-method :adjusted})
+            outliers-medcouple (analyse/outliers {:outlier-method :medcouple})
             result-default (-> with-quantiles outliers-default)
-            result-adjusted (-> with-quantiles outliers-adjusted)]
+            result-medcouple (-> with-quantiles outliers-medcouple)]
         (is (= (-> result-default :outliers util/outliers :elapsed-time :thresholds)
-               (-> result-adjusted :outliers util/outliers :elapsed-time :thresholds))
-            "default should produce same thresholds as :adjusted")))
-
-    (testing ":auto is equivalent to :adjusted for metrics-samples"
-      (let [raw-data [1 2 2 3 3 3 4 4 5 10 15 20]
-            samples (metrics-samples
-                     {[:elapsed-time] raw-data
-                      [:compilation :time-ms] (repeat 12 0)}
-                     1)
-            data-map {:samples samples}
-            with-quantiles ((analyse/quantiles {:quantiles []}) data-map)
-            outliers-auto (analyse/outliers {:outlier-method :auto})
-            outliers-adjusted (analyse/outliers {:outlier-method :adjusted})
-            result-auto (-> with-quantiles outliers-auto)
-            result-adjusted (-> with-quantiles outliers-adjusted)]
-        (is (= (-> result-auto :outliers util/outliers :elapsed-time :thresholds)
-               (-> result-adjusted :outliers util/outliers :elapsed-time :thresholds))
-            ":auto should produce same thresholds as :adjusted for metrics-samples")))))
+               (-> result-medcouple :outliers util/outliers :elapsed-time :thresholds))
+            "default should produce same thresholds as :medcouple")
+        (is (= :medcouple (-> result-default :outliers util/outliers :elapsed-time :outlier-method))
+            "default method should be recorded as :medcouple")))))
 
 (deftest stats-test
   (testing "stats"

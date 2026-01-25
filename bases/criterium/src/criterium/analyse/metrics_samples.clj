@@ -73,18 +73,17 @@
 
 (defn samples-outliers
   "Compute outliers for each metric.
-  Returns a map with thresholds, outliers, outlier-counts, and (for adjusted
-  method) medcouple for each metric path.
+  Returns a map with thresholds, outliers, outlier-counts, outlier-method,
+  and (for medcouple method) medcouple for each metric path.
 
   Options:
-    :outlier-method - :adjusted (default), :standard, or :auto
-                      :adjusted uses the adjusted boxplot method accounting for
-                      skewness via medcouple
-                      :standard uses symmetric 1.5×IQR whiskers
-                      :auto is equivalent to :adjusted for metrics-samples"
+    :outlier-method - :medcouple (default) or :tukey
+                      :medcouple uses the adjusted boxplot method accounting for
+                      skewness via medcouple statistic
+                      :tukey uses Tukey's symmetric 1.5×IQR whiskers"
   [metric-configs all-quantiles samples options]
   (let [outlier-method (get options :outlier-method)
-        use-adjusted? (not= outlier-method :standard)]
+        use-medcouple? (not= outlier-method :tukey)]
     (reduce
      (fn sample-m [result metric-config]
        (let [path (:path metric-config)
@@ -94,11 +93,12 @@
              q3 (get quantiles 0.75)
              sample-values (get samples path)
              sorted-samples (arr/sorted sample-values)
-             mc (when use-adjusted?
+             mc (when use-medcouple?
                   (stats/medcouple sorted-samples))
-             thresholds (if use-adjusted?
+             thresholds (if use-medcouple?
                           (stats/adjusted-boxplot-outlier-thresholds q1 q3 mc)
                           (stats/boxplot-outlier-thresholds q1 q3))
+             actual-method (if use-medcouple? :medcouple :tukey)
              classifier (classifier thresholds)
              outliers (when (apply not= thresholds)
                         (arr/indexed-dfold
@@ -118,6 +118,7 @@
                     :thresholds thresholds
                     :outliers outliers
                     :outlier-counts outlier-counts
+                    :outlier-method actual-method
                     :medcouple mc)))
      {}
      metric-configs)))
