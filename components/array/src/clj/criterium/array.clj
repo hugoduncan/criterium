@@ -12,7 +12,7 @@
    [criterium.transducer.interfaces]
    [criterium.util.invariant :refer [have?]])
   (:import
-   [criterium.array.interfaces ITypedArray IDoubleArray ILongArray]
+   [criterium.array.interfaces ITypedArray IDoubleArray ILongArray IResizable]
    [criterium.array.interfaces
     IFold IDoubleFold ILongFold IDoubleObjectFold ILongObjectFold
     IDoubleMap IDoubleMapIndexed ILongMap ILongMapIndexed
@@ -195,6 +195,178 @@
           (recur (inc i)
                  (.invokePrim ^clojure.lang.IFn$ODO f acc (aget array i)))
           acc)))))
+
+(deftype ResizableDoubleArray [^doubles array
+                               ^:unsynchronized-mutable ^long size]
+  IResizable
+  (^long resize [_ ^long new-size]
+    (when (or (neg? new-size) (> new-size (alength array)))
+      (throw (IllegalArgumentException.
+              (str "new-size must be between 0 and capacity ("
+                   (alength array) "), got: " new-size))))
+    (set! size new-size)
+    new-size)
+  (^long capacity [_] (alength array))
+
+  IDoubleArray
+  ITypedArray
+  (elemType [_] :double)
+  (length [_] size)
+
+  IIndexed
+  (^double getDouble [_ ^long index] (aget array index))
+  (^long getLong [_ ^long index] (long (aget array index)))
+  (getObject [_ ^long index] (aget array index))
+
+  IIndexedSet
+  (^double setDouble [_ ^long index ^double v] (aset array index v))
+  (^long setLong [_ ^long index ^long v]
+    (do
+      (aset array index (double v))
+      v))
+  (setObject [_ ^long index v]
+    (do
+      (aset array index (double v))
+      v))
+
+  IDoubleFold
+  (^double fold [_ ^clojure.lang.IFn$DDD f ^double init]
+    (loop [i   0
+           acc init]
+      (if (< i size)
+        (recur (unchecked-inc i)
+               (.invokePrim f acc (aget array i)))
+        acc)))
+
+  IDoubleObjectFold
+  (foldObject [_ ^clojure.lang.IFn$ODO f init]
+    (loop [i   0
+           acc init]
+      (if (< i size)
+        (recur (unchecked-inc i)
+               (.invokePrim f acc (aget array i)))
+        acc)))
+
+  IFold
+  (^Object fold [_ f init]
+    (loop [i   0
+           acc init]
+      (if (< i size)
+        (recur (unchecked-inc i)
+               (f acc (aget array i)))
+        acc)))
+
+  IDoubleMap
+  (dmap [_ ^clojure.lang.IFn$DD f]
+    (let [^doubles out (double-array size)]
+      (dotimes [i size]
+        (aset out i (.invokePrim f (aget array i))))
+      (DoubleArray. out)))
+
+  IDoubleMapIndexed
+  (dmapIndexed [_ ^clojure.lang.IFn$LDD f]
+    (let [^doubles out (double-array size)]
+      (dotimes [i size]
+        (aset out i (.invokePrim f i (aget array i))))
+      (DoubleArray. out)))
+
+  IDoubleAny
+  (^boolean dany [_ ^clojure.lang.IFn$DO f]
+    (loop [i 0]
+      (if (< i size)
+        (if (.invokePrim f (aget array i))
+          true
+          (recur (unchecked-inc i)))
+        false)))
+
+  IArrayEquals
+  (^boolean arrayEquals [_ expected]
+    (let [expected-vec (vec expected)
+          n            (count expected-vec)]
+      (and (== n size)
+           (loop [i 0]
+             (if (< i n)
+               (if (== (aget array i) (double (nth expected-vec i)))
+                 (recur (unchecked-inc i))
+                 false)
+               true)))))
+
+  ISortable
+  (sorted [_]
+    (let [^doubles cpy (Arrays/copyOf array (int size))]
+      (Arrays/sort cpy)
+      (DoubleArray. cpy)))
+
+  IDoubleFoldSkip
+  (^double foldSkip [_ ^long skip-idx ^clojure.lang.IFn$DDD f ^double init]
+    (loop [i   (long 0)
+           acc init]
+      (if (< i size)
+        (if (== i skip-idx)
+          (recur (unchecked-inc i) acc)
+          (recur (unchecked-inc i)
+                 (.invokePrim f acc (aget array i))))
+        acc)))
+
+  IDoubleObjectFoldSkip
+  (foldObjectSkip [_ ^long skip-idx ^clojure.lang.IFn$ODO f init]
+    (loop [i   (long 0)
+           acc init]
+      (if (< i size)
+        (if (== i skip-idx)
+          (recur (unchecked-inc i) acc)
+          (recur (unchecked-inc i)
+                 (.invokePrim f acc (aget array i))))
+        acc)))
+
+  IFilterIndices
+  (filterIndices [_ exclude-set]
+    (let [exclude-size (count exclude-set)
+          new-len      (- size exclude-size)
+          ^doubles out (double-array new-len)]
+      (loop [i (long 0)
+             j (long 0)]
+        (if (< i size)
+          (if (contains? exclude-set i)
+            (recur (unchecked-inc i) j)
+            (do
+              (aset out j (aget array i))
+              (recur (unchecked-inc i) (unchecked-inc j))))
+          (DoubleArray. out)))))
+
+  IIndexedDoubleFold
+  (^double indexedFold [_ ^clojure.lang.IFn$DLDD f ^double init]
+    (loop [i   (long 0)
+           acc init]
+      (if (< i size)
+        (recur (unchecked-inc i)
+               (.invokePrim f acc i (aget array i)))
+        acc)))
+
+  IIndexedDoubleObjectFold
+  (indexedFoldObject [_ ^clojure.lang.IFn$OLDO f init]
+    (loop [i   (long 0)
+           acc init]
+      (if (< i size)
+        (recur (unchecked-inc i)
+               (.invokePrim f acc i (aget array i)))
+        acc)))
+
+  IDDDReducible
+  (reduce [_ f init]
+    (loop [i 0 acc init]
+      (if (< i size)
+        (recur (inc i)
+               (.invokePrim ^clojure.lang.IFn$DDD f acc (aget array i)))
+        acc)))
+  IODOReducible
+  (reduceDouble
+    [_ f init]
+    (loop [i 0 acc init]
+      (if (< i size)
+        (recur (inc i)
+               (.invokePrim ^clojure.lang.IFn$ODO f acc (aget array i)))
+        acc))))
 
 (deftype LongArray [^longs array]
   ILongArray
@@ -450,6 +622,11 @@
   [x]
   (instance? ObjectArray x))
 
+(defn resizable-double-array?
+  "Returns true if x is a ResizableDoubleArray."
+  [x]
+  (instance? ResizableDoubleArray x))
+
 (deftype ArrayOps []
   IArrayOps
   (^double sum [_ ^DoubleArray arr]
@@ -560,6 +737,41 @@
   ^ObjectArray [^objects arr]
   {:pre [(have? #(instance? (Class/forName "[Ljava.lang.Object;") %) arr)]}
   (ObjectArray. arr))
+
+(defn resizable-double-array
+  "Creates a ResizableDoubleArray with given capacity.
+  With one argument, creates array with size equal to capacity.
+  With two arguments, creates array with given capacity and initial size.
+  The initial size must be between 0 and capacity (inclusive)."
+  (^ResizableDoubleArray [^long capacity]
+   (ResizableDoubleArray. (double-array capacity) capacity))
+  (^ResizableDoubleArray [^long capacity ^long initial-size]
+   (when (or (neg? initial-size) (> initial-size capacity))
+     (throw (IllegalArgumentException.
+             (str "initial-size must be between 0 and capacity ("
+                  capacity "), got: " initial-size))))
+   (ResizableDoubleArray. (double-array capacity) initial-size)))
+
+(defn resize!
+  "Resizes a resizable array to a new size.
+  The new size must be between 0 and capacity (inclusive).
+  Returns the new size."
+  ^long [^IResizable arr ^long new-size]
+  (.resize arr new-size))
+
+(defn capacity
+  "Returns the maximum capacity of a resizable array."
+  ^long [^IResizable arr]
+  (.capacity arr))
+
+(defn to-fixed
+  "Converts a ResizableDoubleArray to a fixed DoubleArray.
+  Creates a new array containing only the active elements (0 to size-1)."
+  ^DoubleArray [^ResizableDoubleArray arr]
+  (let [size     (.length arr)
+        ^doubles src (.array arr)
+        ^doubles dst (Arrays/copyOf src (int size))]
+    (DoubleArray. dst)))
 
 (defn first-double
   "Returns the first element from a DoubleArray as a primitive double."

@@ -5,7 +5,9 @@
   ;; primitive fold operations, and metric type -> element type mapping.
   (:require
    [clojure.test :refer [deftest is testing]]
-   [criterium.array :as arr]))
+   [criterium.array :as arr])
+  (:import
+   [criterium.array ResizableDoubleArray]))
 
 (deftest type-predicates-test
   (testing "type predicates"
@@ -422,3 +424,295 @@
           (is (= 3 (arr/length result)))
           (is (= [10 20 30]
                  (arr/lfold result (fn [acc ^long v] (conj acc v)) []))))))))
+
+;;; ResizableDoubleArray tests
+
+(deftest resizable-double-array-construction-test
+  ;; Tests construction of ResizableDoubleArray with capacity and initial size.
+  ;; Contracts: capacity-only creates array with size=capacity,
+  ;; capacity+size creates with specified size, validates bounds.
+  (testing "resizable-double-array"
+    (testing "with capacity only"
+      (testing "creates array with size equal to capacity"
+        (let [^ResizableDoubleArray arr (arr/resizable-double-array 5)]
+          (is (= 5 (arr/length arr)))
+          (is (= 5 (arr/capacity arr)))))
+      (testing "creates array with zero capacity"
+        (let [^ResizableDoubleArray arr (arr/resizable-double-array 0)]
+          (is (= 0 (arr/length arr)))
+          (is (= 0 (arr/capacity arr))))))
+    (testing "with capacity and initial-size"
+      (testing "creates array with specified size less than capacity"
+        (let [^ResizableDoubleArray arr (arr/resizable-double-array 10 3)]
+          (is (= 3 (arr/length arr)))
+          (is (= 10 (arr/capacity arr)))))
+      (testing "creates array with size equal to capacity"
+        (let [^ResizableDoubleArray arr (arr/resizable-double-array 5 5)]
+          (is (= 5 (arr/length arr)))
+          (is (= 5 (arr/capacity arr)))))
+      (testing "creates array with zero initial size"
+        (let [^ResizableDoubleArray arr (arr/resizable-double-array 10 0)]
+          (is (= 0 (arr/length arr)))
+          (is (= 10 (arr/capacity arr)))))
+      (testing "throws on negative initial-size"
+        (is (thrown-with-msg? IllegalArgumentException
+                              #"initial-size must be between 0 and capacity"
+                              (arr/resizable-double-array 5 -1))))
+      (testing "throws on initial-size exceeding capacity"
+        (is (thrown-with-msg? IllegalArgumentException
+                              #"initial-size must be between 0 and capacity"
+                              (arr/resizable-double-array 5 6)))))))
+
+(deftest resizable-double-array-predicate-test
+  ;; Tests the resizable-double-array? type predicate.
+  ;; Contracts: returns true only for ResizableDoubleArray instances.
+  (testing "resizable-double-array?"
+    (testing "returns true for ResizableDoubleArray"
+      (is (arr/resizable-double-array? (arr/resizable-double-array 5))))
+    (testing "returns false for DoubleArray"
+      (is (not (arr/resizable-double-array?
+                (arr/->double-array (double-array [1.0]))))))
+    (testing "returns false for other types"
+      (is (not (arr/resizable-double-array? [1.0 2.0])))
+      (is (not (arr/resizable-double-array? nil))))))
+
+(deftest resizable-double-array-resize-test
+  ;; Tests the resize! operation on ResizableDoubleArray.
+  ;; Contracts: shrinking works, growing beyond capacity throws,
+  ;; resize to same size works, resize to zero works.
+  (testing "resize!"
+    (testing "shrinks the array"
+      (let [^ResizableDoubleArray arr (arr/resizable-double-array 10 10)]
+        (arr/resize! arr 5)
+        (is (= 5 (arr/length arr)))
+        (is (= 10 (arr/capacity arr)))))
+    (testing "resizes to zero"
+      (let [^ResizableDoubleArray arr (arr/resizable-double-array 5)]
+        (arr/resize! arr 0)
+        (is (= 0 (arr/length arr)))))
+    (testing "resizes to same size"
+      (let [^ResizableDoubleArray arr (arr/resizable-double-array 5 3)]
+        (arr/resize! arr 3)
+        (is (= 3 (arr/length arr)))))
+    (testing "can grow back up to capacity after shrinking"
+      (let [^ResizableDoubleArray arr (arr/resizable-double-array 10 10)]
+        (arr/resize! arr 3)
+        (is (= 3 (arr/length arr)))
+        (arr/resize! arr 8)
+        (is (= 8 (arr/length arr)))))
+    (testing "throws on negative size"
+      (let [^ResizableDoubleArray arr (arr/resizable-double-array 5)]
+        (is (thrown-with-msg? IllegalArgumentException
+                              #"new-size must be between 0 and capacity"
+                              (arr/resize! arr -1)))))
+    (testing "throws on size exceeding capacity"
+      (let [^ResizableDoubleArray arr (arr/resizable-double-array 5)]
+        (is (thrown-with-msg? IllegalArgumentException
+                              #"new-size must be between 0 and capacity"
+                              (arr/resize! arr 6)))))))
+
+(deftest resizable-double-array-elem-type-test
+  ;; Tests that ResizableDoubleArray reports correct element type.
+  (testing "elem-type"
+    (testing "returns :double"
+      (is (= :double (arr/elem-type (arr/resizable-double-array 5)))))))
+
+(deftest resizable-double-array-fold-test
+  ;; Tests fold operations on ResizableDoubleArray respect current size.
+  ;; Contracts: fold only iterates over active elements, not capacity.
+  (testing "fold operations"
+    (testing "fold respects current size"
+      (let [^ResizableDoubleArray arr (arr/resizable-double-array 10 5)]
+        ;; Set values in the array
+        (dotimes [i 10]
+          (.setDouble arr i (double i)))
+        ;; Fold should only see indices 0-4
+        (is (= [0.0 1.0 2.0 3.0 4.0]
+               (arr/fold arr #(conj %1 %2) [])))))
+    (testing "fold-double respects current size"
+      (let [^ResizableDoubleArray arr (arr/resizable-double-array 10 5)]
+        (dotimes [i 10]
+          (.setDouble arr i (double i)))
+        ;; Sum of 0+1+2+3+4 = 10
+        (is (= 10.0 (arr/fold-double arr
+                                     (fn ^double [^double a ^double b]
+                                       (+ a b))
+                                     0.0)))))
+    (testing "dfold respects current size"
+      (let [^ResizableDoubleArray arr (arr/resizable-double-array 10 3)]
+        (dotimes [i 10]
+          (.setDouble arr i (double (* i 10))))
+        (is (= [0.0 10.0 20.0]
+               (arr/dfold arr (fn [acc ^double v] (conj acc v)) [])))))
+    (testing "fold on resized array uses new size"
+      (let [^ResizableDoubleArray arr (arr/resizable-double-array 10 10)]
+        (dotimes [i 10]
+          (.setDouble arr i (double i)))
+        (arr/resize! arr 3)
+        (is (= [0.0 1.0 2.0]
+               (arr/fold arr #(conj %1 %2) [])))))))
+
+(deftest resizable-double-array-map-test
+  ;; Tests map operations on ResizableDoubleArray return fixed arrays.
+  ;; Contracts: dmap/dmapIndexed return DoubleArray sized to current size.
+  (testing "dmap"
+    (testing "returns DoubleArray with size elements"
+      (let [^ResizableDoubleArray arr (arr/resizable-double-array 10 5)
+            _ (dotimes [i 5]
+                (.setDouble arr i (double (inc i))))
+            result (arr/dmap arr (fn ^double [^double x] (* x 2.0)))]
+        (is (arr/double-array? result))
+        (is (= 5 (arr/length result)))
+        (is (= [2.0 4.0 6.0 8.0 10.0]
+               (arr/dfold result (fn [acc ^double v] (conj acc v)) []))))))
+  (testing "dmapIndexed"
+    (testing "returns DoubleArray with size elements"
+      (let [^ResizableDoubleArray arr (arr/resizable-double-array 10 3)
+            _ (dotimes [i 3]
+                (.setDouble arr i 1.0))
+            ;; Map each element to its index
+            result (arr/dmap-indexed arr
+                                     (fn ^double [^long i ^double _x]
+                                       (double i)))]
+        (is (arr/double-array? result))
+        (is (= 3 (arr/length result)))
+        (is (= [0.0 1.0 2.0]
+               (arr/dfold result (fn [acc ^double v] (conj acc v)) [])))))))
+
+(deftest resizable-double-array-to-fixed-test
+  ;; Tests conversion from ResizableDoubleArray to DoubleArray.
+  ;; Contracts: to-fixed creates new DoubleArray with only active elements.
+  (testing "to-fixed"
+    (testing "creates DoubleArray with current size elements"
+      (let [^ResizableDoubleArray arr (arr/resizable-double-array 10 5)]
+        (dotimes [i 5]
+          (.setDouble arr i (double (* i 2))))
+        (let [fixed (arr/to-fixed arr)]
+          (is (arr/double-array? fixed))
+          (is (= 5 (arr/length fixed)))
+          (is (= [0.0 2.0 4.0 6.0 8.0]
+                 (arr/dfold fixed (fn [acc ^double v] (conj acc v)) []))))))
+    (testing "creates copy not sharing backing array"
+      (let [^ResizableDoubleArray arr (arr/resizable-double-array 5 5)
+            _ (dotimes [i 5]
+                (.setDouble arr i (double i)))
+            fixed (arr/to-fixed arr)]
+        ;; Modify original
+        (.setDouble arr 0 99.0)
+        ;; Fixed should be unchanged
+        (is (= 0.0 (arr/get-at fixed 0)))))
+    (testing "works with zero size"
+      (let [arr   (arr/resizable-double-array 10 0)
+            fixed (arr/to-fixed arr)]
+        (is (= 0 (arr/length fixed)))))
+    (testing "works after resize"
+      (let [^ResizableDoubleArray arr (arr/resizable-double-array 10 10)]
+        (dotimes [i 10]
+          (.setDouble arr i (double i)))
+        (arr/resize! arr 3)
+        (let [fixed (arr/to-fixed arr)]
+          (is (= 3 (arr/length fixed)))
+          (is (= [0.0 1.0 2.0]
+                 (arr/dfold fixed (fn [acc ^double v] (conj acc v)) []))))))))
+
+(deftest resizable-double-array-sorted-test
+  ;; Tests that sorted returns a DoubleArray respecting current size.
+  (testing "sorted"
+    (testing "returns sorted DoubleArray with size elements"
+      (let [^ResizableDoubleArray arr (arr/resizable-double-array 10 5)]
+        (.setDouble arr 0 3.0)
+        (.setDouble arr 1 1.0)
+        (.setDouble arr 2 4.0)
+        (.setDouble arr 3 1.0)
+        (.setDouble arr 4 5.0)
+        ;; Set values beyond size (should be ignored)
+        (.setDouble arr 5 0.0)
+        (let [result (arr/sorted arr)]
+          (is (arr/double-array? result))
+          (is (= 5 (arr/length result)))
+          (is (= [1.0 1.0 3.0 4.0 5.0]
+                 (arr/dfold result (fn [acc ^double v] (conj acc v)) []))))))))
+
+(deftest resizable-double-array-filter-indices-test
+  ;; Tests filter-indices respects current size.
+  (testing "filter-indices"
+    (testing "excludes indices and returns DoubleArray"
+      (let [^ResizableDoubleArray arr (arr/resizable-double-array 10 5)]
+        (dotimes [i 5]
+          (.setDouble arr i (double i)))
+        (let [result (arr/filter-indices arr #{1 3})]
+          (is (arr/double-array? result))
+          (is (= 3 (arr/length result)))
+          (is (= [0.0 2.0 4.0]
+                 (arr/dfold result (fn [acc ^double v] (conj acc v)) []))))))))
+
+(deftest resizable-double-array-fold-skip-test
+  ;; Tests fold-skip operations respect current size.
+  (testing "fold-double-skip"
+    (testing "skips index within current size"
+      (let [^ResizableDoubleArray arr (arr/resizable-double-array 10 5)]
+        (dotimes [i 5]
+          (.setDouble arr i (double (inc i))))
+        ;; Sum 1+2+3+4+5 = 15, skip index 2 (value 3) = 12
+        (is (= 12.0 (arr/fold-double-skip
+                     arr 2
+                     (fn ^double [^double a ^double b] (+ a b))
+                     0.0))))))
+  (testing "dfold-skip"
+    (testing "skips index when collecting"
+      (let [^ResizableDoubleArray arr (arr/resizable-double-array 10 4)]
+        (dotimes [i 4]
+          (.setDouble arr i (double i)))
+        (is (= [0.0 2.0 3.0]
+               (arr/dfold-skip arr 1
+                               (fn [acc ^double v] (conj acc v))
+                               [])))))))
+
+(deftest resizable-double-array-indexed-fold-test
+  ;; Tests indexed fold operations respect current size.
+  (testing "indexed-fold-double"
+    (testing "iterates with indices over current size only"
+      (let [^ResizableDoubleArray arr (arr/resizable-double-array 10 3)]
+        (dotimes [i 3]
+          (.setDouble arr i 1.0))
+        ;; Sum of indices: 0+1+2 = 3
+        (is (= 3.0 (arr/indexed-fold-double
+                    arr
+                    (fn ^double [^double acc ^long i ^double _v]
+                      (+ acc (double i)))
+                    0.0))))))
+  (testing "indexed-dfold"
+    (testing "collects with indices from current size"
+      (let [^ResizableDoubleArray arr (arr/resizable-double-array 10 3)]
+        (dotimes [i 3]
+          (.setDouble arr i (double (* i 10))))
+        (is (= [{:i 0 :v 0.0} {:i 1 :v 10.0} {:i 2 :v 20.0}]
+               (arr/indexed-dfold
+                arr
+                (fn [acc ^long i ^double v]
+                  (conj acc {:i i :v v}))
+                [])))))))
+
+(deftest resizable-double-array-dany-test
+  ;; Tests dany predicate respects current size.
+  (testing "dany?"
+    (testing "checks only within current size"
+      (let [^ResizableDoubleArray arr (arr/resizable-double-array 10 3)]
+        (dotimes [i 3]
+          (.setDouble arr i 1.0))
+        ;; Set a value beyond size
+        (.setDouble arr 5 99.0)
+        ;; Should not find 99.0
+        (is (not (arr/dany? arr (fn [^double x] (== x 99.0)))))
+        ;; Should find 1.0
+        (is (arr/dany? arr (fn [^double x] (== x 1.0))))))))
+
+(deftest resizable-double-array-array-equals-test
+  ;; Tests arrayEquals respects current size.
+  (testing "array="
+    (testing "compares only current size elements"
+      (let [^ResizableDoubleArray arr (arr/resizable-double-array 10 3)]
+        (dotimes [i 3]
+          (.setDouble arr i (double i)))
+        (is (arr/array= arr [0.0 1.0 2.0]))
+        (is (not (arr/array= arr [0.0 1.0 2.0 3.0])))))))
