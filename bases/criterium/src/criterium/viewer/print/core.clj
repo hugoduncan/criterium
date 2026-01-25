@@ -142,6 +142,25 @@
   [label]
   (str (sublabel-str label) ":"))
 
+(defn format-labeled-value
+  "Format a labeled value for print output.
+
+  Returns string like '           Label: value'.
+
+  Arguments:
+    label   - label text (padded to standard width with colon)
+    value   - value to display after label
+    sublabel? - if true, use secondary width (36), else primary (32)
+
+  Example:
+    (println (format-labeled-value \"Elapsed\" \"123 ns\"))
+    ;;=>            Elapsed: 123 ns"
+  ([label value]
+   (format-labeled-value label value false))
+  ([label value sublabel?]
+   (str (if sublabel? (format-sublabel label) (format-label label))
+        " " value)))
+
 ;;; Metric Iteration
 
 (defn for-each-metric
@@ -220,12 +239,12 @@
     (when-let [a (metrics->values (:path m))]
       (when-let [v (arr/first-element a)]
         (println
-         (str
-          (format-sublabel (:label m))
-          " "
+         (format-labeled-value
+          (:label m)
           (if (number? v)
             (format/format-value (:dimension m) (* v (:scale m)))
-            v)))))))
+            v)
+          :sublabel))))))
 
 (defmethod view/metrics* :print
   [_ {:keys [samples-id]} data-map]
