@@ -94,6 +94,8 @@ jobs:
         ls -laR bases/agent/target/classes/ || echo "No target/classes directory"
         clojure -T:build javac :project :blackhole :class-dir '"bases/blackhole/target/classes"' :verbose true
         ls -laR bases/blackhole/target/classes/ || echo "No target/classes directory"
+        (cd components/array && clojure -T:build javac :class-dir '"target/classes"' :verbose true)
+        ls -laR components/array/target/classes/ || echo "No target/classes directory"
         clojure -P -A:test:dev
 
     - name: build jar
