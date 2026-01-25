@@ -20,7 +20,7 @@
     IDoubleFoldSkip IDoubleObjectFoldSkip
     IFilterIndices IIndexedDoubleFold IIndexedDoubleObjectFold
     IIndexed IIndexedSet IArrayOps]
-   [criterium.transducer.interface
+   [criterium.transducer.types
     IDDDReducible
     ILLLReducible
     IODOReducible

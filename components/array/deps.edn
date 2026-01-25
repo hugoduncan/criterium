@@ -1,7 +1,7 @@
 {:paths ["src/clj" "target/classes"]
  :java-paths ["src/java"]
  :deps {}
- :deps/prep-lib {:ensure "target/classes/criterium/array"
+ :deps/prep-lib {:ensure "target/classes/criterium"
                  :alias :build
                  :fn javac}
  :aliases {:test

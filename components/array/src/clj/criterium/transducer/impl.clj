@@ -7,7 +7,7 @@
    [criterium.array
     DoubleArray
     LongArray]
-   [criterium.transducer.interface
+   [criterium.transducer.types
     IDDDReducible
     IDoubleReducible
     ILLLReducible
@@ -108,10 +108,10 @@
        ^IODOReducible source]
       (.transduce this xform (prim-set-at) target source))
 
-    (^criterium.transducer.interface.ILongReducible range
+    (^criterium.transducer.types.ILongReducible range
       [_ ^long start ^long end]
       (LongRange. start end))
 
-    (^criterium.transducer.interface.IDoubleReducible range
+    (^criterium.transducer.types.IDoubleReducible range
       [_ ^double start ^double end ^double step]
       (DoubleRange. start end step))))

@@ -71,7 +71,7 @@
   `(.transduce
     ~(vary-meta
       'criterium.transducer.impl/ops
-      assoc :tag 'criterium.transducer.interface.IPrimOps)
+      assoc :tag 'criterium.transducer.types.IPrimOps)
     ~xform ~rf ~init ~source))
 
 (defmacro reduce
@@ -79,7 +79,7 @@
   `(.reduce
     ~(vary-meta
       'criterium.transducer.impl/ops
-      assoc :tag 'criterium.transducer.interface.IPrimOps)
+      assoc :tag 'criterium.transducer.types.IPrimOps)
     ~rf ~init ~source))
 
 (defmacro into
@@ -87,7 +87,7 @@
   `(.into
     ~(vary-meta
       'criterium.transducer.impl/ops
-      assoc :tag 'criterium.transducer.interface.IPrimOps)
+      assoc :tag 'criterium.transducer.types.IPrimOps)
     ~target ~rf ~source))
 
 (defmacro range
@@ -95,11 +95,11 @@
    `(.range
      ~(vary-meta
        'criterium.transducer.impl/ops
-       assoc :tag 'criterium.transducer.interface.IPrimOps)
+       assoc :tag 'criterium.transducer.types.IPrimOps)
      ~start ~end))
   ([start end step]
    `(.range
      ~(vary-meta
        'criterium.transducer.impl/ops
-       assoc :tag 'criterium.transducer.interface.IPrimOps)
+       assoc :tag 'criterium.transducer.types.IPrimOps)
      ~start ~end ~step)))
