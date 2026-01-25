@@ -7,7 +7,8 @@
    [criterium.metric :as metric]
    [criterium.util.helpers :as util]
    [criterium.view :as view]
-   [criterium.viewer.common.shape :as shape]))
+   [criterium.viewer.common.shape :as shape]
+   [criterium.viewer.print.core :as print-core]))
 
 (defn- format-skewness-class
   "Format skewness classification for display."
@@ -58,14 +59,14 @@
                           kurtosis kurtosis-class
                           cv cv-class]} shape-data]
             (println
-             (format "%32s: skewness %s (%s)"
-                     metric skewness (format-skewness-class skewness-class)))
+             (format "%s skewness %s (%s)"
+                     (print-core/format-label metric) skewness (format-skewness-class skewness-class)))
             (println
-             (format "%32s  kurtosis %s (%s)"
-                     "" kurtosis (format-kurtosis-class kurtosis-class)))
+             (format "%s  kurtosis %s (%s)"
+                     (print-core/label-str "") kurtosis (format-kurtosis-class kurtosis-class)))
             (println
-             (format "%32s  CV %s (%s)"
-                     "" cv (format-cv-class cv-class)))))))))
+             (format "%s  CV %s (%s)"
+                     (print-core/label-str "") cv (format-cv-class cv-class)))))))))
 
 (defmethod view/shape-stats* :print
   [_ view data-map]

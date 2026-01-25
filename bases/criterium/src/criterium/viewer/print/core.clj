@@ -23,6 +23,40 @@
 
 (set! *unchecked-math* false)
 
+;;; Label Formatting
+
+(def ^:const label-width
+  "Primary label width for print viewer output."
+  32)
+
+(def ^:const sublabel-width
+  "Secondary/detail label width for print viewer output."
+  36)
+
+(defn label-str
+  "Format a label padded to primary width (32 chars).
+  Returns a format-ready string without trailing colon."
+  [label]
+  (format (str "%" label-width "s") label))
+
+(defn sublabel-str
+  "Format a label padded to secondary width (36 chars).
+  Returns a format-ready string without trailing colon."
+  [label]
+  (format (str "%" sublabel-width "s") label))
+
+(defn format-label
+  "Format a label with colon at primary width.
+  Returns string like '           My Label:'"
+  [label]
+  (str (label-str label) ":"))
+
+(defn format-sublabel
+  "Format a label with colon at secondary width.
+  Returns string like '               My Sublabel:'"
+  [label]
+  (str (sublabel-str label) ":"))
+
 ;;; Metrics
 
 (defn print-metrics
@@ -31,9 +65,9 @@
     (when-let [a (metrics->values (:path m))]
       (when-let [v (arr/first-element a)]
         (println
-         (format
-          "%36s: %s"
-          (:label m)
+         (str
+          (format-sublabel (:label m))
+          " "
           (if (number? v)
             (format/format-value (:dimension m) (* v (:scale m)))
             v)))))))
@@ -58,8 +92,8 @@
           scale (* scale (:scale metric))]
       (println
        (format
-        "%32s: %s %s  3σ [%s %s]  min %s"
-        (:label metric)
+        "%s %s %s  3σ [%s %s]  min %s"
+        (format-label (:label metric))
         (format/format-scaled (:mean stat) scale)
         unit
         (format/format-scaled (:mean-minus-3sigma stat) scale)
@@ -97,8 +131,8 @@
           scale (* scale (:scale metric))]
       (println
        (format
-        "%32s: %s %s - %s %s"
-        (:label metric)
+        "%s %s %s - %s %s"
+        (format-label (:label metric))
         (format/format-scaled (:min-val stat) scale)
         unit
         (format/format-scaled (:max-val stat) scale)
@@ -107,7 +141,7 @@
 (defn print-extremes
   "Print min/max extremes for all metrics."
   [metrics stats transforms]
-  (println (format "%36s:" "Extremes"))
+  (println (format-sublabel "Extremes"))
   (doseq [metric metrics]
     (print-extreme metric (get-in stats (:path metric)) transforms)))
 
@@ -186,8 +220,8 @@
         scale (* (:scale metric) scale)]
     (when (and median-est (seq median-ci))
       (println
-       (format "%36s: %.3g %s CI [%.3g %.3g] (%.3f %.3f)"
-               (str label " median")
+       (format "%s %.3g %s CI [%.3g %.3g] (%.3f %.3f)"
+               (format-sublabel (str label " median"))
                (* scale (tform (:point-estimate median-est)))
                units
                (* scale (tform (-> median-ci first :value)))
@@ -195,8 +229,8 @@
                (-> median-ci first :alpha)
                (-> median-ci second :alpha))))
     (println
-     (format "%36s: %.3g %s CI [%.3g %.3g] (%.3f %.3f)"
-             (str label " mean")
+     (format "%s %.3g %s CI [%.3g %.3g] (%.3f %.3f)"
+             (format-sublabel (str label " mean"))
              (* scale mean-val)
              units
              (* scale (tform (-> mean-ci first :value)))
@@ -205,8 +239,8 @@
              (-> mean-ci second :alpha)))
     (when (and p10-est p90-est)
       (println
-       (format "%36s: [%.3g %.3g] %s (10th-90th percentile)"
-               (str label " spread")
+       (format "%s [%.3g %.3g] %s (10th-90th percentile)"
+               (format-sublabel (str label " spread"))
                (* scale (tform (:point-estimate p10-est)))
                (* scale (tform (:point-estimate p90-est)))
                units)))))
@@ -310,8 +344,8 @@
         mc (:medcouple outliers)
         method (:outlier-method outliers)]
     (when (pos? sum)
-      (util/report "%32s: Found %d outliers in %d samples (%.3g %%)%s\n"
-                   (:label metric-config)
+      (util/report "%s Found %d outliers in %d samples (%.3g %%)%s\n"
+                   (format-label (:label metric-config))
                    sum
                    num-samples
                    (* 100.0 (/ sum num-samples))
@@ -323,8 +357,8 @@
          (name c) v (* 100.0 (/ v num-samples)))))
     (when (and show-medcouple? mc)
       (let [classification (skewness-classification mc)]
-        (util/report "%32s: medcouple %.4f (%s)\n"
-                     (:label metric-config)
+        (util/report "%s medcouple %.4f (%s)\n"
+                     (format-label (:label metric-config))
                      mc
                      (format-skewness classification))))))
 
@@ -389,8 +423,8 @@
         outlier-data (get-in outliers path)]
     (doseq [[i v] (sort-by first (:outliers outlier-data))]
       (println
-       (format "%36s[%5d] %s %s"
-               ""
+       (format "%s[%5d] %s %s"
+               (sublabel-str "")
                i
                (format/format-value
                 (:dimension metric)
@@ -411,12 +445,12 @@
         transforms (util/get-transforms data-map samples-id)]
 
     (println
-     (format "%32s: %d samples with batch-size %d"
-             "Samples"
+     (format "%s %d samples with batch-size %d"
+             (format-label "Samples")
              (:num-samples metrics-samples) (:batch-size metrics-samples)))
     (when outliers
       (doseq [metric metric-configs]
-        (println (format "%36s%s" "" (:label metric)))
+        (println (str (sublabel-str "") (:label metric)))
         (print-samples-with-outliers
          (util/metric->values metrics-samples)
          transforms
@@ -431,25 +465,24 @@
   (let [warmup (some-> data-map :warmup)
         est (some-> data-map :estimation)
         samples (-> data-map :samples)
-        fmt "%32s: %d samples with batch-size %d (%d evaluations)"]
+        fmt-val (fn [label n bs evals]
+                  (format "%s %d samples with batch-size %d (%d evaluations)"
+                          (format-label label) n bs evals))]
     (println
-     (format fmt
-             "Sample Scheme"
-             (:num-samples samples)
-             (:batch-size samples)
-             (:eval-count samples)))
+     (fmt-val "Sample Scheme"
+              (:num-samples samples)
+              (:batch-size samples)
+              (:eval-count samples)))
     (when warmup
       (println
-       (format fmt
-               "Warmup"
-               (:num-samples warmup) (:batch-size warmup)
-               (* (:num-samples warmup) (:batch-size warmup)))))
+       (fmt-val "Warmup"
+                (:num-samples warmup) (:batch-size warmup)
+                (* (:num-samples warmup) (:batch-size warmup)))))
     (when est
       (println
-       (format fmt
-               "Estimation"
-               (:num-samples est) (:batch-size est)
-               (* (:num-samples est) (:batch-size est)))))))
+       (fmt-val "Estimation"
+                (:num-samples est) (:batch-size est)
+                (* (:num-samples est) (:batch-size est)))))))
 
 ;;; Histogram
 
@@ -474,8 +507,8 @@
                            %)))]
     (doseq [h histograms]
       (println
-       (format "%32s: %s Histogram"
-               (-> h :metric-config :label)
+       (format "%s %s Histogram"
+               (format-label (-> h :metric-config :label))
                (-> h :unit)))
       (run!
        (fn [[x bin-count density]]
@@ -509,7 +542,7 @@
         modes (when modes-data (:modes modes-data))
         n-modes (when modes-data (:n-modes modes-data))
         test-results (when modes-data (:test-results modes-data))]
-    (println (format "%32s: KDE (n=%d)" label n))
+    (println (format "%s KDE (n=%d)" (format-label label) n))
     (println (format "%34s bandwidth: %s"
                      ""
                      (format/format-value dimension (* scale bw))))

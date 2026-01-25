@@ -12,7 +12,8 @@
    [criterium.util.format :as format]
    [criterium.util.helpers :as util]
    [criterium.view :as view]
-   [criterium.viewer.common.core :as core]))
+   [criterium.viewer.common.core :as core]
+   [criterium.viewer.print.core :as print-core]))
 
 (set! *unchecked-math* false)
 
@@ -44,9 +45,9 @@
       (when-let [tail-data (get tail-results (:path mc))]
         (let [summary-rows (core/tail-summary-table tail-data transforms)]
           (when (seq summary-rows)
-            (println (format "%32s:" (:label mc)))
+            (println (print-core/format-label (:label mc)))
             (doseq [{:keys [parameter value]} summary-rows]
-              (println (format "%32s  %s: %s" "" parameter value)))))))
+              (println (format "%s  %s: %s" (print-core/label-str "") parameter value)))))))
     (println)))
 
 (defmethod view/tail-summary* :print
@@ -78,11 +79,11 @@
             (let [sorted-ratios (sort-by first tail-ratios)]
               (doseq [[i [rname rval]] (map-indexed vector sorted-ratios)]
                 (if (zero? i)
-                  (println (format "%32s: %s"
-                                   (str (:label mc) " tail ratios")
+                  (println (format "%s %s"
+                                   (print-core/format-label (str (:label mc) " tail ratios"))
                                    (format-tail-ratio [rname rval] empirical-quantiles)))
-                  (println (format "%32s  %s"
-                                   ""
+                  (println (format "%s  %s"
+                                   (print-core/label-str "")
                                    (format-tail-ratio [rname rval] empirical-quantiles))))))))))
     (println)))
 
@@ -100,13 +101,13 @@
       (when-let [tail-data (get tail-results (:path mc))]
         (let [{:keys [high-quantiles]} tail-data]
           (when (seq high-quantiles)
-            (println (format "%32s:" (:label mc)))
+            (println (print-core/format-label (:label mc)))
             (doseq [[q val] (sort-by first high-quantiles)]
               (let [tval (util/transform-sample-> val transforms)
                     [scale unit] (format/scale :time tval)
                     scaled (* scale tval)]
-                (println (format "%32s  p%.4g = %s %s"
-                                 ""
+                (println (format "%s  p%.4g = %s %s"
+                                 (print-core/label-str "")
                                  (* q 100)
                                  (format/format-scaled scaled 1.0)
                                  unit))))))))
