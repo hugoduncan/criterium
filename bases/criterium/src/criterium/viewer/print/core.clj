@@ -295,7 +295,8 @@
 ;;; Extremes
 
 (defn print-extreme
-  "Print min and max values for a metric."
+  "Print min and max values for a metric in spread format.
+  Output: '{label} extremes [min max] unit'"
   [metric stat transforms]
   (when (and (:min-val stat) (:max-val stat))
     (let [stat (util/transform-vals-> stat transforms)
@@ -304,18 +305,16 @@
                         (* (:scale metric) (:min-val stat)))
           scale (* scale (:scale metric))]
       (println
-       (format
-        "%s %s %s - %s %s"
-        (format-label (:label metric))
-        (format/format-scaled (:min-val stat) scale)
-        unit
-        (format/format-scaled (:max-val stat) scale)
-        unit)))))
+       (format "%s [%.3g %.3g] %s"
+               (format-sublabel (str (:label metric) " extremes"))
+               (* scale (:min-val stat))
+               (* scale (:max-val stat))
+               unit)))))
 
 (defn print-extremes
-  "Print min/max extremes for all metrics."
+  "Print min/max extremes for all metrics.
+  Each metric gets its own line with 'label extremes' format."
   [metrics stats transforms]
-  (println (format-sublabel "Extremes"))
   (for-each-metric metrics stats #(print-extreme %1 %2 transforms)))
 
 (defmethod view/extremes* :print

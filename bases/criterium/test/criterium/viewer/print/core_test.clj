@@ -96,11 +96,11 @@
 ;;; Extremes Tests
 
 (deftest print-extreme-test
-  ;; Tests print-extreme function for min/max display.
-  ;; Covers: SI unit formatting and value display.
+  ;; Tests print-extreme function for min/max display in spread format.
+  ;; Covers: SI unit formatting, bracket notation, and label formatting.
   (testing "print-extreme"
-    (testing "prints min and max values with SI units"
-      (is (= "Elapsed Time: 89.0 ns - 114 ns"
+    (testing "prints extremes in spread format with SI units"
+      (is (= "Elapsed Time extremes: [89.0 114] ns"
              (str/trim
               (with-out-str
                 (print-core/print-extreme
@@ -113,11 +113,10 @@
 
 (deftest print-extremes-test
   ;; Tests print-extremes function and view/extremes* multimethod.
-  ;; Covers: min/max display for quantitative metrics.
+  ;; Covers: min/max display in per-metric spread format without header.
   (testing "print-extremes"
-    (testing "prints via output-view"
-      (is (= ["Extremes:"
-              "Elapsed Time: 89.0 ns - 114 ns"]
+    (testing "prints per-metric extremes without header"
+      (is (= ["Elapsed Time extremes: [89.0 114] ns"]
              (trimmed-lines
               (with-out-str
                 (view/extremes*
@@ -126,8 +125,7 @@
                  (:data (test-data/bench-stats-map))))))))
 
     (testing "applies batch-size transform to per-execution values"
-      (is (= ["Extremes:"
-              "Elapsed Time: 0.500 ns - 4.50 ns"]
+      (is (= ["Elapsed Time extremes: [0.500 4.50] ns"]
              (let [data-map
                    (-> (update-in
                         (:data (test-data/samples-with-variance-12-map))
