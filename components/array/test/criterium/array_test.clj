@@ -1,8 +1,9 @@
 (ns criterium.array-test
-  ;; Tests the TypedArray interfaces and types that provide
+  ;; Tests the fixed TypedArray interfaces and types that provide
   ;; primitive array storage for benchmark samples.
   ;; Contracts: type construction, interface method implementations,
   ;; primitive fold operations, and metric type -> element type mapping.
+  ;; See criterium.array.resizable-test for resizable array tests.
   (:require
    [clojure.test :refer [deftest is testing]]
    [criterium.array :as arr]))

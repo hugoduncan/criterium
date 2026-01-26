@@ -9,6 +9,7 @@
     - ObjectArray for :nominal metrics"
   (:require
    [criterium.array.interfaces]
+   [criterium.array.resizable :as resizable]
    [criterium.transducer.interfaces]
    [criterium.util.invariant :refer [have?]])
   (:import
@@ -420,6 +421,15 @@
                  false)
                true))))))
 
+;;; Register fixed array constructors with resizable module
+
+(resizable/set-fixed-array-constructors!
+ {:double (fn [^doubles arr] (DoubleArray. arr))
+  :long   (fn [^longs arr] (LongArray. arr))
+  :object (fn [^objects arr] (ObjectArray. arr))})
+
+;;; Basic API functions
+
 (defn elem-type
   "Returns the element type keyword: :double, :long, or :object."
   [^ITypedArray arr]
@@ -449,6 +459,22 @@
   "Returns true if x is an ObjectArray."
   [x]
   (instance? ObjectArray x))
+
+;;; Re-exported resizable type predicates
+
+(def resizable-double-array?
+  "Returns true if x is a ResizableDoubleArray."
+  resizable/resizable-double-array?)
+
+(def resizable-long-array?
+  "Returns true if x is a ResizableLongArray."
+  resizable/resizable-long-array?)
+
+(def resizable-object-array?
+  "Returns true if x is a ResizableObjectArray."
+  resizable/resizable-object-array?)
+
+;;; ArrayOps for direct array access
 
 (deftype ArrayOps []
   IArrayOps
@@ -540,6 +566,8 @@
   [^ILongObjectFold arr f init]
   (.foldObject arr f init))
 
+;;; Factory functions for fixed arrays
+
 (defn ->double-array
   "Creates a DoubleArray from a primitive double array.
   Use (double-array coll) to convert a collection to a primitive array first."
@@ -560,6 +588,50 @@
   ^ObjectArray [^objects arr]
   {:pre [(have? #(instance? (Class/forName "[Ljava.lang.Object;") %) arr)]}
   (ObjectArray. arr))
+
+;;; Re-exported resizable factory functions
+
+(def resizable-double-array
+  "Creates a ResizableDoubleArray with given capacity.
+  With one argument, creates array with size equal to capacity.
+  With two arguments, creates array with given capacity and initial size.
+  The initial size must be between 0 and capacity (inclusive)."
+  resizable/resizable-double-array)
+
+(def resizable-long-array
+  "Creates a ResizableLongArray with given capacity.
+  With one argument, creates array with size equal to capacity.
+  With two arguments, creates array with given capacity and initial size.
+  The initial size must be between 0 and capacity (inclusive)."
+  resizable/resizable-long-array)
+
+(def resizable-object-array
+  "Creates a ResizableObjectArray with given capacity.
+  With one argument, creates array with size equal to capacity.
+  With two arguments, creates array with given capacity and initial size.
+  The initial size must be between 0 and capacity (inclusive)."
+  resizable/resizable-object-array)
+
+;;; Re-exported resizable operations
+
+(def resize!
+  "Resizes a resizable array to a new size.
+  The new size must be between 0 and capacity (inclusive).
+  Returns the new size."
+  resizable/resize!)
+
+(def capacity
+  "Returns the maximum capacity of a resizable array."
+  resizable/capacity)
+
+(def to-fixed
+  "Converts a resizable array to a fixed array of the same element type.
+  Creates a new array containing only the active elements (0 to size-1).
+  ResizableDoubleArray -> DoubleArray, ResizableLongArray -> LongArray,
+  ResizableObjectArray -> ObjectArray."
+  resizable/to-fixed)
+
+;;; Element access functions
 
 (defn first-double
   "Returns the first element from a DoubleArray as a primitive double."
