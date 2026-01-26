@@ -35,6 +35,14 @@
   "Secondary/detail label width for print viewer output."
   36)
 
+(def ^:const label-indent
+  "Indent width for continuation lines after a label (label-width + 2 for ': ')."
+  (+ label-width 2))
+
+(def ^:const sublabel-indent
+  "Indent width for continuation lines after a sublabel (sublabel-width + 2 for ': ')."
+  (+ sublabel-width 2))
+
 (def print-table
   "Alias to criterium.viewer.print.table/print-table for backwards compatibility."
   table/print-table)
@@ -50,6 +58,18 @@
   Returns a format-ready string without trailing colon."
   [label]
   (format (str "%" sublabel-width "s") label))
+
+(defn label-indent-str
+  "Return a string of spaces matching label indent width (34 chars).
+  Use for continuation lines after a format-label line."
+  []
+  (format (str "%" label-indent "s") ""))
+
+(defn sublabel-indent-str
+  "Return a string of spaces matching sublabel indent width (38 chars).
+  Use for continuation lines after a format-sublabel line."
+  []
+  (format (str "%" sublabel-indent "s") ""))
 
 (defn format-label
   "Format a label with colon at primary width.
@@ -605,8 +625,8 @@
         (run!
          (fn [[x bin-count density]]
            (println
-            (format "%34s %-7.3f %5d  %-7.3g  %s"
-                    "" x (long bin-count) density
+            (format "%s %-7.3f %5d  %-7.3g  %s"
+                    (label-indent-str) x (long bin-count) density
                     (core/ascii-bar bin-count max-count bar-width))))
          (mapv vector (:centers h) (:counts h) (:density h))))
       (println))))
@@ -637,27 +657,27 @@
         n-modes (when modes-data (:n-modes modes-data))
         test-results (when modes-data (:test-results modes-data))]
     (println (format "%s KDE (n=%d)" (format-label label) n))
-    (println (format "%34s bandwidth: %s"
-                     ""
+    (println (format "%s bandwidth: %s"
+                     (label-indent-str)
                      (format/format-value dimension (* scale bw))))
     (when (seq modes)
-      (println (format "%34s modes: %d (validated: %s)"
-                       "" (count modes) (or n-modes "?")))
-      (println (format "%34s %12s %12s %12s %12s"
-                       "" "Location" "Density" "CI Lower" "CI Upper"))
+      (println (format "%s modes: %d (validated: %s)"
+                       (label-indent-str) (count modes) (or n-modes "?")))
+      (println (format "%s %12s %12s %12s %12s"
+                       (label-indent-str) "Location" "Density" "CI Lower" "CI Upper"))
       (doseq [mode modes]
         (let [[loc dens ci-lo ci-hi] (format-kde-mode mode metric-config transforms)]
-          (println (format "%34s %12s %12s %12s %12s"
-                           "" loc dens ci-lo ci-hi))))
+          (println (format "%s %12s %12s %12s %12s"
+                           (label-indent-str) loc dens ci-lo ci-hi))))
       (when test-results
         (let [{:keys [method p-values]} test-results
               method-name (case method
                             :acr "ACR"
                             :silverman "Silverman"
                             (name method))]
-          (println (format "%34s %s test p-values:" "" method-name))
+          (println (format "%s %s test p-values:" (label-indent-str) method-name))
           (doseq [k (sort (keys p-values))]
-            (println (format "%36s k=%d: p=%.4f" "" k (get p-values k)))))))
+            (println (format "%s k=%d: p=%.4f" (sublabel-str "") k (get p-values k)))))))
     (println)))
 
 (defmethod view/kde* :print
