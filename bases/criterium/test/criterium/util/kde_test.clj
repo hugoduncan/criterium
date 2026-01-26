@@ -173,6 +173,62 @@
             ^doubles result (kde/dct-ii data)]
         (is (= 8 (alength result)))))))
 
+(deftest dct-via-fft-test
+  ;; Tests FFT-based DCT-II matches direct implementation.
+  ;; Verifies numerical accuracy and performance improvement.
+  (testing "dct-via-fft"
+    (testing "matches dct-ii-direct for small inputs"
+      (let [data (double-array [1.0 2.0 3.0 4.0])
+            ^doubles fft-result (kde/dct-via-fft data)
+            ^doubles direct-result (kde/dct-ii-direct data)
+            tolerance 1e-10]
+        (is (= (alength fft-result) (alength direct-result)))
+        (doseq [i (range (alength fft-result))]
+          (is (< (Math/abs (- (aget fft-result i) (aget direct-result i)))
+                 tolerance)
+              (format "Mismatch at index %d: FFT=%.12f Direct=%.12f"
+                      i (aget fft-result i) (aget direct-result i))))))
+
+    (testing "matches dct-ii-direct for power-of-2 sizes"
+      (doseq [n [8 16 32 64 128]]
+        (let [data (double-array (map #(Math/sin (* 0.1 (double %))) (range n)))
+              ^doubles fft-result (kde/dct-via-fft data)
+              ^doubles direct-result (kde/dct-ii-direct data)
+              tolerance 1e-10]
+          (doseq [i (range n)]
+            (is (< (Math/abs (- (aget fft-result i) (aget direct-result i)))
+                   tolerance)
+                (format "n=%d, i=%d: FFT=%.12f Direct=%.12f"
+                        n i (aget fft-result i) (aget direct-result i)))))))
+
+    (testing "matches dct-ii-direct for ISJ grid size (1024)"
+      (let [n 1024
+            data (double-array (map #(Math/sin (* 0.01 (double %))) (range n)))
+            ^doubles fft-result (kde/dct-via-fft data)
+            ^doubles direct-result (kde/dct-ii-direct data)
+            tolerance 1e-9]
+        (doseq [i (range n)]
+          (is (< (Math/abs (- (aget fft-result i) (aget direct-result i)))
+                 tolerance)
+              (format "i=%d: FFT=%.12f Direct=%.12f"
+                      i (aget fft-result i) (aget direct-result i))))))))
+
+(deftest ^:slow dct-via-fft-performance-test
+  ;; Verifies DCT-II via FFT completes in reasonable time for ISJ grid size.
+  (testing "dct-via-fft performance"
+    (testing "completes m=1024 in under 10ms"
+      (let [n 1024
+            data (double-array (map #(Math/sin (* 0.01 (double %))) (range n)))
+            ;; Warm up JIT
+            _ (dotimes [_ 100] (kde/dct-via-fft data))
+            ;; Time 100 iterations
+            start (System/nanoTime)
+            _ (dotimes [_ 100] (kde/dct-via-fft data))
+            elapsed-ms (/ (- (System/nanoTime) start) 1e6)
+            per-call-ms (/ elapsed-ms 100.0)]
+        (is (< per-call-ms 10.0)
+            (format "DCT via FFT took %.3f ms per call" per-call-ms))))))
+
 (deftest linear-bin-test
   ;; Tests linear binning for correct distribution of weights.
   (testing "linear-bin"

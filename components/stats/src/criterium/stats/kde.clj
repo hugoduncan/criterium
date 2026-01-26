@@ -9,6 +9,7 @@
    [criterium.array :as arr]
    [criterium.random.interface :as random]
    [criterium.stats.core :as core]
+   [criterium.stats.fft :as fft]
    [criterium.stats.sampling :as sampling]
    [criterium.utils.interface :refer [have?]])
   (:import
@@ -287,9 +288,9 @@
 
 ;;; DCT-II implementation
 
-(defn dct-ii
+(defn dct-ii-direct
   "Discrete Cosine Transform Type II.
-  Direct O(n²) implementation without FFT dependency.
+  Direct O(n²) implementation. Retained for testing/reference.
 
   DCT-II formula: X_k = sum_{n=0}^{N-1} x_n * cos(π/N * (n + 0.5) * k)
 
@@ -310,6 +311,47 @@
                      acc)))]
         (aset result k sum)))
     result))
+
+(defn dct-via-fft
+  "Discrete Cosine Transform Type II via FFT.
+  O(n log n) implementation using 4N-point FFT.
+
+  Algorithm: Place input at odd positions in 4N array,
+  compute FFT, extract real parts.
+
+  Returns array of n DCT-II coefficients."
+  ^doubles [^doubles data]
+  (let [n (alength data)
+        n4 (* 4 n)
+        ;; Create 4N-length interleaved complex array
+        ;; Place x[k] at position 2k+1 for k = 0..N-1
+        ^doubles extended (double-array (* 2 n4))
+        _ (dotimes [k n]
+            ;; Position 2k+1 in the signal = index (2k+1)*2 in interleaved array
+            (aset extended (* 2 (inc (* 2 k))) (aget data k)))
+        ;; Make it even-symmetric: extended[4N-k] = extended[k] for k = 1..2N-1
+        ;; In interleaved format: position 4N-k has real index 2*(4N-k)
+        _ (dotimes [k (dec (* 2 n))]
+            (let [src-pos (inc k)  ; positions 1 to 2N-1
+                  dst-pos (- n4 src-pos)]
+              (aset extended (* 2 dst-pos) (aget extended (* 2 src-pos)))))
+        ;; Compute 4N-point FFT
+        _ (fft/fft! extended)
+        ;; Extract DCT coefficients: real parts at positions 0..N-1, scaled by 0.5
+        result (double-array n)]
+    (dotimes [k n]
+      (aset result k (* 0.5 (aget extended (* 2 k)))))
+    result))
+
+(defn dct-ii
+  "Discrete Cosine Transform Type II.
+  O(n log n) implementation using FFT.
+
+  DCT-II formula: X_k = sum_{n=0}^{N-1} x_n * cos(π/N * (n + 0.5) * k)
+
+  Returns array of n DCT-II coefficients."
+  ^doubles [^doubles data]
+  (dct-via-fft data))
 
 ;;; Linear binning
 
