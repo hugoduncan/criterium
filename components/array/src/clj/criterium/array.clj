@@ -22,7 +22,6 @@
     IFilterIndices IIndexedDoubleFold IIndexedDoubleObjectFold
     IIndexed IIndexedSet IArrayOps
     IDoubleFill ILongFill IObjectFill]
-   [criterium.transducer.interfaces IPrimOps]
    [criterium.transducer.interfaces
     IDDDReducible
     IDLDReducible
