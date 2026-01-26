@@ -16,8 +16,8 @@
   (:require
    [criterium.array.interfaces])
   (:import
-   [criterium.array.interfaces ITypedArray IDoubleArray ILongArray IResizable]
    [criterium.array.interfaces
+    ITypedArray IDoubleArray ILongArray IResizable
     IFold IDoubleFold ILongFold IDoubleObjectFold ILongObjectFold
     IDoubleMap IDoubleMapIndexed ILongMap ILongMapIndexed
     IDoubleAny ILongAny IArrayEquals ISortable
@@ -242,7 +242,7 @@
         acc)))
 
   IDoubleFill
-  (dfill [this ^double value]
+  (^IDoubleFill dfill [this ^double value]
     (Arrays/fill array 0 (int size) value)
     this))
 
@@ -469,7 +469,7 @@
         acc)))
 
   ILongFill
-  (lfill [this ^long value]
+  (^ILongFill lfill [this ^long value]
     (Arrays/fill array 0 (int size) value)
     this))
 
@@ -510,7 +510,7 @@
                true)))))
 
   IObjectFill
-  (ofill [this value]
+  (^IObjectFill ofill [this value]
     (Arrays/fill array 0 (int size) value)
     this))
 

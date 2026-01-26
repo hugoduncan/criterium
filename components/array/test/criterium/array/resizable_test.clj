@@ -194,7 +194,7 @@
         ;; Value beyond size should be unchanged
         (is (= 99.0 (aget ^doubles (.array arr) 5)))))
     (testing "handles empty array"
-      (let [arr (arr/resizable-double-array 10 0)]
+      (let [^ResizableDoubleArray arr (arr/resizable-double-array 10 0)]
         (is (= arr (arr/fill! arr 5.0)))
         (is (= 0 (arr/length arr)))))
     (testing "handles single element"
@@ -209,7 +209,7 @@
         (is (= [0.0 0.0 0.0]
                (arr/dfold arr (fn [acc ^double v] (conj acc v)) [])))))
     (testing "returns array for chaining"
-      (let [arr (arr/resizable-double-array 5 3)]
+      (let [^ResizableDoubleArray arr (arr/resizable-double-array 5 3)]
         (is (identical? arr (arr/fill! arr 1.0)))))))
 
 (deftest resizable-double-array-to-fixed-test
@@ -596,7 +596,7 @@
         ;; Value beyond size should be unchanged
         (is (= 99 (aget ^longs (.array arr) 5)))))
     (testing "handles empty array"
-      (let [arr (arr/resizable-long-array 10 0)]
+      (let [^ResizableLongArray arr (arr/resizable-long-array 10 0)]
         (is (= arr (arr/fill! arr 5)))
         (is (= 0 (arr/length arr)))))
     (testing "handles single element"
@@ -611,7 +611,7 @@
         (is (= [0 0 0]
                (arr/lfold arr (fn [acc ^long v] (conj acc v)) [])))))
     (testing "returns array for chaining"
-      (let [arr (arr/resizable-long-array 5 3)]
+      (let [^ResizableLongArray arr (arr/resizable-long-array 5 3)]
         (is (identical? arr (arr/fill! arr 1)))))))
 
 (deftest resizable-long-array-to-fixed-test
@@ -936,7 +936,7 @@
         ;; Value beyond size should be unchanged
         (is (= :beyond (aget ^objects (.array arr) 5)))))
     (testing "handles empty array"
-      (let [arr (arr/resizable-object-array 10 0)]
+      (let [^ResizableObjectArray arr (arr/resizable-object-array 10 0)]
         (is (= arr (arr/fill! arr :val)))
         (is (= 0 (arr/length arr)))))
     (testing "handles single element"
@@ -951,7 +951,7 @@
         (is (= [nil nil nil]
                (arr/fold arr #(conj %1 %2) [])))))
     (testing "returns array for chaining"
-      (let [arr (arr/resizable-object-array 5 3)]
+      (let [^ResizableObjectArray arr (arr/resizable-object-array 5 3)]
         (is (identical? arr (arr/fill! arr :val)))))))
 
 (deftest resizable-object-array-to-fixed-test

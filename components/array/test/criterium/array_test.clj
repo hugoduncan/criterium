@@ -6,7 +6,9 @@
   ;; See criterium.array.resizable-test for resizable array tests.
   (:require
    [clojure.test :refer [deftest is testing]]
-   [criterium.array :as arr]))
+   [criterium.array :as arr])
+  (:import
+   [criterium.array DoubleArray LongArray ObjectArray]))
 
 (deftest type-predicates-test
   (testing "type predicates"
@@ -430,55 +432,55 @@
   (testing "fill!"
     (testing "on DoubleArray"
       (testing "fills all elements with specified value"
-        (let [wrapped (arr/->double-array (double-array [1.0 2.0 3.0]))]
+        (let [^DoubleArray wrapped (arr/->double-array (double-array [1.0 2.0 3.0]))]
           (arr/fill! wrapped 42.0)
           (is (= [42.0 42.0 42.0]
                  (arr/dfold wrapped (fn [acc ^double v] (conj acc v)) [])))))
       (testing "fills with zero"
-        (let [wrapped (arr/->double-array (double-array [1.0 2.0 3.0]))]
+        (let [^DoubleArray wrapped (arr/->double-array (double-array [1.0 2.0 3.0]))]
           (arr/fill! wrapped 0.0)
           (is (= [0.0 0.0 0.0]
                  (arr/dfold wrapped (fn [acc ^double v] (conj acc v)) [])))))
       (testing "returns array for chaining"
-        (let [wrapped (arr/->double-array (double-array [1.0 2.0]))]
+        (let [^DoubleArray wrapped (arr/->double-array (double-array [1.0 2.0]))]
           (is (identical? wrapped (arr/fill! wrapped 5.0)))))
       (testing "handles empty array"
-        (let [wrapped (arr/->double-array (double-array []))]
+        (let [^DoubleArray wrapped (arr/->double-array (double-array []))]
           (is (identical? wrapped (arr/fill! wrapped 1.0)))
           (is (= 0 (arr/length wrapped))))))
     (testing "on LongArray"
       (testing "fills all elements with specified value"
-        (let [wrapped (arr/->long-array (long-array [1 2 3]))]
+        (let [^LongArray wrapped (arr/->long-array (long-array [1 2 3]))]
           (arr/fill! wrapped 42)
           (is (= [42 42 42]
                  (arr/lfold wrapped (fn [acc ^long v] (conj acc v)) [])))))
       (testing "fills with zero"
-        (let [wrapped (arr/->long-array (long-array [1 2 3]))]
+        (let [^LongArray wrapped (arr/->long-array (long-array [1 2 3]))]
           (arr/fill! wrapped 0)
           (is (= [0 0 0]
                  (arr/lfold wrapped (fn [acc ^long v] (conj acc v)) [])))))
       (testing "returns array for chaining"
-        (let [wrapped (arr/->long-array (long-array [1 2]))]
+        (let [^LongArray wrapped (arr/->long-array (long-array [1 2]))]
           (is (identical? wrapped (arr/fill! wrapped 5)))))
       (testing "handles empty array"
-        (let [wrapped (arr/->long-array (long-array []))]
+        (let [^LongArray wrapped (arr/->long-array (long-array []))]
           (is (identical? wrapped (arr/fill! wrapped 1)))
           (is (= 0 (arr/length wrapped))))))
     (testing "on ObjectArray"
       (testing "fills all elements with specified value"
-        (let [wrapped (arr/->object-array (object-array [:a :b :c]))]
+        (let [^ObjectArray wrapped (arr/->object-array (object-array [:a :b :c]))]
           (arr/fill! wrapped :filled)
           (is (= [:filled :filled :filled]
                  (arr/fold wrapped #(conj %1 %2) [])))))
       (testing "fills with nil"
-        (let [wrapped (arr/->object-array (object-array [:a :b :c]))]
+        (let [^ObjectArray wrapped (arr/->object-array (object-array [:a :b :c]))]
           (arr/fill! wrapped nil)
           (is (= [nil nil nil]
                  (arr/fold wrapped #(conj %1 %2) [])))))
       (testing "returns array for chaining"
-        (let [wrapped (arr/->object-array (object-array [:a :b]))]
+        (let [^ObjectArray wrapped (arr/->object-array (object-array [:a :b]))]
           (is (identical? wrapped (arr/fill! wrapped :x)))))
       (testing "handles empty array"
-        (let [wrapped (arr/->object-array (object-array []))]
+        (let [^ObjectArray wrapped (arr/->object-array (object-array []))]
           (is (identical? wrapped (arr/fill! wrapped :x)))
           (is (= 0 (arr/length wrapped))))))))

@@ -7,6 +7,10 @@
    [criterium.array
     DoubleArray
     LongArray]
+   [criterium.array.interfaces
+    IDoubleFill
+    ILongFill
+    IObjectFill]
    [criterium.transducer.interfaces
     IDDDReducible
     IDoubleReducible
@@ -114,4 +118,13 @@
 
     (^criterium.transducer.interfaces.IDoubleReducible range
       [_ ^double start ^double end ^double step]
-      (DoubleRange. start end step))))
+      (DoubleRange. start end step))
+
+    (^IDoubleFill fill [_ ^IDoubleFill arr ^double value]
+      (.dfill arr value))
+
+    (^ILongFill fill [_ ^ILongFill arr ^long value]
+      (.lfill arr value))
+
+    (^IObjectFill fill [_ ^IObjectFill arr value]
+      (.ofill arr value))))

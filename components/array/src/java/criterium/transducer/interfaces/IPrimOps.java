@@ -1,7 +1,10 @@
 package criterium.transducer.interfaces;
 
 import criterium.array.interfaces.IDoubleArray;
+import criterium.array.interfaces.IDoubleFill;
 import criterium.array.interfaces.ILongArray;
+import criterium.array.interfaces.ILongFill;
+import criterium.array.interfaces.IObjectFill;
 
 /**
  * Interface for primitive transducer operations.
@@ -112,4 +115,31 @@ public interface IPrimOps {
    * @return a reducible double range
    */
   IDoubleReducible range(double start, double end, double step);
+
+  /**
+   * Fills a double array with the specified value.
+   *
+   * @param arr the array to fill
+   * @param value the value to fill with
+   * @return the filled array
+   */
+  IDoubleFill fill(IDoubleFill arr, double value);
+
+  /**
+   * Fills a long array with the specified value.
+   *
+   * @param arr the array to fill
+   * @param value the value to fill with
+   * @return the filled array
+   */
+  ILongFill fill(ILongFill arr, long value);
+
+  /**
+   * Fills an object array with the specified value.
+   *
+   * @param arr the array to fill
+   * @param value the value to fill with
+   * @return the filled array
+   */
+  IObjectFill fill(IObjectFill arr, Object value);
 }
