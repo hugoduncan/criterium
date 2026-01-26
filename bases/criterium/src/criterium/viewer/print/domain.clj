@@ -18,7 +18,7 @@
    [criterium.viewer.common.domain.detection :as detection]
    [criterium.viewer.common.domain.extract :as extract]
    [criterium.viewer.common.regression :as regression]
-   [criterium.viewer.print.core :as print.core]))
+   [criterium.viewer.print.table :as table]))
 
 (set! *unchecked-math* false)
 
@@ -88,7 +88,7 @@
         row-vectors (mapv (fn [row]
                             (mapv #(or (get row %) "-") col-headers))
                           rows)]
-    (print.core/print-table
+    (table/print-table
      {:heading heading
       :columns (mapv (fn [h] {:header h}) col-headers)
       :rows row-vectors})))
@@ -200,7 +200,7 @@
         table-rows (mapv (fn [row-key vals]
                            (into [row-key] vals))
                          row-keys formatted-vals)]
-    (print.core/print-table
+    (table/print-table
      {:heading (format "Domain Comparison by %s: %s" (name axis) (pr-str metric))
       :row-key-col {:header ""}
       :columns (mapv (fn [h] {:header h}) col-headers)
@@ -260,7 +260,7 @@
         table-rows (mapv (fn [row-key vals]
                            (into [row-key] vals))
                          row-keys-formatted formatted-rows)]
-    (print.core/print-table
+    (table/print-table
      {:heading (format "Domain Comparison by %s: %s" (name axis) (pr-str metric))
       :row-key-col {:header ""}
       :columns (mapv (fn [h] {:header h}) col-headers)
@@ -337,7 +337,7 @@
         table-rows (mapv (fn [row-key vals]
                            (into [row-key] vals))
                          row-keys-formatted formatted-rows)]
-    (print.core/print-table
+    (table/print-table
      {:heading (format "Domain Comparison by %s" (name axis))
       :row-key-col {:header ""}
       :columns (mapv (fn [h] {:header h}) col-headers)
