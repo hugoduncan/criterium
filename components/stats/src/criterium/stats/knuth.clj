@@ -12,20 +12,19 @@
    All functions require typed arrays (DoubleArray, LongArray)."
   (:require
    [criterium.array :as arr]
+   [criterium.primitive-fn :as pf]
    [criterium.stats.probability :as prob]
-   [criterium.utils.interface :refer [have?]]))
+   [criterium.transducer :as xd]
+   [criterium.utils.interface :refer [have?]])
+  (:import
+   [criterium.array
+    DoubleArray]))
 
 (defn- data-min-max
   "Returns [min max] for typed array data."
-  [data]
-  (let [init-min Double/POSITIVE_INFINITY
-        init-max Double/NEGATIVE_INFINITY
-        [mn mx] (arr/dfold data
-                           (fn [acc ^double v]
-                             (let [[^double min-v ^double max-v] acc]
-                               [(min min-v v) (max max-v v)]))
-                           [init-min init-max])]
-    [(double mn) (double mx)]))
+  [^DoubleArray data]
+  [(xd/reduce pf/dmin Double/POSITIVE_INFINITY data)
+   (xd/reduce pf/dmax Double/NEGATIVE_INFINITY data)])
 
 ;;; Constants
 
@@ -37,9 +36,9 @@
 
 (defn- bin-counts
   "Compute bin counts for M equal-width bins from a typed array.
-  Returns a long array of counts for each bin."
-  ^longs [data ^long num-bins ^double min-val ^double max-val]
-  (let [counts    (long-array num-bins)
+  Returns a LongArray of counts for each bin."
+  [data ^long num-bins ^double min-val ^double max-val]
+  (let [counts    (arr/->long-array (long-array num-bins))
         range-val (- max-val min-val)
         width     (/ range-val (double num-bins))
         last-bin  (dec num-bins)]
@@ -47,7 +46,7 @@
                (fn [_ ^double x]
                  (let [bin-idx (long (/ (- x min-val) width))
                        bin-idx (min last-bin (max 0 bin-idx))]
-                   (aset counts bin-idx (inc (aget counts bin-idx))))
+                   (arr/set-at! counts bin-idx (inc (arr/get-long counts bin-idx))))
                  nil)
                nil)
     counts))
@@ -61,11 +60,11 @@
 
   Parameters:
     n - total sample count
-    bin-counts - sequence of counts per bin
+    bin-counts - LongArray of counts per bin
 
   Returns the log-posterior value (higher is better)."
   ^double [^long n bin-counts]
-  (let [m          (count bin-counts)
+  (let [m          (arr/length bin-counts)
         m-double   (double m)
         n-double   (double n)
         ;; n·log(M)
@@ -77,12 +76,10 @@
         ;; -logΓ((2n+M)/2)
         term4      (- (prob/log-gamma (/ (+ (* 2.0 n-double) m-double) 2.0)))
         ;; Σₖ₌₁ᴹ logΓ(nₖ + 1/2)
-        term5      (double
-                    (reduce
-                     (fn ^double [^double sum ^long nk]
-                       (+ sum (prob/log-gamma (+ (double nk) 0.5))))
-                     0.0
-                     bin-counts))]
+        term5      (arr/fold-double bin-counts
+                                    (fn ^double [^double sum ^double nk]
+                                      (+ sum (prob/log-gamma (+ nk 0.5))))
+                                    0.0)]
     (+ term1 term2 term3 term4 term5)))
 
 ;;; Optimal bin selection
@@ -116,13 +113,15 @@
                      {:error :knuth/no-samples})))
    (let [[computed-min computed-max] (when-not (and min max)
                                        (data-min-max data))
-         min-val (double (or min computed-min))
-         max-val (double (or max computed-max))]
+         min-val                     (double (or min computed-min))
+         max-val                     (double (or max computed-max))]
      (when (= min-val max-val)
-       (throw (ex-info "All sample values are identical - cannot determine optimal bins"
-                       {:error   :knuth/same-values
-                        :min-val min-val
-                        :max-val max-val})))
+       (throw
+        (ex-info
+         "All sample values are identical - cannot determine optimal bins"
+         {:error   :knuth/same-values
+          :min-val min-val
+          :max-val max-val})))
      (let [n             (arr/length data)
            max-bins-long (long max-bins)]
        ;; Search over M = 1 to max-bins

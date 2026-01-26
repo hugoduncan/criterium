@@ -5,7 +5,8 @@
    [criterium.array :as arr]
    [criterium.collect-plan :as collect-plan]
    [criterium.random.interface :as random]
-   [criterium.stats.interface :as stats]
+   [criterium.stats.bootstrap :as bootstrap-stats]
+   [criterium.stats.core :as stats]
    [criterium.test-utils :refer [test-max-error]]
    [criterium.util.bootstrap :as bootstrap]
    [criterium.util.helpers :as util]
@@ -482,13 +483,13 @@
             samples           (arr/->double-array (double-array (range 101)))
             num-samples       (arr/length samples)
             ;; Wrap stats-fn to track invocations
-            original-stats-fn stats/stats-fn
+            original-stats-fn bootstrap-stats/stats-fn
             tracking-stats-fn (fn [fs]
                                 (let [combined (original-stats-fn fs)]
                                   (fn [vs]
                                     (swap! invocation-count inc)
                                     (combined vs))))]
-        (with-redefs [stats/stats-fn tracking-stats-fn]
+        (with-redefs [bootstrap-stats/stats-fn tracking-stats-fn]
           (bootstrap/bootstrap-stats-for
            samples
            {:estimate-quantiles [0.025 0.975]

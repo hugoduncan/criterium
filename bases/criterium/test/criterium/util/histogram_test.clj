@@ -2,8 +2,8 @@
   (:require
    [clojure.test :refer [deftest is testing]]
    [criterium.array :as arr]
-   [criterium.test-utils :refer [gaussian-samples]]
-   [criterium.util.histogram :as histogram]))
+   [criterium.stats.histogram :as histogram]
+   [criterium.test-utils :refer [gaussian-samples]]))
 
 (defn- darr
   "Create a DoubleArray from a sequence."

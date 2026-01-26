@@ -12,8 +12,8 @@
    [clojure.test :refer [deftest is testing]]
    [criterium.analyse.metrics-samples :as metrics-samples]
    [criterium.r-validation.r :as r :refer [vec->r-str]]
-   [criterium.test.assert :refer [approx=]]
-   [criterium.util.kde :as kde]))
+   [criterium.stats.kde :as kde]
+   [criterium.test.assert :refer [approx=]]))
 
 ;;; Test data sets
 ;; Reuse datasets from kde_validation_test for consistency

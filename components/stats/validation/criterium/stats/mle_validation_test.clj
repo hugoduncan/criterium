@@ -1,5 +1,5 @@
 (ns criterium.stats.mle-validation-test
-  "Validation tests for criterium.stats.interface MLE functions against R reference.
+  "Validation tests for criterium.stats.mle functions against R reference.
 
   Tests skip gracefully when R/Rserve is unavailable.
 
@@ -15,7 +15,8 @@
    [clojure.test :refer [deftest is testing]]
    [criterium.array :as arr]
    [criterium.r-validation.r :as r]
-   [criterium.stats.interface :as stats]
+   [criterium.stats.mle :as mle]
+   [criterium.stats.probability :as stats]
    [criterium.test.assert :refer [approx=]]))
 
 (defn- darr
@@ -143,7 +144,7 @@
                 r-rate (double (second r-result))
                 r-scale (/ 1.0 r-rate)
                 r-loglik (nth r-result 2)
-                clj-result (stats/gamma-mle (darr gamma-test-data))
+                clj-result (mle/gamma-mle (darr gamma-test-data))
                 clj-shape (get-in clj-result [:params :shape])
                 clj-scale (get-in clj-result [:params :scale])
                 clj-loglik (:log-likelihood clj-result)]
@@ -170,7 +171,7 @@
                     ^double r-shape (first r-result)
                     ^double r-rate (second r-result)
                     r-scale (/ 1.0 r-rate)
-                    clj-result (stats/gamma-mle (darr data))
+                    clj-result (mle/gamma-mle (darr data))
                     clj-shape (get-in clj-result [:params :shape])
                     clj-scale (get-in clj-result [:params :scale])]
                 (is (approx= r-shape clj-shape 1e-2)
@@ -199,7 +200,7 @@
                 r-mu (first r-result)
                 r-sigma (second r-result)
                 r-loglik (nth r-result 2)
-                clj-result (stats/lognormal-mle (darr lognormal-test-data))
+                clj-result (mle/lognormal-mle (darr lognormal-test-data))
                 clj-mu (get-in clj-result [:params :mu])
                 clj-sigma (get-in clj-result [:params :sigma])
                 clj-loglik (:log-likelihood clj-result)]
@@ -231,7 +232,7 @@
                                 0.0
                                 log-data)
                 expected-sigma (Math/sqrt (/ sum-sq n))
-                result (stats/lognormal-mle (darr lognormal-test-data))]
+                result (mle/lognormal-mle (darr lognormal-test-data))]
             (is (approx= expected-mu (get-in result [:params :mu]) 1e-15)
                 "mu should match mean of log data")
             (is (approx= expected-sigma (get-in result [:params :sigma]) 1e-15)
@@ -260,7 +261,7 @@
                                         "c(mu, lambda)"))
                 r-mu (first r-result)
                 r-lambda (second r-result)
-                clj-result (stats/inverse-gaussian-mle (darr inverse-gaussian-test-data))
+                clj-result (mle/inverse-gaussian-mle (darr inverse-gaussian-test-data))
                 clj-mu (get-in clj-result [:params :mu])
                 clj-lambda (get-in clj-result [:params :lambda])]
             (testing "mu parameter"
@@ -272,7 +273,7 @@
 
         (testing "log-likelihood matches R's dinvgauss"
           (let [data-str (str "c(" (str/join "," inverse-gaussian-test-data) ")")
-                clj-result (stats/inverse-gaussian-mle (darr inverse-gaussian-test-data))
+                clj-result (mle/inverse-gaussian-mle (darr inverse-gaussian-test-data))
                 clj-mu (get-in clj-result [:params :mu])
                 clj-lambda (get-in clj-result [:params :lambda])
                 r-loglik (first (r/r-eval
@@ -295,7 +296,7 @@
                                             "c(mu, lambda)"))
                     r-mu (first r-result)
                     r-lambda (second r-result)
-                    clj-result (stats/inverse-gaussian-mle (darr data))]
+                    clj-result (mle/inverse-gaussian-mle (darr data))]
                 (is (approx= r-mu (get-in clj-result [:params :mu]) 1e-10)
                     (format "mu mismatch for %s" desc))
                 (is (approx= r-lambda (get-in clj-result [:params :lambda]) 1e-10)
@@ -321,7 +322,7 @@
                 r-shape (first r-result)
                 r-scale (second r-result)
                 r-loglik (nth r-result 2)
-                clj-result (stats/weibull-mle (darr weibull-test-data))
+                clj-result (mle/weibull-mle (darr weibull-test-data))
                 clj-shape (get-in clj-result [:params :shape])
                 clj-scale (get-in clj-result [:params :scale])
                 clj-loglik (:log-likelihood clj-result)]
@@ -346,7 +347,7 @@
                                             "c(fit$estimate['shape'], fit$estimate['scale'])"))
                     r-shape (first r-result)
                     r-scale (second r-result)
-                    clj-result (stats/weibull-mle (darr data))
+                    clj-result (mle/weibull-mle (darr data))
                     clj-shape (get-in clj-result [:params :shape])
                     clj-scale (get-in clj-result [:params :scale])]
                 (is (approx= r-shape clj-shape 1e-2)
@@ -358,7 +359,7 @@
 
         (testing "log-likelihood matches R's dweibull"
           (let [data-str (str "c(" (str/join "," weibull-test-data) ")")
-                clj-result (stats/weibull-mle (darr weibull-test-data))
+                clj-result (mle/weibull-mle (darr weibull-test-data))
                 clj-shape (get-in clj-result [:params :shape])
                 clj-scale (get-in clj-result [:params :scale])
                 r-loglik (first (r/r-eval
@@ -374,14 +375,14 @@
   ;; Verifies that MLE log-likelihood values can be used with AIC/BIC functions.
   (testing "MLE log-likelihood"
     (testing "can be used with AIC function"
-      (let [gamma-result (stats/gamma-mle (darr gamma-test-data))
+      (let [gamma-result (mle/gamma-mle (darr gamma-test-data))
             k 2  ; gamma has 2 parameters
             aic (stats/aic k (:log-likelihood gamma-result))]
         (is (number? aic) "AIC should be computable from gamma MLE result")
         (is (< aic 1000) "AIC should be reasonable")))
 
     (testing "can be used with BIC function"
-      (let [lognormal-result (stats/lognormal-mle (darr lognormal-test-data))
+      (let [lognormal-result (mle/lognormal-mle (darr lognormal-test-data))
             k 2  ; lognormal has 2 parameters
             n (count lognormal-test-data)
             bic (stats/bic k n (:log-likelihood lognormal-result))]
@@ -389,7 +390,7 @@
         (is (< bic 1000) "BIC should be reasonable")))
 
     (testing "can be used with AICc function"
-      (let [ig-result (stats/inverse-gaussian-mle (darr inverse-gaussian-test-data))
+      (let [ig-result (mle/inverse-gaussian-mle (darr inverse-gaussian-test-data))
             k 2  ; inverse-gaussian has 2 parameters
             n (count inverse-gaussian-test-data)
             aicc (stats/aicc k n (:log-likelihood ig-result))]
@@ -397,7 +398,7 @@
         (is (< aicc 1000) "AICc should be reasonable")))
 
     (testing "can be used with weibull-mle"
-      (let [weibull-result (stats/weibull-mle (darr weibull-test-data))
+      (let [weibull-result (mle/weibull-mle (darr weibull-test-data))
             k 2  ; weibull has 2 parameters
             n (count weibull-test-data)
             aic (stats/aic k (:log-likelihood weibull-result))

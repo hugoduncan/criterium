@@ -7,7 +7,7 @@
    [criterium.analyse.metrics-samples]
    [criterium.collect-plan :as collect-plan]
    [criterium.metric :as metric]
-   [criterium.stats.interface :as stats]
+   [criterium.stats.autocorrelation :as stats]
    [criterium.util.bootstrap :as bootstrap]
    [criterium.util.debug :as debug]
    [criterium.util.helpers :as util]
@@ -129,12 +129,12 @@
       :quantiles-id - Key for required quantile analysis (default: :quantiles)
       :metric-ids   - Set of metric ids to analyze (default: all quantitative)
       :outlier-method - Method for computing outlier thresholds:
-                        :adjusted (default) - adjusted boxplot for skewed data
-                        :standard - symmetric 1.5×IQR whiskers
-                        :auto - uses :adjusted for metrics-samples,
-                                :standard for digest (same as default)
-                        Note: digest-based samples always use :standard
-                        regardless of this setting.
+                        :medcouple (default) - adjusted boxplot for skewed data
+                                   using medcouple statistic
+                        :tukey - Tukey's symmetric 1.5×IQR whiskers
+                        Note: digest-based samples always use :tukey
+                        regardless of this setting (medcouple requires
+                        individual sample values).
 
   The returned function:
   - Takes a sampled data map containing samples, metrics config and quantiles

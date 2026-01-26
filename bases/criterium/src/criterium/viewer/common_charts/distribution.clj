@@ -8,7 +8,7 @@
    [criterium.array :as arr]
    [criterium.metric :as metric]
    [criterium.primitive-fn :as prim]
-   [criterium.stats.interface :as si]
+   [criterium.stats.probability :as si]
    [criterium.util.helpers :as util]
    [criterium.viewer.common-charts.samples :as samples]
    [criterium.viewer.common.distribution :as common.distribution]))

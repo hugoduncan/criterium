@@ -6,7 +6,7 @@
    [clojure.test.check.properties :as prop]
    [criterium.array :as arr]
    [criterium.random.interface :as random]
-   [criterium.stats.interface :as stats]
+   [criterium.stats.core :as stats]
    [criterium.test-utils :refer [abs-error approx= gen-bounded test-max-error]]
    [criterium.util.sampled-stats :as sampled-stats]))
 

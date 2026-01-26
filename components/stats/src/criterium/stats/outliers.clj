@@ -9,9 +9,7 @@
    [criterium.array :as arr]
    criterium.array.interfaces
    [criterium.stats.core :as core]
-   [criterium.utils.interface :refer [have?]])
-  (:import
-   [criterium.array.interfaces IIndexed]))
+   [criterium.utils.interface :refer [have?]]))
 
 (defn boxplot-outlier-thresholds
   "Outlier thresholds for given quartiles.
@@ -62,11 +60,6 @@
       0.0
       (/ (- (- xj med) (- med xi)) diff))))
 
-(defn- typed-array-get-double
-  "Get element at index as double from typed array."
-  ^double [^IIndexed arr ^long index]
-  (.getDouble arr index))
-
 (defn medcouple
   "Compute the medcouple, a robust measure of skewness.
   Returns a value in [-1, 1] where positive indicates right-skew
@@ -86,17 +79,17 @@
     (if (< n 3)
       0.0
       (let [med       (core/median-value sorted-data)
-            first-val (typed-array-get-double sorted-data 0)
-            last-val  (typed-array-get-double sorted-data (dec n))]
+            first-val (arr/get-double sorted-data 0)
+            last-val  (arr/get-double sorted-data (dec n))]
         (if (== first-val last-val)
           0.0
           (let [h-values (java.util.ArrayList.)]
             (dotimes [i n]
-              (let [xi (typed-array-get-double sorted-data i)]
+              (let [xi (arr/get-double sorted-data i)]
                 (when (<= xi med)
                   (loop [j i]
                     (when (< j n)
-                      (let [xj (typed-array-get-double sorted-data j)]
+                      (let [xj (arr/get-double sorted-data j)]
                         (when (>= xj med)
                           (.add h-values (medcouple-kernel xi xj med)))
                         (recur (inc j))))))))

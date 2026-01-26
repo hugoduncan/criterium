@@ -1,14 +1,19 @@
-(ns criterium.util.knuth-test
+(ns criterium.stats.knuth-test
   (:require
    [clojure.test :refer [deftest is testing]]
    [criterium.array :as arr]
-   [criterium.test-utils :refer [gaussian-samples test-max-error]]
-   [criterium.util.knuth :as knuth]))
+   [criterium.stats.knuth :as knuth]
+   [criterium.test-utils :refer [gaussian-samples test-max-error]]))
 
 (defn- darr
   "Create a DoubleArray from a sequence."
   [coll]
   (arr/->double-array (double-array coll)))
+
+(defn- larr
+  "Create a LongArray from a sequence."
+  [coll]
+  (arr/->long-array (long-array coll)))
 
 ;; Tests for Knuth's Bayesian histogram binning algorithm.
 ;; Validates log-posterior computation and optimal bin selection
@@ -19,25 +24,25 @@
     (testing "returns 0.0 for single bin with all samples"
       ;; When M=1, all samples in one bin, log-posterior simplifies
       ;; For n samples in 1 bin: most terms cancel out
-      (let [result (knuth/log-posterior 100 [100])]
+      (let [result (knuth/log-posterior 100 (larr [100]))]
         (test-max-error 0.0 result 1e-10)))
 
     (testing "returns negative value for uniform split into 2 bins"
       ;; M=2 with equal split has lower log-posterior than M=1 for uniform data
-      (let [result (knuth/log-posterior 100 [50 50])]
+      (let [result (knuth/log-posterior 100 (larr [50 50]))]
         (is (< result 0.0) "log-posterior should be negative for M=2 uniform split")))
 
     (testing "rewards concentrated data structure"
       ;; Knuth method finds structure - concentrated data has higher log-posterior
       ;; because it represents a simpler model that explains the data well
-      (let [even-split   (knuth/log-posterior 100 [50 50])
-            uneven-split (knuth/log-posterior 100 [90 10])]
+      (let [even-split   (knuth/log-posterior 100 (larr [50 50]))
+            uneven-split (knuth/log-posterior 100 (larr [90 10]))]
         (is (> uneven-split even-split)
             "Concentrated data should have higher log-posterior")))
 
     (testing "handles empty bins"
       ;; Empty bins (count=0) should work - logΓ(0.5) is well-defined
-      (let [result (knuth/log-posterior 100 [100 0])]
+      (let [result (knuth/log-posterior 100 (larr [100 0]))]
         (is (number? result) "Should handle bins with zero counts")))))
 
 (deftest optimal-bins-test
@@ -127,3 +132,36 @@
             result  (knuth/optimal-bins samples {:max-bins 10})]
         (is (number? (:log-posterior result))
             "Should compute valid log-posterior")))))
+
+;; Test private data-min-max function directly
+(def ^:private data-min-max #'knuth/data-min-max)
+
+(deftest data-min-max-test
+  ;; Tests the private data-min-max function which computes min/max
+  ;; using primitive double folds for efficiency.
+  (testing "data-min-max"
+    (testing "returns correct min and max for simple sequence"
+      (let [[mn mx] (data-min-max (darr [3 1 4 1 5 9 2 6]))]
+        (is (= 1.0 mn))
+        (is (= 9.0 mx))))
+
+    (testing "handles single element"
+      (let [[mn mx] (data-min-max (darr [42]))]
+        (is (= 42.0 mn))
+        (is (= 42.0 mx))))
+
+    (testing "handles negative values"
+      (let [[mn mx] (data-min-max (darr [-5 -2 -8 -1]))]
+        (is (= -8.0 mn))
+        (is (= -1.0 mx))))
+
+    (testing "handles mixed positive and negative"
+      (let [[mn mx] (data-min-max (darr [-3 0 5 -1 2]))]
+        (is (= -3.0 mn))
+        (is (= 5.0 mx))))
+
+    (testing "handles large arrays"
+      (let [data (darr (range 10000))
+            [mn mx] (data-min-max data)]
+        (is (= 0.0 mn))
+        (is (= 9999.0 mx))))))

@@ -10,7 +10,7 @@
   (:require
    [criterium.array :as arr]
    [criterium.metric :as metric]
-   [criterium.stats.interface :as stats]
+   [criterium.stats.tail :as stats]
    [criterium.util.helpers :as util]))
 
 ;;; Tail Ratios Table

@@ -7,7 +7,7 @@
    [clojure.test.check.properties :as prop]
    [criterium.array :as arr]
    [criterium.random.well :as well]
-   [criterium.stats.interface :as stats]
+   [criterium.stats.core :as stats]
    [criterium.test-utils :refer [autocorrelation
                                  gen-bounded
                                  make-xoshiro-rng

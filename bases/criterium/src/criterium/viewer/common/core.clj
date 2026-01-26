@@ -143,9 +143,12 @@
   [metrics outliers]
   (reduce
    (fn [res metric]
-     (let [mcs (:outlier-counts (get-in outliers (:path metric)))]
+     (let [outlier-data (get-in outliers (:path metric))
+           mcs (:outlier-counts outlier-data)
+           method (:outlier-method outlier-data)]
        (if (some pos? (vals mcs))
-         (conj res (assoc mcs :_metric (:label metric)))
+         (conj res (cond-> (assoc mcs :_metric (:label metric))
+                     method (assoc :_method method)))
          res)))
    []
    metrics))

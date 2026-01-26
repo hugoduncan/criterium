@@ -5,7 +5,7 @@
   with points colored by severity and horizontal threshold lines for
   lag-1 (blue) and other-lag (gray) thresholds."
   (:require
-   [criterium.stats.interface :as stats]))
+   [criterium.stats.autocorrelation :as stats]))
 
 ;;; Severity Colors
 

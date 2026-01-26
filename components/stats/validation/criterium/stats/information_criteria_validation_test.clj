@@ -14,7 +14,7 @@
   (:require
    [clojure.test :refer [deftest is testing]]
    [criterium.r-validation.r :as r]
-   [criterium.stats.interface :as stats]
+   [criterium.stats.probability :as stats]
    [criterium.test.assert :refer [approx=]]))
 
 ;;; Test cases for information criteria

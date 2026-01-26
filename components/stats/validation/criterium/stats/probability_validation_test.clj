@@ -1,5 +1,5 @@
 (ns criterium.stats.probability-validation-test
-  "Validation tests for criterium.stats.interface probability functions against R reference.
+  "Validation tests for criterium.stats.probability functions against R reference.
 
   Tests skip gracefully when R/Rserve is unavailable.
 
@@ -13,7 +13,7 @@
    [clojure.test :refer [deftest is testing]]
    [criterium.primitive-fn :as prim]
    [criterium.r-validation.r :as r]
-   [criterium.stats.interface :as stats]
+   [criterium.stats.probability :as stats]
    [criterium.test.assert :refer [approx=]]))
 
 ;;; Test quantiles

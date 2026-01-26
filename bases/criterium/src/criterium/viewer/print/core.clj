@@ -292,6 +292,14 @@
     :moderately-right-skewed "moderately right-skewed"
     :strongly-right-skewed "strongly right-skewed"))
 
+(defn- format-outlier-method
+  "Format outlier detection method for display."
+  [method]
+  (case method
+    :medcouple "medcouple-adjusted boxplot"
+    :tukey "Tukey boxplot"
+    (str method)))
+
 (defn print-outlier-count
   "Print outlier counts for a metric.
   When show-medcouple? is true, also displays the medcouple value and skewness
@@ -299,13 +307,15 @@
   [metric-config num-samples outliers show-medcouple?]
   (let [outlier-counts (:outlier-counts outliers)
         sum (reduce + (vals outlier-counts))
-        mc (:medcouple outliers)]
+        mc (:medcouple outliers)
+        method (:outlier-method outliers)]
     (when (pos? sum)
-      (util/report "%32s: Found %d outliers in %d samples (%.3g %%)\n"
+      (util/report "%32s: Found %d outliers in %d samples (%.3g %%)%s\n"
                    (:label metric-config)
                    sum
                    num-samples
-                   (* 100.0 (/ sum num-samples)))
+                   (* 100.0 (/ sum num-samples))
+                   (if method (str " [" (format-outlier-method method) "]") ""))
       (doseq [[c v] (->> outlier-counts
                          (filter #(pos? (val %))))]
         (util/report
