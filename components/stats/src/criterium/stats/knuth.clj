@@ -12,13 +12,15 @@
    All functions require typed arrays (DoubleArray, LongArray)."
   (:require
    [criterium.array :as arr]
+   [criterium.array.resizable :as resizable]
    [criterium.primitive-fn :as pf]
    [criterium.stats.probability :as prob]
    [criterium.transducer :as xd]
    [criterium.utils.interface :refer [have?]])
   (:import
-   [criterium.array
-    DoubleArray LongArray]))
+   [criterium.array DoubleArray]
+   [criterium.array.interfaces IIndexed IIndexedSet]
+   [criterium.array.resizable ResizableLongArray]))
 
 (defn- data-min-max
   "Returns [min max] for typed array data."
@@ -37,9 +39,12 @@
 (defn- bin-counts
   "Compute bin counts for equal-width bins from a typed array.
   Mutates counts in place and returns it.
-  The counts array must be pre-sized and zeroed by caller."
-  [data ^LongArray counts ^double min-val ^double max-val]
-  (let [num-bins  (arr/length counts)
+  The counts array must be pre-sized and zeroed by caller.
+  Works with any array implementing IIndexed/IIndexedSet (LongArray, ResizableLongArray)."
+  [data counts ^double min-val ^double max-val]
+  (let [^IIndexed  indexed counts
+        ^IIndexedSet indexed-set counts
+        num-bins  (arr/length counts)
         range-val (- max-val min-val)
         width     (/ range-val (double num-bins))
         last-bin  (dec num-bins)]
@@ -47,7 +52,7 @@
                (fn [_ ^double x]
                  (let [bin-idx (long (/ (- x min-val) width))
                        bin-idx (min last-bin (max 0 bin-idx))]
-                   (arr/set-at! counts bin-idx (inc (arr/get-long counts bin-idx))))
+                   (.setLong indexed-set bin-idx (inc (.getLong indexed bin-idx))))
                  nil)
                nil)
     counts))
@@ -124,7 +129,9 @@
           :min-val min-val
           :max-val max-val})))
      (let [n             (arr/length data)
-           max-bins-long (long max-bins)]
+           max-bins-long (long max-bins)
+           ;; Allocate single resizable array to reuse across all iterations
+           ^ResizableLongArray counts (resizable/resizable-long-array max-bins-long)]
        ;; Search over M = 1 to max-bins
        (loop [m       (long 1)
               best-m  (long 1)
@@ -132,10 +139,12 @@
          (if (> m max-bins-long)
            {:optimal-bins  best-m
             :log-posterior best-lp}
-           (let [counts (bin-counts data
-                                    (arr/->long-array (long-array m))
-                                    min-val max-val)
-                 lp     (log-posterior n counts)]
-             (if (> lp best-lp)
-               (recur (inc m) m lp)
-               (recur (inc m) best-m best-lp)))))))))
+           (do
+             ;; Resize and zero the array for this iteration
+             (resizable/resize! counts m)
+             (arr/fill! counts 0)
+             (bin-counts data counts min-val max-val)
+             (let [lp (log-posterior n counts)]
+               (if (> lp best-lp)
+                 (recur (inc m) m lp)
+                 (recur (inc m) best-m best-lp))))))))))
