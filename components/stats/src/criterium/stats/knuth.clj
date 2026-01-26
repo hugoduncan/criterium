@@ -18,7 +18,7 @@
    [criterium.utils.interface :refer [have?]])
   (:import
    [criterium.array
-    DoubleArray]))
+    DoubleArray LongArray]))
 
 (defn- data-min-max
   "Returns [min max] for typed array data."
@@ -35,10 +35,11 @@
 ;;; Binning
 
 (defn- bin-counts
-  "Compute bin counts for M equal-width bins from a typed array.
-  Returns a LongArray of counts for each bin."
-  [data ^long num-bins ^double min-val ^double max-val]
-  (let [counts    (arr/->long-array (long-array num-bins))
+  "Compute bin counts for equal-width bins from a typed array.
+  Mutates counts in place and returns it.
+  The counts array must be pre-sized and zeroed by caller."
+  [data ^LongArray counts ^double min-val ^double max-val]
+  (let [num-bins  (arr/length counts)
         range-val (- max-val min-val)
         width     (/ range-val (double num-bins))
         last-bin  (dec num-bins)]
@@ -131,7 +132,9 @@
          (if (> m max-bins-long)
            {:optimal-bins  best-m
             :log-posterior best-lp}
-           (let [counts (bin-counts data m min-val max-val)
+           (let [counts (bin-counts data
+                                    (arr/->long-array (long-array m))
+                                    min-val max-val)
                  lp     (log-posterior n counts)]
              (if (> lp best-lp)
                (recur (inc m) m lp)
