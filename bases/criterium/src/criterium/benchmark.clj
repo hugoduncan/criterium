@@ -7,16 +7,48 @@
    [criterium.util.invariant :refer [have have?]]
    [criterium.view :as view]))
 
+(def ^:dynamic *time-analyse*
+  "When true, print elapsed time for each analysis function."
+  false)
+
+(defn- format-elapsed-ms
+  "Format elapsed time in milliseconds to 4 significant figures."
+  ^String [^double elapsed-ns]
+  (let [elapsed-ms (/ elapsed-ns 1e6)]
+    (cond
+      (>= elapsed-ms 1000.0) (format "%.1f" elapsed-ms)
+      (>= elapsed-ms 100.0) (format "%.2f" elapsed-ms)
+      (>= elapsed-ms 10.0) (format "%.3f" elapsed-ms)
+      (>= elapsed-ms 1.0) (format "%.4f" elapsed-ms)
+      (>= elapsed-ms 0.1) (format "%.4f" elapsed-ms)
+      (>= elapsed-ms 0.01) (format "%.5f" elapsed-ms)
+      :else (format "%.6f" elapsed-ms))))
+
+(defn wrap-with-timing
+  "Wrap an analysis function with timing instrumentation.
+   When *time-analyse* is truthy, prints the spec and elapsed time to *out*.
+   Returns a function that takes data-map and returns the analysis result."
+  [spec f]
+  (fn [data-map]
+    (if *time-analyse*
+      (let [start (System/nanoTime)
+            result (f data-map)
+            elapsed (- (System/nanoTime) start)]
+        (println (format-elapsed-ms elapsed) "ms" (pr-str spec))
+        result)
+      (f data-map))))
+
 (defn- resolve-analyse-fn
-  "Resolves a single analysis function specification.
+  "Resolves a single analysis function specification and wraps with timing.
    If x is a sequence, treats first element as function and rest as args.
    Otherwise treats x as a function name to resolve.
-   Returns a function of one argument (the sampled data)."
+   Returns a function of one argument (the sampled data) wrapped with timing."
   [x]
-  (let [options {:default-ns 'criterium.analyse}]
-    (if (sequential? x)
-      (apply (util/maybe-var-get (first x) options) (rest x))
-      ((util/maybe-var-get x options)))))
+  (let [options {:default-ns 'criterium.analyse}
+        f (if (sequential? x)
+            (apply (util/maybe-var-get (first x) options) (rest x))
+            ((util/maybe-var-get x options)))]
+    (wrap-with-timing x f)))
 
 (defn- resolve-view-fn
   "Resolves a single view function specification.
