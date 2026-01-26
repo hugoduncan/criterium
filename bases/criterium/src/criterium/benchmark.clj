@@ -7,6 +7,37 @@
    [criterium.util.invariant :refer [have have?]]
    [criterium.view :as view]))
 
+(def ^:dynamic *time-analyse*
+  "When true, print elapsed time for each analysis function."
+  false)
+
+(defn- format-elapsed-ms
+  "Format elapsed time in milliseconds to 4 significant figures."
+  ^String [^double elapsed-ns]
+  (let [elapsed-ms (/ elapsed-ns 1e6)]
+    (cond
+      (>= elapsed-ms 1000.0) (format "%.1f" elapsed-ms)
+      (>= elapsed-ms 100.0) (format "%.2f" elapsed-ms)
+      (>= elapsed-ms 10.0) (format "%.3f" elapsed-ms)
+      (>= elapsed-ms 1.0) (format "%.4f" elapsed-ms)
+      (>= elapsed-ms 0.1) (format "%.4f" elapsed-ms)
+      (>= elapsed-ms 0.01) (format "%.5f" elapsed-ms)
+      :else (format "%.6f" elapsed-ms))))
+
+(defn wrap-with-timing
+  "Wrap an analysis function with timing instrumentation.
+   When *time-analyse* is truthy, prints the spec and elapsed time to *out*.
+   Returns a function that takes data-map and returns the analysis result."
+  [spec f]
+  (fn [data-map]
+    (if *time-analyse*
+      (let [start (System/nanoTime)
+            result (f data-map)
+            elapsed (- (System/nanoTime) start)]
+        (println (pr-str spec) (format-elapsed-ms elapsed) "ms")
+        result)
+      (f data-map))))
+
 (defn- resolve-analyse-fn
   "Resolves a single analysis function specification.
    If x is a sequence, treats first element as function and rest as args.
