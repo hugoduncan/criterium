@@ -384,6 +384,25 @@
 
 ;;; ASCII Bar Rendering
 
+(def ^:private ^String max-bar-chars
+  "Pre-allocated string of 100 █ characters for ascii-bar substring operations."
+  (let [sb (StringBuilder. 100)]
+    (dotimes [_ 100] (.append sb \█))
+    (.toString sb)))
+
+(def ^:private ^String max-space-chars
+  "Pre-allocated string of 100 space characters for ascii-bar substring operations."
+  (let [sb (StringBuilder. 100)]
+    (dotimes [_ 100] (.append sb \space))
+    (.toString sb)))
+
+(defn- n-chars
+  "Return a string of n copies of char from pre-allocated string."
+  ^String [^String chars ^long n]
+  (if (<= n 0)
+    ""
+    (subs chars 0 (min n (count chars)))))
+
 (defn ascii-bar
   "Generate a bar of █ characters proportional to value/max-value.
   Returns a string of at most `width` characters."
@@ -392,7 +411,7 @@
     ""
     (let [ratio (min 1.0 (/ value max-value))
           bar-len (max 0 (long (Math/round (* ratio width))))]
-      (apply str (repeat bar-len \█)))))
+      (n-chars max-bar-chars bar-len))))
 
 (defn ascii-bar-bidirectional
   "Generate a bidirectional bar centered on a vertical line.
@@ -404,22 +423,21 @@
     value -0.3 -> '       ███|          '
     value  0.0 -> '          |          '"
   ^String [^double value ^double max-abs-value ^long half-width]
-  (if (<= max-abs-value 0)
-    (str (apply str (repeat half-width \space)) "|" (apply str (repeat half-width \space)))
-    (let [ratio (min 1.0 (/ (Math/abs value) max-abs-value))
-          bar-len (max 0 (long (Math/round (* ratio half-width))))
-          left-spaces (apply str (repeat half-width \space))
-          right-spaces (apply str (repeat half-width \space))]
-      (if (neg? value)
-        ;; Negative: bar extends left from center
-        (let [padding (- half-width bar-len)
-              left-part (str (apply str (repeat padding \space))
-                             (apply str (repeat bar-len \█)))]
-          (str left-part "|" right-spaces))
-        ;; Positive or zero: bar extends right from center
-        (let [right-part (str (apply str (repeat bar-len \█))
-                              (apply str (repeat (- half-width bar-len) \space)))]
-          (str left-spaces "|" right-part))))))
+  (let [spaces (n-chars max-space-chars half-width)]
+    (if (<= max-abs-value 0)
+      (str spaces "|" spaces)
+      (let [ratio (min 1.0 (/ (Math/abs value) max-abs-value))
+            bar-len (max 0 (long (Math/round (* ratio half-width))))]
+        (if (neg? value)
+          ;; Negative: bar extends left from center
+          (let [padding (- half-width bar-len)]
+            (str (n-chars max-space-chars padding)
+                 (n-chars max-bar-chars bar-len)
+                 "|" spaces))
+          ;; Positive or zero: bar extends right from center
+          (str spaces "|"
+               (n-chars max-bar-chars bar-len)
+               (n-chars max-space-chars (- half-width bar-len))))))))
 
 ;;; Tail Analysis Table Helpers
 
