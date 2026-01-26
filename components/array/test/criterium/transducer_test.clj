@@ -1,12 +1,16 @@
 (ns criterium.transducer-test
   ;; Tests primitive transducers for high-performance data processing.
   ;; Contracts: primitive range sources, reduce/transduce operations,
-  ;; prim-map/prim-filter transformations, and array output via into.
+  ;; prim-map/prim-filter transformations, array output via into, and
+  ;; cross-type reductions (long→double, double→long).
   (:require
    [clojure.test :refer [deftest is testing]]
    [criterium.array :as arr]
    [criterium.primitive-fn :as pf]
-   [criterium.transducer :as t]))
+   [criterium.transducer :as t])
+  (:import
+   [criterium.array.interfaces IIndexedSet]
+   [criterium.transducer.interfaces IDLDReducible ILDLReducible]))
 
 (deftest long-range-test
   (testing "LongRange"
@@ -178,3 +182,58 @@
         (.invokePrim ^clojure.lang.IFn$ODO setter arr 3.5)
         (is (= [1.5 2.5 3.5]
                (arr/dfold arr (fn [acc ^double v] (conj acc v)) [])))))))
+
+(deftest cross-type-transduce-test
+  ;; Tests cross-type transductions where input array type differs from
+  ;; accumulator type. Contracts: IDLDReducible (long→double),
+  ;; ILDLReducible (double→long), compile-time dispatch.
+  (testing "cross-type transduce"
+    (testing "long array to double accumulator"
+      (testing "transforms and sums long array into double result"
+        (let [longs  (arr/->long-array (long-array [1 2 3 4 5]))
+              to-dbl (fn ^double [^long x] (double x))
+              result (t/transduce (t/map to-dbl)
+                                  t/prim-sum
+                                  0.0
+                                  longs)]
+          (is (= 15.0 result))))
+      (testing "applies function during cross-type reduction"
+        (let [longs  (arr/->long-array (long-array [1 2 3 4]))
+              add-pt (fn ^double [^long x] (+ (double x) 0.5))
+              result (t/transduce (t/map add-pt)
+                                  t/prim-sum
+                                  0.0
+                                  longs)]
+          (is (= 12.0 result)
+              "(1+0.5)+(2+0.5)+(3+0.5)+(4+0.5) = 12.0")))
+      (testing "works with ResizableLongArray"
+        (let [^IDLDReducible longs (arr/resizable-long-array 5)
+              _      (dotimes [i 5]
+                       (.setLong ^IIndexedSet longs i (inc i)))
+              to-dbl (fn ^double [^long x] (double x))
+              result (t/transduce (t/map to-dbl)
+                                  t/prim-sum
+                                  0.0
+                                  longs)]
+          (is (= 15.0 result)))))
+    (testing "double array to long accumulator"
+      (testing "transforms and accumulates double array into long result"
+        (let [dbls   (arr/->double-array (double-array [1.9 2.1 3.5 4.4]))
+              to-lng (fn ^long [^double x] (long x))
+              result (t/transduce (t/map to-lng)
+                                  t/prim-sum
+                                  0
+                                  dbls)]
+          (is (= 10 result)
+              "floor: 1+2+3+4 = 10")))
+      (testing "works with ResizableDoubleArray"
+        (let [^ILDLReducible dbls (arr/resizable-double-array 4)
+              _      (dotimes [i 4]
+                       (.setDouble ^IIndexedSet dbls i (+ 1.0 i)))
+              to-lng (fn ^long [^double x] (long x))
+              result (t/transduce (t/map to-lng)
+                                  t/prim-sum
+                                  0
+                                  dbls)]
+          (is (= 10 result)
+              "1+2+3+4 = 10"))))))

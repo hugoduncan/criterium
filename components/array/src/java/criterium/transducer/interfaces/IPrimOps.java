@@ -36,6 +36,35 @@ public interface IPrimOps {
   double transduce(Object xform, Object rf, double init, IDDDReducible source);
 
   /**
+   * Transduces over a long source with a primitive double accumulator.
+   *
+   * <p>Enables cross-type reduction: long elements transformed and accumulated
+   * into a double result. Used for computing floating-point statistics over
+   * integer counts.
+   *
+   * @param xform the transducer (must produce DLD reducing function)
+   * @param rf the reducing function taking (double acc, double elem)
+   * @param init the initial accumulator value
+   * @param source the reducible long source
+   * @return the final accumulated value
+   */
+  double transduce(Object xform, Object rf, double init, IDLDReducible source);
+
+  /**
+   * Transduces over a double source with a primitive long accumulator.
+   *
+   * <p>Enables cross-type reduction: double elements transformed and accumulated
+   * into a long result. Used for counting or classifying double values.
+   *
+   * @param xform the transducer (must produce LDL reducing function)
+   * @param rf the reducing function taking (long acc, long elem)
+   * @param init the initial accumulator value
+   * @param source the reducible double source
+   * @return the final accumulated value
+   */
+  long transduce(Object xform, Object rf, long init, ILDLReducible source);
+
+  /**
    * Transduces over a long source into a long array.
    *
    * @param xform the transducer

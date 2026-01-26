@@ -13,7 +13,9 @@
     IObjectFill]
    [criterium.transducer.interfaces
     IDDDReducible
+    IDLDReducible
     IDoubleReducible
+    ILDLReducible
     ILLLReducible
     ILongReducible
     IODOReducible
@@ -81,6 +83,10 @@
       (.reduce source ^clojure.lang.IFn$LLL (xform rf) init))
     (^double transduce [_ xform rf ^double init ^IDDDReducible source]
       (.reduce source ^clojure.lang.IFn$DDD (xform rf) init))
+    (^double transduce [_ xform rf ^double init ^IDLDReducible source]
+      (.reduce source ^clojure.lang.IFn$DLD (xform rf) init))
+    (^long transduce [_ xform rf ^long init ^ILDLReducible source]
+      (.reduce source ^clojure.lang.IFn$LDL (xform rf) init))
     (^criterium.array.interfaces.ILongArray transduce
       [_
        xform

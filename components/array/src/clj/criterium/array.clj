@@ -25,6 +25,8 @@
    [criterium.transducer.interfaces IPrimOps]
    [criterium.transducer.interfaces
     IDDDReducible
+    IDLDReducible
+    ILDLReducible
     ILLLReducible
     IODOReducible
     IOLOReducible]
@@ -182,12 +184,12 @@
           acc))))
 
   IDDDReducible
-  (reduce [_ f init]
+  (^double reduce [_ ^clojure.lang.IFn$DDD f ^double init]
     (let [n (alength array)]
       (loop [i 0 acc init]
         (if (< i n)
           (recur (inc i)
-                 (.invokePrim ^clojure.lang.IFn$DDD f acc (aget array i)))
+                 (.invokePrim f acc (aget array i)))
           acc))))
   IODOReducible
   (reduceDouble
@@ -197,6 +199,15 @@
         (if (< i n)
           (recur (inc i)
                  (.invokePrim ^clojure.lang.IFn$ODO f acc (aget array i)))
+          acc))))
+
+  ILDLReducible
+  (^long reduce [_ ^clojure.lang.IFn$LDL f ^long init]
+    (let [n (alength array)]
+      (loop [i 0 acc init]
+        (if (< i n)
+          (recur (inc i)
+                 (.invokePrim f acc (aget array i)))
           acc))))
 
   IDoubleFill
@@ -389,21 +400,30 @@
           acc))))
 
   ILLLReducible
-  (reduce [_ f init]
-    (let [n (dec (alength array))]
+  (^long reduce [_ ^clojure.lang.IFn$LLL f ^long init]
+    (let [n (alength array)]
       (loop [i 0 acc init]
         (if (< i n)
           (recur (inc i)
-                 (.invokePrim ^clojure.lang.IFn$LLL f acc (aget array i)))
+                 (.invokePrim f acc (aget array i)))
           acc))))
   IOLOReducible
   (reduceLong
     [_ f init]
-    (let [n (dec (alength array))]
+    (let [n (alength array)]
       (loop [i 0 acc init]
         (if (< i n)
           (recur (inc i)
                  (.invokePrim ^clojure.lang.IFn$OLO f acc (aget array i)))
+          acc))))
+
+  IDLDReducible
+  (^double reduce [_ ^clojure.lang.IFn$DLD f ^double init]
+    (let [n (alength array)]
+      (loop [i 0 acc init]
+        (if (< i n)
+          (recur (inc i)
+                 (.invokePrim f acc (aget array i)))
           acc))))
 
   ILongFill

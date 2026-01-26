@@ -20,7 +20,8 @@
   (:import
    [criterium.array DoubleArray]
    [criterium.array.interfaces IIndexed IIndexedSet]
-   [criterium.array.resizable ResizableLongArray]))
+   [criterium.array.resizable ResizableLongArray]
+   [criterium.transducer.interfaces IDLDReducible]))
 
 (defn- data-min-max
   "Returns [min max] for typed array data."
@@ -69,23 +70,26 @@
     bin-counts - LongArray of counts per bin
 
   Returns the log-posterior value (higher is better)."
-  ^double [^long n bin-counts]
-  (let [m          (arr/length bin-counts)
-        m-double   (double m)
-        n-double   (double n)
+  ^double [^long n ^IDLDReducible bin-counts]
+  (let [m        (arr/length bin-counts)
+        m-double (double m)
+        n-double (double n)
         ;; n·log(M)
-        term1      (* n-double (Math/log m-double))
+        term1    (* n-double (Math/log m-double))
         ;; logΓ(M/2)
-        term2      (prob/log-gamma (/ m-double 2.0))
+        term2    (prob/log-gamma (/ m-double 2.0))
         ;; -M·logΓ(1/2)
-        term3      (- (* m-double (double log-gamma-half)))
+        term3    (- (* m-double (double log-gamma-half)))
         ;; -logΓ((2n+M)/2)
-        term4      (- (prob/log-gamma (/ (+ (* 2.0 n-double) m-double) 2.0)))
+        term4    (- (prob/log-gamma (/ (+ (* 2.0 n-double) m-double) 2.0)))
         ;; Σₖ₌₁ᴹ logΓ(nₖ + 1/2)
-        term5      (arr/fold-double bin-counts
-                                    (fn ^double [^double sum ^double nk]
-                                      (+ sum (prob/log-gamma (+ nk 0.5))))
-                                    0.0)]
+        term5    (xd/transduce
+                  (xd/map
+                   (fn ^double [^long nk]
+                     (prob/log-gamma (+ (double nk) 0.5))))
+                  pf/dadd
+                  0.0
+                  bin-counts)]
     (+ term1 term2 term3 term4 term5)))
 
 ;;; Optimal bin selection
