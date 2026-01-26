@@ -137,8 +137,8 @@
             sorted-lags (sort qualifying-lags)
             ;; Calculate column widths
             max-lag-width (max 3 (count (str (apply max 1 sorted-lags))))
-            ;; Print header
-            indent "  "
+            ;; Use sublabel-indent-str for lines following format-sublabel header
+            indent (print-core/sublabel-indent-str)
             ;; Build format strings with dynamic width
             header-fmt (str "%s%" max-lag-width "s   %s")
             row-fmt (str "%s%" max-lag-width "d  %6.2f  %s (%s)")]
