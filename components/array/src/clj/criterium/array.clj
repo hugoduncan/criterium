@@ -20,11 +20,16 @@
     IDoubleAny ILongAny IArrayEquals ISortable
     IDoubleFoldSkip IDoubleObjectFoldSkip
     IFilterIndices IIndexedDoubleFold IIndexedDoubleObjectFold
-    IIndexed IIndexedSet IArrayOps]
+    IIndexed IIndexedSet IArrayOps
+    IDoubleFill ILongFill IObjectFill]
    [criterium.transducer.interfaces
     IDDDReducible
+    IDLDReducible
+    ILDLReducible
     ILLLReducible
+    IODLOReducible
     IODOReducible
+    IOLDOReducible
     IOLOReducible]
    [java.util Arrays]))
 
@@ -180,22 +185,45 @@
           acc))))
 
   IDDDReducible
-  (reduce [_ f init]
+  (^double reduce [_ ^clojure.lang.IFn$DDD f ^double init]
     (let [n (alength array)]
       (loop [i 0 acc init]
         (if (< i n)
           (recur (inc i)
-                 (.invokePrim ^clojure.lang.IFn$DDD f acc (aget array i)))
+                 (.invokePrim f acc (aget array i)))
           acc))))
   IODOReducible
-  (reduceDouble
-    [_ f init]
+  (^criterium.array.interfaces.IDoubleArray reduceDouble
+    [_ ^clojure.lang.IFn$ODO f ^criterium.array.interfaces.IDoubleArray init]
     (let [n (alength array)]
       (loop [i 0 acc init]
         (if (< i n)
           (recur (inc i)
-                 (.invokePrim ^clojure.lang.IFn$ODO f acc (aget array i)))
-          acc)))))
+                 (.invokePrim f acc (aget array i)))
+          acc))))
+
+  ILDLReducible
+  (^long reduce [_ ^clojure.lang.IFn$LDL f ^long init]
+    (let [n (alength array)]
+      (loop [i 0 acc init]
+        (if (< i n)
+          (recur (inc i)
+                 (.invokePrim f acc (aget array i)))
+          acc))))
+
+  IODLOReducible
+  (^Object reduceDouble [_ ^clojure.lang.IFn$ODO f ^Object init]
+    (let [n (alength array)]
+      (loop [i 0 acc init]
+        (if (< i n)
+          (recur (inc i)
+                 (.invokePrim f acc (aget array i)))
+          acc))))
+
+  IDoubleFill
+  (^IDoubleFill dfill [this ^double value]
+    (Arrays/fill array value)
+    this))
 
 (deftype LongArray [^longs array]
   ILongArray
@@ -382,22 +410,56 @@
           acc))))
 
   ILLLReducible
-  (reduce [_ f init]
-    (let [n (dec (alength array))]
+  (^long reduce [_ ^clojure.lang.IFn$LLL f ^long init]
+    (let [n (alength array)]
       (loop [i 0 acc init]
         (if (< i n)
           (recur (inc i)
-                 (.invokePrim ^clojure.lang.IFn$LLL f acc (aget array i)))
+                 (.invokePrim f acc (aget array i)))
           acc))))
   IOLOReducible
-  (reduceLong
-    [_ f init]
-    (let [n (dec (alength array))]
+  (^criterium.array.interfaces.ILongArray reduceLong
+    [_ ^clojure.lang.IFn$OLO f ^criterium.array.interfaces.ILongArray init]
+    (let [n (alength array)]
       (loop [i 0 acc init]
         (if (< i n)
           (recur (inc i)
-                 (.invokePrim ^clojure.lang.IFn$OLO f acc (aget array i)))
-          acc)))))
+                 (.invokePrim f acc (aget array i)))
+          acc))))
+
+  IDLDReducible
+  (^double reduce [_ ^clojure.lang.IFn$DLD f ^double init]
+    (let [n (alength array)]
+      (loop [i 0 acc init]
+        (if (< i n)
+          (recur (inc i)
+                 (.invokePrim f acc (aget array i)))
+          acc))))
+
+  IOLDOReducible
+  (^Object reduceLong [_ ^clojure.lang.IFn$OLO f ^Object init]
+    (let [n (alength array)]
+      (loop [i 0 acc init]
+        (if (< i n)
+          (recur (inc i)
+                 (.invokePrim f acc (aget array i)))
+          acc))))
+
+  ;; Allows LongArray to be used where DoubleArray is expected with cross-map.
+  ;; Converts long elements to double before passing to ODO function.
+  IODLOReducible
+  (^Object reduceDouble [_ ^clojure.lang.IFn$ODO f ^Object init]
+    (let [n (alength array)]
+      (loop [i 0 acc init]
+        (if (< i n)
+          (recur (inc i)
+                 (.invokePrim f acc (double (aget array i))))
+          acc))))
+
+  ILongFill
+  (^ILongFill lfill [this ^long value]
+    (Arrays/fill array value)
+    this))
 
 (deftype ObjectArray [^objects array]
   ITypedArray
@@ -419,7 +481,12 @@
                (if (= (aget array i) (nth expected-vec i))
                  (recur (unchecked-inc i))
                  false)
-               true))))))
+               true)))))
+
+  IObjectFill
+  (^IObjectFill ofill [this value]
+    (Arrays/fill array value)
+    this))
 
 ;;; Register fixed array constructors with resizable module
 
@@ -623,6 +690,18 @@
 (def capacity
   "Returns the maximum capacity of a resizable array."
   resizable/capacity)
+
+(defmacro fill!
+  "Fills an array with the specified value.
+  Dispatches to the appropriate primitive fill method at compile time
+  based on the array's type hint.
+  Returns arr for chaining."
+  [arr value]
+  `(.fill
+    ~(vary-meta
+      'criterium.transducer.impl/ops
+      assoc :tag 'criterium.transducer.interfaces.IPrimOps)
+    ~arr ~value))
 
 (def to-fixed
   "Converts a resizable array to a fixed array of the same element type.

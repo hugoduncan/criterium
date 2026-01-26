@@ -7,12 +7,20 @@
    [criterium.array
     DoubleArray
     LongArray]
+   [criterium.array.interfaces
+    IDoubleFill
+    ILongFill
+    IObjectFill]
    [criterium.transducer.interfaces
     IDDDReducible
+    IDLDReducible
     IDoubleReducible
+    ILDLReducible
     ILLLReducible
     ILongReducible
+    IODLOReducible
     IODOReducible
+    IOLDOReducible
     IOLOReducible
     IPrimOps]))
 
@@ -77,6 +85,10 @@
       (.reduce source ^clojure.lang.IFn$LLL (xform rf) init))
     (^double transduce [_ xform rf ^double init ^IDDDReducible source]
       (.reduce source ^clojure.lang.IFn$DDD (xform rf) init))
+    (^double transduce [_ xform rf ^double init ^IDLDReducible source]
+      (.reduce source ^clojure.lang.IFn$DLD (xform rf) init))
+    (^long transduce [_ xform rf ^long init ^ILDLReducible source]
+      (.reduce source ^clojure.lang.IFn$LDL (xform rf) init))
     (^criterium.array.interfaces.ILongArray transduce
       [_
        xform
@@ -91,6 +103,12 @@
        ^criterium.array.interfaces.IDoubleArray init
        ^IODOReducible source]
       (.reduceDouble source ^clojure.lang.IFn$OLO (xform rf) init))
+    (^Object transduce
+      [_ xform rf init ^IODLOReducible source]
+      (.reduceDouble source ^clojure.lang.IFn$ODO (xform rf) init))
+    (^Object transduce
+      [_ xform rf init ^IOLDOReducible source]
+      (.reduceLong source ^clojure.lang.IFn$OLO (xform rf) init))
     (^long reduce [_ rf ^long init ^ILLLReducible source]
       (.reduce source ^clojure.lang.IFn$LLL rf init))
     (^double reduce [_ rf ^double init ^IDDDReducible source]
@@ -114,4 +132,13 @@
 
     (^criterium.transducer.interfaces.IDoubleReducible range
       [_ ^double start ^double end ^double step]
-      (DoubleRange. start end step))))
+      (DoubleRange. start end step))
+
+    (^IDoubleFill fill [_ ^IDoubleFill arr ^double value]
+      (.dfill arr value))
+
+    (^ILongFill fill [_ ^ILongFill arr ^long value]
+      (.lfill arr value))
+
+    (^IObjectFill fill [_ ^IObjectFill arr value]
+      (.ofill arr value))))

@@ -1,12 +1,17 @@
 (ns criterium.transducer-test
   ;; Tests primitive transducers for high-performance data processing.
   ;; Contracts: primitive range sources, reduce/transduce operations,
-  ;; prim-map/prim-filter transformations, and array output via into.
+  ;; prim-map/prim-filter transformations, array output via into, and
+  ;; cross-type reductions (long→double, double→long, and object accumulators).
   (:require
    [clojure.test :refer [deftest is testing]]
    [criterium.array :as arr]
    [criterium.primitive-fn :as pf]
-   [criterium.transducer :as t]))
+   [criterium.transducer :as t])
+  (:import
+   [criterium.array.interfaces IIndexed IIndexedSet]
+   [criterium.transducer.interfaces
+    IDLDReducible ILDLReducible IODLOReducible IOLDOReducible]))
 
 (deftest long-range-test
   (testing "LongRange"
@@ -178,3 +183,128 @@
         (.invokePrim ^clojure.lang.IFn$ODO setter arr 3.5)
         (is (= [1.5 2.5 3.5]
                (arr/dfold arr (fn [acc ^double v] (conj acc v)) [])))))))
+
+(deftest cross-type-transduce-test
+  ;; Tests cross-type transductions where input array type differs from
+  ;; accumulator type. Contracts: IDLDReducible (long→double),
+  ;; ILDLReducible (double→long), compile-time dispatch.
+  (testing "cross-type transduce"
+    (testing "long array to double accumulator"
+      (testing "transforms and sums long array into double result"
+        (let [longs  (arr/->long-array (long-array [1 2 3 4 5]))
+              to-dbl (fn ^double [^long x] (double x))
+              result (t/transduce (t/map to-dbl)
+                                  t/prim-sum
+                                  0.0
+                                  longs)]
+          (is (= 15.0 result))))
+      (testing "applies function during cross-type reduction"
+        (let [longs  (arr/->long-array (long-array [1 2 3 4]))
+              add-pt (fn ^double [^long x] (+ (double x) 0.5))
+              result (t/transduce (t/map add-pt)
+                                  t/prim-sum
+                                  0.0
+                                  longs)]
+          (is (= 12.0 result)
+              "(1+0.5)+(2+0.5)+(3+0.5)+(4+0.5) = 12.0")))
+      (testing "works with ResizableLongArray"
+        (let [^IDLDReducible longs (arr/resizable-long-array 5)
+              _      (dotimes [i 5]
+                       (.setLong ^IIndexedSet longs i (inc i)))
+              to-dbl (fn ^double [^long x] (double x))
+              result (t/transduce (t/map to-dbl)
+                                  t/prim-sum
+                                  0.0
+                                  longs)]
+          (is (= 15.0 result)))))
+    (testing "double array to long accumulator"
+      (testing "transforms and accumulates double array into long result"
+        (let [dbls   (arr/->double-array (double-array [1.9 2.1 3.5 4.4]))
+              to-lng (fn ^long [^double x] (long x))
+              result (t/transduce (t/map to-lng)
+                                  t/prim-sum
+                                  0
+                                  dbls)]
+          (is (= 10 result)
+              "floor: 1+2+3+4 = 10")))
+      (testing "works with ResizableDoubleArray"
+        (let [^ILDLReducible dbls (arr/resizable-double-array 4)
+              _      (dotimes [i 4]
+                       (.setDouble ^IIndexedSet dbls i (+ 1.0 i)))
+              to-lng (fn ^long [^double x] (long x))
+              result (t/transduce (t/map to-lng)
+                                  t/prim-sum
+                                  0
+                                  dbls)]
+          (is (= 10 result)
+              "1+2+3+4 = 10"))))))
+
+(deftest cross-map-test
+  ;; Tests cross-map transducer for cross-type reductions with object accumulators.
+  ;; Contracts: IODLOReducible (double→long→object), IOLDOReducible (long→double→object),
+  ;; works with fixed and resizable arrays.
+  (testing "cross-map"
+    (testing "double source → long element → object accumulator"
+      (testing "transforms doubles to longs and accumulates into object"
+        (let [^IODLOReducible dbls (arr/->double-array
+                                    (double-array [0.5 1.5 2.5 3.5]))
+              to-long (fn ^long [^double x] (long x))
+              result  (atom [])]
+          (t/transduce
+           (t/cross-map to-long)
+           (fn [acc ^long x] (swap! acc conj x) acc)
+           result
+           dbls)
+          (is (= [0 1 2 3] @result))))
+      (testing "works with ResizableDoubleArray"
+        (let [^IODLOReducible dbls (arr/resizable-double-array 4)
+              _       (dotimes [i 4]
+                        (.setDouble ^IIndexedSet dbls i (+ 0.5 i)))
+              to-long (fn ^long [^double x] (long x))
+              result  (atom [])]
+          (t/transduce
+           (t/cross-map to-long)
+           (fn [acc ^long x] (swap! acc conj x) acc)
+           result
+           dbls)
+          (is (= [0 1 2 3] @result))))
+      (testing "accumulates into mutable array (bin-counts pattern)"
+        (let [^IODLOReducible data (arr/->double-array
+                                    (double-array [0.1 0.9 1.1 1.9 2.5]))
+              ^criterium.array.resizable.ResizableLongArray counts (arr/resizable-long-array 3)
+              _      (arr/fill! counts 0)
+              to-bin (fn ^long [^double x] (min 2 (max 0 (long x))))]
+          (t/transduce
+           (t/cross-map to-bin)
+           (fn [c ^long idx]
+             (let [^IIndexed indexed c
+                   ^IIndexedSet indexed-set c]
+               (.setLong indexed-set idx (inc (.getLong indexed idx))))
+             c)
+           counts
+           data)
+          (is (arr/array= counts [2 2 1])
+              "bins: [0,1)→2, [1,2)→2, [2,3)→1"))))
+    (testing "long source → double element → object accumulator"
+      (testing "transforms longs to doubles and accumulates into object"
+        (let [^IOLDOReducible longs (arr/->long-array (long-array [1 2 3 4]))
+              to-dbl (fn ^double [^long x] (+ (double x) 0.5))
+              result (atom [])]
+          (t/transduce
+           (t/cross-map to-dbl)
+           (fn [acc ^double x] (swap! acc conj x) acc)
+           result
+           longs)
+          (is (= [1.5 2.5 3.5 4.5] @result))))
+      (testing "works with ResizableLongArray"
+        (let [^IOLDOReducible longs (arr/resizable-long-array 4)
+              _      (dotimes [i 4]
+                       (.setLong ^IIndexedSet longs i (inc i)))
+              to-dbl (fn ^double [^long x] (+ (double x) 0.5))
+              result (atom [])]
+          (t/transduce
+           (t/cross-map to-dbl)
+           (fn [acc ^double x] (swap! acc conj x) acc)
+           result
+           longs)
+          (is (= [1.5 2.5 3.5 4.5] @result)))))))

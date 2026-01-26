@@ -1,7 +1,10 @@
 package criterium.transducer.interfaces;
 
 import criterium.array.interfaces.IDoubleArray;
+import criterium.array.interfaces.IDoubleFill;
 import criterium.array.interfaces.ILongArray;
+import criterium.array.interfaces.ILongFill;
+import criterium.array.interfaces.IObjectFill;
 
 /**
  * Interface for primitive transducer operations.
@@ -33,6 +36,35 @@ public interface IPrimOps {
   double transduce(Object xform, Object rf, double init, IDDDReducible source);
 
   /**
+   * Transduces over a long source with a primitive double accumulator.
+   *
+   * <p>Enables cross-type reduction: long elements transformed and accumulated
+   * into a double result. Used for computing floating-point statistics over
+   * integer counts.
+   *
+   * @param xform the transducer (must produce DLD reducing function)
+   * @param rf the reducing function taking (double acc, double elem)
+   * @param init the initial accumulator value
+   * @param source the reducible long source
+   * @return the final accumulated value
+   */
+  double transduce(Object xform, Object rf, double init, IDLDReducible source);
+
+  /**
+   * Transduces over a double source with a primitive long accumulator.
+   *
+   * <p>Enables cross-type reduction: double elements transformed and accumulated
+   * into a long result. Used for counting or classifying double values.
+   *
+   * @param xform the transducer (must produce LDL reducing function)
+   * @param rf the reducing function taking (long acc, long elem)
+   * @param init the initial accumulator value
+   * @param source the reducible double source
+   * @return the final accumulated value
+   */
+  long transduce(Object xform, Object rf, long init, ILDLReducible source);
+
+  /**
    * Transduces over a long source into a long array.
    *
    * @param xform the transducer
@@ -53,6 +85,36 @@ public interface IPrimOps {
    * @return the final accumulated array
    */
   IDoubleArray transduce(Object xform, Object rf, IDoubleArray init, IODOReducible source);
+
+  /**
+   * Transduces over a double source with cross-type object accumulator.
+   *
+   * <p>Enables cross-type reduction: double elements transformed to long values
+   * by the transducer, accumulated into an object result. Used for computing
+   * bin indices from double values and accumulating into count arrays.
+   *
+   * @param xform the transducer (must produce OLO reducing function via cross-map)
+   * @param rf the reducing function taking (Object acc, long elem)
+   * @param init the initial accumulator value
+   * @param source the reducible double source
+   * @return the final accumulated value
+   */
+  Object transduce(Object xform, Object rf, Object init, IODLOReducible source);
+
+  /**
+   * Transduces over a long source with cross-type object accumulator.
+   *
+   * <p>Enables cross-type reduction: long elements transformed to double values
+   * by the transducer, accumulated into an object result. Used for computing
+   * floating-point statistics from integer counts.
+   *
+   * @param xform the transducer (must produce ODO reducing function via cross-map)
+   * @param rf the reducing function taking (Object acc, double elem)
+   * @param init the initial accumulator value
+   * @param source the reducible long source
+   * @return the final accumulated value
+   */
+  Object transduce(Object xform, Object rf, Object init, IOLDOReducible source);
 
   /**
    * Reduces over a long source with a primitive long accumulator.
@@ -112,4 +174,31 @@ public interface IPrimOps {
    * @return a reducible double range
    */
   IDoubleReducible range(double start, double end, double step);
+
+  /**
+   * Fills a double array with the specified value.
+   *
+   * @param arr the array to fill
+   * @param value the value to fill with
+   * @return the filled array
+   */
+  IDoubleFill fill(IDoubleFill arr, double value);
+
+  /**
+   * Fills a long array with the specified value.
+   *
+   * @param arr the array to fill
+   * @param value the value to fill with
+   * @return the filled array
+   */
+  ILongFill fill(ILongFill arr, long value);
+
+  /**
+   * Fills an object array with the specified value.
+   *
+   * @param arr the array to fill
+   * @param value the value to fill with
+   * @return the filled array
+   */
+  IObjectFill fill(IObjectFill arr, Object value);
 }
