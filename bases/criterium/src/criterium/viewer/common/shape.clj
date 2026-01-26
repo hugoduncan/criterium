@@ -4,15 +4,51 @@
   Provides functions for formatting and classifying shape statistics
   (skewness, kurtosis, CV) from bootstrap results.")
 
+;;; Classification Labels
+
+(def skewness-labels
+  "Human-readable labels for skewness classification keywords."
+  {:strongly-left-skewed "strongly left-skewed"
+   :moderately-left-skewed "moderately left-skewed"
+   :slightly-left-skewed "slightly left-skewed"
+   :symmetric "symmetric"
+   :slightly-right-skewed "slightly right-skewed"
+   :moderately-right-skewed "moderately right-skewed"
+   :strongly-right-skewed "strongly right-skewed"})
+
+(def kurtosis-labels
+  "Human-readable labels for kurtosis classification keywords."
+  {:heavy-tails "heavy tails (leptokurtic)"
+   :light-tails "light tails (platykurtic)"
+   :normal-tails "normal tails (mesokurtic)"})
+
+(def cv-labels
+  "Human-readable labels for coefficient of variation classification keywords."
+  {:low-variability "low variability"
+   :moderate-variability "moderate variability"
+   :high-variability "high variability"})
+
+;;; Formatting Functions
+
+(defn format-classification
+  "Format a classification keyword for display.
+  Returns the human-readable label from the appropriate label map, or
+  the keyword's name if not found."
+  [classification]
+  (or (skewness-labels classification)
+      (kurtosis-labels classification)
+      (cv-labels classification)
+      (some-> classification name)))
+
 ;;; Shape Statistics Classification
 
 (defn- classify-skewness
   "Classify skewness based on absolute value.
-  Uses standard thresholds: |s| > 1 highly skewed, |s| > 0.5 moderately skewed."
+  Uses standard thresholds: |s| > 1 strongly skewed, |s| > 0.5 moderately skewed."
   [^double s]
   (let [abs-s (Math/abs s)]
     (cond
-      (> abs-s 1.0) (if (neg? s) :highly-left-skewed :highly-right-skewed)
+      (> abs-s 1.0) (if (neg? s) :strongly-left-skewed :strongly-right-skewed)
       (> abs-s 0.5) (if (neg? s) :moderately-left-skewed :moderately-right-skewed)
       (> abs-s 0.1) (if (neg? s) :slightly-left-skewed :slightly-right-skewed)
       :else :symmetric)))

@@ -382,6 +382,63 @@
                                (keys first-coord))]
       (set uniform-keys))))
 
+;;; ASCII Bar Rendering
+
+(def ^:private ^String max-bar-chars
+  "Pre-allocated string of 100 █ characters for ascii-bar substring operations."
+  (let [sb (StringBuilder. 100)]
+    (dotimes [_ 100] (.append sb \█))
+    (.toString sb)))
+
+(def ^:private ^String max-space-chars
+  "Pre-allocated string of 100 space characters for ascii-bar substring operations."
+  (let [sb (StringBuilder. 100)]
+    (dotimes [_ 100] (.append sb \space))
+    (.toString sb)))
+
+(defn- n-chars
+  "Return a string of n copies of char from pre-allocated string."
+  ^String [^String chars ^long n]
+  (if (<= n 0)
+    ""
+    (subs chars 0 (min n (count chars)))))
+
+(defn ascii-bar
+  "Generate a bar of █ characters proportional to value/max-value.
+  Returns a string of at most `width` characters."
+  ^String [^double value ^double max-value ^long width]
+  (if (or (<= max-value 0) (<= value 0))
+    ""
+    (let [ratio (min 1.0 (/ value max-value))
+          bar-len (max 0 (long (Math/round (* ratio width))))]
+      (n-chars max-bar-chars bar-len))))
+
+(defn ascii-bar-bidirectional
+  "Generate a bidirectional bar centered on a vertical line.
+  Negative values extend left, positive values extend right.
+  Returns a string of exactly (2 * half-width + 1) characters.
+
+  Example outputs for half-width=10:
+    value  0.5 -> '          |█████     '
+    value -0.3 -> '       ███|          '
+    value  0.0 -> '          |          '"
+  ^String [^double value ^double max-abs-value ^long half-width]
+  (let [spaces (n-chars max-space-chars half-width)]
+    (if (<= max-abs-value 0)
+      (str spaces "|" spaces)
+      (let [ratio (min 1.0 (/ (Math/abs value) max-abs-value))
+            bar-len (max 0 (long (Math/round (* ratio half-width))))]
+        (if (neg? value)
+          ;; Negative: bar extends left from center
+          (let [padding (- half-width bar-len)]
+            (str (n-chars max-space-chars padding)
+                 (n-chars max-bar-chars bar-len)
+                 "|" spaces))
+          ;; Positive or zero: bar extends right from center
+          (str spaces "|"
+               (n-chars max-bar-chars bar-len)
+               (n-chars max-space-chars (- half-width bar-len))))))))
+
 ;;; Tail Analysis Table Helpers
 
 (defn tail-summary-table
@@ -466,3 +523,17 @@
                          formatted (format/format-value :time tval)]
                      {:quantile (clojure.core/format "p%.4g" (* (double q) 100))
                       :estimate formatted})))))))
+
+(defn strip-uniform-axes
+  "Strip uniform-value axes from coordinates.
+  Only strips axes if doing so leaves at least one key in each coord.
+  Returns coords unchanged if any coord is not a map."
+  [coords]
+  (if-not (every? map? coords)
+    coords
+    (let [uniform-axes (detect-uniform-axes coords)
+          first-coord (first coords)
+          remaining-keys (count (apply dissoc first-coord uniform-axes))]
+      (if (and (seq uniform-axes) (pos? remaining-keys))
+        (mapv #(apply dissoc % uniform-axes) coords)
+        coords))))

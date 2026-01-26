@@ -5,7 +5,8 @@
   (:require
    [clojure.string :as str]
    [criterium.view :as view]
-   [criterium.viewer.common.modal :as modal]))
+   [criterium.viewer.common.modal :as modal]
+   [criterium.viewer.print.core :as print-core]))
 
 (defmethod view/multimodal-warning* :print
   [_ {:keys [modes-id]} data-map]
@@ -13,13 +14,13 @@
    data-map modes-id
    (fn [{:keys [metric-config modes transforms]}]
      (println
-      (format "%32s: Multimodal distribution detected"
-              (:label metric-config)))
+      (format "%s Multimodal distribution detected"
+              (print-core/format-sublabel (:label metric-config))))
      (when (seq modes)
        (let [locations (map #(modal/format-mode-location
                               (:location %)
                               metric-config
                               transforms)
                             modes)]
-         (println (format "%32s  Mode locations: %s" ""
+         (println (format "%s  Mode locations: %s" (print-core/sublabel-str "")
                           (str/join ", " locations))))))))

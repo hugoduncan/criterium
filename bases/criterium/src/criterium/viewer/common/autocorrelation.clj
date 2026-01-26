@@ -39,9 +39,9 @@
 
 (def pattern-recommendations
   "Recommendations for each displayable pattern."
-  {:transient-effects "Check: warmup iterations, system load, thermal throttling, GC pressure"
+  {:transient-effects "Check: warmup iterations, system load, thermal throttling"
    :drift "Shorter benchmark duration; check thermal throttling"
-   :periodic "Investigate GC logs; increase heap; check OS scheduler"
+   :periodic "Investigate GC logs; increase heap"
    :severe "Review methodology; results unreliable"
    :alternating-moderate "Review methodology; results unreliable"
    :alternating-severe "Review methodology; results unreliable"})

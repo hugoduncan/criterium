@@ -19,9 +19,158 @@
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have have?]]
    [criterium.view :as view]
-   [criterium.viewer.common.core :as core]))
+   [criterium.viewer.common.core :as core]
+   [criterium.viewer.common.shape :as shape]
+   [criterium.viewer.print.table :as table]))
 
 (set! *unchecked-math* false)
+
+;;; Label Formatting
+
+(def ^:const label-width
+  "Primary label width for print viewer output."
+  32)
+
+(def ^:const sublabel-width
+  "Secondary/detail label width for print viewer output."
+  36)
+
+(def ^:const label-indent
+  "Indent width for continuation lines after a label (label-width + 2 for ': ')."
+  (+ label-width 2))
+
+(def ^:const sublabel-indent
+  "Indent width for continuation lines after a sublabel (sublabel-width + 2 for ': ')."
+  (+ sublabel-width 2))
+
+(def print-table
+  "Alias to criterium.viewer.print.table/print-table for backwards compatibility."
+  table/print-table)
+
+(defn label-str
+  "Format a label padded to primary width (32 chars).
+  Returns a format-ready string without trailing colon."
+  [label]
+  (format (str "%" label-width "s") label))
+
+(defn sublabel-str
+  "Format a label padded to secondary width (36 chars).
+  Returns a format-ready string without trailing colon."
+  [label]
+  (format (str "%" sublabel-width "s") label))
+
+(defn label-indent-str
+  "Return a string of spaces matching label indent width (34 chars).
+  Use for continuation lines after a format-label line."
+  []
+  (format (str "%" label-indent "s") ""))
+
+(defn sublabel-indent-str
+  "Return a string of spaces matching sublabel indent width (38 chars).
+  Use for continuation lines after a format-sublabel line."
+  []
+  (format (str "%" sublabel-indent "s") ""))
+
+(defn format-label
+  "Format a label with colon at primary width.
+  Returns string like '           My Label:'"
+  [label]
+  (str (label-str label) ":"))
+
+(defn format-sublabel
+  "Format a label with colon at secondary width.
+  Returns string like '               My Sublabel:'"
+  [label]
+  (str (sublabel-str label) ":"))
+
+(defn format-labeled-value
+  "Format a labeled value for print output.
+
+  Returns string like '           Label: value'.
+
+  Arguments:
+    label   - label text (padded to standard width with colon)
+    value   - value to display after label
+    sublabel? - if true, use secondary width (36), else primary (32)
+
+  Example:
+    (println (format-labeled-value \"Elapsed\" \"123 ns\"))
+    ;;=>            Elapsed: 123 ns"
+  ([label value]
+   (format-labeled-value label value false))
+  ([label value sublabel?]
+   (str (if sublabel? (format-sublabel label) (format-label label))
+        " " value)))
+
+;;; Metric Iteration
+
+(defn for-each-metric
+  "Iterate over metrics, calling f for each with data present.
+
+  Extracts data from results using each metric's :path. Calls f only when
+  data is non-nil. Designed for the common print viewer pattern:
+    (doseq [mc metric-configs]
+      (when-let [data (get-in results (:path mc))]
+        (print-fn mc data)))
+
+  Arguments:
+    metric-configs - sequence of metric configs with :path keys
+    results        - nested map to look up data from (via get-in)
+    f              - function of (metric-config data)
+
+  Returns nil."
+  [metric-configs results f]
+  (doseq [mc metric-configs]
+    (when-let [data (get-in results (:path mc))]
+      (f mc data))))
+
+(defn for-each-metric-keyed
+  "Iterate over metrics, calling f for each with data present.
+
+  Like for-each-metric but uses (get results path) instead of get-in.
+  Use this when the results map has vector paths as keys:
+    {[:elapsed-time] {:data ...}}
+
+  Arguments:
+    metric-configs - sequence of metric configs with :path keys
+    results        - map with path vectors as keys
+    f              - function of (metric-config data)
+
+  Returns nil."
+  [metric-configs results f]
+  (doseq [mc metric-configs]
+    (when-let [data (get results (:path mc))]
+      (f mc data))))
+
+;;; Analysis Context
+
+(defn get-analysis-context
+  "Extract common context for print viewer functions.
+
+  Looks up analysis data from data-map using the ID from view options
+  (or default-id), extracts metrics-defs (optionally filtered by
+  metric-filter), and computes transforms.
+
+  Arguments:
+    id-key       - keyword to look up in view for the analysis ID
+    default-id   - fallback ID if not specified in view
+    view         - view options map
+    data-map     - benchmark data map
+    metric-filter - predicate to filter metrics, or nil for no filtering
+
+  Returns map with :analysis-map, :metric-configs, :transforms,
+  or nil if no data found."
+  [id-key default-id view data-map metric-filter]
+  (let [analysis-id (or (get view id-key) default-id)
+        analysis-map (data-map analysis-id)]
+    (when analysis-map
+      (let [metrics-defs (cond-> (:metrics-defs analysis-map)
+                           metric-filter (metric/filter-metrics metric-filter))
+            metric-configs (metric/all-metric-configs metrics-defs)
+            transforms (util/get-transforms data-map analysis-id)]
+        {:analysis-map analysis-map
+         :metric-configs metric-configs
+         :transforms transforms}))))
 
 ;;; Metrics
 
@@ -31,12 +180,12 @@
     (when-let [a (metrics->values (:path m))]
       (when-let [v (arr/first-element a)]
         (println
-         (format
-          "%36s: %s"
+         (format-labeled-value
           (:label m)
           (if (number? v)
             (format/format-value (:dimension m) (* v (:scale m)))
-            v)))))))
+            v)
+          :sublabel))))))
 
 (defmethod view/metrics* :print
   [_ {:keys [samples-id]} data-map]
@@ -58,8 +207,8 @@
           scale (* scale (:scale metric))]
       (println
        (format
-        "%32s: %s %s  3σ [%s %s]  min %s"
-        (:label metric)
+        "%s %s %s  3σ [%s %s]  min %s"
+        (format-label (:label metric))
         (format/format-scaled (:mean stat) scale)
         unit
         (format/format-scaled (:mean-minus-3sigma stat) scale)
@@ -68,8 +217,7 @@
 
 (defn print-stats
   [metrics stats transforms]
-  (doseq [metric metrics]
-    (print-stat metric (get-in stats (:path metric)) transforms)))
+  (for-each-metric metrics stats #(print-stat %1 %2 transforms)))
 
 (defmethod view/stats* :print
   [_ {:keys [stats-id metric-ids]} data-map]
@@ -87,7 +235,8 @@
 ;;; Extremes
 
 (defn print-extreme
-  "Print min and max values for a metric."
+  "Print min and max values for a metric in spread format.
+  Output: '{label} extremes [min max] unit'"
   [metric stat transforms]
   (when (and (:min-val stat) (:max-val stat))
     (let [stat (util/transform-vals-> stat transforms)
@@ -96,20 +245,17 @@
                         (* (:scale metric) (:min-val stat)))
           scale (* scale (:scale metric))]
       (println
-       (format
-        "%32s: %s %s - %s %s"
-        (:label metric)
-        (format/format-scaled (:min-val stat) scale)
-        unit
-        (format/format-scaled (:max-val stat) scale)
-        unit)))))
+       (format "%s [%.3g %.3g] %s"
+               (format-sublabel (str (:label metric) " extremes"))
+               (* scale (:min-val stat))
+               (* scale (:max-val stat))
+               unit)))))
 
 (defn print-extremes
-  "Print min/max extremes for all metrics."
+  "Print min/max extremes for all metrics.
+  Each metric gets its own line with 'label extremes' format."
   [metrics stats transforms]
-  (println (format "%36s:" "Extremes"))
-  (doseq [metric metrics]
-    (print-extreme metric (get-in stats (:path metric)) transforms)))
+  (for-each-metric metrics stats #(print-extreme %1 %2 transforms)))
 
 (defmethod view/extremes* :print
   [_ {:keys [stats-id metric-ids]} data-map]
@@ -164,16 +310,23 @@
 
 ;;; Bootstrap Stats
 
+(def ^:private default-bootstrap-stats
+  "Default statistics shown by bootstrap-stats view."
+  #{:median :spread})
+
 (defn print-bootstrap-stat
   "Print bootstrap statistics for a metric.
 
-  Output format:
-  1. Median with 95% CI
-  2. Mean with 95% CI
-  3. p10-p90 percentile spread"
+  The show-stats set controls which statistics are displayed:
+    :median - Median with 95% CI
+    :mean   - Mean with 95% CI
+    :spread - p10-p90 percentile spread
+
+  Default shows :median and :spread."
   [metric
    {:keys [mean quantiles]}
-   transforms]
+   transforms
+   show-stats]
   (let [{:keys [dimension label]} metric
         tform #(util/transform-sample-> % transforms)
         mean-val (tform (:point-estimate mean))
@@ -183,46 +336,50 @@
         median-ci (:estimate-quantiles median-est)
         p10-est (get quantiles 0.1)
         p90-est (get quantiles 0.9)
-        scale (* (:scale metric) scale)]
-    (when (and median-est (seq median-ci))
+        scale (* (:scale metric) scale)
+        show-stats (if (seq show-stats) (set show-stats) default-bootstrap-stats)]
+    (when (and (show-stats :median) median-est (seq median-ci))
       (println
-       (format "%36s: %.3g %s CI [%.3g %.3g] (%.3f %.3f)"
-               (str label " median")
+       (format "%s %.3g %s CI [%.3g %.3g] (%.3f %.3f)"
+               (format-sublabel (str label " median"))
                (* scale (tform (:point-estimate median-est)))
                units
                (* scale (tform (-> median-ci first :value)))
                (* scale (tform (-> median-ci second :value)))
                (-> median-ci first :alpha)
                (-> median-ci second :alpha))))
-    (println
-     (format "%36s: %.3g %s CI [%.3g %.3g] (%.3f %.3f)"
-             (str label " mean")
-             (* scale mean-val)
-             units
-             (* scale (tform (-> mean-ci first :value)))
-             (* scale (tform (-> mean-ci second :value)))
-             (-> mean-ci first :alpha)
-             (-> mean-ci second :alpha)))
-    (when (and p10-est p90-est)
+    (when (show-stats :mean)
       (println
-       (format "%36s: [%.3g %.3g] %s (10th-90th percentile)"
-               (str label " spread")
+       (format "%s %.3g %s CI [%.3g %.3g] (%.3f %.3f)"
+               (format-sublabel (str label " mean"))
+               (* scale mean-val)
+               units
+               (* scale (tform (-> mean-ci first :value)))
+               (* scale (tform (-> mean-ci second :value)))
+               (-> mean-ci first :alpha)
+               (-> mean-ci second :alpha))))
+    (when (and (show-stats :spread) p10-est p90-est)
+      (println
+       (format "%s [%.3g %.3g] %s (10th-90th percentile)"
+               (format-sublabel (str label " spread"))
                (* scale (tform (:point-estimate p10-est)))
                (* scale (tform (:point-estimate p90-est)))
                units)))))
 
 (defn print-bootstrap-stats
-  [{:keys [bootstrap-stats-id]} data-map]
-  (let [bootstrap-stats-id (or bootstrap-stats-id :bootstrap-stats)
-        bootstrap-map (data-map bootstrap-stats-id)]
-    (when bootstrap-map
-      (let [metrics-defs (:metrics-defs bootstrap-map)
-            metric-configs (metric/all-metric-configs metrics-defs)
-            bootstrap (util/bootstrap bootstrap-map)
-            transforms (util/get-transforms data-map bootstrap-stats-id)]
-        (doseq [metric metric-configs]
-          (when-let [stat (get-in bootstrap (:path metric))]
-            (print-bootstrap-stat metric stat transforms)))))))
+  "Print bootstrap statistics for all metrics.
+
+  View options:
+    :bootstrap-stats-id - key for bootstrap data (default :bootstrap-stats)
+    :show-stats         - set of stats to display: #{:median :mean :spread}
+                          Default: #{:median :spread}"
+  [view data-map]
+  (when-let [{:keys [analysis-map metric-configs transforms]}
+             (get-analysis-context :bootstrap-stats-id :bootstrap-stats view data-map nil)]
+    (let [bootstrap (util/bootstrap analysis-map)
+          show-stats (:show-stats view)]
+      (for-each-metric metric-configs bootstrap
+                       #(print-bootstrap-stat %1 %2 transforms show-stats)))))
 
 (defmethod view/bootstrap-stats* :print
   [_ view data-map]
@@ -280,18 +437,6 @@
     (<= mc 0.6) :moderately-right-skewed
     :else :strongly-right-skewed))
 
-(defn- format-skewness
-  "Format skewness classification for display."
-  [classification]
-  (case classification
-    :strongly-left-skewed "strongly left-skewed"
-    :moderately-left-skewed "moderately left-skewed"
-    :slightly-left-skewed "slightly left-skewed"
-    :symmetric "symmetric"
-    :slightly-right-skewed "slightly right-skewed"
-    :moderately-right-skewed "moderately right-skewed"
-    :strongly-right-skewed "strongly right-skewed"))
-
 (defn- format-outlier-method
   "Format outlier detection method for display."
   [method]
@@ -310,38 +455,41 @@
         mc (:medcouple outliers)
         method (:outlier-method outliers)]
     (when (pos? sum)
-      (util/report "%32s: Found %d outliers in %d samples (%.3g %%)%s\n"
-                   (:label metric-config)
+      (util/report "%s Found %d outliers in %d samples (%.3g %%)%s\n"
+                   (format-sublabel (:label metric-config))
                    sum
                    num-samples
                    (* 100.0 (/ sum num-samples))
                    (if method (str " [" (format-outlier-method method) "]") ""))
       (doseq [[c v] (->> outlier-counts
-                         (filter #(pos? (val %))))]
+                         (filterv #(pos? (val %))))]
         (util/report
-         "                                 %12s\t %d (%2.4f %%)\n"
-         (name c) v (* 100.0 (/ v num-samples)))))
-    (when (and show-medcouple? mc)
-      (let [classification (skewness-classification mc)]
-        (util/report "%32s: medcouple %.4f (%s)\n"
-                     (:label metric-config)
-                     mc
-                     (format-skewness classification))))))
+         "                                     %12s\t %d (%2.4f %%)\n"
+         (name c) v (* 100.0 (/ v num-samples))))
+      (when (and show-medcouple? mc)
+        (let [classification (skewness-classification mc)]
+          (util/report "%s medcouple %.4f (%s)\n"
+                       (format-sublabel (:label metric-config))
+                       mc
+                       (shape/format-classification classification)))))))
 
 (defn print-outlier-counts
   "Print outlier counts for all metrics.
   Options:
     :outliers-id - key for outliers in data-map (default :outliers)
     :show-medcouple - if true, display medcouple and skewness classification"
-  [{:keys [outliers-id show-medcouple] :as _view} data-map]
+  [{:keys [outliers-id show-medcouple]
+    :or {show-medcouple true}
+    :as _view}
+   data-map]
   (let [outliers-id (or outliers-id :outliers)
         outliers-map (data-map outliers-id)
         metrics-defs (:metrics-defs outliers-map)
         metric-configs (metric/all-metric-configs metrics-defs)
         num-samples (have (:num-samples outliers-map))
         outliers (util/outliers outliers-map)]
-    (doseq [m metric-configs]
-      (print-outlier-count m num-samples (get-in outliers (:path m)) show-medcouple))))
+    (for-each-metric metric-configs outliers
+                     #(print-outlier-count %1 num-samples %2 show-medcouple))))
 
 (defmethod view/outlier-counts* :print
   [_ view data-map]
@@ -362,19 +510,15 @@
                  (-> outlier-significance :effect labels))))
 
 (defn print-outlier-significances
-  [{:keys [outlier-significance-id] :as _view} data-map]
-  (let [outlier-sig-id (or outlier-significance-id :outlier-significance)
-        outlier-sig-map (data-map outlier-sig-id)
-        metrics-defs (-> (:metrics-defs outlier-sig-map)
-                         (metric/filter-metrics
-                          (metric/type-pred :quantitative)))
-        metric-configs (metric/all-metric-configs metrics-defs)
-        outlier-sig (util/outlier-significance outlier-sig-map)]
-    (doseq [m metric-configs]
-      (print-outlier-significance
-       m
-       (have seq (get-in outlier-sig (:path m))
-             {:metric m :outlier-sig outlier-sig})))))
+  [view data-map]
+  (when-let [{:keys [analysis-map metric-configs]}
+             (get-analysis-context :outlier-significance-id :outlier-significance
+                                   view data-map (metric/type-pred :quantitative))]
+    (let [outlier-sig (util/outlier-significance analysis-map)]
+      (for-each-metric
+       metric-configs outlier-sig
+       (fn [m data]
+         (print-outlier-significance m (have seq data {:metric m})))))))
 
 (defmethod view/outlier-significance* :print
   [_ view data-map]
@@ -389,8 +533,8 @@
         outlier-data (get-in outliers path)]
     (doseq [[i v] (sort-by first (:outliers outlier-data))]
       (println
-       (format "%36s[%5d] %s %s"
-               ""
+       (format "%s[%5d] %s %s"
+               (sublabel-str "")
                i
                (format/format-value
                 (:dimension metric)
@@ -411,12 +555,12 @@
         transforms (util/get-transforms data-map samples-id)]
 
     (println
-     (format "%32s: %d samples with batch-size %d"
-             "Samples"
+     (format "%s %d samples with batch-size %d"
+             (format-label "Samples")
              (:num-samples metrics-samples) (:batch-size metrics-samples)))
     (when outliers
       (doseq [metric metric-configs]
-        (println (format "%36s%s" "" (:label metric)))
+        (println (str (sublabel-str "") (:label metric)))
         (print-samples-with-outliers
          (util/metric->values metrics-samples)
          transforms
@@ -431,25 +575,24 @@
   (let [warmup (some-> data-map :warmup)
         est (some-> data-map :estimation)
         samples (-> data-map :samples)
-        fmt "%32s: %d samples with batch-size %d (%d evaluations)"]
+        fmt-val (fn [label n bs evals]
+                  (format "%s %d samples with batch-size %d (%d evaluations)"
+                          (format-sublabel label) n bs evals))]
     (println
-     (format fmt
-             "Sample Scheme"
-             (:num-samples samples)
-             (:batch-size samples)
-             (:eval-count samples)))
+     (fmt-val "Sample Scheme"
+              (:num-samples samples)
+              (:batch-size samples)
+              (:eval-count samples)))
     (when warmup
       (println
-       (format fmt
-               "Warmup"
-               (:num-samples warmup) (:batch-size warmup)
-               (* (:num-samples warmup) (:batch-size warmup)))))
+       (fmt-val "Warmup"
+                (:num-samples warmup) (:batch-size warmup)
+                (* (:num-samples warmup) (:batch-size warmup)))))
     (when est
       (println
-       (format fmt
-               "Estimation"
-               (:num-samples est) (:batch-size est)
-               (* (:num-samples est) (:batch-size est)))))))
+       (fmt-val "Estimation"
+                (:num-samples est) (:batch-size est)
+                (* (:num-samples est) (:batch-size est)))))))
 
 ;;; Histogram
 
@@ -474,14 +617,18 @@
                            %)))]
     (doseq [h histograms]
       (println
-       (format "%32s: %s Histogram"
-               (-> h :metric-config :label)
+       (format "%s %s Histogram"
+               (format-label (-> h :metric-config :label))
                (-> h :unit)))
-      (run!
-       (fn [[x bin-count density]]
-         (println
-          (format "%34s %-7.3f %5d  %-7.3g" "" x (long bin-count) density)))
-       (mapv vector (:centers h) (:counts h) (:density h)))
+      (let [max-count (double (apply max 1 (:counts h)))
+            bar-width (long 20)]
+        (run!
+         (fn [[x bin-count density]]
+           (println
+            (format "%s %-7.3f %5d  %-7.3g  %s"
+                    (label-indent-str) x (long bin-count) density
+                    (core/ascii-bar bin-count max-count bar-width))))
+         (mapv vector (:centers h) (:counts h) (:density h))))
       (println))))
 
 ;;; KDE
@@ -509,28 +656,28 @@
         modes (when modes-data (:modes modes-data))
         n-modes (when modes-data (:n-modes modes-data))
         test-results (when modes-data (:test-results modes-data))]
-    (println (format "%32s: KDE (n=%d)" label n))
-    (println (format "%34s bandwidth: %s"
-                     ""
+    (println (format "%s KDE (n=%d)" (format-label label) n))
+    (println (format "%s bandwidth: %s"
+                     (label-indent-str)
                      (format/format-value dimension (* scale bw))))
     (when (seq modes)
-      (println (format "%34s modes: %d (validated: %s)"
-                       "" (count modes) (or n-modes "?")))
-      (println (format "%34s %12s %12s %12s %12s"
-                       "" "Location" "Density" "CI Lower" "CI Upper"))
+      (println (format "%s modes: %d (validated: %s)"
+                       (label-indent-str) (count modes) (or n-modes "?")))
+      (println (format "%s %12s %12s %12s %12s"
+                       (label-indent-str) "Location" "Density" "CI Lower" "CI Upper"))
       (doseq [mode modes]
         (let [[loc dens ci-lo ci-hi] (format-kde-mode mode metric-config transforms)]
-          (println (format "%34s %12s %12s %12s %12s"
-                           "" loc dens ci-lo ci-hi))))
+          (println (format "%s %12s %12s %12s %12s"
+                           (label-indent-str) loc dens ci-lo ci-hi))))
       (when test-results
         (let [{:keys [method p-values]} test-results
               method-name (case method
                             :acr "ACR"
                             :silverman "Silverman"
                             (name method))]
-          (println (format "%34s %s test p-values:" "" method-name))
+          (println (format "%s %s test p-values:" (label-indent-str) method-name))
           (doseq [k (sort (keys p-values))]
-            (println (format "%36s k=%d: p=%.4f" "" k (get p-values k)))))))
+            (println (format "%s k=%d: p=%.4f" (sublabel-str "") k (get p-values k)))))))
     (println)))
 
 (defmethod view/kde* :print
@@ -547,10 +694,11 @@
             transforms (util/get-transforms data-map kde-id)
             kdes (:kdes kde-map)
             all-modes (when modes-map (:modes modes-map))]
-        (doseq [metric-config metric-configs]
-          (when-let [kde-data (get kdes (:path metric-config))]
-            (let [modes-data (when all-modes (get all-modes (:path metric-config)))]
-              (print-kde-metric metric-config kde-data modes-data transforms))))))))
+        (for-each-metric-keyed
+         metric-configs kdes
+         (fn [mc kde-data]
+           (let [modes-data (when all-modes (get all-modes (:path mc)))]
+             (print-kde-metric mc kde-data modes-data transforms))))))))
 
 ;;; Quantiles
 

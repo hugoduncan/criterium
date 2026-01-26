@@ -96,11 +96,11 @@
 ;;; Extremes Tests
 
 (deftest print-extreme-test
-  ;; Tests print-extreme function for min/max display.
-  ;; Covers: SI unit formatting and value display.
+  ;; Tests print-extreme function for min/max display in spread format.
+  ;; Covers: SI unit formatting, bracket notation, and label formatting.
   (testing "print-extreme"
-    (testing "prints min and max values with SI units"
-      (is (= "Elapsed Time: 89.0 ns - 114 ns"
+    (testing "prints extremes in spread format with SI units"
+      (is (= "Elapsed Time extremes: [89.0 114] ns"
              (str/trim
               (with-out-str
                 (print-core/print-extreme
@@ -113,11 +113,10 @@
 
 (deftest print-extremes-test
   ;; Tests print-extremes function and view/extremes* multimethod.
-  ;; Covers: min/max display for quantitative metrics.
+  ;; Covers: min/max display in per-metric spread format without header.
   (testing "print-extremes"
-    (testing "prints via output-view"
-      (is (= ["Extremes:"
-              "Elapsed Time: 89.0 ns - 114 ns"]
+    (testing "prints per-metric extremes without header"
+      (is (= ["Elapsed Time extremes: [89.0 114] ns"]
              (trimmed-lines
               (with-out-str
                 (view/extremes*
@@ -126,8 +125,7 @@
                  (:data (test-data/bench-stats-map))))))))
 
     (testing "applies batch-size transform to per-execution values"
-      (is (= ["Extremes:"
-              "Elapsed Time: 0.500 ns - 4.50 ns"]
+      (is (= ["Elapsed Time extremes: [0.500 4.50] ns"]
              (let [data-map
                    (-> (update-in
                         (:data (test-data/samples-with-variance-12-map))
@@ -147,9 +145,10 @@
 
 (deftest print-bootstrap-stat-test
   ;; Tests print-bootstrap-stat function for bootstrap statistics display.
-  ;; Covers: median with CI (first), mean with CI, and spread (10th-90th percentile).
+  ;; Covers: median with CI, mean with CI, and spread (10th-90th percentile).
+  ;; Default shows only median and spread; :show-stats controls visibility.
   (testing "print-bootstrap-stat"
-    (testing "without quantiles only prints mean"
+    (testing "with show-stats #{:mean} shows only mean"
       (is (= ["Elapsed Time mean: 100 ns CI [95.0 105] (0.050 0.950)"]
              (trimmed-lines
               (with-out-str
@@ -164,8 +163,9 @@
                              :estimate-quantiles
                              [{:value 9.0 :alpha 0.05}
                               {:value 25.0 :alpha 0.95}]}}
-                 vectorized-identity-transforms))))))
-    (testing "with quantiles prints median first, then mean, then spread"
+                 vectorized-identity-transforms
+                 #{:mean}))))))
+    (testing "with show-stats #{:median :mean :spread} shows all three"
       (is (= ["Elapsed Time median: 98.0 ns CI [93.0 103] (0.025 0.975)"
               "Elapsed Time mean: 100 ns CI [95.0 105] (0.025 0.975)"
               "Elapsed Time spread: [85.0 115] ns (10th-90th percentile)"]
@@ -195,10 +195,37 @@
                         :estimate-quantiles
                         [{:value 110.0 :alpha 0.025}
                          {:value 120.0 :alpha 0.975}]}}}
-                 vectorized-identity-transforms))))))
-    (testing "via bootstrap pipeline with degenerate data"
+                 vectorized-identity-transforms
+                 #{:median :mean :spread}))))))
+    (testing "with default show-stats (nil) shows median and spread"
+      (is (= ["Elapsed Time median: 98.0 ns CI [93.0 103] (0.025 0.975)"
+              "Elapsed Time spread: [85.0 115] ns (10th-90th percentile)"]
+             (trimmed-lines
+              (with-out-str
+                (print-core/print-bootstrap-stat
+                 {:scale 1e-9 :dimension :time :path [:elapsed-time]
+                  :label "Elapsed Time"}
+                 {:mean {:point-estimate 100.0
+                         :estimate-quantiles
+                         [{:value 95.0 :alpha 0.025}
+                          {:value 105.0 :alpha 0.975}]}
+                  :quantiles
+                  {0.1 {:point-estimate 85.0
+                        :estimate-quantiles
+                        [{:value 80.0 :alpha 0.025}
+                         {:value 90.0 :alpha 0.975}]}
+                   0.5 {:point-estimate 98.0
+                        :estimate-quantiles
+                        [{:value 93.0 :alpha 0.025}
+                         {:value 103.0 :alpha 0.975}]}
+                   0.9 {:point-estimate 115.0
+                        :estimate-quantiles
+                        [{:value 110.0 :alpha 0.025}
+                         {:value 120.0 :alpha 0.975}]}}}
+                 vectorized-identity-transforms
+                 nil))))))
+    (testing "via bootstrap pipeline with degenerate data (default shows median and spread)"
       (is (= ["Elapsed Time median: 1.00 ns CI [1.00 1.00] (0.025 0.975)"
-              "Elapsed Time mean: 1.00 ns CI [1.00 1.00] (0.025 0.975)"
               "Elapsed Time spread: [1.00 1.00] ns (10th-90th percentile)"]
              (let [data-map
                    {:samples
@@ -223,10 +250,35 @@
                   (->> data-map
                        bootstrap
                        (view :print))))))))
+    (testing "via bootstrap pipeline with show-stats #{:median :mean :spread}"
+      (is (= ["Elapsed Time median: 1.00 ns CI [1.00 1.00] (0.025 0.975)"
+              "Elapsed Time mean: 1.00 ns CI [1.00 1.00] (0.025 0.975)"
+              "Elapsed Time spread: [1.00 1.00] ns (10th-90th percentile)"]
+             (let [data-map
+                   {:samples
+                    {:type :criterium/collected-metrics-samples
+                     :metric->values {[:elapsed-time]
+                                      (arr/->double-array (double-array [1 1 1]))}
+                     :metrics-defs (select-keys
+                                    (metrics/metrics)
+                                    [:elapsed-time])
+                     :transform collect-plan/identity-transforms
+                     :batch-size 1
+                     :eval-count 1
+                     :elapsed-time 1}}
+                   bootstrap (bootstrap/bootstrap-stats
+                              {:quantiles [0.025 0.975]
+                               :estimate-quantiles [0.025 0.975]
+                               :min-samples 3})
+                   view (view/bootstrap-stats {:show-stats #{:median :mean :spread}})]
+               (trimmed-lines
+                (with-out-str
+                  (->> data-map
+                       bootstrap
+                       (view :print))))))))
     (testing "applies batch-size transform to per-execution values"
       ;; Raw samples are 10000 ns (batch of 10000), expected per-execution is 1 ns
       (is (= ["Elapsed Time median: 1.00 ns CI [1.00 1.00] (0.025 0.975)"
-              "Elapsed Time mean: 1.00 ns CI [1.00 1.00] (0.025 0.975)"
               "Elapsed Time spread: [1.00 1.00] ns (10th-90th percentile)"]
              (let [batch-size 10000
                    data-map
@@ -367,8 +419,8 @@
                    {:outlier-counts (metrics-samples/outlier-count 0 0 0 1)
                     :medcouple nil}
                    true))))))
-      (testing "displays medcouple even without outliers"
-        (is (= ["M: medcouple 0.1500 (slightly right-skewed)"]
+      (testing "displays nothing without outliers"
+        (is (= [""]
                (trimmed-lines
                 (with-out-str
                   (print-core/print-outlier-count

@@ -2,7 +2,8 @@
   (:require
    [clojure.string :as str]
    [clojure.test :refer [deftest is testing]]
-   [criterium.viewer.common.allocation :as allocation]))
+   [criterium.viewer.common.allocation :as allocation]
+   [criterium.viewer.common.core :as core]))
 
 ;; Tests for ASCII treemap rendering functions.
 ;; Verifies ascii-bar generates proportional bars and render-ascii-treemap
@@ -37,24 +38,69 @@
 (deftest ascii-bar-test
   (testing "ascii-bar"
     (testing "produces correct proportional bars"
-      (is (= "████████████████████" (allocation/ascii-bar 100.0 100.0 20)))
-      (is (= "██████████" (allocation/ascii-bar 50.0 100.0 20)))
-      (is (= "█████" (allocation/ascii-bar 25.0 100.0 20)))
-      (is (= "██" (allocation/ascii-bar 10.0 100.0 20))))
+      (is (= "████████████████████" (core/ascii-bar 100.0 100.0 20)))
+      (is (= "██████████" (core/ascii-bar 50.0 100.0 20)))
+      (is (= "█████" (core/ascii-bar 25.0 100.0 20)))
+      (is (= "██" (core/ascii-bar 10.0 100.0 20))))
 
     (testing "handles zero and negative values"
-      (is (= "" (allocation/ascii-bar 0.0 100.0 20)))
-      (is (= "" (allocation/ascii-bar -10.0 100.0 20)))
-      (is (= "" (allocation/ascii-bar 100.0 0.0 20)))
-      (is (= "" (allocation/ascii-bar 100.0 -10.0 20))))
+      (is (= "" (core/ascii-bar 0.0 100.0 20)))
+      (is (= "" (core/ascii-bar -10.0 100.0 20)))
+      (is (= "" (core/ascii-bar 100.0 0.0 20)))
+      (is (= "" (core/ascii-bar 100.0 -10.0 20))))
 
     (testing "respects width parameter"
-      (is (= "██████████" (allocation/ascii-bar 100.0 100.0 10)))
-      (is (= "█████" (allocation/ascii-bar 100.0 100.0 5)))
-      (is (= "██████████████████████████████" (allocation/ascii-bar 100.0 100.0 30))))
+      (is (= "██████████" (core/ascii-bar 100.0 100.0 10)))
+      (is (= "█████" (core/ascii-bar 100.0 100.0 5)))
+      (is (= "██████████████████████████████" (core/ascii-bar 100.0 100.0 30))))
 
     (testing "caps at max width when value exceeds max"
-      (is (= "████████████████████" (allocation/ascii-bar 150.0 100.0 20))))))
+      (is (= "████████████████████" (core/ascii-bar 150.0 100.0 20))))))
+
+(deftest ascii-bar-bidirectional-test
+  ;; Tests bidirectional bar rendering for ACF plots.
+  ;; Bars extend left from center for negative values, right for positive.
+  (testing "ascii-bar-bidirectional"
+    (testing "renders positive values extending right from center"
+      (let [result (core/ascii-bar-bidirectional 0.5 1.0 10)]
+        (is (= 21 (count result)) "Total width should be 2*half-width + 1")
+        (is (str/includes? result "|") "Should contain center marker")
+        (is (= 10 (.indexOf ^String result "|")) "Center marker at position 10")
+        ;; With value 0.5 and max 1.0, bar should be 5 chars
+        (is (= "          |█████     " result))))
+
+    (testing "renders negative values extending left from center"
+      (let [result (core/ascii-bar-bidirectional -0.5 1.0 10)]
+        (is (= 21 (count result)))
+        (is (= 10 (.indexOf ^String result "|")))
+        (is (= "     █████|          " result))))
+
+    (testing "renders zero as empty bar"
+      (let [result (core/ascii-bar-bidirectional 0.0 1.0 10)]
+        (is (= "          |          " result))))
+
+    (testing "scales proportionally to max-abs-value"
+      (let [result (core/ascii-bar-bidirectional 0.25 0.5 10)]
+        ;; 0.25/0.5 = 0.5, so 5 blocks
+        (is (= "          |█████     " result))))
+
+    (testing "handles max-abs-value of zero"
+      (let [result (core/ascii-bar-bidirectional 0.5 0.0 10)]
+        (is (= "          |          " result))))
+
+    (testing "caps at full width when value equals max"
+      (let [result-pos (core/ascii-bar-bidirectional 1.0 1.0 10)
+            result-neg (core/ascii-bar-bidirectional -1.0 1.0 10)]
+        (is (= "          |██████████" result-pos))
+        (is (= "██████████|          " result-neg))))
+
+    (testing "respects half-width parameter"
+      (let [result-5 (core/ascii-bar-bidirectional 0.5 1.0 5)
+            result-15 (core/ascii-bar-bidirectional 0.5 1.0 15)]
+        (is (= 11 (count result-5)))  ; 2*5 + 1
+        (is (= 31 (count result-15))) ; 2*15 + 1
+        (is (= "     |███  " result-5))  ; 0.5 * 5 = 2.5 rounds to 3
+        (is (str/starts-with? result-15 "               |"))))))
 
 (deftest render-ascii-treemap-test
   (testing "render-ascii-treemap"

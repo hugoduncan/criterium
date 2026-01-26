@@ -8,7 +8,8 @@
   (:require
    [criterium.metric :as metric]
    [criterium.view :as view]
-   [criterium.viewer.common.distribution :as common.distribution]))
+   [criterium.viewer.common.distribution :as common.distribution]
+   [criterium.viewer.print.core :as print-core :refer [for-each-metric-keyed]]))
 
 (defn- format-gof-result
   "Format a goodness-of-fit test result."
@@ -60,8 +61,8 @@
   [metric-config fit-data]
   (let [{:keys [n warning distributions best-model]} fit-data
         {:keys [label]} metric-config]
-    (println (format "%32s: Distribution Models (n=%d%s)"
-                     label n
+    (println (format "%s Distribution Models (n=%d%s)"
+                     (print-core/format-label label) n
                      (if warning " - WARNING: small sample" "")))
     ;; Print each distribution result, best model first
     (when best-model
@@ -88,9 +89,8 @@
         (when (seq fits)
           (println "Distribution Model Comparison:")
           (if metric-configs
-            (doseq [mc metric-configs]
-              (when-let [fit-data (get fits (:path mc))]
-                (print-distribution-models-for-metric mc fit-data)))
+            (for-each-metric-keyed metric-configs fits
+                                   print-distribution-models-for-metric)
             ;; Fallback if no metric-configs available
             (doseq [[path fit-data] fits]
               (print-distribution-models-for-metric
@@ -107,8 +107,8 @@
   (let [{:keys [best-model parameter-cis]} fit-data
         {:keys [label]} metric-config]
     (when (and best-model (get parameter-cis best-model))
-      (println (format "%32s: %s Parameter CIs"
-                       label
+      (println (format "%s %s Parameter CIs"
+                       (print-core/format-label label)
                        (get common.distribution/distribution-labels best-model (name best-model))))
       (print-parameter-cis best-model (get parameter-cis best-model))
       (println))))
@@ -129,9 +129,8 @@
         (when (seq fits)
           (println "Distribution Parameter Confidence Intervals:")
           (if metric-configs
-            (doseq [mc metric-configs]
-              (when-let [fit-data (get fits (:path mc))]
-                (print-distribution-parameter-cis-for-metric mc fit-data)))
+            (for-each-metric-keyed metric-configs fits
+                                   print-distribution-parameter-cis-for-metric)
             ;; Fallback if no metric-configs available
             (doseq [[path fit-data] fits]
               (print-distribution-parameter-cis-for-metric
