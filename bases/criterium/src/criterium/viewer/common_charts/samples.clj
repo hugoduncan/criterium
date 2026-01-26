@@ -6,9 +6,9 @@
   (:require
    [criterium.array :as arr]
    [criterium.metric :as metric]
+   [criterium.stats.probability :as probability]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have have?]]
-   [criterium.stats.probability :as probability]
    [criterium.viewer.common.core :as core]))
 
 ;;; Scatter plots

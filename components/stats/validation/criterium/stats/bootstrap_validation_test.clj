@@ -315,7 +315,7 @@
                 data-arr (darr data)
                 boot-size 500
                 alpha [0.5 0.025 0.975]
-                result (stats/bootstrap-bca
+                result (bootstrap/bootstrap-bca
                         data-arr stats/mean boot-size alpha random/make-well-rng-1024a)]
             (is (instance? BcaEstimate result)
                 "Result should be BcaEstimate record")
@@ -332,7 +332,7 @@
                 true-mean (stats/mean data-arr)
                 boot-size 500
                 alpha [0.5 0.025 0.975]
-                result (stats/bootstrap-bca
+                result (bootstrap/bootstrap-bca
                         data-arr stats/mean boot-size alpha random/make-well-rng-1024a)
                 ;; Point estimate (at alpha=0.5) should be close to true mean
                 point-est (:point-estimate result)
