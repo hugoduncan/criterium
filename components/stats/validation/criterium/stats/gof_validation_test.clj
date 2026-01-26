@@ -14,7 +14,6 @@
    [clojure.test :refer [deftest is testing]]
    [criterium.array :as arr]
    [criterium.r-validation.r :as r]
-   [criterium.stats.gof :as gof]
    [criterium.stats.mle :as mle]
    [criterium.stats.probability :as probability]
    [criterium.test.assert :refer [approx=]]))
@@ -75,7 +74,7 @@
                 ;; Use normal CDF for the test
                 normal-cdf-fn (fn ^double [^double x]
                                 (probability/normal-cdf (/ (- x mean-val) sd-val)))
-                clj-d         (gof/ks-test-statistic
+                clj-d         (probability/ks-test-statistic
                                (darr normal-test-data)
                                normal-cdf-fn)]
             (is (approx= r-d clj-d 1e-5)
@@ -94,7 +93,7 @@
                                    (<= x 0.0) 0.0
                                    (>= x 1.0) 1.0
                                    :else      x))
-                clj-d          (gof/ks-test-statistic (darr uniform-test-data) uniform-cdf-fn)]
+                clj-d          (probability/ks-test-statistic (darr uniform-test-data) uniform-cdf-fn)]
             (is (approx= r-d clj-d 1e-10)
                 (format "D statistic mismatch: R=%.10f, clj=%.10f" r-d clj-d))))
 
@@ -113,7 +112,7 @@
                                (first (vals r-result))
                                (first r-result))
                 gamma-cdf-fn (probability/gamma-cdf shape scale)
-                clj-d        (gof/ks-test-statistic (darr gamma-test-data) gamma-cdf-fn)]
+                clj-d        (probability/ks-test-statistic (darr gamma-test-data) gamma-cdf-fn)]
             (is (approx= r-d clj-d 1e-10)
                 (format "D statistic mismatch: R=%.10f, clj=%.10f" r-d clj-d))))))))
 
@@ -132,7 +131,7 @@
                 r-result       (r/r-eval (str "ks.test(" data-str ", 'punif')$p.value"))
                 r-p            (first r-result)
                 uniform-cdf-fn (fn ^double [^double x] (cond (<= x 0) 0.0 (>= x 1) 1.0 :else x))
-                clj-result     (gof/ks-test (darr uniform-test-data) uniform-cdf-fn)
+                clj-result     (probability/ks-test (darr uniform-test-data) uniform-cdf-fn)
                 clj-p          (:p-value clj-result)]
             ;; Both should reject the null at high p (data is from uniform)
             (is (> r-p 0.01) "R p-value should not reject good fit")
@@ -150,7 +149,7 @@
                 r-p        (first r-result)
                 ;; Use exponential CDF (gamma with shape=1)
                 exp-cdf-fn (probability/gamma-cdf 1.0 mean-val)
-                clj-result (gof/ks-test (darr gamma-test-data) exp-cdf-fn)
+                clj-result (probability/ks-test (darr gamma-test-data) exp-cdf-fn)
                 clj-p      (:p-value clj-result)]
             ;; Both should have low p-value (data is from gamma, not
             ;; exponential)
@@ -182,7 +181,7 @@
                                    (<= x 0.0) 0.0
                                    (>= x 1.0) 1.0
                                    :else      x))
-                clj-w2         (gof/cvm-test-statistic (darr uniform-test-data) uniform-cdf-fn)]
+                clj-w2         (probability/cvm-test-statistic (darr uniform-test-data) uniform-cdf-fn)]
             (is (approx= r-w2 clj-w2 1e-10)
                 (format "W² statistic mismatch: R=%.10f, clj=%.10f" r-w2 clj-w2))))
 
@@ -200,7 +199,7 @@
                                 (first (vals r-result))
                                 (first r-result)))
                 gamma-cdf-fn (probability/gamma-cdf shape scale)
-                clj-w2       (gof/cvm-test-statistic
+                clj-w2       (probability/cvm-test-statistic
                               (darr gamma-test-data)
                               gamma-cdf-fn)]
             ;; Looser tolerance: gamma-cdf approximation errors accumulate in
@@ -224,7 +223,7 @@
                 r-result       (r/r-eval (str "cvm.test(" data-str ", 'punif')$p.value"))
                 r-p            (first r-result)
                 uniform-cdf-fn (fn ^double [^double x] (cond (<= x 0) 0.0 (>= x 1) 1.0 :else x))
-                clj-result     (gof/cvm-test (darr uniform-test-data) uniform-cdf-fn)
+                clj-result     (probability/cvm-test (darr uniform-test-data) uniform-cdf-fn)
                 clj-p          (:p-value clj-result)]
             (is (> r-p 0.01) "R p-value should not reject good fit")
             (is (> clj-p 0.01) "Clj p-value should not reject good fit")))
@@ -238,7 +237,7 @@
                                           ", 'pexp', rate=" rate ")$p.value"))
                 r-p        (first r-result)
                 exp-cdf-fn (probability/gamma-cdf 1.0 mean-val)
-                clj-result (gof/cvm-test (darr gamma-test-data) exp-cdf-fn)
+                clj-result (probability/cvm-test (darr gamma-test-data) exp-cdf-fn)
                 clj-p      (:p-value clj-result)]
             (is (< r-p 0.5) "R p-value should indicate poor fit")
             (is (< clj-p 0.5) "Clj p-value should indicate poor fit")))))))
@@ -250,47 +249,47 @@
   (testing "ks-test"
     (testing "returns expected keys"
       (let [cdf-fn (fn ^double [^double x] (cond (<= x 0) 0.0 (>= x 1) 1.0 :else x))
-            result (gof/ks-test (darr uniform-test-data) cdf-fn)]
+            result (probability/ks-test (darr uniform-test-data) cdf-fn)]
         (is (contains? result :statistic))
         (is (contains? result :p-value))
         (is (contains? result :n))))
 
     (testing "D statistic is in [0, 1]"
       (let [cdf-fn (fn ^double [^double x] (cond (<= x 0) 0.0 (>= x 1) 1.0 :else x))
-            result (gof/ks-test (darr uniform-test-data) cdf-fn)]
+            result (probability/ks-test (darr uniform-test-data) cdf-fn)]
         (is (<= 0 (:statistic result) 1))))
 
     (testing "p-value is in [0, 1]"
       (let [cdf-fn (fn ^double [^double x] (cond (<= x 0) 0.0 (>= x 1) 1.0 :else x))
-            result (gof/ks-test (darr uniform-test-data) cdf-fn)]
+            result (probability/ks-test (darr uniform-test-data) cdf-fn)]
         (is (<= 0 (:p-value result) 1))))
 
     (testing "n equals sample size"
       (let [cdf-fn (fn ^double [^double x] (cond (<= x 0) 0.0 (>= x 1) 1.0 :else x))
-            result (gof/ks-test (darr uniform-test-data) cdf-fn)]
+            result (probability/ks-test (darr uniform-test-data) cdf-fn)]
         (is (= (count uniform-test-data) (:n result))))))
 
   (testing "cvm-test"
     (testing "returns expected keys"
       (let [cdf-fn (fn ^double [^double x] (cond (<= x 0) 0.0 (>= x 1) 1.0 :else x))
-            result (gof/cvm-test (darr uniform-test-data) cdf-fn)]
+            result (probability/cvm-test (darr uniform-test-data) cdf-fn)]
         (is (contains? result :statistic))
         (is (contains? result :p-value))
         (is (contains? result :n))))
 
     (testing "W² statistic is non-negative"
       (let [cdf-fn (fn ^double [^double x] (cond (<= x 0) 0.0 (>= x 1) 1.0 :else x))
-            result (gof/cvm-test (darr uniform-test-data) cdf-fn)]
+            result (probability/cvm-test (darr uniform-test-data) cdf-fn)]
         (is (>= (:statistic result) 0))))
 
     (testing "p-value is in [0, 1]"
       (let [cdf-fn (fn ^double [^double x] (cond (<= x 0) 0.0 (>= x 1) 1.0 :else x))
-            result (gof/cvm-test (darr uniform-test-data) cdf-fn)]
+            result (probability/cvm-test (darr uniform-test-data) cdf-fn)]
         (is (<= 0 (:p-value result) 1))))
 
     (testing "n equals sample size"
       (let [cdf-fn (fn ^double [^double x] (cond (<= x 0) 0.0 (>= x 1) 1.0 :else x))
-            result (gof/cvm-test (darr uniform-test-data) cdf-fn)]
+            result (probability/cvm-test (darr uniform-test-data) cdf-fn)]
         (is (= (count uniform-test-data) (:n result)))))))
 
 (deftest gof-tests-with-distributions-test
@@ -300,7 +299,7 @@
       (let [shape 3.0
             scale 2.0
             cdf-fn (probability/gamma-cdf shape scale)
-            result (gof/ks-test (darr gamma-test-data) cdf-fn)]
+            result (probability/ks-test (darr gamma-test-data) cdf-fn)]
         (is (number? (:statistic result)))
         (is (number? (:p-value result)))))
 
@@ -308,7 +307,7 @@
       (let [shape 2.0
             scale 5.0
             cdf-fn (probability/weibull-cdf shape scale)
-            result (gof/ks-test (darr gamma-test-data) cdf-fn)]
+            result (probability/ks-test (darr gamma-test-data) cdf-fn)]
         (is (number? (:statistic result)))
         (is (number? (:p-value result)))))
 
@@ -316,7 +315,7 @@
       (let [mu 1.0
             sigma 0.5
             cdf-fn (probability/lognormal-cdf mu sigma)
-            result (gof/ks-test (darr gamma-test-data) cdf-fn)]
+            result (probability/ks-test (darr gamma-test-data) cdf-fn)]
         (is (number? (:statistic result)))
         (is (number? (:p-value result)))))
 
@@ -324,7 +323,7 @@
       (let [shape 3.0
             scale 2.0
             cdf-fn (probability/gamma-cdf shape scale)
-            result (gof/cvm-test (darr gamma-test-data) cdf-fn)]
+            result (probability/cvm-test (darr gamma-test-data) cdf-fn)]
         (is (number? (:statistic result)))
         (is (number? (:p-value result)))))
 
@@ -332,6 +331,6 @@
       (let [mu 5.0
             lambda 10.0
             cdf-fn (probability/inverse-gaussian-cdf mu lambda)
-            result (gof/cvm-test (darr gamma-test-data) cdf-fn)]
+            result (probability/cvm-test (darr gamma-test-data) cdf-fn)]
         (is (number? (:statistic result)))
         (is (number? (:p-value result)))))))
