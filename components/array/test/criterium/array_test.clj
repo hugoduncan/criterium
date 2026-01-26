@@ -1168,3 +1168,36 @@
           (aset ^objects (.array arr) i (keyword (str "k" i))))
         (is (arr/array= arr [:k0 :k1 :k2]))
         (is (not (arr/array= arr [:k0 :k1 :k2 :k3])))))))
+
+;;; Public API tests for capacity and resize!
+
+(deftest capacity-polymorphic-test
+  ;; Tests the capacity function works uniformly with all resizable array types.
+  ;; Contracts: capacity returns the maximum capacity for any IResizable.
+  (testing "capacity"
+    (testing "returns capacity for ResizableDoubleArray"
+      (let [arr (arr/resizable-double-array 10 5)]
+        (is (= 10 (arr/capacity arr)))))
+    (testing "returns capacity for ResizableLongArray"
+      (let [arr (arr/resizable-long-array 15 3)]
+        (is (= 15 (arr/capacity arr)))))
+    (testing "returns capacity for ResizableObjectArray"
+      (let [arr (arr/resizable-object-array 20 0)]
+        (is (= 20 (arr/capacity arr)))))))
+
+(deftest resize!-polymorphic-test
+  ;; Tests the resize! function works uniformly with all resizable array types.
+  ;; Contracts: resize! mutates size and returns new size for any IResizable.
+  (testing "resize!"
+    (testing "resizes ResizableDoubleArray and returns new size"
+      (let [arr (arr/resizable-double-array 10 10)]
+        (is (= 5 (arr/resize! arr 5)))
+        (is (= 5 (arr/length arr)))))
+    (testing "resizes ResizableLongArray and returns new size"
+      (let [arr (arr/resizable-long-array 10 10)]
+        (is (= 3 (arr/resize! arr 3)))
+        (is (= 3 (arr/length arr)))))
+    (testing "resizes ResizableObjectArray and returns new size"
+      (let [arr (arr/resizable-object-array 10 10)]
+        (is (= 7 (arr/resize! arr 7)))
+        (is (= 7 (arr/length arr)))))))
