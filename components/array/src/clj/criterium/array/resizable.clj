@@ -36,16 +36,38 @@
 
 (declare ->DoubleArray ->LongArray ->ObjectArray)
 
+;;; Validation helpers
+
+(defn- check-index-bounds
+  "Throws IndexOutOfBoundsException if index is out of bounds for size."
+  [^long index ^long size]
+  (when (or (neg? index) (>= index size))
+    (throw (IndexOutOfBoundsException.
+            (str "index " index " out of bounds for size " size)))))
+
+(defn- check-resize-bounds
+  "Throws IllegalArgumentException if new-size is out of bounds for capacity."
+  [^long new-size ^long capacity]
+  (when (or (neg? new-size) (> new-size capacity))
+    (throw (IllegalArgumentException.
+            (str "new-size must be between 0 and capacity ("
+                 capacity "), got: " new-size)))))
+
+(defn- check-initial-size
+  "Throws IllegalArgumentException if initial-size is out of bounds for capacity."
+  [^long initial-size ^long capacity]
+  (when (or (neg? initial-size) (> initial-size capacity))
+    (throw (IllegalArgumentException.
+            (str "initial-size must be between 0 and capacity ("
+                 capacity "), got: " initial-size)))))
+
 ;;; ResizableDoubleArray
 
 (deftype ResizableDoubleArray [^doubles array
                                ^:unsynchronized-mutable ^long size]
   IResizable
   (^long resize [_ ^long new-size]
-    (when (or (neg? new-size) (> new-size (alength array)))
-      (throw (IllegalArgumentException.
-              (str "new-size must be between 0 and capacity ("
-                   (alength array) "), got: " new-size))))
+    (check-resize-bounds new-size (alength array))
     (set! size new-size)
     new-size)
   (^long capacity [_] (alength array))
@@ -57,37 +79,25 @@
 
   IIndexed
   (^double getDouble [_ ^long index]
-    (when (or (neg? index) (>= index size))
-      (throw (IndexOutOfBoundsException.
-              (str "index " index " out of bounds for size " size))))
+    (check-index-bounds index size)
     (aget array index))
   (^long getLong [_ ^long index]
-    (when (or (neg? index) (>= index size))
-      (throw (IndexOutOfBoundsException.
-              (str "index " index " out of bounds for size " size))))
+    (check-index-bounds index size)
     (long (aget array index)))
   (getObject [_ ^long index]
-    (when (or (neg? index) (>= index size))
-      (throw (IndexOutOfBoundsException.
-              (str "index " index " out of bounds for size " size))))
+    (check-index-bounds index size)
     (aget array index))
 
   IIndexedSet
   (^double setDouble [_ ^long index ^double v]
-    (when (or (neg? index) (>= index size))
-      (throw (IndexOutOfBoundsException.
-              (str "index " index " out of bounds for size " size))))
+    (check-index-bounds index size)
     (aset array index v))
   (^long setLong [_ ^long index ^long v]
-    (when (or (neg? index) (>= index size))
-      (throw (IndexOutOfBoundsException.
-              (str "index " index " out of bounds for size " size))))
+    (check-index-bounds index size)
     (aset array index (double v))
     v)
   (setObject [_ ^long index v]
-    (when (or (neg? index) (>= index size))
-      (throw (IndexOutOfBoundsException.
-              (str "index " index " out of bounds for size " size))))
+    (check-index-bounds index size)
     (aset array index (double v))
     v)
 
@@ -236,10 +246,7 @@
                              ^:unsynchronized-mutable ^long size]
   IResizable
   (^long resize [_ ^long new-size]
-    (when (or (neg? new-size) (> new-size (alength array)))
-      (throw (IllegalArgumentException.
-              (str "new-size must be between 0 and capacity ("
-                   (alength array) "), got: " new-size))))
+    (check-resize-bounds new-size (alength array))
     (set! size new-size)
     new-size)
   (^long capacity [_] (alength array))
@@ -251,37 +258,25 @@
 
   IIndexed
   (^double getDouble [_ ^long index]
-    (when (or (neg? index) (>= index size))
-      (throw (IndexOutOfBoundsException.
-              (str "index " index " out of bounds for size " size))))
+    (check-index-bounds index size)
     (double (aget array index)))
   (^long getLong [_ ^long index]
-    (when (or (neg? index) (>= index size))
-      (throw (IndexOutOfBoundsException.
-              (str "index " index " out of bounds for size " size))))
+    (check-index-bounds index size)
     (aget array index))
   (getObject [_ ^long index]
-    (when (or (neg? index) (>= index size))
-      (throw (IndexOutOfBoundsException.
-              (str "index " index " out of bounds for size " size))))
+    (check-index-bounds index size)
     (aget array index))
 
   IIndexedSet
   (^double setDouble [_ ^long index ^double v]
-    (when (or (neg? index) (>= index size))
-      (throw (IndexOutOfBoundsException.
-              (str "index " index " out of bounds for size " size))))
+    (check-index-bounds index size)
     (aset array index (long v))
     v)
   (^long setLong [_ ^long index ^long v]
-    (when (or (neg? index) (>= index size))
-      (throw (IndexOutOfBoundsException.
-              (str "index " index " out of bounds for size " size))))
+    (check-index-bounds index size)
     (aset array index v))
   (setObject [_ ^long index v]
-    (when (or (neg? index) (>= index size))
-      (throw (IndexOutOfBoundsException.
-              (str "index " index " out of bounds for size " size))))
+    (check-index-bounds index size)
     (aset array index (long v))
     v)
 
@@ -473,10 +468,7 @@
                                ^:unsynchronized-mutable ^long size]
   IResizable
   (^long resize [_ ^long new-size]
-    (when (or (neg? new-size) (> new-size (alength array)))
-      (throw (IllegalArgumentException.
-              (str "new-size must be between 0 and capacity ("
-                   (alength array) "), got: " new-size))))
+    (check-resize-bounds new-size (alength array))
     (set! size new-size)
     new-size)
   (^long capacity [_] (alength array))
@@ -552,10 +544,7 @@
   (^ResizableDoubleArray [^long capacity]
    (ResizableDoubleArray. (double-array capacity) capacity))
   (^ResizableDoubleArray [^long capacity ^long initial-size]
-   (when (or (neg? initial-size) (> initial-size capacity))
-     (throw (IllegalArgumentException.
-             (str "initial-size must be between 0 and capacity ("
-                  capacity "), got: " initial-size))))
+   (check-initial-size initial-size capacity)
    (ResizableDoubleArray. (double-array capacity) initial-size)))
 
 (defn resizable-long-array
@@ -566,10 +555,7 @@
   (^ResizableLongArray [^long capacity]
    (ResizableLongArray. (long-array capacity) capacity))
   (^ResizableLongArray [^long capacity ^long initial-size]
-   (when (or (neg? initial-size) (> initial-size capacity))
-     (throw (IllegalArgumentException.
-             (str "initial-size must be between 0 and capacity ("
-                  capacity "), got: " initial-size))))
+   (check-initial-size initial-size capacity)
    (ResizableLongArray. (long-array capacity) initial-size)))
 
 (defn resizable-object-array
@@ -580,10 +566,7 @@
   (^ResizableObjectArray [^long capacity]
    (ResizableObjectArray. (object-array capacity) capacity))
   (^ResizableObjectArray [^long capacity ^long initial-size]
-   (when (or (neg? initial-size) (> initial-size capacity))
-     (throw (IllegalArgumentException.
-             (str "initial-size must be between 0 and capacity ("
-                  capacity "), got: " initial-size))))
+   (check-initial-size initial-size capacity)
    (ResizableObjectArray. (object-array capacity) initial-size)))
 
 ;;; Operations
