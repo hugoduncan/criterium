@@ -123,12 +123,14 @@
   The array must have length 2*n where n is a power of 2.
   Modifies arr in place and returns it.
 
-  Input/output format: [re0 im0 re1 im1 ... re_{n-1} im_{n-1}]"
+  Input/output format: [re0 im0 re1 im1 ... re_{n-1} im_{n-1}]
+
+  Uses standard DFT sign convention: X[k] = Σ x[n] * e^{-i 2π k n / N}"
   ^doubles [^doubles arr]
   (let [len (alength arr)
         n (bit-shift-right len 1)]
     (assert (power-of-2? n) "FFT length must be a power of 2")
-    (fft-butterfly! arr n 1.0)))
+    (fft-butterfly! arr n -1.0)))
 
 (defn ifft!
   "In-place inverse FFT on interleaved complex array.
@@ -136,13 +138,15 @@
   Modifies arr in place and returns it.
   Result is scaled by 1/n.
 
-  Input/output format: [re0 im0 re1 im1 ... re_{n-1} im_{n-1}]"
+  Input/output format: [re0 im0 re1 im1 ... re_{n-1} im_{n-1}]
+
+  Uses standard IDFT sign convention: x[n] = (1/N) Σ X[k] * e^{+i 2π k n / N}"
   ^doubles [^doubles arr]
   (let [len (alength arr)
         n (bit-shift-right len 1)
         scale (/ 1.0 (double n))]
     (assert (power-of-2? n) "FFT length must be a power of 2")
-    (fft-butterfly! arr n -1.0)
+    (fft-butterfly! arr n 1.0)
     ;; Scale by 1/n
     (dotimes [i len]
       (aset arr i (* scale (aget arr i))))
