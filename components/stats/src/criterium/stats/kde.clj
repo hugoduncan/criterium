@@ -497,8 +497,9 @@
   (* (/ 1.0 (Math/sqrt (* 2.0 Math/PI)))
      (Math/exp (* -0.5 u u))))
 
-(defn gaussian-kde
+(defn gaussian-kde-direct
   "Compute Gaussian kernel density estimate at grid points.
+  Direct O(n×m) implementation. Retained for testing/reference.
 
   Parameters:
   - data: typed array of sample values (DoubleArray or LongArray)
@@ -528,6 +529,98 @@
                      acc)))]
         (aset density i (/ sum (* nd h)))))
     density))
+
+(defn gaussian-kde-fft
+  "Compute Gaussian kernel density estimate using FFT-based convolution.
+  O(m log m) implementation where m is grid size.
+
+  Algorithm:
+  1. Extend grid by 4h on each side to avoid circular convolution edge effects
+  2. Bin data onto extended grid using linear interpolation
+  3. FFT the binned histogram
+  4. Multiply by Gaussian kernel in frequency domain
+  5. IFFT to get density estimate
+  6. Extract the central portion corresponding to original grid
+
+  Parameters:
+  - data: typed array of sample values (DoubleArray or LongArray)
+  - bandwidth: kernel bandwidth (h)
+  - grid: array of evaluation points
+
+  Returns array of density values at each grid point.
+  Requires a typed array (DoubleArray or LongArray)."
+  ^doubles [data ^double bandwidth ^doubles grid]
+  {:pre [(have? arr/typed-array? data)]}
+  (let [m (alength grid)
+        x-min (aget grid 0)
+        x-max (aget grid (dec m))
+        dx (/ (- x-max x-min) (double (dec m)))
+        ;; Extend grid by 4h on each side to avoid edge effects from circular convolution
+        ;; 4h covers >99.99% of Gaussian kernel support
+        extension (* 4.0 bandwidth)
+        ext-points (long (Math/ceil (/ extension dx)))
+        ext-min (- x-min (* ext-points dx))
+        m-ext (+ m (* 2 ext-points))
+        ;; Pad extended size to next power of 2 for FFT
+        m-fft (long (fft/next-power-of-2 m-ext))
+        ;; Create extended grid
+        ^doubles ext-grid (double-array m-ext)
+        _ (dotimes [i m-ext]
+            (aset ext-grid i (+ ext-min (* dx (double i)))))
+        ;; Bin data onto extended grid (weights sum to 1.0)
+        ^doubles binned (linear-bin data ext-grid)
+        ;; Zero-pad to power of 2 and convert to interleaved complex
+        ^doubles binned-complex (fft/zero-pad-real binned m-fft)
+        ;; FFT the binned histogram
+        _ (fft/fft! binned-complex)
+        ;; Compute Gaussian kernel in frequency domain and multiply
+        ;; For a Gaussian with bandwidth h, its FFT is also Gaussian
+        ;; The standard result: FT of (1/√(2π)h) exp(-x²/(2h²)) is exp(-2π²h²f²)
+        h-scaled (/ bandwidth dx)  ; bandwidth in grid units
+        m-fft-half (bit-shift-right m-fft 1)
+        _ (dotimes [k m-fft]
+            (let [;; Frequency index (handles wrap-around for DFT)
+                  freq (if (< k m-fft-half)
+                         (double k)
+                         (- (double k) (double m-fft)))
+                  ;; Gaussian in frequency domain: exp(-2π²σ²f²)
+                  ;; where σ = h (in grid units) and f = freq/m-fft (normalized)
+                  exponent (* -2.0 Math/PI Math/PI h-scaled h-scaled
+                              (/ (* freq freq) (* (double m-fft) (double m-fft))))
+                  kernel-val (Math/exp exponent)
+                  idx (* 2 k)
+                  ;; Multiply in-place (kernel is real)
+                  binned-re (aget binned-complex idx)
+                  binned-im (aget binned-complex (inc idx))]
+              (aset binned-complex idx (* binned-re kernel-val))
+              (aset binned-complex (inc idx) (* binned-im kernel-val))))
+        ;; IFFT to get density
+        _ (fft/ifft! binned-complex)
+        ;; Extract real parts for original grid points (skip ext-points at start)
+        ;; Scale by 1/dx to get proper density (integral = 1)
+        ^doubles density (double-array m)
+        scale (/ 1.0 dx)
+        ;; Small threshold to eliminate numerical noise (prevents spurious modes)
+        noise-threshold 1e-14]
+    (dotimes [i m]
+      (let [ext-idx (+ i ext-points)
+            val (* scale (aget binned-complex (* 2 ext-idx)))]
+        ;; Clamp tiny values to zero to eliminate numerical noise
+        (aset density i (if (< val noise-threshold) 0.0 val))))
+    density))
+
+(defn gaussian-kde
+  "Compute Gaussian kernel density estimate at grid points.
+
+  Parameters:
+  - data: typed array of sample values (DoubleArray or LongArray)
+  - bandwidth: kernel bandwidth (h)
+  - grid: vector of evaluation points
+
+  Returns vector of density values at each grid point.
+  Requires a typed array (DoubleArray or LongArray)."
+  ^doubles [data ^double bandwidth ^doubles grid]
+  (gaussian-kde-fft data bandwidth grid))
 
 ;;; Mode finding
 
