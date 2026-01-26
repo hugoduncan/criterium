@@ -556,9 +556,9 @@
         extension (* 4.0 bandwidth)
         ext-points (long (Math/ceil (/ extension dx)))
         ext-min (- x-min (* ext-points dx))
-        m-ext (+ m (* 2 ext-points))
+        m-ext (long (+ m (* 2 ext-points)))
         ;; Pad extended size to next power of 2 for FFT
-        m-fft (long (fft/next-power-of-2 m-ext))
+        m-fft (fft/next-power-of-2 m-ext)
         ;; Create extended grid
         ^doubles ext-grid (double-array m-ext)
         _ (dotimes [i m-ext]
@@ -1051,41 +1051,39 @@
   Requires a typed array (DoubleArray or LongArray)."
   ([data] (kde data {}))
   ([data {:keys [n-points bandwidth n-bootstrap alpha rng-factory]
-          :or {n-points 512
-               n-bootstrap 200
-               alpha 0.05
-               rng-factory #(random/make-well-rng-1024a)}}]
+          :or   {n-points    512
+                 n-bootstrap 200
+                 alpha       0.05
+                 rng-factory #(random/make-well-rng-1024a)}}]
    {:pre [(have? arr/typed-array? data)]}
    (let [n (arr/length data)]
      (when (zero? n)
        (throw (ex-info "Input data cannot be empty"
                        {:error :kde/no-data})))
-     (let [[x-min x-max] (data-min-max data)
-           x-min (double x-min)
-           x-max (double x-max)]
+     (let [[^double x-min ^double x-max] (data-min-max data)]
        (when (= x-min x-max)
          (throw (ex-info "All values are the same - cannot compute KDE"
                          {:error :kde/constant-data
                           :value x-min})))
-       (let [margin (/ (- x-max x-min) 10.0)
-             g-min (- x-min margin)
-             g-max (+ x-max margin)
+       (let [margin  (/ (- x-max x-min) 10.0)
+             g-min   (- x-min margin)
+             g-max   (+ x-max margin)
              g-range (- g-max g-min)
-             n-pts (long n-points)
-             grid (double-array n-pts)
-             _ (dotimes [i n-pts]
-                 (aset grid i (+ g-min (* g-range
-                                          (/ (double i) (double (dec n-pts)))))))
-             h (double (or bandwidth (isj-bandwidth data)))
+             n-pts   (long n-points)
+             grid    (double-array n-pts)
+             _       (dotimes [i n-pts]
+                       (aset grid i (+ g-min (* g-range
+                                                (/ (double i) (double (dec n-pts)))))))
+             h       (double (or bandwidth (isj-bandwidth data)))
              density (gaussian-kde data h grid)
-             bands (kde-confidence-bands data h grid
-                                         {:n-bootstrap n-bootstrap
-                                          :alpha alpha
-                                          :rng-factory rng-factory})]
-         {:type :criterium/kde
-          :bandwidth h
-          :grid (vec grid)
-          :density (vec density)
+             bands   (kde-confidence-bands data h grid
+                                           {:n-bootstrap n-bootstrap
+                                            :alpha       alpha
+                                            :rng-factory rng-factory})]
+         {:type       :criterium/kde
+          :bandwidth  h
+          :grid       (vec grid)
+          :density    (vec density)
           :lower-band (vec (:lower bands))
           :upper-band (vec (:upper bands))
-          :n n})))))
+          :n          n})))))
