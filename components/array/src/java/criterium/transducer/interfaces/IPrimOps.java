@@ -87,6 +87,36 @@ public interface IPrimOps {
   IDoubleArray transduce(Object xform, Object rf, IDoubleArray init, IODOReducible source);
 
   /**
+   * Transduces over a double source with cross-type object accumulator.
+   *
+   * <p>Enables cross-type reduction: double elements transformed to long values
+   * by the transducer, accumulated into an object result. Used for computing
+   * bin indices from double values and accumulating into count arrays.
+   *
+   * @param xform the transducer (must produce OLO reducing function via cross-map)
+   * @param rf the reducing function taking (Object acc, long elem)
+   * @param init the initial accumulator value
+   * @param source the reducible double source
+   * @return the final accumulated value
+   */
+  Object transduce(Object xform, Object rf, Object init, IODLOReducible source);
+
+  /**
+   * Transduces over a long source with cross-type object accumulator.
+   *
+   * <p>Enables cross-type reduction: long elements transformed to double values
+   * by the transducer, accumulated into an object result. Used for computing
+   * floating-point statistics from integer counts.
+   *
+   * @param xform the transducer (must produce ODO reducing function via cross-map)
+   * @param rf the reducing function taking (Object acc, double elem)
+   * @param init the initial accumulator value
+   * @param source the reducible long source
+   * @return the final accumulated value
+   */
+  Object transduce(Object xform, Object rf, Object init, IOLDOReducible source);
+
+  /**
    * Reduces over a long source with a primitive long accumulator.
    *
    * @param rf the reducing function

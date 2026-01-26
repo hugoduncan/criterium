@@ -18,7 +18,9 @@
     ILDLReducible
     ILLLReducible
     ILongReducible
+    IODLOReducible
     IODOReducible
+    IOLDOReducible
     IOLOReducible
     IPrimOps]))
 
@@ -101,6 +103,12 @@
        ^criterium.array.interfaces.IDoubleArray init
        ^IODOReducible source]
       (.reduceDouble source ^clojure.lang.IFn$OLO (xform rf) init))
+    (^Object transduce
+      [_ xform rf init ^IODLOReducible source]
+      (.reduceDouble source ^clojure.lang.IFn$ODO (xform rf) init))
+    (^Object transduce
+      [_ xform rf init ^IOLDOReducible source]
+      (.reduceLong source ^clojure.lang.IFn$OLO (xform rf) init))
     (^long reduce [_ rf ^long init ^ILLLReducible source]
       (.reduce source ^clojure.lang.IFn$LLL rf init))
     (^double reduce [_ rf ^double init ^IDDDReducible source]

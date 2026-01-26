@@ -21,7 +21,7 @@
    [criterium.array DoubleArray]
    [criterium.array.interfaces IIndexed IIndexedSet]
    [criterium.array.resizable ResizableLongArray]
-   [criterium.transducer.interfaces IDLDReducible]))
+   [criterium.transducer.interfaces IDLDReducible IODLOReducible]))
 
 (defn- data-min-max
   "Returns [min max] for typed array data."
@@ -42,21 +42,26 @@
   Mutates counts in place and returns it.
   The counts array must be pre-sized and zeroed by caller.
   Works with any array implementing IIndexed/IIndexedSet (LongArray, ResizableLongArray)."
-  [data counts ^double min-val ^double max-val]
-  (let [^IIndexed  indexed counts
+  [^IODLOReducible data
+   counts
+   ^double min-val
+   ^double max-val]
+  (let [^IIndexed    indexed     counts
         ^IIndexedSet indexed-set counts
-        num-bins  (arr/length counts)
-        range-val (- max-val min-val)
-        width     (/ range-val (double num-bins))
-        last-bin  (dec num-bins)]
-    (arr/dfold data
-               (fn [_ ^double x]
-                 (let [bin-idx (long (/ (- x min-val) width))
-                       bin-idx (min last-bin (max 0 bin-idx))]
-                   (.setLong indexed-set bin-idx (inc (.getLong indexed bin-idx))))
-                 nil)
-               nil)
-    counts))
+        num-bins                 (arr/length counts)
+        range-val                (- max-val min-val)
+        width                    (/ range-val (double num-bins))
+        last-bin                 (dec num-bins)]
+    (xd/transduce
+     (xd/cross-map
+      (fn ^long [^double x]
+        (let [bin-idx (long (/ (- x min-val) width))]
+          (min last-bin (max 0 bin-idx)))))
+     (fn [counts ^long bin-idx]
+       (.setLong indexed-set bin-idx (inc (.getLong indexed bin-idx)))
+       counts)
+     counts
+     data)))
 
 ;;; Log-posterior
 
@@ -132,10 +137,11 @@
          {:error   :knuth/same-values
           :min-val min-val
           :max-val max-val})))
-     (let [n             (arr/length data)
-           max-bins-long (long max-bins)
+     (let [n                          (arr/length data)
+           max-bins-long              (long max-bins)
            ;; Allocate single resizable array to reuse across all iterations
-           ^ResizableLongArray counts (resizable/resizable-long-array max-bins-long)]
+           ^ResizableLongArray counts (resizable/resizable-long-array
+                                       max-bins-long)]
        ;; Search over M = 1 to max-bins
        (loop [m       (long 1)
               best-m  (long 1)

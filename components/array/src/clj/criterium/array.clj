@@ -28,7 +28,9 @@
     IDLDReducible
     ILDLReducible
     ILLLReducible
+    IODLOReducible
     IODOReducible
+    IOLDOReducible
     IOLOReducible]
    [java.util Arrays]))
 
@@ -192,17 +194,26 @@
                  (.invokePrim f acc (aget array i)))
           acc))))
   IODOReducible
-  (reduceDouble
-    [_ f init]
+  (^criterium.array.interfaces.IDoubleArray reduceDouble
+    [_ ^clojure.lang.IFn$ODO f ^criterium.array.interfaces.IDoubleArray init]
     (let [n (alength array)]
       (loop [i 0 acc init]
         (if (< i n)
           (recur (inc i)
-                 (.invokePrim ^clojure.lang.IFn$ODO f acc (aget array i)))
+                 (.invokePrim f acc (aget array i)))
           acc))))
 
   ILDLReducible
   (^long reduce [_ ^clojure.lang.IFn$LDL f ^long init]
+    (let [n (alength array)]
+      (loop [i 0 acc init]
+        (if (< i n)
+          (recur (inc i)
+                 (.invokePrim f acc (aget array i)))
+          acc))))
+
+  IODLOReducible
+  (^Object reduceDouble [_ ^clojure.lang.IFn$ODO f ^Object init]
     (let [n (alength array)]
       (loop [i 0 acc init]
         (if (< i n)
@@ -408,13 +419,13 @@
                  (.invokePrim f acc (aget array i)))
           acc))))
   IOLOReducible
-  (reduceLong
-    [_ f init]
+  (^criterium.array.interfaces.ILongArray reduceLong
+    [_ ^clojure.lang.IFn$OLO f ^criterium.array.interfaces.ILongArray init]
     (let [n (alength array)]
       (loop [i 0 acc init]
         (if (< i n)
           (recur (inc i)
-                 (.invokePrim ^clojure.lang.IFn$OLO f acc (aget array i)))
+                 (.invokePrim f acc (aget array i)))
           acc))))
 
   IDLDReducible
@@ -424,6 +435,26 @@
         (if (< i n)
           (recur (inc i)
                  (.invokePrim f acc (aget array i)))
+          acc))))
+
+  IOLDOReducible
+  (^Object reduceLong [_ ^clojure.lang.IFn$OLO f ^Object init]
+    (let [n (alength array)]
+      (loop [i 0 acc init]
+        (if (< i n)
+          (recur (inc i)
+                 (.invokePrim f acc (aget array i)))
+          acc))))
+
+  ;; Allows LongArray to be used where DoubleArray is expected with cross-map.
+  ;; Converts long elements to double before passing to ODO function.
+  IODLOReducible
+  (^Object reduceDouble [_ ^clojure.lang.IFn$ODO f ^Object init]
+    (let [n (alength array)]
+      (loop [i 0 acc init]
+        (if (< i n)
+          (recur (inc i)
+                 (.invokePrim f acc (double (aget array i))))
           acc))))
 
   ILongFill

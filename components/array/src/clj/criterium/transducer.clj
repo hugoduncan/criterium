@@ -90,6 +90,37 @@
           (.invokePrim ^clojure.lang.IFn$ODO rf acc x)
           acc)))))
 
+(defn cross-map
+  "Return a transducer for cross-type reductions with object accumulators.
+
+  Use when the map function converts between primitive types and the
+  accumulator is an object (array, collection, etc.).
+
+  For double source → long element → object accumulator:
+    f must be IFn$DL (double → long)
+    rf must be IFn$OLO (Object, long → Object)
+    Returns ODO transducer wrapper
+
+  For long source → double element → object accumulator:
+    f must be IFn$LD (long → double)
+    rf must be IFn$ODO (Object, double → Object)
+    Returns OLO transducer wrapper"
+  ^clojure.lang.IFn [f]
+  (fn cross-map-impl [rf]
+    (reify
+      ;; double source → long element → object accumulator
+      ;; Receives double from source, converts via DL, calls OLO rf
+      clojure.lang.IFn$ODO
+      (invokePrim [_ acc ^double x]
+        (.invokePrim ^clojure.lang.IFn$OLO rf acc
+                     (.invokePrim ^clojure.lang.IFn$DL f x)))
+      ;; long source → double element → object accumulator
+      ;; Receives long from source, converts via LD, calls ODO rf
+      clojure.lang.IFn$OLO
+      (invokePrim [_ acc ^long x]
+        (.invokePrim ^clojure.lang.IFn$ODO rf acc
+                     (.invokePrim ^clojure.lang.IFn$LD f x))))))
+
 (defmacro transduce
   [xform rf init source]
   `(.transduce
