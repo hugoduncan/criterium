@@ -523,16 +523,22 @@
   (testing "fold operations"
     (testing "fold respects current size"
       (let [^ResizableDoubleArray arr (arr/resizable-double-array 10 5)]
-        ;; Set values in the array
-        (dotimes [i 10]
+        ;; Set values within size
+        (dotimes [i 5]
           (.setDouble arr i (double i)))
+        ;; Set values beyond size via underlying array (to verify fold ignores them)
+        (dotimes [i 5]
+          (aset ^doubles (.array arr) (+ i 5) (double (+ i 100))))
         ;; Fold should only see indices 0-4
         (is (= [0.0 1.0 2.0 3.0 4.0]
                (arr/fold arr #(conj %1 %2) [])))))
     (testing "fold-double respects current size"
       (let [^ResizableDoubleArray arr (arr/resizable-double-array 10 5)]
-        (dotimes [i 10]
+        (dotimes [i 5]
           (.setDouble arr i (double i)))
+        ;; Set values beyond size via underlying array
+        (dotimes [i 5]
+          (aset ^doubles (.array arr) (+ i 5) (double (+ i 100))))
         ;; Sum of 0+1+2+3+4 = 10
         (is (= 10.0 (arr/fold-double arr
                                      (fn ^double [^double a ^double b]
@@ -540,8 +546,11 @@
                                      0.0)))))
     (testing "dfold respects current size"
       (let [^ResizableDoubleArray arr (arr/resizable-double-array 10 3)]
-        (dotimes [i 10]
+        (dotimes [i 3]
           (.setDouble arr i (double (* i 10))))
+        ;; Set values beyond size via underlying array
+        (dotimes [i 7]
+          (aset ^doubles (.array arr) (+ i 3) 999.0))
         (is (= [0.0 10.0 20.0]
                (arr/dfold arr (fn [acc ^double v] (conj acc v)) [])))))
     (testing "fold on resized array uses new size"
@@ -625,8 +634,8 @@
         (.setDouble arr 2 4.0)
         (.setDouble arr 3 1.0)
         (.setDouble arr 4 5.0)
-        ;; Set values beyond size (should be ignored)
-        (.setDouble arr 5 0.0)
+        ;; Set value beyond size via underlying array (to verify sorted ignores it)
+        (aset ^doubles (.array arr) 5 0.0)
         (let [result (arr/sorted arr)]
           (is (arr/double-array? result))
           (is (= 5 (arr/length result)))
@@ -700,8 +709,8 @@
       (let [^ResizableDoubleArray arr (arr/resizable-double-array 10 3)]
         (dotimes [i 3]
           (.setDouble arr i 1.0))
-        ;; Set a value beyond size
-        (.setDouble arr 5 99.0)
+        ;; Set a value beyond size via underlying array (to verify dany ignores it)
+        (aset ^doubles (.array arr) 5 99.0)
         ;; Should not find 99.0
         (is (not (arr/dany? arr (fn [^double x] (== x 99.0)))))
         ;; Should find 1.0
@@ -716,6 +725,60 @@
           (.setDouble arr i (double i)))
         (is (arr/array= arr [0.0 1.0 2.0]))
         (is (not (arr/array= arr [0.0 1.0 2.0 3.0])))))))
+
+(deftest resizable-double-array-bounds-checking-test
+  ;; Tests that indexed access methods throw on out-of-bounds access.
+  ;; Contracts: getDouble/getLong/getObject and setDouble/setLong/setObject
+  ;; throw IndexOutOfBoundsException for indices outside [0, size).
+  (testing "IIndexed bounds checking"
+    (let [^ResizableDoubleArray arr (arr/resizable-double-array 10 5)]
+      (dotimes [i 5]
+        (.setDouble arr i (double i)))
+      (testing "getDouble throws on index >= size"
+        (is (thrown-with-msg? IndexOutOfBoundsException
+                              #"index 5 out of bounds for size 5"
+                              (.getDouble arr 5))))
+      (testing "getDouble throws on negative index"
+        (is (thrown-with-msg? IndexOutOfBoundsException
+                              #"index -1 out of bounds for size 5"
+                              (.getDouble arr -1))))
+      (testing "getLong throws on index >= size"
+        (is (thrown-with-msg? IndexOutOfBoundsException
+                              #"index 5 out of bounds for size 5"
+                              (.getLong arr 5))))
+      (testing "getObject throws on index >= size"
+        (is (thrown-with-msg? IndexOutOfBoundsException
+                              #"index 7 out of bounds for size 5"
+                              (.getObject arr 7))))))
+  (testing "IIndexedSet bounds checking"
+    (let [^ResizableDoubleArray arr (arr/resizable-double-array 10 5)]
+      (testing "setDouble throws on index >= size"
+        (is (thrown-with-msg? IndexOutOfBoundsException
+                              #"index 5 out of bounds for size 5"
+                              (.setDouble arr 5 99.0))))
+      (testing "setDouble throws on negative index"
+        (is (thrown-with-msg? IndexOutOfBoundsException
+                              #"index -1 out of bounds for size 5"
+                              (.setDouble arr -1 99.0))))
+      (testing "setLong throws on index >= size"
+        (is (thrown-with-msg? IndexOutOfBoundsException
+                              #"index 6 out of bounds for size 5"
+                              (.setLong arr 6 99))))
+      (testing "setObject throws on index >= size"
+        (is (thrown-with-msg? IndexOutOfBoundsException
+                              #"index 5 out of bounds for size 5"
+                              (.setObject arr 5 99.0))))))
+  (testing "bounds checking respects resized size"
+    (let [^ResizableDoubleArray arr (arr/resizable-double-array 10 10)]
+      (dotimes [i 10]
+        (.setDouble arr i (double i)))
+      (arr/resize! arr 3)
+      (testing "access at index 3 throws after resize to 3"
+        (is (thrown-with-msg? IndexOutOfBoundsException
+                              #"index 3 out of bounds for size 3"
+                              (.getDouble arr 3))))
+      (testing "access at index 2 succeeds"
+        (is (= 2.0 (.getDouble arr 2)))))))
 
 ;;; ResizableLongArray tests
 
@@ -815,14 +878,21 @@
   (testing "fold operations"
     (testing "fold respects current size"
       (let [^ResizableLongArray arr (arr/resizable-long-array 10 5)]
-        (dotimes [i 10]
+        ;; Set values within size
+        (dotimes [i 5]
           (.setLong arr i (long i)))
+        ;; Set values beyond size via underlying array (to verify fold ignores them)
+        (dotimes [i 5]
+          (aset ^longs (.array arr) (+ i 5) (long (+ i 100))))
         (is (= [0 1 2 3 4]
                (arr/fold arr #(conj %1 %2) [])))))
     (testing "fold-long respects current size"
       (let [^ResizableLongArray arr (arr/resizable-long-array 10 5)]
-        (dotimes [i 10]
+        (dotimes [i 5]
           (.setLong arr i (long i)))
+        ;; Set values beyond size via underlying array
+        (dotimes [i 5]
+          (aset ^longs (.array arr) (+ i 5) (long (+ i 100))))
         ;; Sum of 0+1+2+3+4 = 10
         (is (= 10 (arr/fold-long arr
                                  (fn ^long [^long a ^long b]
@@ -830,8 +900,11 @@
                                  0)))))
     (testing "lfold respects current size"
       (let [^ResizableLongArray arr (arr/resizable-long-array 10 3)]
-        (dotimes [i 10]
+        (dotimes [i 3]
           (.setLong arr i (long (* i 10))))
+        ;; Set values beyond size via underlying array
+        (dotimes [i 7]
+          (aset ^longs (.array arr) (+ i 3) 999))
         (is (= [0 10 20]
                (arr/lfold arr (fn [acc ^long v] (conj acc v)) [])))))
     (testing "fold on resized array uses new size"
@@ -923,7 +996,8 @@
         (.setLong arr 2 4)
         (.setLong arr 3 1)
         (.setLong arr 4 5)
-        (.setLong arr 5 0)
+        ;; Set value beyond size via underlying array (to verify sorted ignores it)
+        (aset ^longs (.array arr) 5 0)
         (let [result (arr/sorted arr)]
           (is (arr/double-array? result))
           (is (= 5 (arr/length result)))
@@ -997,7 +1071,8 @@
       (let [^ResizableLongArray arr (arr/resizable-long-array 10 3)]
         (dotimes [i 3]
           (.setLong arr i 1))
-        (.setLong arr 5 99)
+        ;; Set value beyond size via underlying array (to verify lany ignores it)
+        (aset ^longs (.array arr) 5 99)
         (is (not (arr/lany? arr (fn [^long x] (== x 99)))))
         (is (arr/lany? arr (fn [^long x] (== x 1))))))))
 
@@ -1010,6 +1085,60 @@
           (.setLong arr i (long i)))
         (is (arr/array= arr [0 1 2]))
         (is (not (arr/array= arr [0 1 2 3])))))))
+
+(deftest resizable-long-array-bounds-checking-test
+  ;; Tests that indexed access methods throw on out-of-bounds access.
+  ;; Contracts: getDouble/getLong/getObject and setDouble/setLong/setObject
+  ;; throw IndexOutOfBoundsException for indices outside [0, size).
+  (testing "IIndexed bounds checking"
+    (let [^ResizableLongArray arr (arr/resizable-long-array 10 5)]
+      (dotimes [i 5]
+        (.setLong arr i (long i)))
+      (testing "getLong throws on index >= size"
+        (is (thrown-with-msg? IndexOutOfBoundsException
+                              #"index 5 out of bounds for size 5"
+                              (.getLong arr 5))))
+      (testing "getLong throws on negative index"
+        (is (thrown-with-msg? IndexOutOfBoundsException
+                              #"index -1 out of bounds for size 5"
+                              (.getLong arr -1))))
+      (testing "getDouble throws on index >= size"
+        (is (thrown-with-msg? IndexOutOfBoundsException
+                              #"index 5 out of bounds for size 5"
+                              (.getDouble arr 5))))
+      (testing "getObject throws on index >= size"
+        (is (thrown-with-msg? IndexOutOfBoundsException
+                              #"index 7 out of bounds for size 5"
+                              (.getObject arr 7))))))
+  (testing "IIndexedSet bounds checking"
+    (let [^ResizableLongArray arr (arr/resizable-long-array 10 5)]
+      (testing "setLong throws on index >= size"
+        (is (thrown-with-msg? IndexOutOfBoundsException
+                              #"index 5 out of bounds for size 5"
+                              (.setLong arr 5 99))))
+      (testing "setLong throws on negative index"
+        (is (thrown-with-msg? IndexOutOfBoundsException
+                              #"index -1 out of bounds for size 5"
+                              (.setLong arr -1 99))))
+      (testing "setDouble throws on index >= size"
+        (is (thrown-with-msg? IndexOutOfBoundsException
+                              #"index 6 out of bounds for size 5"
+                              (.setDouble arr 6 99.0))))
+      (testing "setObject throws on index >= size"
+        (is (thrown-with-msg? IndexOutOfBoundsException
+                              #"index 5 out of bounds for size 5"
+                              (.setObject arr 5 99))))))
+  (testing "bounds checking respects resized size"
+    (let [^ResizableLongArray arr (arr/resizable-long-array 10 10)]
+      (dotimes [i 10]
+        (.setLong arr i (long i)))
+      (arr/resize! arr 3)
+      (testing "access at index 3 throws after resize to 3"
+        (is (thrown-with-msg? IndexOutOfBoundsException
+                              #"index 3 out of bounds for size 3"
+                              (.getLong arr 3))))
+      (testing "access at index 2 succeeds"
+        (is (= 2 (.getLong arr 2)))))))
 
 ;;; ResizableObjectArray tests
 

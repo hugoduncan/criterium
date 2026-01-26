@@ -214,20 +214,40 @@
   (length [_] size)
 
   IIndexed
-  (^double getDouble [_ ^long index] (aget array index))
-  (^long getLong [_ ^long index] (long (aget array index)))
-  (getObject [_ ^long index] (aget array index))
+  (^double getDouble [_ ^long index]
+    (when (or (neg? index) (>= index size))
+      (throw (IndexOutOfBoundsException.
+              (str "index " index " out of bounds for size " size))))
+    (aget array index))
+  (^long getLong [_ ^long index]
+    (when (or (neg? index) (>= index size))
+      (throw (IndexOutOfBoundsException.
+              (str "index " index " out of bounds for size " size))))
+    (long (aget array index)))
+  (getObject [_ ^long index]
+    (when (or (neg? index) (>= index size))
+      (throw (IndexOutOfBoundsException.
+              (str "index " index " out of bounds for size " size))))
+    (aget array index))
 
   IIndexedSet
-  (^double setDouble [_ ^long index ^double v] (aset array index v))
+  (^double setDouble [_ ^long index ^double v]
+    (when (or (neg? index) (>= index size))
+      (throw (IndexOutOfBoundsException.
+              (str "index " index " out of bounds for size " size))))
+    (aset array index v))
   (^long setLong [_ ^long index ^long v]
-    (do
-      (aset array index (double v))
-      v))
+    (when (or (neg? index) (>= index size))
+      (throw (IndexOutOfBoundsException.
+              (str "index " index " out of bounds for size " size))))
+    (aset array index (double v))
+    v)
   (setObject [_ ^long index v]
-    (do
-      (aset array index (double v))
-      v))
+    (when (or (neg? index) (>= index size))
+      (throw (IndexOutOfBoundsException.
+              (str "index " index " out of bounds for size " size))))
+    (aset array index (double v))
+    v)
 
   IDoubleFold
   (^double fold [_ ^clojure.lang.IFn$DDD f ^double init]
@@ -588,20 +608,40 @@
   (length [_] size)
 
   IIndexed
-  (^double getDouble [_ ^long index] (double (aget array index)))
-  (^long getLong [_ ^long index] (aget array index))
-  (getObject [_ ^long index] (aget array index))
+  (^double getDouble [_ ^long index]
+    (when (or (neg? index) (>= index size))
+      (throw (IndexOutOfBoundsException.
+              (str "index " index " out of bounds for size " size))))
+    (double (aget array index)))
+  (^long getLong [_ ^long index]
+    (when (or (neg? index) (>= index size))
+      (throw (IndexOutOfBoundsException.
+              (str "index " index " out of bounds for size " size))))
+    (aget array index))
+  (getObject [_ ^long index]
+    (when (or (neg? index) (>= index size))
+      (throw (IndexOutOfBoundsException.
+              (str "index " index " out of bounds for size " size))))
+    (aget array index))
 
   IIndexedSet
   (^double setDouble [_ ^long index ^double v]
-    (do
-      (aset array index (long v))
-      v))
-  (^long setLong [_ ^long index ^long v] (aset array index v))
+    (when (or (neg? index) (>= index size))
+      (throw (IndexOutOfBoundsException.
+              (str "index " index " out of bounds for size " size))))
+    (aset array index (long v))
+    v)
+  (^long setLong [_ ^long index ^long v]
+    (when (or (neg? index) (>= index size))
+      (throw (IndexOutOfBoundsException.
+              (str "index " index " out of bounds for size " size))))
+    (aset array index v))
   (setObject [_ ^long index v]
-    (do
-      (aset array index (long v))
-      v))
+    (when (or (neg? index) (>= index size))
+      (throw (IndexOutOfBoundsException.
+              (str "index " index " out of bounds for size " size))))
+    (aset array index (long v))
+    v)
 
   ILongFold
   (^long fold [_ ^clojure.lang.IFn$LLL f ^long init]
