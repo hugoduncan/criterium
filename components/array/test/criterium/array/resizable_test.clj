@@ -8,6 +8,7 @@
    [clojure.test :refer [deftest is testing]]
    [criterium.array :as arr])
   (:import
+   [criterium.array.interfaces IIndexed IIndexedSet]
    [criterium.array.resizable ResizableDoubleArray ResizableLongArray ResizableObjectArray]))
 
 ;;; ResizableDoubleArray tests
@@ -915,3 +916,113 @@
       (let [arr (arr/resizable-object-array 10 10)]
         (is (= 7 (arr/resize! arr 7)))
         (is (= 7 (arr/length arr)))))))
+
+;;; Tests for IIndexed/IIndexedSet interfaces via interface-typed bindings
+;; These tests verify that the interface methods work correctly when called
+;; through interface types rather than concrete types.
+
+(deftest resizable-double-array-iindexed-interface-test
+  ;; Tests IIndexed interface methods when accessed through interface type.
+  ;; Contracts: getDouble/getLong/getObject work when array is typed as IIndexed.
+  (testing "IIndexed"
+    (testing "getDouble via IIndexed type"
+      (let [^IIndexed arr (arr/resizable-double-array 5)]
+        (dotimes [i 5]
+          (.setDouble ^IIndexedSet arr i (double (* i 10))))
+        (is (= 0.0 (.getDouble arr 0)))
+        (is (= 20.0 (.getDouble arr 2)))
+        (is (= 40.0 (.getDouble arr 4)))))
+    (testing "getLong via IIndexed type"
+      (let [^IIndexed arr (arr/resizable-double-array 3)]
+        (dotimes [i 3]
+          (.setDouble ^IIndexedSet arr i (double i)))
+        (is (= 0 (.getLong arr 0)))
+        (is (= 2 (.getLong arr 2)))))
+    (testing "getObject via IIndexed type"
+      (let [^IIndexed arr (arr/resizable-double-array 3)]
+        (dotimes [i 3]
+          (.setDouble ^IIndexedSet arr i (double i)))
+        (is (= 1.0 (.getObject arr 1)))))
+    (testing "bounds checking via IIndexed type"
+      (let [^IIndexed arr (arr/resizable-double-array 5 3)]
+        (is (thrown? IndexOutOfBoundsException (.getDouble arr 3)))
+        (is (thrown? IndexOutOfBoundsException (.getDouble arr -1)))))))
+
+(deftest resizable-double-array-iindexedset-interface-test
+  ;; Tests IIndexedSet interface methods when accessed through interface type.
+  ;; Contracts: setDouble/setLong/setObject work when array is typed as IIndexedSet.
+  (testing "IIndexedSet"
+    (testing "setDouble via IIndexedSet type"
+      (let [arr               (arr/resizable-double-array 5)
+            ^IIndexedSet iset arr]
+        (.setDouble iset 0 1.5)
+        (.setDouble iset 2 3.5)
+        (is (= 1.5 (.getDouble ^IIndexed arr 0)))
+        (is (= 3.5 (.getDouble ^IIndexed arr 2)))))
+    (testing "setLong via IIndexedSet type"
+      (let [arr               (arr/resizable-double-array 3)
+            ^IIndexedSet iset arr]
+        (.setLong iset 1 42)
+        (is (= 42.0 (.getDouble ^IIndexed arr 1)))))
+    (testing "setObject via IIndexedSet type"
+      (let [arr               (arr/resizable-double-array 3)
+            ^IIndexedSet iset arr]
+        (.setObject iset 0 7.5)
+        (is (= 7.5 (.getDouble ^IIndexed arr 0)))))
+    (testing "bounds checking via IIndexedSet type"
+      (let [^IIndexedSet arr (arr/resizable-double-array 5 3)]
+        (is (thrown? IndexOutOfBoundsException (.setDouble arr 3 1.0)))
+        (is (thrown? IndexOutOfBoundsException (.setDouble arr -1 1.0)))))))
+
+(deftest resizable-long-array-iindexed-interface-test
+  ;; Tests IIndexed interface methods when accessed through interface type.
+  ;; Contracts: getDouble/getLong/getObject work when array is typed as IIndexed.
+  (testing "IIndexed"
+    (testing "getDouble via IIndexed type"
+      (let [^IIndexed arr (arr/resizable-long-array 5)]
+        (dotimes [i 5]
+          (.setLong ^IIndexedSet arr i (long (* i 10))))
+        (is (= 0.0 (.getDouble arr 0)))
+        (is (= 20.0 (.getDouble arr 2)))
+        (is (= 40.0 (.getDouble arr 4)))))
+    (testing "getLong via IIndexed type"
+      (let [^IIndexed arr (arr/resizable-long-array 3)]
+        (dotimes [i 3]
+          (.setLong ^IIndexedSet arr i (long i)))
+        (is (= 0 (.getLong arr 0)))
+        (is (= 2 (.getLong arr 2)))))
+    (testing "getObject via IIndexed type"
+      (let [^IIndexed arr (arr/resizable-long-array 3)]
+        (dotimes [i 3]
+          (.setLong ^IIndexedSet arr i (long i)))
+        (is (= 1 (.getObject arr 1)))))
+    (testing "bounds checking via IIndexed type"
+      (let [^IIndexed arr (arr/resizable-long-array 5 3)]
+        (is (thrown? IndexOutOfBoundsException (.getLong arr 3)))
+        (is (thrown? IndexOutOfBoundsException (.getLong arr -1)))))))
+
+(deftest resizable-long-array-iindexedset-interface-test
+  ;; Tests IIndexedSet interface methods when accessed through interface type.
+  ;; Contracts: setDouble/setLong/setObject work when array is typed as IIndexedSet.
+  (testing "IIndexedSet"
+    (testing "setDouble via IIndexedSet type"
+      (let [arr               (arr/resizable-long-array 5)
+            ^IIndexedSet iset arr]
+        (.setDouble iset 0 1.0)
+        (.setDouble iset 2 3.0)
+        (is (= 1 (.getLong ^IIndexed arr 0)))
+        (is (= 3 (.getLong ^IIndexed arr 2)))))
+    (testing "setLong via IIndexedSet type"
+      (let [arr               (arr/resizable-long-array 3)
+            ^IIndexedSet iset arr]
+        (.setLong iset 1 42)
+        (is (= 42 (.getLong ^IIndexed arr 1)))))
+    (testing "setObject via IIndexedSet type"
+      (let [arr               (arr/resizable-long-array 3)
+            ^IIndexedSet iset arr]
+        (.setObject iset 0 7)
+        (is (= 7 (.getLong ^IIndexed arr 0)))))
+    (testing "bounds checking via IIndexedSet type"
+      (let [^IIndexedSet arr (arr/resizable-long-array 5 3)]
+        (is (thrown? IndexOutOfBoundsException (.setLong arr 3 1)))
+        (is (thrown? IndexOutOfBoundsException (.setLong arr -1 1)))))))
