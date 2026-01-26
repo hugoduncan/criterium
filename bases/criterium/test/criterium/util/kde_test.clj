@@ -611,3 +611,26 @@
       (is (< elapsed-fft elapsed-direct)
           (format "FFT (%.2f ms) should be faster than direct (%.2f ms)"
                   (/ elapsed-fft 1e6) (/ elapsed-direct 1e6))))))
+
+(deftest ^:slow kde-confidence-bands-performance-test
+  ;; Verifies that kde-confidence-bands benefits from FFT optimizations.
+  ;; With O(m log m) FFT-based KDE, 200 bootstrap iterations on 500 samples
+  ;; should complete in under 5 seconds (vs 30+ seconds with O(n×m) direct).
+  (testing "kde-confidence-bands performance"
+    (testing "completes 200 bootstrap iterations in under 5 seconds"
+      (let [data (darr (tu/gaussian-samples 500 50.0 10.0))
+            h (kde/isj-bandwidth data)
+            n-grid 256
+            grid (double-array (for [i (range n-grid)]
+                                 (+ 0.0 (* 100.0 (/ (double i) (dec n-grid))))))
+            ;; Warm up JIT with a few iterations
+            _ (kde/kde-confidence-bands data h grid {:n-bootstrap 5})
+            ;; Time full bootstrap with 200 iterations
+            start (System/nanoTime)
+            result (kde/kde-confidence-bands data h grid {:n-bootstrap 200})
+            elapsed-s (/ (- (System/nanoTime) start) 1e9)]
+        (is (map? result) "should return result map")
+        (is (= n-grid (alength ^doubles (:lower result))))
+        (is (= n-grid (alength ^doubles (:upper result))))
+        (is (< elapsed-s 5.0)
+            (format "kde-confidence-bands with 200 bootstrap took %.2f s" elapsed-s))))))
