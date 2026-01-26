@@ -7,10 +7,12 @@
   All functions require typed arrays (DoubleArray, LongArray)."
   (:require
    [criterium.array :as arr]
+   [criterium.primitive-fn :as pf]
    [criterium.random.interface :as random]
    [criterium.stats.core :as core]
    [criterium.stats.fft :as fft]
    [criterium.stats.sampling :as sampling]
+   [criterium.transducer :as xd]
    [criterium.utils.interface :refer [have?]])
   (:import
    [criterium.array DoubleArray LongArray]
@@ -18,15 +20,9 @@
 
 (defn- data-min-max
   "Returns [min max] for typed array data."
-  [data]
-  (let [init-min Double/POSITIVE_INFINITY
-        init-max Double/NEGATIVE_INFINITY
-        [mn mx] (arr/dfold data
-                           (fn [acc ^double v]
-                             (let [[^double min-v ^double max-v] acc]
-                               [(min min-v v) (max max-v v)]))
-                           [init-min init-max])]
-    [(double mn) (double mx)]))
+  [^DoubleArray data]
+  [(xd/reduce pf/dmin Double/POSITIVE_INFINITY data)
+   (xd/reduce pf/dmax Double/NEGATIVE_INFINITY data)])
 
 (defn- ensure-double-array
   "Ensures data is a DoubleArray. Converts LongArray to DoubleArray."
@@ -442,12 +438,12 @@
   Requires a typed array (DoubleArray or LongArray)."
   ^double [data]
   {:pre [(have? arr/typed-array? data)]}
-  (let [n (arr/length data)
-        sigma (Math/sqrt (core/variance data))
+  (let [n      (arr/length data)
+        sigma  (Math/sqrt (core/variance data))
         sorted (arr/sorted data)
-        q1 (double (core/quantile 0.25 sorted))
-        q3 (double (core/quantile 0.75 sorted))
-        iqr (- q3 q1)
+        q1     (core/quantile 0.25 sorted)
+        q3     (core/quantile 0.75 sorted)
+        iqr    (- q3 q1)
         spread (min sigma (/ iqr 1.34))]
     (* 0.9 spread (Math/pow (double n) -0.2))))
 
