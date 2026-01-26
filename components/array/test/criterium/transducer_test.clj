@@ -271,7 +271,7 @@
       (testing "accumulates into mutable array (bin-counts pattern)"
         (let [^IODLOReducible data (arr/->double-array
                                     (double-array [0.1 0.9 1.1 1.9 2.5]))
-              counts (arr/resizable-long-array 3)
+              ^criterium.array.resizable.ResizableLongArray counts (arr/resizable-long-array 3)
               _      (arr/fill! counts 0)
               to-bin (fn ^long [^double x] (min 2 (max 0 (long x))))]
           (t/transduce
