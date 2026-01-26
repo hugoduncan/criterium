@@ -2,7 +2,8 @@
   (:require
    [clojure.string :as str]
    [clojure.test :refer [deftest is testing]]
-   [criterium.benchmark :as benchmark]))
+   [criterium.benchmark :as benchmark]
+   [criterium.test-data :as test-data]))
 
 ;; Tests for wrap-with-timing
 ;; Contract: wrap-with-timing takes a spec and a function, returning a wrapper
@@ -56,6 +57,45 @@
                        (with-out-str (wrapped {})))]
           (is (re-find #"\d+\.\d+ ms" output)
               "output should include numeric elapsed time"))))))
+
+(deftest resolve-analyse-fn-timing-integration-test
+  ;; Tests that resolve-analyse-fn integrates timing wrapper correctly.
+  ;; Contract: resolved analysis functions print timing when *time-analyse* is true.
+  (testing "resolve-analyse-fn timing integration"
+    (testing "when *time-analyse* is true"
+      (testing "prints timing output for keyword specs"
+        (let [analyse-fn (benchmark/->analyse [:stats])
+              data-map (:data (test-data/samples-with-variance-12-map))
+              output (binding [benchmark/*time-analyse* true]
+                       (with-out-str (analyse-fn data-map)))]
+          (is (str/includes? output ":stats"))
+          (is (str/includes? output "ms"))))
+
+      (testing "prints timing output for vector specs"
+        (let [analyse-fn (benchmark/->analyse [[:quantiles {:quantiles [0.5]}]])
+              data-map (:data (test-data/samples-with-variance-12-map))
+              output (binding [benchmark/*time-analyse* true]
+                       (with-out-str (analyse-fn data-map)))]
+          (is (str/includes? output "[:quantiles"))
+          (is (str/includes? output "ms"))))
+
+      (testing "prints timing for each step in multi-step analysis"
+        (let [analyse-fn (benchmark/->analyse [[:quantiles {:quantiles [0.5]}]
+                                               :stats])
+              data-map (:data (test-data/samples-with-variance-12-map))
+              output (binding [benchmark/*time-analyse* true]
+                       (with-out-str (analyse-fn data-map)))]
+          (is (str/includes? output ":stats"))
+          (is (str/includes? output "[:quantiles"))
+          (is (= 2 (count (re-seq #"ms" output)))
+              "should print timing for both analysis steps"))))
+
+    (testing "when *time-analyse* is false (default)"
+      (testing "produces no timing output"
+        (let [analyse-fn (benchmark/->analyse [:stats])
+              data-map (:data (test-data/samples-with-variance-12-map))
+              output (with-out-str (analyse-fn data-map))]
+          (is (= "" output)))))))
 
 (deftest format-elapsed-ms-test
   (testing "format-elapsed-ms"

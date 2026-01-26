@@ -34,20 +34,21 @@
       (let [start (System/nanoTime)
             result (f data-map)
             elapsed (- (System/nanoTime) start)]
-        (println (pr-str spec) (format-elapsed-ms elapsed) "ms")
+        (println (format-elapsed-ms elapsed) "ms" (pr-str spec))
         result)
       (f data-map))))
 
 (defn- resolve-analyse-fn
-  "Resolves a single analysis function specification.
+  "Resolves a single analysis function specification and wraps with timing.
    If x is a sequence, treats first element as function and rest as args.
    Otherwise treats x as a function name to resolve.
-   Returns a function of one argument (the sampled data)."
+   Returns a function of one argument (the sampled data) wrapped with timing."
   [x]
-  (let [options {:default-ns 'criterium.analyse}]
-    (if (sequential? x)
-      (apply (util/maybe-var-get (first x) options) (rest x))
-      ((util/maybe-var-get x options)))))
+  (let [options {:default-ns 'criterium.analyse}
+        f (if (sequential? x)
+            (apply (util/maybe-var-get (first x) options) (rest x))
+            ((util/maybe-var-get x options)))]
+    (wrap-with-timing x f)))
 
 (defn- resolve-view-fn
   "Resolves a single view function specification.
