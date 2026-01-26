@@ -23,7 +23,8 @@
     IDoubleAny ILongAny IArrayEquals ISortable
     IDoubleFoldSkip IDoubleObjectFoldSkip
     IFilterIndices IIndexedDoubleFold IIndexedDoubleObjectFold
-    IIndexed IIndexedSet]
+    IIndexed IIndexedSet
+    IDoubleFill ILongFill IObjectFill]
    [criterium.transducer.interfaces
     IDDDReducible
     ILLLReducible
@@ -238,7 +239,12 @@
       (if (< i size)
         (recur (inc i)
                (.invokePrim ^clojure.lang.IFn$ODO f acc (aget array i)))
-        acc))))
+        acc)))
+
+  IDoubleFill
+  (dfill [this ^double value]
+    (Arrays/fill array 0 (int size) value)
+    this))
 
 ;;; ResizableLongArray
 
@@ -460,7 +466,12 @@
       (if (< i size)
         (recur (inc i)
                (.invokePrim ^clojure.lang.IFn$OLO f acc (aget array i)))
-        acc))))
+        acc)))
+
+  ILongFill
+  (lfill [this ^long value]
+    (Arrays/fill array 0 (int size) value)
+    this))
 
 ;;; ResizableObjectArray
 
@@ -496,7 +507,12 @@
                (if (= (aget array i) (nth expected-vec i))
                  (recur (unchecked-inc i))
                  false)
-               true))))))
+               true)))))
+
+  IObjectFill
+  (ofill [this value]
+    (Arrays/fill array 0 (int size) value)
+    this))
 
 ;;; Constructors for fixed array types
 ;; These are set by criterium.array during initialization to avoid circular deps

@@ -86,3 +86,12 @@
 
 (definterface IIndexedDoubleObjectFold
   (indexedFoldObject [^clojure.lang.IFn$OLDO f init]))
+
+(definterface IDoubleFill
+  (dfill [^double value]))
+
+(definterface ILongFill
+  (lfill [^long value]))
+
+(definterface IObjectFill
+  (ofill [value]))

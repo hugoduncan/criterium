@@ -174,6 +174,44 @@
         (is (= [0.0 1.0 2.0]
                (arr/dfold result (fn [acc ^double v] (conj acc v)) [])))))))
 
+(deftest resizable-double-array-fill!-test
+  ;; Tests fill! operation on ResizableDoubleArray.
+  ;; Contracts: fill! sets elements 0 to size-1 to the specified value,
+  ;; returns array for chaining, handles empty arrays and zero values.
+  (testing "fill!"
+    (testing "fills all elements within current size"
+      (let [^ResizableDoubleArray arr (arr/resizable-double-array 10 5)]
+        (dotimes [i 5]
+          (.setDouble arr i (double i)))
+        (arr/fill! arr 42.0)
+        (is (= [42.0 42.0 42.0 42.0 42.0]
+               (arr/dfold arr (fn [acc ^double v] (conj acc v)) [])))))
+    (testing "does not modify elements beyond current size"
+      (let [^ResizableDoubleArray arr (arr/resizable-double-array 10 3)]
+        ;; Set value beyond size via underlying array
+        (aset ^doubles (.array arr) 5 99.0)
+        (arr/fill! arr 1.0)
+        ;; Value beyond size should be unchanged
+        (is (= 99.0 (aget ^doubles (.array arr) 5)))))
+    (testing "handles empty array"
+      (let [arr (arr/resizable-double-array 10 0)]
+        (is (= arr (arr/fill! arr 5.0)))
+        (is (= 0 (arr/length arr)))))
+    (testing "handles single element"
+      (let [^ResizableDoubleArray arr (arr/resizable-double-array 5 1)]
+        (arr/fill! arr 7.0)
+        (is (= [7.0] (arr/dfold arr (fn [acc ^double v] (conj acc v)) [])))))
+    (testing "fills with zero"
+      (let [^ResizableDoubleArray arr (arr/resizable-double-array 5 3)]
+        (dotimes [i 3]
+          (.setDouble arr i (double (inc i))))
+        (arr/fill! arr 0.0)
+        (is (= [0.0 0.0 0.0]
+               (arr/dfold arr (fn [acc ^double v] (conj acc v)) [])))))
+    (testing "returns array for chaining"
+      (let [arr (arr/resizable-double-array 5 3)]
+        (is (identical? arr (arr/fill! arr 1.0)))))))
+
 (deftest resizable-double-array-to-fixed-test
   ;; Tests conversion from ResizableDoubleArray to DoubleArray.
   ;; Contracts: to-fixed creates new DoubleArray with only active elements.
@@ -538,6 +576,44 @@
         (is (= [1.5 3.0 4.5 6.0]
                (arr/dfold result (fn [acc ^double v] (conj acc v)) [])))))))
 
+(deftest resizable-long-array-fill!-test
+  ;; Tests fill! operation on ResizableLongArray.
+  ;; Contracts: fill! sets elements 0 to size-1 to the specified value,
+  ;; returns array for chaining, handles empty arrays and zero values.
+  (testing "fill!"
+    (testing "fills all elements within current size"
+      (let [^ResizableLongArray arr (arr/resizable-long-array 10 5)]
+        (dotimes [i 5]
+          (.setLong arr i (long i)))
+        (arr/fill! arr 42)
+        (is (= [42 42 42 42 42]
+               (arr/lfold arr (fn [acc ^long v] (conj acc v)) [])))))
+    (testing "does not modify elements beyond current size"
+      (let [^ResizableLongArray arr (arr/resizable-long-array 10 3)]
+        ;; Set value beyond size via underlying array
+        (aset ^longs (.array arr) 5 99)
+        (arr/fill! arr 1)
+        ;; Value beyond size should be unchanged
+        (is (= 99 (aget ^longs (.array arr) 5)))))
+    (testing "handles empty array"
+      (let [arr (arr/resizable-long-array 10 0)]
+        (is (= arr (arr/fill! arr 5)))
+        (is (= 0 (arr/length arr)))))
+    (testing "handles single element"
+      (let [^ResizableLongArray arr (arr/resizable-long-array 5 1)]
+        (arr/fill! arr 7)
+        (is (= [7] (arr/lfold arr (fn [acc ^long v] (conj acc v)) [])))))
+    (testing "fills with zero"
+      (let [^ResizableLongArray arr (arr/resizable-long-array 5 3)]
+        (dotimes [i 3]
+          (.setLong arr i (long (inc i))))
+        (arr/fill! arr 0)
+        (is (= [0 0 0]
+               (arr/lfold arr (fn [acc ^long v] (conj acc v)) [])))))
+    (testing "returns array for chaining"
+      (let [arr (arr/resizable-long-array 5 3)]
+        (is (identical? arr (arr/fill! arr 1)))))))
+
 (deftest resizable-long-array-to-fixed-test
   ;; Tests conversion from ResizableLongArray to LongArray.
   ;; Contracts: to-fixed creates new LongArray with only active elements.
@@ -839,6 +915,44 @@
       (let [arr (arr/resizable-object-array 10 0)]
         (is (= []
                (arr/fold arr #(conj %1 %2) [])))))))
+
+(deftest resizable-object-array-fill!-test
+  ;; Tests fill! operation on ResizableObjectArray.
+  ;; Contracts: fill! sets elements 0 to size-1 to the specified value,
+  ;; returns array for chaining, handles empty arrays and nil values.
+  (testing "fill!"
+    (testing "fills all elements within current size"
+      (let [^ResizableObjectArray arr (arr/resizable-object-array 10 5)]
+        (dotimes [i 5]
+          (aset ^objects (.array arr) i (keyword (str "k" i))))
+        (arr/fill! arr :filled)
+        (is (= [:filled :filled :filled :filled :filled]
+               (arr/fold arr #(conj %1 %2) [])))))
+    (testing "does not modify elements beyond current size"
+      (let [^ResizableObjectArray arr (arr/resizable-object-array 10 3)]
+        ;; Set value beyond size via underlying array
+        (aset ^objects (.array arr) 5 :beyond)
+        (arr/fill! arr :within)
+        ;; Value beyond size should be unchanged
+        (is (= :beyond (aget ^objects (.array arr) 5)))))
+    (testing "handles empty array"
+      (let [arr (arr/resizable-object-array 10 0)]
+        (is (= arr (arr/fill! arr :val)))
+        (is (= 0 (arr/length arr)))))
+    (testing "handles single element"
+      (let [^ResizableObjectArray arr (arr/resizable-object-array 5 1)]
+        (arr/fill! arr :single)
+        (is (= [:single] (arr/fold arr #(conj %1 %2) [])))))
+    (testing "fills with nil"
+      (let [^ResizableObjectArray arr (arr/resizable-object-array 5 3)]
+        (dotimes [i 3]
+          (aset ^objects (.array arr) i (keyword (str "k" i))))
+        (arr/fill! arr nil)
+        (is (= [nil nil nil]
+               (arr/fold arr #(conj %1 %2) [])))))
+    (testing "returns array for chaining"
+      (let [arr (arr/resizable-object-array 5 3)]
+        (is (identical? arr (arr/fill! arr :val)))))))
 
 (deftest resizable-object-array-to-fixed-test
   ;; Tests conversion from ResizableObjectArray to ObjectArray.

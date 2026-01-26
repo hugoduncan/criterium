@@ -20,7 +20,8 @@
     IDoubleAny ILongAny IArrayEquals ISortable
     IDoubleFoldSkip IDoubleObjectFoldSkip
     IFilterIndices IIndexedDoubleFold IIndexedDoubleObjectFold
-    IIndexed IIndexedSet IArrayOps]
+    IIndexed IIndexedSet IArrayOps
+    IDoubleFill ILongFill IObjectFill]
    [criterium.transducer.interfaces
     IDDDReducible
     ILLLReducible
@@ -195,7 +196,12 @@
         (if (< i n)
           (recur (inc i)
                  (.invokePrim ^clojure.lang.IFn$ODO f acc (aget array i)))
-          acc)))))
+          acc))))
+
+  IDoubleFill
+  (dfill [this ^double value]
+    (Arrays/fill array value)
+    this))
 
 (deftype LongArray [^longs array]
   ILongArray
@@ -397,7 +403,12 @@
         (if (< i n)
           (recur (inc i)
                  (.invokePrim ^clojure.lang.IFn$OLO f acc (aget array i)))
-          acc)))))
+          acc))))
+
+  ILongFill
+  (lfill [this ^long value]
+    (Arrays/fill array value)
+    this))
 
 (deftype ObjectArray [^objects array]
   ITypedArray
@@ -419,7 +430,12 @@
                (if (= (aget array i) (nth expected-vec i))
                  (recur (unchecked-inc i))
                  false)
-               true))))))
+               true)))))
+
+  IObjectFill
+  (ofill [this value]
+    (Arrays/fill array value)
+    this))
 
 ;;; Register fixed array constructors with resizable module
 
@@ -623,6 +639,40 @@
 (def capacity
   "Returns the maximum capacity of a resizable array."
   resizable/capacity)
+
+(defn dfill!
+  "Fills a double array with the specified value.
+  Returns arr for chaining."
+  [^IDoubleFill arr ^double value]
+  (.dfill arr value))
+
+(defn lfill!
+  "Fills a long array with the specified value.
+  Returns arr for chaining."
+  [^ILongFill arr ^long value]
+  (.lfill arr value))
+
+(defn ofill!
+  "Fills an object array with the specified value.
+  Returns arr for chaining."
+  [^IObjectFill arr value]
+  (.ofill arr value))
+
+(defmacro fill!
+  "Fills an array with the specified value.
+  Dispatches to the appropriate primitive fill based on array type.
+  Returns arr for chaining.
+
+  For primitive performance, use dfill!, lfill!, or ofill! directly."
+  [arr value]
+  `(let [a# ~arr]
+     (cond
+       (instance? IDoubleFill a#) (.dfill ^IDoubleFill a# (double ~value))
+       (instance? ILongFill a#) (.lfill ^ILongFill a# (long ~value))
+       (instance? IObjectFill a#) (.ofill ^IObjectFill a# ~value)
+       :else (throw (IllegalArgumentException.
+                     (str "fill! expects an array implementing IDoubleFill, ILongFill, or IObjectFill, got: "
+                          (type a#)))))))
 
 (def to-fixed
   "Converts a resizable array to a fixed array of the same element type.
