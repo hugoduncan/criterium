@@ -751,6 +751,26 @@
 
 ;;; Silverman's test for multimodality
 
+(defn- count-modes-with-grid
+  "Count modes using a pre-computed grid. Internal helper for critical-bandwidth.
+  Avoids recomputing grid bounds when same data is used with different bandwidths."
+  ^long [data ^double bandwidth ^doubles grid]
+  (let [density (gaussian-kde data bandwidth grid)]
+    (count (find-modes grid density))))
+
+(defn- make-mode-counting-grid
+  "Create grid for mode counting from data bounds.
+  Grid extends 10% beyond data range on each side."
+  ^doubles [^double x-min ^double x-max ^long n-points]
+  (let [margin (/ (- x-max x-min) 10.0)
+        g-min (- x-min margin)
+        g-max (+ x-max margin)
+        g-range (- g-max g-min)
+        grid (double-array n-points)]
+    (dotimes [i n-points]
+      (aset grid i (+ g-min (* g-range (/ (double i) (double (dec n-points)))))))
+    grid))
+
 (defn count-modes
   "Count number of modes in KDE with given bandwidth.
   Creates a grid and counts local maxima in the density estimate.
@@ -758,17 +778,8 @@
   ^long [data ^double bandwidth ^long n-points]
   {:pre [(have? arr/typed-array? data)]}
   (let [[x-min x-max] (data-min-max data)
-        x-min (double x-min)
-        x-max (double x-max)
-        margin (/ (- x-max x-min) 10.0)
-        g-min (- x-min margin)
-        g-max (+ x-max margin)
-        g-range (- g-max g-min)
-        grid (double-array n-points)]
-    (dotimes [i n-points]
-      (aset grid i (+ g-min (* g-range (/ (double i) (double (dec n-points)))))))
-    (let [density (gaussian-kde data bandwidth grid)]
-      (count (find-modes grid density)))))
+        grid (make-mode-counting-grid x-min x-max n-points)]
+    (count-modes-with-grid data bandwidth grid)))
 
 (defn critical-bandwidth
   "Find smallest bandwidth giving at most k modes via binary search.
@@ -791,6 +802,9 @@
   (let [n-pts (long n-points)
         tol (double tol)
         sigma (Math/sqrt (core/variance data))
+        ;; Pre-compute grid once for all binary search iterations
+        [x-min x-max] (data-min-max data)
+        grid (make-mode-counting-grid x-min x-max n-pts)
         ;; Start with range from very small to provided h-max or Silverman bandwidth * 2
         h-upper (double (or h-max (* 2.0 (silverman-bandwidth data))))
         h-min (/ sigma 100.0)]
@@ -801,7 +815,7 @@
       (if (or (>= its 100) (< (- hi lo) (* tol (+ hi lo) 0.5)))
         hi
         (let [mid (* 0.5 (+ lo hi))
-              n-modes (count-modes data mid n-pts)]
+              n-modes (count-modes-with-grid data mid grid)]
           (if (<= n-modes k)
             ;; Can achieve <= k modes, try smaller bandwidth
             (recur lo mid (inc its))
