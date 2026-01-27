@@ -6,6 +6,19 @@
    :terminator :elapsed-time})
 
 (def one-shot
+  "Single execution profiling without warmup or sampling.
+
+  Runs a single batch without JVM warmup or statistical sampling. Primarily
+  useful for allocation analysis and quick exploratory checks.
+
+  Includes:
+  - Basic execution metrics and timing
+  - Detailed allocation tracking: summary, hotspots, by-type breakdown
+  - JVM event statistics (compilation, class loading)
+
+  Use when you want to see raw allocation patterns without the overhead of
+  statistical analysis, or for a quick sanity check before running a full
+  benchmark."
   {:collector-config default-collector-config
    :analyse [:event-stats
              :allocation-summary
@@ -20,6 +33,22 @@
    :viewer :print})
 
 (def default
+  "Standard benchmarking with full statistical analysis.
+
+  The recommended plan for typical performance measurement. Includes warmup,
+  multiple sampling iterations, and comprehensive statistical analysis.
+
+  Includes:
+  - Bootstrap confidence intervals for mean, variance, and other statistics
+  - Outlier detection and classification
+  - Autocorrelation analysis with effective sample size computation
+  - KDE and mode detection for multimodal warnings (no histogram display)
+  - Memory and allocation tracking (summary, hotspots, treemap)
+  - JVM event statistics (compilation, class loading)
+
+  The analysis detects multimodal distributions and autocorrelation patterns,
+  displaying warnings when results may be unreliable. Use this plan for
+  everyday benchmarking where you need statistically sound results."
   {:collector-config default-collector-config
    :analyse [:transform-log
              [:autocorrelation {:id :autocorrelation-raw}]
