@@ -2,6 +2,7 @@
   "Implementation types for primitive transducers."
   (:require
    [criterium.array :as arr]
+   [criterium.array.interfaces]
    [criterium.transducer.interfaces])
   (:import
    [criterium.array

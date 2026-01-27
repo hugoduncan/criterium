@@ -14,7 +14,8 @@
   All operations respect the current size (not capacity). Map/filter
   operations return fixed arrays (DoubleArray, LongArray, ObjectArray)."
   (:require
-   [criterium.array.interfaces])
+   [criterium.array.interfaces]
+   [criterium.transducer.interfaces])
   (:import
    [criterium.array.interfaces
     ITypedArray IDoubleArray ILongArray IResizable

@@ -6,14 +6,45 @@
 
   Interface hierarchy:
   - ITypedArray: basic array metadata (element type, length)
+  - IDoubleArray/ILongArray: marker interfaces extending ITypedArray
+  - IResizable: resize operations for fixed-capacity arrays
+  - IDoubleFill/ILongFill/IObjectFill: fill operations
   - IFold: generic object-returning fold
   - IDoubleFold/ILongFold: primitive-in, primitive-out folds
   - IDoubleObjectFold/ILongObjectFold: primitive-in, object-out folds
   - IIndexed: indexed access to elements
-  - IArrayOps: type-specific operations (sum, getAt)
+  - IArrayOps: type-specific operations (sum, getAt)"
+  (:require
+   [criterium.array.util :refer [definterface+]]))
 
-  Base interfaces ITypedArray, ILongArray, IDoubleArray are defined in Java
-  at criterium.array.interfaces to support proper inheritance hierarchies.")
+;;; Base typed array interfaces
+
+(definterface+ ITypedArray
+  (^clojure.lang.Keyword elemType [])
+  (^long length []))
+
+(definterface+ IDoubleArray [ITypedArray])
+
+(definterface+ ILongArray [ITypedArray])
+
+;;; Resizable array interface
+
+(definterface+ IResizable
+  (^long resize [^long newSize])
+  (^long capacity []))
+
+;;; Fill interfaces
+
+(definterface+ IDoubleFill
+  (^criterium.array.interfaces.IDoubleFill dfill [^double value]))
+
+(definterface+ ILongFill
+  (^criterium.array.interfaces.ILongFill lfill [^long value]))
+
+(definterface+ IObjectFill
+  (^criterium.array.interfaces.IObjectFill ofill [value]))
+
+;;; Fold interfaces
 
 (definterface IFold
   (fold [f init]))
