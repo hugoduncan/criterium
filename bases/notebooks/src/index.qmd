@@ -10,7 +10,7 @@ title: "Criterium Notebooks"
 
 **Artifact:** [![Clojars Project](https://img.shields.io/clojars/v/criterium/criterium.svg)](https://clojars.org/criterium/criterium)
 
-**Status:** The project has a stable 0.4 branch and an alpha 0.5 branch.
+**Status:** This describes the alpha 0.5 branch.
 
 ## Notebooks
 
