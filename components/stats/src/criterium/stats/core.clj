@@ -58,17 +58,17 @@
   {:pre [(have? arr/typed-array? data)]}
   (tr/reduce prim/dadd 0.0 ^IDDDReducible data))
 
-(def ^:private prim-square
+(defn- reduce-dsquare
   "Primitive squaring function for transducer map."
-  (reify clojure.lang.IFn$DD
-    (^double invokePrim [_ ^double x] (* x x))))
+  ^double [^double acc ^double x]
+  (+ acc (* x x)))
 
 (defn sum-of-squares
   "Sum of the squares of each data point.
   Requires a typed array (ITypedArray)."
   ^double [data]
   {:pre [(have? arr/typed-array? data)]}
-  (tr/transduce (tr/map prim-square) tr/prim-sum 0.0 ^IDDDReducible data))
+  (tr/reduce reduce-dsquare 0.0 ^IDDDReducible data))
 
 (defn variance*
   "Variance based on subtracting mean.
@@ -81,26 +81,28 @@
 
 (defn- variance-typed-array
   "Single-pass variance computation for typed arrays."
-  ^double [^IDoubleFold data ^long df]
-  (let [^doubles mq (double-array [0.0 0.0])
-        ^longs k (long-array [0])]
+  ^double [^IDDDReducible data ^long df]
+  (let [^doubles mq (arr/doubles-fill 2 0.0)
+        ^longs k    (arr/longs-fill 1 0)]
     ;; Accumulate in arrays to avoid boxing
-    (.fold data
-           (fn ^double [^double _ ^double x]
-             (let [k-val   (aget k 0)
-                   kp1     (unchecked-inc k-val)
-                   m       (aget mq 0)
-                   delta   (- x m)
-                   new-m   (+ m (/ delta kp1))
-                   new-q   (+ (aget mq 1) (/ (* k-val (utils/sqr delta)) kp1))]
-               (aset mq 0 new-m)
-               (aset mq 1 new-q)
-               (aset k 0 kp1)
-               0.0))
-           0.0)
+    (tr/reduce
+     (fn ^double [^double _ ^double x]
+       (let [k-val (aget k 0)
+             kp1   (unchecked-inc k-val)
+             m     (aget mq 0)
+             delta (- x m)
+             new-m (+ m (/ delta kp1))
+             new-q (+ (aget mq 1) (/ (* k-val (utils/sqr delta)) kp1))]
+         (aset mq 0 new-m)
+         (aset mq 1 new-q)
+         (aset k 0 kp1)
+         0.0))
+     0.0
+     data)
     (let [k-val (aget k 0)]
-      (when (> k-val df)
-        (/ (aget mq 1) (- k-val df))))))
+      (if (> k-val df)
+        (/ (aget mq 1) (- k-val df))
+        Double/NaN))))
 
 (defn variance
   "Return the variance of data.
