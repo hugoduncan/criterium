@@ -792,10 +792,11 @@
   - k: maximum number of modes
   - opts: optional map with :tol (tolerance, default 1e-6),
           :n-points (grid size, default 512),
-          :h-max (optional upper bound, useful when computing h_k knowing h_{k-1})
+          :h-max (optional upper bound, useful when computing h_k knowing h_{k-1}),
+          :data-bounds (optional [min max], avoids redundant data scan)
 
   Requires a typed array (DoubleArray or LongArray)."
-  ^double [data ^long k {:keys [tol n-points h-max]
+  ^double [data ^long k {:keys [tol n-points h-max data-bounds]
                          :or {tol 1e-6
                               n-points 512}}]
   {:pre [(have? arr/typed-array? data)]}
@@ -803,7 +804,7 @@
         tol (double tol)
         sigma (Math/sqrt (core/variance data))
         ;; Pre-compute grid once for all binary search iterations
-        [x-min x-max] (data-min-max data)
+        [x-min x-max] (or data-bounds (data-min-max data))
         grid (make-mode-counting-grid x-min x-max n-pts)
         ;; Start with range from very small to provided h-max or Silverman bandwidth * 2
         h-upper (double (or h-max (* 2.0 (silverman-bandwidth data))))
@@ -837,15 +838,18 @@
   Returns a map from k to critical bandwidth h_k."
   [data ^long max-k opts]
   {:pre [(have? arr/typed-array? data)]}
-  (loop [k 1
-         prev-h nil
-         results {}]
-    (if (> k max-k)
-      results
-      (let [h-k (critical-bandwidth data k (if prev-h
-                                             (assoc opts :h-max prev-h)
-                                             opts))]
-        (recur (inc k) h-k (assoc results k h-k))))))
+  ;; Compute data bounds once for all k values
+  (let [data-bounds (data-min-max data)
+        opts (assoc opts :data-bounds data-bounds)]
+    (loop [k 1
+           prev-h nil
+           results {}]
+      (if (> k max-k)
+        results
+        (let [h-k (critical-bandwidth data k (if prev-h
+                                               (assoc opts :h-max prev-h)
+                                               opts))]
+          (recur (inc k) h-k (assoc results k h-k)))))))
 
 (defn- find-antimodes
   "Find antimodes (local minima) in a density estimate.
@@ -881,7 +885,8 @@
   - k: target number of modes
   - opts: optional map with :n-points (grid size, default 512),
           :tol (tolerance, default 1e-6),
-          :cached-critical-bandwidth (optional pre-computed bandwidth)
+          :cached-critical-bandwidth (optional pre-computed bandwidth),
+          :data-bounds (optional [min max], avoids redundant data scan)
 
   Returns:
   {:modes [{:location, :density} ...] - sorted by location
@@ -889,32 +894,26 @@
    :critical-bandwidth h_k}
 
   Requires a typed array (DoubleArray or LongArray)."
-  [data ^long k {:keys [n-points tol cached-critical-bandwidth]
+  [data ^long k {:keys [n-points tol cached-critical-bandwidth data-bounds]
                  :or {n-points 512
                       tol 1e-6}}]
   {:pre [(have? arr/typed-array? data)]}
   (let [n-pts (long n-points)
+        [x-min x-max] (or data-bounds (data-min-max data))
         h (double (or cached-critical-bandwidth
-                      (critical-bandwidth data k {:n-points n-pts :tol tol})))
-        [x-min x-max] (data-min-max data)
-        x-min (double x-min)
-        x-max (double x-max)
-        margin (/ (- x-max x-min) 10.0)
-        g-min (- x-min margin)
-        g-max (+ x-max margin)
-        g-range (- g-max g-min)
-        grid (double-array n-pts)]
-    (dotimes [i n-pts]
-      (aset grid i (+ g-min (* g-range (/ (double i) (double (dec n-pts)))))))
-    (let [density (gaussian-kde data h grid)
-          modes (->> (find-modes grid density)
-                     (map #(dissoc % :index))
-                     (sort-by :location)
-                     vec)
-          antimodes (find-antimodes grid density)]
-      {:modes modes
-       :antimodes antimodes
-       :critical-bandwidth h})))
+                      (critical-bandwidth data k {:n-points n-pts
+                                                  :tol tol
+                                                  :data-bounds [x-min x-max]})))
+        grid (make-mode-counting-grid x-min x-max n-pts)
+        density (gaussian-kde data h grid)
+        modes (->> (find-modes grid density)
+                   (map #(dissoc % :index))
+                   (sort-by :location)
+                   vec)
+        antimodes (find-antimodes grid density)]
+    {:modes modes
+     :antimodes antimodes
+     :critical-bandwidth h}))
 
 (defn silverman-bootstrap-sample
   "Generate a smoothed bootstrap sample for Silverman's test.
