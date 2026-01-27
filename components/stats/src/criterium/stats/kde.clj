@@ -119,58 +119,71 @@
         col-offset (- j i 1)]
     (aget dist-arr (+ row-start col-offset))))
 
-(defn- compute-interval-distances
-  "Compute minimum cumulative distances for k disjoint intervals.
+(defn- compute-interval-distances-k1
+  "Compute minimum cumulative distances for k=1 (single interval).
+  For each span s, finds the minimum interval width covering s+1 points.
+  Returns array where element i is the min distance for span (i+1)."
+  ^doubles [^doubles dist-arr ^long n]
+  (let [result (double-array (dec n))]
+    (dotimes [span (dec n)]
+      (let [interval-size (long (inc span))
+            min-d (double
+                   (loop [start (long 0)
+                          md Double/MAX_VALUE]
+                     (if (< (+ start interval-size) n)
+                       (let [end (+ start interval-size)
+                             d (distance-at dist-arr n start end)]
+                         (recur (inc start) (Math/min md d)))
+                       md)))]
+        (aset result (int span) min-d)))
+    result))
 
-  For each 'span' (total points covered by k intervals), find the
-  minimum total distance (sum of interval widths) achievable.
+(defn- compute-interval-distances-next
+  "Compute minimum cumulative distances for k intervals given k-1 results.
+  Returns array where element i is the min distance for span (i+k)."
+  ^doubles [^doubles dist-arr ^long n ^long k ^doubles prev-mins]
+  (let [prev-len (long (alength prev-mins))
+        result-len (- n k)
+        result (double-array result-len)]
+    (dotimes [span result-len]
+      (let [total-span (long (+ span k 1))
+            min-d (double
+                   (loop [new-int-size (long 2)
+                          md Double/MAX_VALUE]
+                     (if (<= new-int-size (- total-span (* 2 (dec k))))
+                       (let [prev-span (long (- total-span new-int-size))
+                             prev-idx (long (- prev-span k))
+                             prev-d (if (and (>= prev-idx 0) (< prev-idx prev-len))
+                                      (aget prev-mins prev-idx)
+                                      Double/MAX_VALUE)
+                             new-d (loop [start (long (- total-span new-int-size))
+                                          nd Double/MAX_VALUE]
+                                     (if (>= start prev-span)
+                                       (if (< (+ start new-int-size) n)
+                                         (let [end (+ start (dec new-int-size))
+                                               d (distance-at dist-arr n start end)]
+                                           (recur (dec start) (Math/min nd d)))
+                                         (recur (dec start) nd))
+                                       nd))]
+                         (recur (inc new-int-size) (Math/min md (+ prev-d (double new-d)))))
+                       md)))]
+        (aset result (int span) min-d)))
+    result))
 
-  Returns vector where element i is the min distance for span (i+k)."
-  ^doubles [^doubles dist-arr ^long n ^long k]
-  (if (= k 1)
-    ;; For k=1, min distance for span s is simply the min interval of that span
-    (let [result (double-array (- n 1))]
-      (dotimes [span (- n 1)]
-        (let [interval-size (long (inc span))
-              min-d (double
-                     (loop [start (long 0)
-                            md Double/MAX_VALUE]
-                       (if (< (+ start interval-size) n)
-                         (let [end (+ start interval-size)
-                               d (distance-at dist-arr n start end)]
-                           (recur (inc start) (Math/min md d)))
-                         md)))]
-          (aset result (int span) min-d)))
-      result)
-    ;; For k>1, build on k-1 solution
-    (let [^doubles prev-mins (compute-interval-distances dist-arr n (dec k))
-          prev-len (long (alength prev-mins))
-          result-len (- n k)
-          result (double-array result-len)]
-      (dotimes [span result-len]
-        (let [total-span (long (+ span k 1))
-              min-d (double
-                     (loop [new-int-size (long 2)
-                            md Double/MAX_VALUE]
-                       (if (<= new-int-size (- total-span (* 2 (dec k))))
-                         (let [prev-span (long (- total-span new-int-size))
-                               prev-idx (long (- prev-span k))
-                               prev-d (if (and (>= prev-idx 0) (< prev-idx prev-len))
-                                        (aget prev-mins prev-idx)
-                                        Double/MAX_VALUE)
-                               new-d (loop [start (long (- total-span new-int-size))
-                                            nd Double/MAX_VALUE]
-                                       (if (>= start prev-span)
-                                         (if (< (+ start new-int-size) n)
-                                           (let [end (+ start (dec new-int-size))
-                                                 d (distance-at dist-arr n start end)]
-                                             (recur (dec start) (Math/min nd d)))
-                                           (recur (dec start) nd))
-                                         nd))]
-                           (recur (inc new-int-size) (Math/min md (+ prev-d (double new-d)))))
-                         md)))]
-          (aset result (int span) min-d)))
-      result)))
+(defn- compute-all-interval-distances
+  "Compute minimum cumulative distances for 1 to max-k disjoint intervals.
+  Bottom-up computation that avoids redundant recursive calls.
+  Returns a vector of arrays, where element i is the result for k=i+1."
+  [^doubles dist-arr ^long n ^long max-k]
+  (loop [k 1
+         results []]
+    (if (> k max-k)
+      results
+      (let [result (if (= k 1)
+                     (compute-interval-distances-k1 dist-arr n)
+                     (compute-interval-distances-next
+                      dist-arr n k (nth results (- k 2))))]
+        (recur (inc k) (conj results result))))))
 
 (defn excess-mass
   "Compute excess mass statistic for testing k modes.
@@ -222,9 +235,10 @@
            ;; Build distance matrix
            dist-arr (build-distance-matrix sorted-data)
            nd (double n)
-           ;; Compute min distances for spans of k and k+1 intervals
-           ^doubles min-dist-k (compute-interval-distances dist-arr n k)
-           ^doubles min-dist-k1 (compute-interval-distances dist-arr n (inc k))
+           ;; Compute min distances for spans of 1 to k+1 intervals in one pass
+           all-dists (compute-all-interval-distances dist-arr n (inc k))
+           ^doubles min-dist-k (nth all-dists (dec k))
+           ^doubles min-dist-k1 (nth all-dists k)
            len-k (long (alength min-dist-k))
            len-k1 (long (alength min-dist-k1))
            ;; Find all possible lambda values where transitions occur
