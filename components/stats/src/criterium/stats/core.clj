@@ -3,14 +3,16 @@
 
   All functions require typed arrays (ITypedArray) as input.
   Primitive-optimized implementations avoid boxing overhead."
-  (:refer-clojure :exclude [min max])
+  (:refer-clojure :exclude [min max reduce])
   (:require
    [criterium.array :as arr]
    criterium.array.interfaces
    [criterium.primitive-fn :as prim]
+   [criterium.transducer :as tr]
    [criterium.utils.interface :as utils :refer [have?]])
   (:import
-   [criterium.array.interfaces IDoubleFold]))
+   [criterium.array.interfaces IDoubleFold]
+   [criterium.transducer.interfaces IDDDReducible]))
 
 (defn transpose
   "Transpose a vector of vectors."
@@ -24,7 +26,7 @@
   Requires a typed array (ITypedArray)."
   ([data]
    {:pre [(have? arr/typed-array? data)]}
-   (arr/fold-double data prim/dmin Double/MAX_VALUE))
+   (tr/reduce tr/prim-min Double/MAX_VALUE ^IDDDReducible data))
   ([data _count]
    (min data)))
 
@@ -33,7 +35,7 @@
   Requires a typed array (ITypedArray)."
   ([data]
    {:pre [(have? arr/typed-array? data)]}
-   (arr/fold-double data prim/dmax Double/MIN_VALUE))
+   (tr/reduce tr/prim-max Double/MIN_VALUE ^IDDDReducible data))
   ([data _count]
    (max data)))
 
@@ -44,17 +46,17 @@
    {:pre [(have? arr/typed-array? data)]}
    (let [c (arr/length data)]
      (when (pos? c)
-       (/ (arr/fold-double data prim/dadd-unchecked 0.0) c))))
+       (/ (tr/reduce tr/prim-sum 0.0 ^IDDDReducible data) c))))
   (^double [data ^long count]
    {:pre [(have? arr/typed-array? data)]}
-   (/ (arr/fold-double data prim/dadd-unchecked 0.0) count)))
+   (/ (tr/reduce tr/prim-sum 0.0 ^IDDDReducible data) count)))
 
 (defn sum
   "Sum of each data point.
   Requires a typed array (ITypedArray)."
   [data]
   {:pre [(have? arr/typed-array? data)]}
-  (arr/fold-double data prim/dadd-unchecked 0.0))
+  (tr/reduce tr/prim-sum 0.0 ^IDDDReducible data))
 
 (defn sum-of-squares
   "Sum of the squares of each data point.
