@@ -17,7 +17,7 @@
 ;; The `bench` macro is the main entry point. Pass it any expression:
 
 ^:kindly/hide-code
-(bench-display (bench/bench (+ 1 1)))
+(bench-display (bench/bench (reduce + [1 2])))
 
 ;; That's it. Criterium automatically:
 ;;
