@@ -14,7 +14,8 @@
   All operations respect the current size (not capacity). Map/filter
   operations return fixed arrays (DoubleArray, LongArray, ObjectArray)."
   (:require
-   [criterium.array.interfaces])
+   [criterium.array.interfaces]
+   [criterium.transducer.interfaces])
   (:import
    [criterium.array.interfaces
     ITypedArray IDoubleArray ILongArray IResizable
@@ -71,10 +72,12 @@
 (deftype ResizableDoubleArray [^doubles array
                                ^:unsynchronized-mutable ^long size]
   IResizable
+  #_{:clj-kondo/ignore [:unresolved-protocol-method]}
   (^long resize [_ ^long new-size]
     (check-resize-bounds new-size (alength array))
     (set! size new-size)
     new-size)
+  #_{:clj-kondo/ignore [:unresolved-protocol-method]}
   (^long capacity [_] (alength array))
 
   IDoubleArray
@@ -271,10 +274,12 @@
 (deftype ResizableLongArray [^longs array
                              ^:unsynchronized-mutable ^long size]
   IResizable
+  #_{:clj-kondo/ignore [:unresolved-protocol-method]}
   (^long resize [_ ^long new-size]
     (check-resize-bounds new-size (alength array))
     (set! size new-size)
     new-size)
+  #_{:clj-kondo/ignore [:unresolved-protocol-method]}
   (^long capacity [_] (alength array))
 
   ILongArray

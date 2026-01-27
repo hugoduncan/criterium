@@ -132,3 +132,23 @@
     {:node (with-meta
              (api/list-node (cons (api/token-node 'do) defns))
              (meta node))}))
+
+(defn definterface+
+  "Hook for definterface+ macro.
+  Transforms (definterface+ IName [IExtends...] sigs...)
+  into (definterface IName sigs...) for linting purposes."
+  [{:keys [node]}]
+  (let [[_ name-node & forms] (:children node)
+        ;; If first form is a vector, it's the extends list (skip it)
+        sigs (if (and (seq forms)
+                      (= :vector (:tag (first forms))))
+               (rest forms)
+               forms)
+        new-node (api/list-node
+                  (concat
+                   (list (api/token-node 'definterface) name-node)
+                   sigs))]
+    ;; un-comment below to debug changes
+    ;; (prn :definterface+ :original (api/sexpr node))
+    ;; (prn :definterface+ :transformed (api/sexpr new-node))
+    {:node (with-meta new-node (meta node))}))
