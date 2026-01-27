@@ -24,19 +24,19 @@
 (defn min
   "Minimum value in data.
   Requires a typed array (ITypedArray)."
-  ([data]
+  (^double [data]
    {:pre [(have? arr/typed-array? data)]}
-   (tr/reduce tr/prim-min Double/MAX_VALUE ^IDDDReducible data))
-  ([data _count]
+   (tr/reduce prim/dmin Double/MAX_VALUE ^IDDDReducible data))
+  (^double [data ^long _count]
    (min data)))
 
 (defn max
   "Maximum value in data.
   Requires a typed array (ITypedArray)."
-  ([data]
+  (^double [data]
    {:pre [(have? arr/typed-array? data)]}
-   (tr/reduce tr/prim-max Double/MIN_VALUE ^IDDDReducible data))
-  ([data _count]
+   (tr/reduce prim/dmax Double/MIN_VALUE ^IDDDReducible data))
+  (^double [data ^long _count]
    (max data)))
 
 (defn mean
@@ -46,25 +46,29 @@
    {:pre [(have? arr/typed-array? data)]}
    (let [c (arr/length data)]
      (when (pos? c)
-       (/ (tr/reduce tr/prim-sum 0.0 ^IDDDReducible data) c))))
+       (/ (tr/reduce prim/dadd 0.0 ^IDDDReducible data) c))))
   (^double [data ^long count]
    {:pre [(have? arr/typed-array? data)]}
-   (/ (tr/reduce tr/prim-sum 0.0 ^IDDDReducible data) count)))
+   (/ (tr/reduce prim/dadd 0.0 ^IDDDReducible data) count)))
 
 (defn sum
   "Sum of each data point.
   Requires a typed array (ITypedArray)."
-  [data]
+  ^double [data]
   {:pre [(have? arr/typed-array? data)]}
-  (tr/reduce tr/prim-sum 0.0 ^IDDDReducible data))
+  (tr/reduce prim/dadd 0.0 ^IDDDReducible data))
+
+(def ^:private prim-square
+  "Primitive squaring function for transducer map."
+  (reify clojure.lang.IFn$DD
+    (^double invokePrim [_ ^double x] (* x x))))
 
 (defn sum-of-squares
   "Sum of the squares of each data point.
   Requires a typed array (ITypedArray)."
-  [data]
+  ^double [data]
   {:pre [(have? arr/typed-array? data)]}
-  (let [f (fn ^double [^double s ^double v] (+ s (* v v)))]
-    (arr/fold-double data f 0.0)))
+  (tr/transduce (tr/map prim-square) tr/prim-sum 0.0 ^IDDDReducible data))
 
 (defn variance*
   "Variance based on subtracting mean.
