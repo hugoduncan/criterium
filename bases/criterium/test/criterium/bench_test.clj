@@ -272,20 +272,20 @@
           (is (re-find #"Histogram" out)
               "stdout should contain histogram output"))))))
 
-(deftest ^:slow default-with-warmup-kde-modes-test
-  ;; Integration test verifying that default-with-warmup includes KDE and modes
+(deftest ^:slow default-kde-modes-test
+  ;; Integration test verifying that the default bench plan includes KDE and modes
   ;; analysis, and that multimodal-warning view is present in the pipeline.
   ;; This test validates the full pipeline from bench to view output.
-  (testing "default-with-warmup bench plan"
+  (testing "default bench plan"
     (testing "includes :kde and :modes in analyse plan"
-      (is (some #{:kde} (:analyse bench-plans/default-with-warmup))
+      (is (some #{:kde} (:analyse bench-plans/default))
           ":kde should be in analyse plan")
-      (is (some #{:modes} (:analyse bench-plans/default-with-warmup))
+      (is (some #{:modes} (:analyse bench-plans/default))
           ":modes should be in analyse plan"))
 
     (testing "includes :multimodal-warning in view plan"
       (is (some #(and (vector? %) (= :multimodal-warning (first %)))
-                (:view bench-plans/default-with-warmup))
+                (:view bench-plans/default))
           "[:multimodal-warning ...] should be in view plan"))
 
     (testing "produces KDE and modes analysis"

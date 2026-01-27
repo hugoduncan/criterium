@@ -59,12 +59,12 @@
        (remove nil?)
        first))
 
-(deftest default-with-warmup-test
-  ;; Tests verify dual autocorrelation analysis in default-with-warmup:
+(deftest default-test
+  ;; Tests verify dual autocorrelation analysis in default:
   ;; - autocorrelation-raw for pattern detection
   ;; - autocorrelation-filtered for effective sample size
-  (testing "default-with-warmup"
-    (let [plan bench-plans/default-with-warmup]
+  (testing "default"
+    (let [plan bench-plans/default]
 
       (testing "includes :autocorrelation-raw in analyse"
         (is (some? (find-analyse-entry-by-id plan :autocorrelation-raw))))
@@ -203,11 +203,11 @@
           (is (some? ess-entry))
           (is (= :effective-sample-size-raw (:ess-id (second ess-entry)))))))))
 
-(deftest default-one-shot-test
-  ;; Tests verify that default-one-shot does NOT include autocorrelation.
+(deftest one-shot-test
+  ;; Tests verify that one-shot does NOT include autocorrelation.
   ;; One-shot benchmarks don't have enough samples for meaningful autocorrelation.
-  (testing "default-one-shot"
-    (let [plan bench-plans/default-one-shot]
+  (testing "one-shot"
+    (let [plan bench-plans/one-shot]
 
       (testing "does NOT include :autocorrelation in analyse"
         (is (nil? (find-analyse-entry plan :autocorrelation)))
@@ -225,7 +225,7 @@
   ;; view, which is responsible for displaying anomalous lags when present.
   ;; See Task 890: anomalous lags display is integrated into autocorrelation-classification.
   (testing "all warmup-based plans include autocorrelation-classification"
-    (let [warmup-plans [bench-plans/default-with-warmup
+    (let [warmup-plans [bench-plans/default
                         bench-plans/log-histogram
                         bench-plans/knuth-histogram
                         bench-plans/kde-histogram
@@ -241,7 +241,7 @@
   ;; ACF plot is displayed only when moderate or above severity is detected.
   ;; All warmup-based bench-plans should include the acf-plot view with :min-severity :moderate.
   (testing "all warmup-based plans include acf-plot with :min-severity :moderate"
-    (let [warmup-plans [bench-plans/default-with-warmup
+    (let [warmup-plans [bench-plans/default
                         bench-plans/log-histogram
                         bench-plans/knuth-histogram
                         bench-plans/kde-histogram
@@ -258,7 +258,7 @@
             (is (= :autocorrelation-raw (:autocorrelation-id (second entry)))
                 "acf-plot should use :autocorrelation-raw")))))))
 
-(deftest default-one-shot-excludes-acf-plot-test
-  (testing "default-one-shot does NOT include acf-plot"
-    (let [plan bench-plans/default-one-shot]
+(deftest one-shot-excludes-acf-plot-test
+  (testing "one-shot does NOT include acf-plot"
+    (let [plan bench-plans/one-shot]
       (is (nil? (find-view-entry plan :acf-plot))))))

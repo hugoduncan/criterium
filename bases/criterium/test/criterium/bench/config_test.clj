@@ -12,7 +12,7 @@
     (measured/invoke measured (measured/args measured) 1)
     (testing "config-map provides defaults"
       (is (= (merge
-              bench-plans/default-with-warmup
+              bench-plans/default
               {:collector-config
                (->>
                 collector-configs/default-collector-config
@@ -25,7 +25,7 @@
              (bench-config/config-map {}))))
     (testing "config-map can specify the pipeline stages"
       (is (= (-> (merge
-                  bench-plans/default-with-warmup
+                  bench-plans/default
                   {:collector-config
                    (->>
                     {:stages     [:class-loader
@@ -45,7 +45,7 @@
                             :garbage-collector]}))))
     (testing "config-map can specify the sample scheme"
       (is (= (-> (merge
-                  bench-plans/default-one-shot
+                  bench-plans/one-shot
                   {:collector-config
                    (->>
                     {:stages     []

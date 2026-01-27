@@ -119,15 +119,15 @@
       (= scheme-type :with-jit-warmup)
       (assoc :analyse (or analyse
                           (:analyse bench-plan)
-                          (:analyse bench-plans/default-with-warmup))
+                          (:analyse bench-plans/default))
              :view (or view
                        (:view bench-plan)
-                       (:view bench-plans/default-with-warmup)))
+                       (:view bench-plans/default)))
 
       (= scheme-type :one-shot)
       (assoc :analyse (or analyse
                           (:analyse bench-plan)
-                          (:analyse bench-plans/default-one-shot))
+                          (:analyse bench-plans/one-shot))
              :view (or view
                        (:view bench-plan)
-                       (:view bench-plans/default-one-shot))))))
+                       (:view bench-plans/one-shot))))))

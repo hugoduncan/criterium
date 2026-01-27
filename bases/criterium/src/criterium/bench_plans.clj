@@ -5,7 +5,7 @@
   {:stages []
    :terminator :elapsed-time})
 
-(def default-one-shot
+(def one-shot
   {:collector-config default-collector-config
    :analyse [:event-stats
              :allocation-summary
@@ -19,7 +19,7 @@
           :allocation-hotspots]
    :viewer :print})
 
-(def default-with-warmup
+(def default
   {:collector-config default-collector-config
    :analyse [:transform-log
              [:autocorrelation {:id :autocorrelation-raw}]
@@ -161,7 +161,7 @@
   "Benchmark plan with KDE analysis for density estimation and mode detection.
 
   Includes histogram and KDE analysis for visualizing sample distributions.
-  Not part of default-with-warmup; use explicitly when density analysis is needed."
+  Not part of the default bench plan; use explicitly when density analysis is needed."
   {:collector-config default-collector-config
    :analyse [:transform-log
              [:autocorrelation {:id :autocorrelation-raw}]
