@@ -40,6 +40,20 @@
       :run-quarto false}
      opts))))
 
+(defn render-site-cli!
+  "Entry point for -X execution. Renders site and exits."
+  [opts]
+  (try
+    (render-site! opts)
+    (catch Throwable t
+      (binding [*out* *err*]
+        (println "Notebook generation failed")
+        (.printStackTrace t))
+      (System/exit 1))
+    (finally
+      (shutdown-agents)))
+  (System/exit 0))
+
 (defn -main
   "Entry point for rendering notebooks.
   Accepts optional EDN map of options to merge with defaults."

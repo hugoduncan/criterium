@@ -26,11 +26,7 @@
 ;; - Computes statistics from the samples
 ;; - Detects and reports outliers
 ;; - Detects and reports multimodal distributions of execution time
-
-;; ::: {.callout-note}
-;; The default output relies mainly on parametric free,
-;; distribution free statistics.
-;; :::
+;; - Detects measurement problems caused by external load, turbo boost, etc
 
 ;; ## Reading the Output
 ;;
@@ -40,14 +36,18 @@
 ;;
 ;; ```
 ;; Elapsed Time median: 0.00390 ns CI [0.00390 0.00390] (0.025 0.975)
-;; Elapsed Time mean: 0.00393 ns CI [0.00391 0.00395] (0.025 0.975)
 ;; Elapsed Time spread: [0.00376 0.00410] ns (10th-90th percentile)
 ;; ```
 ;;
 ;; Criterium takes the measured samples and bootstraps statistics.  The reported
-;; values are the median, the mean and the spread.  The median and mean include
-;; a 95% confidence interval for the statistic.  The spread show the
-;; bootstrapped p10 and p90 values.
+;; values are the median, the mean and the spread.  The median includes a 95%
+;; confidence interval for the statistic.  The spread show the bootstrapped p10
+;; and p90 values.
+;;
+;; ::: {.callout-note}
+;; The default output relies mainly on parametric free,
+;; distribution free statistics.
+;; :::
 ;;
 ;; ::: {.callout-note}
 ;; The statistics are bootstrapped to get most accuracy out of limited samples

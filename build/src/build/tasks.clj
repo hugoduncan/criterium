@@ -161,7 +161,7 @@
                     (str ":render-docs::blackhole:" (name aliases))
                     ":render-docs::blackhole")
         opts (dissoc params :aliases)
-        base-args ["clojure" (str "-X" alias-str) "criterium.notebook.render/render-site!"]
+        base-args ["clojure" (str "-X" alias-str) "criterium.notebook.render/render-site-cli!"]
         args (into base-args (mapcat (fn [[k v]] [(str k) (pr-str v)]) opts))
         pb (ProcessBuilder. args)
         _ (.inheritIO pb)
