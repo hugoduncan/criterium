@@ -9,7 +9,8 @@
    criterium.utils.interface/cond*       hooks.impl/cond*
    criterium.primitive-fn/invoke-dd        hooks.impl/invoke-dd
    criterium.primitive-fn/defprim-wrappers  hooks.impl/defprim-wrappers
-   criterium.primitive-fn/defpred-wrappers  hooks.impl/defpred-wrappers}}
+   criterium.primitive-fn/defpred-wrappers  hooks.impl/defpred-wrappers
+   criterium.array.util/definterface+    hooks.impl/definterface+}}
  :lint-as {babashka.fs/with-temp-dir                    clojure.core/with-open
            build-test/with-cached-agent-build         clj-kondo.lint-as/def-catch-all
            clojure.test.check.clojure-test/defspec    clojure.core/def
