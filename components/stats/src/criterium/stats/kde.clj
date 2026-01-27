@@ -165,7 +165,8 @@
                                            (recur (dec start) (Math/min nd d)))
                                          (recur (dec start) nd))
                                        nd))]
-                         (recur (inc new-int-size) (Math/min md (+ prev-d (double new-d)))))
+                         (recur (inc new-int-size)
+                                (Math/min md (+ prev-d (double new-d)))))
                        md)))]
         (aset result (int span) min-d)))
     result))
@@ -280,15 +281,19 @@
            max-diff (double
                      (if (empty? lambda-vec)
                        (let [lam 1.0
-                             ^double em-k (compute-em lam k min-dist-k len-k)
-                             ^double em-k1 (compute-em lam (inc k) min-dist-k1 len-k1)]
+                             em-k (pf/invoke-dlold
+                                   compute-em lam k min-dist-k len-k)
+                             em-k1 (pf/invoke-dlold
+                                    compute-em lam (inc k) min-dist-k1 len-k1)]
                          (- em-k1 em-k))
                        (loop [idx (long 0)
                               max-d Double/NEGATIVE_INFINITY]
                          (if (< idx (count lambda-vec))
                            (let [lam (nth lambda-vec idx)
-                                 ^double em-k (compute-em lam k min-dist-k len-k)
-                                 ^double em-k1 (compute-em lam (inc k) min-dist-k1 len-k1)
+                                 em-k (pf/invoke-dlold
+                                       compute-em lam k min-dist-k len-k)
+                                 em-k1 (pf/invoke-dlold
+                                        compute-em lam (inc k) min-dist-k1 len-k1)
                                  d (- em-k1 em-k)]
                              (recur (inc idx) (Math/max max-d d)))
                            max-d))))]
@@ -393,7 +398,7 @@
                         (aset weights i-high (+ (aget weights i-high) w-high))))]
     (arr/dfold data
                (fn [_ ^double x]
-                 (add-weight! x)
+                 (pf/invoke-do add-weight! x)
                  nil)
                nil)
     ;; Normalize to sum to 1
