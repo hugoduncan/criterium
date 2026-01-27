@@ -101,9 +101,13 @@
           (is (some? entry))
           (is (= :effective-sample-size-filtered (:ess-id (second entry)))))))))
 
-(deftest log-histogram-test
-  (testing "log-histogram"
-    (let [plan bench-plans/log-histogram]
+(deftest histogram-test
+  ;; Tests verify the unified histogram plan includes:
+  ;; - autocorrelation for pattern detection and effective sample size
+  ;; - histogram with Knuth binning
+  ;; - KDE and mode detection
+  (testing "histogram"
+    (let [plan bench-plans/histogram]
 
       (testing "includes both autocorrelation analyses"
         (is (some? (find-analyse-entry-by-id plan :autocorrelation-raw)))
@@ -115,55 +119,18 @@
 
       (testing "includes separate views"
         (is (some? (find-view-entry plan :autocorrelation-classification)))
-        (is (some? (find-view-entry plan :effective-sample-size)))))))
+        (is (some? (find-view-entry plan :effective-sample-size))))
 
-(deftest knuth-histogram-test
-  (testing "knuth-histogram"
-    (let [plan bench-plans/knuth-histogram]
+      (testing "uses Knuth histogram method"
+        (let [hist-entry (find-analyse-entry plan :histogram)]
+          (is (vector? hist-entry))
+          (is (= :knuth (:method (second hist-entry))))))
 
-      (testing "includes both autocorrelation analyses"
-        (is (some? (find-analyse-entry-by-id plan :autocorrelation-raw)))
-        (is (some? (find-analyse-entry-by-id plan :autocorrelation-filtered))))
+      (testing "includes KDE analysis"
+        (is (some? (find-analyse-entry plan :kde))))
 
-      (testing "configures bootstrap-stats with :ess-id :effective-sample-size-filtered"
-        (let [bs-entry (find-analyse-entry plan :bootstrap-stats)]
-          (is (= :effective-sample-size-filtered (:ess-id (second bs-entry))))))
-
-      (testing "includes separate views"
-        (is (some? (find-view-entry plan :autocorrelation-classification)))
-        (is (some? (find-view-entry plan :effective-sample-size)))))))
-
-(deftest kde-histogram-test
-  (testing "kde-histogram"
-    (let [plan bench-plans/kde-histogram]
-
-      (testing "includes both autocorrelation analyses"
-        (is (some? (find-analyse-entry-by-id plan :autocorrelation-raw)))
-        (is (some? (find-analyse-entry-by-id plan :autocorrelation-filtered))))
-
-      (testing "configures bootstrap-stats with :ess-id :effective-sample-size-filtered"
-        (let [bs-entry (find-analyse-entry plan :bootstrap-stats)]
-          (is (= :effective-sample-size-filtered (:ess-id (second bs-entry))))))
-
-      (testing "includes separate views"
-        (is (some? (find-view-entry plan :autocorrelation-classification)))
-        (is (some? (find-view-entry plan :effective-sample-size)))))))
-
-(deftest kde-modes-test
-  (testing "kde-modes"
-    (let [plan bench-plans/kde-modes]
-
-      (testing "includes both autocorrelation analyses"
-        (is (some? (find-analyse-entry-by-id plan :autocorrelation-raw)))
-        (is (some? (find-analyse-entry-by-id plan :autocorrelation-filtered))))
-
-      (testing "configures bootstrap-stats with :ess-id :effective-sample-size-filtered"
-        (let [bs-entry (find-analyse-entry plan :bootstrap-stats)]
-          (is (= :effective-sample-size-filtered (:ess-id (second bs-entry))))))
-
-      (testing "includes separate views"
-        (is (some? (find-view-entry plan :autocorrelation-classification)))
-        (is (some? (find-view-entry plan :effective-sample-size)))))))
+      (testing "includes mode detection"
+        (is (some? (find-analyse-entry plan :modes)))))))
 
 (deftest distribution-analysis-test
   (testing "distribution-analysis"
@@ -226,10 +193,7 @@
   ;; See Task 890: anomalous lags display is integrated into autocorrelation-classification.
   (testing "all warmup-based plans include autocorrelation-classification"
     (let [warmup-plans [bench-plans/default
-                        bench-plans/log-histogram
-                        bench-plans/knuth-histogram
-                        bench-plans/kde-histogram
-                        bench-plans/kde-modes
+                        bench-plans/histogram
                         bench-plans/distribution-analysis
                         bench-plans/tail-analysis]]
       (doseq [plan warmup-plans]
@@ -242,10 +206,7 @@
   ;; All warmup-based bench-plans should include the acf-plot view with :min-severity :moderate.
   (testing "all warmup-based plans include acf-plot with :min-severity :moderate"
     (let [warmup-plans [bench-plans/default
-                        bench-plans/log-histogram
-                        bench-plans/knuth-histogram
-                        bench-plans/kde-histogram
-                        bench-plans/kde-modes
+                        bench-plans/histogram
                         bench-plans/distribution-analysis
                         bench-plans/tail-analysis]]
       (doseq [plan warmup-plans]

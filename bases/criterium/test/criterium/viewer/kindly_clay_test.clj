@@ -50,11 +50,11 @@
             (is (str/includes? html "Elapsed Time")
                 "HTML contains elapsed time metric")))))
 
-    (testing "renders log-histogram benchmark with charts"
+    (testing "renders histogram benchmark with charts"
       (with-temp-dir [temp-dir]
         (let [fragment (bench/bench (reduce + (range 100))
                                     :viewer :kindly
-                                    :bench-plan bench-plans/log-histogram
+                                    :bench-plan bench-plans/histogram
                                     :limit-time-s 0.5)]
           (is (= :kind/fragment (:kindly/kind (meta fragment)))
               "bench returns Kindly fragment")

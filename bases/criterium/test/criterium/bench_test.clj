@@ -58,11 +58,11 @@
       (is (empty? @kindly/accumulated)
           "accumulator is empty after flush"))
 
-    (testing "with full benchmark and log-histogram plan"
+    (testing "with full benchmark and histogram plan"
       (reset! kindly/accumulated [])
       (bench/bench (+ 1 1)
                    :viewer :kindly
-                   :bench-plan bench-plans/log-histogram
+                   :bench-plan bench-plans/histogram
                    :limit-time-s 0.2)
       (is (empty? @kindly/accumulated)
           "accumulator is empty after flush - fragment was returned by flush-viewer"))
@@ -84,20 +84,20 @@
           (is (pos? (count fragment))
               "fragment contains accumulated views"))))
 
-    (testing "with log-histogram plan produces full output"
+    (testing "with histogram plan produces full output"
       ;; Get benchmark data using :print viewer
       ;; Strip :viewer key since it was added by the previous bench call
       (let [data-map (dissoc
                       (:data (do (with-out-str
                                    (bench/bench (+ 1 1)
                                                 :viewer :print
-                                                :bench-plan bench-plans/log-histogram
+                                                :bench-plan bench-plans/histogram
                                                 :limit-time-s 0.2))
                                  (bench/last-bench)))
                       :viewer)]
         ;; View with :kindly - bench/view returns the fragment
         (reset! kindly/accumulated [])
-        (let [fragment (bench/view (:view bench-plans/log-histogram) :kindly data-map)]
+        (let [fragment (bench/view (:view bench-plans/histogram) :kindly data-map)]
           (is (= :kind/fragment (:kindly/kind (meta fragment)))
               "view returns kind/fragment for kindly viewer")
           (is (>= (count fragment) 10)
@@ -237,16 +237,16 @@
     (let [config (bench-config/config-map {:with-allocation-trace true})]
       (is (true? (:with-allocation-trace config))))))
 
-(deftest ^:slow knuth-histogram-bench-plan-test
-  ;; Integration test verifying the knuth-histogram bench plan produces
-  ;; correct histogram output with Bayesian optimal binning.
-  (testing "knuth-histogram bench plan"
+(deftest ^:slow histogram-bench-plan-test
+  ;; Integration test verifying the histogram bench plan produces
+  ;; correct histogram output with Knuth binning, KDE, and mode detection.
+  (testing "histogram bench plan"
     (testing "produces histogram with Knuth binning"
       (let [result (atom nil)
             out (with-out-str
                   (reset! result
                           (bench/bench (+ 1 1)
-                                       :bench-plan bench-plans/knuth-histogram
+                                       :bench-plan bench-plans/histogram
                                        :limit-time-s 0.1)))
             data (:data (bench/last-bench))
             histogram-data (:histograms data)
