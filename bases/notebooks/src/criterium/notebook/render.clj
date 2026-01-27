@@ -2,6 +2,7 @@
   "Render notebooks to HTML documentation site."
   (:require
    [clojure.edn :as edn]
+   [clojure.java.io :as io]
    [scicloj.clay.v2.api :as clay]))
 
 (def notebook-sources
@@ -25,20 +26,33 @@
    "bases/notebooks/src/criterium/distribution_fitting_notebook.clj"
    "bases/notebooks/src/criterium/tail_analysis_notebook.clj"])
 
+(def quarto-config-source
+  "Source path for Quarto configuration."
+  "bases/notebooks/src/_quarto.yml")
+
+(defn- copy-quarto-config!
+  "Copy _quarto.yml to docs directory for Quarto site rendering."
+  [target-path]
+  (let [source (io/file quarto-config-source)
+        target (io/file target-path "_quarto.yml")]
+    (io/copy source target)))
+
 (defn render-site!
   "Render all notebooks to HTML in the docs directory."
   ([]
    (render-site! {}))
   ([opts]
-   (clay/make!
-    (merge
-     {:source-path notebook-sources
-      :base-target-path "docs"
-      :clean-up-target-dir false
-      :format [:quarto :html]
-      :show false
-      :run-quarto false}
-     opts))))
+   (let [target-path (get opts :base-target-path "docs")]
+     (copy-quarto-config! target-path)
+     (clay/make!
+      (merge
+       {:source-path notebook-sources
+        :base-target-path target-path
+        :clean-up-target-dir false
+        :format [:quarto :html]
+        :show false
+        :run-quarto false}
+       opts)))))
 
 (defn render-site-cli!
   "Entry point for -X execution. Renders site and exits."

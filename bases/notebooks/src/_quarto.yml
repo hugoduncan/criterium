@@ -1,13 +1,13 @@
 project:
   type: website
-  output-dir: ../../../docs
+  output-dir: .
 
 website:
   title: "Criterium Documentation"
   sidebar:
     style: docked
     contents:
-      - href: index.qmd
+      - href: criterium.index.qmd
         text: Home
       - section: "Getting Started"
         contents:
@@ -16,23 +16,23 @@ website:
           - in_situ.qmd
       - section: "Core Usage"
         contents:
-          - criterium/basic_usage_notebook.qmd
-          - criterium/bench_options_notebook.qmd
-          - criterium/arg_gen_notebook.qmd
+          - criterium.basic_usage_notebook.qmd
+          - criterium.bench_options_notebook.qmd
+          - criterium.arg_gen_notebook.qmd
       - section: "Instrumentation"
         contents:
-          - criterium/sampled_fn_notebook.qmd
-          - criterium/instrument_fn_notebook.qmd
-          - criterium/allocation_tracking_notebook.qmd
-          - criterium/call_tracing_notebook.qmd
-          - criterium/allocation_bench_notebook.qmd
+          - criterium.sampled_fn_notebook.qmd
+          - criterium.instrument_fn_notebook.qmd
+          - criterium.allocation_tracking_notebook.qmd
+          - criterium.call_tracing_notebook.qmd
+          - criterium.allocation_bench_notebook.qmd
       - section: "Domain Analysis"
         contents:
-          - criterium/domain_bench_notebook.qmd
-          - criterium/analyse_domain_notebook.qmd
-          - criterium/domain_builder_notebook.qmd
+          - criterium.domain_bench_notebook.qmd
+          - criterium.analyse_domain_notebook.qmd
+          - criterium.domain_builder_notebook.qmd
       - section: "Advanced Analysis"
         contents:
-          - criterium/kde_analysis_notebook.qmd
-          - criterium/distribution_fitting_notebook.qmd
-          - criterium/tail_analysis_notebook.qmd
+          - criterium.kde_analysis_notebook.qmd
+          - criterium.distribution_fitting_notebook.qmd
+          - criterium.tail_analysis_notebook.qmd
