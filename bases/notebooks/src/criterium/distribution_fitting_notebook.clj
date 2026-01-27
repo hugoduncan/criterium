@@ -201,7 +201,7 @@
 ;;
 ;; **Consider alternatives when:**
 ;; - You only need mean/variance (use default bench plan)
-;; - You suspect multimodality (use `kde-modes` bench plan)
+;; - You suspect multimodality (use `histogram` bench plan)
 ;; - Sample size is very small (< 30 samples)
 
 ;; ## Best Practices
@@ -244,6 +244,6 @@
                :bench-plan bench-plans/distribution-analysis
                :viewer :portal)
 
-  ;; Compare with KDE modes for multimodal detection
+  ;; Compare with histogram for multimodal detection
   (bench/bench (reduce + (range 1000))
-               :bench-plan bench-plans/kde-modes))
+               :bench-plan bench-plans/histogram))
