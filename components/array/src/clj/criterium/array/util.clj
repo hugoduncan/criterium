@@ -22,7 +22,7 @@
     ;; With multiple extends
     (definterface+ IBaz [IFoo IBar]
       (baz []))"
-  {:added "0.5"
+  {:added    "0.5"
    :arglists '([name & sigs]
                [name [extends...] & sigs])}
   [name & forms]
@@ -33,8 +33,9 @@
         psig           (fn [[mname [& args]]]
                          (vector mname (vec (map tag args)) (tag mname) (map meta args)))
         cname          (with-meta (symbol (str (namespace-munge *ns*) "." name)) (meta name))]
-    `(let []
-       (gen-interface :name ~cname
-                      ~@(when extends [:extends (vec (map resolve extends))])
-                      :methods ~(vec (map psig sigs)))
+    `(do
+       (gen-interface
+        :name ~cname
+        ~@(when extends [:extends (vec (map resolve extends))])
+        :methods ~(vec (map psig sigs)))
        (import ~cname))))
