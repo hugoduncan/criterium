@@ -11,8 +11,34 @@
    [criterium.transducer :as tr]
    [criterium.utils.interface :as utils :refer [have?]])
   (:import
-   [criterium.array.interfaces IDoubleFold]
-   [criterium.transducer.interfaces IDDDReducible]))
+   [criterium.transducer.interfaces
+    IDDDReducible
+    IODLOReducible]))
+
+(definterface IVarianceAccumulator
+  (^criterium.stats.core.IVarianceAccumulator update [^double x])
+  (^double getQ [])
+  (^long getK []))
+
+(deftype VarianceAccumulator [^:unsynchronized-mutable ^double m
+                              ^:unsynchronized-mutable ^double q
+                              ^:unsynchronized-mutable ^long k]
+  IVarianceAccumulator
+  (update [this x]
+    (let [kp1   (unchecked-inc k)
+          delta (- x m)
+          new-m (+ m (/ delta kp1))
+          new-q (+ q (/ (* k (utils/sqr delta)) kp1))]
+      (set! m new-m)
+      (set! q new-q)
+      (set! k kp1))
+    this)
+  (getQ [_] q)
+  (getK [_] k))
+
+(defn accumulate-variance!
+  ^IVarianceAccumulator [^IVarianceAccumulator acc ^double x]
+  (.update acc x))
 
 (defn transpose
   "Transpose a vector of vectors."
@@ -81,27 +107,15 @@
 
 (defn- variance-typed-array
   "Single-pass variance computation for typed arrays."
-  ^double [^IDDDReducible data ^long df]
-  (let [^doubles mq (arr/doubles-fill 2 0.0)
-        ^longs k    (arr/longs-fill 1 0)]
-    ;; Accumulate in arrays to avoid boxing
+  ^double [^IODLOReducible data ^long df]
+  (let [^IVarianceAccumulator acc (VarianceAccumulator. 0.0 0.0 0)]
     (tr/reduce
-     (fn ^double [^double _ ^double x]
-       (let [k-val (aget k 0)
-             kp1   (unchecked-inc k-val)
-             m     (aget mq 0)
-             delta (- x m)
-             new-m (+ m (/ delta kp1))
-             new-q (+ (aget mq 1) (/ (* k-val (utils/sqr delta)) kp1))]
-         (aset mq 0 new-m)
-         (aset mq 1 new-q)
-         (aset k 0 kp1)
-         0.0))
-     0.0
+     accumulate-variance!
+     acc
      data)
-    (let [k-val (aget k 0)]
-      (if (> k-val df)
-        (/ (aget mq 1) (- k-val df))
+    (let [k (.getK acc)]
+      (if (> k df)
+        (/ (.getQ acc) (- k df))
         Double/NaN))))
 
 (defn variance
@@ -166,23 +180,25 @@
      med
      (arr/get-double data q3-idx)]))
 
+(defn- interpolate-at
+  "Linear interpolation at fractional index x in data array."
+  ^double [data ^double x]
+  (let [f (Math/floor x)
+        i (long f)
+        p (- x f)]
+    (cond
+      (zero? p) (arr/get-double data i)
+      (= 1.0 p) (arr/get-double data (inc i))
+      :else     (+ (* p (arr/get-double data (inc i)))
+                   (* (- 1.0 p) (arr/get-double data i))))))
+
 (defn quantile
   "Calculate the quantile of a sorted data set.
   Requires a typed array (ITypedArray).
   References: http://en.wikipedia.org/wiki/Quantile"
   ^double [^double quantile data]
   {:pre [(have? arr/typed-array? data)]}
-  (let [n      (dec (arr/length data))
-        interp (fn ^double [^double x]
-                 (let [f (Math/floor x)
-                       i (long f)
-                       p (- x f)]
-                   (cond
-                     (zero? p) (arr/get-double data i)
-                     (= 1.0 p) (arr/get-double data (inc i))
-                     :else     (+ (* p (arr/get-double data (inc i)))
-                                  (* (- 1.0 p) (arr/get-double data i))))))]
-    (prim/invoke-dd interp (* quantile n))))
+  (interpolate-at data (* quantile (dec (arr/length data)))))
 
 (defn central-moment
   "Compute the r-th central moment: (1/n) * Σ(xᵢ - μ)^r
