@@ -162,10 +162,10 @@
   "Calculate the quantile of a sorted data set.
   Requires a typed array (ITypedArray).
   References: http://en.wikipedia.org/wiki/Quantile"
-  [^double quantile data]
+  ^double [^double quantile data]
   {:pre [(have? arr/typed-array? data)]}
-  (let [n (dec (arr/length data))
-        interp (fn [^double x]
+  (let [n      (dec (arr/length data))
+        interp (fn ^double [^double x]
                  (let [f (Math/floor x)
                        i (long f)
                        p (- x f)]
@@ -174,7 +174,7 @@
                      (= 1.0 p) (arr/get-double data (inc i))
                      :else     (+ (* p (arr/get-double data (inc i)))
                                   (* (- 1.0 p) (arr/get-double data i))))))]
-    (interp (* quantile n))))
+    (prim/invoke-dd interp (* quantile n))))
 
 (defn central-moment
   "Compute the r-th central moment: (1/n) * Σ(xᵢ - μ)^r

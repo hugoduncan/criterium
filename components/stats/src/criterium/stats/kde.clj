@@ -7,9 +7,12 @@
   All functions require typed arrays (DoubleArray, LongArray)."
   (:require
    [criterium.array :as arr]
+   [criterium.primitive-fn :as pf]
    [criterium.random.interface :as random]
    [criterium.stats.core :as core]
+   [criterium.stats.fft :as fft]
    [criterium.stats.sampling :as sampling]
+   [criterium.transducer :as xd]
    [criterium.utils.interface :refer [have?]])
   (:import
    [criterium.array DoubleArray LongArray]
@@ -17,15 +20,9 @@
 
 (defn- data-min-max
   "Returns [min max] for typed array data."
-  [data]
-  (let [init-min Double/POSITIVE_INFINITY
-        init-max Double/NEGATIVE_INFINITY
-        [mn mx] (arr/dfold data
-                           (fn [acc ^double v]
-                             (let [[^double min-v ^double max-v] acc]
-                               [(min min-v v) (max max-v v)]))
-                           [init-min init-max])]
-    [(double mn) (double mx)]))
+  [^DoubleArray data]
+  [(xd/reduce pf/dmin Double/POSITIVE_INFINITY data)
+   (xd/reduce pf/dmax Double/NEGATIVE_INFINITY data)])
 
 (defn- ensure-double-array
   "Ensures data is a DoubleArray. Converts LongArray to DoubleArray."
@@ -287,9 +284,9 @@
 
 ;;; DCT-II implementation
 
-(defn dct-ii
+(defn dct-ii-direct
   "Discrete Cosine Transform Type II.
-  Direct O(n²) implementation without FFT dependency.
+  Direct O(n²) implementation. Retained for testing/reference.
 
   DCT-II formula: X_k = sum_{n=0}^{N-1} x_n * cos(π/N * (n + 0.5) * k)
 
@@ -310,6 +307,47 @@
                      acc)))]
         (aset result k sum)))
     result))
+
+(defn dct-via-fft
+  "Discrete Cosine Transform Type II via FFT.
+  O(n log n) implementation using 4N-point FFT.
+
+  Algorithm: Place input at odd positions in 4N array,
+  compute FFT, extract real parts.
+
+  Returns array of n DCT-II coefficients."
+  ^doubles [^doubles data]
+  (let [n (alength data)
+        n4 (* 4 n)
+        ;; Create 4N-length interleaved complex array
+        ;; Place x[k] at position 2k+1 for k = 0..N-1
+        ^doubles extended (double-array (* 2 n4))
+        _ (dotimes [k n]
+            ;; Position 2k+1 in the signal = index (2k+1)*2 in interleaved array
+            (aset extended (* 2 (inc (* 2 k))) (aget data k)))
+        ;; Make it even-symmetric: extended[4N-k] = extended[k] for k = 1..2N-1
+        ;; In interleaved format: position 4N-k has real index 2*(4N-k)
+        _ (dotimes [k (dec (* 2 n))]
+            (let [src-pos (inc k)  ; positions 1 to 2N-1
+                  dst-pos (- n4 src-pos)]
+              (aset extended (* 2 dst-pos) (aget extended (* 2 src-pos)))))
+        ;; Compute 4N-point FFT
+        _ (fft/fft! extended)
+        ;; Extract DCT coefficients: real parts at positions 0..N-1, scaled by 0.5
+        result (double-array n)]
+    (dotimes [k n]
+      (aset result k (* 0.5 (aget extended (* 2 k)))))
+    result))
+
+(defn dct-ii
+  "Discrete Cosine Transform Type II.
+  O(n log n) implementation using FFT.
+
+  DCT-II formula: X_k = sum_{n=0}^{N-1} x_n * cos(π/N * (n + 0.5) * k)
+
+  Returns array of n DCT-II coefficients."
+  ^doubles [^doubles data]
+  (dct-via-fft data))
 
 ;;; Linear binning
 
@@ -400,12 +438,12 @@
   Requires a typed array (DoubleArray or LongArray)."
   ^double [data]
   {:pre [(have? arr/typed-array? data)]}
-  (let [n (arr/length data)
-        sigma (Math/sqrt (core/variance data))
+  (let [n      (arr/length data)
+        sigma  (Math/sqrt (core/variance data))
         sorted (arr/sorted data)
-        q1 (double (core/quantile 0.25 sorted))
-        q3 (double (core/quantile 0.75 sorted))
-        iqr (- q3 q1)
+        q1     (core/quantile 0.25 sorted)
+        q3     (core/quantile 0.75 sorted)
+        iqr    (- q3 q1)
         spread (min sigma (/ iqr 1.34))]
     (* 0.9 spread (Math/pow (double n) -0.2))))
 
@@ -455,8 +493,9 @@
   (* (/ 1.0 (Math/sqrt (* 2.0 Math/PI)))
      (Math/exp (* -0.5 u u))))
 
-(defn gaussian-kde
+(defn gaussian-kde-direct
   "Compute Gaussian kernel density estimate at grid points.
+  Direct O(n×m) implementation. Retained for testing/reference.
 
   Parameters:
   - data: typed array of sample values (DoubleArray or LongArray)
@@ -486,6 +525,98 @@
                      acc)))]
         (aset density i (/ sum (* nd h)))))
     density))
+
+(defn gaussian-kde-fft
+  "Compute Gaussian kernel density estimate using FFT-based convolution.
+  O(m log m) implementation where m is grid size.
+
+  Algorithm:
+  1. Extend grid by 4h on each side to avoid circular convolution edge effects
+  2. Bin data onto extended grid using linear interpolation
+  3. FFT the binned histogram
+  4. Multiply by Gaussian kernel in frequency domain
+  5. IFFT to get density estimate
+  6. Extract the central portion corresponding to original grid
+
+  Parameters:
+  - data: typed array of sample values (DoubleArray or LongArray)
+  - bandwidth: kernel bandwidth (h)
+  - grid: array of evaluation points
+
+  Returns array of density values at each grid point.
+  Requires a typed array (DoubleArray or LongArray)."
+  ^doubles [data ^double bandwidth ^doubles grid]
+  {:pre [(have? arr/typed-array? data)]}
+  (let [m (alength grid)
+        x-min (aget grid 0)
+        x-max (aget grid (dec m))
+        dx (/ (- x-max x-min) (double (dec m)))
+        ;; Extend grid by 4h on each side to avoid edge effects from circular convolution
+        ;; 4h covers >99.99% of Gaussian kernel support
+        extension (* 4.0 bandwidth)
+        ext-points (long (Math/ceil (/ extension dx)))
+        ext-min (- x-min (* ext-points dx))
+        m-ext (long (+ m (* 2 ext-points)))
+        ;; Pad extended size to next power of 2 for FFT
+        m-fft (fft/next-power-of-2 m-ext)
+        ;; Create extended grid
+        ^doubles ext-grid (double-array m-ext)
+        _ (dotimes [i m-ext]
+            (aset ext-grid i (+ ext-min (* dx (double i)))))
+        ;; Bin data onto extended grid (weights sum to 1.0)
+        ^doubles binned (linear-bin data ext-grid)
+        ;; Zero-pad to power of 2 and convert to interleaved complex
+        ^doubles binned-complex (fft/zero-pad-real binned m-fft)
+        ;; FFT the binned histogram
+        _ (fft/fft! binned-complex)
+        ;; Compute Gaussian kernel in frequency domain and multiply
+        ;; For a Gaussian with bandwidth h, its FFT is also Gaussian
+        ;; The standard result: FT of (1/√(2π)h) exp(-x²/(2h²)) is exp(-2π²h²f²)
+        h-scaled (/ bandwidth dx)  ; bandwidth in grid units
+        m-fft-half (bit-shift-right m-fft 1)
+        _ (dotimes [k m-fft]
+            (let [;; Frequency index (handles wrap-around for DFT)
+                  freq (if (< k m-fft-half)
+                         (double k)
+                         (- (double k) (double m-fft)))
+                  ;; Gaussian in frequency domain: exp(-2π²σ²f²)
+                  ;; where σ = h (in grid units) and f = freq/m-fft (normalized)
+                  exponent (* -2.0 Math/PI Math/PI h-scaled h-scaled
+                              (/ (* freq freq) (* (double m-fft) (double m-fft))))
+                  kernel-val (Math/exp exponent)
+                  idx (* 2 k)
+                  ;; Multiply in-place (kernel is real)
+                  binned-re (aget binned-complex idx)
+                  binned-im (aget binned-complex (inc idx))]
+              (aset binned-complex idx (* binned-re kernel-val))
+              (aset binned-complex (inc idx) (* binned-im kernel-val))))
+        ;; IFFT to get density
+        _ (fft/ifft! binned-complex)
+        ;; Extract real parts for original grid points (skip ext-points at start)
+        ;; Scale by 1/dx to get proper density (integral = 1)
+        ^doubles density (double-array m)
+        scale (/ 1.0 dx)
+        ;; Small threshold to eliminate numerical noise (prevents spurious modes)
+        noise-threshold 1e-14]
+    (dotimes [i m]
+      (let [ext-idx (+ i ext-points)
+            val (* scale (aget binned-complex (* 2 ext-idx)))]
+        ;; Clamp tiny values to zero to eliminate numerical noise
+        (aset density i (if (< val noise-threshold) 0.0 val))))
+    density))
+
+(defn gaussian-kde
+  "Compute Gaussian kernel density estimate at grid points.
+
+  Parameters:
+  - data: typed array of sample values (DoubleArray or LongArray)
+  - bandwidth: kernel bandwidth (h)
+  - grid: vector of evaluation points
+
+  Returns vector of density values at each grid point.
+  Requires a typed array (DoubleArray or LongArray)."
+  ^doubles [data ^double bandwidth ^doubles grid]
+  (gaussian-kde-fft data bandwidth grid))
 
 ;;; Mode finding
 
@@ -920,41 +1051,39 @@
   Requires a typed array (DoubleArray or LongArray)."
   ([data] (kde data {}))
   ([data {:keys [n-points bandwidth n-bootstrap alpha rng-factory]
-          :or {n-points 512
-               n-bootstrap 200
-               alpha 0.05
-               rng-factory #(random/make-well-rng-1024a)}}]
+          :or   {n-points    512
+                 n-bootstrap 200
+                 alpha       0.05
+                 rng-factory #(random/make-well-rng-1024a)}}]
    {:pre [(have? arr/typed-array? data)]}
    (let [n (arr/length data)]
      (when (zero? n)
        (throw (ex-info "Input data cannot be empty"
                        {:error :kde/no-data})))
-     (let [[x-min x-max] (data-min-max data)
-           x-min (double x-min)
-           x-max (double x-max)]
+     (let [[^double x-min ^double x-max] (data-min-max data)]
        (when (= x-min x-max)
          (throw (ex-info "All values are the same - cannot compute KDE"
                          {:error :kde/constant-data
                           :value x-min})))
-       (let [margin (/ (- x-max x-min) 10.0)
-             g-min (- x-min margin)
-             g-max (+ x-max margin)
+       (let [margin  (/ (- x-max x-min) 10.0)
+             g-min   (- x-min margin)
+             g-max   (+ x-max margin)
              g-range (- g-max g-min)
-             n-pts (long n-points)
-             grid (double-array n-pts)
-             _ (dotimes [i n-pts]
-                 (aset grid i (+ g-min (* g-range
-                                          (/ (double i) (double (dec n-pts)))))))
-             h (double (or bandwidth (isj-bandwidth data)))
+             n-pts   (long n-points)
+             grid    (double-array n-pts)
+             _       (dotimes [i n-pts]
+                       (aset grid i (+ g-min (* g-range
+                                                (/ (double i) (double (dec n-pts)))))))
+             h       (double (or bandwidth (isj-bandwidth data)))
              density (gaussian-kde data h grid)
-             bands (kde-confidence-bands data h grid
-                                         {:n-bootstrap n-bootstrap
-                                          :alpha alpha
-                                          :rng-factory rng-factory})]
-         {:type :criterium/kde
-          :bandwidth h
-          :grid (vec grid)
-          :density (vec density)
+             bands   (kde-confidence-bands data h grid
+                                           {:n-bootstrap n-bootstrap
+                                            :alpha       alpha
+                                            :rng-factory rng-factory})]
+         {:type       :criterium/kde
+          :bandwidth  h
+          :grid       (vec grid)
+          :density    (vec density)
           :lower-band (vec (:lower bands))
           :upper-band (vec (:upper bands))
-          :n n})))))
+          :n          n})))))

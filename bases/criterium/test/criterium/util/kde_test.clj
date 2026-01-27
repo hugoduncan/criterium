@@ -173,6 +173,62 @@
             ^doubles result (kde/dct-ii data)]
         (is (= 8 (alength result)))))))
 
+(deftest dct-via-fft-test
+  ;; Tests FFT-based DCT-II matches direct implementation.
+  ;; Verifies numerical accuracy and performance improvement.
+  (testing "dct-via-fft"
+    (testing "matches dct-ii-direct for small inputs"
+      (let [data (double-array [1.0 2.0 3.0 4.0])
+            ^doubles fft-result (kde/dct-via-fft data)
+            ^doubles direct-result (kde/dct-ii-direct data)
+            tolerance 1e-10]
+        (is (= (alength fft-result) (alength direct-result)))
+        (doseq [i (range (alength fft-result))]
+          (is (< (Math/abs (- (aget fft-result i) (aget direct-result i)))
+                 tolerance)
+              (format "Mismatch at index %d: FFT=%.12f Direct=%.12f"
+                      i (aget fft-result i) (aget direct-result i))))))
+
+    (testing "matches dct-ii-direct for power-of-2 sizes"
+      (doseq [n [8 16 32 64 128]]
+        (let [data (double-array (map #(Math/sin (* 0.1 (double %))) (range n)))
+              ^doubles fft-result (kde/dct-via-fft data)
+              ^doubles direct-result (kde/dct-ii-direct data)
+              tolerance 1e-10]
+          (doseq [i (range n)]
+            (is (< (Math/abs (- (aget fft-result i) (aget direct-result i)))
+                   tolerance)
+                (format "n=%d, i=%d: FFT=%.12f Direct=%.12f"
+                        n i (aget fft-result i) (aget direct-result i)))))))
+
+    (testing "matches dct-ii-direct for ISJ grid size (1024)"
+      (let [n 1024
+            data (double-array (map #(Math/sin (* 0.01 (double %))) (range n)))
+            ^doubles fft-result (kde/dct-via-fft data)
+            ^doubles direct-result (kde/dct-ii-direct data)
+            tolerance 1e-9]
+        (doseq [i (range n)]
+          (is (< (Math/abs (- (aget fft-result i) (aget direct-result i)))
+                 tolerance)
+              (format "i=%d: FFT=%.12f Direct=%.12f"
+                      i (aget fft-result i) (aget direct-result i))))))))
+
+(deftest ^:slow dct-via-fft-performance-test
+  ;; Verifies DCT-II via FFT completes in reasonable time for ISJ grid size.
+  (testing "dct-via-fft performance"
+    (testing "completes m=1024 in under 10ms"
+      (let [n 1024
+            data (double-array (map #(Math/sin (* 0.01 (double %))) (range n)))
+            ;; Warm up JIT
+            _ (dotimes [_ 100] (kde/dct-via-fft data))
+            ;; Time 100 iterations
+            start (System/nanoTime)
+            _ (dotimes [_ 100] (kde/dct-via-fft data))
+            elapsed-ms (/ (- (System/nanoTime) start) 1e6)
+            per-call-ms (/ elapsed-ms 100.0)]
+        (is (< per-call-ms 10.0)
+            (format "DCT via FFT took %.3f ms per call" per-call-ms))))))
+
 (deftest linear-bin-test
   ;; Tests linear binning for correct distribution of weights.
   (testing "linear-bin"
@@ -444,3 +500,137 @@
         (is (contains? mode :density))
         (is (number? (:location mode)))
         (is (number? (:density mode)))))))
+
+(deftest gaussian-kde-fft-test
+  ;; Tests FFT-based Gaussian KDE matches direct implementation.
+  ;; Verifies numerical accuracy of FFT convolution approach.
+  (testing "gaussian-kde-fft"
+    (testing "matches gaussian-kde-direct for simple data"
+      (let [data (darr [1.0 2.0 3.0 4.0 5.0])
+            h 1.0
+            grid (double-array (range 0.0 6.0 0.1))
+            ^doubles fft-result (kde/gaussian-kde-fft data h grid)
+            ^doubles direct-result (kde/gaussian-kde-direct data h grid)
+            ;; FFT method uses binning approximation, so tolerance is looser
+            tolerance 1e-3]
+        (is (= (alength fft-result) (alength direct-result)))
+        (doseq [i (range (alength fft-result))]
+          (is (< (Math/abs (- (aget fft-result i) (aget direct-result i)))
+                 tolerance)
+              (format "Mismatch at i=%d: FFT=%.6f Direct=%.6f"
+                      i (aget fft-result i) (aget direct-result i))))))
+
+    (testing "matches gaussian-kde-direct for Gaussian samples"
+      (let [data (darr (tu/gaussian-samples 200 50.0 10.0))
+            h (kde/isj-bandwidth data)
+            n-grid 256
+            grid (double-array (for [i (range n-grid)]
+                                 (+ 0.0 (* 100.0 (/ (double i) (dec n-grid))))))
+            ^doubles fft-result (kde/gaussian-kde-fft data h grid)
+            ^doubles direct-result (kde/gaussian-kde-direct data h grid)
+            tolerance 1e-3]
+        (doseq [i (range n-grid)]
+          (is (< (Math/abs (- (aget fft-result i) (aget direct-result i)))
+                 tolerance)
+              (format "Mismatch at i=%d: FFT=%.6f Direct=%.6f"
+                      i (aget fft-result i) (aget direct-result i))))))
+
+    (testing "matches gaussian-kde-direct for bimodal data"
+      (let [data (darr (concat (tu/gaussian-samples 100 20.0 5.0 1)
+                               (tu/gaussian-samples 100 80.0 5.0 2)))
+            h (kde/isj-bandwidth data)
+            n-grid 512
+            grid (double-array (for [i (range n-grid)]
+                                 (+ -10.0 (* 120.0 (/ (double i) (dec n-grid))))))
+            ^doubles fft-result (kde/gaussian-kde-fft data h grid)
+            ^doubles direct-result (kde/gaussian-kde-direct data h grid)
+            tolerance 1e-3]
+        (doseq [i (range n-grid)]
+          (is (< (Math/abs (- (aget fft-result i) (aget direct-result i)))
+                 tolerance)
+              (format "Mismatch at i=%d: FFT=%.6f Direct=%.6f"
+                      i (aget fft-result i) (aget direct-result i))))))
+
+    (testing "density integrates to approximately 1"
+      (let [data (darr (tu/gaussian-samples 100 50.0 10.0))
+            h 5.0
+            n-grid 256
+            grid (double-array (for [i (range n-grid)]
+                                 (+ 0.0 (* 100.0 (/ (double i) (dec n-grid))))))
+            ^doubles density (kde/gaussian-kde-fft data h grid)
+            dx (/ 100.0 (double (dec n-grid)))
+            sum (double (loop [i 0 acc 0.0]
+                          (if (< i n-grid)
+                            (recur (inc i) (+ acc (aget density i)))
+                            acc)))
+            total (* dx sum)]
+        (is (< (Math/abs (- total 1.0)) 0.05)
+            (format "Density should integrate to ~1, got %.4f" total))))
+
+    (testing "produces non-negative densities"
+      (let [data (darr (tu/gaussian-samples 100 50.0 10.0))
+            h 5.0
+            grid (double-array (range 0.0 100.0 0.5))
+            ^doubles density (kde/gaussian-kde-fft data h grid)]
+        (doseq [i (range (alength density))]
+          (is (>= (aget density i) 0.0)
+              (format "Density at i=%d should be non-negative" i)))))))
+
+(deftest ^:slow gaussian-kde-fft-performance-test
+  ;; Verifies FFT-based KDE completes in reasonable time.
+  (testing "gaussian-kde-fft performance"
+    (testing "completes KDE of 1000 samples in under 50ms"
+      (let [data (darr (tu/gaussian-samples 1000 50.0 10.0))
+            h 5.0
+            grid (double-array (range 0.0 100.0 0.2))  ; 500 points
+            ;; Warm up JIT
+            _ (dotimes [_ 50] (kde/gaussian-kde-fft data h grid))
+            ;; Time 100 iterations
+            start (System/nanoTime)
+            _ (dotimes [_ 100] (kde/gaussian-kde-fft data h grid))
+            elapsed-ms (/ (- (System/nanoTime) start) 1e6)
+            per-call-ms (/ elapsed-ms 100.0)]
+        (is (< per-call-ms 50.0)
+            (format "KDE via FFT took %.3f ms per call" per-call-ms)))))
+
+  (testing "FFT method is faster than direct for large data"
+    (let [data (darr (tu/gaussian-samples 1000 50.0 10.0))
+          h 5.0
+          grid (double-array (range 0.0 100.0 0.2))  ; 500 points
+          ;; Warm up
+          _ (dotimes [_ 20] (kde/gaussian-kde-fft data h grid))
+          _ (dotimes [_ 20] (kde/gaussian-kde-direct data h grid))
+          ;; Time FFT
+          start-fft (System/nanoTime)
+          _ (dotimes [_ 50] (kde/gaussian-kde-fft data h grid))
+          elapsed-fft (- (System/nanoTime) start-fft)
+          ;; Time direct
+          start-direct (System/nanoTime)
+          _ (dotimes [_ 50] (kde/gaussian-kde-direct data h grid))
+          elapsed-direct (- (System/nanoTime) start-direct)]
+      (is (< elapsed-fft elapsed-direct)
+          (format "FFT (%.2f ms) should be faster than direct (%.2f ms)"
+                  (/ elapsed-fft 1e6) (/ elapsed-direct 1e6))))))
+
+(deftest ^:slow kde-confidence-bands-performance-test
+  ;; Verifies that kde-confidence-bands benefits from FFT optimizations.
+  ;; With O(m log m) FFT-based KDE, 200 bootstrap iterations on 500 samples
+  ;; should complete in under 5 seconds (vs 30+ seconds with O(n×m) direct).
+  (testing "kde-confidence-bands performance"
+    (testing "completes 200 bootstrap iterations in under 5 seconds"
+      (let [data (darr (tu/gaussian-samples 500 50.0 10.0))
+            h (kde/isj-bandwidth data)
+            n-grid 256
+            grid (double-array (for [i (range n-grid)]
+                                 (+ 0.0 (* 100.0 (/ (double i) (dec n-grid))))))
+            ;; Warm up JIT with a few iterations
+            _ (kde/kde-confidence-bands data h grid {:n-bootstrap 5})
+            ;; Time full bootstrap with 200 iterations
+            start (System/nanoTime)
+            result (kde/kde-confidence-bands data h grid {:n-bootstrap 200})
+            elapsed-s (/ (- (System/nanoTime) start) 1e9)]
+        (is (map? result) "should return result map")
+        (is (= n-grid (alength ^doubles (:lower result))))
+        (is (= n-grid (alength ^doubles (:upper result))))
+        (is (< elapsed-s 5.0)
+            (format "kde-confidence-bands with 200 bootstrap took %.2f s" elapsed-s))))))
