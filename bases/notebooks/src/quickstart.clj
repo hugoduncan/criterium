@@ -32,11 +32,22 @@
 ;;
 ;; The output has three main sections. Here's what each means:
 ;;
-;; **Elapsed Time Statistics**
+;; **Sample Scheme**
 ;;
 ;; ```
-;; Elapsed Time median: 0.00390 ns CI [0.00390 0.00390] (0.025 0.975)
-;; Elapsed Time spread: [0.00376 0.00410] ns (10th-90th percentile)
+;; Sample Scheme: 200 samples with batch-size 10000 (2000000 evaluations)
+;; ```
+;;
+;; - `200 samples` — number of timing measurements taken
+;; - `batch-size 10000` — executions per sample (batched for timer resolution)
+;; - `2000000 evaluations` — total executions during measurement
+;;
+;; ** Metric Statistics**
+;;
+;; ```
+;;   Elapsed Time median: 0.00390 ns CI [0.00390 0.00390] (0.025 0.975)
+;;   Elapsed Time spread: [0.00376 0.00410] ns (10th-90th percentile)
+;; Elapsed Time extremes: [0.00376 0.00410] ns
 ;; ```
 ;;
 ;; Criterium takes the measured samples and bootstraps statistics.  The reported
@@ -54,13 +65,6 @@
 ;;and to get confidence intervals.
 ;; :::
 ;; ```
-;; Elapsed Time: 3.21 ns  3σ [2.98 3.44]  min 2.89
-;; ```
-;;
-;; - `3.21 ns` — the mean execution time
-;; - `3σ [2.98 3.44]` — the range containing ~99.7% of expected means
-;;   (three standard deviations)
-;; - `min 2.89` — the fastest sample observed
 ;;
 ;; **Outliers**
 ;;
@@ -72,15 +76,6 @@
 ;; normal (GC pauses, OS scheduling). Many outliers suggest unstable
 ;; measurements.
 ;;
-;; **Sample Scheme**
-;;
-;; ```
-;; Sample Scheme: 200 samples with batch-size 10000 (2000000 evaluations)
-;; ```
-;;
-;; - `200 samples` — number of timing measurements taken
-;; - `batch-size 10000` — executions per sample (batched for timer resolution)
-;; - `2000000 evaluations` — total executions during measurement
 
 ;; ## Benchmarking with Data
 ;;
