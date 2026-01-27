@@ -1,4 +1,4 @@
-(ns criterium.util.kde-test
+(ns criterium.stats.kde-test
   ;; Tests for the KDE (Kernel Density Estimation) module.
   ;; Verifies ISJ bandwidth selection, Gaussian KDE evaluation,
   ;; mode detection, and bootstrap confidence intervals.
