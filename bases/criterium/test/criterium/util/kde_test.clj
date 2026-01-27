@@ -349,8 +349,8 @@
                                               (assoc opts :cached-critical-bandwidth h-crit))]
         (is (= h-crit (:critical-bandwidth result-cached))
             "cached bandwidth should be used")
-        (is (< (Math/abs (- (:critical-bandwidth result-computed)
-                            (:critical-bandwidth result-cached)))
+        (is (< (Math/abs (- (double (:critical-bandwidth result-computed))
+                            (double (:critical-bandwidth result-cached))))
                1e-10)
             "bandwidths should match")))))
 
@@ -366,8 +366,8 @@
                                         (assoc opts :cached-critical-bandwidth h-crit))]
         (is (= h-crit (:critical-bandwidth result-cached))
             "cached bandwidth should be used")
-        (is (< (Math/abs (- (:critical-bandwidth result-computed)
-                            (:critical-bandwidth result-cached)))
+        (is (< (Math/abs (- (double (:critical-bandwidth result-computed))
+                            (double (:critical-bandwidth result-cached))))
                1e-10)
             "bandwidths should match")))))
 
