@@ -3,14 +3,42 @@
 
   All functions require typed arrays (ITypedArray) as input.
   Primitive-optimized implementations avoid boxing overhead."
-  (:refer-clojure :exclude [min max])
+  (:refer-clojure :exclude [min max reduce])
   (:require
    [criterium.array :as arr]
    criterium.array.interfaces
    [criterium.primitive-fn :as prim]
+   [criterium.transducer :as tr]
    [criterium.utils.interface :as utils :refer [have?]])
   (:import
-   [criterium.array.interfaces IDoubleFold]))
+   [criterium.transducer.interfaces
+    IDDDReducible
+    IODLOReducible]))
+
+(definterface IVarianceAccumulator
+  (^criterium.stats.core.IVarianceAccumulator update [^double x])
+  (^double getQ [])
+  (^long getK []))
+
+(deftype VarianceAccumulator [^:unsynchronized-mutable ^double m
+                              ^:unsynchronized-mutable ^double q
+                              ^:unsynchronized-mutable ^long k]
+  IVarianceAccumulator
+  (update [this x]
+    (let [kp1   (unchecked-inc k)
+          delta (- x m)
+          new-m (+ m (/ delta kp1))
+          new-q (+ q (/ (* k (utils/sqr delta)) kp1))]
+      (set! m new-m)
+      (set! q new-q)
+      (set! k kp1))
+    this)
+  (getQ [_] q)
+  (getK [_] k))
+
+(defn accumulate-variance!
+  ^IVarianceAccumulator [^IVarianceAccumulator acc ^double x]
+  (.update acc x))
 
 (defn transpose
   "Transpose a vector of vectors."
@@ -22,19 +50,19 @@
 (defn min
   "Minimum value in data.
   Requires a typed array (ITypedArray)."
-  ([data]
+  (^double [data]
    {:pre [(have? arr/typed-array? data)]}
-   (arr/fold-double data prim/dmin Double/MAX_VALUE))
-  ([data _count]
+   (tr/reduce prim/dmin Double/MAX_VALUE ^IDDDReducible data))
+  (^double [data ^long _count]
    (min data)))
 
 (defn max
   "Maximum value in data.
   Requires a typed array (ITypedArray)."
-  ([data]
+  (^double [data]
    {:pre [(have? arr/typed-array? data)]}
-   (arr/fold-double data prim/dmax Double/MIN_VALUE))
-  ([data _count]
+   (tr/reduce prim/dmax Double/MIN_VALUE ^IDDDReducible data))
+  (^double [data ^long _count]
    (max data)))
 
 (defn mean
@@ -44,25 +72,29 @@
    {:pre [(have? arr/typed-array? data)]}
    (let [c (arr/length data)]
      (when (pos? c)
-       (/ (arr/fold-double data prim/dadd-unchecked 0.0) c))))
+       (/ (tr/reduce prim/dadd 0.0 ^IDDDReducible data) c))))
   (^double [data ^long count]
    {:pre [(have? arr/typed-array? data)]}
-   (/ (arr/fold-double data prim/dadd-unchecked 0.0) count)))
+   (/ (tr/reduce prim/dadd 0.0 ^IDDDReducible data) count)))
 
 (defn sum
   "Sum of each data point.
   Requires a typed array (ITypedArray)."
-  [data]
+  ^double [data]
   {:pre [(have? arr/typed-array? data)]}
-  (arr/fold-double data prim/dadd-unchecked 0.0))
+  (tr/reduce prim/dadd 0.0 ^IDDDReducible data))
+
+(defn- reduce-dsquare
+  "Primitive squaring function for transducer map."
+  ^double [^double acc ^double x]
+  (+ acc (* x x)))
 
 (defn sum-of-squares
   "Sum of the squares of each data point.
   Requires a typed array (ITypedArray)."
-  [data]
+  ^double [data]
   {:pre [(have? arr/typed-array? data)]}
-  (let [f (fn ^double [^double s ^double v] (+ s (* v v)))]
-    (arr/fold-double data f 0.0)))
+  (tr/reduce reduce-dsquare 0.0 ^IDDDReducible data))
 
 (defn variance*
   "Variance based on subtracting mean.
@@ -75,26 +107,16 @@
 
 (defn- variance-typed-array
   "Single-pass variance computation for typed arrays."
-  ^double [^IDoubleFold data ^long df]
-  (let [^doubles mq (double-array [0.0 0.0])
-        ^longs k (long-array [0])]
-    ;; Accumulate in arrays to avoid boxing
-    (.fold data
-           (fn ^double [^double _ ^double x]
-             (let [k-val   (aget k 0)
-                   kp1     (unchecked-inc k-val)
-                   m       (aget mq 0)
-                   delta   (- x m)
-                   new-m   (+ m (/ delta kp1))
-                   new-q   (+ (aget mq 1) (/ (* k-val (utils/sqr delta)) kp1))]
-               (aset mq 0 new-m)
-               (aset mq 1 new-q)
-               (aset k 0 kp1)
-               0.0))
-           0.0)
-    (let [k-val (aget k 0)]
-      (when (> k-val df)
-        (/ (aget mq 1) (- k-val df))))))
+  ^double [^IODLOReducible data ^long df]
+  (let [^IVarianceAccumulator acc (VarianceAccumulator. 0.0 0.0 0)]
+    (tr/reduce
+     accumulate-variance!
+     acc
+     data)
+    (let [k (.getK acc)]
+      (if (> k df)
+        (/ (.getQ acc) (- k df))
+        Double/NaN))))
 
 (defn variance
   "Return the variance of data.
@@ -158,23 +180,25 @@
      med
      (arr/get-double data q3-idx)]))
 
+(defn- interpolate-at
+  "Linear interpolation at fractional index x in data array."
+  ^double [data ^double x]
+  (let [f (Math/floor x)
+        i (long f)
+        p (- x f)]
+    (cond
+      (zero? p) (arr/get-double data i)
+      (= 1.0 p) (arr/get-double data (inc i))
+      :else     (+ (* p (arr/get-double data (inc i)))
+                   (* (- 1.0 p) (arr/get-double data i))))))
+
 (defn quantile
   "Calculate the quantile of a sorted data set.
   Requires a typed array (ITypedArray).
   References: http://en.wikipedia.org/wiki/Quantile"
   ^double [^double quantile data]
   {:pre [(have? arr/typed-array? data)]}
-  (let [n      (dec (arr/length data))
-        interp (fn ^double [^double x]
-                 (let [f (Math/floor x)
-                       i (long f)
-                       p (- x f)]
-                   (cond
-                     (zero? p) (arr/get-double data i)
-                     (= 1.0 p) (arr/get-double data (inc i))
-                     :else     (+ (* p (arr/get-double data (inc i)))
-                                  (* (- 1.0 p) (arr/get-double data i))))))]
-    (prim/invoke-dd interp (* quantile n))))
+  (interpolate-at data (* quantile (dec (arr/length data)))))
 
 (defn central-moment
   "Compute the r-th central moment: (1/n) * Σ(xᵢ - μ)^r

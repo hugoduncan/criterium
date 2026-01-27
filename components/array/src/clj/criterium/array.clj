@@ -877,3 +877,111 @@
   Compares element-by-element using == for doubles/longs, = for objects."
   [^IArrayEquals arr expected]
   (.arrayEquals arr expected))
+
+;;; Primitive array literal initializers
+
+(defn make-doubles
+  "Creates a primitive double array with 1-4 explicit values.
+  Avoids ISeq iteration overhead of `(double-array [...])`."
+  {:inline-arities #{1 2 3 4}
+   :inline (fn
+             ([a] `(let [arr# (double-array 1)]
+                     (aset arr# 0 ~a)
+                     arr#))
+             ([a b] `(let [arr# (double-array 2)]
+                       (aset arr# 0 ~a)
+                       (aset arr# 1 ~b)
+                       arr#))
+             ([a b c] `(let [arr# (double-array 3)]
+                         (aset arr# 0 ~a)
+                         (aset arr# 1 ~b)
+                         (aset arr# 2 ~c)
+                         arr#))
+             ([a b c d] `(let [arr# (double-array 4)]
+                           (aset arr# 0 ~a)
+                           (aset arr# 1 ~b)
+                           (aset arr# 2 ~c)
+                           (aset arr# 3 ~d)
+                           arr#)))}
+  (^doubles [^double a]
+   (let [arr (double-array 1)]
+     (aset arr 0 a)
+     arr))
+  (^doubles [^double a ^double b]
+   (let [arr (double-array 2)]
+     (aset arr 0 a)
+     (aset arr 1 b)
+     arr))
+  (^doubles [^double a ^double b ^double c]
+   (let [arr (double-array 3)]
+     (aset arr 0 a)
+     (aset arr 1 b)
+     (aset arr 2 c)
+     arr))
+  (^doubles [^double a ^double b ^double c ^double d]
+   (let [arr (double-array 4)]
+     (aset arr 0 a)
+     (aset arr 1 b)
+     (aset arr 2 c)
+     (aset arr 3 d)
+     arr)))
+
+(defn make-longs
+  "Creates a primitive long array with 1-4 explicit values.
+  Avoids ISeq iteration overhead of `(long-array [...])`."
+  {:inline-arities #{1 2 3 4}
+   :inline (fn
+             ([a] `(let [arr# (long-array 1)]
+                     (aset arr# 0 ~a)
+                     arr#))
+             ([a b] `(let [arr# (long-array 2)]
+                       (aset arr# 0 ~a)
+                       (aset arr# 1 ~b)
+                       arr#))
+             ([a b c] `(let [arr# (long-array 3)]
+                         (aset arr# 0 ~a)
+                         (aset arr# 1 ~b)
+                         (aset arr# 2 ~c)
+                         arr#))
+             ([a b c d] `(let [arr# (long-array 4)]
+                           (aset arr# 0 ~a)
+                           (aset arr# 1 ~b)
+                           (aset arr# 2 ~c)
+                           (aset arr# 3 ~d)
+                           arr#)))}
+  (^longs [^long a]
+   (let [arr (long-array 1)]
+     (aset arr 0 a)
+     arr))
+  (^longs [^long a ^long b]
+   (let [arr (long-array 2)]
+     (aset arr 0 a)
+     (aset arr 1 b)
+     arr))
+  (^longs [^long a ^long b ^long c]
+   (let [arr (long-array 3)]
+     (aset arr 0 a)
+     (aset arr 1 b)
+     (aset arr 2 c)
+     arr))
+  (^longs [^long a ^long b ^long c ^long d]
+   (let [arr (long-array 4)]
+     (aset arr 0 a)
+     (aset arr 1 b)
+     (aset arr 2 c)
+     (aset arr 3 d)
+     arr)))
+
+(defn doubles-fill
+  "Creates a primitive double array of length n filled with value v."
+  ^doubles [^long n ^double v]
+  (let [arr (double-array n)]
+    (java.util.Arrays/fill arr v)
+    arr))
+
+(defn longs-fill
+  "Creates a primitive long array of length n filled with value v."
+  ^longs [^long n ^long v]
+  (let [arr (long-array n)]
+    (java.util.Arrays/fill arr v)
+    arr))

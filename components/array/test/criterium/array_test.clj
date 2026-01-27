@@ -484,3 +484,103 @@
         (let [^ObjectArray wrapped (arr/->object-array (object-array []))]
           (is (identical? wrapped (arr/fill! wrapped :x)))
           (is (= 0 (arr/length wrapped))))))))
+
+(deftest make-doubles-test
+  ;; Tests primitive double array literal initializers.
+  ;; Contracts: creates raw double[], supports arities 1-4, preserves values.
+  (testing "make-doubles"
+    (testing "creates arrays of correct length and values"
+      (testing "arity 1"
+        (let [arr (arr/make-doubles 1.0)]
+          (is (instance? (Class/forName "[D") arr))
+          (is (= 1 (alength ^doubles arr)))
+          (is (== 1.0 (aget ^doubles arr 0)))))
+      (testing "arity 2"
+        (let [arr (arr/make-doubles 1.0 2.0)]
+          (is (= 2 (alength ^doubles arr)))
+          (is (== 1.0 (aget ^doubles arr 0)))
+          (is (== 2.0 (aget ^doubles arr 1)))))
+      (testing "arity 3"
+        (let [arr (arr/make-doubles 1.0 2.0 3.0)]
+          (is (= 3 (alength ^doubles arr)))
+          (is (== 3.0 (aget ^doubles arr 2)))))
+      (testing "arity 4"
+        (let [arr (arr/make-doubles 1.0 2.0 3.0 4.0)]
+          (is (= 4 (alength ^doubles arr)))
+          (is (== 4.0 (aget ^doubles arr 3))))))
+    (testing "preserves negative and fractional values"
+      (let [arr (arr/make-doubles -1.5 0.0 2.5)]
+        (is (== -1.5 (aget ^doubles arr 0)))
+        (is (== 0.0 (aget ^doubles arr 1)))
+        (is (== 2.5 (aget ^doubles arr 2)))))))
+
+(deftest make-longs-test
+  ;; Tests primitive long array literal initializers.
+  ;; Contracts: creates raw long[], supports arities 1-4, preserves values.
+  (testing "make-longs"
+    (testing "creates arrays of correct length and values"
+      (testing "arity 1"
+        (let [arr (arr/make-longs 1)]
+          (is (instance? (Class/forName "[J") arr))
+          (is (= 1 (alength ^longs arr)))
+          (is (== 1 (aget ^longs arr 0)))))
+      (testing "arity 2"
+        (let [arr (arr/make-longs 1 2)]
+          (is (= 2 (alength ^longs arr)))
+          (is (== 1 (aget ^longs arr 0)))
+          (is (== 2 (aget ^longs arr 1)))))
+      (testing "arity 3"
+        (let [arr (arr/make-longs 1 2 3)]
+          (is (= 3 (alength ^longs arr)))
+          (is (== 3 (aget ^longs arr 2)))))
+      (testing "arity 4"
+        (let [arr (arr/make-longs 1 2 3 4)]
+          (is (= 4 (alength ^longs arr)))
+          (is (== 4 (aget ^longs arr 3))))))
+    (testing "preserves negative values"
+      (let [arr (arr/make-longs -10 0 10)]
+        (is (== -10 (aget ^longs arr 0)))
+        (is (== 0 (aget ^longs arr 1)))
+        (is (== 10 (aget ^longs arr 2)))))))
+
+(deftest doubles-fill-test
+  ;; Tests double array creation with fill value.
+  ;; Contracts: creates array of specified length, fills with initial value.
+  (testing "doubles-fill"
+    (testing "creates array with specified length and value"
+      (let [arr (arr/doubles-fill 10 0.0)]
+        (is (instance? (Class/forName "[D") arr))
+        (is (= 10 (alength ^doubles arr)))
+        (is (every? #(= 0.0 %) (vec arr)))))
+    (testing "fills with non-zero value"
+      (let [arr (arr/doubles-fill 5 42.5)]
+        (is (= 5 (alength ^doubles arr)))
+        (is (every? #(= 42.5 %) (vec arr)))))
+    (testing "handles length 1"
+      (let [arr (arr/doubles-fill 1 3.14)]
+        (is (= 1 (alength ^doubles arr)))
+        (is (== 3.14 (aget ^doubles arr 0)))))
+    (testing "handles length 0"
+      (let [arr (arr/doubles-fill 0 1.0)]
+        (is (= 0 (alength ^doubles arr)))))))
+
+(deftest longs-fill-test
+  ;; Tests long array creation with fill value.
+  ;; Contracts: creates array of specified length, fills with initial value.
+  (testing "longs-fill"
+    (testing "creates array with specified length and value"
+      (let [arr (arr/longs-fill 10 0)]
+        (is (instance? (Class/forName "[J") arr))
+        (is (= 10 (alength ^longs arr)))
+        (is (every? #(= 0 %) (vec arr)))))
+    (testing "fills with non-zero value"
+      (let [arr (arr/longs-fill 5 42)]
+        (is (= 5 (alength ^longs arr)))
+        (is (every? #(= 42 %) (vec arr)))))
+    (testing "handles length 1"
+      (let [arr (arr/longs-fill 1 123)]
+        (is (= 1 (alength ^longs arr)))
+        (is (== 123 (aget ^longs arr 0)))))
+    (testing "handles length 0"
+      (let [arr (arr/longs-fill 0 1)]
+        (is (= 0 (alength ^longs arr)))))))

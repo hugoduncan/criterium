@@ -95,6 +95,16 @@
   [f v]
   `(.invokePrim ~(vary-meta f assoc :tag 'clojure.lang.IFn$DD) ~v))
 
+(defmacro invoke-dlold
+  "Invoke a primitive double long Object long -> double function."
+  [f d l o l2]
+  `(.invokePrim ~(vary-meta f assoc :tag 'clojure.lang.IFn$DLOLD) ~d ~l ~o ~l2))
+
+(defmacro invoke-do
+  "Invoke a primitive double -> double function."
+  [f v]
+  `(.invokePrim ~(vary-meta f assoc :tag 'clojure.lang.IFn$DO) ~v))
+
 ;;; Predicates
 
 (defpred-wrappers double

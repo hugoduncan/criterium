@@ -137,6 +137,32 @@ public interface IPrimOps {
   double reduce(Object rf, double init, IDDDReducible source);
 
   /**
+   * Reduces over a double source with an object accumulator.
+   *
+   * <p>Enables reduction where double elements are accumulated into an object
+   * result. Used for computing statistics with mutable accumulators.
+   *
+   * @param rf the reducing function taking (Object acc, double elem)
+   * @param init the initial accumulator value
+   * @param source the reducible double source
+   * @return the final accumulated value
+   */
+  Object reduce(Object rf, Object init, IODLOReducible source);
+
+  /**
+   * Reduces over a long source with an object accumulator.
+   *
+   * <p>Enables reduction where long elements are accumulated into an object
+   * result. Used for computing statistics with mutable accumulators.
+   *
+   * @param rf the reducing function taking (Object acc, long elem)
+   * @param init the initial accumulator value
+   * @param source the reducible long source
+   * @return the final accumulated value
+   */
+  Object reduce(Object rf, Object init, IOLDOReducible source);
+
+  /**
    * Transduces elements from source into target long array.
    *
    * @param target the target array to populate

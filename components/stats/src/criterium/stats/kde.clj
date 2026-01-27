@@ -119,58 +119,72 @@
         col-offset (- j i 1)]
     (aget dist-arr (+ row-start col-offset))))
 
-(defn- compute-interval-distances
-  "Compute minimum cumulative distances for k disjoint intervals.
+(defn- compute-interval-distances-k1
+  "Compute minimum cumulative distances for k=1 (single interval).
+  For each span s, finds the minimum interval width covering s+1 points.
+  Returns array where element i is the min distance for span (i+1)."
+  ^doubles [^doubles dist-arr ^long n]
+  (let [result (double-array (dec n))]
+    (dotimes [span (dec n)]
+      (let [interval-size (long (inc span))
+            min-d (double
+                   (loop [start (long 0)
+                          md Double/MAX_VALUE]
+                     (if (< (+ start interval-size) n)
+                       (let [end (+ start interval-size)
+                             d (distance-at dist-arr n start end)]
+                         (recur (inc start) (Math/min md d)))
+                       md)))]
+        (aset result (int span) min-d)))
+    result))
 
-  For each 'span' (total points covered by k intervals), find the
-  minimum total distance (sum of interval widths) achievable.
+(defn- compute-interval-distances-next
+  "Compute minimum cumulative distances for k intervals given k-1 results.
+  Returns array where element i is the min distance for span (i+k)."
+  ^doubles [^doubles dist-arr ^long n ^long k ^doubles prev-mins]
+  (let [prev-len (long (alength prev-mins))
+        result-len (- n k)
+        result (double-array result-len)]
+    (dotimes [span result-len]
+      (let [total-span (long (+ span k 1))
+            min-d (double
+                   (loop [new-int-size (long 2)
+                          md Double/MAX_VALUE]
+                     (if (<= new-int-size (- total-span (* 2 (dec k))))
+                       (let [prev-span (long (- total-span new-int-size))
+                             prev-idx (long (- prev-span k))
+                             prev-d (if (and (>= prev-idx 0) (< prev-idx prev-len))
+                                      (aget prev-mins prev-idx)
+                                      Double/MAX_VALUE)
+                             new-d (loop [start (long (- total-span new-int-size))
+                                          nd Double/MAX_VALUE]
+                                     (if (>= start prev-span)
+                                       (if (< (+ start new-int-size) n)
+                                         (let [end (+ start (dec new-int-size))
+                                               d (distance-at dist-arr n start end)]
+                                           (recur (dec start) (Math/min nd d)))
+                                         (recur (dec start) nd))
+                                       nd))]
+                         (recur (inc new-int-size)
+                                (Math/min md (+ prev-d (double new-d)))))
+                       md)))]
+        (aset result (int span) min-d)))
+    result))
 
-  Returns vector where element i is the min distance for span (i+k)."
-  ^doubles [^doubles dist-arr ^long n ^long k]
-  (if (= k 1)
-    ;; For k=1, min distance for span s is simply the min interval of that span
-    (let [result (double-array (- n 1))]
-      (dotimes [span (- n 1)]
-        (let [interval-size (long (inc span))
-              min-d (double
-                     (loop [start (long 0)
-                            md Double/MAX_VALUE]
-                       (if (< (+ start interval-size) n)
-                         (let [end (+ start interval-size)
-                               d (distance-at dist-arr n start end)]
-                           (recur (inc start) (Math/min md d)))
-                         md)))]
-          (aset result (int span) min-d)))
-      result)
-    ;; For k>1, build on k-1 solution
-    (let [^doubles prev-mins (compute-interval-distances dist-arr n (dec k))
-          prev-len (long (alength prev-mins))
-          result-len (- n k)
-          result (double-array result-len)]
-      (dotimes [span result-len]
-        (let [total-span (long (+ span k 1))
-              min-d (double
-                     (loop [new-int-size (long 2)
-                            md Double/MAX_VALUE]
-                       (if (<= new-int-size (- total-span (* 2 (dec k))))
-                         (let [prev-span (long (- total-span new-int-size))
-                               prev-idx (long (- prev-span k))
-                               prev-d (if (and (>= prev-idx 0) (< prev-idx prev-len))
-                                        (aget prev-mins prev-idx)
-                                        Double/MAX_VALUE)
-                               new-d (loop [start (long (- total-span new-int-size))
-                                            nd Double/MAX_VALUE]
-                                       (if (>= start prev-span)
-                                         (if (< (+ start new-int-size) n)
-                                           (let [end (+ start (dec new-int-size))
-                                                 d (distance-at dist-arr n start end)]
-                                             (recur (dec start) (Math/min nd d)))
-                                           (recur (dec start) nd))
-                                         nd))]
-                           (recur (inc new-int-size) (Math/min md (+ prev-d (double new-d)))))
-                         md)))]
-          (aset result (int span) min-d)))
-      result)))
+(defn- compute-all-interval-distances
+  "Compute minimum cumulative distances for 1 to max-k disjoint intervals.
+  Bottom-up computation that avoids redundant recursive calls.
+  Returns a vector of arrays, where element i is the result for k=i+1."
+  [^doubles dist-arr ^long n ^long max-k]
+  (loop [k 1
+         results []]
+    (if (> k max-k)
+      results
+      (let [result (if (= k 1)
+                     (compute-interval-distances-k1 dist-arr n)
+                     (compute-interval-distances-next
+                      dist-arr n k (nth results (- k 2))))]
+        (recur (inc k) (conj results result))))))
 
 (defn excess-mass
   "Compute excess mass statistic for testing k modes.
@@ -222,9 +236,10 @@
            ;; Build distance matrix
            dist-arr (build-distance-matrix sorted-data)
            nd (double n)
-           ;; Compute min distances for spans of k and k+1 intervals
-           ^doubles min-dist-k (compute-interval-distances dist-arr n k)
-           ^doubles min-dist-k1 (compute-interval-distances dist-arr n (inc k))
+           ;; Compute min distances for spans of 1 to k+1 intervals in one pass
+           all-dists (compute-all-interval-distances dist-arr n (inc k))
+           ^doubles min-dist-k (nth all-dists (dec k))
+           ^doubles min-dist-k1 (nth all-dists k)
            len-k (long (alength min-dist-k))
            len-k1 (long (alength min-dist-k1))
            ;; Find all possible lambda values where transitions occur
@@ -266,15 +281,19 @@
            max-diff (double
                      (if (empty? lambda-vec)
                        (let [lam 1.0
-                             ^double em-k (compute-em lam k min-dist-k len-k)
-                             ^double em-k1 (compute-em lam (inc k) min-dist-k1 len-k1)]
+                             em-k (pf/invoke-dlold
+                                   compute-em lam k min-dist-k len-k)
+                             em-k1 (pf/invoke-dlold
+                                    compute-em lam (inc k) min-dist-k1 len-k1)]
                          (- em-k1 em-k))
                        (loop [idx (long 0)
                               max-d Double/NEGATIVE_INFINITY]
                          (if (< idx (count lambda-vec))
                            (let [lam (nth lambda-vec idx)
-                                 ^double em-k (compute-em lam k min-dist-k len-k)
-                                 ^double em-k1 (compute-em lam (inc k) min-dist-k1 len-k1)
+                                 em-k (pf/invoke-dlold
+                                       compute-em lam k min-dist-k len-k)
+                                 em-k1 (pf/invoke-dlold
+                                        compute-em lam (inc k) min-dist-k1 len-k1)
                                  d (- em-k1 em-k)]
                              (recur (inc idx) (Math/max max-d d)))
                            max-d))))]
@@ -379,7 +398,7 @@
                         (aset weights i-high (+ (aget weights i-high) w-high))))]
     (arr/dfold data
                (fn [_ ^double x]
-                 (add-weight! x)
+                 (pf/invoke-do add-weight! x)
                  nil)
                nil)
     ;; Normalize to sum to 1
@@ -737,6 +756,26 @@
 
 ;;; Silverman's test for multimodality
 
+(defn- count-modes-with-grid
+  "Count modes using a pre-computed grid. Internal helper for critical-bandwidth.
+  Avoids recomputing grid bounds when same data is used with different bandwidths."
+  ^long [data ^double bandwidth ^doubles grid]
+  (let [density (gaussian-kde data bandwidth grid)]
+    (count (find-modes grid density))))
+
+(defn- make-mode-counting-grid
+  "Create grid for mode counting from data bounds.
+  Grid extends 10% beyond data range on each side."
+  ^doubles [^double x-min ^double x-max ^long n-points]
+  (let [margin (/ (- x-max x-min) 10.0)
+        g-min (- x-min margin)
+        g-max (+ x-max margin)
+        g-range (- g-max g-min)
+        grid (double-array n-points)]
+    (dotimes [i n-points]
+      (aset grid i (+ g-min (* g-range (/ (double i) (double (dec n-points)))))))
+    grid))
+
 (defn count-modes
   "Count number of modes in KDE with given bandwidth.
   Creates a grid and counts local maxima in the density estimate.
@@ -744,17 +783,8 @@
   ^long [data ^double bandwidth ^long n-points]
   {:pre [(have? arr/typed-array? data)]}
   (let [[x-min x-max] (data-min-max data)
-        x-min (double x-min)
-        x-max (double x-max)
-        margin (/ (- x-max x-min) 10.0)
-        g-min (- x-min margin)
-        g-max (+ x-max margin)
-        g-range (- g-max g-min)
-        grid (double-array n-points)]
-    (dotimes [i n-points]
-      (aset grid i (+ g-min (* g-range (/ (double i) (double (dec n-points)))))))
-    (let [density (gaussian-kde data bandwidth grid)]
-      (count (find-modes grid density)))))
+        grid (make-mode-counting-grid x-min x-max n-points)]
+    (count-modes-with-grid data bandwidth grid)))
 
 (defn critical-bandwidth
   "Find smallest bandwidth giving at most k modes via binary search.
@@ -766,32 +796,65 @@
   - data: typed array of sample values
   - k: maximum number of modes
   - opts: optional map with :tol (tolerance, default 1e-6),
-          :n-points (grid size, default 512)
+          :n-points (grid size, default 512),
+          :h-max (optional upper bound, useful when computing h_k knowing h_{k-1}),
+          :data-bounds (optional [min max], avoids redundant data scan)
 
   Requires a typed array (DoubleArray or LongArray)."
-  ^double [data ^long k {:keys [tol n-points]
+  ^double [data ^long k {:keys [tol n-points h-max data-bounds]
                          :or {tol 1e-6
                               n-points 512}}]
   {:pre [(have? arr/typed-array? data)]}
   (let [n-pts (long n-points)
         tol (double tol)
         sigma (Math/sqrt (core/variance data))
-        ;; Start with range from very small to Silverman bandwidth * 2
-        h-max (* 2.0 (silverman-bandwidth data))
+        ;; Pre-compute grid once for all binary search iterations
+        [x-min x-max] (or data-bounds (data-min-max data))
+        grid (make-mode-counting-grid x-min x-max n-pts)
+        ;; Start with range from very small to provided h-max or Silverman bandwidth * 2
+        h-upper (double (or h-max (* 2.0 (silverman-bandwidth data))))
         h-min (/ sigma 100.0)]
     ;; Binary search for smallest h with <= k modes
     (loop [lo h-min
-           hi h-max
+           hi h-upper
            its 0]
       (if (or (>= its 100) (< (- hi lo) (* tol (+ hi lo) 0.5)))
         hi
         (let [mid (* 0.5 (+ lo hi))
-              n-modes (count-modes data mid n-pts)]
+              n-modes (count-modes-with-grid data mid grid)]
           (if (<= n-modes k)
             ;; Can achieve <= k modes, try smaller bandwidth
             (recur lo mid (inc its))
             ;; Too many modes, need larger bandwidth
             (recur mid hi (inc its))))))))
+
+(defn critical-bandwidths
+  "Compute critical bandwidths for k=1 to max-k efficiently.
+
+  Uses h_{k-1} as upper bound for h_k since h_k < h_{k-1} (more modes
+  require less smoothing). This avoids redundant binary search iterations
+  when testing multiple k values.
+
+  Parameters:
+  - data: typed array of sample values
+  - max-k: maximum number of modes to compute bandwidth for
+  - opts: optional map with :tol (tolerance), :n-points (grid size)
+
+  Returns a map from k to critical bandwidth h_k."
+  [data ^long max-k opts]
+  {:pre [(have? arr/typed-array? data)]}
+  ;; Compute data bounds once for all k values
+  (let [data-bounds (data-min-max data)
+        opts (assoc opts :data-bounds data-bounds)]
+    (loop [k 1
+           prev-h nil
+           results {}]
+      (if (> k max-k)
+        results
+        (let [h-k (critical-bandwidth data k (if prev-h
+                                               (assoc opts :h-max prev-h)
+                                               opts))]
+          (recur (inc k) h-k (assoc results k h-k)))))))
 
 (defn- find-antimodes
   "Find antimodes (local minima) in a density estimate.
@@ -826,7 +889,9 @@
   - data: typed array of sample values
   - k: target number of modes
   - opts: optional map with :n-points (grid size, default 512),
-          :tol (tolerance, default 1e-6)
+          :tol (tolerance, default 1e-6),
+          :cached-critical-bandwidth (optional pre-computed bandwidth),
+          :data-bounds (optional [min max], avoids redundant data scan)
 
   Returns:
   {:modes [{:location, :density} ...] - sorted by location
@@ -834,31 +899,26 @@
    :critical-bandwidth h_k}
 
   Requires a typed array (DoubleArray or LongArray)."
-  [data ^long k {:keys [n-points tol]
+  [data ^long k {:keys [n-points tol cached-critical-bandwidth data-bounds]
                  :or {n-points 512
                       tol 1e-6}}]
   {:pre [(have? arr/typed-array? data)]}
   (let [n-pts (long n-points)
-        h (critical-bandwidth data k {:n-points n-pts :tol tol})
-        [x-min x-max] (data-min-max data)
-        x-min (double x-min)
-        x-max (double x-max)
-        margin (/ (- x-max x-min) 10.0)
-        g-min (- x-min margin)
-        g-max (+ x-max margin)
-        g-range (- g-max g-min)
-        grid (double-array n-pts)]
-    (dotimes [i n-pts]
-      (aset grid i (+ g-min (* g-range (/ (double i) (double (dec n-pts)))))))
-    (let [density (gaussian-kde data h grid)
-          modes (->> (find-modes grid density)
-                     (map #(dissoc % :index))
-                     (sort-by :location)
-                     vec)
-          antimodes (find-antimodes grid density)]
-      {:modes modes
-       :antimodes antimodes
-       :critical-bandwidth h})))
+        [x-min x-max] (or data-bounds (data-min-max data))
+        h (double (or cached-critical-bandwidth
+                      (critical-bandwidth data k {:n-points n-pts
+                                                  :tol tol
+                                                  :data-bounds [x-min x-max]})))
+        grid (make-mode-counting-grid x-min x-max n-pts)
+        density (gaussian-kde data h grid)
+        modes (->> (find-modes grid density)
+                   (map #(dissoc % :index))
+                   (sort-by :location)
+                   vec)
+        antimodes (find-antimodes grid density)]
+    {:modes modes
+     :antimodes antimodes
+     :critical-bandwidth h}))
 
 (defn silverman-bootstrap-sample
   "Generate a smoothed bootstrap sample for Silverman's test.
@@ -920,6 +980,7 @@
     - :n-points (default 512)
     - :alpha (for Hall-York correction, default 0.05)
     - :tol (for critical bandwidth search, default 1e-6)
+    - :cached-critical-bandwidth (optional pre-computed bandwidth, skips search if provided)
     - :rng-factory: 0-arity fn returning WellRng1024a (default: make-well-rng-1024a)
 
   Returns map with:
@@ -929,7 +990,7 @@
   - :corrected? - whether Hall-York correction was applied
 
   Requires a typed array (DoubleArray or LongArray)."
-  [data ^long k {:keys [n-bootstrap n-points alpha tol rng-factory]
+  [data ^long k {:keys [n-bootstrap n-points alpha tol cached-critical-bandwidth rng-factory]
                  :or {n-bootstrap 200
                       n-points 512
                       alpha 0.05
@@ -937,8 +998,9 @@
                       rng-factory #(random/make-well-rng-1024a)}}]
   {:pre [(have? arr/typed-array? data)]}
   (let [n-pts (long n-points)
-        ;; Find critical bandwidth
-        h-crit (critical-bandwidth data k {:tol tol :n-points n-pts})
+        ;; Use pre-computed critical bandwidth or compute it
+        h-crit (double (or cached-critical-bandwidth
+                           (critical-bandwidth data k {:tol tol :n-points n-pts})))
         ;; Bootstrap: count how many times we get > k modes
         exceeds (atom 0)]
     (dotimes [_ n-bootstrap]
@@ -981,6 +1043,7 @@
     - :n-bootstrap (default 200)
     - :n-points (default 512)
     - :tol (for critical bandwidth search, default 1e-6)
+    - :cached-critical-bandwidth (optional pre-computed bandwidth, skips search if provided)
     - :rng-factory: 0-arity fn returning WellRng1024a (default: make-well-rng-1024a)
 
   Returns map with:
@@ -993,15 +1056,16 @@
   bandwidth and excess mass' TEST 28, 900-919
 
   Requires a typed array (DoubleArray or LongArray)."
-  [data ^long k {:keys [n-bootstrap n-points tol rng-factory]
+  [data ^long k {:keys [n-bootstrap n-points tol cached-critical-bandwidth rng-factory]
                  :or {n-bootstrap 200
                       n-points 512
                       tol 1e-6
                       rng-factory #(random/make-well-rng-1024a)}}]
   {:pre [(have? arr/typed-array? data)]}
   (let [n-pts (long n-points)
-        ;; Find critical bandwidth
-        h-crit (critical-bandwidth data k {:tol tol :n-points n-pts})
+        ;; Use pre-computed critical bandwidth or compute it
+        h-crit (double (or cached-critical-bandwidth
+                           (critical-bandwidth data k {:tol tol :n-points n-pts})))
         ;; Compute observed excess mass statistic
         observed-em (:statistic (excess-mass data k {:rng-factory rng-factory}))
         observed-em (double observed-em)

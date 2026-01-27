@@ -113,6 +113,10 @@
       (.reduce source ^clojure.lang.IFn$LLL rf init))
     (^double reduce [_ rf ^double init ^IDDDReducible source]
       (.reduce source ^clojure.lang.IFn$DDD rf init))
+    (^Object reduce [_ rf init ^IODLOReducible source]
+      (.reduceDouble source ^clojure.lang.IFn$ODO rf init))
+    (^Object reduce [_ rf init ^IOLDOReducible source]
+      (.reduceLong source ^clojure.lang.IFn$OLO rf init))
     (^criterium.array.interfaces.ILongArray into
       [this
        ^criterium.array.interfaces.ILongArray target

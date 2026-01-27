@@ -18,6 +18,22 @@
     clojure.lang.IFn$DDD
     (^double invokePrim [_ ^double acc ^double x] (+ acc x))))
 
+(def prim-min
+  "Reducing function that computes minimum of primitive values."
+  (reify
+    clojure.lang.IFn$LLL
+    (^long invokePrim [_ ^long acc ^long x] (Math/min acc x))
+    clojure.lang.IFn$DDD
+    (^double invokePrim [_ ^double acc ^double x] (Math/min acc x))))
+
+(def prim-max
+  "Reducing function that computes maximum of primitive values."
+  (reify
+    clojure.lang.IFn$LLL
+    (^long invokePrim [_ ^long acc ^long x] (Math/max acc x))
+    clojure.lang.IFn$DDD
+    (^double invokePrim [_ ^double acc ^double x] (Math/max acc x))))
+
 (defn map
   "Return a transducer that applies f to each primitive element.
 

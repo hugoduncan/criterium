@@ -1,4 +1,4 @@
-(ns criterium.util.kde-test
+(ns criterium.stats.kde-test
   ;; Tests for the KDE (Kernel Density Estimation) module.
   ;; Verifies ISJ bandwidth selection, Gaussian KDE evaluation,
   ;; mode detection, and bootstrap confidence intervals.
@@ -279,6 +279,115 @@
             h1 (kde/critical-bandwidth bimodal 1 {})
             h2 (kde/critical-bandwidth bimodal 2 {})]
         (is (> h1 h2) "bandwidth for 1 mode should be larger than for 2")))))
+
+(deftest critical-bandwidths-test
+  ;; Tests the critical-bandwidths function that computes bandwidths for
+  ;; k=1 to max-k efficiently by using h_{k-1} as upper bound for h_k.
+  (testing "critical-bandwidths"
+    (testing "returns map with correct keys"
+      (let [data (darr (range 0 100))
+            result (kde/critical-bandwidths data (long 3) {})]
+        (is (map? result))
+        (is (= #{1 2 3} (set (keys result))))
+        (doseq [k [1 2 3]]
+          (is (pos? (get result k)) (str "h_" k " should be positive")))))
+
+    (testing "bandwidths produce valid mode counts"
+      ;; The key property: h_k should give <= k modes
+      ;; Use moderately bimodal data (not extremely separated)
+      (let [data (darr (concat (tu/gaussian-samples 50 30.0 10.0 1)
+                               (tu/gaussian-samples 50 70.0 10.0 2)))
+            result (kde/critical-bandwidths data (long 3) {:n-points 128})]
+        (doseq [k [2 3]]  ; Start at k=2 since bimodal data may not fit k=1
+          (let [h-k (double (get result k))
+                n-modes (kde/count-modes data h-k (long 128))]
+            (is (<= n-modes k)
+                (str "h_" k " = " h-k " should give <= " k " modes, got " n-modes))))))
+
+    (testing "bandwidths are monotonically decreasing"
+      (let [data (darr (concat (repeat 30 10.0) (repeat 30 50.0) (repeat 30 90.0)))
+            result (kde/critical-bandwidths data (long 3) {})]
+        (is (> (get result 1) (get result 2)) "h_1 > h_2")
+        (is (>= (get result 2) (get result 3)) "h_2 >= h_3")))))
+
+(deftest critical-bandwidth-h-max-test
+  ;; Tests that providing h-max narrows the binary search correctly.
+  (testing "critical-bandwidth with h-max"
+    (testing "result with h-max is valid and bounded"
+      ;; Use bimodal data where h_1 > h_2
+      (let [data (darr (concat (repeat 50 10.0) (repeat 50 90.0)))
+            h1 (kde/critical-bandwidth data (long 1) {:n-points 128})
+            h2-with-bound (kde/critical-bandwidth data (long 2) {:h-max h1 :n-points 128})]
+        ;; h_2 should not exceed h_1
+        (is (<= h2-with-bound h1)
+            "h_2 with bound should not exceed h_1")
+        ;; h_2 should produce <= 2 modes
+        (is (<= (kde/count-modes data h2-with-bound (long 128)) 2)
+            "h_2 should give <= 2 modes")))
+
+    (testing "handles h-max smaller than needed (uses h-max as ceiling)"
+      ;; This tests edge case where h-max is set too low
+      (let [data (darr (range 0 100))
+            h1 (kde/critical-bandwidth data (long 1) {})
+            ;; Provide a very small h-max that won't work for k=1
+            h1-with-small-max (kde/critical-bandwidth data (long 1) {:h-max (/ h1 10.0)})]
+        ;; Result should be clamped to h-max or nearby
+        (is (<= h1-with-small-max (/ h1 10.0))
+            "result should not exceed h-max")))))
+
+(deftest cached-critical-bandwidth-silverman-test
+  ;; Tests that silverman-test produces identical results with cached bandwidth.
+  (testing "silverman-test with cached-critical-bandwidth"
+    (testing "produces identical results to uncached version"
+      (let [data (darr (range 0 100))
+            h-crit (kde/critical-bandwidth data (long 1) {:n-points 128})
+            ;; Use fixed seed for reproducibility
+            opts {:n-bootstrap 50 :n-points 128}
+            ;; Both should produce same critical bandwidth
+            result-computed (kde/silverman-test data (long 1) opts)
+            result-cached (kde/silverman-test data (long 1)
+                                              (assoc opts :cached-critical-bandwidth h-crit))]
+        (is (= h-crit (:critical-bandwidth result-cached))
+            "cached bandwidth should be used")
+        (is (< (Math/abs (- (double (:critical-bandwidth result-computed))
+                            (double (:critical-bandwidth result-cached))))
+               1e-10)
+            "bandwidths should match")))))
+
+(deftest cached-critical-bandwidth-acr-test
+  ;; Tests that acr-test produces identical results with cached bandwidth.
+  (testing "acr-test with cached-critical-bandwidth"
+    (testing "produces identical results to uncached version"
+      (let [data (darr (range 0 100))
+            h-crit (kde/critical-bandwidth data (long 1) {:n-points 128})
+            opts {:n-bootstrap 50 :n-points 128}
+            result-computed (kde/acr-test data (long 1) opts)
+            result-cached (kde/acr-test data (long 1)
+                                        (assoc opts :cached-critical-bandwidth h-crit))]
+        (is (= h-crit (:critical-bandwidth result-cached))
+            "cached bandwidth should be used")
+        (is (< (Math/abs (- (double (:critical-bandwidth result-computed))
+                            (double (:critical-bandwidth result-cached))))
+               1e-10)
+            "bandwidths should match")))))
+
+(deftest cached-critical-bandwidth-locate-modes-test
+  ;; Tests that locate-modes produces identical results with cached bandwidth.
+  (testing "locate-modes with cached-critical-bandwidth"
+    (testing "produces identical results to uncached version"
+      (let [data (darr (concat (tu/gaussian-samples 50 10.0 2.0 1)
+                               (tu/gaussian-samples 50 50.0 2.0 2)))
+            h-crit (kde/critical-bandwidth data (long 2) {:n-points 128})
+            result-computed (kde/locate-modes data (long 2) {:n-points 128})
+            result-cached (kde/locate-modes data (long 2)
+                                            {:n-points 128
+                                             :cached-critical-bandwidth h-crit})]
+        (is (= h-crit (:critical-bandwidth result-cached))
+            "cached bandwidth should be used")
+        (is (= (count (:modes result-computed)) (count (:modes result-cached)))
+            "mode count should match")
+        (is (= (count (:antimodes result-computed)) (count (:antimodes result-cached)))
+            "antimode count should match")))))
 
 (deftest silverman-test-test
   ;; Tests Silverman's bootstrap test for multimodality.
