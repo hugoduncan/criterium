@@ -551,11 +551,11 @@
       (let [arr (arr/doubles-fill 10 0.0)]
         (is (instance? (Class/forName "[D") arr))
         (is (= 10 (alength ^doubles arr)))
-        (is (every? #(== 0.0 %) (vec arr)))))
+        (is (every? #(= 0.0 %) (vec arr)))))
     (testing "fills with non-zero value"
       (let [arr (arr/doubles-fill 5 42.5)]
         (is (= 5 (alength ^doubles arr)))
-        (is (every? #(== 42.5 %) (vec arr)))))
+        (is (every? #(= 42.5 %) (vec arr)))))
     (testing "handles length 1"
       (let [arr (arr/doubles-fill 1 3.14)]
         (is (= 1 (alength ^doubles arr)))
@@ -572,11 +572,11 @@
       (let [arr (arr/longs-fill 10 0)]
         (is (instance? (Class/forName "[J") arr))
         (is (= 10 (alength ^longs arr)))
-        (is (every? #(== 0 %) (vec arr)))))
+        (is (every? #(= 0 %) (vec arr)))))
     (testing "fills with non-zero value"
       (let [arr (arr/longs-fill 5 42)]
         (is (= 5 (alength ^longs arr)))
-        (is (every? #(== 42 %) (vec arr)))))
+        (is (every? #(= 42 %) (vec arr)))))
     (testing "handles length 1"
       (let [arr (arr/longs-fill 1 123)]
         (is (= 1 (alength ^longs arr)))
