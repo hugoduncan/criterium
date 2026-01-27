@@ -22,7 +22,9 @@
     ;; With multiple extends
     (definterface+ IBaz [IFoo IBar]
       (baz []))"
-  {:added "0.5"}
+  {:added "0.5"
+   :arglists '([name & sigs]
+               [name [extends...] & sigs])}
   [name & forms]
   (let [[extends sigs] (if (and (seq forms) (vector? (first forms)))
                          [(first forms) (rest forms)]
