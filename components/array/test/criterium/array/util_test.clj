@@ -32,17 +32,21 @@
 
 (deftype TestSingleExtendImpl []
   ITestExtendsSingle
+  #_{:clj-kondo/ignore [:unresolved-protocol-method]}
   (baseMethod [_ x] (long x))
   (singleMethod [_ y] (double y)))
 
 (deftype TestMultiExtendImpl []
   ITestExtendsMultiple
+  #_{:clj-kondo/ignore [:unresolved-protocol-method]}
   (baseMethod [_ x] (long x))
+  #_{:clj-kondo/ignore [:unresolved-protocol-method]}
   (anotherBaseMethod [_] :another)
   (multiMethod [_ a b] (str a "-" b)))
 
 (deftype TestMarkerImpl []
   ITestNoMethods
+  #_{:clj-kondo/ignore [:unresolved-protocol-method]}
   (baseMethod [_ x] (long x)))
 
 ;;; Tests
