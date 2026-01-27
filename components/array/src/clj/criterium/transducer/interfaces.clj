@@ -10,6 +10,7 @@
   - IDoubleReducible: extends IDDDReducible, IODOReducible
   - IPrimOps: transduce/reduce/into/range operations"
   (:require
+   [criterium.array.interfaces]
    [criterium.array.util :refer [definterface+]]))
 
 ;;; Base reducible interfaces (no inheritance)
@@ -75,6 +76,10 @@
   ;; reduce operations
   (^long reduce [rf ^long init ^criterium.transducer.interfaces.ILLLReducible source])
   (^double reduce [rf ^double init ^criterium.transducer.interfaces.IDDDReducible source])
+  ;; reduce cross-type: double→object
+  (reduce [rf init ^criterium.transducer.interfaces.IODLOReducible source])
+  ;; reduce cross-type: long→object
+  (reduce [rf init ^criterium.transducer.interfaces.IOLDOReducible source])
 
   ;; into operations
   (^criterium.array.interfaces.ILongArray into
