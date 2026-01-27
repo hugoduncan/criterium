@@ -780,22 +780,23 @@
   - data: typed array of sample values
   - k: maximum number of modes
   - opts: optional map with :tol (tolerance, default 1e-6),
-          :n-points (grid size, default 512)
+          :n-points (grid size, default 512),
+          :h-max (optional upper bound, useful when computing h_k knowing h_{k-1})
 
   Requires a typed array (DoubleArray or LongArray)."
-  ^double [data ^long k {:keys [tol n-points]
+  ^double [data ^long k {:keys [tol n-points h-max]
                          :or {tol 1e-6
                               n-points 512}}]
   {:pre [(have? arr/typed-array? data)]}
   (let [n-pts (long n-points)
         tol (double tol)
         sigma (Math/sqrt (core/variance data))
-        ;; Start with range from very small to Silverman bandwidth * 2
-        h-max (* 2.0 (silverman-bandwidth data))
+        ;; Start with range from very small to provided h-max or Silverman bandwidth * 2
+        h-upper (double (or h-max (* 2.0 (silverman-bandwidth data))))
         h-min (/ sigma 100.0)]
     ;; Binary search for smallest h with <= k modes
     (loop [lo h-min
-           hi h-max
+           hi h-upper
            its 0]
       (if (or (>= its 100) (< (- hi lo) (* tol (+ hi lo) 0.5)))
         hi
@@ -806,6 +807,31 @@
             (recur lo mid (inc its))
             ;; Too many modes, need larger bandwidth
             (recur mid hi (inc its))))))))
+
+(defn critical-bandwidths
+  "Compute critical bandwidths for k=1 to max-k efficiently.
+
+  Uses h_{k-1} as upper bound for h_k since h_k < h_{k-1} (more modes
+  require less smoothing). This avoids redundant binary search iterations
+  when testing multiple k values.
+
+  Parameters:
+  - data: typed array of sample values
+  - max-k: maximum number of modes to compute bandwidth for
+  - opts: optional map with :tol (tolerance), :n-points (grid size)
+
+  Returns a map from k to critical bandwidth h_k."
+  [data ^long max-k opts]
+  {:pre [(have? arr/typed-array? data)]}
+  (loop [k 1
+         prev-h nil
+         results {}]
+    (if (> k max-k)
+      results
+      (let [h-k (critical-bandwidth data k (if prev-h
+                                             (assoc opts :h-max prev-h)
+                                             opts))]
+        (recur (inc k) h-k (assoc results k h-k))))))
 
 (defn- find-antimodes
   "Find antimodes (local minima) in a density estimate.
@@ -840,7 +866,8 @@
   - data: typed array of sample values
   - k: target number of modes
   - opts: optional map with :n-points (grid size, default 512),
-          :tol (tolerance, default 1e-6)
+          :tol (tolerance, default 1e-6),
+          :cached-critical-bandwidth (optional pre-computed bandwidth)
 
   Returns:
   {:modes [{:location, :density} ...] - sorted by location
@@ -848,12 +875,13 @@
    :critical-bandwidth h_k}
 
   Requires a typed array (DoubleArray or LongArray)."
-  [data ^long k {:keys [n-points tol]
+  [data ^long k {:keys [n-points tol cached-critical-bandwidth]
                  :or {n-points 512
                       tol 1e-6}}]
   {:pre [(have? arr/typed-array? data)]}
   (let [n-pts (long n-points)
-        h (critical-bandwidth data k {:n-points n-pts :tol tol})
+        h (double (or cached-critical-bandwidth
+                      (critical-bandwidth data k {:n-points n-pts :tol tol})))
         [x-min x-max] (data-min-max data)
         x-min (double x-min)
         x-max (double x-max)
@@ -934,6 +962,7 @@
     - :n-points (default 512)
     - :alpha (for Hall-York correction, default 0.05)
     - :tol (for critical bandwidth search, default 1e-6)
+    - :cached-critical-bandwidth (optional pre-computed bandwidth, skips search if provided)
     - :rng-factory: 0-arity fn returning WellRng1024a (default: make-well-rng-1024a)
 
   Returns map with:
@@ -943,7 +972,7 @@
   - :corrected? - whether Hall-York correction was applied
 
   Requires a typed array (DoubleArray or LongArray)."
-  [data ^long k {:keys [n-bootstrap n-points alpha tol rng-factory]
+  [data ^long k {:keys [n-bootstrap n-points alpha tol cached-critical-bandwidth rng-factory]
                  :or {n-bootstrap 200
                       n-points 512
                       alpha 0.05
@@ -951,8 +980,9 @@
                       rng-factory #(random/make-well-rng-1024a)}}]
   {:pre [(have? arr/typed-array? data)]}
   (let [n-pts (long n-points)
-        ;; Find critical bandwidth
-        h-crit (critical-bandwidth data k {:tol tol :n-points n-pts})
+        ;; Use pre-computed critical bandwidth or compute it
+        h-crit (double (or cached-critical-bandwidth
+                           (critical-bandwidth data k {:tol tol :n-points n-pts})))
         ;; Bootstrap: count how many times we get > k modes
         exceeds (atom 0)]
     (dotimes [_ n-bootstrap]
@@ -995,6 +1025,7 @@
     - :n-bootstrap (default 200)
     - :n-points (default 512)
     - :tol (for critical bandwidth search, default 1e-6)
+    - :cached-critical-bandwidth (optional pre-computed bandwidth, skips search if provided)
     - :rng-factory: 0-arity fn returning WellRng1024a (default: make-well-rng-1024a)
 
   Returns map with:
@@ -1007,15 +1038,16 @@
   bandwidth and excess mass' TEST 28, 900-919
 
   Requires a typed array (DoubleArray or LongArray)."
-  [data ^long k {:keys [n-bootstrap n-points tol rng-factory]
+  [data ^long k {:keys [n-bootstrap n-points tol cached-critical-bandwidth rng-factory]
                  :or {n-bootstrap 200
                       n-points 512
                       tol 1e-6
                       rng-factory #(random/make-well-rng-1024a)}}]
   {:pre [(have? arr/typed-array? data)]}
   (let [n-pts (long n-points)
-        ;; Find critical bandwidth
-        h-crit (critical-bandwidth data k {:tol tol :n-points n-pts})
+        ;; Use pre-computed critical bandwidth or compute it
+        h-crit (double (or cached-critical-bandwidth
+                           (critical-bandwidth data k {:tol tol :n-points n-pts})))
         ;; Compute observed excess mass statistic
         observed-em (:statistic (excess-mass data k {:rng-factory rng-factory}))
         observed-em (double observed-em)

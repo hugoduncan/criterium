@@ -359,30 +359,42 @@
           max-k-to-test (min max-modes n-all-modes)
           ;; Run multimodality test for each k from 1 up to max-k-to-test
           ;; Use early stopping: once p-value >= alpha, we've found our validated-k
+          ;; Compute critical bandwidths incrementally: h_k < h_{k-1}, so use
+          ;; previous bandwidth as upper bound for faster binary search
           {:keys [test-results validated-k]}
           (loop [k 1
-                 results {}]
+                 results {}
+                 prev-h-crit nil]
             (if (> k max-k-to-test)
               ;; Tested all k values without finding one where H0 is not rejected
               {:test-results results :validated-k n-all-modes}
-              (let [test-result (test-fn samples-arr k
+              (let [;; Compute critical bandwidth with tighter upper bound from prev
+                    h-crit (kde/critical-bandwidth samples-arr k
+                                                   (cond-> {:n-points n-points}
+                                                     prev-h-crit (assoc :h-max prev-h-crit)))
+                    ;; Run test with pre-computed bandwidth
+                    test-result (test-fn samples-arr k
                                          {:n-bootstrap n-bootstrap
                                           :n-points n-points
-                                          :alpha alpha})
+                                          :alpha alpha
+                                          :cached-critical-bandwidth h-crit})
                     results' (assoc results k test-result)]
                 (if (>= (double (:p-value test-result)) alpha)
                   ;; Early stopping: fail to reject H0: at most k modes
                   ;; This is the validated number of modes
                   {:test-results results' :validated-k k}
-                  ;; Continue testing higher k
-                  (recur (inc k) results')))))
+                  ;; Continue testing higher k, using h-crit as upper bound
+                  (recur (inc k) results' h-crit)))))
           ;; Get mode locations based on mode-method
           {:keys [modes-with-ci mode-bandwidth antimodes]}
           (case mode-method
             :critical
             ;; Use critical bandwidth to find modes
-            (let [locate-result (kde/locate-modes samples-arr validated-k
-                                                  {:n-points n-points})
+            ;; Reuse bandwidth from test results if available
+            (let [cached-h (get-in test-results [validated-k :critical-bandwidth])
+                  locate-result (kde/locate-modes samples-arr validated-k
+                                                  (cond-> {:n-points n-points}
+                                                    cached-h (assoc :cached-critical-bandwidth cached-h)))
                   h-crit (:critical-bandwidth locate-result)
                   ;; Build mode CIs at critical bandwidth
                   [sample-min sample-max]
