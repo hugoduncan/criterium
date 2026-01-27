@@ -8,6 +8,8 @@
    [criterium.bench :as bench]
    [criterium.stats.kde :as kde]))
 
+(bench/set-default-viewer! :kindly)
+
 ;; # KDE Function Benchmarks
 ;;
 ;; This notebook benchmarks KDE functions to identify allocation hotspots
@@ -22,9 +24,8 @@
 
 (defn bimodal-data
   "Create bimodal test data with two clusters."
-  [n]
-  (let [n (long n)
-        half (quot n 2)]
+  [^long n]
+  (let [half (quot n 2)]
     (arr/->double-array
      (double-array
       (concat (range half)
@@ -32,10 +33,9 @@
 
 (defn normal-like-data
   "Create roughly normal-distributed test data."
-  [n]
-  (let [n (long n)
-        center (/ (double n) 2.0)
-        scale (/ (double n) 4.0)]
+  [^long n]
+  (let [center (/ (double n) 2.0)
+        scale  (/ (double n) 4.0)]
     (arr/->double-array
      (double-array
       (for [_ (range n)]
