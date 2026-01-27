@@ -324,6 +324,10 @@
   Takes KDE output and raw samples, runs multimodality test for k=1 up to max-modes,
   and computes confidence intervals for detected modes.
 
+  Uses early stopping: stops testing k values once p-value >= alpha (fail to reject
+  H0: at most k modes). Higher k values would also fail to reject, so testing them
+  is unnecessary.
+
   Options:
   - :method - test method, :acr (default) or :silverman
   - :mode-method - mode finding method:
@@ -352,21 +356,26 @@
           density-arr (double-array density)
           all-modes (kde/find-modes grid-arr density-arr)
           n-all-modes (long (count all-modes))
-          ;; Run multimodality test for each k from 1 to max-modes
-          test-results
-          (into {}
-                (for [k (range 1 (inc (min max-modes n-all-modes)))]
-                  [k (test-fn samples-arr k
-                              {:n-bootstrap n-bootstrap
-                               :n-points n-points
-                               :alpha alpha})]))
-          ;; Determine validated number of modes
-          ;; Find smallest k where p-value >= alpha (fail to reject H0: <= k modes)
-          validated-k (or (some (fn [k]
-                                  (when (>= (double (get-in test-results [k :p-value])) alpha)
-                                    k))
-                                (range 1 (inc (min max-modes n-all-modes))))
-                          n-all-modes)
+          max-k-to-test (min max-modes n-all-modes)
+          ;; Run multimodality test for each k from 1 up to max-k-to-test
+          ;; Use early stopping: once p-value >= alpha, we've found our validated-k
+          {:keys [test-results validated-k]}
+          (loop [k 1
+                 results {}]
+            (if (> k max-k-to-test)
+              ;; Tested all k values without finding one where H0 is not rejected
+              {:test-results results :validated-k n-all-modes}
+              (let [test-result (test-fn samples-arr k
+                                         {:n-bootstrap n-bootstrap
+                                          :n-points n-points
+                                          :alpha alpha})
+                    results' (assoc results k test-result)]
+                (if (>= (double (:p-value test-result)) alpha)
+                  ;; Early stopping: fail to reject H0: at most k modes
+                  ;; This is the validated number of modes
+                  {:test-results results' :validated-k k}
+                  ;; Continue testing higher k
+                  (recur (inc k) results')))))
           ;; Get mode locations based on mode-method
           {:keys [modes-with-ci mode-bandwidth antimodes]}
           (case mode-method
@@ -422,7 +431,7 @@
       (cond-> {:modes modes-with-significance
                :n-modes validated-k
                :test-results {:method method
-                              :k-tested (vec (keys test-results))
+                              :k-tested (vec (sort (keys test-results)))
                               :p-values (into {} (map (fn [[k v]] [k (:p-value v)])
                                                       test-results))
                               :critical-bandwidths (into {} (map (fn [[k v]]
