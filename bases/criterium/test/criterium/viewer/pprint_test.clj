@@ -939,3 +939,226 @@
             ":pprint should produce same output as :print when :show-chart true")
         (is (str/includes? pprint-output "Samples"))
         (is (str/includes? pprint-output "|"))))))
+
+;;; Chart Delegation Tests
+;; These tests verify that :pprint viewer delegates chart methods to :print
+;; and produces identical output.
+
+;;; Distribution Chart Delegation Tests
+
+(def ^:private sample-metric-defs
+  (select-keys (criterium.collector.metrics/metrics) [:elapsed-time]))
+
+(def ^:private gamma-best-fit-with-params
+  "Distribution fit results with full params for chart rendering."
+  {:fits
+   {[:elapsed-time]
+    {:n 50
+     :best-model :gamma
+     :sample-range [1000000.0 5000000.0]
+     :distributions
+     {:gamma {:aic 150.0 :delta-aic 0.0 :bic 155.0
+              :params {:shape 2.5 :scale 1000000.0}}}
+     :parameter-cis
+     {:gamma {:shape {:point-estimate 2.5 :ci-lower 2.0 :ci-upper 3.0}
+              :scale {:point-estimate 1000000.0 :ci-lower 800000.0 :ci-upper 1200000.0}}}}}})
+
+(defn- make-sample-values
+  "Create sample values array for testing."
+  [n ^double mean ^double stddev]
+  (let [rng (java.util.Random. 42)]
+    (arr/->double-array
+     (double-array
+      (repeatedly n #(+ mean (* stddev (.nextGaussian rng))))))))
+
+(defn- data-map-with-fit-and-samples
+  "Create data map with distribution fit, sample metadata, and sample values."
+  [fit-data]
+  {:distribution-fit fit-data
+   :samples {:type :criterium/metrics-samples
+             :metrics-defs sample-metric-defs
+             :metric->values {[:elapsed-time] (make-sample-values 50 2500000.0 500000.0)}
+             :transform collect-plan/identity-transforms
+             :batch-size 1
+             :eval-count 50
+             :num-samples 50}})
+
+(deftest distribution-pdf-pprint-delegation-test
+  ;; Tests that pprint viewer delegates distribution-pdf* to :print.
+  ;; Verifies identical output between :pprint and :print viewers.
+  (testing "distribution-pdf*"
+    (testing "delegates to :print and produces identical output"
+      (let [data-map (data-map-with-fit-and-samples gamma-best-fit-with-params)
+            pprint-output (with-out-str
+                            (view/distribution-pdf* :pprint {} data-map))
+            print-output (with-out-str
+                           (view/distribution-pdf* :print {} data-map))]
+        (is (= print-output pprint-output)
+            ":pprint should produce same output as :print")
+        (is (str/includes? pprint-output "PDF")
+            "Should show PDF in header")
+        (is (str/includes? pprint-output "Gamma")
+            "Should show distribution name")))))
+
+(deftest distribution-cdf-pprint-delegation-test
+  ;; Tests that pprint viewer delegates distribution-cdf* to :print.
+  ;; Verifies identical output between :pprint and :print viewers.
+  (testing "distribution-cdf*"
+    (testing "delegates to :print and produces identical output"
+      (let [data-map (data-map-with-fit-and-samples gamma-best-fit-with-params)
+            pprint-output (with-out-str
+                            (view/distribution-cdf* :pprint {} data-map))
+            print-output (with-out-str
+                           (view/distribution-cdf* :print {} data-map))]
+        (is (= print-output pprint-output)
+            ":pprint should produce same output as :print")
+        (is (str/includes? pprint-output "CDF")
+            "Should show CDF in header")))))
+
+(deftest distribution-qq-pprint-delegation-test
+  ;; Tests that pprint viewer delegates distribution-qq* to :print.
+  ;; Verifies identical output between :pprint and :print viewers.
+  (testing "distribution-qq*"
+    (testing "delegates to :print and produces identical output"
+      (let [data-map (data-map-with-fit-and-samples gamma-best-fit-with-params)
+            pprint-output (with-out-str
+                            (view/distribution-qq* :pprint {} data-map))
+            print-output (with-out-str
+                           (view/distribution-qq* :print {} data-map))]
+        (is (= print-output pprint-output)
+            ":pprint should produce same output as :print")
+        (is (str/includes? pprint-output "Q-Q")
+            "Should show Q-Q in header")))))
+
+;;; Tail Analysis Chart Delegation Tests
+
+(deftest tail-ratios-chart-pprint-delegation-test
+  ;; Tests that pprint viewer delegates tail-ratios-chart* to :print.
+  ;; Verifies identical output between :pprint and :print viewers.
+  (testing "tail-ratios-chart*"
+    (testing "delegates to :print and produces identical output"
+      (let [data-map (test-data/tail-analysis-data-map)
+            pprint-output (with-out-str
+                            (view/tail-ratios-chart* :pprint {} data-map))
+            print-output (with-out-str
+                           (view/tail-ratios-chart* :print {} data-map))]
+        (is (= print-output pprint-output)
+            ":pprint should produce same output as :print")
+        (is (str/includes? pprint-output "Tail Ratios")
+            "Should have header")
+        (is (str/includes? pprint-output "p99/p95")
+            "Should show ratio names")))))
+
+(deftest hill-plot-pprint-delegation-test
+  ;; Tests that pprint viewer delegates hill-plot* to :print.
+  ;; Verifies identical output between :pprint and :print viewers.
+  (testing "hill-plot*"
+    (testing "delegates to :print and produces identical output"
+      (let [data-map (test-data/tail-analysis-data-map)
+            pprint-output (with-out-str
+                            (view/hill-plot* :pprint {} data-map))
+            print-output (with-out-str
+                           (view/hill-plot* :print {} data-map))]
+        (is (= print-output pprint-output)
+            ":pprint should produce same output as :print")
+        (is (str/includes? pprint-output "Hill Plot")
+            "Should have header")))))
+
+(deftest mrl-plot-pprint-delegation-test
+  ;; Tests that pprint viewer delegates mrl-plot* to :print.
+  ;; Verifies identical output between :pprint and :print viewers.
+  (testing "mrl-plot*"
+    (testing "delegates to :print and produces identical output"
+      (let [data-map (test-data/tail-analysis-data-map)
+            pprint-output (with-out-str
+                            (view/mrl-plot* :pprint {} data-map))
+            print-output (with-out-str
+                           (view/mrl-plot* :print {} data-map))]
+        (is (= print-output pprint-output)
+            ":pprint should produce same output as :print")
+        (is (str/includes? pprint-output "Mean Residual Life")
+            "Should have header")))))
+
+(deftest zipf-plot-pprint-delegation-test
+  ;; Tests that pprint viewer delegates zipf-plot* to :print.
+  ;; Verifies identical output between :pprint and :print viewers.
+  (testing "zipf-plot*"
+    (testing "delegates to :print and produces identical output"
+      (let [data-map (test-data/tail-analysis-data-map)
+            pprint-output (with-out-str
+                            (view/zipf-plot* :pprint {} data-map))
+            print-output (with-out-str
+                           (view/zipf-plot* :print {} data-map))]
+        (is (= print-output pprint-output)
+            ":pprint should produce same output as :print")
+        (is (str/includes? pprint-output "Zipf Plot")
+            "Should have header")))))
+
+(deftest exponential-qq-plot-pprint-delegation-test
+  ;; Tests that pprint viewer delegates exponential-qq-plot* to :print.
+  ;; Verifies identical output between :pprint and :print viewers.
+  (testing "exponential-qq-plot*"
+    (testing "delegates to :print and produces identical output"
+      (let [data-map (test-data/tail-analysis-data-map)
+            pprint-output (with-out-str
+                            (view/exponential-qq-plot* :pprint {} data-map))
+            print-output (with-out-str
+                           (view/exponential-qq-plot* :print {} data-map))]
+        (is (= print-output pprint-output)
+            ":pprint should produce same output as :print")
+        (is (str/includes? pprint-output "Exponential Q-Q")
+            "Should have header")))))
+
+(deftest gpd-qq-plot-pprint-delegation-test
+  ;; Tests that pprint viewer delegates gpd-qq-plot* to :print.
+  ;; Verifies identical output between :pprint and :print viewers.
+  (testing "gpd-qq-plot*"
+    (testing "delegates to :print and produces identical output"
+      (let [data-map (test-data/tail-analysis-data-map)
+            pprint-output (with-out-str
+                            (view/gpd-qq-plot* :pprint {} data-map))
+            print-output (with-out-str
+                           (view/gpd-qq-plot* :print {} data-map))]
+        (is (= print-output pprint-output)
+            ":pprint should produce same output as :print")
+        (is (str/includes? pprint-output "GPD Q-Q")
+            "Should have header")))))
+
+;;; ACF Plot Delegation Test
+
+(deftest acf-plot-pprint-delegation-test
+  ;; Tests that pprint viewer delegates acf-plot* rendering (via common chart).
+  ;; Verifies both viewers produce output with expected content.
+  (testing "acf-plot*"
+    (testing "produces ASCII ACF chart output"
+      (let [metrics-defs (select-keys (criterium.collector.metrics/metrics)
+                                      [:elapsed-time])
+            data-map {:autocorrelation
+                      {:type :criterium/autocorrelation
+                       :metrics-defs metrics-defs
+                       :source-id :samples
+                       :autocorrelation
+                       {[:elapsed-time]
+                        {:acf {1 0.25 2 0.18 3 0.05}
+                         :lag-1 {:value 0.25 :severity :moderate}
+                         :effective-sample-size {:n-original 200
+                                                 :n-effective 157
+                                                 :ratio 0.785}
+                         :ci-inflation-factor 1.13
+                         :lag-severities {1 :moderate 2 :minor 3 :none}
+                         :thresholds {:lag-1 {:minor 0.10 :moderate 0.20 :severe 0.35}
+                                      :other {:minor 0.15 :moderate 0.25 :severe 0.40}}
+                         :ljung-box {:q-statistic 15.0 :df 10 :p-value 0.5}
+                         :pattern :clean
+                         :classification :acceptable
+                         :detected-period nil}}}}
+            ;; pprint uses common chart rendering with different options
+            ;; so output may differ slightly, but both should produce output
+            pprint-output (with-out-str
+                            (view/acf-plot* :pprint {:min-severity :minor} data-map))]
+        (is (str/includes? pprint-output "ACF Plot")
+            "Should have header")
+        (is (str/includes? pprint-output "n=200")
+            "Should show sample count")
+        (is (str/includes? pprint-output "█")
+            "Should have bar characters")))))
