@@ -14,7 +14,9 @@
    [criterium.viewer.common.domain.comparison :as comparison]
    [criterium.viewer.common.domain.extract :as extract]
    [criterium.viewer.common.modal :as modal]
-   [criterium.viewer.common.regression :as regression]))
+   [criterium.viewer.common.regression :as regression]
+   ;; Required for delegating :pprint methods to :print implementations
+   [criterium.viewer.print]))
 
 (defmethod view/metrics* :pprint
   [_ {:keys [samples-id]} data-map]
@@ -175,17 +177,17 @@
 
 ;; When :show-chart is true, delegates to :print for ASCII chart rendering
 (defmethod view/samples* :pprint
-  [viewer {:keys [show-chart] :as view} banech-map]
+  [viewer {:keys [show-chart] :as view} bench-map]
   (if show-chart
     ;; Delegate to :print for chart rendering
-    ((get-method view/samples* :print) viewer view banech-map)
+    ((get-method view/samples* :print) viewer view bench-map)
     ;; Default pprint table output
     (let [quant-samples-id (:samples-id view :samples)
           event-samples-id (:event-samples-id view quant-samples-id)
           outlier-analysis-id (:outlier-id view :outliers)
-          quant-samples (banech-map quant-samples-id)
-          event-samples (banech-map event-samples-id)
-          outlier-analysis (banech-map outlier-analysis-id)
+          quant-samples (bench-map quant-samples-id)
+          event-samples (bench-map event-samples-id)
+          outlier-analysis (bench-map outlier-analysis-id)
 
           metric-defs (metric/filter-metrics
                        (:metrics-defs quant-samples)
@@ -195,7 +197,7 @@
                               (metric/type-pred :event))
 
           metric-configs (metric/all-metric-configs metric-defs)
-          transforms (util/get-transforms banech-map quant-samples-id)
+          transforms (util/get-transforms bench-map quant-samples-id)
 
           quant-ids (mapv (comp last :path) metric-configs)
           event-keys (into
@@ -643,3 +645,80 @@
 (defmethod view/domain-apply* :pprint
   [viewer view-opts data-map]
   ((get-method view/domain-apply* :print) viewer view-opts data-map))
+
+;;; Missing :pprint implementations that delegate to :print
+
+;; Shape statistics
+(defmethod view/shape-stats* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/shape-stats* :print) viewer view-opts data-map))
+
+;; GC warnings
+(defmethod view/final-gc-warnings* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/final-gc-warnings* :print) viewer view-opts data-map))
+
+;; OS info
+(defmethod view/os* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/os* :print) viewer view-opts data-map))
+
+;; Runtime info
+(defmethod view/runtime* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/runtime* :print) viewer view-opts data-map))
+
+;; Distribution model comparison
+(defmethod view/distribution-models* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/distribution-models* :print) viewer view-opts data-map))
+
+;; Distribution parameter CIs
+(defmethod view/distribution-parameter-cis* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/distribution-parameter-cis* :print) viewer view-opts data-map))
+
+;; Tail summary (GPD/Hill)
+(defmethod view/tail-summary* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/tail-summary* :print) viewer view-opts data-map))
+
+;; Tail ratios
+(defmethod view/tail-ratios* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/tail-ratios* :print) viewer view-opts data-map))
+
+;; High quantile estimates
+(defmethod view/tail-high-quantiles* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/tail-high-quantiles* :print) viewer view-opts data-map))
+
+;; Call tree (ASCII)
+(defmethod view/call-tree* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/call-tree* :print) viewer view-opts data-map))
+
+;; Flame chart (message only)
+(defmethod view/call-flame* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/call-flame* :print) viewer view-opts data-map))
+
+;; Most called methods table
+(defmethod view/most-called* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/most-called* :print) viewer view-opts data-map))
+
+;;; Chart no-ops (charts cannot render in pprint text output)
+
+;; Distribution charts
+(defmethod view/distribution-pdf* :pprint [_ _ _])
+(defmethod view/distribution-cdf* :pprint [_ _ _])
+(defmethod view/distribution-qq* :pprint [_ _ _])
+
+;; Tail analysis charts
+(defmethod view/tail-ratios-chart* :pprint [_ _ _])
+(defmethod view/hill-plot* :pprint [_ _ _])
+(defmethod view/mrl-plot* :pprint [_ _ _])
+(defmethod view/zipf-plot* :pprint [_ _ _])
+(defmethod view/exponential-qq-plot* :pprint [_ _ _])
+(defmethod view/gpd-qq-plot* :pprint [_ _ _])
