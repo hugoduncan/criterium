@@ -33,6 +33,7 @@ website:
           - criterium.allocation_bench_notebook.qmd
       - section: "Domain Analysis"
         contents:
+          - domain_complexity_analysis.qmd
           - criterium.domain_bench_notebook.qmd
           - criterium.analyse_domain_notebook.qmd
           - criterium.domain_builder_notebook.qmd
