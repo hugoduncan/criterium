@@ -3,6 +3,7 @@
   ;; and basic view implementations (stats, extremes, quantiles, outliers,
   ;; samples, histogram, KDE, bootstrap stats).
   (:require
+   [clojure.string :as str]
    [clojure.test :refer [deftest is testing]]
    [criterium.analyse :as analyse]
    [criterium.test-data :as test-data]
@@ -237,19 +238,72 @@
           (is (= :kind/md (:kindly/kind (meta heading))))
           (is (= ["**Metrics**"] heading)))))))
 
-(deftest noop-views-test
-  (testing "noop views"
-    (testing "final-gc-warnings* produces no output"
-      (reset! core/accumulated [])
-      (view/final-gc-warnings* :kindly {} {})
-      (is (empty? @core/accumulated)))
+;;; OS Info Tests
 
-    (testing "os* produces no output"
+(deftest os-view-test
+  ;; Tests the kindly viewer output for OS information.
+  ;; Verifies table with name, version, architecture, and processor count.
+  (testing "view/os* :kindly"
+    (testing "displays OS info table"
       (reset! core/accumulated [])
       (view/os* :kindly {} {})
-      (is (empty? @core/accumulated)))
+      (let [result (core/flush)]
+        (is (= :kind/fragment (:kindly/kind (meta result))))
+        (is (= 2 (count result)) "Expected heading and table")
+        (let [[heading table] result]
+          (is (= :kind/md (:kindly/kind (meta heading))))
+          (is (= ["**Operating System**"] heading))
+          (is (= :kind/table (:kindly/kind (meta table))))
+          (is (= 4 (count table)) "Expected 4 rows")
+          (is (= "Name" (:property (nth table 0))))
+          (is (= "Processors" (:property (nth table 3)))))))))
 
-    (testing "runtime* produces no output"
+;;; Runtime Info Tests
+
+(deftest runtime-view-test
+  ;; Tests the kindly viewer output for runtime information.
+  ;; Verifies table with VM name, version, vendor, and arguments.
+  (testing "view/runtime* :kindly"
+    (testing "displays runtime info table"
       (reset! core/accumulated [])
       (view/runtime* :kindly {} {})
+      (let [result (core/flush)]
+        (is (= :kind/fragment (:kindly/kind (meta result))))
+        (is (= 2 (count result)) "Expected heading and table")
+        (let [[heading table] result]
+          (is (= :kind/md (:kindly/kind (meta heading))))
+          (is (= ["**Runtime**"] heading))
+          (is (= :kind/table (:kindly/kind (meta table))))
+          (is (= 4 (count table)) "Expected 4 rows")
+          (is (= "VM Name" (:property (nth table 0))))
+          (is (= "Arguments" (:property (nth table 3)))))))))
+
+;;; Final GC Warnings Tests
+
+(deftest final-gc-warnings-view-test
+  ;; Tests the kindly viewer output for final GC warnings.
+  ;; Verifies warning displays when GC time exceeds threshold.
+  (testing "view/final-gc-warnings* :kindly"
+    (testing "displays warning when GC exceeds threshold"
+      (reset! core/accumulated [])
+      (view/final-gc-warnings*
+       :kindly
+       {:warn-threshold 0.01}
+       (test-data/final-gc-warning-map))
+      (let [result (core/flush)]
+        (is (= :kind/fragment (:kindly/kind (meta result))))
+        (is (= 2 (count result)) "Expected heading and table")
+        (let [[heading table] result]
+          (is (= :kind/md (:kindly/kind (meta heading))))
+          (is (= ["**Final GC Warning**"] heading))
+          (is (= :kind/table (:kindly/kind (meta table))))
+          (is (= 1 (count table)))
+          (is (str/includes? (:warning (first table)) "Final GC ran for")))))
+
+    (testing "outputs nothing when GC below threshold"
+      (reset! core/accumulated [])
+      (view/final-gc-warnings*
+       :kindly
+       {:warn-threshold 0.99}
+       (test-data/final-gc-warning-map))
       (is (empty? @core/accumulated)))))

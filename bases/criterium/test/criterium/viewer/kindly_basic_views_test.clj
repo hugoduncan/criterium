@@ -417,25 +417,10 @@
             (is (= 350 (-> chart :vconcat first :height))
                 "Expected notebook-friendly height")))))))
 
-(deftest noop-views-test
-  ;; Tests that noop multimethods do not add anything to the accumulator.
-  (testing "noop views"
-    (testing "bootstrap-stats* produces no output"
+(deftest bootstrap-stats-no-data-test
+  ;; Tests that bootstrap-stats* does not add anything when data is missing.
+  (testing "bootstrap-stats* without data"
+    (testing "produces no output when data-map is empty"
       (reset! kindly/accumulated [])
       (view/bootstrap-stats* :kindly {} {})
-      (is (empty? @kindly/accumulated)))
-
-    (testing "final-gc-warnings* produces no output"
-      (reset! kindly/accumulated [])
-      (view/final-gc-warnings* :kindly {} {})
-      (is (empty? @kindly/accumulated)))
-
-    (testing "os* produces no output"
-      (reset! kindly/accumulated [])
-      (view/os* :kindly {} {})
-      (is (empty? @kindly/accumulated)))
-
-    (testing "runtime* produces no output"
-      (reset! kindly/accumulated [])
-      (view/runtime* :kindly {} {})
       (is (empty? @kindly/accumulated)))))

@@ -7,6 +7,7 @@
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have]]
    [criterium.view :as view]
+   [criterium.viewer.common-charts.autocorrelation :as acf-charts]
    [criterium.viewer.common.allocation :as allocation]
    [criterium.viewer.common.autocorrelation :as acf-common]
    [criterium.viewer.common.bootstrap :as bootstrap]
@@ -563,8 +564,13 @@
        [:metric :value]
        (autocorrelation-summary-table acf-data (:label mc))))))
 
-;; ACF plot is a no-op for pprint viewer (charts not supported)
-(defmethod view/acf-plot* :pprint [_ _ _])
+;; ACF plot uses common ASCII chart rendering
+(defmethod view/acf-plot* :pprint
+  [_ view data-map]
+  (acf-common/with-autocorrelation-metrics view data-map
+    (fn [acf-data mc]
+      (when-let [output (acf-charts/render-ascii-acf-plot acf-data (:label mc) view)]
+        (println output)))))
 
 (defn- classification-table-rows
   "Build classification table rows for pprint."
@@ -711,17 +717,42 @@
   [viewer view-opts data-map]
   ((get-method view/most-called* :print) viewer view-opts data-map))
 
-;;; Chart no-ops (charts cannot render in pprint text output)
+;;; Chart delegations to :print (ASCII chart rendering)
 
 ;; Distribution charts
-(defmethod view/distribution-pdf* :pprint [_ _ _])
-(defmethod view/distribution-cdf* :pprint [_ _ _])
-(defmethod view/distribution-qq* :pprint [_ _ _])
+(defmethod view/distribution-pdf* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/distribution-pdf* :print) viewer view-opts data-map))
+
+(defmethod view/distribution-cdf* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/distribution-cdf* :print) viewer view-opts data-map))
+
+(defmethod view/distribution-qq* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/distribution-qq* :print) viewer view-opts data-map))
 
 ;; Tail analysis charts
-(defmethod view/tail-ratios-chart* :pprint [_ _ _])
-(defmethod view/hill-plot* :pprint [_ _ _])
-(defmethod view/mrl-plot* :pprint [_ _ _])
-(defmethod view/zipf-plot* :pprint [_ _ _])
-(defmethod view/exponential-qq-plot* :pprint [_ _ _])
-(defmethod view/gpd-qq-plot* :pprint [_ _ _])
+(defmethod view/tail-ratios-chart* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/tail-ratios-chart* :print) viewer view-opts data-map))
+
+(defmethod view/hill-plot* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/hill-plot* :print) viewer view-opts data-map))
+
+(defmethod view/mrl-plot* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/mrl-plot* :print) viewer view-opts data-map))
+
+(defmethod view/zipf-plot* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/zipf-plot* :print) viewer view-opts data-map))
+
+(defmethod view/exponential-qq-plot* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/exponential-qq-plot* :print) viewer view-opts data-map))
+
+(defmethod view/gpd-qq-plot* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/gpd-qq-plot* :print) viewer view-opts data-map))

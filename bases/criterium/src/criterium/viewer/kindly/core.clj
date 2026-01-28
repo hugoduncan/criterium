@@ -18,7 +18,11 @@
   appropriate `:kindly/kind` metadata."
   (:refer-clojure :exclude [flush])
   (:require
+   [clojure.string :as str]
+   [criterium.array :as arr]
+   [criterium.jvm :as jvm]
    [criterium.metric :as metric]
+   [criterium.util.format :as format]
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have]]
    [criterium.view :as view]
@@ -26,6 +30,8 @@
    [criterium.viewer.common-charts.samples :as charts.samples]
    [criterium.viewer.common.bootstrap :as bootstrap]
    [criterium.viewer.common.core :as core]))
+
+(set! *unchecked-math* false)
 
 ;;; Accumulator
 
@@ -331,8 +337,61 @@
                            :mean :mean-ci-lower :mean-ci-upper
                            :p10 :p90]}))))))
 
-;;; Noop Implementations
+;;; Final GC Warnings
 
-(defmethod view/final-gc-warnings* :kindly [_ _ _])
-(defmethod view/os* :kindly [_ _ _])
-(defmethod view/runtime* :kindly [_ _ _])
+(defmethod view/final-gc-warnings* :kindly
+  [_ {:keys [final-gc-id samples-id warn-threshold]} data-map]
+  {:pre [(number? warn-threshold)]}
+  (let [final-gc-id (or final-gc-id :final-gc)
+        samples-id (or samples-id :samples)
+        metrics-samples (data-map samples-id)
+        metrics-deps (:metrics-deps metrics-samples)
+        gc-metric-configs (metric/all-metric-configs
+                           (select-keys
+                            metrics-deps
+                            [:elapsed-time :garbage-collector]))
+        metric (first gc-metric-configs)
+        gc-time-metrics (->> (next gc-metric-configs)
+                             (filterv #(= :time (:dimension %))))
+        metric->values (util/metric->values metrics-samples)
+        total (* (:scale metric)
+                 (arr/sum (metric->values [:elapsed-time])))
+        gc-samples (-> data-map final-gc-id util/metric->values)
+        total-gc (reduce
+                  +
+                  (mapv
+                   (fn [m]
+                     (* (:scale m) (arr/sum (gc-samples (:path m)))))
+                   gc-time-metrics))
+        frac (/ total-gc total)]
+    (when (and total-gc (> frac warn-threshold))
+      (kindly-heading "Final GC Warning")
+      (kindly-table
+       [{:warning (format "Final GC ran for %s, %.1f%% of total sampling time (%s)"
+                          (format/format-value :time total-gc)
+                          (* frac 100)
+                          (format/format-value :time total))}]))))
+
+;;; OS Info
+
+(defmethod view/os* :kindly
+  [_ _ _sampled]
+  (let [os (jvm/os-details)]
+    (kindly-heading "Operating System")
+    (kindly-table
+     [{:property "Name" :value (:name os)}
+      {:property "Version" :value (:version os)}
+      {:property "Architecture" :value (:arch os)}
+      {:property "Processors" :value (:available-processors os)}])))
+
+;;; Runtime Info
+
+(defmethod view/runtime* :kindly
+  [_ _ _sampled]
+  (let [runtime (jvm/runtime-details)]
+    (kindly-heading "Runtime")
+    (kindly-table
+     [{:property "VM Name" :value (:vm-name runtime)}
+      {:property "VM Version" :value (:vm-version runtime)}
+      {:property "VM Vendor" :value (:vm-vendor runtime)}
+      {:property "Arguments" :value (str/join " " (:input-arguments runtime))}])))

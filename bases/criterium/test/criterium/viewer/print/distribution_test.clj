@@ -1,6 +1,9 @@
 (ns criterium.viewer.print.distribution-test
   (:require
+   [clojure.string :as str]
    [clojure.test :refer [deftest is testing]]
+   [criterium.array :as arr]
+   [criterium.collect-plan :as collect-plan]
    [criterium.collector.metrics :as metrics]
    [criterium.test-utils :refer [trimmed-lines]]
    [criterium.view :as view]
@@ -31,6 +34,20 @@
      {:gamma {:shape {:point-estimate 2.5 :ci-lower 2.0 :ci-upper 3.0}
               :scale {:point-estimate 0.01 :ci-lower 0.008 :ci-upper 0.012}}}}}})
 
+(def gamma-best-fit-with-params
+  "Distribution fit results with full params for chart rendering."
+  {:fits
+   {[:elapsed-time]
+    {:n 50
+     :best-model :gamma
+     :sample-range [1000000.0 5000000.0]  ; 1-5ms in nanoseconds
+     :distributions
+     {:gamma {:aic 150.0 :delta-aic 0.0 :bic 155.0
+              :params {:shape 2.5 :scale 1000000.0}}}
+     :parameter-cis
+     {:gamma {:shape {:point-estimate 2.5 :ci-lower 2.0 :ci-upper 3.0}
+              :scale {:point-estimate 1000000.0 :ci-lower 800000.0 :ci-upper 1200000.0}}}}}})
+
 (def small-sample-fit
   "Distribution fit with small sample warning."
   {:fits
@@ -59,6 +76,26 @@
   [fit-data]
   {:distribution-fit fit-data
    :samples {:metrics-defs sample-metric-defs}})
+
+(defn- make-sample-values
+  "Create sample values array for testing."
+  [n ^double mean ^double stddev]
+  (let [rng (java.util.Random. 42)]
+    (arr/->double-array
+     (double-array
+      (repeatedly n #(+ mean (* stddev (.nextGaussian rng))))))))
+
+(defn data-map-with-fit-and-samples
+  "Create data map with distribution fit, sample metadata, and sample values."
+  [fit-data]
+  {:distribution-fit fit-data
+   :samples {:type :criterium/metrics-samples
+             :metrics-defs sample-metric-defs
+             :metric->values {[:elapsed-time] (make-sample-values 50 2500000.0 500000.0)}
+             :transform collect-plan/identity-transforms
+             :batch-size 1
+             :eval-count 50
+             :num-samples 50}})
 
 ;;; Distribution Models Tests
 
@@ -150,19 +187,77 @@
                       (data-map-with-fit gamma-best-fit))))]
         (is (some #(.contains ^String % "Parameter CIs") lines))))))
 
-;;; No-op Chart Views Tests
+;;; Chart Views Tests
 
-(deftest chart-views-noop-test
-  (testing "chart views are no-ops for print viewer"
-    (testing "distribution-pdf* produces no output"
+(deftest distribution-pdf-test
+  ;; Tests ASCII PDF chart rendering for distribution fits.
+  ;; Verifies chart structure and content.
+  (testing "distribution-pdf*"
+    (testing "renders ASCII PDF chart with fitted distribution"
+      (let [data-map (data-map-with-fit-and-samples gamma-best-fit-with-params)
+            output (with-out-str
+                     (view/distribution-pdf* :print {} data-map))
+            lines (trimmed-lines output)]
+        (is (some #(str/includes? % "PDF") lines)
+            "Should show PDF in header")
+        (is (some #(str/includes? % "Gamma") lines)
+            "Should show distribution name")
+        (is (some #(str/includes? % "n=50") lines)
+            "Should show sample count")
+        (is (some #(str/includes? % "|") lines)
+            "Should have axis markers")
+        (is (some #(or (str/includes? % "*") (str/includes? % ".")) lines)
+            "Should have chart characters")))
+
+    (testing "produces no output when no distribution fit data"
       (is (= ""
              (with-out-str
-               (view/distribution-pdf* :print {} {})))))
-    (testing "distribution-cdf* produces no output"
+               (view/distribution-pdf* :print {} {})))))))
+
+(deftest distribution-cdf-test
+  ;; Tests ASCII CDF chart rendering showing ECDF.
+  ;; Verifies chart structure and sample count display.
+  (testing "distribution-cdf*"
+    (testing "renders ASCII CDF chart with ECDF"
+      (let [data-map (data-map-with-fit-and-samples gamma-best-fit-with-params)
+            output (with-out-str
+                     (view/distribution-cdf* :print {} data-map))
+            lines (trimmed-lines output)]
+        (is (some #(str/includes? % "CDF") lines)
+            "Should show CDF in header")
+        (is (some #(str/includes? % "n=50") lines)
+            "Should show sample count")
+        (is (some #(str/includes? % "|") lines)
+            "Should have axis markers")
+        (is (some #(str/includes? % "*") lines)
+            "Should have point characters")))
+
+    (testing "produces no output when no samples"
       (is (= ""
              (with-out-str
-               (view/distribution-cdf* :print {} {})))))
-    (testing "distribution-qq* produces no output"
+               (view/distribution-cdf* :print {} {})))))))
+
+(deftest distribution-qq-test
+  ;; Tests ASCII Q-Q plot rendering for distribution fits.
+  ;; Verifies chart structure showing theoretical vs observed quantiles.
+  (testing "distribution-qq*"
+    (testing "renders ASCII Q-Q plot for best-fit distribution"
+      (let [data-map (data-map-with-fit-and-samples gamma-best-fit-with-params)
+            output (with-out-str
+                     (view/distribution-qq* :print {} data-map))
+            lines (trimmed-lines output)]
+        (is (some #(str/includes? % "Q-Q") lines)
+            "Should show Q-Q in header")
+        (is (some #(str/includes? % "Gamma") lines)
+            "Should show distribution name")
+        (is (some #(str/includes? % "n=50") lines)
+            "Should show sample count")
+        (is (some #(str/includes? % "|") lines)
+            "Should have axis markers")
+        (is (some #(str/includes? % "*") lines)
+            "Should have point characters")))
+
+    (testing "produces no output when no distribution fit data"
       (is (= ""
              (with-out-str
                (view/distribution-qq* :print {} {})))))))

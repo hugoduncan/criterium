@@ -535,6 +535,49 @@
                          :ks-test {:statistic 0.11 :p-value 0.85}
                          :cvm-test {:statistic 0.055 :p-value 0.8}}}}}}}))
 
+(defn final-gc-warning-map
+  "Create a data-map for testing final-gc-warnings views.
+  Contains samples with elapsed time and final-gc with GC time data
+  structured to trigger a warning (GC time = 1% of total).
+
+  Returns the data-map directly (not wrapped in {:data ...})
+  to match other chart test data factories."
+  []
+  (let [metrics-defs (->
+                      (select-keys
+                       (metrics/metrics)
+                       [:elapsed-time :class-loader :compilation])
+                      (assoc-in
+                       [:garbage-collector :values]
+                       [{:path [:garbage-collector :total :count]
+                         :label "GC total count"
+                         :scale 1
+                         :type :event
+                         :dimension :count}
+                        {:path [:garbage-collector :total :time-ms]
+                         :label "GC total time"
+                         :scale 1e-3
+                         :type :event
+                         :dimension :time}]))]
+    {:samples
+     {:type :criterium/collected-metrics-samples
+      :metric->values
+      {[:elapsed-time] (arr/->long-array (long-array [99999999]))}
+      :metrics-deps metrics-defs
+      :batch-size 1
+      :eval-count 1
+      :elapsed-time 1}
+     :final-gc
+     {:type :criterium/collected-metrics-samples
+      :metric->values
+      {[:compilation :time-ms] (arr/->long-array (long-array [3]))
+       [:garbage-collector :total :time-ms] (arr/->long-array (long-array [1]))
+       [:elapsed-time] (arr/->long-array (long-array [1]))}
+      :metrics-deps metrics-defs
+      :batch-size 1
+      :eval-count 1
+      :elapsed-time 1}}))
+
 (defn tail-analysis-data-map
   "Create a data-map with samples and tail-analysis data for testing tail charts.
   Includes sample data and tail analysis results (Hill, GPD, MRL, tail ratios)."
