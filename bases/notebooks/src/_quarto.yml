@@ -13,6 +13,7 @@ website:
         contents:
           - quickstart.qmd
           - warmup.qmd
+          - benchmark_problem_detection.qmd
           - non_parametric_analysis.qmd
           - parametric_analysis.qmd
           - tail_analysis.qmd

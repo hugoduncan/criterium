@@ -10,6 +10,7 @@
   ["bases/notebooks/src/criterium/index.clj"
    "bases/notebooks/src/quickstart.clj"
    "bases/notebooks/src/warmup.clj"
+   "bases/notebooks/src/benchmark_problem_detection.clj"
    "bases/notebooks/src/non_parametric_analysis.clj"
    "bases/notebooks/src/parametric_analysis.clj"
    "bases/notebooks/src/tail_analysis.clj"

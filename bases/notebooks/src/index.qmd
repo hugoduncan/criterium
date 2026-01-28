@@ -18,6 +18,7 @@ title: "Criterium Notebooks"
 - [Quickstart](./quickstart.html) - Your first benchmark in 5 minutes
 - [Repeatability](./repeatability.html) - Understanding and improving run-to-run consistency
 - [Warmup](./warmup.html) - JIT optimization and warmup controls
+- [Benchmark Problem Detection](./benchmark_problem_detection.html) - Detecting multimodality and autocorrelation issues
 - [Non-Parametric Analysis](./non_parametric_analysis.html) - Histogram, KDE, and mode detection
 - [Parametric Analysis](./parametric_analysis.html) - Distribution fitting with model selection
 - [Tail Analysis](./tail_analysis.html) - Extreme value analysis for worst-case latency
