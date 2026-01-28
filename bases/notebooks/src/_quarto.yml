@@ -19,6 +19,10 @@ website:
           - tail_analysis.qmd
           - analysis_and_view_options.qmd
           - in_situ.qmd
+      - section: "Domain Analysis"
+        contents:
+          - domain_complexity_analysis.qmd
+          - domain_comparison_analysis.qmd
       - section: "Core Usage"
         contents:
           - criterium.basic_usage_notebook.qmd
@@ -33,8 +37,6 @@ website:
           - criterium.allocation_bench_notebook.qmd
       - section: "Domain Analysis"
         contents:
-          - domain_complexity_analysis.qmd
-          - domain_comparison_analysis.qmd
           - criterium.domain_bench_notebook.qmd
           - criterium.analyse_domain_notebook.qmd
           - criterium.domain_builder_notebook.qmd
