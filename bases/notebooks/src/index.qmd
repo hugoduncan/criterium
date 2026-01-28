@@ -20,6 +20,7 @@ title: "Criterium Notebooks"
 - [Warmup](./warmup.html) - JIT optimization and warmup controls
 - [Non-Parametric Analysis](./non_parametric_analysis.html) - Histogram, KDE, and mode detection
 - [Parametric Analysis](./parametric_analysis.html) - Distribution fitting with model selection
+- [Tail Analysis](./tail_analysis.html) - Extreme value analysis for worst-case latency
 - [Analysis and View Options](./analysis_and_view_options.html) - Configuring analysis steps and output views
 - [In-Situ Measurement](./in_situ.html) - Measuring functions during normal execution
 - [Basic Usage](./criterium.basic_usage_notebook.html) - Introduction to benchmarking with criterium

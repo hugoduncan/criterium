@@ -344,4 +344,4 @@
 ;; [Non-Parametric Analysis](./non_parametric_analysis.html).
 ;;
 ;; For tail behavior and worst-case latency analysis, see
-;; [Tail Analysis](./criterium.tail_analysis_notebook.html).
+;; [Tail Analysis](./tail_analysis.html).
