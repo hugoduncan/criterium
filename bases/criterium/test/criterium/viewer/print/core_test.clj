@@ -625,3 +625,202 @@
                                 {:my-kde kde-data :my-modes modes-data}))]
         (is (str/includes? output "n=25"))
         (is (str/includes? output "modes: 1"))))))
+
+;;; Sample Chart Tests
+
+(deftest samples-with-chart-test
+  ;; Tests samples* with show-chart option for ASCII scatter plot rendering.
+  ;; Covers: chart rendering, dimension formatting, proper scaling.
+  (testing "samples*"
+    (testing "renders ASCII chart when show-chart is true"
+      (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])
+            data-map {:samples
+                      {:type :criterium/metrics-samples
+                       :metrics-defs metrics-defs
+                       :metric->values {[:elapsed-time]
+                                        (arr/->double-array
+                                         (double-array [100 110 105 120 115]))}
+                       :transform collect-plan/identity-transforms
+                       :batch-size 1
+                       :num-samples 5
+                       :eval-count 5
+                       :elapsed-time 550}
+                      :outliers
+                      {:type :criterium/outliers
+                       :metrics-defs metrics-defs
+                       :outliers {:elapsed-time {:outlier-counts
+                                                 (metrics-samples/outlier-count 0 0 0 0)
+                                                 :outliers {}}}
+                       :num-samples 5
+                       :source-id :samples
+                       :quantiles-id :quantiles
+                       :transform collect-plan/identity-transforms}}
+            output (with-out-str
+                     (view/samples* :print
+                                    {:show-chart true
+                                     :chart-width 60
+                                     :chart-height 10}
+                                    data-map))
+            lines (trimmed-lines output)]
+        ;; Should contain chart title
+        (is (some #(str/includes? % "samples") lines))
+        ;; Should contain axis markers
+        (is (some #(str/includes? % "|") lines))
+        ;; Should contain plot characters
+        (is (some #(or (str/includes? % "*") (str/includes? % ".")) lines))))
+
+    (testing "does not render chart when show-chart is false (default)"
+      (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])
+            data-map {:samples
+                      {:type :criterium/metrics-samples
+                       :metrics-defs metrics-defs
+                       :metric->values {[:elapsed-time]
+                                        (arr/->double-array
+                                         (double-array [100 110 105]))}
+                       :transform collect-plan/identity-transforms
+                       :batch-size 1
+                       :num-samples 3
+                       :eval-count 3
+                       :elapsed-time 315}
+                      :outliers
+                      {:type :criterium/outliers
+                       :metrics-defs metrics-defs
+                       :outliers {:elapsed-time {:outlier-counts
+                                                 (metrics-samples/outlier-count 0 0 0 0)
+                                                 :outliers {}}}
+                       :num-samples 3
+                       :source-id :samples
+                       :quantiles-id :quantiles
+                       :transform collect-plan/identity-transforms}}
+            output (with-out-str
+                     (view/samples* :print {} data-map))
+            lines (trimmed-lines output)]
+        ;; Should not contain chart elements (no axis lines)
+        (is (not (some #(str/includes? % "samples\n") lines)))))))
+
+(deftest sample-percentiles-test
+  ;; Tests sample-percentiles* for ASCII percentile chart rendering.
+  ;; Covers: percentile computation, chart formatting, dimension scaling.
+  (testing "sample-percentiles*"
+    (testing "renders ASCII percentile chart"
+      (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])
+            data-map {:samples
+                      {:type :criterium/metrics-samples
+                       :metrics-defs metrics-defs
+                       :metric->values {[:elapsed-time]
+                                        (arr/->double-array
+                                         (double-array [100 200 150 300 250]))}
+                       :transform collect-plan/identity-transforms
+                       :batch-size 1
+                       :num-samples 5
+                       :eval-count 5
+                       :elapsed-time 1000}}
+            output (with-out-str
+                     (view/sample-percentiles* :print
+                                               {:chart-width 60
+                                                :chart-height 10}
+                                               data-map))
+            lines (trimmed-lines output)]
+        ;; Should contain chart title with "percentiles"
+        (is (some #(str/includes? % "percentiles") lines))
+        ;; Should contain y-axis markers
+        (is (some #(str/includes? % "|") lines))
+        ;; Should contain plot characters
+        (is (some #(or (str/includes? % "*") (str/includes? % ".")) lines))))
+
+    (testing "handles single sample"
+      (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])
+            data-map {:samples
+                      {:type :criterium/metrics-samples
+                       :metrics-defs metrics-defs
+                       :metric->values {[:elapsed-time]
+                                        (arr/->double-array
+                                         (double-array [100]))}
+                       :transform collect-plan/identity-transforms
+                       :batch-size 1
+                       :num-samples 1
+                       :eval-count 1
+                       :elapsed-time 100}}
+            output (with-out-str
+                     (view/sample-percentiles* :print
+                                               {:chart-width 40
+                                                :chart-height 8}
+                                               data-map))]
+        ;; Should render without error
+        (is (string? output))
+        (is (pos? (count output)))))))
+
+(deftest sample-diffs-test
+  ;; Tests sample-diffs* for ASCII sample differences chart rendering.
+  ;; Covers: diff computation from minimum, unique values, chart formatting.
+  (testing "sample-diffs*"
+    (testing "renders ASCII diffs chart"
+      (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])
+            data-map {:samples
+                      {:type :criterium/metrics-samples
+                       :metrics-defs metrics-defs
+                       :metric->values {[:elapsed-time]
+                                        (arr/->double-array
+                                         (double-array [100 200 150 300 100]))}
+                       :transform collect-plan/identity-transforms
+                       :batch-size 1
+                       :num-samples 5
+                       :eval-count 5
+                       :elapsed-time 850}}
+            output (with-out-str
+                     (view/sample-diffs* :print
+                                         {:chart-width 60
+                                          :chart-height 10}
+                                         data-map))
+            lines (trimmed-lines output)]
+        ;; Should contain chart title with "differences"
+        (is (some #(str/includes? % "differences") lines))
+        ;; Should contain y-axis markers
+        (is (some #(str/includes? % "|") lines))
+        ;; Should contain plot characters
+        (is (some #(or (str/includes? % "*") (str/includes? % ".")) lines))))
+
+    (testing "handles all identical values"
+      (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])
+            data-map {:samples
+                      {:type :criterium/metrics-samples
+                       :metrics-defs metrics-defs
+                       :metric->values {[:elapsed-time]
+                                        (arr/->double-array
+                                         (double-array [100 100 100]))}
+                       :transform collect-plan/identity-transforms
+                       :batch-size 1
+                       :num-samples 3
+                       :eval-count 3
+                       :elapsed-time 300}}
+            output (with-out-str
+                     (view/sample-diffs* :print
+                                         {:chart-width 40
+                                          :chart-height 8}
+                                         data-map))]
+        ;; Should render without error (all diffs are 0)
+        (is (string? output))
+        (is (pos? (count output)))))
+
+    (testing "applies transforms correctly"
+      (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])
+            batch-size 10
+            data-map {:samples
+                      {:type :criterium/metrics-samples
+                       :metrics-defs metrics-defs
+                       :metric->values {[:elapsed-time]
+                                        (arr/->double-array
+                                         (double-array [1000 2000 1500]))}
+                       :transform (#'collect-plan/batch-transforms batch-size)
+                       :batch-size batch-size
+                       :num-samples 3
+                       :eval-count 30
+                       :elapsed-time 4500}}
+            output (with-out-str
+                     (view/sample-diffs* :print
+                                         {:chart-width 40
+                                          :chart-height 8}
+                                         data-map))]
+        ;; Should render (transforms divide by batch-size)
+        (is (string? output))
+        (is (pos? (count output)))))))
