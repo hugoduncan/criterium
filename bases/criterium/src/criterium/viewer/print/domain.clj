@@ -123,7 +123,7 @@
             (println)))))))
 
 (defn- render-extract-ascii-chart
-  "Render ASCII chart for domain extract data.
+  "Render ASCII chart for domain extract or comparison data.
   Groups data by implementation and renders one chart per impl per metric."
   [line-data-seq {:keys [chart-width chart-height]
                   :or {chart-width 80 chart-height 15}}]
@@ -137,7 +137,11 @@
                           (filter (fn [[x y]] (and (some? x) (some? y))))
                           (sort-by first)
                           vec)
-              title (str (name metric-id)
+              ;; Use metric-id if available, otherwise derive from y-title
+              metric-label (if metric-id
+                             (name metric-id)
+                             (or y-title "value"))
+              title (str metric-label
                          (when impl-name (str " [" impl-name "]")))
               chart-lines (ascii-chart/render-chart
                            points
@@ -423,9 +427,17 @@
                                (name axis) (pr-str metric))))))))))
 
 (defmethod view/domain-comparison-chart* :print
-  [_ _ _]
-  ;; Print viewer doesn't render charts
-  nil)
+  [_ opts data-map]
+  (let [comparison-id (or (:comparison-id opts) :comparison)
+        comparison (data-map comparison-id)]
+    (when comparison
+      (case (detection/comparison-visualization-strategy comparison)
+        :multi-point
+        (let [line-data (comparison/prepare-comparison-line-data comparison)]
+          (render-extract-ascii-chart line-data opts))
+
+        ;; Single-point and default-table strategies don't render charts
+        (:single-point :default-table) nil))))
 
 ;;; Domain Regression Views
 

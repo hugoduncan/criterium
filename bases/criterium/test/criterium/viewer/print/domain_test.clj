@@ -582,7 +582,8 @@
         (is (str/includes? output "Domain Comparison"))))))
 
 (deftest domain-comparison-chart-print-test
-  ;; Tests that print viewer returns nil for charts (text viewers don't render charts).
+  ;; Tests the print viewer ASCII chart rendering for domain-comparison.
+  ;; Charts are rendered for multi-point strategy; single-point returns nil.
   (testing "domain-comparison-chart*"
     (testing "returns nil for single-point strategy"
       (is (nil? (view/domain-comparison-chart*
@@ -597,20 +598,90 @@
                    {:foo [{:coord {:impl :foo} :value 1e-7}]
                     :bar [{:coord {:impl :bar} :value 2e-7}]}}}))))
 
-    (testing "returns nil for multi-point strategy"
-      (is (nil? (view/domain-comparison-chart*
-                 :print
-                 {}
-                 {:comparison
-                  {:type :criterium/domain-comparison
-                   :axis :impl
-                   :metric [:stats :elapsed-time :mean]
-                   :implementations [:foo :bar]
-                   :data
-                   {:foo [{:coord {:n 100 :impl :foo} :value 1e-7}
-                          {:coord {:n 200 :impl :foo} :value 2e-7}]
-                    :bar [{:coord {:n 100 :impl :bar} :value 2e-7}
-                          {:coord {:n 200 :impl :bar} :value 4e-7}]}}}))))
+    (testing "renders ASCII chart for multi-point strategy"
+      (let [output (with-out-str
+                     (view/domain-comparison-chart*
+                      :print
+                      {}
+                      {:comparison
+                       {:type :criterium/domain-comparison
+                        :axis :impl
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo :bar]
+                        :data
+                        {:foo [{:coord {:n 100 :impl :foo} :value 1e-7}
+                               {:coord {:n 200 :impl :foo} :value 2e-7}
+                               {:coord {:n 300 :impl :foo} :value 3e-7}]
+                         :bar [{:coord {:n 100 :impl :bar} :value 2e-7}
+                               {:coord {:n 200 :impl :bar} :value 4e-7}
+                               {:coord {:n 300 :impl :bar} :value 6e-7}]}}}))]
+        ;; Should have charts for both implementations
+        (is (str/includes? output "[foo]"))
+        (is (str/includes? output "[bar]"))
+        ;; Chart should contain point markers
+        (is (str/includes? output "*"))))
+
+    (testing "respects chart-width and chart-height options"
+      (let [output (with-out-str
+                     (view/domain-comparison-chart*
+                      :print
+                      {:chart-width 40 :chart-height 10}
+                      {:comparison
+                       {:type :criterium/domain-comparison
+                        :axis :impl
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo]
+                        :data
+                        {:foo [{:coord {:n 100 :impl :foo} :value 1e-7}
+                               {:coord {:n 200 :impl :foo} :value 2e-7}
+                               {:coord {:n 300 :impl :foo} :value 3e-7}]}}}))
+            lines (str/split-lines output)]
+        ;; With smaller dimensions, lines should be shorter
+        (is (every? #(<= (count %) 45) lines))))
+
+    (testing "uses custom comparison-id"
+      (let [output (with-out-str
+                     (view/domain-comparison-chart*
+                      :print
+                      {:comparison-id :my-comparison}
+                      {:my-comparison
+                       {:type :criterium/domain-comparison
+                        :axis :impl
+                        :metric [:stats :elapsed-time :mean]
+                        :implementations [:foo :bar]
+                        :data
+                        {:foo [{:coord {:n 100 :impl :foo} :value 1e-7}
+                               {:coord {:n 200 :impl :foo} :value 2e-7}
+                               {:coord {:n 300 :impl :foo} :value 3e-7}]
+                         :bar [{:coord {:n 100 :impl :bar} :value 2e-7}
+                               {:coord {:n 200 :impl :bar} :value 4e-7}
+                               {:coord {:n 300 :impl :bar} :value 6e-7}]}}}))]
+        (is (str/includes? output "[foo]"))))
 
     (testing "returns nil for nil comparison"
-      (is (nil? (view/domain-comparison-chart* :print {} {:comparison nil}))))))
+      (is (nil? (view/domain-comparison-chart* :print {} {:comparison nil}))))
+
+    (testing "renders chart with multi-metric comparison"
+      (let [output (with-out-str
+                     (view/domain-comparison-chart*
+                      :print
+                      {}
+                      {:comparison
+                       {:type :criterium/domain-comparison
+                        :axis :impl
+                        :implementations [:foo :bar]
+                        :metrics {:elapsed-time
+                                  {:metric [:stats :elapsed-time :mean]
+                                   :data {:foo [{:coord {:n 100 :impl :foo} :value 1e-7}
+                                                {:coord {:n 200 :impl :foo} :value 2e-7}]
+                                          :bar [{:coord {:n 100 :impl :bar} :value 2e-7}
+                                                {:coord {:n 200 :impl :bar} :value 4e-7}]}}
+                                  :allocation
+                                  {:metric [:stats :thread-allocation :mean]
+                                   :data {:foo [{:coord {:n 100 :impl :foo} :value 1000}
+                                                {:coord {:n 200 :impl :foo} :value 2000}]
+                                          :bar [{:coord {:n 100 :impl :bar} :value 2000}
+                                                {:coord {:n 200 :impl :bar} :value 4000}]}}}}}))]
+        ;; Should have charts for both metrics
+        (is (str/includes? output "elapsed-time"))
+        (is (str/includes? output "allocation"))))))
