@@ -138,10 +138,6 @@
           :extremes
           :shape-stats
           :outlier-counts
-          [:autocorrelation-classification {:classification-id :autocorrelation-classification-raw}]
-          [:effective-sample-size {:ess-id :effective-sample-size-filtered}]
-          [:acf-plot {:autocorrelation-id :autocorrelation-raw
-                      :min-severity :moderate}]
           :event-stats
           [:stats {:stats-id :kde-stats}]
           :quantiles
@@ -149,6 +145,10 @@
           [:kde {:histogram-id :histograms :modes-id :modes}]
           :sample-percentiles
           :samples
+          [:autocorrelation-classification {:classification-id :autocorrelation-classification-raw}]
+          [:effective-sample-size {:ess-id :effective-sample-size-filtered}]
+          [:acf-plot {:autocorrelation-id :autocorrelation-raw
+                      :min-severity :moderate}]
           :allocation-summary
           :allocation-hotspots
           :allocation-by-type
