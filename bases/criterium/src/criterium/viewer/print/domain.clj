@@ -13,6 +13,7 @@
    [criterium.domain.types :as domain.types]
    [criterium.util.format :as format]
    [criterium.view :as view]
+   [criterium.viewer.common.ascii-chart :as ascii-chart]
    [criterium.viewer.common.core :as core]
    [criterium.viewer.common.domain.comparison :as comparison]
    [criterium.viewer.common.domain.detection :as detection]
@@ -121,10 +122,47 @@
                                  (format-extract-value value metric)))))
             (println)))))))
 
+(defn- render-extract-ascii-chart
+  "Render ASCII chart for domain extract data.
+  Groups data by implementation and renders one chart per impl per metric."
+  [line-data-seq {:keys [chart-width chart-height]
+                  :or {chart-width 80 chart-height 15}}]
+  (doseq [{:keys [metric-id x-title y-title data]} line-data-seq]
+    ;; Group data by implementation
+    (let [impl-groups (group-by #(get % "impl") data)]
+      (doseq [[impl-name impl-data] (sort-by key impl-groups)]
+        ;; Convert to [x y] points sorted by x
+        (let [points (->> impl-data
+                          (map (fn [d] [(get d "x") (get d "y")]))
+                          (filter (fn [[x y]] (and (some? x) (some? y))))
+                          (sort-by first)
+                          vec)
+              title (str (name metric-id)
+                         (when impl-name (str " [" impl-name "]")))
+              chart-lines (ascii-chart/render-chart
+                           points
+                           {:width chart-width
+                            :height chart-height
+                            :x-label x-title
+                            :y-label y-title
+                            :title title})]
+          (when (seq chart-lines)
+            (doseq [line chart-lines]
+              (println line))
+            (println)))))))
+
 (defmethod view/domain-extract-chart* :print
-  [_ _ _]
-  ;; Print viewer doesn't render charts
-  nil)
+  [_ opts data-map]
+  (let [extract-id (or (:extract-id opts) :extract)
+        extract (data-map extract-id)]
+    (when extract
+      (case (detection/visualization-strategy extract)
+        :multi-point
+        (let [line-data (comparison/prepare-line-chart-data extract)]
+          (render-extract-ascii-chart line-data opts))
+
+        ;; Single-point and default-table strategies don't render charts
+        (:single-point :default-table) nil))))
 
 ;;; Domain Grouped Views
 
