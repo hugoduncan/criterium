@@ -707,3 +707,18 @@
 (defmethod view/most-called* :pprint
   [viewer view-opts data-map]
   ((get-method view/most-called* :print) viewer view-opts data-map))
+
+;;; Chart no-ops (charts cannot render in pprint text output)
+
+;; Distribution charts
+(defmethod view/distribution-pdf* :pprint [_ _ _])
+(defmethod view/distribution-cdf* :pprint [_ _ _])
+(defmethod view/distribution-qq* :pprint [_ _ _])
+
+;; Tail analysis charts
+(defmethod view/tail-ratios-chart* :pprint [_ _ _])
+(defmethod view/hill-plot* :pprint [_ _ _])
+(defmethod view/mrl-plot* :pprint [_ _ _])
+(defmethod view/zipf-plot* :pprint [_ _ _])
+(defmethod view/exponential-qq-plot* :pprint [_ _ _])
+(defmethod view/gpd-qq-plot* :pprint [_ _ _])
