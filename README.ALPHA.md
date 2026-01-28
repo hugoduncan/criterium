@@ -45,7 +45,7 @@ If you are using portal, try:
 (require '[criterium.bench :as bench])
 (bench/bench (criterium.jvm/wait 10000)
   :viewer :portal
-  :benchmark criterium.benchmarks/log-histogram)
+  :bench-plan criterium.bench-plans/histogram)
 ```
 
 ## New features

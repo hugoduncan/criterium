@@ -57,51 +57,37 @@
 ;; Bench plans combine collect plans with analysis and view configurations.
 ;; The `criterium.bench-plans` namespace provides ready-to-use configurations.
 
-;; ### default-one-shot
+;; ### one-shot
 ;;
 ;; Minimal benchmarking without statistical analysis:
 
-bench-plans/default-one-shot
+bench-plans/one-shot
 
-;; ### default-with-warmup
+;; ### default
 ;;
 ;; Standard benchmarking with full statistics:
 
-bench-plans/default-with-warmup
+bench-plans/default
 
-;; ### log-histogram
+;; ### histogram
 ;;
-;; Extended analysis with histogram visualization:
+;; Non-parametric distribution analysis with histogram visualization, KDE
+;; density estimation, and mode detection. Uses Knuth's Bayesian optimal
+;; binning for data-driven bin selection.
 
-bench-plans/log-histogram
+bench-plans/histogram
 
-;; Using the log-histogram bench plan provides additional output:
+;; Using the histogram bench plan provides additional output:
 ;; - Quantiles (p50, p90, p99)
 ;; - Outlier counts by category
 ;; - Sample percentiles
-;; - Histogram visualization
+;; - Histogram visualization with Knuth optimal binning
+;; - KDE density estimation
+;; - Mode detection with confidence intervals
 
 ^:kindly/hide-code
 (bench-display
- (bench/bench (reduce + (range 1000)) :bench-plan bench-plans/log-histogram))
-
-;; ### knuth-histogram
-;;
-;; Histogram analysis with Knuth's Bayesian optimal binning. Instead of using
-;; the rule-based Freedman-Diaconis method, Knuth's algorithm finds the optimal
-;; number of bins by maximizing a log-posterior over possible bin counts. This
-;; provides data-driven bin selection that adapts to the structure of your data.
-
-bench-plans/knuth-histogram
-
-;; The knuth-histogram plan includes additional output:
-;; - `:optimal-bins` — the number of bins selected by Knuth's algorithm
-;; - `:log-posterior` — the log-posterior value for the selected bin count
-;; - Standard histogram visualization with the optimal binning
-
-^:kindly/hide-code
-(bench-display
- (bench/bench (reduce + (range 1000)) :bench-plan bench-plans/knuth-histogram))
+ (bench/bench (reduce + (range 1000)) :bench-plan bench-plans/histogram))
 
 ;; ## Viewer Options
 ;;
@@ -159,7 +145,7 @@ bench-plans/knuth-histogram
 
 (bench/bench (reduce + (range 1000))
              :viewer :kindly
-             :bench-plan bench-plans/log-histogram)
+             :bench-plan bench-plans/histogram)
 
 ;; Kindly viewer features:
 ;; - Tables with `:kind/table` metadata for stats, quantiles, outliers
@@ -289,9 +275,9 @@ bench-plans/knuth-histogram
 (bench-display
  (bench/bench (reduce + (range 1000))
               :viewer :print
-              :view (conj (:view bench-plans/log-histogram)
+              :view (conj (:view bench-plans/histogram)
                           [:outlier-counts {:show-medcouple true}])
-              :bench-plan bench-plans/log-histogram))
+              :bench-plan bench-plans/histogram))
 
 ;; Medcouple interpretation:
 ;; - MC ≈ 0: Symmetric distribution

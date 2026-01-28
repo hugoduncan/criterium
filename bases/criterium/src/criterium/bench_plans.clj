@@ -5,7 +5,20 @@
   {:stages []
    :terminator :elapsed-time})
 
-(def default-one-shot
+(def one-shot
+  "Single execution profiling without warmup or sampling.
+
+  Runs a single batch without JVM warmup or statistical sampling. Primarily
+  useful for allocation analysis and quick exploratory checks.
+
+  Includes:
+  - Basic execution metrics and timing
+  - Detailed allocation tracking: summary, hotspots, by-type breakdown
+  - JVM event statistics (compilation, class loading)
+
+  Use when you want to see raw allocation patterns without the overhead of
+  statistical analysis, or for a quick sanity check before running a full
+  benchmark."
   {:collector-config default-collector-config
    :analyse [:event-stats
              :allocation-summary
@@ -19,7 +32,23 @@
           :allocation-hotspots]
    :viewer :print})
 
-(def default-with-warmup
+(def default
+  "Standard benchmarking with full statistical analysis.
+
+  The recommended plan for typical performance measurement. Includes warmup,
+  multiple sampling iterations, and comprehensive statistical analysis.
+
+  Includes:
+  - Bootstrap confidence intervals for mean, variance, and other statistics
+  - Outlier detection and classification
+  - Autocorrelation analysis with effective sample size computation
+  - KDE and mode detection for multimodal warnings (no histogram display)
+  - Memory and allocation tracking (summary, hotspots, treemap)
+  - JVM event statistics (compilation, class loading)
+
+  The analysis detects multimodal distributions and autocorrelation patterns,
+  displaying warnings when results may be unreliable. Use this plan for
+  everyday benchmarking where you need statistically sound results."
   {:collector-config default-collector-config
    :analyse [:transform-log
              [:autocorrelation {:id :autocorrelation-raw}]
@@ -64,57 +93,20 @@
              {:warn-threshold 0.01}]]
    :viewer :print})
 
-(def log-histogram
-  {:collector-config default-collector-config
-   :analyse [:transform-log
-             [:autocorrelation {:id :autocorrelation-raw}]
-             [:autocorrelation-classification {:id :autocorrelation-classification-raw
-                                               :autocorrelation-id :autocorrelation-raw}]
-             [:quantiles {:quantiles [0.9 0.99]}]
-             :outliers
-             [:autocorrelation {:id :autocorrelation-filtered
-                                :outlier-id :outliers}]
-             [:effective-sample-size-analysis {:id :effective-sample-size-filtered
-                                               :autocorrelation-id :autocorrelation-filtered}]
-             [:stats {}]
-             [:stats {:samples-id :log-samples :id :log-stats}]
-             [:bootstrap-stats {:quantiles [0.99]
-                                :estimate-quantiles [0.025 0.975]
-                                :ess-id :effective-sample-size-filtered}]
-             :histogram
-             :event-stats
-             :allocation-summary
-             [:allocation-hotspots {:limit 10}]
-             :allocation-by-type
-             :allocation-treemap]
-   :view [[:stats {:metric-ids [:memory]}]
-          :bootstrap-stats
-          [:autocorrelation-classification {:classification-id :autocorrelation-classification-raw}]
-          [:effective-sample-size {:ess-id :effective-sample-size-filtered}]
-          [:acf-plot {:autocorrelation-id :autocorrelation-raw
-                      :min-severity :moderate}]
-          :extremes
-          :quantiles
-          :event-stats
-          :outlier-counts
-          :collect-plan
-          [:histogram {:stats-id :log-stats}]
-          :sample-percentiles
-          :samples
-          :allocation-summary
-          :allocation-hotspots
-          :allocation-by-type
-          :allocation-treemap]
-   :viewer :print})
+(def histogram
+  "Non-parametric distribution analysis with histogram visualization.
 
-(def knuth-histogram
-  "Benchmark plan using Knuth's Bayesian optimal histogram binning.
+  Consolidates histogram, KDE density estimation, and mode detection into a
+  single comprehensive plan. Uses Knuth's Bayesian optimal binning.
 
-  Uses Knuth's method to automatically determine the optimal number of
-  histogram bins by maximizing a log-posterior. Better than Freedman-Diaconis
-  for distributions with complex structure.
+  Includes:
+  - Histogram with automatic bin optimization via Knuth's method
+  - KDE (Kernel Density Estimation) overlay for smooth density visualization
+  - Mode detection with statistical validation (ACR test)
+  - Full statistical summary with bootstrap confidence intervals
 
-  The histogram includes :optimal-bins and :log-posterior keys."
+  Use when investigating sample distribution shape, detecting multimodality,
+  or visualizing benchmark latency distributions."
   {:collector-config default-collector-config
    :analyse [:transform-log
              [:autocorrelation {:id :autocorrelation-raw}]
@@ -132,106 +124,6 @@
                                 :estimate-quantiles [0.025 0.975]
                                 :ess-id :effective-sample-size-filtered}]
              [:histogram {:method :knuth}]
-             :event-stats
-             :allocation-summary
-             [:allocation-hotspots {:limit 10}]
-             :allocation-by-type
-             :allocation-treemap]
-   :view [[:stats {:metric-ids [:memory]}]
-          :bootstrap-stats
-          [:autocorrelation-classification {:classification-id :autocorrelation-classification-raw}]
-          [:effective-sample-size {:ess-id :effective-sample-size-filtered}]
-          [:acf-plot {:autocorrelation-id :autocorrelation-raw
-                      :min-severity :moderate}]
-          :extremes
-          :quantiles
-          :event-stats
-          :outlier-counts
-          :collect-plan
-          [:histogram {:stats-id :log-stats}]
-          :sample-percentiles
-          :samples
-          :allocation-summary
-          :allocation-hotspots
-          :allocation-by-type
-          :allocation-treemap]
-   :viewer :print})
-
-(def kde-histogram
-  "Benchmark plan with KDE analysis for density estimation and mode detection.
-
-  Includes histogram and KDE analysis for visualizing sample distributions.
-  Not part of default-with-warmup; use explicitly when density analysis is needed."
-  {:collector-config default-collector-config
-   :analyse [:transform-log
-             [:autocorrelation {:id :autocorrelation-raw}]
-             [:autocorrelation-classification {:id :autocorrelation-classification-raw
-                                               :autocorrelation-id :autocorrelation-raw}]
-             [:quantiles {:quantiles [0.9 0.99]}]
-             :outliers
-             [:autocorrelation {:id :autocorrelation-filtered
-                                :outlier-id :outliers}]
-             [:effective-sample-size-analysis {:id :effective-sample-size-filtered
-                                               :autocorrelation-id :autocorrelation-filtered}]
-             [:stats {}]
-             [:stats {:samples-id :log-samples :id :log-stats}]
-             [:bootstrap-stats {:quantiles [0.99]
-                                :estimate-quantiles [0.025 0.975]
-                                :ess-id :effective-sample-size-filtered}]
-             :histogram
-             :kde
-             :kde-stats
-             :event-stats
-             :allocation-summary
-             [:allocation-hotspots {:limit 10}]
-             :allocation-by-type
-             :allocation-treemap]
-   :view [[:stats {:metric-ids [:memory]}]
-          :bootstrap-stats
-          [:autocorrelation-classification {:classification-id :autocorrelation-classification-raw}]
-          [:effective-sample-size {:ess-id :effective-sample-size-filtered}]
-          [:acf-plot {:autocorrelation-id :autocorrelation-raw
-                      :min-severity :moderate}]
-          :extremes
-          [:stats {:stats-id :kde-stats}]
-          :quantiles
-          :event-stats
-          :outlier-counts
-          :collect-plan
-          [:histogram {:stats-id :log-stats}]
-          [:kde {:histogram-id :histograms}]
-          :sample-percentiles
-          :samples
-          :allocation-summary
-          :allocation-hotspots
-          :allocation-by-type
-          :allocation-treemap]
-   :viewer :print})
-
-(def kde-modes
-  "Benchmark plan with KDE and mode detection using ACR test.
-
-  Includes histogram, KDE, and statistically validated mode analysis.
-  Use when you need to detect and validate multimodality in sample distributions.
-  Mode detection tests from k=1 up to max-modes. Supports ACR (default) and
-  Silverman test methods via :modes analysis options."
-  {:collector-config default-collector-config
-   :analyse [:transform-log
-             [:autocorrelation {:id :autocorrelation-raw}]
-             [:autocorrelation-classification {:id :autocorrelation-classification-raw
-                                               :autocorrelation-id :autocorrelation-raw}]
-             [:quantiles {:quantiles [0.9 0.99]}]
-             :outliers
-             [:autocorrelation {:id :autocorrelation-filtered
-                                :outlier-id :outliers}]
-             [:effective-sample-size-analysis {:id :effective-sample-size-filtered
-                                               :autocorrelation-id :autocorrelation-filtered}]
-             [:stats {}]
-             [:stats {:samples-id :log-samples :id :log-stats}]
-             [:bootstrap-stats {:quantiles [0.99]
-                                :estimate-quantiles [0.025 0.975]
-                                :ess-id :effective-sample-size-filtered}]
-             :histogram
              :kde
              :kde-stats
              :modes

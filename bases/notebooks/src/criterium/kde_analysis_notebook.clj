@@ -18,33 +18,21 @@
 ;; - Identifying modes with confidence intervals
 ;; - Understanding the shape of timing distributions
 
-;; ## Using the kde-histogram Bench Plan
+;; ## Using the histogram Bench Plan
 ;;
-;; The `kde-histogram` bench plan includes histogram and KDE analysis.
-;; This is not part of the default plan; use it explicitly when density
-;; analysis is needed.
+;; The `histogram` bench plan includes histogram, KDE analysis, and mode
+;; detection. This is not part of the default plan; use it explicitly when
+;; distribution analysis is needed.
 
 ^:kindly/hide-code
 (bench-display
  (bench/bench (reduce + (range 1000))
-              :bench-plan bench-plans/kde-histogram))
+              :bench-plan bench-plans/histogram))
 
 ;; The output includes:
 ;; - Standard statistics (mean, standard deviation)
-;; - Histogram visualization
+;; - Histogram visualization with Knuth optimal binning
 ;; - KDE density curve overlaid on the histogram
-
-;; ## Using the kde-modes Bench Plan
-;;
-;; For statistically validated mode detection, use the `kde-modes` bench plan.
-;; This includes multimodality testing to validate the number of distribution modes.
-
-^:kindly/hide-code
-(bench-display
- (bench/bench (reduce + (range 1000))
-              :bench-plan bench-plans/kde-modes))
-
-;; The kde-modes plan adds:
 ;; - Mode detection with confidence intervals
 ;; - ACR test p-values for each k (number of modes)
 ;; - Validated mode count based on statistical significance
@@ -73,7 +61,7 @@
 
 ;; ## Understanding Modes Output
 ;;
-;; Mode analysis (from the `kde-modes` plan) provides statistically validated
+;; Mode analysis (from the `histogram` plan) provides statistically validated
 ;; peaks in the density curve:
 
 ;; ### Multimodality Testing Methods
@@ -139,7 +127,7 @@
 
 (do
   (bench/bench (reduce + (range 1000))
-               :bench-plan bench-plans/kde-modes
+               :bench-plan bench-plans/histogram
                :viewer :none)
   (let [data (:data (bench/last-bench))
         kde-result (:kde data)
@@ -199,8 +187,8 @@
 ;;
 ;; Create a custom bench plan with modified options:
 
-(def custom-kde-modes-plan
-  (-> bench-plans/kde-modes
+(def custom-histogram-plan
+  (-> bench-plans/histogram
       (assoc :analyse
              [:transform-log
               [:quantiles {:quantiles [0.9 0.99]}]
@@ -216,14 +204,14 @@
 ^:kindly/hide-code
 (bench-display
  (bench/bench (reduce + (range 1000))
-              :bench-plan custom-kde-modes-plan))
+              :bench-plan custom-histogram-plan))
 
 ;; ### Using Critical Bandwidth for Mode Finding
 ;;
 ;; The critical bandwidth approach can provide more stable mode locations:
 
 (def critical-modes-plan
-  (-> bench-plans/kde-modes
+  (-> bench-plans/histogram
       (assoc :analyse
              [:transform-log
               [:quantiles {:quantiles [0.25 0.5 0.75]}]
@@ -259,7 +247,7 @@
 (add-tap #'p/submit)
 
 (bench/bench (reduce + (range 1000))
-             :bench-plan bench-plans/kde-modes
+             :bench-plan bench-plans/histogram
              :viewer :portal)")
 
 ;; ### Kindly Viewer
@@ -268,7 +256,7 @@
 
 (bench/bench
  (reduce + (range 1000))
- :bench-plan bench-plans/kde-modes
+ :bench-plan bench-plans/histogram
  :viewer :kindly)
 
 ;; ## Detecting Multimodality
@@ -299,7 +287,7 @@
 
 (bench/bench
  (variable-work 100 (zero? (long (mod (rand-int 100) 3))))
- :bench-plan bench-plans/kde-modes
+ :bench-plan bench-plans/histogram
  :viewer :kindly)
 
 ;; ### Comparing ACR and Silverman Results
@@ -310,11 +298,11 @@
   "Run both ACR and Silverman tests and compare results.
   Takes a measured (created with measured/callable or measured/expr)."
   [m]
-  (let [silverman-plan (assoc-in bench-plans/kde-modes
+  (let [silverman-plan (assoc-in bench-plans/histogram
                                  [:analyse 7] [:modes {:method :silverman}])]
     ;; Run with ACR (default method)
     (bench/bench-measured
-     (bench/options->bench-plan :bench-plan bench-plans/kde-modes :viewer :none)
+     (bench/options->bench-plan :bench-plan bench-plans/histogram :viewer :none)
      m)
     (let [acr-result (get-in (:data (bench/last-bench))
                              [:modes :modes [:elapsed-time]])]
@@ -350,37 +338,30 @@
 
 ;; ## Best Practices
 ;;
-;; 1. **Use kde-histogram for density visualization** - When you just need
-;;    to see the distribution shape without statistical mode validation.
+;; 1. **Use the `histogram` plan for distribution analysis** - The histogram
+;;    plan includes KDE density visualization and mode detection.
 ;;
-;; 2. **Use kde-modes for mode detection** - When you need statistically
-;;    validated mode counts with the ACR test.
-;;
-;; 3. **Check test p-values** - Low p-values for k=1 indicate evidence
+;; 2. **Check test p-values** - Low p-values for k=1 indicate evidence
 ;;    against unimodality. The `test-results` map contains p-values for each k.
 ;;
-;; 4. **Use ACR over Silverman** - ACR provides better calibrated p-values
+;; 3. **Use ACR over Silverman** - ACR provides better calibrated p-values
 ;;    and is less sensitive to noise in the density estimate.
 ;;
-;; 5. **Consider :mode-method :critical** - When you need stable mode
+;; 4. **Consider :mode-method :critical** - When you need stable mode
 ;;    locations and want to identify antimodes (valleys between peaks).
 ;;
-;; 6. **Consider computation cost** - Mode analysis involves multiple rounds
-;;    of bootstrap resampling. Use `kde-histogram` when you only need the
-;;    density curve.
+;; 5. **Consider computation cost** - Mode analysis involves multiple rounds
+;;    of bootstrap resampling. Use the `default` plan when you only need
+;;    basic statistics.
 
 ;; ## Running Examples
 ;;
 ;; Execute benchmarks with KDE and mode analysis:
 
 (comment
-  ;; Basic KDE analysis (no mode testing)
+  ;; Histogram with KDE and mode detection
   (bench/bench (reduce + (range 1000))
-               :bench-plan bench-plans/kde-histogram)
-
-  ;; KDE with mode detection and ACR test (default)
-  (bench/bench (reduce + (range 1000))
-               :bench-plan bench-plans/kde-modes)
+               :bench-plan bench-plans/histogram)
 
   ;; Access modes results programmatically
   (let [data (:data (bench/last-bench))]
@@ -391,19 +372,19 @@
 
   ;; Use Silverman test instead of ACR
   (bench/bench (reduce + (range 1000))
-               :bench-plan (assoc-in bench-plans/kde-modes
+               :bench-plan (assoc-in bench-plans/histogram
                                      [:analyse 7] [:modes {:method :silverman}]))
 
   ;; Use critical bandwidth for mode finding
   (bench/bench (reduce + (range 1000))
-               :bench-plan (assoc-in bench-plans/kde-modes
+               :bench-plan (assoc-in bench-plans/histogram
                                      [:analyse 7] [:modes {:mode-method :critical}]))
 
   ;; Custom options
   (bench/bench (reduce + (range 1000))
-               :bench-plan custom-kde-modes-plan)
+               :bench-plan custom-histogram-plan)
 
   ;; With Portal visualization
   (bench/bench (reduce + (range 1000))
-               :bench-plan bench-plans/kde-modes
+               :bench-plan bench-plans/histogram
                :viewer :portal))

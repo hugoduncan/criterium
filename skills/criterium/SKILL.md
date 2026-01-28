@@ -124,21 +124,35 @@ Default output fields:
 
 Bench plans configure what analysis and output criterium produces. The default plan handles most cases.
 
-### default-with-warmup (Default)
+### default
 
 Used automatically. Provides:
 - JIT warmup phase
 - Bootstrap confidence intervals
 - Outlier detection
-- KDE density estimation
+- KDE density estimation (for multimodal warnings)
 
-### distribution-analysis
+### histogram
 
-Use when you need to understand the shape of your timing distribution:
+Non-parametric distribution analysis with histogram visualization:
 
 ```clojure
 (require '[criterium.bench-plans :as plans])
 
+(bench/bench (my-function)
+             :bench-plan plans/histogram)
+```
+
+Includes:
+- Histogram with Knuth optimal binning
+- KDE density estimation
+- Mode detection for multimodal distributions
+
+### distribution-analysis
+
+Parametric distribution fitting for understanding timing variability:
+
+```clojure
 (bench/bench (my-function)
              :bench-plan plans/distribution-analysis)
 ```
@@ -148,12 +162,6 @@ Adds:
 - Shape statistics (skewness, kurtosis)
 - Goodness-of-fit tests
 - Q-Q plots (with appropriate viewer)
-
-### Other Plans
-
-- `log-histogram` - Histogram visualization
-- `kde-histogram` - KDE density estimation with histogram
-- `kde-modes` - Mode detection for multimodal distributions
 
 ### Custom Plans
 
@@ -378,7 +386,7 @@ The JIT compiler optimizes code during execution. Criterium handles warmup autom
 
 - First benchmark in a session may be slower (class loading, JIT)
 - Run benchmarks multiple times if results seem inconsistent
-- The `default-with-warmup` plan (default) includes warmup phases
+- The `default` plan includes warmup phases
 
 ### Avoiding Measurement Pitfalls
 
@@ -426,7 +434,7 @@ The JIT compiler optimizes code during execution. Criterium handles warmup autom
 
 | Situation | Plan |
 |-----------|------|
-| Quick measurement | `default-with-warmup` (default) |
+| Quick measurement | `default` |
 | Understanding distribution shape | `distribution-analysis` |
 | Comparing implementations | `implementation-comparison` (domain) |
 | Analyzing complexity | `complexity-analysis` (domain) |
