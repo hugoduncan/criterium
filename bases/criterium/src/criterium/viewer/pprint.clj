@@ -14,7 +14,9 @@
    [criterium.viewer.common.domain.comparison :as comparison]
    [criterium.viewer.common.domain.extract :as extract]
    [criterium.viewer.common.modal :as modal]
-   [criterium.viewer.common.regression :as regression]))
+   [criterium.viewer.common.regression :as regression]
+   ;; Required for delegating :pprint methods to :print implementations
+   [criterium.viewer.print]))
 
 (defmethod view/metrics* :pprint
   [_ {:keys [samples-id]} data-map]
@@ -643,3 +645,65 @@
 (defmethod view/domain-apply* :pprint
   [viewer view-opts data-map]
   ((get-method view/domain-apply* :print) viewer view-opts data-map))
+
+;;; Missing :pprint implementations that delegate to :print
+
+;; Shape statistics
+(defmethod view/shape-stats* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/shape-stats* :print) viewer view-opts data-map))
+
+;; GC warnings
+(defmethod view/final-gc-warnings* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/final-gc-warnings* :print) viewer view-opts data-map))
+
+;; OS info
+(defmethod view/os* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/os* :print) viewer view-opts data-map))
+
+;; Runtime info
+(defmethod view/runtime* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/runtime* :print) viewer view-opts data-map))
+
+;; Distribution model comparison
+(defmethod view/distribution-models* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/distribution-models* :print) viewer view-opts data-map))
+
+;; Distribution parameter CIs
+(defmethod view/distribution-parameter-cis* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/distribution-parameter-cis* :print) viewer view-opts data-map))
+
+;; Tail summary (GPD/Hill)
+(defmethod view/tail-summary* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/tail-summary* :print) viewer view-opts data-map))
+
+;; Tail ratios
+(defmethod view/tail-ratios* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/tail-ratios* :print) viewer view-opts data-map))
+
+;; High quantile estimates
+(defmethod view/tail-high-quantiles* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/tail-high-quantiles* :print) viewer view-opts data-map))
+
+;; Call tree (ASCII)
+(defmethod view/call-tree* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/call-tree* :print) viewer view-opts data-map))
+
+;; Flame chart (message only)
+(defmethod view/call-flame* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/call-flame* :print) viewer view-opts data-map))
+
+;; Most called methods table
+(defmethod view/most-called* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/most-called* :print) viewer view-opts data-map))
