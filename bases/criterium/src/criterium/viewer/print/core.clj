@@ -519,7 +519,8 @@
       (for-each-metric
        metric-configs outlier-sig
        (fn [m data]
-         (print-outlier-significance m (have seq data {:metric m})))))))
+         (when (:significance data)
+           (print-outlier-significance m (have seq data {:metric m}))))))))
 
 (defmethod view/outlier-significance* :print
   [_ view data-map]
