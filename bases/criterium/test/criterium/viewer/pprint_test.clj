@@ -655,7 +655,8 @@
         (is (str/includes? output "Domain Extract"))))))
 
 (deftest domain-extract-chart-pprint-test
-  ;; Tests that pprint viewer returns nil for charts (text viewers don't render charts).
+  ;; Tests that pprint viewer delegates to :print for ASCII chart rendering.
+  ;; Charts are rendered for multi-point strategy; single-point returns nil.
   (testing "domain-extract-chart*"
     (testing "returns nil for single-point strategy"
       (is (nil? (view/domain-extract-chart*
@@ -670,20 +671,25 @@
                               :data [[{:n 100 :impl :foo} 1e-7]
                                      [{:n 100 :impl :bar} 2e-7]]}}}}))))
 
-    (testing "returns nil for multi-point strategy"
-      (is (nil? (view/domain-extract-chart*
-                 :pprint
-                 {}
-                 {:extract
-                  {:type :criterium/domain-extract
-                   :impl-axis :impl
-                   :implementations [:foo :bar]
-                   :metrics {:elapsed-time
-                             {:metric [:stats :elapsed-time :mean]
-                              :data [[{:n 100 :impl :foo} 1e-7]
-                                     [{:n 200 :impl :foo} 2e-7]
-                                     [{:n 100 :impl :bar} 2e-7]
-                                     [{:n 200 :impl :bar} 4e-7]]}}}}))))
+    (testing "renders ASCII chart for multi-point strategy (same as :print)"
+      (let [data-map {:extract
+                      {:type :criterium/domain-extract
+                       :impl-axis :impl
+                       :implementations [:foo :bar]
+                       :metrics {:elapsed-time
+                                 {:metric [:stats :elapsed-time :mean]
+                                  :data [[{:n 100 :impl :foo} 1e-7]
+                                         [{:n 200 :impl :foo} 2e-7]
+                                         [{:n 100 :impl :bar} 2e-7]
+                                         [{:n 200 :impl :bar} 4e-7]]}}}}
+            pprint-output (with-out-str
+                            (view/domain-extract-chart* :pprint {} data-map))
+            print-output (with-out-str
+                           (view/domain-extract-chart* :print {} data-map))]
+        (is (= print-output pprint-output)
+            ":pprint should produce same output as :print")
+        (is (str/includes? pprint-output "[foo]"))
+        (is (str/includes? pprint-output "[bar]"))))
 
     (testing "returns nil for nil extract"
       (is (nil? (view/domain-extract-chart* :pprint {} {:extract nil}))))))
@@ -765,7 +771,8 @@
         (is (str/includes? output "Domain Comparison"))))))
 
 (deftest domain-comparison-chart-pprint-test
-  ;; Tests that pprint viewer returns nil for charts (text viewers don't render charts).
+  ;; Tests that pprint viewer delegates to :print for ASCII chart rendering.
+  ;; Charts are rendered for multi-point strategy; single-point returns nil.
   (testing "domain-comparison-chart*"
     (testing "returns nil for single-point strategy"
       (is (nil? (view/domain-comparison-chart*
@@ -780,20 +787,27 @@
                    {:foo [{:coord {:impl :foo} :value 1e-7}]
                     :bar [{:coord {:impl :bar} :value 2e-7}]}}}))))
 
-    (testing "returns nil for multi-point strategy"
-      (is (nil? (view/domain-comparison-chart*
-                 :pprint
-                 {}
-                 {:comparison
-                  {:type :criterium/domain-comparison
-                   :axis :impl
-                   :metric [:stats :elapsed-time :mean]
-                   :implementations [:foo :bar]
-                   :data
-                   {:foo [{:coord {:n 100 :impl :foo} :value 1e-7}
-                          {:coord {:n 200 :impl :foo} :value 2e-7}]
-                    :bar [{:coord {:n 100 :impl :bar} :value 2e-7}
-                          {:coord {:n 200 :impl :bar} :value 4e-7}]}}}))))
+    (testing "renders ASCII chart for multi-point strategy (same as :print)"
+      (let [data-map {:comparison
+                      {:type :criterium/domain-comparison
+                       :axis :impl
+                       :metric [:stats :elapsed-time :mean]
+                       :implementations [:foo :bar]
+                       :data
+                       {:foo [{:coord {:n 100 :impl :foo} :value 1e-7}
+                              {:coord {:n 200 :impl :foo} :value 2e-7}
+                              {:coord {:n 300 :impl :foo} :value 3e-7}]
+                        :bar [{:coord {:n 100 :impl :bar} :value 2e-7}
+                              {:coord {:n 200 :impl :bar} :value 4e-7}
+                              {:coord {:n 300 :impl :bar} :value 6e-7}]}}}
+            pprint-output (with-out-str
+                            (view/domain-comparison-chart* :pprint {} data-map))
+            print-output (with-out-str
+                           (view/domain-comparison-chart* :print {} data-map))]
+        (is (= print-output pprint-output)
+            ":pprint should produce same output as :print")
+        (is (str/includes? pprint-output "[foo]"))
+        (is (str/includes? pprint-output "[bar]"))))
 
     (testing "returns nil for nil comparison"
       (is (nil? (view/domain-comparison-chart* :pprint {} {:comparison nil}))))))

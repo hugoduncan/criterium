@@ -326,10 +326,10 @@
       ;; Rows already use string keys matching column headers
       (pprint/print-table (into [coord-header] col-headers) rows))))
 
+;; Delegates to :print for ASCII chart rendering
 (defmethod view/domain-extract-chart* :pprint
-  [_ _ _]
-  ;; Pprint viewer doesn't render charts
-  nil)
+  [viewer view-opts data-map]
+  ((get-method view/domain-extract-chart* :print) viewer view-opts data-map))
 
 (defmethod view/domain-grouped* :pprint
   [_ {:keys [grouped-id]} data-map]
@@ -349,10 +349,10 @@
         (println heading)
         (pprint/print-table (into [coord-header] col-headers) rows)))))
 
+;; Delegates to :print for ASCII chart rendering
 (defmethod view/domain-comparison-chart* :pprint
-  [_ _ _]
-  ;; Pprint viewer doesn't render charts
-  nil)
+  [viewer view-opts data-map]
+  ((get-method view/domain-comparison-chart* :print) viewer view-opts data-map))
 
 (defmethod view/domain-regression* :pprint
   [_ {:keys [regression-id tolerance]} data-map]
