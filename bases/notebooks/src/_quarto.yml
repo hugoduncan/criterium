@@ -14,6 +14,7 @@ website:
           - quickstart.qmd
           - warmup.qmd
           - non_parametric_analysis.qmd
+          - parametric_analysis.qmd
           - analysis_and_view_options.qmd
           - in_situ.qmd
       - section: "Core Usage"
