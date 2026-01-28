@@ -355,7 +355,8 @@
 
 (deftest outlier-significance-view-test
   ;; Tests the view/outlier-significance* multimethod for :kindly viewer.
-  ;; Verifies that outlier significance data is rendered as heading and table.
+  ;; Verifies that outlier significance data is rendered as heading and table,
+  ;; and that nil significance entries are filtered out.
   (testing "view/outlier-significance* :kindly"
     (testing "renders outlier significance as heading and table"
       (reset! kindly/accumulated [])
@@ -377,7 +378,15 @@
             (is (= :moderate (:effect row))
                 "Expected moderate effect")
             (is (= 0.25 (:significance row))
-                "Expected 0.25 significance")))))))
+                "Expected 0.25 significance")))))
+
+    (testing "outputs nothing when significance is nil"
+      (reset! kindly/accumulated [])
+      (view/outlier-significance*
+       :kindly
+       {}
+       (:data (test-data/outlier-significance-nil-map)))
+      (is (nil? (kindly/flush))))))
 
 (deftest sample-diffs-view-test
   ;; Tests the view/sample-diffs* multimethod for :kindly viewer.
