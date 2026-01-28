@@ -19,6 +19,7 @@
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have have?]]
    [criterium.view :as view]
+   [criterium.viewer.common.ascii-chart :as ascii-chart]
    [criterium.viewer.common.core :as core]
    [criterium.viewer.common.shape :as shape]
    [criterium.viewer.print.table :as table]))
@@ -542,8 +543,37 @@
                    (util/transform-sample-> (arr/get-at values i) transforms)))
                (name v))))))
 
+(defn- render-sample-chart
+  "Render an ASCII scatter plot of sample values by index.
+  Returns vector of strings representing the chart."
+  [metric->values transforms metric-config chart-width chart-height]
+  (let [path (:path metric-config)
+        values (metric->values path)
+        n (arr/length values)
+        scale (:scale metric-config)
+        points (arr/indexed-dfold
+                values
+                (fn [acc ^long idx ^double val]
+                  (conj acc [(double idx)
+                             (* scale (util/transform-sample-> val transforms))]))
+                [])]
+    (when (pos? n)
+      (ascii-chart/render-chart
+       points
+       {:width chart-width
+        :height chart-height
+        :dimension (:dimension metric-config)
+        :title (str (:label metric-config) " samples")
+        :x-label "sample index"
+        :y-label (:label metric-config)}))))
+
 (defmethod view/samples* :print
-  [_ {:keys [samples-id outliers-id] :as _view} data-map]
+  [_ {:keys [samples-id outliers-id show-chart chart-width chart-height]
+      :or {show-chart false
+           chart-width 80
+           chart-height 15}
+      :as _view}
+   data-map]
   (let [samples-id (or samples-id :samples)
         outliers-id (or outliers-id :outliers)
         metrics-samples (data-map samples-id)
@@ -566,7 +596,20 @@
          transforms
          (util/outliers outliers)
          metric))
-      (println))))
+      (println))
+
+    ;; Render chart if requested
+    (when show-chart
+      (doseq [metric metric-configs]
+        (when-let [chart-lines (render-sample-chart
+                                (util/metric->values metrics-samples)
+                                transforms
+                                metric
+                                chart-width
+                                chart-height)]
+          (doseq [line chart-lines]
+            (println line))
+          (println))))))
 
 ;;; Collect Plan
 
@@ -746,6 +789,121 @@
 
 ;;; Sample Percentiles
 
+(defn- render-sample-percentiles-chart
+  "Render an ASCII chart of sample percentiles.
+  X-axis: percentile rank (0-100), Y-axis: sample value.
+  Returns vector of strings representing the chart."
+  [metric->values transforms metric-config chart-width chart-height]
+  (let [path (:path metric-config)
+        values (metric->values path)
+        scale (:scale metric-config)
+        ;; Transform values
+        transformed (arr/dmap values
+                              (fn ^double [^double x]
+                                (* scale (util/transform-sample-> x transforms))))
+        sorted-arr (arr/sorted transformed)
+        n (arr/length sorted-arr)]
+    (when (pos? n)
+      (let [points (arr/indexed-dfold
+                    sorted-arr
+                    (fn [acc ^long idx ^double val]
+                      (let [percentile (if (= n 1)
+                                         50.0
+                                         (* 100.0 (/ (double idx) (double (dec n)))))]
+                        (conj acc [percentile val])))
+                    [])]
+        (ascii-chart/render-chart
+         points
+         {:width chart-width
+          :height chart-height
+          :dimension (:dimension metric-config)
+          :title (str (:label metric-config) " percentiles")
+          :x-label "percentile"
+          :y-label (:label metric-config)})))))
+
 (defmethod view/sample-percentiles* :print
-  [_ _view _sampled])
-  ;; TODO
+  [_ {:keys [samples-id chart-width chart-height]
+      :or {chart-width 80
+           chart-height 15}
+      :as _view}
+   data-map]
+  (let [samples-id (or samples-id :samples)
+        metrics-samples (data-map samples-id)
+        metrics-defs (-> (:metrics-defs metrics-samples)
+                         (metric/filter-metrics
+                          (metric/type-pred :quantitative)))
+        metric-configs (metric/all-metric-configs metrics-defs)
+        transforms (util/get-transforms data-map samples-id)]
+    (doseq [metric metric-configs]
+      (when-let [chart-lines (render-sample-percentiles-chart
+                              (util/metric->values metrics-samples)
+                              transforms
+                              metric
+                              chart-width
+                              chart-height)]
+        (doseq [line chart-lines]
+          (println line))
+        (println)))))
+
+;;; Sample Diffs
+
+(defn- render-sample-diffs-chart
+  "Render an ASCII chart of sorted unique differences from minimum.
+  X-axis: index, Y-axis: difference from minimum value.
+  Returns vector of strings representing the chart."
+  [metric->values transforms metric-config chart-width chart-height]
+  (let [path (:path metric-config)
+        values (metric->values path)
+        scale (:scale metric-config)
+        ;; Transform and sort values
+        transformed (arr/dmap values
+                              (fn ^double [^double x]
+                                (* scale (util/transform-sample-> x transforms))))
+        sorted-arr (arr/sorted transformed)
+        n (arr/length sorted-arr)]
+    (when (pos? n)
+      (let [min-val (arr/first-double sorted-arr)
+            ;; Compute unique differences from minimum
+            diffs (->> (arr/dfold
+                        sorted-arr
+                        (fn [acc ^double v]
+                          (conj acc (- v min-val)))
+                        [])
+                       distinct
+                       vec)
+            points (mapv (fn [idx diff] [(double idx) diff])
+                         (range)
+                         diffs)]
+        (when (seq points)
+          (ascii-chart/render-chart
+           points
+           {:width chart-width
+            :height chart-height
+            :dimension (:dimension metric-config)
+            :title (str (:label metric-config) " differences from minimum")
+            :x-label "index"
+            :y-label "diff"}))))))
+
+(defmethod view/sample-diffs* :print
+  [_ {:keys [samples-id chart-width chart-height]
+      :or {chart-width 80
+           chart-height 15}
+      :as _view}
+   data-map]
+  (let [samples-id (or samples-id :samples)
+        metrics-samples (data-map samples-id)
+        metrics-defs (-> (:metrics-defs metrics-samples)
+                         (metric/filter-metrics
+                          (metric/type-pred :quantitative)))
+        metric-configs (metric/all-metric-configs metrics-defs)
+        transforms (util/get-transforms data-map samples-id)]
+    (doseq [metric metric-configs]
+      (when-let [chart-lines (render-sample-diffs-chart
+                              (util/metric->values metrics-samples)
+                              transforms
+                              metric
+                              chart-width
+                              chart-height)]
+        (doseq [line chart-lines]
+          (println line))
+        (println)))))
