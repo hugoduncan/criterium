@@ -31,8 +31,7 @@
 ;;   across input sizes
 ;;
 ;; For comparing implementations at fixed input sizes, see the
-;; [Domain Comparison Analysis](./domain_comparison_analysis.html) notebook
-;; (coming soon).
+;; [Domain Comparison Analysis](./domain_comparison_analysis.html) notebook.
 
 ;; ## Basic Usage
 ;;

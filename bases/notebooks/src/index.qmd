@@ -34,6 +34,7 @@ title: "Criterium Notebooks"
 - [Call Tracing](./criterium.call_tracing_notebook.html) - Method call tracing with call graph visualization
 - [Allocation Bench](./criterium.allocation_bench_notebook.html) - Benchmarking with integrated allocation analysis
 - [Domain Complexity Analysis](./domain_complexity_analysis.html) - Analyzing algorithmic complexity with criterium
+- [Domain Comparison Analysis](./domain_comparison_analysis.html) - Comparing implementations with criterium
 - [Domain Bench](./criterium.domain_bench_notebook.html) - Simplified domain benchmarking with domain/bench
 - [Domain Analysis](./criterium.analyse_domain_notebook.html) - Manual domain construction and analysis
 - [Domain Builder](./criterium.domain_builder_notebook.html) - Automated domain construction and workflows

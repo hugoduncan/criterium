@@ -25,6 +25,7 @@
    "bases/notebooks/src/criterium/call_tracing_notebook.clj"
    "bases/notebooks/src/criterium/allocation_bench_notebook.clj"
    "bases/notebooks/src/domain_complexity_analysis.clj"
+   "bases/notebooks/src/domain_comparison_analysis.clj"
    "bases/notebooks/src/criterium/domain_bench_notebook.clj"
    "bases/notebooks/src/criterium/analyse_domain_notebook.clj"
    "bases/notebooks/src/criterium/domain_builder_notebook.clj"
