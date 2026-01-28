@@ -289,7 +289,7 @@
       (view/final-gc-warnings*
        :kindly
        {:warn-threshold 0.01}
-       (:data (test-data/final-gc-warning-map)))
+       (test-data/final-gc-warning-map))
       (let [result (core/flush)]
         (is (= :kind/fragment (:kindly/kind (meta result))))
         (is (= 2 (count result)) "Expected heading and table")
@@ -305,5 +305,5 @@
       (view/final-gc-warnings*
        :kindly
        {:warn-threshold 0.99}
-       (:data (test-data/final-gc-warning-map)))
+       (test-data/final-gc-warning-map))
       (is (empty? @core/accumulated)))))

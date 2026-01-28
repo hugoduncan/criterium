@@ -538,7 +538,10 @@
 (defn final-gc-warning-map
   "Create a data-map for testing final-gc-warnings views.
   Contains samples with elapsed time and final-gc with GC time data
-  structured to trigger a warning (GC time = 1% of total)."
+  structured to trigger a warning (GC time = 1% of total).
+
+  Returns the data-map directly (not wrapped in {:data ...})
+  to match other chart test data factories."
   []
   (let [metrics-defs (->
                       (select-keys
@@ -556,25 +559,24 @@
                          :scale 1e-3
                          :type :event
                          :dimension :time}]))]
-    {:data
-     {:samples
-      {:type :criterium/collected-metrics-samples
-       :metric->values
-       {[:elapsed-time] (arr/->long-array (long-array [99999999]))}
-       :metrics-deps metrics-defs
-       :batch-size 1
-       :eval-count 1
-       :elapsed-time 1}
-      :final-gc
-      {:type :criterium/collected-metrics-samples
-       :metric->values
-       {[:compilation :time-ms] (arr/->long-array (long-array [3]))
-        [:garbage-collector :total :time-ms] (arr/->long-array (long-array [1]))
-        [:elapsed-time] (arr/->long-array (long-array [1]))}
-       :metrics-deps metrics-defs
-       :batch-size 1
-       :eval-count 1
-       :elapsed-time 1}}}))
+    {:samples
+     {:type :criterium/collected-metrics-samples
+      :metric->values
+      {[:elapsed-time] (arr/->long-array (long-array [99999999]))}
+      :metrics-deps metrics-defs
+      :batch-size 1
+      :eval-count 1
+      :elapsed-time 1}
+     :final-gc
+     {:type :criterium/collected-metrics-samples
+      :metric->values
+      {[:compilation :time-ms] (arr/->long-array (long-array [3]))
+       [:garbage-collector :total :time-ms] (arr/->long-array (long-array [1]))
+       [:elapsed-time] (arr/->long-array (long-array [1]))}
+      :metrics-deps metrics-defs
+      :batch-size 1
+      :eval-count 1
+      :elapsed-time 1}}))
 
 (defn tail-analysis-data-map
   "Create a data-map with samples and tail-analysis data for testing tail charts.

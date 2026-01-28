@@ -444,7 +444,7 @@
   ;; Verifies warning displays when GC time exceeds threshold.
   (testing "view/final-gc-warnings*"
     (testing "displays warning when GC exceeds threshold"
-      (let [data-map (:data (test-data/final-gc-warning-map))
+      (let [data-map (test-data/final-gc-warning-map)
             [title table] (with-tap-out
                             (view/final-gc-warnings*
                              :portal
@@ -462,7 +462,7 @@
           (view/final-gc-warnings*
            :portal
            {:warn-threshold 0.99}
-           (:data (test-data/final-gc-warning-map)))
+           (test-data/final-gc-warning-map))
           (portal-core/flush)
           (is (empty? @v))
           (finally
