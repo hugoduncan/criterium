@@ -4,10 +4,11 @@
   Contains views for:
   - Distribution model comparison (AIC, BIC, goodness-of-fit tests)
   - Parameter confidence intervals for best-fit models
-  - No-op chart views (PDF, CDF, Q-Q plots not supported in print)"
+  - ASCII chart views (PDF, CDF, Q-Q plots)"
   (:require
    [criterium.metric :as metric]
    [criterium.view :as view]
+   [criterium.viewer.common-charts.distribution-ascii :as dist-ascii]
    [criterium.viewer.common.distribution :as common.distribution]
    [criterium.viewer.print.core :as print-core :refer [for-each-metric-keyed]]))
 
@@ -141,7 +142,77 @@
   [_ view data-map]
   (print-distribution-parameter-cis view data-map))
 
-;; Chart views are no-ops for print viewer
-(defmethod view/distribution-pdf* :print [_ _ _])
-(defmethod view/distribution-cdf* :print [_ _ _])
-(defmethod view/distribution-qq* :print [_ _ _])
+;;; PDF Chart View
+
+(defn print-distribution-pdf
+  "Print ASCII PDF chart for all metrics with distribution fits."
+  [view data-map]
+  (let [indent (print-core/sublabel-indent-str)
+        header-fn (fn [label n]
+                    (format "%s PDF: %s (n=%d)"
+                            (print-core/format-sublabel "Distribution")
+                            label n))
+        opts (assoc view
+                    :header-fn header-fn
+                    :indent indent
+                    :width 70
+                    :height 12)]
+    (dist-ascii/with-distribution-metrics view data-map
+      (fn [fit-data _samples transforms _mc]
+        (when-let [output (dist-ascii/render-ascii-pdf fit-data transforms opts)]
+          (println output)
+          (println))))))
+
+(defmethod view/distribution-pdf* :print
+  [_ view data-map]
+  (print-distribution-pdf view data-map))
+
+;;; CDF Chart View
+
+(defn print-distribution-cdf
+  "Print ASCII CDF chart for all metrics with samples."
+  [view data-map]
+  (let [indent (print-core/sublabel-indent-str)
+        header-fn (fn [n]
+                    (format "%s CDF (n=%d)"
+                            (print-core/format-sublabel "Distribution")
+                            n))
+        opts (assoc view
+                    :header-fn header-fn
+                    :indent indent
+                    :width 70
+                    :height 12)]
+    (dist-ascii/with-distribution-metrics view data-map
+      (fn [_fit-data samples transforms _mc]
+        (when-let [output (dist-ascii/render-ascii-cdf samples transforms opts)]
+          (println output)
+          (println))))))
+
+(defmethod view/distribution-cdf* :print
+  [_ view data-map]
+  (print-distribution-cdf view data-map))
+
+;;; Q-Q Plot View
+
+(defn print-distribution-qq
+  "Print ASCII Q-Q plot for all metrics with distribution fits."
+  [view data-map]
+  (let [indent (print-core/sublabel-indent-str)
+        header-fn (fn [label n]
+                    (format "%s Q-Q Plot: %s (n=%d)"
+                            (print-core/format-sublabel "Distribution")
+                            label n))
+        opts (assoc view
+                    :header-fn header-fn
+                    :indent indent
+                    :width 70
+                    :height 12)]
+    (dist-ascii/with-distribution-metrics view data-map
+      (fn [fit-data samples transforms _mc]
+        (when-let [output (dist-ascii/render-ascii-qq samples fit-data transforms opts)]
+          (println output)
+          (println))))))
+
+(defmethod view/distribution-qq* :print
+  [_ view data-map]
+  (print-distribution-qq view data-map))
