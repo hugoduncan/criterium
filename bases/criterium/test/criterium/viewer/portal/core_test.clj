@@ -400,3 +400,70 @@
           (is (contains? row :mean-ci-upper))
           (is (contains? row :p10))
           (is (contains? row :p90)))))))
+
+;;; OS Info Tests
+
+(deftest portal-os-test
+  ;; Tests the portal viewer output for OS information.
+  ;; Verifies table with name, version, architecture, and processor count.
+  (testing "view/os*"
+    (testing "displays OS info table"
+      (let [[title table] (with-tap-out
+                            (view/os* :portal {} {}))]
+        (is (= [:b "Operating System"] title))
+        (is (= 4 (count table)) "Expected 4 rows")
+        (is (= "Name" (:property (nth table 0))))
+        (is (= "Version" (:property (nth table 1))))
+        (is (= "Architecture" (:property (nth table 2))))
+        (is (= "Processors" (:property (nth table 3))))
+        (is (string? (:value (nth table 0))))
+        (is (number? (:value (nth table 3))))))))
+
+;;; Runtime Info Tests
+
+(deftest portal-runtime-test
+  ;; Tests the portal viewer output for runtime information.
+  ;; Verifies table with VM name, version, vendor, and arguments.
+  (testing "view/runtime*"
+    (testing "displays runtime info table"
+      (let [[title table] (with-tap-out
+                            (view/runtime* :portal {} {}))]
+        (is (= [:b "Runtime"] title))
+        (is (= 4 (count table)) "Expected 4 rows")
+        (is (= "VM Name" (:property (nth table 0))))
+        (is (= "VM Version" (:property (nth table 1))))
+        (is (= "VM Vendor" (:property (nth table 2))))
+        (is (= "Arguments" (:property (nth table 3))))
+        (is (string? (:value (nth table 0))))
+        (is (string? (:value (nth table 3))))))))
+
+;;; Final GC Warnings Tests
+
+(deftest portal-final-gc-warnings-test
+  ;; Tests the portal viewer output for final GC warnings.
+  ;; Verifies warning displays when GC time exceeds threshold.
+  (testing "view/final-gc-warnings*"
+    (testing "displays warning when GC exceeds threshold"
+      (let [data-map (:data (test-data/final-gc-warning-map))
+            [title table] (with-tap-out
+                            (view/final-gc-warnings*
+                             :portal
+                             {:warn-threshold 0.01}
+                             data-map))]
+        (is (= [:b "Final GC Warning"] title))
+        (is (= 1 (count table)))
+        (is (str/includes? (:warning (first table)) "Final GC ran for"))))
+
+    (testing "outputs nothing when GC below threshold"
+      (let [v (volatile! [])
+            f (fn [x] (when-not (= :criterium.viewer.portal/_ x) (vswap! v conj x)))]
+        (try
+          (add-tap f)
+          (view/final-gc-warnings*
+           :portal
+           {:warn-threshold 0.99}
+           (:data (test-data/final-gc-warning-map)))
+          (portal-core/flush)
+          (is (empty? @v))
+          (finally
+            (remove-tap f)))))))
