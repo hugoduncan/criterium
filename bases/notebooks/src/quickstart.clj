@@ -109,7 +109,7 @@
 ^:kindly/hide-code
 (bench-display
  (bench/bench (reduce + (range 100))
-              :bench-plan bench-plans/log-histogram))
+              :bench-plan bench-plans/histogram))
 
 ;; The histogram shows timing samples on a log scale. Look for:
 ;;
