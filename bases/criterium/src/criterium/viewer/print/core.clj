@@ -515,12 +515,14 @@
   (when-let [{:keys [analysis-map metric-configs]}
              (get-analysis-context :outlier-significance-id :outlier-significance
                                    view data-map (metric/type-pred :quantitative))]
-    (let [outlier-sig (util/outlier-significance analysis-map)]
-      (for-each-metric
-       metric-configs outlier-sig
-       (fn [m data]
-         (when (:significance data)
-           (print-outlier-significance m (have seq data {:metric m}))))))))
+    (let [outlier-sig (util/outlier-significance analysis-map)
+          filtered-metrics (for [m metric-configs
+                                 :let [data (get-in outlier-sig (:path m))]
+                                 :when (:significance data)]
+                             [m data])]
+      (when (seq filtered-metrics)
+        (doseq [[m data] filtered-metrics]
+          (print-outlier-significance m (have seq data {:metric m})))))))
 
 (defmethod view/outlier-significance* :print
   [_ view data-map]
