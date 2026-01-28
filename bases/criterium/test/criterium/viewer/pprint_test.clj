@@ -811,3 +811,71 @@
 
     (testing "returns nil for nil comparison"
       (is (nil? (view/domain-comparison-chart* :pprint {} {:comparison nil}))))))
+
+;;; Sample Chart Delegation Tests
+
+(deftest sample-percentiles-pprint-test
+  ;; Tests that pprint viewer delegates sample-percentiles* to :print.
+  ;; Verifies identical output between :pprint and :print viewers.
+  (testing "sample-percentiles*"
+    (testing "renders ASCII chart (same as :print)"
+      (let [metrics-defs (select-keys (criterium.collector.metrics/metrics)
+                                      [:elapsed-time])
+            data-map {:samples
+                      {:type :criterium/metrics-samples
+                       :metrics-defs metrics-defs
+                       :metric->values {[:elapsed-time]
+                                        (arr/->double-array
+                                         (double-array [100 200 150 300 250]))}
+                       :transform collect-plan/identity-transforms
+                       :batch-size 1
+                       :num-samples 5
+                       :eval-count 5
+                       :elapsed-time 1000}}
+            pprint-output (with-out-str
+                            (view/sample-percentiles* :pprint
+                                                      {:chart-width 60
+                                                       :chart-height 10}
+                                                      data-map))
+            print-output (with-out-str
+                           (view/sample-percentiles* :print
+                                                     {:chart-width 60
+                                                      :chart-height 10}
+                                                     data-map))]
+        (is (= print-output pprint-output)
+            ":pprint should produce same output as :print")
+        (is (str/includes? pprint-output "percentiles"))
+        (is (str/includes? pprint-output "|"))))))
+
+(deftest sample-diffs-pprint-test
+  ;; Tests that pprint viewer delegates sample-diffs* to :print.
+  ;; Verifies identical output between :pprint and :print viewers.
+  (testing "sample-diffs*"
+    (testing "renders ASCII chart (same as :print)"
+      (let [metrics-defs (select-keys (criterium.collector.metrics/metrics)
+                                      [:elapsed-time])
+            data-map {:samples
+                      {:type :criterium/metrics-samples
+                       :metrics-defs metrics-defs
+                       :metric->values {[:elapsed-time]
+                                        (arr/->double-array
+                                         (double-array [100 200 150 300 100]))}
+                       :transform collect-plan/identity-transforms
+                       :batch-size 1
+                       :num-samples 5
+                       :eval-count 5
+                       :elapsed-time 850}}
+            pprint-output (with-out-str
+                            (view/sample-diffs* :pprint
+                                                {:chart-width 60
+                                                 :chart-height 10}
+                                                data-map))
+            print-output (with-out-str
+                           (view/sample-diffs* :print
+                                               {:chart-width 60
+                                                :chart-height 10}
+                                               data-map))]
+        (is (= print-output pprint-output)
+            ":pprint should produce same output as :print")
+        (is (str/includes? pprint-output "differences"))
+        (is (str/includes? pprint-output "|"))))))

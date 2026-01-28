@@ -312,10 +312,15 @@
           (when-let [kde-data (get kdes (:path metric-config))]
             (pprint-kde-metric metric-config kde-data transforms)))))))
 
+;; Delegates to :print for ASCII chart rendering
 (defmethod view/sample-percentiles* :pprint
-  [_ _view _banch-map]
-  ;; TODO
-  )
+  [viewer view-opts data-map]
+  ((get-method view/sample-percentiles* :print) viewer view-opts data-map))
+
+;; Delegates to :print for ASCII chart rendering
+(defmethod view/sample-diffs* :pprint
+  [viewer view-opts data-map]
+  ((get-method view/sample-diffs* :print) viewer view-opts data-map))
 (defmethod view/domain-extract-table* :pprint
   [_ {:keys [extract-id]} data-map]
   (let [extract-id (or extract-id :extract)
