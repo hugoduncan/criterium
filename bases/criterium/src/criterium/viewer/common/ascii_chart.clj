@@ -285,12 +285,13 @@
 
           ;; Build chart lines with y-axis
           y-label-positions (zipmap
-                             (mapv #(Math/round (* % (double (dec plot-height))))
+                             (mapv (fn [^double pos]
+                                     (Math/round (* pos (double (dec plot-height)))))
                                    (:positions y-axis-info))
                              (:labels y-axis-info))
 
           _ (doseq [row (range plot-height)]
-              (let [y-grid-pos (- (dec plot-height) row)
+              (let [y-grid-pos (- (dec plot-height) (long row))
                     y-label (get y-label-positions y-grid-pos "")
                     padded-label (format (str "%" y-label-width "s") y-label)
                     row-chars (apply str (grid row))]
@@ -305,9 +306,10 @@
           num-x-labels (min 5 (quot plot-width 10))
           x-axis-info (compute-axis-labels x-min x-max nil num-x-labels)
           x-labels-line (let [sb (StringBuilder.)
-                              _ (.append sb (apply str (repeat y-axis-width \space)))]
+                              _ (.append sb (apply str (repeat y-axis-width \space)))
+                              positions (vec (:positions x-axis-info))]
                           (doseq [[^long i label] (map-indexed vector (:labels x-axis-info))]
-                            (let [pos (long (* (nth (:positions x-axis-info) i)
+                            (let [pos (long (* ^double (positions i)
                                                (double (dec plot-width))))
                                   current-len (.length sb)
                                   target-pos (+ y-axis-width pos)
@@ -339,5 +341,5 @@
   Returns vector of strings."
   ([points]
    (render-chart-simple points 80))
-  ([points width]
+  ([points ^long width]
    (render-chart points {:width width :height (quot width 4)})))
