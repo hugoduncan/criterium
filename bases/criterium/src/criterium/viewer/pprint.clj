@@ -173,70 +173,75 @@
    [:phase :num-samples :batch-size :num-evals]
    (core/collect-plan-data data-map)))
 
+;; When :show-chart is true, delegates to :print for ASCII chart rendering
 (defmethod view/samples* :pprint
-  [_ {:keys [] :as view} banech-map]
-  (let [quant-samples-id (:samples-id view :samples)
-        event-samples-id (:event-samples-id view quant-samples-id)
-        outlier-analysis-id (:outlier-id view :outliers)
-        quant-samples (banech-map quant-samples-id)
-        event-samples (banech-map event-samples-id)
-        outlier-analysis (banech-map outlier-analysis-id)
+  [viewer {:keys [show-chart] :as view} banech-map]
+  (if show-chart
+    ;; Delegate to :print for chart rendering
+    ((get-method view/samples* :print) viewer view banech-map)
+    ;; Default pprint table output
+    (let [quant-samples-id (:samples-id view :samples)
+          event-samples-id (:event-samples-id view quant-samples-id)
+          outlier-analysis-id (:outlier-id view :outliers)
+          quant-samples (banech-map quant-samples-id)
+          event-samples (banech-map event-samples-id)
+          outlier-analysis (banech-map outlier-analysis-id)
 
-        metric-defs (metric/filter-metrics
-                     (:metrics-defs quant-samples)
-                     (metric/type-pred :quantitative))
-        event-metrics-defs (metric/filter-metrics
-                            (:metrics-defs event-samples)
-                            (metric/type-pred :event))
+          metric-defs (metric/filter-metrics
+                       (:metrics-defs quant-samples)
+                       (metric/type-pred :quantitative))
+          event-metrics-defs (metric/filter-metrics
+                              (:metrics-defs event-samples)
+                              (metric/type-pred :event))
 
-        metric-configs (metric/all-metric-configs metric-defs)
-        transforms (util/get-transforms banech-map quant-samples-id)
+          metric-configs (metric/all-metric-configs metric-defs)
+          transforms (util/get-transforms banech-map quant-samples-id)
 
-        quant-ids (mapv (comp last :path) metric-configs)
-        event-keys (into
-                    []
-                    (mapcat
-                     (fn [[k metric-group]]
-                       (reduce
-                        (fn [res metric-config]
-                          (conj res
-                                (core/composite-key
-                                 [(if-let [group (:group metric-config)]
-                                    group
-                                    k)
-                                  (last (:path metric-config))])))
-                        []
-                        (or (:values metric-group)
-                            (mapcat :values
-                                    (vals (:groups metric-group)))))))
-                    event-metrics-defs)
-        outlier-keys (when outlier-analysis
-                       (mapv
-                        #(core/composite-key [(last %) :outlier])
-                        (mapv :path metric-configs)))
+          quant-ids (mapv (comp last :path) metric-configs)
+          event-keys (into
+                      []
+                      (mapcat
+                       (fn [[k metric-group]]
+                         (reduce
+                          (fn [res metric-config]
+                            (conj res
+                                  (core/composite-key
+                                   [(if-let [group (:group metric-config)]
+                                      group
+                                      k)
+                                    (last (:path metric-config))])))
+                          []
+                          (or (:values metric-group)
+                              (mapcat :values
+                                      (vals (:groups metric-group))))))
+                       event-metrics-defs))
+          outlier-keys (when outlier-analysis
+                         (mapv
+                          #(core/composite-key [(last %) :outlier])
+                          (mapv :path metric-configs)))
 
-        all-keys (reduce into [:index] [quant-ids outlier-keys event-keys])
-        data (mapv
-              (fn [index]
-                (reduce
-                 merge
-                 {:index index}
-                 [(reduce
-                   (fn [res path]
-                     (into
-                      (assoc res (last path)
-                             (util/transform-sample->
-                              (get (get quant-samples path) index)
-                              transforms))
-                      (outlier-values outlier-analysis path index)))
-                   {}
-                   (mapv :path metric-configs))
-                  (flatten-events
-                   event-samples event-metrics-defs index)]))
-              (range (-> quant-samples
-                         (get (:path (first metric-configs)))
-                         count)))]
-    (pprint/print-table all-keys data)))
+          all-keys (reduce into [:index] [quant-ids outlier-keys event-keys])
+          data (mapv
+                (fn [index]
+                  (reduce
+                   merge
+                   {:index index}
+                   [(reduce
+                     (fn [res path]
+                       (into
+                        (assoc res (last path)
+                               (util/transform-sample->
+                                (get (get quant-samples path) index)
+                                transforms))
+                        (outlier-values outlier-analysis path index)))
+                     {}
+                     (mapv :path metric-configs))
+                    (flatten-events
+                     event-samples event-metrics-defs index)]))
+                (range (-> quant-samples
+                           (get (:path (first metric-configs)))
+                           count)))]
+      (pprint/print-table all-keys data))))
 
 (defmethod view/histogram* :pprint
   [_ {:keys [histogram-id] :as _view} data-map]

@@ -879,3 +879,54 @@
             ":pprint should produce same output as :print")
         (is (str/includes? pprint-output "differences"))
         (is (str/includes? pprint-output "|"))))))
+
+(deftest samples-show-chart-pprint-test
+  ;; Tests that pprint viewer delegates samples* to :print when :show-chart true.
+  ;; Verifies identical output between :pprint and :print viewers.
+  (testing "samples*"
+    (testing "delegates to :print when :show-chart is true"
+      (let [metrics-defs (select-keys (criterium.collector.metrics/metrics)
+                                      [:elapsed-time])
+            data-map {:samples
+                      {:type :criterium/metrics-samples
+                       :metrics-defs metrics-defs
+                       :metric->values {[:elapsed-time]
+                                        (arr/->double-array
+                                         (double-array [100 200 150 300 250]))}
+                       :transform collect-plan/identity-transforms
+                       :batch-size 1
+                       :num-samples 5
+                       :eval-count 5
+                       :elapsed-time 1000}
+                      :outliers
+                      {:type :criterium/outliers
+                       :metrics-defs metrics-defs
+                       :transform collect-plan/identity-transforms
+                       :source-id :samples
+                       :quantiles-id :quantiles
+                       :num-samples 5
+                       :outliers {[:elapsed-time]
+                                  {:low-severe 0
+                                   :low-mild 0
+                                   :high-mild 0
+                                   :high-severe 0
+                                   :low-severe-indices []
+                                   :low-mild-indices []
+                                   :high-mild-indices []
+                                   :high-severe-indices []}}}}
+            pprint-output (with-out-str
+                            (view/samples* :pprint
+                                           {:show-chart true
+                                            :chart-width 60
+                                            :chart-height 10}
+                                           data-map))
+            print-output (with-out-str
+                           (view/samples* :print
+                                          {:show-chart true
+                                           :chart-width 60
+                                           :chart-height 10}
+                                          data-map))]
+        (is (= print-output pprint-output)
+            ":pprint should produce same output as :print when :show-chart true")
+        (is (str/includes? pprint-output "Samples"))
+        (is (str/includes? pprint-output "|"))))))
