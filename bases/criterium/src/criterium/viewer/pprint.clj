@@ -112,10 +112,13 @@
         outlier-sig-map (data-map outlier-sig-id)
         outlier-sig (util/outlier-significance outlier-sig-map)
         metrics-defs (:metrics-defs outlier-sig-map)
-        metric-configs (metric/all-metric-configs metrics-defs)]
-    (pprint/print-table
-     (for [m metric-configs]
-       (get-in outlier-sig (:path m))))))
+        metric-configs (metric/all-metric-configs metrics-defs)
+        significances (for [m metric-configs
+                            :let [data (get-in outlier-sig (:path m))]
+                            :when (:significance data)]
+                        data)]
+    (when (seq significances)
+      (pprint/print-table significances))))
 
 (defmethod view/outlier-significance* :pprint
   [_ view data-map]

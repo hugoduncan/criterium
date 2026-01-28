@@ -432,7 +432,7 @@
 
 (deftest print-outlier-significance-test
   ;; Tests print-outlier-significance function and view/outlier-significance*.
-  ;; Covers: variance contribution and effect classification.
+  ;; Covers: variance contribution, effect classification, and nil handling.
   (testing "print-outlier-significance"
     (testing "prints via view"
       (is (= [(str "Elapsed Time Variance contribution from outliers : 25.0 %"
@@ -441,7 +441,14 @@
               (with-out-str
                 ((view/outlier-significance)
                  :print
-                 (:data (test-data/outlier-significance-map))))))))))
+                 (:data (test-data/outlier-significance-map))))))))
+    (testing "with nil significance produces no output"
+      (is (= [""]
+             (trimmed-lines
+              (with-out-str
+                ((view/outlier-significance)
+                 :print
+                 (:data (test-data/outlier-significance-nil-map))))))))))
 
 ;;; Event Stats Tests
 

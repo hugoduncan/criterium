@@ -140,6 +140,28 @@
        :outliers-id          :outliers
        :transform            collect-plan/identity-transforms}}}))
 
+(defn outlier-significance-nil-map
+  "Creates an outlier-significance map with nil significance.
+  This occurs when there are no positive outlier counts.
+  Optionally specify which metrics to include (defaults to [:elapsed-time])."
+  ([]
+   (outlier-significance-nil-map [:elapsed-time]))
+  ([metrics]
+   (let [metrics-defs (-> (metrics/metrics)
+                          (metric/select-metrics metrics)
+                          (metric/filter-metrics
+                           (metric/type-pred :quantitative)))]
+     {:data
+      {:outlier-significance
+       {:type                 :criterium/outlier-significance
+        :outlier-significance (zipmap metrics
+                                      (repeat {:effect       nil
+                                               :significance nil}))
+        :metrics-defs         metrics-defs
+        :source-id            :samples
+        :outliers-id          :outliers
+        :transform            collect-plan/identity-transforms}}})))
+
 (defn samples-with-non-numeric-value-map
   "Creates a samples map with a non-numeric metric value for testing viewer
   error handling."

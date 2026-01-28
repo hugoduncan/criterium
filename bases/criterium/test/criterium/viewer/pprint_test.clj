@@ -98,6 +98,8 @@
               (:data (test-data/outlier-count-map))))))))))
 
 (deftest print-outlier-significance-test
+  ;; Tests print-outlier-significances function for variance contribution display.
+  ;; Covers: effect classification, significance value, and nil handling.
   (testing "print-outlier-significance"
     (testing "prints via view"
       (is (= [""
@@ -108,7 +110,14 @@
               (with-out-str
                 ((view/outlier-significance)
                  :pprint
-                 (:data (test-data/outlier-significance-map))))))))))
+                 (:data (test-data/outlier-significance-map))))))))
+    (testing "with nil significance produces no output"
+      (is (= [""]
+             (trimmed-lines
+              (with-out-str
+                ((view/outlier-significance)
+                 :pprint
+                 (:data (test-data/outlier-significance-nil-map))))))))))
 
 (def ^:private expected-event-stats
   [""

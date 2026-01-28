@@ -276,12 +276,15 @@
         outlier-sig-map (data-map outlier-sig-id)
         outlier-sig (util/outlier-significance outlier-sig-map)
         metrics-defs (:metrics-defs outlier-sig-map)
-        metric-configs (metric/all-metric-configs metrics-defs)]
-    (kindly-heading "Outlier Significance")
-    (kindly-table
-     (vec
-      (for [m metric-configs]
-        (get-in outlier-sig (:path m)))))))
+        metric-configs (metric/all-metric-configs metrics-defs)
+        significances (vec
+                       (for [m metric-configs
+                             :let [data (get-in outlier-sig (:path m))]
+                             :when (:significance data)]
+                         data))]
+    (when (seq significances)
+      (kindly-heading "Outlier Significance")
+      (kindly-table significances))))
 
 ;;; Sample Diffs
 
