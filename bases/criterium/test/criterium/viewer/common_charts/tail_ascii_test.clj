@@ -56,8 +56,8 @@
     (testing "uses custom header function"
       (let [output (tail-ascii/render-ascii-tail-ratios
                     sample-tail-ratios
-                    {:header-fn (fn [] "Custom Header")})]
-        (is (str/includes? output "Custom Header"))))
+                    {:header-fn (fn [n] (str "Custom Header n=" n))})]
+        (is (str/includes? output "Custom Header n=3"))))
 
     (testing "applies indent"
       (let [output (tail-ascii/render-ascii-tail-ratios
@@ -98,8 +98,8 @@
     (testing "uses custom header function"
       (let [output (tail-ascii/render-ascii-hill-plot
                     sample-hill-data
-                    {:header-fn (fn [] "Custom Hill")})]
-        (is (str/includes? output "Custom Hill"))))
+                    {:header-fn (fn [n] (str "Custom Hill n=" n))})]
+        (is (str/includes? output "Custom Hill n=6"))))
 
     (testing "returns nil with empty data"
       (is (nil? (tail-ascii/render-ascii-hill-plot

@@ -31,7 +31,7 @@
     tail-data   - tail analysis data for a metric
     opts        - options map:
       :width      - chart width in characters (default 60)
-      :header-fn  - fn [] -> header string
+      :header-fn  - fn [n] -> header string, where n is number of ratios
       :indent     - string prefix for each line
 
   Returns string of ASCII chart, or nil if no ratios."
@@ -39,7 +39,7 @@
   (let [{:keys [tail-ratios empirical-quantiles]} tail-data
         {:keys [width header-fn indent]
          :or {width 60
-              header-fn (fn [] "Tail Ratios")
+              header-fn (fn [n] (format "Tail Ratios (n=%d)" n))
               indent ""}} opts
         {:keys [p99-p95 p999-p99 p999-p95]} tail-ratios
         {:keys [p95 p99 p999]} empirical-quantiles]
@@ -55,9 +55,10 @@
                                      :detail (format "p999=%.3g p95=%.3g"
                                                      (double p999) (double p95))}))]
         (when (seq ratios)
-          (let [max-val (double (apply max (map :value ratios)))
+          (let [n (count ratios)
+                max-val (double (apply max (map :value ratios)))
                 bar-width (- (long width) (count indent) 25) ; label + value + spacing
-                header (header-fn)
+                header (header-fn n)
                 lines (for [{:keys [label value detail]} ratios]
                         (let [bar-len (long (* (/ (double value) max-val)
                                                (double bar-width)))
@@ -76,7 +77,7 @@
     opts        - options map:
       :width      - chart width in characters (default 60)
       :height     - chart height in lines (default 15)
-      :header-fn  - fn [] -> header string
+      :header-fn  - fn [n] -> header string, where n is number of k values
       :indent     - string prefix for each line
 
   Returns string of ASCII chart, or nil if no Hill data."
@@ -86,11 +87,12 @@
         {:keys [width height header-fn indent]
          :or {width 60
               height 15
-              header-fn (fn [] "Hill Plot (H_k vs k)")
+              header-fn (fn [n] (format "Hill Plot (H_k vs k, n=%d)" n))
               indent ""}} opts]
     (when (and (seq k-range) (seq estimates))
-      (let [points (mapv vector k-range estimates)
-            header (header-fn)
+      (let [n (count estimates)
+            points (mapv vector k-range estimates)
+            header (header-fn n)
             chart-lines (ascii-chart/render-chart
                          points
                          {:width (- (long width) (count indent))
@@ -121,7 +123,7 @@
     opts        - options map:
       :width      - chart width in characters (default 60)
       :height     - chart height in lines (default 15)
-      :header-fn  - fn [] -> header string
+      :header-fn  - fn [n] -> header string, where n is number of threshold points
       :indent     - string prefix for each line
 
   Returns string of ASCII chart, or nil if no MRL data."
@@ -131,15 +133,16 @@
         {:keys [width height header-fn indent]
          :or {width 60
               height 15
-              header-fn (fn [] "Mean Residual Life Plot")
+              header-fn (fn [n] (format "Mean Residual Life Plot (n=%d)" n))
               indent ""}} opts]
     (when (and (seq thresholds) (seq values))
-      (let [points (mapv (fn [u mrl-val]
+      (let [n (count thresholds)
+            points (mapv (fn [u mrl-val]
                            [(util/transform-sample-> u transforms)
                             (util/transform-sample-> mrl-val transforms)])
                          thresholds values)
             threshold-transformed (util/transform-sample-> threshold transforms)
-            header (header-fn)
+            header (header-fn n)
             chart-lines (ascii-chart/render-chart
                          points
                          {:width (- (long width) (count indent))

@@ -131,9 +131,9 @@
   "Print ASCII tail ratios bar chart for all metrics."
   [view data-map]
   (let [indent (print-core/sublabel-indent-str)
-        header-fn (fn []
-                    (format "%s Tail Ratios"
-                            (print-core/format-sublabel "Chart")))
+        header-fn (fn [n]
+                    (format "%s Tail Ratios (n=%d)"
+                            (print-core/format-sublabel "Chart") n))
         opts (assoc view
                     :header-fn header-fn
                     :indent indent
@@ -154,9 +154,9 @@
   "Print ASCII Hill plot for all metrics."
   [view data-map]
   (let [indent (print-core/sublabel-indent-str)
-        header-fn (fn []
-                    (format "%s Hill Plot (H_k vs k)"
-                            (print-core/format-sublabel "Chart")))
+        header-fn (fn [n]
+                    (format "%s Hill Plot (H_k vs k, n=%d)"
+                            (print-core/format-sublabel "Chart") n))
         opts (assoc view
                     :header-fn header-fn
                     :indent indent
@@ -178,9 +178,9 @@
   "Print ASCII mean residual life plot for all metrics."
   [view data-map]
   (let [indent (print-core/sublabel-indent-str)
-        header-fn (fn []
-                    (format "%s Mean Residual Life Plot"
-                            (print-core/format-sublabel "Chart")))
+        header-fn (fn [n]
+                    (format "%s Mean Residual Life Plot (n=%d)"
+                            (print-core/format-sublabel "Chart") n))
         opts (assoc view
                     :header-fn header-fn
                     :indent indent
