@@ -18,6 +18,7 @@ title: "Criterium Notebooks"
 - [Quickstart](./quickstart.html) - Your first benchmark in 5 minutes
 - [Repeatability](./repeatability.html) - Understanding and improving run-to-run consistency
 - [Warmup](./warmup.html) - JIT optimization and warmup controls
+- [Non-Parametric Analysis](./non_parametric_analysis.html) - Histogram, KDE, and mode detection
 - [Analysis and View Options](./analysis_and_view_options.html) - Configuring analysis steps and output views
 - [In-Situ Measurement](./in_situ.html) - Measuring functions during normal execution
 - [Basic Usage](./criterium.basic_usage_notebook.html) - Introduction to benchmarking with criterium

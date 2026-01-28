@@ -10,6 +10,7 @@
   ["bases/notebooks/src/criterium/index.clj"
    "bases/notebooks/src/quickstart.clj"
    "bases/notebooks/src/warmup.clj"
+   "bases/notebooks/src/non_parametric_analysis.clj"
    "bases/notebooks/src/analysis_and_view_options.clj"
    "bases/notebooks/src/in_situ.clj"
    "bases/notebooks/src/criterium/basic_usage_notebook.clj"
