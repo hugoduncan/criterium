@@ -543,7 +543,7 @@
                    (util/transform-sample-> (arr/get-at values i) transforms)))
                (name v))))))
 
-(defn- render-samples-chart
+(defn- render-sample-chart
   "Render an ASCII scatter plot of sample values by index.
   Returns vector of strings representing the chart."
   [metric->values transforms metric-config chart-width chart-height]
@@ -601,7 +601,7 @@
     ;; Render chart if requested
     (when show-chart
       (doseq [metric metric-configs]
-        (when-let [chart-lines (render-samples-chart
+        (when-let [chart-lines (render-sample-chart
                                 (util/metric->values metrics-samples)
                                 transforms
                                 metric
