@@ -5,13 +5,13 @@
   - Tail summary (GPD/Hill parameters)
   - Tail ratios (p99/p95, p999/p99, p999/p95)
   - High quantile estimates (GPD extrapolation)
-  - No-op chart views (tail ratio charts, Hill/MRL/Zipf plots,
-    Q-Q plots not supported in print)"
+  - ASCII chart views (tail ratio charts, Hill/MRL/Zipf plots, Q-Q plots)"
   (:require
    [criterium.metric :as metric]
    [criterium.util.format :as format]
    [criterium.util.helpers :as util]
    [criterium.view :as view]
+   [criterium.viewer.common-charts.tail-ascii :as tail-ascii]
    [criterium.viewer.common.core :as core]
    [criterium.viewer.print.core
     :as print-core
@@ -125,10 +125,151 @@
   [_ view data-map]
   (print-tail-high-quantiles view data-map))
 
-;;; Chart views are no-ops for print viewer
-(defmethod view/tail-ratios-chart* :print [_ _ _])
-(defmethod view/hill-plot* :print [_ _ _])
-(defmethod view/mrl-plot* :print [_ _ _])
-(defmethod view/zipf-plot* :print [_ _ _])
-(defmethod view/exponential-qq-plot* :print [_ _ _])
-(defmethod view/gpd-qq-plot* :print [_ _ _])
+;;; Tail Ratios Chart View
+
+(defn print-tail-ratios-chart
+  "Print ASCII tail ratios bar chart for all metrics."
+  [view data-map]
+  (let [indent (print-core/sublabel-indent-str)
+        header-fn (fn []
+                    (format "%s Tail Ratios"
+                            (print-core/format-sublabel "Chart")))
+        opts (assoc view
+                    :header-fn header-fn
+                    :indent indent
+                    :width 70)]
+    (tail-ascii/with-tail-metrics view data-map
+      (fn [tail-data _samples _transforms _mc]
+        (when-let [output (tail-ascii/render-ascii-tail-ratios tail-data opts)]
+          (println output)
+          (println))))))
+
+(defmethod view/tail-ratios-chart* :print
+  [_ view data-map]
+  (print-tail-ratios-chart view data-map))
+
+;;; Hill Plot View
+
+(defn print-hill-plot
+  "Print ASCII Hill plot for all metrics."
+  [view data-map]
+  (let [indent (print-core/sublabel-indent-str)
+        header-fn (fn []
+                    (format "%s Hill Plot (H_k vs k)"
+                            (print-core/format-sublabel "Chart")))
+        opts (assoc view
+                    :header-fn header-fn
+                    :indent indent
+                    :width 70
+                    :height 12)]
+    (tail-ascii/with-tail-metrics view data-map
+      (fn [tail-data _samples _transforms _mc]
+        (when-let [output (tail-ascii/render-ascii-hill-plot tail-data opts)]
+          (println output)
+          (println))))))
+
+(defmethod view/hill-plot* :print
+  [_ view data-map]
+  (print-hill-plot view data-map))
+
+;;; MRL Plot View
+
+(defn print-mrl-plot
+  "Print ASCII mean residual life plot for all metrics."
+  [view data-map]
+  (let [indent (print-core/sublabel-indent-str)
+        header-fn (fn []
+                    (format "%s Mean Residual Life Plot"
+                            (print-core/format-sublabel "Chart")))
+        opts (assoc view
+                    :header-fn header-fn
+                    :indent indent
+                    :width 70
+                    :height 12)]
+    (tail-ascii/with-tail-metrics view data-map
+      (fn [tail-data _samples transforms _mc]
+        (when-let [output (tail-ascii/render-ascii-mrl-plot tail-data transforms opts)]
+          (println output)
+          (println))))))
+
+(defmethod view/mrl-plot* :print
+  [_ view data-map]
+  (print-mrl-plot view data-map))
+
+;;; Zipf Plot View
+
+(defn print-zipf-plot
+  "Print ASCII Zipf plot (log-log CCDF) for all metrics."
+  [view data-map]
+  (let [indent (print-core/sublabel-indent-str)
+        header-fn (fn [n]
+                    (format "%s Zipf Plot (log-log CCDF, n=%d)"
+                            (print-core/format-sublabel "Chart") n))
+        opts (assoc view
+                    :header-fn header-fn
+                    :indent indent
+                    :width 70
+                    :height 12)]
+    (tail-ascii/with-tail-metrics view data-map
+      (fn [_tail-data samples transforms _mc]
+        (when samples
+          (when-let [output (tail-ascii/render-ascii-zipf-plot samples transforms opts)]
+            (println output)
+            (println)))))))
+
+(defmethod view/zipf-plot* :print
+  [_ view data-map]
+  (print-zipf-plot view data-map))
+
+;;; Exponential Q-Q Plot View
+
+(defn print-exponential-qq-plot
+  "Print ASCII exponential Q-Q plot for all metrics."
+  [view data-map]
+  (let [indent (print-core/sublabel-indent-str)
+        header-fn (fn [n]
+                    (format "%s Exponential Q-Q Plot (n=%d exceedances)"
+                            (print-core/format-sublabel "Chart") n))
+        opts (assoc view
+                    :header-fn header-fn
+                    :indent indent
+                    :width 70
+                    :height 12)]
+    (tail-ascii/with-tail-metrics view data-map
+      (fn [tail-data samples transforms _mc]
+        (when (and samples (:threshold tail-data))
+          (when-let [output (tail-ascii/render-ascii-exponential-qq
+                             samples (:threshold tail-data) transforms opts)]
+            (println output)
+            (println)))))))
+
+(defmethod view/exponential-qq-plot* :print
+  [_ view data-map]
+  (print-exponential-qq-plot view data-map))
+
+;;; GPD Q-Q Plot View
+
+(defn print-gpd-qq-plot
+  "Print ASCII GPD Q-Q plot for all metrics."
+  [view data-map]
+  (let [indent (print-core/sublabel-indent-str)
+        header-fn (fn [n]
+                    (format "%s GPD Q-Q Plot (n=%d exceedances)"
+                            (print-core/format-sublabel "Chart") n))
+        opts (assoc view
+                    :header-fn header-fn
+                    :indent indent
+                    :width 70
+                    :height 12)]
+    (tail-ascii/with-tail-metrics view data-map
+      (fn [tail-data samples transforms _mc]
+        (when (and samples (:threshold tail-data) (:gpd tail-data))
+          (when-let [output (tail-ascii/render-ascii-gpd-qq
+                             samples (:threshold tail-data) (:gpd tail-data)
+                             transforms opts)]
+            (println output)
+            (println)))))))
+
+(defmethod view/gpd-qq-plot* :print
+  [_ view data-map]
+  (print-gpd-qq-plot view data-map))
