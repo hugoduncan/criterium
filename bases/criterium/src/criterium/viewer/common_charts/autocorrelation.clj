@@ -1,11 +1,17 @@
 (ns criterium.viewer.common-charts.autocorrelation
-  "Vega-Lite chart specification for ACF (Autocorrelation Function) plots.
+  "Chart specifications for ACF (Autocorrelation Function) plots.
 
-  Provides point charts showing autocorrelation coefficients for all lags,
-  with points colored by severity and horizontal threshold lines for
-  lag-1 (blue) and other-lag (gray) thresholds."
+  Provides:
+  - Vega-Lite point charts for graphical viewers (:portal, :kindly)
+  - ASCII bar chart rendering for text viewers (:print, :pprint)
+
+  Both chart types show autocorrelation coefficients for all lags,
+  with severity-based coloring and threshold visualization."
   (:require
-   [criterium.stats.autocorrelation :as stats]))
+   [clojure.string :as str]
+   [criterium.stats.autocorrelation :as stats]
+   [criterium.viewer.common.autocorrelation :as acf-common]
+   [criterium.viewer.common.core :as core]))
 
 ;;; Severity Colors
 
@@ -251,3 +257,85 @@
          {:title title
           :layer (vec (remove nil? layers))}
          (select-keys chart-options [:width :height]))))))
+
+;;; ASCII ACF Plot
+
+(defn- format-threshold-legend
+  "Format threshold legend showing only crossed thresholds.
+  Returns vector of strings like [\"lag-1 [minor 0.10, moderate 0.20]\" \"other [minor 0.15]\"]."
+  [acf-map thresholds]
+  (let [lag-1-acf (Math/abs (double (get acf-map 1 0)))
+        other-max-acf (double (if (> (count acf-map) 1)
+                                (apply max 0 (map #(Math/abs (double %))
+                                                  (vals (dissoc acf-map 1))))
+                                0))
+        lag-1-thresholds (:lag-1 thresholds)
+        other-thresholds (:other thresholds)
+        lag-1-crossed (for [[level ^double threshold] (sort-by val lag-1-thresholds)
+                            :when (> lag-1-acf threshold)]
+                        (format "%s %.2f" (name level) threshold))
+        other-crossed (for [[level ^double threshold] (sort-by val other-thresholds)
+                            :when (> other-max-acf threshold)]
+                        (format "%s %.2f" (name level) threshold))]
+    (cond-> []
+      (seq lag-1-crossed)
+      (conj (str "lag-1 [" (str/join ", " lag-1-crossed) "]"))
+      (seq other-crossed)
+      (conj (str "other [" (str/join ", " other-crossed) "]")))))
+
+(defn render-ascii-acf-plot
+  "Render ASCII ACF plot for a single metric as a string.
+
+  Shows autocorrelation coefficients as bidirectional ASCII bar charts.
+  Returns nil if no lags meet the min-severity threshold.
+
+  Parameters:
+    acf-data     - map with :acf, :effective-sample-size, :lag-severities, :thresholds
+    metric-label - string label for the metric
+    opts         - options map:
+      :min-severity   - minimum severity to display (default :moderate)
+      :bar-width      - half-width of bar in characters (default 15)
+      :header-fn      - fn [metric-label n] -> header string
+      :indent         - string prefix for continuation lines"
+  [{:keys [acf effective-sample-size lag-severities thresholds]} metric-label opts]
+  (let [{:keys [min-severity bar-width header-fn indent]
+         :or {min-severity :moderate
+              bar-width 15
+              header-fn (fn [label n] (format "%s ACF Plot (n=%d):" label n))
+              indent ""}} opts
+        n (get effective-sample-size :n-original)
+        thresholds (or thresholds
+                       {:lag-1 {:minor 0.10 :moderate 0.20 :severe 0.35}
+                        :other {:minor 0.15 :moderate 0.25 :severe 0.40}})]
+    (when (and acf n lag-severities
+               (has-severity-at-or-above? lag-severities min-severity))
+      (let [min-rank (get severity-rank min-severity 0)
+            qualifying-lags (for [[lag sev] lag-severities
+                                  :when (>= (long (get severity-rank sev 0))
+                                            (long min-rank))]
+                              lag)
+            max-abs-acf (apply max 0.01 (map #(Math/abs (double (get acf % 0)))
+                                             qualifying-lags))
+            sorted-lags (sort qualifying-lags)
+            max-lag-width (max 3 (count (str (apply max 1 sorted-lags))))
+            header-fmt (str "%s%" max-lag-width "s   %s")
+            row-fmt (str "%s%" max-lag-width "d  %6.2f  %s (%s)")
+            header-lines [(header-fn metric-label n)
+                          (format header-fmt indent "Lag" "ACF")]
+            data-lines (mapv (fn [lag]
+                               (let [acf-val (double (get acf lag))
+                                     severity (get lag-severities lag :none)
+                                     bar (core/ascii-bar-bidirectional
+                                          acf-val max-abs-acf bar-width)]
+                                 (format row-fmt
+                                         indent
+                                         lag
+                                         acf-val
+                                         bar
+                                         (acf-common/format-severity severity))))
+                             sorted-lags)
+            legend-parts (format-threshold-legend acf thresholds)
+            legend-lines (when (seq legend-parts)
+                           ["" (format "%sThresholds: %s"
+                                       indent (str/join ", " legend-parts))])]
+        (str/join "\n" (concat header-lines data-lines legend-lines))))))

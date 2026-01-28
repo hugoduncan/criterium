@@ -7,6 +7,7 @@
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have]]
    [criterium.view :as view]
+   [criterium.viewer.common-charts.autocorrelation :as acf-charts]
    [criterium.viewer.common.allocation :as allocation]
    [criterium.viewer.common.autocorrelation :as acf-common]
    [criterium.viewer.common.bootstrap :as bootstrap]
@@ -563,8 +564,13 @@
        [:metric :value]
        (autocorrelation-summary-table acf-data (:label mc))))))
 
-;; ACF plot is a no-op for pprint viewer (charts not supported)
-(defmethod view/acf-plot* :pprint [_ _ _])
+;; ACF plot uses common ASCII chart rendering
+(defmethod view/acf-plot* :pprint
+  [_ view data-map]
+  (acf-common/with-autocorrelation-metrics view data-map
+    (fn [acf-data mc]
+      (when-let [output (acf-charts/render-ascii-acf-plot acf-data (:label mc) view)]
+        (println output)))))
 
 (defn- classification-table-rows
   "Build classification table rows for pprint."
