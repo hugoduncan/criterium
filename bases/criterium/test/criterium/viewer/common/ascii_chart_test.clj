@@ -26,7 +26,7 @@
         (is (= [5 25] (last result)))))
 
     (testing "returns correct count"
-      (let [points (mapv (fn [x] [x (* x x)]) (range 100))]
+      (let [points (mapv (fn [x] (let [x (long x)] [x (* x x)])) (range 100))]
         (is (= 10 (count (ascii-chart/lttb-downsample points 10))))
         (is (= 20 (count (ascii-chart/lttb-downsample points 20))))
         (is (= 50 (count (ascii-chart/lttb-downsample points 50))))))
@@ -39,7 +39,7 @@
             result (ascii-chart/lttb-downsample points 5)
             y-values (mapv second result)]
         ;; The peak should be preserved
-        (is (some #(> % 50) y-values))))
+        (is (some #(> (double %) 50.0) y-values))))
 
     (testing "handles single point"
       (is (= [[5 10]] (ascii-chart/lttb-downsample [[5 10]] 3))))
@@ -159,7 +159,7 @@
 (deftest render-chart-downsampling-test
   (testing "render-chart automatic downsampling"
     (let [;; 200 points, but width only allows ~30 plot columns
-          points (mapv (fn [x] [x (Math/sin (/ x 10.0))]) (range 200))
+          points (mapv (fn [x] [x (Math/sin (/ (double x) 10.0))]) (range 200))
           result (ascii-chart/render-chart points {:width 40 :height 10})]
       ;; Should render without error
       (is (vector? result))
@@ -207,7 +207,7 @@
 
 (deftest render-chart-many-points-test
   (testing "render-chart with many points"
-    (let [points (mapv (fn [x] [x (* x x)]) (range 1000))
+    (let [points (mapv (fn [x] (let [x (long x)] [x (* x x)])) (range 1000))
           result (ascii-chart/render-chart points {:width 80 :height 20})]
       (is (vector? result))
       (is (pos? (count result)))
