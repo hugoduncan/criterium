@@ -537,3 +537,26 @@
       (if (and (seq uniform-axes) (pos? remaining-keys))
         (mapv #(apply dissoc % uniform-axes) coords)
         coords))))
+
+;;; Transform Extraction
+
+(defn simple-transforms
+  "Extract transforms from a data map, normalizing to vector format.
+
+  Many viewer data maps contain a :transform key with :sample-> and :->sample
+  functions. These may be single functions or vectors of functions.
+  This helper normalizes both formats to vectors for use with
+  criterium.util.helpers/transform-sample->.
+
+  Returns map {:sample-> [fns...] :->sample [fns...]} or nil if no transform."
+  [data-map]
+  (let [t (:transform data-map)]
+    (when t
+      (let [s-> (:sample-> t)
+            ->s (:->sample t)]
+        {:sample-> (cond (fn? s->) [s->]
+                         (sequential? s->) (vec s->)
+                         :else [identity])
+         :->sample (cond (fn? ->s) [->s]
+                         (sequential? ->s) (vec ->s)
+                         :else [identity])}))))

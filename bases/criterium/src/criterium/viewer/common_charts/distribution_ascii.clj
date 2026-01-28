@@ -16,7 +16,8 @@
    [criterium.stats.probability :as prob]
    [criterium.util.helpers :as util]
    [criterium.viewer.common-charts.distribution :as dist]
-   [criterium.viewer.common.ascii-chart :as ascii-chart]))
+   [criterium.viewer.common.ascii-chart :as ascii-chart]
+   [criterium.viewer.common.core :as common]))
 
 (set! *unchecked-math* :warn-on-boxed)
 
@@ -219,23 +220,6 @@
 
 ;;; Data Extraction Helpers
 
-(defn- simple-transforms
-  "Get transforms from samples-map, wrapping in vectors for transform-sample->.
-
-  Handles both simple {:sample-> fn :->sample fn} and
-  list/vector formats {:sample-> (fn...) :->sample [fn...]}."
-  [samples-map]
-  (let [t (:transform samples-map)]
-    (when t
-      (let [s-> (:sample-> t)
-            ->s (:->sample t)]
-        {:sample-> (cond (fn? s->) [s->]
-                         (sequential? s->) (vec s->)
-                         :else [identity])
-         :->sample (cond (fn? ->s) [->s]
-                         (sequential? ->s) (vec ->s)
-                         :else [identity])}))))
-
 (defn with-distribution-metrics
   "Iterate over metrics with distribution fit data, calling f for each.
 
@@ -257,7 +241,7 @@
                                metrics-defs
                                (metric/type-pred :quantitative))))
             metric->values (:metric->values samples-map)
-            transforms (simple-transforms samples-map)]
+            transforms (common/simple-transforms samples-map)]
         (doseq [mc metric-configs]
           (let [path (:path mc)
                 fit-data (get fits path)

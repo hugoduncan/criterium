@@ -17,7 +17,8 @@
    [criterium.metric :as metric]
    [criterium.stats.tail :as stats]
    [criterium.util.helpers :as util]
-   [criterium.viewer.common.ascii-chart :as ascii-chart]))
+   [criterium.viewer.common.ascii-chart :as ascii-chart]
+   [criterium.viewer.common.core :as common]))
 
 (set! *unchecked-math* :warn-on-boxed)
 
@@ -344,23 +345,6 @@
 
 ;;; Data Extraction Helper
 
-(defn- simple-transforms
-  "Get transforms from tail-analysis-map, wrapping in sequences for transform-sample->.
-
-  Handles both simple {:sample-> fn :->sample fn} and
-  list/vector formats {:sample-> (fn...) :->sample [fn...]}."
-  [tail-analysis-map]
-  (let [t (:transform tail-analysis-map)]
-    (when t
-      (let [s-> (:sample-> t)
-            ->s (:->sample t)]
-        {:sample-> (cond (fn? s->) [s->]
-                         (sequential? s->) (vec s->)
-                         :else [identity])
-         :->sample (cond (fn? ->s) [->s]
-                         (sequential? ->s) (vec ->s)
-                         :else [identity])}))))
-
 (defn with-tail-metrics
   "Iterate over metrics with tail analysis data, calling f for each.
 
@@ -384,7 +368,7 @@
                                metrics-defs
                                (metric/type-pred :quantitative))))
             metric->values (when samples-map (util/metric->values samples-map))
-            transforms (simple-transforms tail-analysis-map)]
+            transforms (common/simple-transforms tail-analysis-map)]
         (doseq [mc metric-configs]
           (let [path (:path mc)
                 tail-data (get tail-results path)
