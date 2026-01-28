@@ -177,17 +177,17 @@
 
 ;; When :show-chart is true, delegates to :print for ASCII chart rendering
 (defmethod view/samples* :pprint
-  [viewer {:keys [show-chart] :as view} banech-map]
+  [viewer {:keys [show-chart] :as view} bench-map]
   (if show-chart
     ;; Delegate to :print for chart rendering
-    ((get-method view/samples* :print) viewer view banech-map)
+    ((get-method view/samples* :print) viewer view bench-map)
     ;; Default pprint table output
     (let [quant-samples-id (:samples-id view :samples)
           event-samples-id (:event-samples-id view quant-samples-id)
           outlier-analysis-id (:outlier-id view :outliers)
-          quant-samples (banech-map quant-samples-id)
-          event-samples (banech-map event-samples-id)
-          outlier-analysis (banech-map outlier-analysis-id)
+          quant-samples (bench-map quant-samples-id)
+          event-samples (bench-map event-samples-id)
+          outlier-analysis (bench-map outlier-analysis-id)
 
           metric-defs (metric/filter-metrics
                        (:metrics-defs quant-samples)
@@ -197,7 +197,7 @@
                               (metric/type-pred :event))
 
           metric-configs (metric/all-metric-configs metric-defs)
-          transforms (util/get-transforms banech-map quant-samples-id)
+          transforms (util/get-transforms bench-map quant-samples-id)
 
           quant-ids (mapv (comp last :path) metric-configs)
           event-keys (into
