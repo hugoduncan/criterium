@@ -17,4 +17,14 @@
                                           (map fs/path ["build/src" "build/test"
                                                         "development/src" "development/test"])))]
                 (apply babashka.process/shell {:continue true}
-                       "clj-kondo" "--lint" (map str dirs)))}}}
+                       "clj-kondo" "--lint" (map str dirs)))}
+
+  fmt {:doc "Check or fix code formatting (bb fmt check | bb fmt fix)"
+       :task (let [subcommand (first *command-line-args*)]
+               (case subcommand
+                 "check" (babashka.process/shell "clojure" "-M:cljfmt" "check")
+                 "fix" (babashka.process/shell "clojure" "-M:cljfmt" "fix")
+                 (do (println "Usage: bb fmt <check|fix>")
+                     (println "  check - Check formatting without changes")
+                     (println "  fix   - Fix formatting in place")
+                     (System/exit 1))))}}}
