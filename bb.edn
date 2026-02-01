@@ -15,9 +15,10 @@
                                           (fs/glob "." "components/*/src")
                                           (fs/glob "." "components/*/test")
                                           (map fs/path ["build/src" "build/test"
-                                                        "development/src" "development/test"])))]
-                (apply babashka.process/shell {:continue true}
-                       "clj-kondo" "--lint" (map str dirs)))}
+                                                        "development/src" "development/test"])))
+                    result (apply babashka.process/shell {:continue true}
+                                  "clj-kondo" "--lint" (map str dirs))]
+                (System/exit (:exit result)))}
 
   fmt {:doc "Check or fix code formatting (bb fmt check | bb fmt fix)"
        :task (let [subcommand (first *command-line-args*)]
