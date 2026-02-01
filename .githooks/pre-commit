@@ -1,19 +1,58 @@
 #!/usr/bin/env bash
-# Pre-commit hook to format Clojure and EDN files with cljfmt
+# Pre-commit hook to format Clojure and EDN files with cljfmt and line-breaker
 
 set -euo pipefail
 
-# Get list of staged .clj and .edn files
+# Get list of staged .clj, .cljs, .cljc, and .edn files
 staged_files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(clj|cljs|cljc|edn)$' || true)
 
 if [ -z "$staged_files" ]; then
     exit 0
 fi
 
-# Format each staged file and restage if changed
+# Format each staged file with cljfmt and restage if changed
 for file in $staged_files; do
     if [ -f "$file" ]; then
         cljfmt fix "$file" 2>/dev/null || true
         git add "$file"
     fi
 done
+
+# Check if line-breaker is available
+if ! command -v line-breaker &>/dev/null; then
+    echo "Warning: line-breaker not found on PATH, skipping line length check"
+    echo "Install with: curl -sL https://raw.githubusercontent.com/hugoduncan/line-breaker/master/scripts/install.sh | bash"
+    exit 0
+fi
+
+# Re-get staged files (may have changed after cljfmt)
+staged_files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(clj|cljs|cljc|edn)$' || true)
+
+if [ -z "$staged_files" ]; then
+    exit 0
+fi
+
+# Fix line lengths and restage
+for file in $staged_files; do
+    if [ -f "$file" ]; then
+        line-breaker --fix "$file" 2>/dev/null || true
+        git add "$file"
+    fi
+done
+
+# Re-get staged files again for final check
+staged_files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(clj|cljs|cljc|edn)$' || true)
+
+if [ -z "$staged_files" ]; then
+    exit 0
+fi
+
+# Final check for violations that couldn't be auto-fixed
+# shellcheck disable=SC2086
+if ! line-breaker --check $staged_files 2>/dev/null; then
+    echo ""
+    echo "Line length violations detected that cannot be auto-fixed."
+    echo "Please fix manually or add #_:line-breaker/ignore comment."
+    echo "Run 'bb line-length check' to see violations."
+    exit 1
+fi
