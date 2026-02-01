@@ -1,8 +1,10 @@
 (ns warmup
   "Understanding JIT warmup and how criterium options control it."
   (:require
-   [criterium.bench :as bench]
-   [criterium.notebook.helpers :refer [bench-display]]))
+   [criterium.bench :as bench]))
+
+^:kindly/hide-code
+(bench/set-default-viewer! :kindly)
 
 ;; # JIT Warmup
 ;;
@@ -73,19 +75,15 @@
 ;;
 ;; Without warmup, you measure a mix of interpreted and compiled code:
 
-^:kindly/hide-code
-(bench-display
- (bench/bench (reduce + (range 100))
-              :collect-plan :one-shot))
+(bench/bench (reduce + (range 100))
+             :collect-plan :one-shot)
 
 ;; This single-shot measurement captures whatever state the JVM happens to be
 ;; in. The code might be interpreted, partially compiled, or fully optimized.
 
 ;; With warmup, criterium ensures you measure optimized code:
 
-^:kindly/hide-code
-(bench-display
- (bench/bench (reduce + (range 100))))
+(bench/bench (reduce + (range 100)))
 
 ;; The default benchmark runs ~150,000 warmup iterations before measuring,
 ;; giving the JIT time to compile and optimize.
@@ -96,10 +94,8 @@
 ;;
 ;; For measuring cold-start or interpreted performance:
 
-^:kindly/hide-code
-(bench-display
- (bench/bench (reduce + (range 100))
-              :collect-plan :one-shot))
+(bench/bench (reduce + (range 100))
+             :collect-plan :one-shot)
 
 ;; Use this when:
 ;; - Measuring startup/initialization code
@@ -112,10 +108,8 @@
 ;;
 ;; Control warmup duration via the total time budget:
 
-^:kindly/hide-code
-(bench-display
- (bench/bench (reduce + (range 100))
-              :limit-time-s 2))
+(bench/bench (reduce + (range 100))
+             :limit-time-s 2)
 
 ;; Criterium allocates this time across estimation, warmup, and measurement
 ;; phases. The default is 10 seconds. Shorter budgets reduce warmup iterations
@@ -189,3 +183,6 @@
 ;; - Use `:collect-plan :one-shot` for cold-start measurements
 ;; - Use `:limit-time-s` to control benchmark duration (affects warmup)
 ;; - Match warmup to how your code runs in production
+
+^:kindly/hide-code
+(bench/set-default-viewer! :print)

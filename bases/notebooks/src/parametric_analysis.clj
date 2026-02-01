@@ -2,8 +2,10 @@
   "Parametric distribution fitting for benchmark samples."
   (:require
    [criterium.bench :as bench]
-   [criterium.bench-plans :as bench-plans]
-   [criterium.notebook.helpers :refer [bench-display]]))
+   [criterium.bench-plans :as bench-plans]))
+
+^:kindly/hide-code
+(bench/set-default-viewer! :kindly)
 
 ;; # Parametric Analysis
 ;;
@@ -30,10 +32,8 @@
 ;; The `distribution-analysis` bench plan includes distribution fitting along
 ;; with shape statistics (skewness, kurtosis, coefficient of variation):
 
-^:kindly/hide-code
-(bench-display
- (bench/bench (reduce + (vec (range 20)))
-              :bench-plan bench-plans/distribution-analysis))
+(bench/bench (reduce + (vec (range 20)))
+             :bench-plan bench-plans/distribution-analysis)
 
 ;; The output includes:
 ;;
@@ -299,10 +299,10 @@
   (bench/bench (reduce + (vec (range 20)))
                :bench-plan bench-plans/distribution-analysis
                :viewer :none)
-  (let [data (:data (bench/last-bench))
+  (let [data     (:data (bench/last-bench))
         dist-fit (get-in data [:distribution-fit :fits [:elapsed-time]])
-        best (:best-model dist-fit)]
-    {:model best
+        best     (:best-model dist-fit)]
+    {:model         best
      :parameter-cis (get-in dist-fit [:parameter-cis best])}))
 
 ;; Narrow CIs indicate stable parameter estimates. Wide CIs suggest:
@@ -345,3 +345,6 @@
 ;;
 ;; For tail behavior and worst-case latency analysis, see
 ;; [Tail Analysis](./tail_analysis.html).
+
+^:kindly/hide-code
+(bench/set-default-viewer! :print)

@@ -4,8 +4,7 @@
    [criterium.bench :as bench]
    [criterium.domain :as domain]
    [criterium.domain-plans :as domain-plans]
-   [criterium.domain.builder :as builder]
-   [criterium.notebook.helpers :refer [bench-display]]))
+   [criterium.domain.builder :as builder]))
 
 ;; # Domain Comparison Analysis
 ;;
@@ -49,15 +48,13 @@
 
 ;; Compare two sorting approaches at a fixed size:
 
-^:kindly/hide-code
-(bench-display
- (domain/bench
-  (domain/domain-expr
-   []
-   {:sort    (sort (random-vec 1000))
-    :sort-by (sort-by identity (random-vec 1000))})
-  :domain-plan domain-plans/implementation-comparison
-  :bench-options {:limit-time-s 1}))
+(domain/bench
+ (domain/domain-expr
+  []
+  {:sort    (sort (random-vec 100))
+   :sort-by (sort-by identity (random-vec 100))})
+ :domain-plan domain-plans/implementation-comparison
+ :bench-options {:limit-time-s 5})
 
 ;; The empty binding vector `[]` means no axes vary - we benchmark each
 ;; implementation once at the fixed input.
@@ -99,15 +96,13 @@
 ;;
 ;; To compare implementations across different input sizes, add an axis:
 
-^:kindly/hide-code
-(bench-display
- (domain/bench
-  (domain/domain-expr
-   [n [100 500 1000]]
-   {:sort    (sort (random-vec n))
-    :sort-by (sort-by identity (random-vec n))})
-  :domain-plan domain-plans/implementation-comparison
-  :bench-options {:limit-time-s 0.5}))
+(domain/bench
+ (domain/domain-expr
+  [n [8 16 32 64 128]]
+  {:sort    (sort (random-vec n))
+   :sort-by (sort-by identity (random-vec n))})
+ :domain-plan domain-plans/implementation-comparison
+ :bench-options {:limit-time-s 20})
 
 ;; Now `n` varies across the specified values, and each implementation
 ;; is benchmarked at every point.
@@ -160,15 +155,13 @@
 
 ;; Or simply list the baseline implementation first in small maps:
 
-^:kindly/hide-code
-(bench-display
- (domain/bench
-  (domain/domain-expr
-   []
-   {:reference (reduce + (range 100))        ; baseline
-    :transduce (transduce identity + (range 100))})
-  :domain-plan domain-plans/implementation-comparison
-  :bench-options {:limit-time-s 0.5}))
+(domain/bench
+ (domain/domain-expr
+  []
+  {:reference (reduce + (vec (range 100)))        ; baseline
+   :transduce (transduce identity + (vec (range 100)))})
+ :domain-plan domain-plans/implementation-comparison
+ :bench-options {:limit-time-s 5})
 
 ;; Here `:reference` appears first, so it becomes the baseline.
 
@@ -177,16 +170,14 @@
 ;; Compare both execution time and memory allocation by specifying
 ;; multiple metrics in `:bench-options`:
 
-^:kindly/hide-code
-(bench-display
- (domain/bench
-  (domain/domain-expr
-   []
-   {:into (into [] (range 1000))
-    :mapv (mapv identity (range 1000))})
-  :domain-plan domain-plans/implementation-comparison
-  :bench-options {:limit-time-s 1
-                  :metric-ids [:elapsed-time :thread-allocation]}))
+(domain/bench
+ (domain/domain-expr
+  []
+  {:into (into [] (range 1000))
+   :mapv (mapv identity (range 1000))})
+ :domain-plan domain-plans/implementation-comparison
+ :bench-options {:limit-time-s 5
+                 :metric-ids   [:elapsed-time :thread-allocation]})
 
 ;; The output includes:
 ;;
@@ -200,15 +191,13 @@
 ;;
 ;; Options passed to each individual benchmark:
 
-^:kindly/hide-code
-(bench-display
- (domain/bench
-  (domain/domain-expr
-   []
-   {:a (Thread/sleep 1)
-    :b (Thread/sleep 2)})
-  :domain-plan domain-plans/implementation-comparison
-  :bench-options {:limit-time-s 0.5}))
+(domain/bench
+ (domain/domain-expr
+  []
+  {:a (Thread/sleep 1)
+   :b (Thread/sleep 2)})
+ :domain-plan domain-plans/implementation-comparison
+ :bench-options {:limit-time-s 5})
 
 ;; Common bench-options:
 ;;
@@ -219,31 +208,27 @@
 ;;
 ;; Control progress output. Set to `nil` for silent operation:
 
-^:kindly/hide-code
-(bench-display
- (domain/bench
-  (domain/domain-expr
-   []
-   {:a (reduce + (range 100))
-    :b (apply + (range 100))})
-  :domain-plan domain-plans/implementation-comparison
-  :reporter nil
-  :bench-options {:limit-time-s 0.5}))
+(domain/bench
+ (domain/domain-expr
+  []
+  {:a (reduce + (vec (range 100)))
+   :b (apply + (vec (range 100)))})
+ :domain-plan domain-plans/implementation-comparison
+ :reporter nil
+ :bench-options {:limit-time-s 5})
 
 ;; ## Example: Collection Operations
 ;;
 ;; Compare different ways to build a collection:
 
-^:kindly/hide-code
-(bench-display
- (domain/bench
-  (domain/domain-expr
-   [n (builder/log-range 100 1000 3)]
-   {:into-vec  (into [] (range n))
-    :vec-range (vec (range n))
-    :mapv      (mapv identity (range n))})
-  :domain-plan domain-plans/implementation-comparison
-  :bench-options {:limit-time-s 0.5}))
+(domain/bench
+ (domain/domain-expr
+  [n (builder/log-range 8 128 5)]
+  {:into-vec  (into [] (range n))
+   :vec-range (vec (range n))
+   :mapv      (mapv identity (range n))})
+ :domain-plan domain-plans/implementation-comparison
+ :bench-options {:limit-time-s 5})
 
 ;; The results show which collection-building approach is most efficient
 ;; and whether the relative performance changes with size.

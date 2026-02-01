@@ -101,29 +101,6 @@
 ;; The 10,000-element vector is created once. The benchmark measures only
 ;; the `first` call, which takes nanoseconds regardless of the setup cost.
 
-;; ## Seeing the Distribution
-;;
-;; For deeper insight, use the `log-histogram` bench plan to visualize
-;; how your samples are distributed:
-
-^:kindly/hide-code
-(bench-display
- (bench/bench (reduce + (range 100))
-              :bench-plan bench-plans/histogram))
-
-;; The histogram shows timing samples on a log scale. Look for:
-;;
-;; - **Shape**: A tight cluster indicates consistent performance
-;; - **Spread**: Wide spread suggests variable execution times
-;; - **Distant bars**: Bars far to the right are slow outliers
-;;   (often from GC or OS interrupts)
-;;
-;; The quantiles section shows percentiles:
-;;
-;; - `p50` — median (half of samples are faster)
-;; - `p90` — 90th percentile
-;; - `p99` — 99th percentile (tail latency)
-
 ;; ## Next Steps
 ;;
 ;; Now that you can run benchmarks, read the

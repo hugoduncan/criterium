@@ -2,8 +2,10 @@
   "Extreme value analysis for understanding worst-case latency."
   (:require
    [criterium.bench :as bench]
-   [criterium.bench-plans :as bench-plans]
-   [criterium.notebook.helpers :refer [bench-display]]))
+   [criterium.bench-plans :as bench-plans]))
+
+^:kindly/hide-code
+(bench/set-default-viewer! :kindly)
 
 ;; # Tail Analysis
 ;;
@@ -27,10 +29,8 @@
 ;;
 ;; Use the `tail-analysis` bench plan for extreme value analysis:
 
-^:kindly/hide-code
-(bench-display
- (bench/bench (reduce + (range 1000))
-              :bench-plan bench-plans/tail-analysis))
+(bench/bench (reduce + (range 1000))
+             :bench-plan bench-plans/tail-analysis)
 
 ;; The output includes:
 ;;
@@ -169,10 +169,8 @@
       (do (Thread/sleep 1) base)  ; 5% chance of slow path
       base)))
 
-^:kindly/hide-code
-(bench-display
- (bench/bench (variable-work)
-              :bench-plan bench-plans/tail-analysis))
+(bench/bench (variable-work)
+             :bench-plan bench-plans/tail-analysis)
 
 ;; **What to look for in the Hill plot:**
 ;;
@@ -379,3 +377,6 @@
 ;; For distribution shape analysis without tail focus, see
 ;; [Parametric Analysis](./parametric_analysis.html) or
 ;; [Non-Parametric Analysis](./non_parametric_analysis.html).
+
+^:kindly/hide-code
+(bench/set-default-viewer! :print)

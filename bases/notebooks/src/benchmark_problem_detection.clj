@@ -2,8 +2,10 @@
   "Detecting and diagnosing benchmark problems using criterium's default analysis."
   (:require
    [criterium.bench :as bench]
-   [criterium.bench-plans :as bench-plans]
-   [criterium.notebook.helpers :refer [bench-display]]))
+   [criterium.bench-plans :as bench-plans]))
+
+^:kindly/hide-code
+(bench/set-default-viewer! :kindly)
 
 ;; # Benchmark Problem Detection
 ;;
@@ -35,9 +37,7 @@
 ;;
 ;; First, let's see what healthy benchmark output looks like:
 
-^:kindly/hide-code
-(bench-display
- (bench/bench (reduce + (range 100))))
+(bench/bench (reduce + (range 100)))
 
 ;; A clean benchmark shows:
 ;;
@@ -76,12 +76,10 @@
 ;; When benchmarked with random path selection, it produces a bimodal
 ;; distribution:
 
-^:kindly/hide-code
-(bench-display
- (bench/bench
-  (variable-work 100 (zero? (mod (rand-int 100) 3)))
-  :bench-plan bench-plans/histogram
-  :viewer :kindly))
+(bench/bench
+ (variable-work 100 (zero? (mod (rand-int 100) 3)))
+ :bench-plan bench-plans/histogram
+ :viewer :kindly)
 
 ;; The histogram shows two distinct peaks, and criterium reports:
 ;;
@@ -147,8 +145,8 @@
         (swap! state (fn [{:keys [mode counter switch-at] :as s}]
                        (let [c (inc counter)]
                          (if (>= c switch-at)
-                           {:mode (if (= mode :fast) :slow :fast)
-                            :counter 0
+                           {:mode      (if (= mode :fast) :slow :fast)
+                            :counter   0
                             :switch-at (+ 80 (rand-int 120))}
                            (assoc s :counter c)))))
         (if (= mode :fast)
@@ -157,9 +155,7 @@
 
 (def stateful-work (make-stateful-work 50))
 
-^:kindly/hide-code
-(bench-display
- (bench/bench (stateful-work)))
+(bench/bench (stateful-work))
 
 ;; The autocorrelation classification may show:
 ;;
@@ -303,3 +299,6 @@
 ;; - [Warmup](./warmup.html) - JIT compilation and warmup controls
 ;; - [Non-Parametric Analysis](./non_parametric_analysis.html) - Histogram, KDE, mode detection
 ;; - [Repeatability](./repeatability.html) - Understanding and improving consistency
+
+^:kindly/hide-code
+(bench/set-default-viewer! :print)

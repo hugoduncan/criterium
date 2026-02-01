@@ -2,8 +2,10 @@
   "Non-parametric analysis for benchmark samples: histogram, KDE, and mode detection."
   (:require
    [criterium.bench :as bench]
-   [criterium.bench-plans :as bench-plans]
-   [criterium.notebook.helpers :refer [bench-display]]))
+   [criterium.bench-plans :as bench-plans]))
+
+^:kindly/hide-code
+(bench/set-default-viewer! :kindly)
 
 ;; # Non-Parametric Analysis
 ;;
@@ -32,10 +34,8 @@
 ;;
 ;; The `histogram` bench plan enables all three techniques:
 
-^:kindly/hide-code
-(bench-display
- (bench/bench (reduce + (vec (range 20)))
-              :bench-plan bench-plans/histogram))
+(bench/bench (reduce + (vec (range 20)))
+             :bench-plan bench-plans/histogram)
 
 ;; The output shows:
 ;;
@@ -73,10 +73,8 @@
   (-> bench-plans/histogram
       (assoc-in [:analyse 5] [:histogram {:method :freedman-diaconis}])))
 
-^:kindly/hide-code
-(bench-display
- (bench/bench (reduce + (vec (range 20)))
-              :bench-plan fd-histogram-plan))
+(bench/bench (reduce + (vec (range 20)))
+             :bench-plan fd-histogram-plan)
 
 ;; ### Configuration Options
 ;;
@@ -217,8 +215,8 @@
                :viewer :none)
   (let [data (:data (bench/last-bench))]
     {:histogram-bins (get-in data [:histogram :elapsed-time :bin-count])
-     :kde-bandwidth (get-in data [:kde :kdes [:elapsed-time] :bandwidth])
-     :n-modes (get-in data [:modes :modes [:elapsed-time] :n-modes])
+     :kde-bandwidth  (get-in data [:kde :kdes [:elapsed-time] :bandwidth])
+     :n-modes        (get-in data [:modes :modes [:elapsed-time] :n-modes])
      :mode-locations (mapv :mode
                            (get-in data [:modes :modes [:elapsed-time] :modes]))}))
 
@@ -235,3 +233,6 @@
 ;;
 ;; For the full technical details on KDE and mode testing methods, see
 ;; [KDE Analysis](./criterium.kde_analysis_notebook.html).
+
+^:kindly/hide-code
+(bench/set-default-viewer! :print)

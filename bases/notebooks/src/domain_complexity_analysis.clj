@@ -4,8 +4,7 @@
    [criterium.bench :as bench]
    [criterium.domain :as domain]
    [criterium.domain-plans :as domain-plans]
-   [criterium.domain.builder :as builder]
-   [criterium.notebook.helpers :refer [bench-display]]))
+   [criterium.domain.builder :as builder]))
 
 ;; # Domain Complexity Analysis
 ;;
@@ -48,14 +47,12 @@
 
 ;; Benchmark sorting across different input sizes:
 
-^:kindly/hide-code
-(bench-display
- (domain/bench
-  (domain/domain-expr
-   [n (builder/log-range 100 10000 5)]
-   (sort (random-vec n)))
-  :domain-plan domain-plans/complexity-analysis
-  :bench-options {:limit-time-s 1}))
+(domain/bench
+ (domain/domain-expr
+  [n (builder/log-range 8 128 5)]
+  (sort (random-vec n)))
+ :domain-plan domain-plans/complexity-analysis
+ :bench-options {:limit-time-s 5})
 
 ;; The `domain-expr` macro defines:
 ;;
@@ -167,14 +164,12 @@
 ;;
 ;; Options passed to each individual benchmark:
 
-^:kindly/hide-code
-(bench-display
- (domain/bench
-  (domain/domain-expr
-   [n (builder/log-range 100 1000 3)]
-   (sort (random-vec n)))
-  :domain-plan domain-plans/complexity-analysis
-  :bench-options {:limit-time-s 0.5}))
+(domain/bench
+ (domain/domain-expr
+  [n (builder/log-range 8 128 5)]
+  (sort (random-vec n)))
+ :domain-plan domain-plans/complexity-analysis
+ :bench-options {:limit-time-s 5})
 
 ;; Common bench-options:
 ;;
@@ -185,15 +180,13 @@
 ;;
 ;; Control progress output. Set to `nil` for silent operation:
 
-^:kindly/hide-code
-(bench-display
- (domain/bench
-  (domain/domain-expr
-   [n [100 500 1000]]
-   (sort (random-vec n)))
-  :domain-plan domain-plans/complexity-analysis
-  :reporter nil
-  :bench-options {:limit-time-s 0.5}))
+(domain/bench
+ (domain/domain-expr
+  [n [8 16 32 64 128]]
+  (sort (random-vec n)))
+ :domain-plan domain-plans/complexity-analysis
+ :reporter nil
+ :bench-options {:limit-time-s 10})
 
 ;; ### :time-axis
 ;;
@@ -218,7 +211,7 @@
   "A deliberately slow O(n²) sort for demonstration."
   [coll]
   (let [v (vec coll)]
-    (loop [v v
+    (loop [v        v
            swapped? true]
       (if-not swapped?
         v
@@ -234,15 +227,13 @@
 
 ;; Compare the two at small sizes (bubble sort is too slow for large n):
 
-^:kindly/hide-code
-(bench-display
- (domain/bench
-  (domain/domain-expr
-   [n (builder/log-range 10 100 4)]
-   {:built-in (sort (random-vec n))
-    :bubble   (bubble-sort (random-vec n))})
-  :domain-plan domain-plans/complexity-analysis
-  :bench-options {:limit-time-s 0.5}))
+(domain/bench
+ (domain/domain-expr
+  [n (builder/log-range 4 64 5)]
+  {:built-in (sort (random-vec n))
+   :bubble   (bubble-sort (random-vec n))})
+ :domain-plan domain-plans/complexity-analysis
+ :bench-options {:limit-time-s 5})
 
 ;; The regression results show:
 ;;
