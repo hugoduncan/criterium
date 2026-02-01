@@ -1,7 +1,20 @@
 {:min-bb-version "0.8.0"
  :tasks
- {dev {:doc "Build C++ agent and prepare dependencies"
+ {:requires [[babashka.fs :as fs]]
+
+  dev {:doc "Build C++ agent and prepare dependencies"
        :task (do
                (babashka.process/shell {:dir "agent-cpp"} "cmake" "-B" "build")
                (babashka.process/shell {:dir "agent-cpp"} "cmake" "--build" "build")
-               (babashka.process/shell {:dir "bases/criterium"} "clojure" "-T:deps" "prep"))}}}
+               (babashka.process/shell {:dir "bases/criterium"} "clojure" "-T:deps" "prep"))}
+
+  lint {:doc "Run clj-kondo on all source code"
+        :task (let [dirs (filterv fs/directory?
+                                  (concat (fs/glob "." "bases/*/src")
+                                          (fs/glob "." "bases/*/test")
+                                          (fs/glob "." "components/*/src")
+                                          (fs/glob "." "components/*/test")
+                                          (map fs/path ["build/src" "build/test"
+                                                        "development/src" "development/test"])))]
+                (apply babashka.process/shell {:continue true}
+                       "clj-kondo" "--lint" (map str dirs)))}}}
