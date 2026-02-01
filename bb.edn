@@ -1,0 +1,7 @@
+{:min-bb-version "0.8.0"
+ :tasks
+ {dev {:doc "Build C++ agent and prepare dependencies"
+       :task (do
+               (babashka.process/shell {:dir "agent-cpp"} "cmake" "-B" "build")
+               (babashka.process/shell {:dir "agent-cpp"} "cmake" "--build" "build")
+               (babashka.process/shell {:dir "bases/criterium"} "clojure" "-T:deps" "prep"))}}}
