@@ -1,0 +1,94 @@
+---
+title: "Benchmarking Goals and Context"
+---
+
+Before diving into benchmarking, consider what you want to learn. Your goals
+determine which criterium features and analysis methods are most appropriate.
+
+## What is your goal in benchmarking?
+
+Common benchmarking goals include:
+
+- **Performance validation**: Verify code meets latency requirements
+- **Regression detection**: Catch performance degradations
+- **Implementation comparison**: Choose between alternative approaches
+- **Optimization guidance**: Identify where optimization effort pays off
+- **Capacity planning**: Understand throughput limits
+
+## Is this code on a hotpath?
+
+Code executed frequently (hotpaths) receives aggressive JIT optimization.
+Infrequently executed code may never be fully optimized.
+
+| Execution Pattern | Warmup Approach | See |
+|-------------------|-----------------|-----|
+| Hotpath (called millions of times) | Full JIT warmup with varied inputs | [Warmup](./warmup.html) |
+| Occasional (called periodically) | Reduced warmup, measure cold performance | [Quickstart](./quickstart.html) |
+| One-shot (startup, initialization) | Minimal warmup, focus on first-call time | [Analysis and View Options](./analysis_and_view_options.html) |
+
+## What is the normal calling pattern?
+
+The JIT optimizes based on observed inputs. Warmup should use representative
+arguments to avoid over-specialization.
+
+**Questions to consider:**
+
+- What argument sizes occur in production?
+- Is there variation in input characteristics?
+- Are there multiple calling contexts?
+
+Use `:warmup-args-fn` to provide varied inputs during warmup. See
+[Warmup](./warmup.html) for techniques.
+
+## In-place or isolated measurement?
+
+| Approach | Use When | See |
+|----------|----------|-----|
+| **Isolated** (standalone bench) | Measuring algorithm performance independent of system | [Quickstart](./quickstart.html) |
+| **In-place** (instrumented) | Understanding performance in production context | [In-Situ Measurement](./in_situ.html) |
+| **Sampled** (periodic capture) | Long-running systems with minimal overhead | [In-Situ Measurement](./in_situ.html) |
+
+## Typical or unusual performance?
+
+| Interest | Analysis Method | See |
+|----------|-----------------|-----|
+| **Typical** (mean, median) | Standard statistics | [Quickstart](./quickstart.html) |
+| **Distribution shape** | KDE, histogram | [Non-Parametric Analysis](./non_parametric_analysis.html) |
+| **Worst-case latency** | Tail analysis, percentiles | [Tail Analysis](./tail_analysis.html) |
+| **Fitting models** | Distribution fitting | [Parametric Analysis](./parametric_analysis.html) |
+
+## Single point or range of inputs?
+
+| Scope | Approach | See |
+|-------|----------|-----|
+| **Single input size** | Standard bench | [Quickstart](./quickstart.html) |
+| **Range of sizes** | Domain benchmarking | [Domain Complexity Analysis](./domain_complexity_analysis.html) |
+| **Complexity analysis** | Domain with model fitting | [Domain Complexity Analysis](./domain_complexity_analysis.html) |
+| **Automated sweeps** | Domain builder | [Domain Complexity Analysis](./domain_complexity_analysis.html) |
+
+## Comparing implementations?
+
+| Comparison Type | Approach | See |
+|-----------------|----------|-----|
+| **Two implementations** | Run bench on each, compare means | [Quickstart](./quickstart.html) |
+| **Multiple implementations** | Domain with :impl axis | [Domain Comparison Analysis](./domain_comparison_analysis.html) |
+| **Scaling comparison** | Domain analysis across sizes | [Domain Complexity Analysis](./domain_complexity_analysis.html) |
+
+## Additional considerations
+
+### Memory and allocations
+
+If allocation pressure matters, enable allocation tracking using the
+`:allocation-analysis` bench plan (see [Analysis and View Options](./analysis_and_view_options.html)).
+
+## Quick reference
+
+| Goal | Start Here |
+|------|------------|
+| Simple timing | [Quickstart](./quickstart.html) |
+| Configure warmup/sampling | [Analysis and View Options](./analysis_and_view_options.html) |
+| Varied inputs during warmup | [Warmup](./warmup.html) |
+| Compare across input sizes | [Domain Complexity Analysis](./domain_complexity_analysis.html) |
+| Compare implementations | [Domain Comparison Analysis](./domain_comparison_analysis.html) |
+| Analyze tail latency | [Tail Analysis](./tail_analysis.html) |
+| Production monitoring | [In-Situ Measurement](./in_situ.html) |

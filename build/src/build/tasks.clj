@@ -146,17 +146,24 @@
 
   Options:
     :aliases - additional aliases to include (e.g., :with-agent-mac)
+    :run-quarto - if true, run quarto after generating qmd files
+
+  Additional options are passed through to Clay's make! function.
 
   Usage:
     clojure -T:build notebooks
     clojure -T:build notebooks :aliases :with-agent-mac
+    clojure -T:build notebooks :run-quarto true
 
   Returns: nil"
-  [{:keys [aliases]}]
+  [{:keys [aliases] :as params}]
   (let [alias-str (if aliases
                     (str ":render-docs::blackhole:" (name aliases))
                     ":render-docs::blackhole")
-        pb (ProcessBuilder. ["clojure" (str "-M" alias-str)])
+        opts (dissoc params :aliases)
+        base-args ["clojure" (str "-X" alias-str) "notebook.render/render-site-cli!"]
+        args (into base-args (mapcat (fn [[k v]] [(str k) (pr-str v)]) opts))
+        pb (ProcessBuilder. args)
         _ (.inheritIO pb)
         proc (.start pb)
         exit (.waitFor proc)]

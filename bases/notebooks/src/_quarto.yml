@@ -1,0 +1,25 @@
+project:
+  type: website
+  output-dir: .
+
+website:
+  title: "Criterium Documentation"
+  sidebar:
+    style: docked
+    contents:
+      - href: criterium.index.qmd
+        text: Home
+      - section: "Getting Started"
+        contents:
+          - quickstart.qmd
+          - warmup.qmd
+          - benchmark_problem_detection.qmd
+          - non_parametric_analysis.qmd
+          - parametric_analysis.qmd
+          - tail_analysis.qmd
+          - analysis_and_view_options.qmd
+          - in_situ.qmd
+      - section: "Domain Analysis"
+        contents:
+          - domain_complexity_analysis.qmd
+          - domain_comparison_analysis.qmd

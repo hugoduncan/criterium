@@ -1,4 +1,4 @@
-(ns criterium.notebook.helpers
+(ns notebook.helpers
   "Helper utilities for criterium notebooks."
   (:require
    [scicloj.kindly.v4.kind :as kind]))

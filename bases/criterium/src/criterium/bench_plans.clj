@@ -132,22 +132,23 @@
              [:allocation-hotspots {:limit 10}]
              :allocation-by-type
              :allocation-treemap]
-   :view [[:stats {:metric-ids [:memory]}]
+   :view [:collect-plan
+          [:stats {:metric-ids [:memory]}]
           :bootstrap-stats
-          [:autocorrelation-classification {:classification-id :autocorrelation-classification-raw}]
-          [:effective-sample-size {:ess-id :effective-sample-size-filtered}]
-          [:acf-plot {:autocorrelation-id :autocorrelation-raw
-                      :min-severity :moderate}]
           :extremes
+          :shape-stats
+          :outlier-counts
+          :event-stats
           [:stats {:stats-id :kde-stats}]
           :quantiles
-          :event-stats
-          :outlier-counts
-          :collect-plan
           [:histogram {:stats-id :log-stats}]
           [:kde {:histogram-id :histograms :modes-id :modes}]
           :sample-percentiles
           :samples
+          [:autocorrelation-classification {:classification-id :autocorrelation-classification-raw}]
+          [:effective-sample-size {:ess-id :effective-sample-size-filtered}]
+          [:acf-plot {:autocorrelation-id :autocorrelation-raw
+                      :min-severity :moderate}]
           :allocation-summary
           :allocation-hotspots
           :allocation-by-type
@@ -205,12 +206,12 @@
              :allocation-by-type]
    :view [[:stats {:metric-ids [:memory]}]
           :bootstrap-stats
+          :extremes
+          :shape-stats
           [:autocorrelation-classification {:classification-id :autocorrelation-classification-raw}]
           [:effective-sample-size {:ess-id :effective-sample-size-filtered}]
           [:acf-plot {:autocorrelation-id :autocorrelation-raw
                       :min-severity :moderate}]
-          :extremes
-          :shape-stats
           :distribution-models
           :distribution-parameter-cis
           :distribution-pdf
