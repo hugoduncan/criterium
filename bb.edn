@@ -1,0 +1,32 @@
+{:min-bb-version "0.8.0"
+ :tasks
+ {:requires [[babashka.fs :as fs]]
+
+  dev {:doc "Build C++ agent and prepare dependencies"
+       :task (do
+               (babashka.process/shell {:dir "agent-cpp"} "cmake" "-B" "build")
+               (babashka.process/shell {:dir "agent-cpp"} "cmake" "--build" "build")
+               (babashka.process/shell {:dir "bases/criterium"} "clojure" "-T:deps" "prep"))}
+
+  lint {:doc "Run clj-kondo on all source code"
+        :task (let [dirs (filterv fs/directory?
+                                  (concat (fs/glob "." "bases/*/src")
+                                          (fs/glob "." "bases/*/test")
+                                          (fs/glob "." "bases/*/validation")
+                                          (fs/glob "." "components/*/src")
+                                          (fs/glob "." "components/*/test")
+                                          (map fs/path ["build/src" "build/test"
+                                                        "development/src" "development/test"])))
+                    result (apply babashka.process/shell {:continue true}
+                                  "clj-kondo" "--lint" (map str dirs))]
+                (System/exit (:exit result)))}
+
+  fmt {:doc "Check or fix code formatting (bb fmt check | bb fmt fix)"
+       :task (let [subcommand (first *command-line-args*)]
+               (case subcommand
+                 "check" (babashka.process/shell "clojure" "-M:cljfmt" "check")
+                 "fix" (babashka.process/shell "clojure" "-M:cljfmt" "fix")
+                 (do (println "Usage: bb fmt <check|fix>")
+                     (println "  check - Check formatting without changes")
+                     (println "  fix   - Fix formatting in place")
+                     (System/exit 1))))}}}
