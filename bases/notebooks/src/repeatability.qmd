@@ -148,7 +148,7 @@ setarch $(uname -m) -R java -jar benchmark.jar
 
 Criterium handles warmup automatically, but ensure sufficient iterations. Use
 `:limit-time-s` or `:limit-iters` to control warmup duration. See
-[Warmup](./criterium.warmup_notebook.html) for details.
+[Warmup](./warmup.html) for details.
 
 **Control GC behavior:**
 
@@ -202,7 +202,7 @@ median when comparing between runs.
 results vary by 20%, a 5% difference between implementations is not significant.
 
 **Relative comparisons:** When possible, compare implementations in the same
-run using [Domain Bench](./criterium.domain_bench_notebook.html) with an `:impl`
+run using [Domain Comparison Analysis](./domain_comparison_analysis.html) with an `:impl`
 axis. This controls for environmental factors that affect both equally.
 
 ## Summary

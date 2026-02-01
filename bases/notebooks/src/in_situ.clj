@@ -204,9 +204,7 @@
 
 ;; ## Further Reading
 ;;
-;; For detailed API coverage:
+;; For additional details, see:
 ;;
-;; - [Instrumented Functions](./criterium.instrument_fn_notebook.html) -
-;;   Full instrument-fn API with HTTP handler examples
-;; - [Sampled Functions](./criterium.sampled_fn_notebook.html) -
-;;   Full sampled-fn API with database monitoring examples
+;; - [Analysis and View Options](./analysis_and_view_options.html) -
+;;   Configuring analysis steps and output views

@@ -237,8 +237,6 @@
 ;;
 ;; - [Domain Complexity Analysis](./domain_complexity_analysis.html) -
 ;;   Analyze algorithmic complexity
-;; - [Domain Bench](./criterium.domain_bench_notebook.html) - More domain
-;;   benchmarking features
 ;; - [Quickstart](./quickstart.html) - Single-point benchmarking basics
 
 ^:kindly/hide-code

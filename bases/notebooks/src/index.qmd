@@ -14,6 +14,8 @@ title: "Criterium Notebooks"
 
 ## Notebooks
 
+### Getting Started
+
 - [Introduction](./introduction.html) - Benchmarking goals and choosing the right approach
 - [Quickstart](./quickstart.html) - Your first benchmark in 5 minutes
 - [Repeatability](./repeatability.html) - Understanding and improving run-to-run consistency
@@ -24,20 +26,8 @@ title: "Criterium Notebooks"
 - [Tail Analysis](./tail_analysis.html) - Extreme value analysis for worst-case latency
 - [Analysis and View Options](./analysis_and_view_options.html) - Configuring analysis steps and output views
 - [In-Situ Measurement](./in_situ.html) - Measuring functions during normal execution
-- [Basic Usage](./criterium.basic_usage_notebook.html) - Introduction to benchmarking with criterium
-- [Bench Options](./criterium.bench_options_notebook.html) - Predefined bench plans and viewer options
-- [Warmup](./criterium.warmup_notebook.html) - JIT warmup customization with varied inputs
-- [Argument Generation](./criterium.arg_gen_notebook.html) - Benchmarking with test.check generated inputs
-- [Sampled Functions](./criterium.sampled_fn_notebook.html) - Memory-efficient function sampling with t-digest aggregation
-- [Instrumented Functions](./criterium.instrument_fn_notebook.html) - Instrument functions for continuous performance sampling
-- [Allocation Tracking](./criterium.allocation_tracking_notebook.html) - Memory allocation analysis with the native agent
-- [Call Tracing](./criterium.call_tracing_notebook.html) - Method call tracing with call graph visualization
-- [Allocation Bench](./criterium.allocation_bench_notebook.html) - Benchmarking with integrated allocation analysis
+
+### Domain Analysis
+
 - [Domain Complexity Analysis](./domain_complexity_analysis.html) - Analyzing algorithmic complexity with criterium
 - [Domain Comparison Analysis](./domain_comparison_analysis.html) - Comparing implementations with criterium
-- [Domain Bench](./criterium.domain_bench_notebook.html) - Simplified domain benchmarking with domain/bench
-- [Domain Analysis](./criterium.analyse_domain_notebook.html) - Manual domain construction and analysis
-- [Domain Builder](./criterium.domain_builder_notebook.html) - Automated domain construction and workflows
-- [KDE Analysis](./criterium.kde_analysis_notebook.html) - Kernel density estimation for sample distributions
-- [Distribution Fitting](./criterium.distribution_fitting_notebook.html) - Parametric distribution fitting with model selection
-- [Tail Analysis](./criterium.tail_analysis_notebook.html) - Extreme value analysis for worst-case latency

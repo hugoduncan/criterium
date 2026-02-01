@@ -2,8 +2,7 @@
   "A quick introduction to benchmarking with criterium."
   (:require
    [criterium.bench :as bench]
-   [criterium.bench-plans :as bench-plans]
-   [criterium.notebook.helpers :refer [bench-display]]))
+   [notebook.helpers :refer [bench-display]]))
 
 ;; # Quickstart
 ;;

@@ -242,8 +242,8 @@
 
 ;; ## Next Steps
 ;;
-;; - [Domain Bench](./criterium.domain_bench_notebook.html) - More domain
-;;   benchmarking features
+;; - [Domain Comparison Analysis](./domain_comparison_analysis.html) -
+;;   Compare implementations
 ;; - [Quickstart](./quickstart.html) - Single-point benchmarking basics
 
 ^:kindly/hide-code

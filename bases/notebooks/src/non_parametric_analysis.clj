@@ -115,8 +115,7 @@
 ;;       (assoc-in [:analyse 6] [:kde {:n-points 256}])))
 ;; ```
 ;;
-;; See [KDE Analysis](./criterium.kde_analysis_notebook.html) for advanced
-;; bandwidth customization.
+;; The KDE analysis automatically selects bandwidth using the ISJ algorithm.
 
 ;; ### KDE Configuration Options
 ;;
@@ -230,9 +229,6 @@
 ;;
 ;; For advanced customization of analysis steps, see
 ;; [Analysis and View Options](./analysis_and_view_options.html).
-;;
-;; For the full technical details on KDE and mode testing methods, see
-;; [KDE Analysis](./criterium.kde_analysis_notebook.html).
 
 ^:kindly/hide-code
 (bench/set-default-viewer! :print)

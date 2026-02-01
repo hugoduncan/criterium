@@ -1,4 +1,4 @@
-(ns criterium.notebook.render
+(ns notebook.render
   "Render notebooks to HTML documentation site."
   (:require
    [clojure.edn :as edn]
@@ -7,8 +7,7 @@
 
 (def notebook-sources
   "Source paths for notebooks to render."
-  ["bases/notebooks/src/criterium/index.clj"
-   "bases/notebooks/src/quickstart.clj"
+  ["bases/notebooks/src/quickstart.clj"
    "bases/notebooks/src/warmup.clj"
    "bases/notebooks/src/benchmark_problem_detection.clj"
    "bases/notebooks/src/non_parametric_analysis.clj"
@@ -16,22 +15,8 @@
    "bases/notebooks/src/tail_analysis.clj"
    "bases/notebooks/src/analysis_and_view_options.clj"
    "bases/notebooks/src/in_situ.clj"
-   "bases/notebooks/src/criterium/basic_usage_notebook.clj"
-   "bases/notebooks/src/criterium/bench_options_notebook.clj"
-   "bases/notebooks/src/criterium/arg_gen_notebook.clj"
-   "bases/notebooks/src/criterium/sampled_fn_notebook.clj"
-   "bases/notebooks/src/criterium/instrument_fn_notebook.clj"
-   "bases/notebooks/src/criterium/allocation_tracking_notebook.clj"
-   "bases/notebooks/src/criterium/call_tracing_notebook.clj"
-   "bases/notebooks/src/criterium/allocation_bench_notebook.clj"
    "bases/notebooks/src/domain_complexity_analysis.clj"
-   "bases/notebooks/src/domain_comparison_analysis.clj"
-   "bases/notebooks/src/criterium/domain_bench_notebook.clj"
-   "bases/notebooks/src/criterium/analyse_domain_notebook.clj"
-   "bases/notebooks/src/criterium/domain_builder_notebook.clj"
-   "bases/notebooks/src/criterium/kde_analysis_notebook.clj"
-   "bases/notebooks/src/criterium/distribution_fitting_notebook.clj"
-   "bases/notebooks/src/criterium/tail_analysis_notebook.clj"])
+   "bases/notebooks/src/domain_comparison_analysis.clj"])
 
 (def quarto-config-source
   "Source path for Quarto configuration."

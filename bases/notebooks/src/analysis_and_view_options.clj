@@ -3,7 +3,7 @@
   (:require
    [criterium.bench :as bench]
    [criterium.bench-plans :as bench-plans]
-   [criterium.notebook.helpers :refer [bench-display]]
+   [notebook.helpers :refer [bench-display]]
    [scicloj.kindly.v4.kind :as kind]))
 
 ;; # Analysis and View Options
@@ -13,7 +13,7 @@
 ;; stages to customize what statistics are computed and how results are displayed.
 ;;
 ;; For predefined bench plans that bundle common configurations, see
-;; [Bench Options](./criterium.bench_options_notebook.html).
+;; [Analysis and View Options](./analysis_and_view_options.html).
 
 ;; ## The Data-Map Model
 ;;
@@ -243,4 +243,4 @@
 ;; - IDs (`:samples-id`, `:stats-id`, etc.) connect steps together
 ;; - Use keyword form for defaults, vector form for customization
 ;; - Build custom bench plans by composing `:analyse` and `:view` vectors
-;; - For predefined configurations, see [Bench Options](./criterium.bench_options_notebook.html)
+;; - For predefined configurations, see [Analysis and View Options](./analysis_and_view_options.html)

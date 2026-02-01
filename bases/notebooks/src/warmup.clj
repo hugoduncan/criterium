@@ -131,8 +131,8 @@
 ;; data, the JIT may over-specialize. The `:warmup-args-fn` option provides
 ;; varied inputs during warmup.
 ;;
-;; See the [Warmup notebook](./criterium.warmup_notebook.html) for detailed
-;; coverage of varied warmup inputs and integration with test.check generators.
+;; Consider using `criterium/arg-gen` for integrating test.check generators
+;; with benchmark argument generation.
 
 ;; ## Matching Warmup to Your Goals
 ;;
