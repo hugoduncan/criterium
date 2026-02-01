@@ -1,0 +1,2 @@
+{:line-length 80
+ :extensions [".clj" ".cljs" ".cljc" ".edn"]}
