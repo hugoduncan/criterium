@@ -13,7 +13,7 @@ This is currently version 0.5.x (ALPHA) which represents a significant architect
 ### Testing
 ```bash
 # Build agent and prepare dependencies (required once after checkout or deps.edn changes)
-make dev
+bb dev
 
 # Run tests with Kaocha (excludes slow tests)
 clojure -M:kaocha:dev:test :all --reporter dots
@@ -71,14 +71,16 @@ clojure -T:build notebooks :aliases :with-agent-linux
 clj-kondo --lint "$(clojure -Spath -M:test)" --dependencies --parallel --copy-configs
 
 # Lint all source code
-clj-kondo --lint bases/*/src bases/*/test components/*/src components/*/test
+bb lint
 
 # Lint a specific base
 clj-kondo --lint bases/notebooks/src
 
-# Format code
-clojure -M:cljfmt check
-clojure -M:cljfmt fix
+# Check code formatting
+bb fmt check
+
+# Fix code formatting
+bb fmt fix
 
 # Check for outdated dependencies
 clojure -M:outdated
