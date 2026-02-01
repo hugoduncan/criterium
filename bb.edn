@@ -12,6 +12,7 @@
         :task (let [dirs (filterv fs/directory?
                                   (concat (fs/glob "." "bases/*/src")
                                           (fs/glob "." "bases/*/test")
+                                          (fs/glob "." "bases/*/validation")
                                           (fs/glob "." "components/*/src")
                                           (fs/glob "." "components/*/test")
                                           (map fs/path ["build/src" "build/test"
