@@ -29,4 +29,40 @@
                  (do (println "Usage: bb fmt <check|fix>")
                      (println "  check - Check formatting without changes")
                      (println "  fix   - Fix formatting in place")
-                     (System/exit 1))))}}}
+                     (System/exit 1))))}
+
+  line-length
+  {:doc "Check or fix line length (bb line-length check | bb line-length fix)"
+   :task
+   (let [line-breaker (fs/which "line-breaker")]
+     (if-not line-breaker
+       (do
+         (println "line-breaker not found on PATH.")
+         (println "Install with:")
+         (println "  curl -sL https://raw.githubusercontent.com/hugoduncan/line-breaker/master/scripts/install.sh | bash -s -- --install-dir ~/.local/bin")
+         (System/exit 1))
+       (let [dirs (filterv fs/directory?
+                           (concat (fs/glob "." "bases/*/src")
+                                   (fs/glob "." "bases/*/test")
+                                   (fs/glob "." "bases/*/validation")
+                                   (fs/glob "." "components/*/src")
+                                   (fs/glob "." "components/*/test")
+                                   (map fs/path ["build/src" "build/test"
+                                                 "development/src" "development/test"
+                                                 "projects"])))
+             subcommand (first *command-line-args*)]
+         (case subcommand
+           "check" (let [result (apply babashka.process/shell
+                                       {:continue true}
+                                       (str line-breaker) "--check"
+                                       (map str dirs))]
+                     (System/exit (:exit result)))
+           "fix" (let [result (apply babashka.process/shell
+                                     {:continue true}
+                                     (str line-breaker) "--fix"
+                                     (map str dirs))]
+                   (System/exit (:exit result)))
+           (do (println "Usage: bb line-length <check|fix>")
+               (println "  check - Check line lengths without changes")
+               (println "  fix   - Fix long lines in place")
+               (System/exit 1))))))}}}
