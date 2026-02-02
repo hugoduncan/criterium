@@ -42,7 +42,9 @@
                (conj {"Ratio" "p999/p95"
                       "Value" p999-p95
                       "Numerator" (str "p999=" (format "%.4g" (double p999)))
-                      "Denominator" (str "p95=" (format "%.4g" (double p95)))}))]
+                      "Denominator" (str
+                                     "p95="
+                                     (format "%.4g" (double p95)))}))]
     (when (seq data)
       {:data {:values data}
        :mark {:type "bar" :color "#4682b4"}

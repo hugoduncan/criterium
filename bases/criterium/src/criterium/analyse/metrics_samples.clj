@@ -103,7 +103,10 @@
              mc (when use-medcouple?
                   (outliers/medcouple sorted-samples))
              thresholds (if use-medcouple?
-                          (outliers/adjusted-boxplot-outlier-thresholds q1 q3 mc)
+                          (outliers/adjusted-boxplot-outlier-thresholds
+                           q1
+                           q3
+                           mc)
                           (outliers/boxplot-outlier-thresholds q1 q3))
              actual-method (if use-medcouple? :medcouple :tukey)
              classifier (classifier thresholds)

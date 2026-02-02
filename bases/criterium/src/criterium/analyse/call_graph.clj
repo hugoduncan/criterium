@@ -143,8 +143,12 @@
      :or {id :filtered
           call-tree-id :call-tree}}]
    (let [filter-opts (cond-> {}
-                       exclude-packages (assoc :exclude-packages exclude-packages)
-                       stop-at-packages (assoc :stop-at-packages stop-at-packages)
+                       exclude-packages (assoc
+                                         :exclude-packages
+                                         exclude-packages)
+                       stop-at-packages (assoc
+                                         :stop-at-packages
+                                         stop-at-packages)
                        max-depth (assoc :max-depth max-depth))]
      (fn [data-map]
        (let [call-tree (get data-map call-tree-id)]

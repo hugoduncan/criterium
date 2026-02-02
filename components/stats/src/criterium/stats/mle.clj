@@ -47,7 +47,9 @@
                          (fn ^double [^double acc ^double x]
                            (when (<= x 0.0)
                              (throw (IllegalArgumentException.
-                                     (str "lognormal requires positive samples, got: " x))))
+                                     (str
+                                      "lognormal requires positive samples, got: "
+                                      x))))
                            (+ acc (Math/log x)))
                          0.0)
         ;; MLE estimates

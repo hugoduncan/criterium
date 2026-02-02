@@ -346,7 +346,9 @@
                        {}
                        {:extract {:type :criterium/domain-extract
                                   :metrics {:elapsed-time
-                                            {:metric [:stats :elapsed-time :mean]
+                                            {:metric [:stats
+                                                      :elapsed-time
+                                                      :mean]
                                              :data [[{:n 100} 1e6]
                                                     [{:n 200} 2e6]
                                                     [{:n 400} 4e6]
@@ -354,10 +356,13 @@
                         :regression {:type :criterium/domain-regression
                                      :axis :n
                                      :regressions {:elapsed-time
-                                                   {:metric [:stats :elapsed-time :mean]
+                                                   {:metric [:stats
+                                                             :elapsed-time
+                                                             :mean]
                                                     :models [{:id :linear
                                                               :label "O(n)"
-                                                              :coefficients {:a 10000.0 :b 0.0}
+                                                              :coefficients {:a 10000.0
+                                                                             :b 0.0}
                                                               :equation-str "y = 10000*n + 0"
                                                               :predict-fn (fn [x] (* 10000.0 x))
                                                               :r-squared 0.9999}

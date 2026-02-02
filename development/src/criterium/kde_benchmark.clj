@@ -171,14 +171,16 @@
 
 ;; ### build-distance-matrix
 
-(let [sorted-data (double-array (sort (seq (.array ^criterium.array.DoubleArray data-30))))]
+(let [sorted-data (double-array
+                   (sort (seq (.array ^criterium.array.DoubleArray data-30))))]
   (bench/bench (#'kde/build-distance-matrix sorted-data)
                :with-allocation-trace true
                :collect-plan :one-shot))
 
 ;; ### compute-all-interval-distances
 
-(let [sorted-data (double-array (sort (seq (.array ^criterium.array.DoubleArray data-30))))
+(let [sorted-data (double-array
+                   (sort (seq (.array ^criterium.array.DoubleArray data-30))))
       dist-arr (#'kde/build-distance-matrix sorted-data)
       n (alength sorted-data)]
   (bench/bench (#'kde/compute-all-interval-distances dist-arr n 3)

@@ -97,10 +97,13 @@
       []
       (when-let [deps (read-deps-edn deps-path)]
         (let [local-deps (get-local-root-deps deps alias-keys)
-              {:keys [paths src-paths test-paths]} (get-paths-from-deps deps-path)
+              {:keys [paths
+                      src-paths
+                      test-paths]} (get-paths-from-deps deps-path)
               all-paths (concat paths src-paths test-paths)
               ;; Make paths absolute
-              abs-paths (map #(str root-dir "/" %) all-paths)
+              abs-paths
+              (map #(str root-dir "/" %) all-paths)
               ;; Recursively get paths from local deps
               dep-paths (mapcat #(collect-all-paths
                                   (str root-dir "/" %)

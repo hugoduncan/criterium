@@ -86,7 +86,8 @@
         (when (seq points)
           ;; Transform x-values for display
           (let [display-points (mapv (fn [[x y]]
-                                       [(util/transform-sample-> x transforms) y])
+                                       [(util/transform-sample-> x transforms)
+                                        y])
                                      points)
                 header (header-fn label n)
                 chart-lines (ascii-chart/render-chart

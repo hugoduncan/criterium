@@ -97,7 +97,12 @@
       (let [n 8
             ;; cos(2π·1·i/8) for i=0..7
             input (double-array (mapcat (fn [^long i]
-                                          [(Math/cos (* 2.0 Math/PI (double i) (/ 1.0 n)))
+                                          [(Math/cos
+                                            (*
+                                             2.0
+                                             Math/PI
+                                             (double i)
+                                             (/ 1.0 n)))
                                            0.0])
                                         (range n)))
             result (fft/fft! input)
@@ -211,8 +216,13 @@
             ;; Create a signal: sum of two cosines
             input (double-array
                    (mapcat (fn [^long i]
-                             [(+ (Math/cos (* 2.0 Math/PI 3.0 (double i) (/ 1.0 n)))
-                                 (* 0.5 (Math/cos (* 2.0 Math/PI 10.0 (double i) (/ 1.0 n)))))
+                             [(+
+                               (Math/cos
+                                (* 2.0 Math/PI 3.0 (double i) (/ 1.0 n)))
+                               (*
+                                0.5
+                                (Math/cos
+                                 (* 2.0 Math/PI 10.0 (double i) (/ 1.0 n)))))
                               0.0])
                            (range n)))
             result (fft/fft! input)

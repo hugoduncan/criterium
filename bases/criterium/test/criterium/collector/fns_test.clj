@@ -13,7 +13,9 @@
     (let [[allocations res]     (agent/with-allocation-tracing
                                   {:a "a"})
           {:keys [freed-bytes]} (agent/allocations-summary
-                                 (filterv (agent/allocation-on-thread?) allocations))]
+                                 (filterv
+                                  (agent/allocation-on-thread?)
+                                  allocations))]
       (is (some? res))
       (is (zero? freed-bytes)
           (filterv agent/allocation-freed?
@@ -22,7 +24,9 @@
                                   {:a "a"
                                    :b "b"})
           {:keys [freed-bytes]} (agent/allocations-summary
-                                 (filterv (agent/allocation-on-thread?) allocations))]
+                                 (filterv
+                                  (agent/allocation-on-thread?)
+                                  allocations))]
       (is (some? res))
       (is (zero? freed-bytes)
           (filterv agent/allocation-freed?
@@ -30,7 +34,9 @@
     (let [[allocations res]     (agent/with-allocation-tracing
                                   [:a :b])
           {:keys [freed-bytes]} (agent/allocations-summary
-                                 (filterv (agent/allocation-on-thread?) allocations))]
+                                 (filterv
+                                  (agent/allocation-on-thread?)
+                                  allocations))]
       (is (some? res))
       (is (zero? freed-bytes)
           (filterv agent/allocation-freed?
@@ -38,7 +44,9 @@
     (let [[allocations res]     (agent/with-allocation-tracing
                                   (criterium.jvm/class-loader-counts))
           {:keys [freed-bytes]} (agent/allocations-summary
-                                 (filterv (agent/allocation-on-thread?) allocations))]
+                                 (filterv
+                                  (agent/allocation-on-thread?)
+                                  allocations))]
       (is (some? res))
       (is (zero? freed-bytes)
           (filterv agent/allocation-freed?
@@ -47,7 +55,9 @@
                                   [(criterium.jvm/class-loader-counts)
                                    (criterium.jvm/class-loader-counts)])
           {:keys [freed-bytes]} (agent/allocations-summary
-                                 (filterv (agent/allocation-on-thread?) allocations))]
+                                 (filterv
+                                  (agent/allocation-on-thread?)
+                                  allocations))]
       (is (some? res))
       (is (zero? freed-bytes)
           (filterv agent/allocation-freed?
@@ -58,7 +68,9 @@
                                         (f 2))
                                      (f 3)))
           {:keys [freed-bytes]} (agent/allocations-summary
-                                 (filterv (agent/allocation-on-thread?) allocations))]
+                                 (filterv
+                                  (agent/allocation-on-thread?)
+                                  allocations))]
       (tap> (filterv agent/allocation-freed?
                      (filterv (agent/allocation-on-thread?) allocations)))
       (is (zero? freed-bytes)
@@ -81,11 +93,15 @@
                                       (agent/with-allocation-tracing
                                         ((:f p) sample measured state 1 0)))
               ;; clear any allocations from warmup
-              _                     (reset! agent-core/records [])
-              [allocations res]     (agent/with-allocation-tracing
-                                      ((:f p) sample measured state 1 0))
-              relevant-allocations  (filterv (agent/allocation-on-thread?) allocations)
-              {:keys [freed-bytes]} (agent/allocations-summary relevant-allocations)]
+              _
+              (reset! agent-core/records [])
+              [allocations res]
+              (agent/with-allocation-tracing
+                ((:f p) sample measured state 1 0))
+              relevant-allocations
+              (filterv (agent/allocation-on-thread?) allocations)
+              {:keys [freed-bytes]}
+              (agent/allocations-summary relevant-allocations)]
           (is (= [1 1] res))
           (is (zero? freed-bytes)
               (pr-str (filterv agent/allocation-freed? relevant-allocations)))
@@ -94,16 +110,21 @@
       (testing "for elapsed-time-only metric"
         (let [sample                (make-array Object 1)
               p                     (collector/collector
-                                     {:stages [] :terminator :elapsed-time-only})
+                                     {:stages []
+                                      :terminator :elapsed-time-only})
               _                     (dotimes [_ 10]
                                       (agent/with-allocation-tracing
                                         ((:f p) sample measured state 1 0)))
               ;; clear any allocations from warmup
-              _                     (reset! agent-core/records [])
-              [allocations res]     (agent/with-allocation-tracing
-                                      ((:f p) sample measured state 1 0))
-              relevant-allocations  (filterv (agent/allocation-on-thread?) allocations)
-              {:keys [freed-bytes]} (agent/allocations-summary relevant-allocations)]
+              _
+              (reset! agent-core/records [])
+              [allocations res]
+              (agent/with-allocation-tracing
+                ((:f p) sample measured state 1 0))
+              relevant-allocations
+              (filterv (agent/allocation-on-thread?) allocations)
+              {:keys [freed-bytes]}
+              (agent/allocations-summary relevant-allocations)]
           (is (= [1 1] res))
           (is (zero? freed-bytes)
               (pr-str (filterv agent/allocation-freed? relevant-allocations)))
@@ -118,11 +139,15 @@
                                       (agent/with-allocation-tracing
                                         ((:f p) sample measured state 1 0)))
               ;; clear any allocations from warmup
-              _                     (reset! agent-core/records [])
-              [allocations res]     (agent/with-allocation-tracing
-                                      ((:f p) sample measured state 1 0))
-              relevant-allocations  (filterv (agent/allocation-on-thread?) allocations)
-              {:keys [freed-bytes]} (agent/allocations-summary relevant-allocations)]
+              _
+              (reset! agent-core/records [])
+              [allocations res]
+              (agent/with-allocation-tracing
+                ((:f p) sample measured state 1 0))
+              relevant-allocations
+              (filterv (agent/allocation-on-thread?) allocations)
+              {:keys [freed-bytes]}
+              (agent/allocations-summary relevant-allocations)]
           (is (nil? res))
           (is (zero? freed-bytes)
               (pr-str (filterv agent/allocation-freed? relevant-allocations)))
@@ -137,11 +162,15 @@
                                       (agent/with-allocation-tracing
                                         ((:f p) sample measured state 1 0)))
               ;; clear any allocations from warmup
-              _                     (reset! agent-core/records [])
-              [allocations res]     (agent/with-allocation-tracing
-                                      ((:f p) sample measured state 1 0))
-              relevant-allocations  (filterv (agent/allocation-on-thread?) allocations)
-              {:keys [freed-bytes]} (agent/allocations-summary relevant-allocations)]
+              _
+              (reset! agent-core/records [])
+              [allocations res]
+              (agent/with-allocation-tracing
+                ((:f p) sample measured state 1 0))
+              relevant-allocations
+              (filterv (agent/allocation-on-thread?) allocations)
+              {:keys [freed-bytes]}
+              (agent/allocations-summary relevant-allocations)]
           (is (nil? res))
           (is (zero? freed-bytes)
               (pr-str (filterv agent/allocation-freed? relevant-allocations)))
@@ -156,11 +185,15 @@
                                       (agent/with-allocation-tracing
                                         ((:f p) sample measured state 1 0)))
               ;; clear any allocations from warmup
-              _                     (reset! agent-core/records [])
-              [allocations res]     (agent/with-allocation-tracing
-                                      ((:f p) sample measured state 1 0))
-              relevant-allocations  (filterv (agent/allocation-on-thread?) allocations)
-              {:keys [freed-bytes]} (agent/allocations-summary relevant-allocations)]
+              _
+              (reset! agent-core/records [])
+              [allocations res]
+              (agent/with-allocation-tracing
+                ((:f p) sample measured state 1 0))
+              relevant-allocations
+              (filterv (agent/allocation-on-thread?) allocations)
+              {:keys [freed-bytes]}
+              (agent/allocations-summary relevant-allocations)]
           (is (nil? res))
           (is (zero? freed-bytes)
               (pr-str (filterv agent/allocation-freed? relevant-allocations)))
@@ -175,11 +208,15 @@
                                       (agent/with-allocation-tracing
                                         ((:f p) sample measured state 1 0)))
               ;; clear any allocations from warmup
-              _                     (reset! agent-core/records [])
-              [allocations res]     (agent/with-allocation-tracing
-                                      ((:f p) sample measured state 1 0))
-              relevant-allocations  (filterv (agent/allocation-on-thread?) allocations)
-              {:keys [freed-bytes]} (agent/allocations-summary relevant-allocations)]
+              _
+              (reset! agent-core/records [])
+              [allocations res]
+              (agent/with-allocation-tracing
+                ((:f p) sample measured state 1 0))
+              relevant-allocations
+              (filterv (agent/allocation-on-thread?) allocations)
+              {:keys [freed-bytes]}
+              (agent/allocations-summary relevant-allocations)]
           (is (nil? res))
           (is (zero? freed-bytes)
               (pr-str (filterv agent/allocation-freed? relevant-allocations)))
@@ -194,11 +231,15 @@
                                       (agent/with-allocation-tracing
                                         ((:f p) sample measured state 1 0)))
               ;; clear any allocations from warmup
-              _                     (reset! agent-core/records [])
-              [allocations res]     (agent/with-allocation-tracing
-                                      ((:f p) sample measured state 1 0))
-              relevant-allocations  (filterv (agent/allocation-on-thread?) allocations)
-              {:keys [freed-bytes]} (agent/allocations-summary relevant-allocations)]
+              _
+              (reset! agent-core/records [])
+              [allocations res]
+              (agent/with-allocation-tracing
+                ((:f p) sample measured state 1 0))
+              relevant-allocations
+              (filterv (agent/allocation-on-thread?) allocations)
+              {:keys [freed-bytes]}
+              (agent/allocations-summary relevant-allocations)]
           (is (nil? res))
           (is (zero? freed-bytes)
               (pr-str (filterv agent/allocation-freed? relevant-allocations)))
@@ -213,11 +254,15 @@
                                       (agent/with-allocation-tracing
                                         ((:f p) sample measured state 1 0)))
               ;; clear any allocations from warmup
-              _                     (reset! agent-core/records [])
-              [allocations res]     (agent/with-allocation-tracing
-                                      ((:f p) sample measured state 1 0))
-              relevant-allocations  (filterv (agent/allocation-on-thread?) allocations)
-              {:keys [freed-bytes]} (agent/allocations-summary relevant-allocations)]
+              _
+              (reset! agent-core/records [])
+              [allocations res]
+              (agent/with-allocation-tracing
+                ((:f p) sample measured state 1 0))
+              relevant-allocations
+              (filterv (agent/allocation-on-thread?) allocations)
+              {:keys [freed-bytes]}
+              (agent/allocations-summary relevant-allocations)]
           (is (nil? res))
           (is (zero? freed-bytes)
               (pr-str (filterv agent/allocation-freed? relevant-allocations)))
@@ -232,11 +277,15 @@
                                       (agent/with-allocation-tracing
                                         ((:f p) sample measured state 1 0)))
               ;; clear any allocations from warmup
-              _                     (reset! agent-core/records [])
-              [allocations res]     (agent/with-allocation-tracing
-                                      ((:f p) sample measured state 1 0))
-              relevant-allocations  (filterv (agent/allocation-on-thread?) allocations)
-              {:keys [freed-bytes]} (agent/allocations-summary relevant-allocations)]
+              _
+              (reset! agent-core/records [])
+              [allocations res]
+              (agent/with-allocation-tracing
+                ((:f p) sample measured state 1 0))
+              relevant-allocations
+              (filterv (agent/allocation-on-thread?) allocations)
+              {:keys [freed-bytes]}
+              (agent/allocations-summary relevant-allocations)]
           (is (nil? res))
           (is (zero? freed-bytes)
               (pr-str (filterv agent/allocation-freed? relevant-allocations)))
@@ -254,7 +303,8 @@
                     (fn [] [])
                     (fn [_ _] [100 :large-value]))
           state    []]
-      (testing "produces output with :elapsed-time and :expr-value :criterium/not-collected"
+      (testing
+       "produces output with :elapsed-time and :expr-value :criterium/not-collected"
         (let [^objects sample (make-array Object 1)
               p      (collector/collector
                       {:stages [] :terminator :elapsed-time-only})]

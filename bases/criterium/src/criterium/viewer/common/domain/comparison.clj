@@ -37,19 +37,21 @@
        (keep
         (fn [[metric-id {:keys [metric data]}]]
           (let [;; Build lookup: impl -> bootstrap stats value map
-                lookup (reduce
-                        (fn [acc [impl-val entries]]
-                          (reduce
-                           (fn [acc2 {:keys [value]}]
-                             (assoc acc2 impl-val value))
-                           acc
-                           entries))
-                        {}
-                        data)
+                lookup
+                (reduce
+                 (fn [acc [impl-val entries]]
+                   (reduce
+                    (fn [acc2 {:keys [value]}]
+                      (assoc acc2 impl-val value))
+                    acc
+                    entries))
+                 {}
+                 data)
                 ;; Get all values from lookup
                 all-raw-values (keep #(get lookup %) implementations)
                 ;; Check if all values have required box plot fields
-                all-have-box-data? (every? core/has-box-plot-data? all-raw-values)]
+                all-have-box-data?
+                (every? core/has-box-plot-data? all-raw-values)]
             (if-not all-have-box-data?
               (do
                 (core/warn-missing-bootstrap-stats metric-id)
@@ -69,13 +71,25 @@
                                 (fn [impl]
                                   (let [v (get lookup impl)]
                                     (cond-> {"impl" (name impl)
-                                             "median" (* (double (:median v)) total-scale)
-                                             "p10" (* (double (:p10 v)) total-scale)
-                                             "p90" (* (double (:p90 v)) total-scale)}
+                                             "median" (*
+                                                       (double (:median v))
+                                                       total-scale)
+                                             "p10" (*
+                                                    (double (:p10 v))
+                                                    total-scale)
+                                             "p90" (*
+                                                    (double (:p90 v))
+                                                    total-scale)}
                                       (contains? v :ci-lower)
-                                      (assoc "ciLower" (* (double (:ci-lower v)) total-scale))
+                                      (assoc
+                                       "ciLower"
+                                       (* (double (:ci-lower v)) total-scale))
                                       (contains? v :ci-upper)
-                                      (assoc "ciUpper" (* (double (:ci-upper v)) total-scale)))))
+                                      (assoc
+                                       "ciUpper"
+                                       (*
+                                        (double (:ci-upper v))
+                                        total-scale)))))
                                 implementations)]
                 {:metric-id metric-id
                  :metric-path metric
@@ -118,13 +132,19 @@
                         (fn [impl]
                           (let [v (get lookup impl)]
                             (cond-> {"impl" (name impl)
-                                     "median" (* (double (:median v)) total-scale)
+                                     "median" (*
+                                               (double (:median v))
+                                               total-scale)
                                      "p10" (* (double (:p10 v)) total-scale)
                                      "p90" (* (double (:p90 v)) total-scale)}
                               (contains? v :ci-lower)
-                              (assoc "ciLower" (* (double (:ci-lower v)) total-scale))
+                              (assoc
+                               "ciLower"
+                               (* (double (:ci-lower v)) total-scale))
                               (contains? v :ci-upper)
-                              (assoc "ciUpper" (* (double (:ci-upper v)) total-scale)))))
+                              (assoc
+                               "ciUpper"
+                               (* (double (:ci-upper v)) total-scale)))))
                         implementations)]
         [{:metric-id nil
           :metric-path metric

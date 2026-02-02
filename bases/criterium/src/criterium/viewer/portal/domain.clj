@@ -51,7 +51,9 @@
     (case (detection/visualization-strategy extract)
       :single-point
       (when extract
-        (let [box-spec (charts.comparison/single-point-box-chart-spec extract {:height 400})]
+        (let [box-spec (charts.comparison/single-point-box-chart-spec
+                        extract
+                        {:height 400})]
           ;; Fall back to bar chart if box plot has no data (missing bootstrap stats)
           (if (seq (:vconcat box-spec))
             (portal.core/portal-vega-lite box-spec)

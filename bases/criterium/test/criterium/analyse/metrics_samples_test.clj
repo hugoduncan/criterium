@@ -19,14 +19,21 @@
   (testing "modes-for-metric"
     (testing "with unimodal data"
       (let [;; Generate clearly unimodal Gaussian data
-            data (darr (tu/gaussian-samples 200 50.0 10.0 42))
+            data
+            (darr (tu/gaussian-samples 200 50.0 10.0 42))
             ;; Compute KDE
             kde-result (kde/kde data {:n-points 256 :n-bootstrap 10})
             ;; Create mock metric config
-            metric-config {:path [:elapsed-time-ns]}
+            metric-config
+            {:path [:elapsed-time-ns]}
             ;; Run modes analysis with reduced bootstrap for speed
             options {:n-bootstrap 50 :n-points 256 :alpha 0.05 :max-modes 5}
-            result (ms/modes-for-metric kde-result data nil metric-config options)]
+            result (ms/modes-for-metric
+                    kde-result
+                    data
+                    nil
+                    metric-config
+                    options)]
         (testing "stops early when k=1 fails to reject H0"
           ;; For unimodal data, k=1 should have p-value >= alpha
           ;; So we should only test k=1 (early stopping)
@@ -43,17 +50,25 @@
         (testing "has p-value >= alpha for k=1"
           (let [p-value (get-in result [:test-results :p-values 1])]
             (is (>= p-value 0.05)
-                (str "Expected p-value >= 0.05 for unimodal data, got: " p-value))))))
+                (str
+                 "Expected p-value >= 0.05 for unimodal data, got: "
+                 p-value))))))
 
     (testing "with bimodal data"
       (let [;; Generate clearly bimodal data (two separated Gaussians)
-            data (darr (concat (tu/gaussian-samples 100 20.0 5.0 1)
-                               (tu/gaussian-samples 100 80.0 5.0 2)))
+            data
+            (darr (concat (tu/gaussian-samples 100 20.0 5.0 1)
+                          (tu/gaussian-samples 100 80.0 5.0 2)))
             ;; Compute KDE
             kde-result (kde/kde data {:n-points 256 :n-bootstrap 10})
             metric-config {:path [:elapsed-time-ns]}
             options {:n-bootstrap 50 :n-points 256 :alpha 0.05 :max-modes 5}
-            result (ms/modes-for-metric kde-result data nil metric-config options)]
+            result (ms/modes-for-metric
+                    kde-result
+                    data
+                    nil
+                    metric-config
+                    options)]
         (testing "tests k=1 and rejects it (p-value < alpha)"
           (let [p-value-k1 (get-in result [:test-results :p-values 1])]
             (is (< p-value-k1 0.05)

@@ -58,7 +58,9 @@
 
   sampler/Sampler
   (samples-map [_] (sample-map (:metrics-defs collector) digests))
-  (reset-samples! [_] (set! digests (zipmap metric-keys (repeat (t-digest/new-digest)))))
+  (reset-samples!
+    [_]
+    (set! digests (zipmap metric-keys (repeat (t-digest/new-digest)))))
 
   clojure.lang.IFn
   (invoke [_]
@@ -84,11 +86,23 @@
   (invoke [_ a1 a2 a3 a4 a5 a6 a7 a8 a9 a10]
     (invoke-f collector measured metric-keys [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10]))
   (invoke [_ a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11]
-    (invoke-f collector measured metric-keys [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11]))
+    (invoke-f
+     collector
+     measured
+     metric-keys
+     [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11]))
   (invoke [_ a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12]
-    (invoke-f collector measured metric-keys [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12]))
+    (invoke-f
+     collector
+     measured
+     metric-keys
+     [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12]))
   (invoke [_ a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13]
-    (invoke-f collector measured metric-keys [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13]))
+    (invoke-f
+     collector
+     measured
+     metric-keys
+     [a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13]))
   (invoke [_ a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14]
     (invoke-f
      collector

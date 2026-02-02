@@ -89,8 +89,11 @@
 
     (def m (criterium.arg-gen/for-all
             [v (clojure.test.check.generators/vector
-                (clojure.test.check.generators/double* {:inifinte? false :NaN? false
-                                                        :min       0     :max  1})
+                (clojure.test.check.generators/double*
+                 {:inifinte? false
+                  :NaN? false
+                  :min       0
+                  :max  1})
                 1000000)]
             (bootstrap-estimate v)))
 
@@ -223,7 +226,12 @@
   ;; applied when viewing via the source-id chain.
   (let [batch-size     100
         num-samples    1000
-        samples        {[:v] (sample-values batch-size num-samples 123 10.0 1.0)}
+        samples        {[:v] (sample-values
+                              batch-size
+                              num-samples
+                              123
+                              10.0
+                              1.0)}
         metric-samples (assoc
                         (metrics-samples samples batch-size)
                         :metrics-defs
@@ -240,15 +248,18 @@
                           :bootstrap-size     100})
                         {:samples metric-samples})
         ;; Apply transforms when reading bootstrap result (as viewer would)
-        transforms     (util/get-transforms result :bootstrap-stats)
-        raw-point      (have
-                        (-> result
-                            :bootstrap-stats
-                            util/bootstrap
-                            :v
-                            :mean
-                            :point-estimate))
-        point          (util/transform-sample-> raw-point transforms)]
+        transforms
+        (util/get-transforms result :bootstrap-stats)
+        raw-point
+        (have
+         (-> result
+             :bootstrap-stats
+             util/bootstrap
+             :v
+             :mean
+             :point-estimate))
+        point
+        (util/transform-sample-> raw-point transforms)]
     (is (test-max-error 10.0 point 0.1 "mean")
         (str "Value: " point))))
 

@@ -210,11 +210,12 @@
          variance       (double variance)
          batch-size-d   (double batch-size)
          mean-error     (double (abs-error (* batch-size-d mean) mean-hat))
-         variance-error (double (abs-error (* batch-size-d variance) variance-hat))
+         variance-error (double
+                         (abs-error (* batch-size-d variance) variance-hat))
          mean-tol       (max (* sigma 1e-1) 1e-2)
-          ;; Use 4-sigma tolerance based on sample variance standard error:
+         ;; Use 4-sigma tolerance based on sample variance standard error:
           ;; SE(variance) ≈ variance * sqrt(2/(n-1))
-          ;; For normal distribution: P(|X-μ| > 4σ) ≈ 0.006%
+         ;; For normal distribution: P(|X-μ| > 4σ) ≈ 0.006%
           ;; With 10 iterations: P(at least one fail) ≈ 0.06%
          variance-se    (* batch-size-d
                            variance

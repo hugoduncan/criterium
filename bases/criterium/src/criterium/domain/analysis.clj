@@ -50,8 +50,16 @@
   [data-map metric-id]
   (if-let [bootstrap-ci (helpers/bootstrap-quantile-ci data-map metric-id 0.5)]
     [(:ci-lower bootstrap-ci) (:ci-upper bootstrap-ci)]
-    (let [lower (helpers/stats-value data-map :stats metric-id :mean-minus-3sigma)
-          upper (helpers/stats-value data-map :stats metric-id :mean-plus-3sigma)]
+    (let [lower (helpers/stats-value
+                 data-map
+                 :stats
+                 metric-id
+                 :mean-minus-3sigma)
+          upper (helpers/stats-value
+                 data-map
+                 :stats
+                 metric-id
+                 :mean-plus-3sigma)]
       (when (and lower upper)
         [lower upper]))))
 

@@ -135,7 +135,9 @@
   (if (vector? bindings)
     `(measured* nil ~bindings ~@body)
     (do
-      (assert (map? bindings) "First arg must be options map or bindings vector")
+      (assert
+       (map? bindings)
+       "First arg must be options map or bindings vector")
       `(measured* ~bindings ~@body))))
 
 (defmacro args-fn*

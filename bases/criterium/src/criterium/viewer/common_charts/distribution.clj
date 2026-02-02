@@ -41,9 +41,13 @@
   "Vega-Lite color scale for PDF chart including KDE and fitted distributions.
   KDE uses black solid line; fitted distributions use colored dashed lines."
   {:domain (into ["KDE"]
-                 (mapv #(get distribution-labels % (name %)) distribution-order))
+                 (mapv
+                  #(get distribution-labels % (name %))
+                  distribution-order))
    :range (into ["#333333"]
-                (mapv #(get distribution-colors % "#999999") distribution-order))})
+                (mapv
+                 #(get distribution-colors % "#999999")
+                 distribution-order))})
 
 (def ^:private cdf-color-scale
   "Vega-Lite color scale for CDF overlay including ECDF and fitted distributions."

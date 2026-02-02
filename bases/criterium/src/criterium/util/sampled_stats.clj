@@ -113,7 +113,8 @@
            without-outliers (if ols
                               (into []
                                     (comp
-                                     (map-indexed (fn [i v] (when-not (ols i) v)))
+                                     (map-indexed
+                                      (fn [i v] (when-not (ols i) v)))
                                      (filter some?))
                                     vs)
                               vs)]

@@ -9,4 +9,7 @@
 (deftest boxplot-outlier-thresholds-test
   (testing "boxplot-outlier-thresholds"
     (testing "returns [severe-low mild-low mild-high severe-high]"
-      (is (= [-4.0 -1.0 7.0 10.0] (outliers/boxplot-outlier-thresholds 2.0 4.0))))))
+      (is
+       (=
+        [-4.0 -1.0 7.0 10.0]
+        (outliers/boxplot-outlier-thresholds 2.0 4.0))))))

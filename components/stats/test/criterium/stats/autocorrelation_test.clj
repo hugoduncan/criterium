@@ -31,8 +31,9 @@
         (is (map? result))
         (is (= 50 (count result))) ; n/2 lags
         ;; Most ACF values should be within noise threshold
-        (let [within-threshold (count (filter #(<= (Math/abs ^double %) threshold)
-                                              (vals result)))]
+        (let [within-threshold (count
+                                (filter #(<= (Math/abs ^double %) threshold)
+                                        (vals result)))]
           (is (>= within-threshold 40)
               "At least 80% of ACF values should be within noise threshold"))))))
 

@@ -68,7 +68,9 @@
 
       (testing "respects :max-bins option"
         (let [samples (darr (gaussian-samples 500 0.0 1.0 42))
-              result  (histogram/histogram samples {:method :knuth :max-bins 5})]
+              result  (histogram/histogram
+                       samples
+                       {:method :knuth :max-bins 5})]
           (is (<= (:optimal-bins result) 5)))))
 
     (testing "backward compatibility with IQR argument"

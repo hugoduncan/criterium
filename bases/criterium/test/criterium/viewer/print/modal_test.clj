@@ -31,8 +31,11 @@
         (is (= ["Elapsed Time: Multimodal distribution detected"
                 "Mode locations: 100 ns, 200 ns"]
                lines))
-        (is (str/includes? output "                                  Mode locations:")
-            "Mode locations should be indented to align with label")))
+        (is
+         (str/includes?
+          output
+          "                                  Mode locations:")
+         "Mode locations should be indented to align with label")))
 
     (testing "does not display when n-modes = 1"
       (let [metrics-defs (select-keys (metrics/metrics) [:elapsed-time])
@@ -70,4 +73,7 @@
         (is (= ["Elapsed Time: Multimodal distribution detected"
                 "Mode locations: 50.0 ns, 150 ns"]
                lines))
-        (is (str/includes? output "                                  Mode locations:"))))))
+        (is
+         (str/includes?
+          output
+          "                                  Mode locations:"))))))

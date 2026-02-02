@@ -12,7 +12,9 @@
       (let [config (config/collect-plan-config :one-shot {})]
         (is (= 0 (:num-warmup-samples config)))))
     (testing "returns provided :num-warmup-samples value"
-      (let [config (config/collect-plan-config :one-shot {:num-warmup-samples 5})]
+      (let [config (config/collect-plan-config
+                    :one-shot
+                    {:num-warmup-samples 5})]
         (is (= 5 (:num-warmup-samples config)))))
     (testing "returns default :max-gc-attempts when not specified"
       (let [config (config/collect-plan-config :one-shot {})]

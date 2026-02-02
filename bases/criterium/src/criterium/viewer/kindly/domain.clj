@@ -34,14 +34,18 @@
                  (extract/prepare-domain-extract-table
                   extract {:header-sep "\n"})]
         (core/kindly-heading heading)
-        (core/kindly-table rows {:column-names (into [coord-header] col-headers)}))
+        (core/kindly-table
+         rows
+         {:column-names (into [coord-header] col-headers)}))
 
       :default-table
       (when-let [{:keys [heading coord-header col-headers rows]}
                  (extract/prepare-domain-extract-table
                   extract {:header-sep "\n"})]
         (core/kindly-heading heading)
-        (core/kindly-table rows {:column-names (into [coord-header] col-headers)})))))
+        (core/kindly-table
+         rows
+         {:column-names (into [coord-header] col-headers)})))))
 
 (defmethod view/domain-extract-chart* :kindly
   [_ {:keys [extract-id]} data-map]
@@ -50,8 +54,10 @@
     (case (detection/visualization-strategy extract)
       :single-point
       (when extract
-        (let [box-spec (charts.comparison/single-point-box-chart-spec extract {:width core/chart-width
-                                                                               :height core/chart-height})]
+        (let [box-spec (charts.comparison/single-point-box-chart-spec
+                        extract
+                        {:width core/chart-width
+                         :height core/chart-height})]
           ;; Fall back to bar chart if box plot has no data (missing bootstrap stats)
           (if (seq (:vconcat box-spec))
             (core/kindly-vega-lite box-spec)

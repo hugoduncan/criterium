@@ -32,7 +32,9 @@
                  (let [;; Hazen plotting position: (i - 0.5) / n
                        p (/ (- (double (inc (long i))) 0.5) (double n))
                        theoretical (quantile-fn p)]
-                   {"theoretical" (util/transform-sample-> theoretical transforms)
+                   {"theoretical" (util/transform-sample->
+                                   theoretical
+                                   transforms)
                     "observed" (util/transform-sample-> x transforms)}))
                (range n)
                sorted-samples)
@@ -68,9 +70,11 @@
                   :y {:field "observed" :type "quantitative"
                       :title "Sample Quantiles"
                       :scale {:zero false}}
-                  :color {:field "distribution" :type "nominal"
+                  :color {:field "distribution"
+                          :type "nominal"
                           :scale distribution/distribution-color-scale
-                          :legend {:orient "top-right" :title "Fitted Distributions"}}
+                          :legend {:orient "top-right"
+                                   :title "Fitted Distributions"}}
                   :tooltip [{:field "theoretical" :type "quantitative"
                              :title "Theoretical" :format ".4g"}
                             {:field "observed" :type "quantitative"

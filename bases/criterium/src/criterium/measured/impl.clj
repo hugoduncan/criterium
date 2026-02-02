@@ -229,7 +229,9 @@
                  {:tag tag})
                ;; Then try to get type from LocalBinding if arg-val is a symbol
                (when (symbol? arg-val)
-                 (when-let [^clojure.lang.Compiler$LocalBinding lb (get env arg-val)]
+                 (when-let [^clojure.lang.Compiler$LocalBinding lb (get
+                                                                    env
+                                                                    arg-val)]
                    (when (.hasJavaClass lb)
                      (tag-meta (.getJavaClass lb)))))
                ;; For compound expressions, find locals and use their type if uniform

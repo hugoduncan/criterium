@@ -109,7 +109,8 @@
   []
   (when (= :available @connection-state)
     (try
-      (let [discard-fn (requiring-resolve 'clojisr.v1.r/discard-default-session)]
+      (let [discard-fn (requiring-resolve
+                        'clojisr.v1.r/discard-default-session)]
         (discard-fn))
       (catch Exception _
         nil))))

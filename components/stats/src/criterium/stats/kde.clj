@@ -72,16 +72,22 @@
     (if (< n 2)
       sorted-data
       (let [;; Find minimum non-zero distance
-            min-dist-raw (loop [i (long 1)
-                                md Double/MAX_VALUE]
-                           (if (< i n)
-                             (let [d (- (aget sorted-data i) (aget sorted-data (dec i)))]
-                               (recur (inc i)
-                                      (if (> d 0.0) (Math/min md d) md)))
-                             md))
-            min-dist (double (if (= min-dist-raw Double/MAX_VALUE) 1e-10 min-dist-raw))
-            half-dist (/ min-dist 2.0)
-            result (double-array n)]
+            min-dist-raw
+            (loop [i (long 1)
+                   md Double/MAX_VALUE]
+              (if (< i n)
+                (let [d (-
+                         (aget sorted-data i)
+                         (aget sorted-data (dec i)))]
+                  (recur (inc i)
+                         (if (> d 0.0) (Math/min md d) md)))
+                md))
+            min-dist
+            (double (if (= min-dist-raw Double/MAX_VALUE) 1e-10 min-dist-raw))
+            half-dist
+            (/ min-dist 2.0)
+            result
+            (double-array n)]
         (dotimes [i n]
           (let [r (random/next-double! rng)
                 jitter (- (* 2.0 r half-dist) half-dist)]
@@ -153,15 +159,22 @@
                      (if (<= new-int-size (- total-span (* 2 (dec k))))
                        (let [prev-span (long (- total-span new-int-size))
                              prev-idx (long (- prev-span k))
-                             prev-d (if (and (>= prev-idx 0) (< prev-idx prev-len))
+                             prev-d (if (and
+                                         (>= prev-idx 0)
+                                         (< prev-idx prev-len))
                                       (aget prev-mins prev-idx)
                                       Double/MAX_VALUE)
-                             new-d (loop [start (long (- total-span new-int-size))
+                             new-d (loop [start (long
+                                                 (- total-span new-int-size))
                                           nd Double/MAX_VALUE]
                                      (if (>= start prev-span)
                                        (if (< (+ start new-int-size) n)
                                          (let [end (+ start (dec new-int-size))
-                                               d (distance-at dist-arr n start end)]
+                                               d (distance-at
+                                                  dist-arr
+                                                  n
+                                                  start
+                                                  end)]
                                            (recur (dec start) (Math/min nd d)))
                                          (recur (dec start) nd))
                                        nd))]

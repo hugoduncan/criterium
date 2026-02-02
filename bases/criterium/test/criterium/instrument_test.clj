@@ -121,7 +121,9 @@
       (is (= 2 @seen) "original function called twice")
 
       ;; (is result "result returned")
-      (is (= :criterium/metrics-samples (:type sample-map)) "sample map returned")
+      (is
+       (= :criterium/metrics-samples (:type sample-map))
+       "sample map returned")
       (is (= 2 (arr/length ((:metric->values sample-map) [:elapsed-time])))
           "samples returned")
       (is (= (arr/length ((:metric->values sample-map) [:elapsed-time]))

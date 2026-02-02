@@ -51,8 +51,9 @@
           (catch Exception e
             (if (.exists cache-file)
               (.getPath cache-file)
-              (throw (ex-info (str "Failed to fetch schema and no cache exists: " url)
-                              {:url url :cause (.getMessage e)})))))))))
+              (throw
+               (ex-info (str "Failed to fetch schema and no cache exists: " url)
+                        {:url url :cause (.getMessage e)})))))))))
 
 (def ^ObjectMapper object-mapper
   "Shared Jackson ObjectMapper instance."
@@ -131,7 +132,12 @@
   (let [result (shell/sh "npm" "list" "vega-lite" :dir npm-install-dir)]
     (when-not (= 0 (:exit result))
       (println "Installing vega-lite npm package to target/npm...")
-      (let [install-result (shell/sh "npm" "install" "vega-lite" :dir npm-install-dir)]
+      (let [install-result (shell/sh
+                            "npm"
+                            "install"
+                            "vega-lite"
+                            :dir
+                            npm-install-dir)]
         (when-not (= 0 (:exit install-result))
           (throw (ex-info "Failed to install vega-lite"
                           {:stderr (:err install-result)})))))))

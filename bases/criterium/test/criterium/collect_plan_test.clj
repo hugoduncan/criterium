@@ -26,7 +26,8 @@
       (is (arr/typed-array?
            ((:metric->values (:samples data-map)) [:elapsed-time])))
       (is (= 1
-             (arr/length ((:metric->values (:samples data-map)) [:elapsed-time]))))
+             (arr/length
+              ((:metric->values (:samples data-map)) [:elapsed-time]))))
       (is (every? arr/typed-array?
                   (vals (:metric->values (:samples data-map)))))
       (is (= 1 (:expr-value (:samples data-map)))))))
@@ -49,7 +50,8 @@
       (is (arr/typed-array?
            ((:metric->values (:samples data-map)) [:elapsed-time])))
       (is (<= 10
-              (arr/length ((:metric->values (:samples data-map)) [:elapsed-time]))))
+              (arr/length
+               ((:metric->values (:samples data-map)) [:elapsed-time]))))
       (is (every? arr/typed-array?
                   (vals (:metric->values (:samples data-map)))))
       (is (= 1 (:expr-value (:samples data-map)))))))
@@ -87,7 +89,9 @@
                             (swap! counter inc)
                             [1000 @counter]))]
             (collect-plan/collect
-             (collect-plan-config/collect-plan-config :one-shot {:num-warmup-samples 1})
+             (collect-plan-config/collect-plan-config
+              :one-shot
+              {:num-warmup-samples 1})
              collector
              measured)
             (is (= 2 @counter)
@@ -101,7 +105,9 @@
                             (swap! counter inc)
                             [1000 @counter]))]
             (collect-plan/collect
-             (collect-plan-config/collect-plan-config :one-shot {:num-warmup-samples 3})
+             (collect-plan-config/collect-plan-config
+              :one-shot
+              {:num-warmup-samples 3})
              collector
              measured)
             (is (= 4 @counter)

@@ -50,7 +50,10 @@
       (testing "matches R at x=0.1"
         (is (< (abs-error 0.112462916018285 (probability/erf 0.1)) max-error)))
       (testing "matches R at x=0.01"
-        (is (< (abs-error 0.0112834155558497 (probability/erf 0.01)) max-error))))))
+        (is
+         (<
+          (abs-error 0.0112834155558497 (probability/erf 0.01))
+          max-error))))))
 
 ;; Values from R, pnorm
 (deftest normal-cdf-test
@@ -59,15 +62,30 @@
       (testing "returns 0.5 at x=0"
         (is (< (abs-error 0.5 (probability/normal-cdf 0.0)) max-error)))
       (testing "matches R pnorm at x=3.0"
-        (is (< (abs-error 0.99865010196837 (probability/normal-cdf 3.0)) max-error)))
+        (is
+         (<
+          (abs-error 0.99865010196837 (probability/normal-cdf 3.0))
+          max-error)))
       (testing "matches R pnorm at x=2.0"
-        (is (< (abs-error 0.977249868051821 (probability/normal-cdf 2.0)) max-error)))
+        (is
+         (<
+          (abs-error 0.977249868051821 (probability/normal-cdf 2.0))
+          max-error)))
       (testing "matches R pnorm at x=1.0"
-        (is (< (abs-error 0.841344746068543 (probability/normal-cdf 1.0)) max-error)))
+        (is
+         (<
+          (abs-error 0.841344746068543 (probability/normal-cdf 1.0))
+          max-error)))
       (testing "matches R pnorm at x=0.5"
-        (is (< (abs-error 0.691462461274013 (probability/normal-cdf 0.5)) max-error)))
+        (is
+         (<
+          (abs-error 0.691462461274013 (probability/normal-cdf 0.5))
+          max-error)))
       (testing "matches R pnorm at x=-1.0"
-        (is (< (abs-error 0.158655253931457 (probability/normal-cdf -1.0)) max-error)))
+        (is
+         (<
+          (abs-error 0.158655253931457 (probability/normal-cdf -1.0))
+          max-error)))
       (testing "matches R pnorm at x=-3.0"
         (is (< (abs-error 0.00134989803163009 (probability/normal-cdf -3.0))
                max-error))))))

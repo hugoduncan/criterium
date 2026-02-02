@@ -34,7 +34,8 @@
           (is (= 4 (count acc)))
           ;; First: heading
           (is (= :kind/md (:kindly/kind (meta (first acc)))))
-          (is (re-find #"WARNING.*Multimodal.*Elapsed Time" (first (first acc))))
+          (is
+           (re-find #"WARNING.*Multimodal.*Elapsed Time" (first (first acc))))
           ;; Second: mode count table
           (is (= :kind/table (:kindly/kind (meta (second acc)))))
           (is (= [{:metric "Mode count" :value 2}] (second acc)))
@@ -81,4 +82,7 @@
                                   {:my-modes modes-data})
         (let [acc @kindly.core/accumulated]
           (is (= 4 (count acc)))
-          (is (re-find #"WARNING.*Multimodal.*Elapsed Time" (first (first acc)))))))))
+          (is
+           (re-find
+            #"WARNING.*Multimodal.*Elapsed Time"
+            (first (first acc)))))))))

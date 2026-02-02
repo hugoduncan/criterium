@@ -280,7 +280,8 @@
 
     (testing "respects width/height options"
       (let [spec (charts.profile/call-tree-tree-vega-spec nested-call-tree
-                                                          {:width 800 :height 600})]
+                                                          {:width 800
+                                                           :height 600})]
         (is (= 800 (:width spec)))
         (is (= 600 (:height spec)))))
 
@@ -294,7 +295,10 @@
   (testing "call-tree-flame-vega-spec"
     (testing "generates valid Vega spec for nested tree"
       (let [total-calls (call-graph/total-call-count nested-call-tree)
-            spec (charts.profile/call-tree-flame-vega-spec nested-call-tree total-calls {})]
+            spec (charts.profile/call-tree-flame-vega-spec
+                  nested-call-tree
+                  total-calls
+                  {})]
         (is (str/includes? (:$schema spec) "vega/v5.json"))
         (is (= 700 (:width spec)))
         (is (contains? spec :data))
@@ -312,8 +316,10 @@
 
     (testing "respects width option"
       (let [total-calls (call-graph/total-call-count simple-call-tree)
-            spec (charts.profile/call-tree-flame-vega-spec simple-call-tree total-calls
-                                                           {:width 500})]
+            spec (charts.profile/call-tree-flame-vega-spec
+                  simple-call-tree
+                  total-calls
+                  {:width 500})]
         (is (= 500 (:width spec)))))
 
     (testing "handles nil call-tree"
@@ -376,7 +382,8 @@
           (is (str/includes? (second heading) "166"))
           ;; Tree spec
           (is (str/includes? (:$schema tree-spec) "vega"))
-          (is (= :portal.viewer/vega (:portal.viewer/default (meta tree-spec)))))))
+          (is
+           (= :portal.viewer/vega (:portal.viewer/default (meta tree-spec)))))))
 
     (testing "uses custom call-tree-id"
       (let [outputs (with-tap-out
@@ -426,7 +433,10 @@
           (is (str/includes? (second heading) "Flame"))
           ;; Flame spec
           (is (str/includes? (:$schema flame-spec) "vega"))
-          (is (= :portal.viewer/vega (:portal.viewer/default (meta flame-spec)))))))
+          (is
+           (=
+            :portal.viewer/vega
+            (:portal.viewer/default (meta flame-spec)))))))
 
     (testing "handles missing call-tree gracefully"
       (let [v (volatile! [])
@@ -599,7 +609,9 @@
   ;; Tests the Vega-Lite spec generation for most-called bar chart.
   (testing "most-called-vega-lite-spec"
     (testing "generates valid Vega-Lite spec"
-      (let [spec (charts.profile/most-called-vega-lite-spec sample-most-called {})]
+      (let [spec (charts.profile/most-called-vega-lite-spec
+                  sample-most-called
+                  {})]
         (is (str/includes? (:$schema spec) "vega-lite"))
         (is (= 600 (:width spec)))
         (is (contains? spec :data))
@@ -613,11 +625,15 @@
           (is (= 100 (get (first data) "calls"))))))
 
     (testing "respects width option"
-      (let [spec (charts.profile/most-called-vega-lite-spec sample-most-called {:width 800})]
+      (let [spec (charts.profile/most-called-vega-lite-spec
+                  sample-most-called
+                  {:width 800})]
         (is (= 800 (:width spec)))))
 
     (testing "includes location in tooltip data"
-      (let [spec (charts.profile/most-called-vega-lite-spec sample-most-called {})
+      (let [spec (charts.profile/most-called-vega-lite-spec
+                  sample-most-called
+                  {})
             first-item (first (get-in spec [:data :values]))]
         (is (= "Helper.java:30" (get first-item "location")))))))
 
@@ -638,7 +654,10 @@
           (is (str/includes? (second heading) "top 3"))
           ;; Chart spec
           (is (str/includes? (:$schema chart-spec) "vega-lite"))
-          (is (= :portal.viewer/vega-lite (:portal.viewer/default (meta chart-spec)))))))
+          (is
+           (=
+            :portal.viewer/vega-lite
+            (:portal.viewer/default (meta chart-spec)))))))
 
     (testing "handles missing most-called gracefully"
       (let [v (volatile! [])

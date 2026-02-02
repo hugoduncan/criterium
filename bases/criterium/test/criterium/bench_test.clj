@@ -50,7 +50,12 @@
   (testing ":kindly viewer"
     (testing "with one-shot collect plan"
       (reset! kindly/accumulated [])
-      (let [result (bench/bench (+ 1 1) :viewer :kindly :collect-plan :one-shot)]
+      (let [result (bench/bench
+                    (+ 1 1)
+                    :viewer
+                    :kindly
+                    :collect-plan
+                    :one-shot)]
         (is (= :kind/fragment (:kindly/kind (meta result)))
             "bench returns kindly fragment")
         (is (sequential? result)

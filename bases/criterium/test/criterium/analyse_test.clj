@@ -149,7 +149,8 @@
     (let [data-map
           {:samples
            {:type :criterium/collected-metrics-samples
-            :metric->values {[:elapsed-time] (arr/->double-array (double-array [1 1 1 1000]))}
+            :metric->values {[:elapsed-time] (arr/->double-array
+                                              (double-array [1 1 1 1000]))}
             :transform collect-plan/identity-transforms
             :batch-size 1
             :eval-count 4
@@ -182,8 +183,9 @@
             quantiles (analyse/quantiles {:quantiles []})
             outliers (analyse/outliers)
             result (-> data-map quantiles outliers)]
-        (is (number? (-> result :outliers util/outliers :elapsed-time :medcouple))
-            "medcouple should be present in outliers output")))
+        (is
+         (number? (-> result :outliers util/outliers :elapsed-time :medcouple))
+         "medcouple should be present in outliers output")))
 
     (testing "returns positive medcouple for right-skewed data"
       (let [;; Right-skewed: most values low, few high
@@ -223,26 +225,40 @@
             quantiles (analyse/quantiles {:quantiles []})
             outliers (analyse/outliers)
             result (-> data-map quantiles outliers)
-            ^double mc (-> result :outliers util/outliers :elapsed-time :medcouple)]
+            ^double mc (->
+                        result
+                        :outliers
+                        util/outliers
+                        :elapsed-time
+                        :medcouple)]
         (is (< (Math/abs mc) 0.1)
             "medcouple should be near zero for symmetric data")))
 
     (testing "uses asymmetric thresholds for skewed data"
       (let [;; Right-skewed data
-            raw-data [1 2 2 3 3 3 4 4 5 10 15 20]
-            samples (metrics-samples
-                     {[:elapsed-time] raw-data
-                      [:compilation :time-ms] (repeat 12 0)}
-                     1)
-            data-map {:samples samples}
-            quantiles (analyse/quantiles {:quantiles []})
-            outliers (analyse/outliers)
-            result (-> data-map quantiles outliers)
+            raw-data
+            [1 2 2 3 3 3 4 4 5 10 15 20]
+            samples
+            (metrics-samples
+             {[:elapsed-time] raw-data
+              [:compilation :time-ms] (repeat 12 0)}
+             1)
+            data-map
+            {:samples samples}
+            quantiles
+            (analyse/quantiles {:quantiles []})
+            outliers
+            (analyse/outliers)
+            result
+            (-> data-map quantiles outliers)
             [_low-severe low-mild high-mild _high-severe]
             (-> result :outliers util/outliers :elapsed-time :thresholds)
-            ^double q1 (-> result :quantiles util/quantiles :elapsed-time (get 0.25))
-            ^double q3 (-> result :quantiles util/quantiles :elapsed-time (get 0.75))
-            iqr (- q3 q1)
+            ^double q1
+            (-> result :quantiles util/quantiles :elapsed-time (get 0.25))
+            ^double q3
+            (-> result :quantiles util/quantiles :elapsed-time (get 0.75))
+            iqr
+            (- q3 q1)
             ;; Standard thresholds would be symmetric
             std-low-mild (- q1 (* 1.5 iqr))
             std-high-mild (+ q3 (* 1.5 iqr))]
@@ -260,20 +276,31 @@
   (testing ":outlier-method option"
     (testing "with :tukey uses symmetric thresholds"
       (let [;; Right-skewed data
-            raw-data [1 2 2 3 3 3 4 4 5 10 15 20]
-            samples (metrics-samples
-                     {[:elapsed-time] raw-data
-                      [:compilation :time-ms] (repeat 12 0)}
-                     1)
-            data-map {:samples samples}
-            quantiles (analyse/quantiles {:quantiles []})
-            outliers-tukey (analyse/outliers {:outlier-method :tukey})
-            result (-> data-map quantiles outliers-tukey)
-            outlier-data (-> result :outliers util/outliers :elapsed-time)
-            [low-severe low-mild high-mild high-severe] (:thresholds outlier-data)
-            ^double q1 (-> result :quantiles util/quantiles :elapsed-time (get 0.25))
-            ^double q3 (-> result :quantiles util/quantiles :elapsed-time (get 0.75))
-            iqr (- q3 q1)]
+            raw-data
+            [1 2 2 3 3 3 4 4 5 10 15 20]
+            samples
+            (metrics-samples
+             {[:elapsed-time] raw-data
+              [:compilation :time-ms] (repeat 12 0)}
+             1)
+            data-map
+            {:samples samples}
+            quantiles
+            (analyse/quantiles {:quantiles []})
+            outliers-tukey
+            (analyse/outliers {:outlier-method :tukey})
+            result
+            (-> data-map quantiles outliers-tukey)
+            outlier-data
+            (-> result :outliers util/outliers :elapsed-time)
+            [low-severe low-mild high-mild high-severe]
+            (:thresholds outlier-data)
+            ^double q1
+            (-> result :quantiles util/quantiles :elapsed-time (get 0.25))
+            ^double q3
+            (-> result :quantiles util/quantiles :elapsed-time (get 0.75))
+            iqr
+            (- q3 q1)]
         ;; With :tukey, thresholds should be symmetric
         (is (approx= (- q1 (* 1.5 iqr)) low-mild)
             "low-mild should be Tukey Q1 - 1.5*IQR")
@@ -290,22 +317,35 @@
 
     (testing "with :medcouple uses asymmetric thresholds"
       (let [;; Right-skewed data
-            raw-data [1 2 2 3 3 3 4 4 5 10 15 20]
-            samples (metrics-samples
-                     {[:elapsed-time] raw-data
-                      [:compilation :time-ms] (repeat 12 0)}
-                     1)
-            data-map {:samples samples}
-            quantiles (analyse/quantiles {:quantiles []})
-            outliers-medcouple (analyse/outliers {:outlier-method :medcouple})
-            result (-> data-map quantiles outliers-medcouple)
-            outlier-data (-> result :outliers util/outliers :elapsed-time)
-            [_low-severe low-mild high-mild _high-severe] (:thresholds outlier-data)
-            ^double q1 (-> result :quantiles util/quantiles :elapsed-time (get 0.25))
-            ^double q3 (-> result :quantiles util/quantiles :elapsed-time (get 0.75))
-            iqr (- q3 q1)
-            tukey-low-mild (- q1 (* 1.5 iqr))
-            tukey-high-mild (+ q3 (* 1.5 iqr))]
+            raw-data
+            [1 2 2 3 3 3 4 4 5 10 15 20]
+            samples
+            (metrics-samples
+             {[:elapsed-time] raw-data
+              [:compilation :time-ms] (repeat 12 0)}
+             1)
+            data-map
+            {:samples samples}
+            quantiles
+            (analyse/quantiles {:quantiles []})
+            outliers-medcouple
+            (analyse/outliers {:outlier-method :medcouple})
+            result
+            (-> data-map quantiles outliers-medcouple)
+            outlier-data
+            (-> result :outliers util/outliers :elapsed-time)
+            [_low-severe low-mild high-mild _high-severe]
+            (:thresholds outlier-data)
+            ^double q1
+            (-> result :quantiles util/quantiles :elapsed-time (get 0.25))
+            ^double q3
+            (-> result :quantiles util/quantiles :elapsed-time (get 0.75))
+            iqr
+            (- q3 q1)
+            tukey-low-mild
+            (- q1 (* 1.5 iqr))
+            tukey-high-mild
+            (+ q3 (* 1.5 iqr))]
         ;; With :medcouple on right-skewed data, upper fence should be wider
         (is (> high-mild tukey-high-mild)
             "upper fence should be wider than Tukey for right-skewed")
@@ -328,11 +368,26 @@
             outliers-medcouple (analyse/outliers {:outlier-method :medcouple})
             result-default (-> with-quantiles outliers-default)
             result-medcouple (-> with-quantiles outliers-medcouple)]
-        (is (= (-> result-default :outliers util/outliers :elapsed-time :thresholds)
-               (-> result-medcouple :outliers util/outliers :elapsed-time :thresholds))
-            "default should produce same thresholds as :medcouple")
-        (is (= :medcouple (-> result-default :outliers util/outliers :elapsed-time :outlier-method))
-            "default method should be recorded as :medcouple")))))
+        (is
+         (=
+          (-> result-default :outliers util/outliers :elapsed-time :thresholds)
+          (->
+           result-medcouple
+           :outliers
+           util/outliers
+           :elapsed-time
+           :thresholds))
+         "default should produce same thresholds as :medcouple")
+        (is
+         (=
+          :medcouple
+          (->
+           result-default
+           :outliers
+           util/outliers
+           :elapsed-time
+           :outlier-method))
+         "default method should be recorded as :medcouple")))))
 
 (deftest stats-test
   (testing "stats"
@@ -475,12 +530,24 @@
                       :label "GC total time"
                       :type :event}]
                     :label "Garbage Collector"}}}))
-            :metric->values {[:elapsed-time] (arr/->double-array (double-array [1 2 3]))
-                             [:compilation :time-ms] (arr/->long-array (long-array [3 5 0]))
-                             [:garbage-collector :total :time-ms] (arr/->long-array (long-array [1 1 1]))
-                             [:garbage-collector :total :count] (arr/->long-array (long-array [2 1 1]))
-                             [:class-loader :loaded-count] (arr/->long-array (long-array [2 2 0]))
-                             [:class-loader :unloaded-count] (arr/->long-array (long-array [0 0 0]))}
+            :metric->values {[:elapsed-time] (arr/->double-array
+                                              (double-array [1 2 3]))
+                             [:compilation
+                              :time-ms] (arr/->long-array
+                                         (long-array [3 5 0]))
+                             [:garbage-collector
+                              :total
+                              :time-ms] (arr/->long-array
+                                         (long-array [1 1 1]))
+                             [:garbage-collector
+                              :total
+                              :count] (arr/->long-array (long-array [2 1 1]))
+                             [:class-loader
+                              :loaded-count] (arr/->long-array
+                                              (long-array [2 2 0]))
+                             [:class-loader
+                              :unloaded-count] (arr/->long-array
+                                                (long-array [0 0 0]))}
             :batch-size 1
             :eval-count 3}}
           result ((analyse/event-stats) data-map)]
@@ -512,7 +579,8 @@
     (let [data-map
           {:samples
            {:type :criterium/collected-metrics-samples
-            :metric->values {[:elapsed-time] (arr/->double-array (double-array [1 1 1 1000]))}
+            :metric->values {[:elapsed-time] (arr/->double-array
+                                              (double-array [1 1 1 1000]))}
             :transform collect-plan/identity-transforms
             :batch-size 1
             :eval-count 4
@@ -651,7 +719,8 @@
                                               :samples-id :samples})
                       data-map)
             with-kde ((analyse/kde {:n-bootstrap 10 :n-points 64}) with-log)
-            result ((analyse/modes {:n-bootstrap 10 :method :silverman}) with-kde)]
+            result ((analyse/modes {:n-bootstrap 10 :method :silverman})
+                    with-kde)]
         (is (contains? result :modes))
         (let [modes-data (:modes result)
               elapsed-modes (get-in modes-data [:modes [:elapsed-time]])]

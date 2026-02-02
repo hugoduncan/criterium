@@ -53,7 +53,8 @@
         (let [ctor (.getConstructor
                     ^Class @method-call-class
                     (into-array Class [String String String Long/TYPE Long/TYPE
-                                       (Class/forName "[Lcriterium.agent.MethodCall;")]))
+                                       (Class/forName
+                                        "[Lcriterium.agent.MethodCall;")]))
               empty-children (make-array @method-call-class 0)
               instance (.newInstance
                         ctor
@@ -90,7 +91,8 @@
         (let [ctor (.getConstructor
                     ^Class @method-call-class
                     (into-array Class [String String String Long/TYPE Long/TYPE
-                                       (Class/forName "[Lcriterium.agent.MethodCall;")]))
+                                       (Class/forName
+                                        "[Lcriterium.agent.MethodCall;")]))
               empty-children (make-array @method-call-class 0)
               child (.newInstance
                      ctor
@@ -100,8 +102,9 @@
               _ (aset ^objects children-array 0 child)
               parent (.newInstance
                       ctor
-                      (object-array ["Lparent/Class;" "parentMethod" "Parent.java"
-                                     (long 5) (long 1) children-array]))]
+                      (object-array
+                       ["Lparent/Class;" "parentMethod" "Parent.java"
+                        (long 5) (long 1) children-array]))]
           (is (some? parent)
               "Should create parent MethodCall")
           (let [children-field (.getField ^Class @method-call-class "children")
@@ -109,6 +112,8 @@
             (is (= 1 (alength ^objects retrieved-children))
                 "Parent should have one child")
             (let [retrieved-child (aget ^objects retrieved-children 0)
-                  method-field (.getField ^Class @method-call-class "method_name")]
+                  method-field (.getField
+                                ^Class @method-call-class
+                                "method_name")]
               (is (= "childMethod" (.get method-field retrieved-child))
                   "Child method name should match"))))))))

@@ -13,15 +13,18 @@
         :aliases)))
 
 (defn- ensure-project-root
-"Given a task name and a project name, ensure the project
+  "Given a task name and a project name, ensure the project
    exists and seems valid, and return the absolute path to it."
-[task project]
+  [task project]
   (let [project-root (str (System/getProperty "user.dir") "/projects/" project)]
-  (when-not (and project
-                 (.exists (io/file project-root))
-                 (.exists (io/file (str project-root "/deps.edn"))))
-    (throw (ex-info (str task " task requires a valid :project option") {:project project})))
-  project-root))
+    (when-not (and project
+                   (.exists (io/file project-root))
+                   (.exists (io/file (str project-root "/deps.edn"))))
+      (throw
+       (ex-info
+        (str task " task requires a valid :project option")
+        {:project project})))
+    project-root))
 
 (defn uberjar
   "Builds an uberjar for the specified project.
@@ -45,8 +48,13 @@
         aliases      (with-dir (io/file project-root) (get-project-aliases))
         main         (-> aliases :uberjar :main)]
     (when-not main
-      (throw (ex-info (str "the " project " project's deps.edn file does not specify the :main namespace in its :uberjar alias")
-                      {:aliases aliases})))
+      (throw
+       (ex-info
+        (str
+         "the "
+         project
+         " project's deps.edn file does not specify the :main namespace in its :uberjar alias")
+        {:aliases aliases})))
     (b/with-project-root project-root
       (let [class-dir "target/classes"
             uber-file (or uber-file

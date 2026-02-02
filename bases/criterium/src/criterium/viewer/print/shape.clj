@@ -14,8 +14,12 @@
   "Print shape statistics (skewness, kurtosis, CV) for bootstrap results."
   [view data-map]
   (when-let [{:keys [analysis-map metric-configs]}
-             (get-analysis-context :bootstrap-stats-id :bootstrap-stats view data-map
-                                   (metric/type-pred :quantitative))]
+             (get-analysis-context
+              :bootstrap-stats-id
+              :bootstrap-stats
+              view
+              data-map
+              (metric/type-pred :quantitative))]
     (let [bootstrap  (util/bootstrap analysis-map)
           shape-data (shape/shape-stats-data metric-configs bootstrap)]
       (when (seq shape-data)

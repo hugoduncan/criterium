@@ -64,7 +64,11 @@
       [:=> :cat [:maybe map?]])
 
 (m/=> criterium.bench/collect-data-map
-      [:=> [:cat :criterium/collector-config :criterium/collect-plan :criterium/measured]
+      [:=>
+       [:cat
+        :criterium/collector-config
+        :criterium/collect-plan
+        :criterium/measured]
        map?])
 
 (m/=> criterium.bench/analyze
@@ -166,7 +170,8 @@
 ;;; Function schemas for criterium.collect-plan.impl
 
 (m/=> criterium.collect-plan.impl/collect*
-      [:=> [:cat :criterium/collect-plan :criterium/collector :criterium/measured]
+      [:=>
+       [:cat :criterium/collect-plan :criterium/collector :criterium/measured]
        :criterium/collect-output-map])
 
 ;;; Instrumentation functions

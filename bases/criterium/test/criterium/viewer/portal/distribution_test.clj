@@ -69,7 +69,10 @@
         (let [rows (first @tapped)]
           (is (= 2 (count rows)))
           (let [gamma-row (first (filter #(= "Gamma" (:distribution %)) rows))
-                lognormal-row (first (filter #(= "Log-normal" (:distribution %)) rows))]
+                lognormal-row (first
+                               (filter
+                                #(= "Log-normal" (:distribution %))
+                                rows))]
             (is (= "fitted" (:status gamma-row)))
             (is (= true (:best? gamma-row)))
             (is (= "500.0" (:aic gamma-row)))
@@ -98,7 +101,8 @@
           (view/distribution-models* :portal {} data-map))
         (is (= 1 (count @tapped)))
         (let [rows (first @tapped)
-              skipped-row (first (filter #(= "Weibull" (:distribution %)) rows))]
+              skipped-row (first
+                           (filter #(= "Weibull" (:distribution %)) rows))]
           (is (= "negative-values" (:status skipped-row))))))
 
     (testing "uses custom distribution-fit-id"
@@ -106,7 +110,10 @@
             data-map {:my-fit gamma-best-fit}]
         (with-redefs [portal.core/heading (fn [_])
                       portal.core/portal-table #(swap! tapped conj %)]
-          (view/distribution-models* :portal {:distribution-fit-id :my-fit} data-map))
+          (view/distribution-models*
+           :portal
+           {:distribution-fit-id :my-fit}
+           data-map))
         (is (= 1 (count @tapped)))))
 
     (testing "returns nil when distribution-fit not found"
@@ -179,7 +186,8 @@
       (let [tapped (atom [])
             ;; Use kde-data-map and add samples for ECDF
             data-map (merge (test-data/kde-data-map)
-                            {:samples (:samples (test-data/distribution-cdf-data-map))})]
+                            {:samples (:samples
+                                       (test-data/distribution-cdf-data-map))})]
         (with-redefs [portal.core/heading (fn [_])
                       portal.core/portal-vega-lite #(swap! tapped conj %)]
           (view/distribution-cdf* :portal {} data-map))
@@ -203,7 +211,8 @@
       (let [tapped (atom [])
             ;; Use kde-data-map and add samples for Q-Q
             data-map (merge (test-data/kde-data-map)
-                            {:samples (:samples (test-data/distribution-qq-data-map))})]
+                            {:samples (:samples
+                                       (test-data/distribution-qq-data-map))})]
         (with-redefs [portal.core/heading (fn [_])
                       portal.core/portal-vega-lite #(swap! tapped conj %)]
           (view/distribution-qq* :portal {} data-map))

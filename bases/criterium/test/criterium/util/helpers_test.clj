@@ -65,15 +65,18 @@
       (testing "extracts p10 quantile from bootstrap stats"
         (is (= 9.2 (util/bootstrap-quantile-value data-map :elapsed-time 0.1))))
       (testing "extracts p50 (median) quantile from bootstrap stats"
-        (is (= 9.75 (util/bootstrap-quantile-value data-map :elapsed-time 0.5))))
+        (is
+         (= 9.75 (util/bootstrap-quantile-value data-map :elapsed-time 0.5))))
       (testing "extracts p90 quantile from bootstrap stats"
-        (is (= 10.5 (util/bootstrap-quantile-value data-map :elapsed-time 0.9))))
+        (is
+         (= 10.5 (util/bootstrap-quantile-value data-map :elapsed-time 0.9))))
       (testing "returns nil when bootstrap-stats is missing"
         (is (nil? (util/bootstrap-quantile-value {} :elapsed-time 0.5))))
       (testing "returns nil for non-existent metric"
         (is (nil? (util/bootstrap-quantile-value data-map :nonexistent 0.5))))
       (testing "returns nil for non-existent quantile"
-        (is (nil? (util/bootstrap-quantile-value data-map :elapsed-time 0.99)))))))
+        (is
+         (nil? (util/bootstrap-quantile-value data-map :elapsed-time 0.99)))))))
 
 (deftest bootstrap-quantile-ci-test
   ;; Tests that bootstrap-quantile-ci correctly extracts CI bounds
@@ -103,7 +106,10 @@
           (is (= 10.2 (:ci-upper stats)) "ci-upper from median CI")))
       (testing "returns nil when required quantiles are missing"
         (let [data-without-p10 (update-in data-map
-                                          [:bootstrap-stats :bootstrap :elapsed-time :quantiles]
+                                          [:bootstrap-stats
+                                           :bootstrap
+                                           :elapsed-time
+                                           :quantiles]
                                           dissoc 0.1)]
           (is (nil? (util/bootstrap-box-plot-stats
                      data-without-p10 :elapsed-time)))))

@@ -187,7 +187,9 @@
     (testing "returns false for invalid data"
       (is (false? (schema/validate schema/collection-map {}))))
     (testing "works with registry keywords"
-      (is (true? (schema/validate :criterium/collection-map valid-collection-map))))))
+      (is
+       (true?
+        (schema/validate :criterium/collection-map valid-collection-map))))))
 
 (deftest explain-test
   ;; Tests the explain helper function that provides detailed error messages
@@ -285,23 +287,38 @@
       (is (true? (schema/validate schema/collection-map valid-collection-map))))
     (testing "accepts extra keys"
       (is (true? (schema/validate schema/collection-map
-                                  (assoc valid-collection-map :extra "allowed")))))
+                                  (assoc
+                                   valid-collection-map
+                                   :extra
+                                   "allowed")))))
     (testing "rejects zero eval-count"
       (is (false? (schema/validate schema/collection-map
-                                   (assoc valid-collection-map :eval-count 0)))))
+                                   (assoc
+                                    valid-collection-map
+                                    :eval-count
+                                    0)))))
     (testing "rejects negative eval-count"
       (is (false? (schema/validate schema/collection-map
-                                   (assoc valid-collection-map :eval-count -1)))))
+                                   (assoc
+                                    valid-collection-map
+                                    :eval-count
+                                    -1)))))
     (testing "rejects negative elapsed-time"
       (is (false? (schema/validate schema/collection-map
-                                   (assoc valid-collection-map :elapsed-time -1)))))
+                                   (assoc
+                                    valid-collection-map
+                                    :elapsed-time
+                                    -1)))))
     (testing "rejects missing keys"
       (is (false? (schema/validate schema/collection-map {})))
       (is (false? (schema/validate schema/collection-map
                                    (dissoc valid-collection-map :eval-count)))))
     (testing "rejects non-sequential collections"
       (is (false? (schema/validate schema/collection-map
-                                   (assoc valid-collection-map :collections "not-seq")))))))
+                                   (assoc
+                                    valid-collection-map
+                                    :collections
+                                    "not-seq")))))))
 
 (deftest data-entry-map-test
   ;; Tests the data-entry-map schema which is the base type for result entries.
@@ -316,7 +333,10 @@
                                    (dissoc valid-data-entry-map :transform)))))
     (testing "rejects non-keyword type"
       (is (false? (schema/validate schema/data-entry-map
-                                   (assoc valid-data-entry-map :type "string")))))))
+                                   (assoc
+                                    valid-data-entry-map
+                                    :type
+                                    "string")))))))
 
 (deftest collected-metrics-map-test
   ;; Tests the collected-metrics-map schema for collected metrics from
@@ -328,10 +348,15 @@
     (testing "rejects missing required keys"
       (is (false? (schema/validate schema/collected-metrics-map {})))
       (is (false? (schema/validate schema/collected-metrics-map
-                                   (dissoc valid-collected-metrics-map :metric->values)))))
+                                   (dissoc
+                                    valid-collected-metrics-map
+                                    :metric->values)))))
     (testing "rejects invalid num-samples"
       (is (false? (schema/validate schema/collected-metrics-map
-                                   (assoc valid-collected-metrics-map :num-samples 0)))))))
+                                   (assoc
+                                    valid-collected-metrics-map
+                                    :num-samples
+                                    0)))))))
 
 ;;; Typed data map tests
 

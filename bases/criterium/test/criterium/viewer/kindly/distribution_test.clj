@@ -67,8 +67,12 @@
             (is (= ["**Distribution Models: elapsed-time (n=100)**"] heading))
             (is (= :kind/table (:kindly/kind (meta table))))
             (is (= 2 (count table)))
-            (let [gamma-row (first (filter #(= "Gamma" (:distribution %)) table))
-                  lognormal-row (first (filter #(= "Log-normal" (:distribution %)) table))]
+            (let [gamma-row (first
+                             (filter #(= "Gamma" (:distribution %)) table))
+                  lognormal-row (first
+                                 (filter
+                                  #(= "Log-normal" (:distribution %))
+                                  table))]
               (is (= "fitted" (:status gamma-row)))
               (is (= true (:best? gamma-row)))
               (is (= "500.0" (:aic gamma-row)))
@@ -93,13 +97,17 @@
         (view/distribution-models* :kindly {} data-map)
         (let [result (kindly/flush)
               [_heading table] result
-              skipped-row (first (filter #(= "Weibull" (:distribution %)) table))]
+              skipped-row (first
+                           (filter #(= "Weibull" (:distribution %)) table))]
           (is (= "negative-values" (:status skipped-row))))))
 
     (testing "uses custom distribution-fit-id"
       (reset! kindly/accumulated [])
       (let [data-map {:my-fit gamma-best-fit}]
-        (view/distribution-models* :kindly {:distribution-fit-id :my-fit} data-map)
+        (view/distribution-models*
+         :kindly
+         {:distribution-fit-id :my-fit}
+         data-map)
         (let [result (kindly/flush)]
           (is (= 2 (count result))))))
 
@@ -171,7 +179,8 @@
     (testing "produces Vega-Lite spec when data exists"
       (reset! kindly/accumulated [])
       (let [data-map (merge (test-data/kde-data-map)
-                            {:samples (:samples (test-data/distribution-cdf-data-map))})]
+                            {:samples (:samples
+                                       (test-data/distribution-cdf-data-map))})]
         (view/distribution-cdf* :kindly {} data-map)
         (let [result (kindly/flush)]
           (is (= :kind/fragment (:kindly/kind (meta result))))
@@ -196,7 +205,8 @@
     (testing "produces Vega-Lite spec when data exists"
       (reset! kindly/accumulated [])
       (let [data-map (merge (test-data/kde-data-map)
-                            {:samples (:samples (test-data/distribution-qq-data-map))})]
+                            {:samples (:samples
+                                       (test-data/distribution-qq-data-map))})]
         (view/distribution-qq* :kindly {} data-map)
         (let [result (kindly/flush)]
           (is (= :kind/fragment (:kindly/kind (meta result))))

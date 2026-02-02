@@ -29,6 +29,8 @@
       (let [data-map (test-data/bootstrap-stats-with-shape-map)
             custom-map {:my-bootstrap (:bootstrap-stats data-map)}
             output (with-out-str
-                     (view/shape-stats* :print {:bootstrap-stats-id :my-bootstrap}
-                                        custom-map))]
+                     (view/shape-stats*
+                      :print
+                      {:bootstrap-stats-id :my-bootstrap}
+                      custom-map))]
         (is (str/includes? output "skewness"))))))

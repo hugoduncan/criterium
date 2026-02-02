@@ -9,7 +9,10 @@
    [criterium.array :as arr])
   (:import
    [criterium.array.interfaces IIndexed IIndexedSet]
-   [criterium.array.resizable ResizableDoubleArray ResizableLongArray ResizableObjectArray]))
+   [criterium.array.resizable
+    ResizableDoubleArray
+    ResizableLongArray
+    ResizableObjectArray]))
 
 ;;; ResizableDoubleArray tests
 

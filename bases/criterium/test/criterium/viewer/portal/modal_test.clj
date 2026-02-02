@@ -29,9 +29,12 @@
                                           :density 0.25
                                           :significant? true}]
                                  :n-modes 2}}}]
-        (with-redefs [portal.core/heading #(swap! tapped conj {:heading %})
-                      portal.core/portal-heading #(swap! tapped conj {:portal-heading %})
-                      portal.core/portal-table #(swap! tapped conj {:table %})]
+        (with-redefs [portal.core/heading
+                      #(swap! tapped conj {:heading %})
+                      portal.core/portal-heading
+                      #(swap! tapped conj {:portal-heading %})
+                      portal.core/portal-table
+                      #(swap! tapped conj {:table %})]
           (view/multimodal-warning* :portal {} {:modes modes-data}))
         (is (= 4 (count @tapped)))
         (is (= {:heading "WARNING: Multimodal distribution - Elapsed Time"}
@@ -55,17 +58,23 @@
                                 {:modes [{:location 100.0
                                           :density 0.5}]
                                  :n-modes 1}}}]
-        (with-redefs [portal.core/heading #(swap! tapped conj {:heading %})
-                      portal.core/portal-heading #(swap! tapped conj {:portal-heading %})
-                      portal.core/portal-table #(swap! tapped conj {:table %})]
+        (with-redefs [portal.core/heading
+                      #(swap! tapped conj {:heading %})
+                      portal.core/portal-heading
+                      #(swap! tapped conj {:portal-heading %})
+                      portal.core/portal-table
+                      #(swap! tapped conj {:table %})]
           (view/multimodal-warning* :portal {} {:modes modes-data}))
         (is (empty? @tapped))))
 
     (testing "handles missing modes data gracefully"
       (let [tapped (atom [])]
-        (with-redefs [portal.core/heading #(swap! tapped conj {:heading %})
-                      portal.core/portal-heading #(swap! tapped conj {:portal-heading %})
-                      portal.core/portal-table #(swap! tapped conj {:table %})]
+        (with-redefs [portal.core/heading
+                      #(swap! tapped conj {:heading %})
+                      portal.core/portal-heading
+                      #(swap! tapped conj {:portal-heading %})
+                      portal.core/portal-table
+                      #(swap! tapped conj {:table %})]
           (is (nil? (view/multimodal-warning* :portal {} {}))))
         (is (empty? @tapped))))
 
@@ -81,9 +90,12 @@
                                          {:location 150.0
                                           :density 0.35}]
                                  :n-modes 2}}}]
-        (with-redefs [portal.core/heading #(swap! tapped conj {:heading %})
-                      portal.core/portal-heading #(swap! tapped conj {:portal-heading %})
-                      portal.core/portal-table #(swap! tapped conj {:table %})]
+        (with-redefs [portal.core/heading
+                      #(swap! tapped conj {:heading %})
+                      portal.core/portal-heading
+                      #(swap! tapped conj {:portal-heading %})
+                      portal.core/portal-table
+                      #(swap! tapped conj {:table %})]
           (view/multimodal-warning* :portal {:modes-id :my-modes}
                                     {:my-modes modes-data}))
         (is (= 4 (count @tapped)))

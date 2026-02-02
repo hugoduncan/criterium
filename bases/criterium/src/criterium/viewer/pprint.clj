@@ -42,7 +42,12 @@
             transforms (util/get-transforms data-map stats-id)]
         (when (seq metric-configs)
           (pprint/print-table
-           [:_metric :mean-minus-3sigma :mean :mean-plus-3sigma :min-val :max-val]
+           [:_metric
+            :mean-minus-3sigma
+            :mean
+            :mean-plus-3sigma
+            :min-val
+            :max-val]
            (core/stats-map
             (util/stats stats-map)
             metric-configs

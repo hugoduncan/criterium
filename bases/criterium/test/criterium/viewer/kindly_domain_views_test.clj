@@ -179,8 +179,10 @@
                                 :implementations [:foo :bar]
                                 :metrics {:elapsed-time
                                           {:metric [:stats :elapsed-time :mean]
-                                           :data [[{:n 100 :m 10 :impl :foo} 1e6]
-                                                  [{:n 1000 :m 20 :impl :bar} 1e7]]}}}}]
+                                           :data [[{:n 100 :m 10 :impl :foo}
+                                                   1e6]
+                                                  [{:n 1000 :m 20 :impl :bar}
+                                                   1e7]]}}}}]
         (view/domain-extract-chart* :kindly {} data-map)
         (is (nil? (kindly/flush)))))
 

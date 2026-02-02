@@ -102,7 +102,8 @@
                            (keys metrics-data))
         metric->values (into {}
                              (map (fn [[k v]]
-                                    [[k] (arr/->double-array (double-array [v]))]))
+                                    [[k]
+                                     (arr/->double-array (double-array [v]))]))
                              metrics-data)]
     {:samples {:type :criterium/metrics-samples
                :metrics-defs metrics-defs

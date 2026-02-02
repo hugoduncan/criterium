@@ -132,7 +132,11 @@
                        :weibull {:params {:shape 1.8 :scale 3.2}}}
                       :best-model :gamma}
             layers (charts.distribution/distribution-pdf-overlay-layers
-                    fit-data sample-grid "elapsed-time" identity-transforms false)]
+                    fit-data
+                    sample-grid
+                    "elapsed-time"
+                    identity-transforms
+                    false)]
         (is (= 3 (count layers)))
         (is (every? map? layers))))
 
@@ -142,7 +146,11 @@
                        :lognormal {:error "Fitting failed"}}
                       :best-model :gamma}
             layers (charts.distribution/distribution-pdf-overlay-layers
-                    fit-data sample-grid "elapsed-time" identity-transforms false)]
+                    fit-data
+                    sample-grid
+                    "elapsed-time"
+                    identity-transforms
+                    false)]
         (is (= 1 (count layers)))))
 
     (testing "filters out skipped distributions"
@@ -151,7 +159,11 @@
                        :inverse-gaussian {:skipped :moment-match-failed}}
                       :best-model :gamma}
             layers (charts.distribution/distribution-pdf-overlay-layers
-                    fit-data sample-grid "elapsed-time" identity-transforms false)]
+                    fit-data
+                    sample-grid
+                    "elapsed-time"
+                    identity-transforms
+                    false)]
         (is (= 1 (count layers)))))
 
     (testing "returns empty vector when all fail"
@@ -160,7 +172,11 @@
                        :lognormal {:skipped :moment-match-failed}}
                       :best-model nil}
             layers (charts.distribution/distribution-pdf-overlay-layers
-                    fit-data sample-grid "elapsed-time" identity-transforms false)]
+                    fit-data
+                    sample-grid
+                    "elapsed-time"
+                    identity-transforms
+                    false)]
         (is (empty? layers))))))
 
 (deftest distribution-pdf-vega-spec-test
@@ -265,7 +281,10 @@
   (testing "distribution-cdf-layer"
     (testing "produces valid layer for fitted distribution"
       (let [layer (charts.distribution/distribution-cdf-layer
-                   :gamma sample-fit-result sample-cdf-grid identity-transforms)]
+                   :gamma
+                   sample-fit-result
+                   sample-cdf-grid
+                   identity-transforms)]
         (is (map? layer))
         (is (contains? layer :data))
         (is (contains? layer :mark))
@@ -290,7 +309,10 @@
 
     (testing "uses line mark"
       (let [layer (charts.distribution/distribution-cdf-layer
-                   :gamma sample-fit-result sample-cdf-grid identity-transforms)]
+                   :gamma
+                   sample-fit-result
+                   sample-cdf-grid
+                   identity-transforms)]
         (is (= "line" (get-in layer [:mark :type])))))
 
     (testing "best model has solid line"

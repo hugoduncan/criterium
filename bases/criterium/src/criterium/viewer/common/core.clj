@@ -48,7 +48,10 @@
               (fn add-key-k [res k]
                 (assoc res k
                        (format/round (* (double (get stat k)) scale) 4)))
-              {:_metric (str (:label metric) " " label)} ; underscore so it sorts first
+              {:_metric (str
+                         (:label metric)
+                         " "
+                         label)} ; underscore so it sorts first
               [:mean :min-val :mean-minus-3sigma :mean-plus-3sigma :max-val]))))
    []
    (filterv (metric/type-pred :quantitative) metric-configs)))

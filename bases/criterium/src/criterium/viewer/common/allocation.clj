@@ -72,7 +72,10 @@
   "Recursively render a treemap node.
   Returns a vector of lines."
   [node prefix is-last? max-value opts depth]
-  (let [{:keys [^long bar-width ^long name-width depth-limit ^double min-percent]}
+  (let [{:keys [^long bar-width
+                ^long name-width
+                depth-limit
+                ^double min-percent]}
         opts
         depth (long depth)
         {:keys [name value children]} node
@@ -95,7 +98,11 @@
                          ellipsis
 
                          (> node-name-len available-for-name)
-                         (str ellipsis (subs node-name (- node-name-len (dec available-for-name))))
+                         (str
+                          ellipsis
+                          (subs
+                           node-name
+                           (- node-name-len (dec available-for-name))))
 
                          :else
                          node-name)
@@ -116,9 +123,12 @@
       (let [root-value (double (:root-value opts))
             filtered-children (->> children
                                    (filter (fn [child]
-                                             (>= (* 100.0 (/ (double (:value child))
-                                                             root-value))
-                                                 min-percent)))
+                                             (>=
+                                              (*
+                                               100.0
+                                               (/ (double (:value child))
+                                                  root-value))
+                                              min-percent)))
                                    (sort-by :value >))
             num-children (long (count filtered-children))]
         (into current-line

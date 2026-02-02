@@ -81,27 +81,31 @@
   ;; Data includes median, p10, p90, and optionally ciLower/ciUpper.
   (testing "prepare-single-point-box-data"
     (testing "extracts data for each metric"
-      (let [result (charts.comparison/prepare-single-point-box-data single-point-box-extract)]
+      (let [result (charts.comparison/prepare-single-point-box-data
+                    single-point-box-extract)]
         (is (vector? result))
         (is (= 1 (count result)))
         (is (= :elapsed-time (:metric-id (first result))))))
 
     (testing "includes all implementations in data"
-      (let [result (charts.comparison/prepare-single-point-box-data single-point-box-extract)
+      (let [result (charts.comparison/prepare-single-point-box-data
+                    single-point-box-extract)
             data (:data (first result))]
         (is (= 3 (count data)))
         (is (= #{"foo" "bar" "baz"}
                (set (map #(get % "impl") data))))))
 
     (testing "extracts median, p10, p90 values"
-      (let [result (charts.comparison/prepare-single-point-box-data single-point-box-extract)
+      (let [result (charts.comparison/prepare-single-point-box-data
+                    single-point-box-extract)
             data (:data (first result))]
         (is (every? #(contains? % "median") data))
         (is (every? #(contains? % "p10") data))
         (is (every? #(contains? % "p90") data))))
 
     (testing "extracts CI bounds when present"
-      (let [result (charts.comparison/prepare-single-point-box-data single-point-box-extract)
+      (let [result (charts.comparison/prepare-single-point-box-data
+                    single-point-box-extract)
             data (:data (first result))]
         (is (every? #(contains? % "ciLower") data))
         (is (every? #(contains? % "ciUpper") data))
@@ -110,7 +114,8 @@
           (is (< (get d "median") (get d "ciUpper"))))))
 
     (testing "omits CI bounds when not present"
-      (let [result (charts.comparison/prepare-single-point-box-data single-point-box-extract-no-ci)
+      (let [result (charts.comparison/prepare-single-point-box-data
+                    single-point-box-extract-no-ci)
             data (:data (first result))]
         (is (every? #(contains? % "median") data))
         (is (every? #(contains? % "p10") data))
@@ -119,7 +124,8 @@
         (is (every? #(not (contains? % "ciUpper")) data))))
 
     (testing "applies SI scaling to values"
-      (let [result (charts.comparison/prepare-single-point-box-data single-point-box-extract)
+      (let [result (charts.comparison/prepare-single-point-box-data
+                    single-point-box-extract)
             first-metric (first result)]
         (is (string? (:y-title first-metric)))
         (is (re-find #"median" (:y-title first-metric)))

@@ -33,7 +33,9 @@
           {:metric "Freed count"
            :value num-freed}
           {:metric "Freed ratio"
-           :value (clojure.core/format "%.1f%%" (* 100.0 (double freed-ratio)))}])))))
+           :value (clojure.core/format
+                   "%.1f%%"
+                   (* 100.0 (double freed-ratio)))}])))))
 
 (defmethod view/allocation-hotspots* :kindly
   [_ {:keys [hotspots-id]} data-map]
@@ -44,14 +46,20 @@
         (when (seq hotspots)
           (core/kindly-heading "Allocation Hotspots")
           (core/kindly-table
-           (mapv (fn [{:keys [call-site object-type count bytes freed-count freed-bytes]}]
-                   {:call-site (allocation/format-call-site call-site nil)
-                    :object-type (or object-type "")
-                    :count count
-                    :bytes bytes
-                    :freed-count freed-count
-                    :freed-bytes freed-bytes})
-                 hotspots)))))))
+           (mapv
+            (fn [{:keys [call-site
+                         object-type
+                         count
+                         bytes
+                         freed-count
+                         freed-bytes]}]
+              {:call-site (allocation/format-call-site call-site nil)
+               :object-type (or object-type "")
+               :count count
+               :bytes bytes
+               :freed-count freed-count
+               :freed-bytes freed-bytes})
+            hotspots)))))))
 
 (defmethod view/allocation-by-type* :kindly
   [_ {:keys [by-type-id]} data-map]

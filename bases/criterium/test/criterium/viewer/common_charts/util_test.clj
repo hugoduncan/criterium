@@ -15,7 +15,8 @@
       (is (= "mean" (util/metric-type-prefix [:memory :stats :mean :extra]))))
     (testing "returns \"median\" for paths containing :median at index 2"
       (is (= "median" (util/metric-type-prefix [:elapsed-time :stats :median])))
-      (is (= "median" (util/metric-type-prefix [:memory :stats :median :extra]))))
+      (is
+       (= "median" (util/metric-type-prefix [:memory :stats :median :extra]))))
     (testing "returns nil for paths without :mean or :median at index 2"
       (is (nil? (util/metric-type-prefix [:elapsed-time :stats :variance])))
       (is (nil? (util/metric-type-prefix [:elapsed-time :stats :std-dev]))))
@@ -62,6 +63,10 @@
     (testing "chart-options keys override if conflicting with result structure"
       ;; chart-layer uses merge with chart-options first, so explicit :data
       ;; in chart-options would be overwritten
-      (let [result (util/chart-layer [{:v 1}] {:data "ignored"} {:type "area"} {:x {}})]
+      (let [result (util/chart-layer
+                    [{:v 1}]
+                    {:data "ignored"}
+                    {:type "area"}
+                    {:x {}})]
         (is (= {:values [{:v 1}]} (:data result))
             "explicit :data in chart-options is overwritten by constructed data")))))

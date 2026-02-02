@@ -68,10 +68,21 @@
     (when (seq hotspots)
       (println)
       (println "Allocation Hotspots:")
-      (println (format "%8s %12s %8s %12s  %-30s  %s"
-                       "Count" "Bytes" "Freed" "Freed Bytes" "Object Type" "Call Site"))
+      (println (format
+                "%8s %12s %8s %12s  %-30s  %s"
+                "Count"
+                "Bytes"
+                "Freed"
+                "Freed Bytes"
+                "Object Type"
+                "Call Site"))
       (println (apply str (repeat 110 "-")))
-      (doseq [{:keys [call-site object-type count bytes freed-count freed-bytes]}
+      (doseq [{:keys [call-site
+                      object-type
+                      count
+                      bytes
+                      freed-count
+                      freed-bytes]}
               hotspots]
         (println (format "%8d %12d %8d %12d  %-30s  %s"
                          count

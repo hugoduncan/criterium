@@ -49,22 +49,31 @@
                                     :detail (format "p99=%.3g p95=%.3g"
                                                     (double p99) (double p95))})
                      p999-p99 (conj {:label "p999/p99" :value p999-p99
-                                     :detail (format "p999=%.3g p99=%.3g"
-                                                     (double p999) (double p99))})
+                                     :detail (format
+                                              "p999=%.3g p99=%.3g"
+                                              (double p999)
+                                              (double p99))})
                      p999-p95 (conj {:label "p999/p95" :value p999-p95
-                                     :detail (format "p999=%.3g p95=%.3g"
-                                                     (double p999) (double p95))}))]
+                                     :detail (format
+                                              "p999=%.3g p95=%.3g"
+                                              (double p999)
+                                              (double p95))}))]
         (when (seq ratios)
           (let [n (count ratios)
                 max-val (double (apply max (map :value ratios)))
-                bar-width (- (long width) (count indent) 25) ; label + value + spacing
-                header (header-fn n)
-                lines (for [{:keys [label value detail]} ratios]
-                        (let [bar-len (long (* (/ (double value) max-val)
-                                               (double bar-width)))
-                              bar (apply str (repeat bar-len \#))]
-                          (format "%s%9s |%s %.3f  %s"
-                                  indent label bar value detail)))]
+                bar-width (-
+                           (long width)
+                           (count indent)
+                           25) ; label + value + spacing
+                header
+                (header-fn n)
+                lines
+                (for [{:keys [label value detail]} ratios]
+                  (let [bar-len (long (* (/ (double value) max-val)
+                                         (double bar-width)))
+                        bar (apply str (repeat bar-len \#))]
+                    (format "%s%9s |%s %.3f  %s"
+                            indent label bar value detail)))]
             (str header "\n" (str/join "\n" lines))))))))
 
 ;;; Hill Plot
@@ -103,7 +112,10 @@
                           :line-char \.})]
         (when (seq chart-lines)
           (let [stable-line (when stable-estimate
-                              (format "%sStable estimate: %.4f" indent stable-estimate))]
+                              (format
+                               "%sStable estimate: %.4f"
+                               indent
+                               stable-estimate))]
             (str header "\n"
                  (->> chart-lines
                       (map #(str indent %))

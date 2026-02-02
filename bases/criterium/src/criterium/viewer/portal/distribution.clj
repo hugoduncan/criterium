@@ -22,8 +22,13 @@
           (doseq [[path fit-data] fits]
             (let [{:keys [n warning distributions best-model]} fit-data
                   metric-label (name (first path))]
-              (portal.core/heading (str "Distribution Models: " metric-label
-                                        " (n=" n (when warning " - small sample") ")"))
+              (portal.core/heading (str
+                                    "Distribution Models: "
+                                    metric-label
+                                    " (n="
+                                    n
+                                    (when warning " - small sample")
+                                    ")"))
               (portal.core/portal-table
                (mapv (fn [[dist result]]
                        (common.distribution/format-distribution-table-row
@@ -68,7 +73,10 @@
     (when kde-map
       (portal.core/heading "Distribution CDF")
       (portal.core/portal-vega-lite
-       (charts.distribution/distribution-cdf-vega-spec data-map view {:height 400})))))
+       (charts.distribution/distribution-cdf-vega-spec
+        data-map
+        view
+        {:height 400})))))
 
 (defmethod view/distribution-qq* :portal
   [_ {:keys [kde-id] :as view} data-map]
@@ -77,4 +85,7 @@
     (when kde-map
       (portal.core/heading "Q-Q Plot")
       (portal.core/portal-vega-lite
-       (charts.quantile/distribution-qq-vega-spec data-map view {:height 400})))))
+       (charts.quantile/distribution-qq-vega-spec
+        data-map
+        view
+        {:height 400})))))
