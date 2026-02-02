@@ -51,7 +51,9 @@
   Parameters:
     opts - Map with keys:
       :id       - Key for result in output (default: :allocation-summary)
-      :trace-id - Path for source allocation trace (default: [:samples :allocation-trace])
+
+      :trace-id - Path for source allocation trace
+                  (default: [:samples :allocation-trace])
 
   The returned function:
   - Takes a data-map containing an allocation trace at :trace-id path
@@ -99,12 +101,15 @@
            (assoc data-map id (assoc result :freed-ratio freed-ratio))))))))
 
 (defn hotspots-fn
-  "Returns a function that identifies allocation hotspots by call-site and object type.
+  "Returns a function that identifies allocation hotspots.
+
+  Identified by call-site and object type.
 
   Parameters:
     opts - Map with keys:
       :id       - Key for result in output (default: :allocation-hotspots)
-      :trace-id - Path for source allocation trace (default: [:samples :allocation-trace])
+      :trace-id - Path for source allocation trace
+                  (default: [:samples :allocation-trace])
       :limit    - Maximum number of hotspots to return (default: 10)
       :order-by - Sort key, :bytes or :count (default: :bytes)
 
@@ -116,7 +121,10 @@
   Hotspots result contains:
     :type     - :criterium/allocation-hotspots
     :hotspots - Vector of maps sorted by bytes descending:
-                [{:call-site {:call-class ... :call-method ... :call-file ... :call-line ...}
+                [{:call-site {:call-class ...
+                              :call-method ...
+                              :call-file ...
+                              :call-line ...}
                   :object-type \"Ljava/lang/String;\"
                   :count N
                   :bytes M
@@ -145,14 +153,22 @@
                                 freed? (:freed record)]
                             (update acc key
                                     (fn [stats]
-                                      (let [stats (or stats {:count 0 :bytes 0
-                                                             :freed-count 0 :freed-bytes 0})]
+                                      (let [stats (or
+                                                   stats
+                                                   {:count 0
+                                                    :bytes 0
+                                                    :freed-count 0
+                                                    :freed-bytes 0})]
                                         (-> stats
                                             (update :count inc)
                                             (update :bytes + size)
                                             (cond->
-                                              freed? (-> (update :freed-count inc)
-                                                         (update :freed-bytes + size)))))))))
+                                              freed?
+                                              (->
+                                               (update :freed-count inc)
+                                               (update
+                                                :freed-bytes
+                                                + size)))))))))
                         {}
                         records)
                ;; Convert to vector and sort
@@ -165,7 +181,8 @@
                              (take limit)
                              vec)]
            (assoc data-map id {:type :criterium/allocation-hotspots
-                               :transform {:sample-> identity :->sample identity}
+                               :transform {:sample-> identity
+                                           :->sample identity}
                                :hotspots hotspots})))))))
 
 (defn by-type-fn
@@ -174,7 +191,8 @@
   Parameters:
     opts - Map with keys:
       :id       - Key for result in output (default: :allocation-by-type)
-      :trace-id - Path for source allocation trace (default: [:samples :allocation-trace])
+      :trace-id - Path for source allocation trace
+                  (default: [:samples :allocation-trace])
 
   The returned function:
   - Takes a data-map containing an allocation trace at :trace-id path
@@ -184,7 +202,10 @@
   Result contains:
     :type    - :criterium/allocation-by-type
     :by-type - Map of object-type to stats:
-               {\"Ljava/lang/String;\" {:count N :bytes M :freed-count K :freed-bytes L} ...}"
+               {\"Ljava/lang/String;\" {:count N
+                                        :bytes M
+                                        :freed-count K
+                                        :freed-bytes L} ...}"
   ([] (by-type-fn {}))
   ([{:keys [id trace-id]}]
    (fn [data-map]
@@ -201,18 +222,24 @@
                                 freed? (:freed record)]
                             (update acc obj-type
                                     (fn [stats]
-                                      (let [stats (or stats {:count 0 :bytes 0
-                                                             :freed-count 0 :freed-bytes 0})]
+                                      (let [stats (or stats {:count 0
+                                                             :bytes 0
+                                                             :freed-count 0
+                                                             :freed-bytes 0})]
                                         (-> stats
                                             (update :count inc)
                                             (update :bytes + size)
                                             (cond->
-                                              freed? (-> (update :freed-count inc)
-                                                         (update :freed-bytes + size)))))))))
+                                              freed?
+                                              (-> (update :freed-count inc)
+                                                  (update
+                                                   :freed-bytes
+                                                   + size)))))))))
                         {}
                         records)]
            (assoc data-map id {:type :criterium/allocation-by-type
-                               :transform {:sample-> identity :->sample identity}
+                               :transform {:sample-> identity
+                                           :->sample identity}
                                :by-type by-type})))))))
 
 ;;; Analysis Pipeline
@@ -250,7 +277,8 @@
 
 (defn- build-treemap-node
   "Build a treemap node with children, computing values bottom-up.
-  Leaf nodes in the hierarchy have {:count N :bytes M :freed-count K :freed-bytes L}.
+  Leaf nodes in the hierarchy have
+      {:count N :bytes M :freed-count K :freed-bytes L}.
   Leaf nodes in output preserve all stats for tooltips."
   [name children-map size-by]
   (if (empty? children-map)
@@ -269,7 +297,10 @@
                               :freed-bytes (:freed-bytes child-data 0)
                               :freed-count (:freed-count child-data 0)}
                              ;; Intermediate node - recurse
-                             (build-treemap-node child-name child-data size-by)))
+                             (build-treemap-node
+                              child-name
+                              child-data
+                              size-by)))
                          children-map)
           total-value (reduce + 0.0 (map :value children))]
       (cond-> {:name name :value (if (every? integer? (map :value children))
@@ -279,7 +310,8 @@
 
 (defn- group-by-hierarchy
   "Group records into nested maps according to hierarchy.
-  Returns nested maps where leaves have {:count N :bytes M :freed-count K :freed-bytes L}."
+  Returns nested maps where leaves have
+     {:count N :bytes M :freed-count K :freed-bytes L}."
   [records group-by-opt]
   (let [extract-keys (case group-by-opt
                        :class→line→type
@@ -321,16 +353,20 @@
      records)))
 
 (defn treemap-fn
-  "Returns a function that transforms allocation records into hierarchical treemap data.
+  "Returns a function that transforms allocation records into treemap data.
 
   Parameters:
     opts - Map with keys:
       :id        - Key for result in output (default: :allocation-treemap)
-      :trace-id  - Path for source allocation trace (default: [:samples :allocation-trace])
+      :trace-id  - Path for source allocation trace
+                   (default: [:samples :allocation-trace])
       :group-by  - Hierarchy option:
-                   :class→line→type (default): calling-class → calling-line → object-type
-                   :type→class→line: object-type → calling-class → calling-line
-      :size-by   - Value for node sizing: :count, :bytes, :bytes-per-allocation (default: :bytes)
+                   :class→line→type (default):
+                        calling-class → calling-line → object-type
+                   :type→class→line:
+                        object-type → calling-class → calling-line
+      :size-by   - Value for node sizing: :count, :bytes, :bytes-per-allocation
+                   (default: :bytes)
       :filter-by - Filter records: :freed, :not-freed, :all (default: :all)
 
   The returned function:
@@ -373,8 +409,9 @@
   Each spec is either a keyword/symbol to resolve a function, or a vector
   with a keyword/symbol first element followed by an options map.
 
-  Analysis functions are resolved from the criterium.allocation.analysis namespace.
-  They are composed in sequence, each taking and returning a data-map.
+  Analysis functions are resolved from the criterium.allocation.analysis
+  namespace.  They are composed in sequence, each taking and returning a
+  data-map.
 
   Example specs:
     [[:summary-fn {:id :summary}]

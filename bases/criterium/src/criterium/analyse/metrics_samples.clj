@@ -324,12 +324,12 @@
 (defn modes-for-metric
   "Compute modes with statistical validation for a single metric.
 
-  Takes KDE output and raw samples, runs multimodality test for k=1 up to max-modes,
-  and computes confidence intervals for detected modes.
+  Takes KDE output and raw samples, runs multimodality test for k=1 up
+  to max-modes, and computes confidence intervals for detected modes.
 
-  Uses early stopping: stops testing k values once p-value >= alpha (fail to reject
-  H0: at most k modes). Higher k values would also fail to reject, so testing them
-  is unnecessary.
+  Uses early stopping: stops testing k values once p-value >=
+  alpha (fail to reject H0: at most k modes). Higher k values would also
+  fail to reject, so testing them is unnecessary.
 
   Options:
   - :method - test method, :acr (default) or :silverman
@@ -339,49 +339,54 @@
   - :max-modes, :n-bootstrap, :alpha, :n-points - as usual"
   [kde-data samples-arr outliers metric-config options]
   (try
-    (let [{:keys [grid density bandwidth]} kde-data
+    (let [{:keys [grid density bandwidth]}          kde-data
           {:keys [max-modes n-bootstrap alpha n-points method mode-method]
-           :or {max-modes 5 n-bootstrap 200 alpha 0.05 n-points 512
-                method :acr mode-method :isj}} options
-          max-modes (long max-modes)
-          alpha (double alpha)
-          test-fn (case method
-                    :acr kde/acr-test
-                    :silverman kde/silverman-test)
-          p (:path metric-config)
+           :or   {max-modes 5    n-bootstrap 200 alpha 0.05 n-points 512
+                  method    :acr mode-method :isj}} options
+          max-modes                                 (long max-modes)
+          alpha                                     (double alpha)
+          test-fn                                   (case method
+                                                      :acr       kde/acr-test
+                                                      :silverman kde/silverman-test)
+          p                                         (:path metric-config)
           ;; Filter outliers from samples
-          outliers-data (get-in outliers p)
-          samples-arr (if-let [ols (:outliers outliers-data)]
-                        (remove-outliers samples-arr ols)
-                        samples-arr)
+          outliers-data                             (get-in outliers p)
+          samples-arr                               (if-let [ols (:outliers outliers-data)]
+                                                      (remove-outliers samples-arr ols)
+                                                      samples-arr)
           ;; Find modes from existing KDE density (for initial mode count)
-          grid-arr (double-array grid)
-          density-arr (double-array density)
-          all-modes (kde/find-modes grid-arr density-arr)
-          n-all-modes (long (count all-modes))
-          max-k-to-test (min max-modes n-all-modes)
+          grid-arr                                  (double-array grid)
+          density-arr                               (double-array density)
+          all-modes                                 (kde/find-modes grid-arr density-arr)
+          n-all-modes                               (long (count all-modes))
+          max-k-to-test                             (min max-modes n-all-modes)
           ;; Run multimodality test for each k from 1 up to max-k-to-test
-          ;; Use early stopping: once p-value >= alpha, we've found our validated-k
+          ;; Use early stopping: once p-value >= alpha, we've found our
+          ;; validated-k.
           ;; Compute critical bandwidths incrementally: h_k < h_{k-1}, so use
           ;; previous bandwidth as upper bound for faster binary search
           {:keys [test-results validated-k]}
-          (loop [k 1
-                 results {}
+          (loop [k           1
+                 results     {}
                  prev-h-crit nil]
             (if (> k max-k-to-test)
-              ;; Tested all k values without finding one where H0 is not rejected
+              ;; Tested all k values without finding one where H0 is not
+              ;; rejected
               {:test-results results :validated-k n-all-modes}
-              (let [;; Compute critical bandwidth with tighter upper bound from prev
-                    h-crit (kde/critical-bandwidth samples-arr k
-                                                   (cond-> {:n-points n-points}
-                                                     prev-h-crit (assoc :h-max prev-h-crit)))
+              (let [;; Compute critical bandwidth with tighter upper bound from
+                    ;; prev
+                    h-crit      (kde/critical-bandwidth
+                                 samples-arr
+                                 k
+                                 (cond-> {:n-points n-points}
+                                   prev-h-crit (assoc :h-max prev-h-crit)))
                     ;; Run test with pre-computed bandwidth
                     test-result (test-fn samples-arr k
-                                         {:n-bootstrap n-bootstrap
-                                          :n-points n-points
-                                          :alpha alpha
+                                         {:n-bootstrap               n-bootstrap
+                                          :n-points                  n-points
+                                          :alpha                     alpha
                                           :cached-critical-bandwidth h-crit})
-                    results' (assoc results k test-result)]
+                    results'    (assoc results k test-result)]
                 (if (>= (double (:p-value test-result)) alpha)
                   ;; Early stopping: fail to reject H0: at most k modes
                   ;; This is the validated number of modes
@@ -394,40 +399,47 @@
             :critical
             ;; Use critical bandwidth to find modes
             ;; Reuse bandwidth from test results if available
-            (let [cached-h (get-in test-results [validated-k :critical-bandwidth])
-                  locate-result (kde/locate-modes samples-arr validated-k
-                                                  (cond-> {:n-points n-points}
-                                                    cached-h (assoc :cached-critical-bandwidth cached-h)))
-                  h-crit (:critical-bandwidth locate-result)
+            (let [cached-h      (get-in
+                                 test-results
+                                 [validated-k :critical-bandwidth])
+                  locate-result (kde/locate-modes
+                                 samples-arr
+                                 validated-k
+                                 (cond-> {:n-points n-points}
+                                   cached-h (assoc
+                                             :cached-critical-bandwidth
+                                             cached-h)))
+                  h-crit        (:critical-bandwidth locate-result)
                   ;; Build mode CIs at critical bandwidth
                   [sample-min sample-max]
                   (arr/dfold samples-arr
                              (fn [acc ^double v]
                                (let [[^double mn ^double mx] acc]
                                  [(min mn v) (max mx v)]))
-                             [Double/POSITIVE_INFINITY Double/NEGATIVE_INFINITY])
-                  sample-min (double sample-min)
-                  sample-max (double sample-max)
-                  sample-range (- sample-max sample-min)
-                  grid-step (/ sample-range (double (dec (long n-points))))
-                  crit-grid (double-array (range sample-min
-                                                 (+ sample-max 0.1)
-                                                 grid-step))
-                  modes-ci (kde/mode-confidence-intervals
-                            samples-arr h-crit crit-grid validated-k
-                            {:n-bootstrap n-bootstrap
-                             :alpha alpha})]
-              {:modes-with-ci modes-ci
+                             [Double/POSITIVE_INFINITY
+                              Double/NEGATIVE_INFINITY])
+                  sample-min    (double sample-min)
+                  sample-max    (double sample-max)
+                  sample-range  (- sample-max sample-min)
+                  grid-step     (/ sample-range (double (dec (long n-points))))
+                  crit-grid     (double-array (range sample-min
+                                                     (+ sample-max 0.1)
+                                                     grid-step))
+                  modes-ci      (kde/mode-confidence-intervals
+                                 samples-arr h-crit crit-grid validated-k
+                                 {:n-bootstrap n-bootstrap
+                                  :alpha       alpha})]
+              {:modes-with-ci  modes-ci
                :mode-bandwidth h-crit
-               :antimodes (:antimodes locate-result)})
+               :antimodes      (:antimodes locate-result)})
 
             ;; :isj - use existing KDE density from ISJ bandwidth
-            {:modes-with-ci (kde/mode-confidence-intervals
-                             samples-arr bandwidth grid-arr validated-k
-                             {:n-bootstrap n-bootstrap
-                              :alpha alpha})
+            {:modes-with-ci  (kde/mode-confidence-intervals
+                              samples-arr bandwidth grid-arr validated-k
+                              {:n-bootstrap n-bootstrap
+                               :alpha       alpha})
              :mode-bandwidth bandwidth
-             :antimodes nil})
+             :antimodes      nil})
           ;; Mark significance based on test results
           ;; For ACR, all validated modes are significant by construction
           ;; (validated-k is the number of modes supported by the test)
@@ -437,24 +449,36 @@
             ;; For Silverman, use per-k p-value check
             (vec (map-indexed
                   (fn [i mode]
-                    (let [k (inc (long i))
-                          test-result (get test-results k)
-                          significant? (and test-result
-                                            (< (double (:p-value test-result)) alpha))]
+                    (let [k            (inc (long i))
+                          test-result  (get test-results k)
+                          significant? (and
+                                        test-result
+                                        (< (double (:p-value test-result))
+                                           alpha))]
                       (assoc mode :significant? significant?)))
                   modes-with-ci)))]
       (cond-> {:modes modes-with-significance
                :n-modes validated-k
-               :test-results {:method method
-                              :k-tested (vec (sort (keys test-results)))
-                              :p-values (into {} (map (fn [[k v]] [k (:p-value v)])
-                                                      test-results))
-                              :critical-bandwidths (into {} (map (fn [[k v]]
-                                                                   [k (:critical-bandwidth v)])
-                                                                 test-results))
-                              :excess-mass (when (= method :acr)
-                                             (into {} (map (fn [[k v]] [k (:excess-mass v)])
-                                                           test-results)))}}
+               :test-results
+               {:method              method
+                :k-tested            (vec (sort (keys test-results)))
+                :p-values            (into
+                                      {}
+                                      (map
+                                       (fn [[k v]] [k (:p-value v)])
+                                       test-results))
+                :critical-bandwidths (into
+                                      {}
+                                      (map
+                                       (fn [[k v]]
+                                         [k (:critical-bandwidth v)])
+                                       test-results))
+                :excess-mass         (when (= method :acr)
+                                       (into
+                                        {}
+                                        (map
+                                         (fn [[k v]] [k (:excess-mass v)])
+                                         test-results)))}}
         ;; Include mode-method and mode-bandwidth when using critical
         (= mode-method :critical) (assoc :mode-method :critical
                                          :mode-bandwidth mode-bandwidth
@@ -518,7 +542,9 @@
   (case dist
     :gamma (probability/gamma-cdf (:shape params) (:scale params))
     :lognormal (probability/lognormal-cdf (:mu params) (:sigma params))
-    :inverse-gaussian (probability/inverse-gaussian-cdf (:mu params) (:lambda params))
+    :inverse-gaussian (probability/inverse-gaussian-cdf
+                       (:mu params)
+                       (:lambda params))
     :weibull (probability/weibull-cdf (:shape params) (:scale params))))
 
 (defn- compute-gof-tests
@@ -559,7 +585,10 @@
                       (fn [indices]
                         (let [^doubles boot-arr (double-array (count indices))]
                           (dotimes [i (count indices)]
-                            (aset boot-arr i (arr/get-double samples (int (nth indices i)))))
+                            (aset
+                             boot-arr
+                             i
+                             (arr/get-double samples (int (nth indices i)))))
                           (arr/->double-array boot-arr)))
                       (fn [indices]
                         (mapv #(nth samples (int %)) indices)))
