@@ -62,14 +62,18 @@
           (if (seq (:vconcat box-spec))
             (core/kindly-vega-lite box-spec)
             (core/kindly-vega-lite
-             (charts.comparison/single-point-bar-chart-spec extract {:width core/chart-width
-                                                                     :height core/chart-height})))))
+             (charts.comparison/single-point-bar-chart-spec
+              extract
+              {:width core/chart-width
+               :height core/chart-height})))))
 
       :multi-point
       (when extract
         (core/kindly-vega-lite
-         (charts.comparison/domain-line-chart-spec extract {:width core/chart-width
-                                                            :height core/chart-height})))
+         (charts.comparison/domain-line-chart-spec
+          extract
+          {:width core/chart-width
+           :height core/chart-height})))
 
       ;; :default-table - no chart output
       nil)))
@@ -90,21 +94,28 @@
     (case (detection/comparison-visualization-strategy comparison)
       :single-point
       (when-let [{:keys [heading col-headers rows]}
-                 (comparison/prepare-domain-comparison-table-transposed comparison)]
+                 (comparison/prepare-domain-comparison-table-transposed
+                  comparison)]
         (core/kindly-heading heading)
         (core/kindly-table rows {:column-names col-headers}))
 
       :multi-point
-      (when-let [tables (comparison/prepare-domain-comparison-tables comparison)]
+      (when-let [tables (comparison/prepare-domain-comparison-tables
+                         comparison)]
         (doseq [{:keys [heading coord-header col-headers rows]} tables]
           (core/kindly-heading heading)
-          (core/kindly-table rows {:column-names (into [coord-header] col-headers)})))
+          (core/kindly-table
+           rows
+           {:column-names (into [coord-header] col-headers)})))
 
       :default-table
-      (when-let [tables (comparison/prepare-domain-comparison-tables comparison)]
+      (when-let [tables (comparison/prepare-domain-comparison-tables
+                         comparison)]
         (doseq [{:keys [heading coord-header col-headers rows]} tables]
           (core/kindly-heading heading)
-          (core/kindly-table rows {:column-names (into [coord-header] col-headers)}))))))
+          (core/kindly-table
+           rows
+           {:column-names (into [coord-header] col-headers)}))))))
 
 (defmethod view/domain-comparison-chart* :kindly
   [_ {:keys [comparison-id]} data-map]
@@ -113,20 +124,27 @@
     (case (detection/comparison-visualization-strategy comparison)
       :single-point
       (when comparison
-        (let [box-spec (charts.comparison/comparison-box-chart-spec comparison {:width core/chart-width
-                                                                                :height core/chart-height})]
+        (let [box-spec
+              (charts.comparison/comparison-box-chart-spec
+               comparison
+               {:width core/chart-width
+                :height core/chart-height})]
           ;; Fall back to bar chart if box plot has no data (missing bootstrap stats)
           (if (seq (:vconcat box-spec))
             (core/kindly-vega-lite box-spec)
             (core/kindly-vega-lite
-             (charts.comparison/comparison-bar-chart-spec comparison {:width core/chart-width
-                                                                      :height core/chart-height})))))
+             (charts.comparison/comparison-bar-chart-spec
+              comparison
+              {:width core/chart-width
+               :height core/chart-height})))))
 
       :multi-point
       (when comparison
         (core/kindly-vega-lite
-         (charts.comparison/comparison-line-chart-spec comparison {:width core/chart-width
-                                                                   :height core/chart-height})))
+         (charts.comparison/comparison-line-chart-spec
+          comparison
+          {:width core/chart-width
+           :height core/chart-height})))
 
       ;; :default-table - no chart output
       nil)))
@@ -178,7 +196,8 @@
            (core/kindly-table table-rows)))
 
        :render-regression-charts
-       (fn [{:keys [points line-pts residual-pts y-title residual-title chart-opts]}]
+       (fn [{:keys
+             [points line-pts residual-pts y-title residual-title chart-opts]}]
          (when (seq points)
            (core/kindly-vega-lite
             (charts.regression/regression-chart-spec

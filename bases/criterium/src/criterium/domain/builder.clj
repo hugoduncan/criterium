@@ -194,16 +194,23 @@
           extract-data
           (mapv
            (fn [{:keys [coord data]}]
-             (let [time-ns (or (get-in data [:samples :time-limit :projected-time-ns])
-                               (get-in data [:samples :total-benchmark-time-ns]))]
+             (let [time-ns
+                   (or (get-in data [:samples :time-limit :projected-time-ns])
+                       (get-in
+                        data
+                        [:samples :total-benchmark-time-ns]))]
                [coord time-ns]))
            impl-runs)
           extract             {:type    :criterium/domain-extract
                                :metrics {:benchmark-time
-                                         {:metric [:samples :total-benchmark-time-ns]
-                                          :data   extract-data}}}
+                                         {:metric
+                                          [:samples :total-benchmark-time-ns]
+                                          :data
+                                          extract-data}}}
           regression          (analysis/fit-complexity extract time-axis)
-          all-models          (get-in regression [:regressions :benchmark-time :models])
+          all-models          (get-in
+                               regression
+                               [:regressions :benchmark-time :models])
           best-r-squared      (double (reduce max (map :r-squared all-models)))
           ;; Models within 1% of best r² are considered equally good fits
           r-squared-threshold (* 0.99 best-r-squared)
@@ -291,7 +298,9 @@
   (let [[axes implementations options]
         (if (measured-impl-map? first-arg)
           [{} (normalize-implementations first-arg) (apply hash-map args)]
-          [first-arg (normalize-implementations (first args)) (apply hash-map (rest args))])
+          [first-arg
+           (normalize-implementations (first args))
+           (apply hash-map (rest args))])
         {:keys [initial-limit-time-s time-axis reporter bench-options]
          :or {initial-limit-time-s default-initial-limit-time-s}}
         options
@@ -357,7 +366,9 @@
                                                (double
                                                 (get-in
                                                  bench-result
-                                                 [:samples :time-limit :projected-time-ns]))
+                                                 [:samples
+                                                  :time-limit
+                                                  :projected-time-ns]))
                                                1e9))]
                                        (run-bench coord-measured new-limit-s))
                                      bench-result)

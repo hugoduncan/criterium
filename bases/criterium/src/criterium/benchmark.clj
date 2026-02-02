@@ -1,7 +1,7 @@
 (ns criterium.benchmark
-  "Namespace for composing and executing benchmarks from declarative specifications.
-   Provides functionality to construct benchmark functions from analysis and view
-   configurations."
+  "Namespace for composing and executing benchmarks from declarative specs.
+   Provides functionality to construct benchmark functions from analysis and
+   view configurations."
   (:require
    [criterium.util.helpers :as util]
    [criterium.util.invariant :refer [have have?]]

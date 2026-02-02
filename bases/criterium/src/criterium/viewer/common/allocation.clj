@@ -178,7 +178,12 @@
                             :class→line→type "class→line→type"
                             :type→class→line "type→class→line"
                             (name (or group-by :class→line→type)))
-             header (str "Allocation Treemap (by " size-by-str ", " group-by-str ")")
+             header (str
+                     "Allocation Treemap (by "
+                     size-by-str
+                     ", "
+                     group-by-str
+                     ")")
              root-name (str (:name root) "/")
              root-size (str "[" (format/format-value :memory root-value) "]")
              ;; Format root line with same fixed-width treatment as children
@@ -186,10 +191,18 @@
              root-line (let [padded (cond
                                       (< root-name-len name-width)
                                       (str root-name
-                                           (apply str (repeat (- name-width root-name-len) \space)))
+                                           (apply
+                                            str
+                                            (repeat
+                                             (- name-width root-name-len)
+                                             \space)))
 
                                       (> root-name-len name-width)
-                                      (str ellipsis (subs root-name (- root-name-len (dec name-width))))
+                                      (str
+                                       ellipsis
+                                       (subs
+                                        root-name
+                                        (- root-name-len (dec name-width))))
 
                                       :else
                                       root-name)]
@@ -202,9 +215,12 @@
              children (:children root)
              filtered-children (->> children
                                     (filter (fn [child]
-                                              (>= (* 100.0 (/ (double (:value child))
-                                                              root-value))
-                                                  (double min-percent))))
+                                              (>=
+                                               (*
+                                                100.0
+                                                (/ (double (:value child))
+                                                   root-value))
+                                               (double min-percent))))
                                     (sort-by :value >))
              num-children (long (count filtered-children))
              child-lines (mapcat (fn [^long idx child]

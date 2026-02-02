@@ -191,9 +191,11 @@
   [data-map metric-id quantile]
   (when (contains? data-map :bootstrap-stats)
     (let [transforms (get-transforms data-map :bootstrap-stats)
-          estimate-quantiles (get-in data-map [:bootstrap-stats :bootstrap metric-id
-                                               :quantiles quantile
-                                               :estimate-quantiles])]
+          estimate-quantiles (get-in
+                              data-map
+                              [:bootstrap-stats :bootstrap metric-id
+                               :quantiles quantile
+                               :estimate-quantiles])]
       (when (and estimate-quantiles (>= (count estimate-quantiles) 2))
         (let [lower-raw (-> estimate-quantiles first :value)
               upper-raw (-> estimate-quantiles second :value)]

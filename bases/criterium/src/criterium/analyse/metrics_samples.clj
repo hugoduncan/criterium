@@ -345,19 +345,23 @@
                   method    :acr mode-method :isj}} options
           max-modes                                 (long max-modes)
           alpha                                     (double alpha)
-          test-fn                                   (case method
-                                                      :acr       kde/acr-test
-                                                      :silverman kde/silverman-test)
+          test-fn
+          (case method
+            :acr       kde/acr-test
+            :silverman kde/silverman-test)
           p                                         (:path metric-config)
           ;; Filter outliers from samples
           outliers-data                             (get-in outliers p)
-          samples-arr                               (if-let [ols (:outliers outliers-data)]
-                                                      (remove-outliers samples-arr ols)
-                                                      samples-arr)
+          samples-arr
+          (if-let [ols (:outliers outliers-data)]
+            (remove-outliers samples-arr ols)
+            samples-arr)
           ;; Find modes from existing KDE density (for initial mode count)
           grid-arr                                  (double-array grid)
           density-arr                               (double-array density)
-          all-modes                                 (kde/find-modes grid-arr density-arr)
+          all-modes                                 (kde/find-modes
+                                                     grid-arr
+                                                     density-arr)
           n-all-modes                               (long (count all-modes))
           max-k-to-test                             (min max-modes n-all-modes)
           ;; Run multimodality test for each k from 1 up to max-k-to-test
@@ -623,9 +627,16 @@
                 (when (>= n-boot 10)
                   [param-key
                    {:point-estimate (get-in original-fit [:params param-key])
-                    :ci-lower (nth sorted-vals (long (* n-boot (double (first quantiles)))))
+                    :ci-lower (nth
+                               sorted-vals
+                               (long (* n-boot (double (first quantiles)))))
                     :ci-upper (nth sorted-vals (min (dec n-boot)
-                                                    (long (* n-boot (double (second quantiles))))))}])))))))
+                                                    (long
+                                                     (*
+                                                      n-boot
+                                                      (double
+                                                       (second
+                                                        quantiles))))))}])))))))
 
 (defn- fit-distributions-for-metric
   "Fit all applicable distributions to samples for a single metric.
@@ -647,8 +658,14 @@
                           (set distributions)
                           all-distributions)
         ;; Use moment-match prefilter to screen distributions
-        prefilter-results (moment-match/moment-match-prefilter mean-val var-val requested-dists)
-        suitable-dists (moment-match/suitable-distributions mean-val var-val requested-dists)
+        prefilter-results (moment-match/moment-match-prefilter
+                           mean-val
+                           var-val
+                           requested-dists)
+        suitable-dists (moment-match/suitable-distributions
+                        mean-val
+                        var-val
+                        requested-dists)
         ;; Fit each distribution - MLE/GOF functions now accept typed arrays
         fit-results
         (into {}
@@ -660,7 +677,10 @@
                       (let [{:keys [params log-likelihood]} fit
                             cdf-fn (make-cdf-fn dist params)
                             gof (compute-gof-tests samples cdf-fn)
-                            ic (compute-information-criteria dist n log-likelihood)]
+                            ic (compute-information-criteria
+                                dist
+                                n
+                                log-likelihood)]
                         [dist (merge {:params params
                                       :log-likelihood log-likelihood}
                                      ic
@@ -669,8 +689,10 @@
                   [dist {:skipped :moment-match-failed
                          :prefilter-result (get prefilter-results dist)}])))
         ;; Find best model by AIC (lowest AIC wins)
-        valid-fits (filter (fn [[_ v]] (and (:aic v) (not (:error v)) (not (:skipped v))))
-                           fit-results)
+        valid-fits (filter
+                    (fn [[_ v]]
+                      (and (:aic v) (not (:error v)) (not (:skipped v))))
+                    fit-results)
         best-model (when (seq valid-fits)
                      (first (apply min-key (fn [[_ v]] (:aic v)) valid-fits)))
         best-aic (when best-model (get-in fit-results [best-model :aic]))
@@ -755,8 +777,12 @@
                 (let [i (long i)
                       window (subvec estimates i (+ i window-size))
                       mean (/ (double (reduce + window)) window-size)
-                      var (/ (double (reduce + (map #(Math/pow (- (double %) mean) 2) window)))
-                             window-size)]
+                      var (/
+                           (double
+                            (reduce
+                             +
+                             (map #(Math/pow (- (double %) mean) 2) window)))
+                           window-size)]
                   {:start i :variance var :mean mean}))
               ;; Find region with minimum variance
               best-region (apply min-key :variance rolling-vars)]
@@ -827,21 +853,31 @@
                              (tail/hill-estimator sorted-samples k-range))
               stable-estimate (find-stable-hill-estimate hill-results)
               ;; GPD fitting on exceedances
-              exceedances (tail/exceedances-over-threshold sorted-samples threshold)
+              exceedances (tail/exceedances-over-threshold
+                           sorted-samples
+                           threshold)
               n-exceed (arr/length exceedances)
               gpd-fit (when (> n-exceed 10)
                         (try
                           (tail/gpd-mle exceedances)
                           (catch Exception _e nil)))
               ;; Mean residual life
-              mrl-thresholds (tail/mean-residual-life-default-thresholds sorted-samples)
+              mrl-thresholds (tail/mean-residual-life-default-thresholds
+                              sorted-samples)
               mrl-results (when (seq mrl-thresholds)
-                            (tail/mean-residual-life sorted-samples mrl-thresholds))
+                            (tail/mean-residual-life
+                             sorted-samples
+                             mrl-thresholds))
               ;; High quantile estimation using GPD
-              high-quantile-probs (or (:high-quantiles options) [0.99 0.999 0.9999])
+              high-quantile-probs (or
+                                   (:high-quantiles options)
+                                   [0.99 0.999 0.9999])
               high-quantiles (when gpd-fit
                                (compute-high-quantiles-gpd
-                                sorted-samples threshold gpd-fit high-quantile-probs))]
+                                sorted-samples
+                                threshold
+                                gpd-fit
+                                high-quantile-probs))]
           {:n n
            :threshold threshold
            :threshold-quantile threshold-quantile
@@ -875,7 +911,11 @@
              (mapv
               (fn [metric-config]
                 (let [p (:path metric-config)]
-                  [p (tail-analysis-for-metric metric->values metric-config options)])))
+                  [p
+                   (tail-analysis-for-metric
+                    metric->values
+                    metric-config
+                    options)])))
              (filterv (comp some? second))
              (into {}))]
     (when (seq tail-results)
@@ -889,7 +929,8 @@
   "Compute autocorrelation analysis for a single metric's samples.
 
   When outliers is provided, filters outlier samples before computing ACF.
-  When outliers is nil, uses all samples (for pattern detection before outlier removal).
+  When outliers is nil, uses all samples (for pattern detection before
+  outlier removal).
 
   Returns nil for metrics with insufficient samples (n < 20)."
   [metric->values outliers metric-config _options]

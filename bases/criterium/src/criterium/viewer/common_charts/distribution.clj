@@ -52,9 +52,13 @@
 (def ^:private cdf-color-scale
   "Vega-Lite color scale for CDF overlay including ECDF and fitted distributions."
   {:domain (into ["ECDF"]
-                 (mapv #(get distribution-labels % (name %)) distribution-order))
+                 (mapv
+                  #(get distribution-labels % (name %))
+                  distribution-order))
    :range (into ["#333333"]
-                (mapv #(get distribution-colors % "#999999") distribution-order))})
+                (mapv
+                 #(get distribution-colors % "#999999")
+                 distribution-order))})
 
 ;;; Distribution quantile (inverse CDF) functions for Q-Q plots
 
@@ -91,11 +95,19 @@
                         (let [z (si/normal-quantile p)]
                           (if (< shape 1.0)
                             ;; For small shape, use median approximation
-                            (* scale shape (Math/pow (- 1.0 (/ 1.0 (* 9.0 (max shape 0.1)))) 3.0))
+                            (*
+                             scale
+                             shape
+                             (Math/pow
+                              (- 1.0 (/ 1.0 (* 9.0 (max shape 0.1))))
+                              3.0))
                             ;; Wilson-Hilferty approximation
                             (let [d      (/ 1.0 (* 9.0 shape))
                                   x-norm (- 1.0 d (- (* z (Math/sqrt d))))]
-                              (* scale shape (Math/pow (max x-norm 0.01) 3.0))))))]
+                              (*
+                               scale
+                               shape
+                               (Math/pow (max x-norm 0.01) 3.0))))))]
     (fn ^double [^double p]
       (cond
         (<= p 0.0) 0.0
@@ -230,13 +242,23 @@
   (let [modes (:modes modes-data)
         k (first (:path metric-config))
         field-name (name k)
-        data (mapv (fn [{:keys [location density ci-lower ci-upper significant?]}]
-                     (cond-> {field-name (util/transform-sample-> location transforms)
-                              "kde-density" density
-                              "significant" (if significant? "yes" "no")}
-                       ci-lower (assoc "ci-lower" (util/transform-sample-> ci-lower transforms))
-                       ci-upper (assoc "ci-upper" (util/transform-sample-> ci-upper transforms))))
-                   modes)]
+        data (mapv
+              (fn [{:keys [location density ci-lower ci-upper significant?]}]
+                (cond-> {field-name
+                         (util/transform-sample-> location transforms)
+                         "kde-density"
+                         density
+                         "significant"
+                         (if significant? "yes" "no")}
+                  ci-lower (assoc
+                            "ci-lower"
+                            (util/transform-sample-> ci-lower transforms))
+                  ci-upper (assoc
+                            "ci-upper"
+                            (util/transform-sample->
+                             ci-upper
+                             transforms))))
+              modes)]
     (when (seq data)
       ;; Return a vector of individual layers to avoid nested layer structure
       ;; Use shape instead of color for significance to avoid color scale conflicts
@@ -342,7 +364,9 @@
                          ;; Add mode markers from separate modes analysis
                          (and modes-data (seq (:modes modes-data)))
                          (into (kde-modes-layer
-                                modes-data metric-config kde-transforms)))}))}))))
+                                modes-data
+                                metric-config
+                                kde-transforms)))}))}))))
       metric-configs)}))
 
 ;;; Distribution PDF overlay charts
@@ -400,14 +424,19 @@
                                              (* p x)
                                              p)
                                   ;; Transform x for display to match KDE axis
-                                  display-x (util/transform-sample-> x transforms)]
+                                  display-x (util/transform-sample->
+                                             x
+                                             transforms)]
                               {field-name display-x "pdf-density" scaled-p})))
                     ;; Filter out non-finite values that can't be encoded in JSON
                     (filterv (fn [pt]
                                (let [p (get pt "pdf-density")
                                      x (get pt field-name)]
-                                 (and (Double/isFinite p) (not (Double/isNaN p))
-                                      (Double/isFinite x) (not (Double/isNaN x)))))))]
+                                 (and
+                                  (Double/isFinite p)
+                                  (not (Double/isNaN p))
+                                  (Double/isFinite x)
+                                  (not (Double/isNaN x)))))))]
       {:data {:values data}
        :transform [{:calculate (str "'" label "'") :as "distribution"}]
        :mark {:type "line"
@@ -508,15 +537,22 @@
               ;; Generate PDF grid spanning the sample range with slight margin
               pdf-grid (when (and sample-min sample-max
                                   (> (double sample-max) (double sample-min)))
-                         (let [range-val (- (double sample-max) (double sample-min))
-                               grid-min (max 1e-10 (- (double sample-min) (* 0.05 range-val)))
-                               grid-max (+ (double sample-max) (* 0.05 range-val))
-                               step (/ (- grid-max grid-min) 200.0)]
+                         (let [range-val
+                               (- (double sample-max) (double sample-min))
+                               grid-min
+                               (max
+                                1e-10
+                                (- (double sample-min) (* 0.05 range-val)))
+                               grid-max
+                               (+ (double sample-max) (* 0.05 range-val))
+                               step
+                               (/ (- grid-max grid-min) 200.0)]
                            (vec (range grid-min grid-max step))))]
           (when kde-data
             (merge
              chart-options
-             {:resolve {:scale {:x "shared" :y "independent" :color "independent"}}
+             {:resolve
+              {:scale {:x "shared" :y "independent" :color "independent"}}
               :layer
               (cond-> []
                 ;; Add histogram bars if available
@@ -580,9 +616,11 @@
                 :y {:field "cdf" :type "quantitative"
                     :title "Cumulative Probability"
                     :scale {:domain [0 1]}}
-                :color {:field "distribution" :type "nominal"
+                :color {:field "distribution"
+                        :type "nominal"
                         :scale cdf-color-scale
-                        :legend {:orient "bottom-right" :title "Distribution"}}}}))
+                        :legend {:orient "bottom-right"
+                                 :title "Distribution"}}}}))
 
 (defn distribution-cdf-layer
   "Build a CDF curve layer for a single fitted distribution.
@@ -605,7 +643,9 @@
                     ;; Filter out non-finite values that can't be encoded in JSON
                     (filterv (fn [pt]
                                (let [p (get pt "cdf")]
-                                 (and (Double/isFinite p) (not (Double/isNaN p)))))))]
+                                 (and
+                                  (Double/isFinite p)
+                                  (not (Double/isNaN p)))))))]
       {:data {:values data}
        :transform [{:calculate (str "'" label "'") :as "distribution"}]
        :mark {:type "line"
@@ -681,10 +721,13 @@
               ;; Extend range slightly for better visualization
               range-val (when (and min-val max-val)
                           (- (double max-val) (double min-val)))
-              grid-min (when range-val (- (double min-val) (* 0.05 (double range-val))))
-              grid-max (when range-val (+ (double max-val) (* 0.05 (double range-val))))
+              grid-min (when range-val
+                         (- (double min-val) (* 0.05 (double range-val))))
+              grid-max (when range-val
+                         (+ (double max-val) (* 0.05 (double range-val))))
               grid (when (and grid-min grid-max)
-                     (let [step (/ (- (double grid-max) (double grid-min)) 100.0)]
+                     (let [step
+                           (/ (- (double grid-max) (double grid-min)) 100.0)]
                        (vec (range grid-min grid-max step))))]
           (when has-samples?
             (merge

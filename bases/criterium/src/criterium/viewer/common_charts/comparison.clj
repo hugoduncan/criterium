@@ -65,13 +65,25 @@
                                   (fn [impl]
                                     (let [v (get lookup impl)]
                                       (cond-> {"impl" (name impl)
-                                               "median" (* (double (:median v)) total-scale)
-                                               "p10" (* (double (:p10 v)) total-scale)
-                                               "p90" (* (double (:p90 v)) total-scale)}
+                                               "median" (*
+                                                         (double (:median v))
+                                                         total-scale)
+                                               "p10" (*
+                                                      (double (:p10 v))
+                                                      total-scale)
+                                               "p90" (*
+                                                      (double (:p90 v))
+                                                      total-scale)}
                                         (contains? v :ci-lower)
-                                        (assoc "ciLower" (* (double (:ci-lower v)) total-scale))
+                                        (assoc
+                                         "ciLower"
+                                         (* (double (:ci-lower v)) total-scale))
                                         (contains? v :ci-upper)
-                                        (assoc "ciUpper" (* (double (:ci-upper v)) total-scale)))))
+                                        (assoc
+                                         "ciUpper"
+                                         (*
+                                          (double (:ci-upper v))
+                                          total-scale)))))
                                   implementations)]
                   {:metric-id metric-id
                    :metric-path metric
@@ -127,15 +139,21 @@
                                  raw-value (core/get-numeric-value v)]
                              (cond-> {"impl" (name impl)
                                       "value" (when raw-value
-                                                (* (double raw-value) total-scale))}
+                                                (*
+                                                 (double raw-value)
+                                                 total-scale))}
                                (and has-error-bounds?
                                     (map? v)
                                     (contains? v :lower))
-                               (assoc "valueLower" (* (double (:lower v)) total-scale))
+                               (assoc
+                                "valueLower"
+                                (* (double (:lower v)) total-scale))
                                (and has-error-bounds?
                                     (map? v)
                                     (contains? v :upper))
-                               (assoc "valueUpper" (* (double (:upper v)) total-scale)))))
+                               (assoc
+                                "valueUpper"
+                                (* (double (:upper v)) total-scale)))))
                          implementations)]
          {:metric-id metric-id
           :metric-path metric

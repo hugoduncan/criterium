@@ -141,7 +141,8 @@
                                                v (:value entry)]
                                          :when (some? v)]
                                      v)]
-                    [col-spec (core/compute-si-scaling metric-path col-values)])))
+                    [col-spec
+                     (core/compute-si-scaling metric-path col-values)])))
            col-specs)
 
           ;; Build column headers with metric type prefix
@@ -230,9 +231,11 @@
                 (map (fn [metric-id]
                        (let [metric-path (get-in metrics [metric-id :metric])
                              all-values (keep (fn [impl]
-                                                (:value (get lookup [impl metric-id])))
+                                                (:value
+                                                 (get lookup [impl metric-id])))
                                               implementations)]
-                         [metric-id (core/compute-si-scaling metric-path all-values)])))
+                         [metric-id
+                          (core/compute-si-scaling metric-path all-values)])))
                 metric-ids)
 
           ;; Build column headers with metric type prefix
@@ -269,7 +272,9 @@
                             factor-header (str metric-name " ×")
                             impl-entry (get lookup [impl metric-id])
                             impl-value (:value impl-entry)
-                            baseline-entry (get lookup [baseline-impl metric-id])
+                            baseline-entry (get
+                                            lookup
+                                            [baseline-impl metric-id])
                             baseline-value (:value baseline-entry)
                             formatted-value (when impl-value
                                               (format-value-with-ci
@@ -278,7 +283,8 @@
                                                (:upper impl-entry)
                                                total-scale))
                             factor (when (and impl-value baseline-value
-                                              (not (zero? (double baseline-value))))
+                                              (not
+                                               (zero? (double baseline-value))))
                                      (format "%.2f"
                                              (/ (double impl-value)
                                                 (double baseline-value))))]

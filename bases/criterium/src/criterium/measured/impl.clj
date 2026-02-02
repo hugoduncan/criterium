@@ -235,12 +235,15 @@
                    (when (.hasJavaClass lb)
                      (tag-meta (.getJavaClass lb)))))
                ;; For compound expressions, find locals and use their type if uniform
-               (let [local-syms (filter #(contains? env %) (collect-symbols arg-val))
-                     local-types (keep (fn [sym]
-                                         (let [^clojure.lang.Compiler$LocalBinding lb (get env sym)]
-                                           (when (and lb (.hasJavaClass lb))
-                                             (.getJavaClass lb))))
-                                       local-syms)]
+               (let [local-syms
+                     (filter #(contains? env %) (collect-symbols arg-val))
+                     local-types
+                     (keep (fn [sym]
+                             (let [^clojure.lang.Compiler$LocalBinding lb
+                                   (get env sym)]
+                               (when (and lb (.hasJavaClass lb))
+                                 (.getJavaClass lb))))
+                           local-syms)]
                  (when (and (seq local-types)
                             (apply = local-types)
                             (#{Long/TYPE Double/TYPE} (first local-types)))

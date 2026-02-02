@@ -84,7 +84,8 @@
                                     :title "Hill Estimate (H_k)"
                                     :scale {:zero false}}
                                 :tooltip [{:field "k" :type "quantitative"}
-                                          {:field "estimate" :type "quantitative"
+                                          {:field "estimate"
+                                           :type "quantitative"
                                            :format ".4f"}]}}]]
         {:layer
          (if stable-estimate
@@ -119,7 +120,9 @@
                          {"threshold" (util/transform-sample-> u transforms)
                           "mrl" (util/transform-sample-> mrl-val transforms)})
                        thresholds values)
-            threshold-transformed (util/transform-sample-> threshold transforms)]
+            threshold-transformed (util/transform-sample->
+                                   threshold
+                                   transforms)]
         {:layer
          [{:data {:values data}
            :mark {:type "line" :color "#4682b4" :strokeWidth 2}
@@ -213,7 +216,8 @@
       (when (> n-exceed 2)
         (let [;; Compute mean of exceedances for scaling
               mean-exceed (/ (arr/fold-double exceedances
-                                              (fn ^double [^double acc ^double y]
+                                              (fn ^double [^double acc
+                                                           ^double y]
                                                 (+ acc y))
                                               0.0)
                              n-exceed)
@@ -224,12 +228,16 @@
                     sorted-exceed
                     (fn [acc ^long i ^double y]
                       (let [;; Hazen plotting position
-                            p (/ (- (double (inc i)) 0.5) (double n-exceed))
+                            p
+                            (/ (- (double (inc i)) 0.5) (double n-exceed))
                             ;; Theoretical quantile (scaled by mean)
-                            theoretical (* mean-exceed (exponential-quantile p))
+                            theoretical
+                            (* mean-exceed (exponential-quantile p))
                             ;; Transform both for display
-                            t-theoretical (util/transform-sample-> theoretical transforms)
-                            t-observed (util/transform-sample-> y transforms)]
+                            t-theoretical
+                            (util/transform-sample-> theoretical transforms)
+                            t-observed
+                            (util/transform-sample-> y transforms)]
                         (if (and (Double/isFinite t-theoretical)
                                  (Double/isFinite t-observed))
                           (conj acc {"theoretical" t-theoretical
@@ -291,34 +299,47 @@
               n-exceed (arr/length exceedances)]
           (when (> n-exceed 2)
             (let [;; GPD quantile function
-                  gpd-quantile-fn (stats/gpd-quantile (double xi) (double sigma))
+                  gpd-quantile-fn
+                  (stats/gpd-quantile (double xi) (double sigma))
                   ;; Sort exceedances for Q-Q plot
-                  sorted-exceed (arr/sorted exceedances)
+                  sorted-exceed
+                  (arr/sorted exceedances)
                   ;; Generate Q-Q points
-                  data (arr/indexed-dfold
-                        sorted-exceed
-                        (fn [acc ^long i ^double y]
-                          (let [;; Hazen plotting position
-                                p (/ (- (double (inc i)) 0.5) (double n-exceed))
+                  data
+                  (arr/indexed-dfold
+                   sorted-exceed
+                   (fn [acc ^long i ^double y]
+                     (let [;; Hazen plotting position
+                           p
+                           (/ (- (double (inc i)) 0.5) (double n-exceed))
                                 ;; Theoretical GPD quantile
-                                theoretical (gpd-quantile-fn p)
+                           theoretical
+                           (gpd-quantile-fn p)
                                 ;; Transform both for display
-                                t-theoretical (util/transform-sample-> theoretical transforms)
-                                t-observed (util/transform-sample-> y transforms)]
-                            (if (and (Double/isFinite t-theoretical)
-                                     (Double/isFinite t-observed))
-                              (conj acc {"theoretical" t-theoretical
-                                         "observed" t-observed})
-                              acc)))
-                        [])
+                           t-theoretical
+                           (util/transform-sample-> theoretical transforms)
+                           t-observed
+                           (util/transform-sample-> y transforms)]
+                       (if (and (Double/isFinite t-theoretical)
+                                (Double/isFinite t-observed))
+                         (conj acc {"theoretical" t-theoretical
+                                    "observed" t-observed})
+                         acc)))
+                   [])
                   ;; Compute domain for reference line
-                  all-values (into (mapv #(get % "theoretical") data)
-                                   (mapv #(get % "observed") data))
-                  ^double min-val (if (seq all-values) (apply min all-values) 0.0)
-                  ^double max-val (if (seq all-values) (apply max all-values) 1.0)
-                  margin (* 0.05 (- max-val min-val))
-                  domain-min (- min-val margin)
-                  domain-max (+ max-val margin)]
+                  all-values
+                  (into (mapv #(get % "theoretical") data)
+                        (mapv #(get % "observed") data))
+                  ^double min-val
+                  (if (seq all-values) (apply min all-values) 0.0)
+                  ^double max-val
+                  (if (seq all-values) (apply max all-values) 1.0)
+                  margin
+                  (* 0.05 (- max-val min-val))
+                  domain-min
+                  (- min-val margin)
+                  domain-max
+                  (+ max-val margin)]
               (when (seq data)
                 {:layer
                  [;; Reference line (y=x)
@@ -342,10 +363,14 @@
                               :y {:field "observed" :type "quantitative"
                                   :title "Sample Exceedance Quantiles"
                                   :scale {:domain [domain-min domain-max]}}
-                              :tooltip [{:field "theoretical" :type "quantitative"
-                                         :title "Theoretical" :format ".4g"}
-                                        {:field "observed" :type "quantitative"
-                                         :title "Observed" :format ".4g"}]}}]}))))))))
+                              :tooltip [{:field "theoretical"
+                                         :type "quantitative"
+                                         :title "Theoretical"
+                                         :format ".4g"}
+                                        {:field "observed"
+                                         :type "quantitative"
+                                         :title "Observed"
+                                         :format ".4g"}]}}]}))))))))
 
 ;;; Complete Vega Specs (combining all charts for a data-map)
 

@@ -196,8 +196,12 @@
                            (fn [acc ^long i ^double observed]
                              (let [p (/ (- (double (inc i)) 0.5) nd)
                                    theoretical (quantile-fn p)
-                                   t-obs (util/transform-sample-> observed transforms)
-                                   t-theo (util/transform-sample-> theoretical transforms)]
+                                   t-obs (util/transform-sample->
+                                          observed
+                                          transforms)
+                                   t-theo (util/transform-sample->
+                                           theoretical
+                                           transforms)]
                                (if (and (Double/isFinite t-theo)
                                         (not (Double/isNaN t-theo)))
                                  (conj acc [t-theo t-obs])

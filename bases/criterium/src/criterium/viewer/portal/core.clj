@@ -322,10 +322,11 @@
     (when (and total-gc (> frac warn-threshold))
       (heading "Final GC Warning")
       (portal-table
-       [{:warning (format "Final GC ran for %s, %.1f%% of total sampling time (%s)"
-                          (format/format-value :time total-gc)
-                          (* frac 100)
-                          (format/format-value :time total))}]))))
+       [{:warning (format
+                   "Final GC ran for %s, %.1f%% of total sampling time (%s)"
+                   (format/format-value :time total-gc)
+                   (* frac 100)
+                   (format/format-value :time total))}]))))
 
 ;;; OS Info
 
@@ -349,4 +350,5 @@
      [{:property "VM Name" :value (:vm-name runtime)}
       {:property "VM Version" :value (:vm-version runtime)}
       {:property "VM Vendor" :value (:vm-vendor runtime)}
-      {:property "Arguments" :value (str/join " " (:input-arguments runtime))}])))
+      {:property "Arguments"
+       :value (str/join " " (:input-arguments runtime))}])))

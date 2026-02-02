@@ -263,8 +263,9 @@
              [:autocorrelation-classification
               {:id :autocorrelation-classification-raw
                :autocorrelation-id :autocorrelation-raw}]
-             [:effective-sample-size-analysis {:id :effective-sample-size-raw
-                                               :autocorrelation-id :autocorrelation-raw}]
+             [:effective-sample-size-analysis
+              {:id :effective-sample-size-raw
+               :autocorrelation-id :autocorrelation-raw}]
              [:quantiles {:quantiles [0.9 0.95 0.99 0.999]}]
              [:stats {}]
              [:stats {:samples-id :log-samples :id :log-stats}]
@@ -278,7 +279,8 @@
              :allocation-by-type]
    :view [[:stats {:metric-ids [:memory]}]
           :bootstrap-stats
-          [:autocorrelation-classification {:classification-id :autocorrelation-classification-raw}]
+          [:autocorrelation-classification
+           {:classification-id :autocorrelation-classification-raw}]
           [:effective-sample-size {:ess-id :effective-sample-size-raw}]
           [:acf-plot {:autocorrelation-id :autocorrelation-raw
                       :min-severity :moderate}]

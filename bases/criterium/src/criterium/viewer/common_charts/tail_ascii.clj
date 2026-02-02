@@ -168,7 +168,10 @@
                (->> chart-lines
                     (map #(str indent %))
                     (str/join "\n"))
-               (format "\n%sSelected threshold: %.4g" indent threshold-transformed)))))))
+               (format
+                "\n%sSelected threshold: %.4g"
+                indent
+                threshold-transformed)))))))
 
 ;;; Zipf Plot
 
@@ -255,14 +258,18 @@
     (let [{:keys [width height header-fn indent]
            :or {width 60
                 height 15
-                header-fn (fn [n] (format "Exponential Q-Q Plot (n=%d exceedances)" n))
+                header-fn (fn [n]
+                            (format
+                             "Exponential Q-Q Plot (n=%d exceedances)"
+                             n))
                 indent ""}} opts
           exceedances (stats/exceedances-over-threshold samples threshold)
           n-exceed (arr/length exceedances)]
       (when (> n-exceed 2)
         (let [;; Compute mean for scaling
               mean-exceed (/ (arr/fold-double exceedances
-                                              (fn ^double [^double acc ^double y]
+                                              (fn ^double [^double acc
+                                                           ^double y]
                                                 (+ acc y))
                                               0.0)
                              n-exceed)
@@ -272,10 +279,16 @@
                       sorted-exceed
                       (fn [acc ^long i ^double y]
                         (let [p (/ (- (double (inc i)) 0.5) (double n-exceed))
-                              theoretical (* mean-exceed (exponential-quantile p))
-                              t-theo (util/transform-sample-> theoretical transforms)
+                              theoretical (*
+                                           mean-exceed
+                                           (exponential-quantile p))
+                              t-theo (util/transform-sample->
+                                      theoretical
+                                      transforms)
                               t-obs (util/transform-sample-> y transforms)]
-                          (if (and (Double/isFinite t-theo) (Double/isFinite t-obs))
+                          (if (and
+                               (Double/isFinite t-theo)
+                               (Double/isFinite t-obs))
                             (conj acc [t-theo t-obs])
                             acc)))
                       [])
@@ -323,26 +336,39 @@
         (let [{:keys [width height header-fn indent]
                :or {width 60
                     height 15
-                    header-fn (fn [n] (format "GPD Q-Q Plot (n=%d exceedances)" n))
+                    header-fn (fn [n]
+                                (format "GPD Q-Q Plot (n=%d exceedances)" n))
                     indent ""}} opts
               exceedances (stats/exceedances-over-threshold samples threshold)
               n-exceed (arr/length exceedances)]
           (when (> n-exceed 2)
-            (let [gpd-quantile-fn (stats/gpd-quantile (double xi) (double sigma))
-                  sorted-exceed (arr/sorted exceedances)
+            (let [gpd-quantile-fn
+                  (stats/gpd-quantile (double xi) (double sigma))
+                  sorted-exceed
+                  (arr/sorted exceedances)
                   ;; Generate Q-Q points
-                  points (arr/indexed-dfold
-                          sorted-exceed
-                          (fn [acc ^long i ^double y]
-                            (let [p (/ (- (double (inc i)) 0.5) (double n-exceed))
-                                  theoretical (gpd-quantile-fn p)
-                                  t-theo (util/transform-sample-> theoretical transforms)
-                                  t-obs (util/transform-sample-> y transforms)]
-                              (if (and (Double/isFinite t-theo) (Double/isFinite t-obs))
-                                (conj acc [t-theo t-obs])
-                                acc)))
-                          [])
-                  header (header-fn n-exceed)]
+                  points
+                  (arr/indexed-dfold
+                   sorted-exceed
+                   (fn [acc ^long i ^double y]
+                     (let [p
+                           (/ (- (double (inc i)) 0.5) (double n-exceed))
+                           theoretical
+                           (gpd-quantile-fn p)
+                           t-theo
+                           (util/transform-sample->
+                            theoretical
+                            transforms)
+                           t-obs
+                           (util/transform-sample-> y transforms)]
+                       (if (and
+                            (Double/isFinite t-theo)
+                            (Double/isFinite t-obs))
+                         (conj acc [t-theo t-obs])
+                         acc)))
+                   [])
+                  header
+                  (header-fn n-exceed)]
               (when (seq points)
                 (let [chart-lines (ascii-chart/render-chart
                                    points

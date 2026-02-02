@@ -77,7 +77,9 @@
                         :y2 {:field "yUpper"}
                         :opacity {:value 0.5}}
                  actual-color-field
-                 (assoc :color {:field actual-color-field :type "nominal" :legend nil})
+                 (assoc
+                  :color
+                  {:field actual-color-field :type "nominal" :legend nil})
                  (not actual-color-field)
                  (assoc :color {:value color-value}))}))
 
@@ -201,7 +203,8 @@
   Options:
     :axis-name - name of the x-axis variable (e.g., 'n')
     :metric-name - name of the metric being plotted (e.g., 'elapsed-time')"
-  [points {:keys [axis-name metric-name color-field color-value legend-options]}]
+  [points
+   {:keys [axis-name metric-name color-field color-value legend-options]}]
   (have metric-name)
   {:data {:values (vec points)}
    :mark {:type "point" :size 60 :filled true}
@@ -319,6 +322,8 @@
                  :or {width 600 height 200} :as opts}]
   {:width width
    :height height
-   :layer [(log-log-residual-layer residual-pts (assoc opts :axis-name axis-name))
+   :layer [(log-log-residual-layer
+            residual-pts
+            (assoc opts :axis-name axis-name))
            (regression-loess-layer residual-pts {:color-field color-field})
            (regression-zero-line-layer)]})

@@ -30,7 +30,8 @@
   "Set the default viewer for all bench calls that don't specify an explicit
   :viewer option.
 
-  viewer - Keyword identifying the viewer, e.g. :print, :pprint, :portal, :kindly
+  viewer - Keyword identifying the viewer,
+           e.g. :print, :pprint, :portal, :kindly
 
   Example:
     (set-default-viewer! :kindly)

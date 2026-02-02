@@ -257,7 +257,9 @@
               {:points points
                :axis-name (name axis)
                :has-error-bounds? (boolean
-                                   (some #(contains? % "yLower") points))})))))))
+                                   (some
+                                    #(contains? % "yLower")
+                                    points))})))))))
 
 (defn prepare-log-log-fit-line
   "Generate fit line points for log-log plot.
@@ -277,7 +279,10 @@
               (when (and slope intercept log-xs (seq log-xs))
                 (let [x-min (double (reduce min log-xs))
                       x-max (double (reduce max log-xs))
-                      x-range (range x-min (+ x-max 0.1) (/ (- x-max x-min) 50))]
+                      x-range (range
+                               x-min
+                               (+ x-max 0.1)
+                               (/ (- x-max x-min) 50))]
                   (mapv (fn [^double x]
                           {"x" x
                            "y" (+ (* (double slope) x) (double intercept))
@@ -408,7 +413,8 @@
                                        {:axis axis :impl-axis impl-axis})]
                   (let [{:keys [points has-error-bounds?]} point-data
                         line-pts (prepare-log-log-fit-line
-                                  log-log-data {:axis axis :impl-axis impl-axis})
+                                  log-log-data
+                                  {:axis axis :impl-axis impl-axis})
                         residual-pts (prepare-log-log-residuals
                                       log-log-data
                                       {:axis axis :impl-axis impl-axis})]

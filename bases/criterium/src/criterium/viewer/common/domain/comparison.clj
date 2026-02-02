@@ -226,15 +226,21 @@
                                    raw-value (get-numeric v)]
                                (cond-> {"impl" (name impl)
                                         "value" (when raw-value
-                                                  (* (double raw-value) total-scale))}
+                                                  (*
+                                                   (double raw-value)
+                                                   total-scale))}
                                  (and has-error-bounds?
                                       (map? v)
                                       (contains? v :lower))
-                                 (assoc "valueLower" (* (double (:lower v)) total-scale))
+                                 (assoc
+                                  "valueLower"
+                                  (* (double (:lower v)) total-scale))
                                  (and has-error-bounds?
                                       (map? v)
                                       (contains? v :upper))
-                                 (assoc "valueUpper" (* (double (:upper v)) total-scale)))))
+                                 (assoc
+                                  "valueUpper"
+                                  (* (double (:upper v)) total-scale)))))
                            implementations)]
            {:metric-id metric-id
             :metric-path metric
@@ -279,15 +285,21 @@
                                 raw-value (get-numeric v)]
                             (cond-> {"impl" (name impl)
                                      "value" (when raw-value
-                                               (* (double raw-value) total-scale))}
+                                               (*
+                                                (double raw-value)
+                                                total-scale))}
                               (and has-error-bounds?
                                    (map? v)
                                    (contains? v :lower))
-                              (assoc "valueLower" (* (double (:lower v)) total-scale))
+                              (assoc
+                               "valueLower"
+                               (* (double (:lower v)) total-scale))
                               (and has-error-bounds?
                                    (map? v)
                                    (contains? v :upper))
-                              (assoc "valueUpper" (* (double (:upper v)) total-scale)))))
+                              (assoc
+                               "valueUpper"
+                               (* (double (:upper v)) total-scale)))))
                         implementations)]
         [{:metric-id nil
           :metric-path metric
@@ -331,49 +343,63 @@
     (mapv
      (fn [[metric-id {:keys [metric data]}]]
        (let [;; Get all raw values for error detection and SI scaling
-             all-raw-values (keep (fn [[_coord value]] value) data)
+             all-raw-values
+             (keep (fn [[_coord value]] value) data)
              ;; Check if any values have error bounds (with :lower/:upper)
-             has-error-bounds? (core/values-have-error-bounds? all-raw-values)
+             has-error-bounds?
+             (core/values-have-error-bounds? all-raw-values)
              ;; Also check for error-bound-value? (with :value key) for y-title
-             has-error-bound-format (some core/error-bound-value? all-raw-values)
-             all-values (map core/get-numeric-value all-raw-values)
+             has-error-bound-format
+             (some core/error-bound-value? all-raw-values)
+             all-values
+             (map core/get-numeric-value all-raw-values)
              {:keys [^double total-scale unit]}
              (core/compute-si-scaling metric all-values)
              ;; Build axis titles
-             x-title (name axis-key)
-             metric-name (name metric-id)
-             type-prefix (when (or has-error-bounds? has-error-bound-format)
-                           (or (metric-type-prefix metric) "mean"))
-             base-title (if type-prefix
-                          (str type-prefix " " metric-name)
-                          metric-name)
-             y-title (if (seq unit)
-                       (str base-title " (" unit ")")
-                       base-title)
+             x-title
+             (name axis-key)
+             metric-name
+             (name metric-id)
+             type-prefix
+             (when (or has-error-bounds? has-error-bound-format)
+               (or (metric-type-prefix metric) "mean"))
+             base-title
+             (if type-prefix
+               (str type-prefix " " metric-name)
+               metric-name)
+             y-title
+             (if (seq unit)
+               (str base-title " (" unit ")")
+               base-title)
              ;; Build chart data points
-             chart-data (mapv
-                         (fn [[coord value]]
-                           (let [raw-value (core/get-numeric-value value)
-                                 x-val (get coord axis-key)
-                                 impl-val (if impl-axis-key
-                                            (get coord impl-axis-key)
-                                            nil)
-                                 impl-name (if impl-val
-                                             (name impl-val)
-                                             default-impl-name)
-                                 lower-bound (when (map? value)
-                                               (get-error-lower value))
-                                 upper-bound (when (map? value)
-                                               (get-error-upper value))]
-                             (cond-> {"x" x-val
-                                      "y" (when raw-value
-                                            (* (double raw-value) total-scale))
-                                      "impl" impl-name}
-                               (and has-error-bounds? lower-bound)
-                               (assoc "yLower" (* (double lower-bound) total-scale))
-                               (and has-error-bounds? upper-bound)
-                               (assoc "yUpper" (* (double upper-bound) total-scale)))))
-                         data)]
+             chart-data
+             (mapv
+              (fn [[coord value]]
+                (let [raw-value (core/get-numeric-value value)
+                      x-val (get coord axis-key)
+                      impl-val (if impl-axis-key
+                                 (get coord impl-axis-key)
+                                 nil)
+                      impl-name (if impl-val
+                                  (name impl-val)
+                                  default-impl-name)
+                      lower-bound (when (map? value)
+                                    (get-error-lower value))
+                      upper-bound (when (map? value)
+                                    (get-error-upper value))]
+                  (cond-> {"x" x-val
+                           "y" (when raw-value
+                                 (* (double raw-value) total-scale))
+                           "impl" impl-name}
+                    (and has-error-bounds? lower-bound)
+                    (assoc
+                     "yLower"
+                     (* (double lower-bound) total-scale))
+                    (and has-error-bounds? upper-bound)
+                    (assoc
+                     "yUpper"
+                     (* (double upper-bound) total-scale)))))
+              data)]
          {:metric-id metric-id
           :metric-path metric
           :x-title x-title
@@ -420,45 +446,58 @@
       (mapv
        (fn [[metric-id {:keys [metric data]}]]
          (let [;; Get all raw values for error detection and SI scaling
-               all-raw-values (->> data
-                                   vals
-                                   (mapcat (fn [entries]
-                                             (keep :value entries))))
+               all-raw-values
+               (->> data
+                    vals
+                    (mapcat (fn [entries]
+                              (keep :value entries))))
                ;; Check if any values have error bounds (with :lower/:upper)
-               has-error-bounds? (core/values-have-error-bounds? all-raw-values)
+               has-error-bounds?
+               (core/values-have-error-bounds? all-raw-values)
                ;; Also check for error-bound-value? (with :value key) for y-title
-               has-error-bound-format (some core/error-bound-value? all-raw-values)
-               all-values (map core/get-numeric-value all-raw-values)
+               has-error-bound-format
+               (some core/error-bound-value? all-raw-values)
+               all-values
+               (map core/get-numeric-value all-raw-values)
                {:keys [^double total-scale unit]}
                (core/compute-si-scaling metric all-values)
                ;; Build y-axis title
-               metric-name (name metric-id)
-               type-prefix (when (or has-error-bounds? has-error-bound-format)
-                             (or (metric-type-prefix metric) "mean"))
-               base-title (if type-prefix
-                            (str type-prefix " " metric-name)
-                            metric-name)
-               y-title (if (seq unit)
-                         (str base-title " (" unit ")")
-                         base-title)
+               metric-name
+               (name metric-id)
+               type-prefix
+               (when (or has-error-bounds? has-error-bound-format)
+                 (or (metric-type-prefix metric) "mean"))
+               base-title
+               (if type-prefix
+                 (str type-prefix " " metric-name)
+                 metric-name)
+               y-title
+               (if (seq unit)
+                 (str base-title " (" unit ")")
+                 base-title)
                ;; Build chart data points
-               chart-data (vec
-                           (for [[impl-val entries] data
-                                 {:keys [coord value]} entries
-                                 :let [raw-value (core/get-numeric-value value)
-                                       x-val (get coord x-key)
-                                       lower-bound (when (map? value)
-                                                     (get-error-lower value))
-                                       upper-bound (when (map? value)
-                                                     (get-error-upper value))]
-                                 :when (some? raw-value)]
-                             (cond-> {"x" x-val
-                                      "y" (* (double raw-value) total-scale)
-                                      "impl" (name impl-val)}
-                               (and has-error-bounds? lower-bound)
-                               (assoc "yLower" (* (double lower-bound) total-scale))
-                               (and has-error-bounds? upper-bound)
-                               (assoc "yUpper" (* (double upper-bound) total-scale)))))]
+               chart-data
+               (vec
+                (for [[impl-val entries] data
+                      {:keys [coord value]} entries
+                      :let [raw-value (core/get-numeric-value value)
+                            x-val (get coord x-key)
+                            lower-bound (when (map? value)
+                                          (get-error-lower value))
+                            upper-bound (when (map? value)
+                                          (get-error-upper value))]
+                      :when (some? raw-value)]
+                  (cond-> {"x" x-val
+                           "y" (* (double raw-value) total-scale)
+                           "impl" (name impl-val)}
+                    (and has-error-bounds? lower-bound)
+                    (assoc
+                     "yLower"
+                     (* (double lower-bound) total-scale))
+                    (and has-error-bounds? upper-bound)
+                    (assoc
+                     "yUpper"
+                     (* (double upper-bound) total-scale)))))]
            {:metric-id metric-id
             :metric-path metric
             :x-title x-title
@@ -503,9 +542,13 @@
                                    "y" (* (double raw-value) total-scale)
                                    "impl" (name impl-val)}
                             (and has-error-bounds? lower-bound)
-                            (assoc "yLower" (* (double lower-bound) total-scale))
+                            (assoc
+                             "yLower"
+                             (* (double lower-bound) total-scale))
                             (and has-error-bounds? upper-bound)
-                            (assoc "yUpper" (* (double upper-bound) total-scale)))))]
+                            (assoc
+                             "yUpper"
+                             (* (double upper-bound) total-scale)))))]
         [{:metric-id nil
           :metric-path metric
           :x-title x-title
@@ -579,15 +622,18 @@
   (let [data-keys (set (keys data))
         missing (remove data-keys implementations)]
     (when (seq missing)
-      (throw (ex-info "Domain :implementations do not match comparison data keys"
-                      {:implementations implementations
-                       :data-keys (keys data)
-                       :missing missing})))
+      (throw
+       (ex-info "Domain :implementations do not match comparison data keys"
+                {:implementations implementations
+                 :data-keys (keys data)
+                 :missing missing})))
     (let [baseline-impl (first implementations)
           other-impls (rest implementations)
           all-row-keys (->> (vals data)
                             (mapcat (fn [entries]
-                                      (map #(extract-row-key (:coord %) axis) entries)))
+                                      (map
+                                       #(extract-row-key (:coord %) axis)
+                                       entries)))
                             distinct)
           single-key-info (core/single-key-coord-info all-row-keys)
           row-keys (core/sort-row-keys all-row-keys single-key-info)
@@ -595,7 +641,10 @@
           lookup (reduce (fn [acc [impl-val entries]]
                            (reduce (fn [acc2 {:keys [coord value]}]
                                      (let [row-key (extract-row-key coord axis)]
-                                       (assoc-in acc2 [impl-val row-key] value)))
+                                       (assoc-in
+                                        acc2
+                                        [impl-val row-key]
+                                        value)))
                                    acc
                                    entries))
                          {}
@@ -615,40 +664,52 @@
           table-rows
           (mapv
            (fn [row-key]
-             (into {coord-header (core/format-row-key-value row-key single-key-info)}
-                   (map (fn [{:keys [type impl]} header]
-                          (let [raw-value (core/get-numeric-value
-                                           (get-in lookup [impl row-key]))
-                                value (when raw-value (double raw-value))
-                                raw-baseline (core/get-numeric-value
-                                              (get-in
-                                               lookup
-                                               [baseline-impl row-key]))
-                                baseline-value (when raw-baseline
-                                                 (double raw-baseline))]
-                            [header
-                             (case type
-                               :baseline (core/format-value-with-unit value metric)
-                               :value (core/format-value-with-unit value metric)
-                               :factor (cond
-                                         (nil? value) "-"
-                                         (nil? baseline-value) "-"
-                                         (zero? ^double baseline-value) "-"
-                                         :else
-                                         (format
-                                          "%.2f"
-                                          (/ ^double value
-                                             ^double baseline-value))))]))
-                        col-specs col-headers)))
+             (into
+              {coord-header (core/format-row-key-value row-key single-key-info)}
+              (map (fn [{:keys [type impl]} header]
+                     (let [raw-value (core/get-numeric-value
+                                      (get-in lookup [impl row-key]))
+                           value (when raw-value (double raw-value))
+                           raw-baseline (core/get-numeric-value
+                                         (get-in
+                                          lookup
+                                          [baseline-impl row-key]))
+                           baseline-value (when raw-baseline
+                                            (double raw-baseline))]
+                       [header
+                        (case type
+                          :baseline (core/format-value-with-unit
+                                     value
+                                     metric)
+                          :value (core/format-value-with-unit value metric)
+                          :factor (cond
+                                    (nil? value) "-"
+                                    (nil? baseline-value) "-"
+                                    (zero? ^double baseline-value) "-"
+                                    :else
+                                    (format
+                                     "%.2f"
+                                     (/ ^double value
+                                        ^double baseline-value))))]))
+                   col-specs col-headers)))
            row-keys)
           type-prefix (metric-type-prefix metric)
           heading-suffix (if type-prefix
                            (str " (" type-prefix ")")
                            "")]
-      {:heading (str "Domain Comparison by " (name axis) ": " (pr-str metric) heading-suffix)
-       :coord-header coord-header
-       :col-headers col-headers
-       :rows table-rows})))
+      {:heading
+       (str
+        "Domain Comparison by "
+        (name axis)
+        ": "
+        (pr-str metric)
+        heading-suffix)
+       :coord-header
+       coord-header
+       :col-headers
+       col-headers
+       :rows
+       table-rows})))
 
 (defn- build-factor-table-multi-metric
   "Build a table spec for multi-metric factor display (with implementations)."
@@ -659,7 +720,11 @@
         all-row-keys (->> (vals metrics)
                           (mapcat (fn [{:keys [data]}]
                                     (mapcat (fn [[_impl entries]]
-                                              (map #(extract-row-key (:coord %) axis) entries))
+                                              (map
+                                               #(extract-row-key
+                                                 (:coord %)
+                                                 axis)
+                                               entries))
                                             data)))
                           distinct)
         single-key-info (core/single-key-coord-info all-row-keys)
@@ -668,8 +733,12 @@
         lookup (reduce (fn [acc [metric-id {:keys [data]}]]
                          (reduce (fn [acc2 [impl-val entries]]
                                    (reduce (fn [acc3 {:keys [coord value]}]
-                                             (let [row-key (extract-row-key coord axis)]
-                                               (assoc-in acc3 [metric-id impl-val row-key] value)))
+                                             (let [row-key
+                                                   (extract-row-key coord axis)]
+                                               (assoc-in
+                                                acc3
+                                                [metric-id impl-val row-key]
+                                                value)))
                                            acc2
                                            entries))
                                  acc
@@ -678,7 +747,8 @@
                        metrics)
         ;; Build column specs: baseline shows value, others show value + factor
         col-specs (vec (mapcat (fn [metric-id]
-                                 (let [metric-path (get-in metrics [metric-id :metric])]
+                                 (let [metric-path
+                                       (get-in metrics [metric-id :metric])]
                                    (cons {:type :baseline
                                           :metric-id metric-id
                                           :metric-path metric-path
@@ -697,7 +767,10 @@
         col-headers (mapv (fn [{:keys [type metric-id metric-path impl]}]
                             (let [type-prefix (metric-type-prefix metric-path)
                                   metric-name (if type-prefix
-                                                (str type-prefix " " (name metric-id))
+                                                (str
+                                                 type-prefix
+                                                 " "
+                                                 (name metric-id))
                                                 (name metric-id))]
                               (case type
                                 :baseline (str (name impl) " " metric-name)
@@ -831,7 +904,8 @@
                 (map (fn [metric-id]
                        [metric-id
                         (some (fn [impl]
-                                (has-ci-bounds? (get value-lookup [impl metric-id])))
+                                (has-ci-bounds?
+                                 (get value-lookup [impl metric-id])))
                               implementations)]))
                 metric-ids)
 
@@ -839,11 +913,16 @@
           metric-scales
           (into {}
                 (map (fn [metric-id]
-                       (let [metric-path (get-in metrics-map [metric-id :metric])
-                             all-values (keep (fn [impl]
-                                                (get median-lookup [impl metric-id]))
-                                              implementations)]
-                         [metric-id (core/compute-si-scaling metric-path all-values)])))
+                       (let [metric-path
+                             (get-in metrics-map [metric-id :metric])
+                             all-values
+                             (keep (fn [impl]
+                                     (get
+                                      median-lookup
+                                      [impl metric-id]))
+                                   implementations)]
+                         [metric-id
+                          (core/compute-si-scaling metric-path all-values)])))
                 metric-ids)
 
           ;; Build column headers: Implementation, then for each metric:
@@ -852,12 +931,25 @@
           (into ["Implementation"]
                 (mapcat (fn [metric-id]
                           (let [{:keys [unit]} (get metric-scales metric-id)
-                                metric-path (get-in metrics-map [metric-id :metric])
-                                type-prefix (or (metric-type-prefix metric-path) "median")
+                                metric-path (get-in
+                                             metrics-map
+                                             [metric-id :metric])
+                                type-prefix (or
+                                             (metric-type-prefix metric-path)
+                                             "median")
                                 metric-name (name metric-id)
                                 value-header (if (seq unit)
-                                               (str type-prefix " " metric-name " (" unit ")")
-                                               (str type-prefix " " metric-name))
+                                               (str
+                                                type-prefix
+                                                " "
+                                                metric-name
+                                                " ("
+                                                unit
+                                                ")")
+                                               (str
+                                                type-prefix
+                                                " "
+                                                metric-name))
                                 ci-header (str metric-name " CI")
                                 factor-header (str metric-name " ×")]
                             (if (get metric-has-ci metric-id)
@@ -875,16 +967,26 @@
                       (let [{:keys [unit ^double total-scale]}
                             (get metric-scales metric-id)
                             metric-path (get-in metrics-map [metric-id :metric])
-                            type-prefix (or (metric-type-prefix metric-path) "median")
+                            type-prefix (or
+                                         (metric-type-prefix metric-path)
+                                         "median")
                             metric-name (name metric-id)
                             value-header (if (seq unit)
-                                           (str type-prefix " " metric-name " (" unit ")")
+                                           (str
+                                            type-prefix
+                                            " "
+                                            metric-name
+                                            " ("
+                                            unit
+                                            ")")
                                            (str type-prefix " " metric-name))
                             ci-header (str metric-name " CI")
                             factor-header (str metric-name " ×")
                             full-value (get value-lookup [impl metric-id])
                             median-value (get median-lookup [impl metric-id])
-                            baseline-median (get median-lookup [baseline-impl metric-id])
+                            baseline-median (get
+                                             median-lookup
+                                             [baseline-impl metric-id])
                             formatted-value (when median-value
                                               (format "%.3g"
                                                       (* (double median-value)
@@ -892,12 +994,18 @@
                             ;; Format CI as "lower - upper" when available
                             formatted-ci (when (has-ci-bounds? full-value)
                                            (format "%.3g - %.3g"
-                                                   (* (double (:ci-lower full-value))
-                                                      total-scale)
-                                                   (* (double (:ci-upper full-value))
-                                                      total-scale)))
+                                                   (*
+                                                    (double
+                                                     (:ci-lower full-value))
+                                                    total-scale)
+                                                   (*
+                                                    (double
+                                                     (:ci-upper full-value))
+                                                    total-scale)))
                             factor (when (and median-value baseline-median
-                                              (not (zero? (double baseline-median))))
+                                              (not
+                                               (zero?
+                                                (double baseline-median))))
                                      (format "%.2f"
                                              (/ (double median-value)
                                                 (double baseline-median))))]

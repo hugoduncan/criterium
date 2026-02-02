@@ -24,8 +24,12 @@
   Returns map with :tail-results, :metric-configs, :transforms, or nil if no data."
   [view data-map]
   (when-let [{:keys [analysis-map metric-configs transforms]}
-             (get-analysis-context :tail-analysis-id :tail-analysis view data-map
-                                   (metric/type-pred :quantitative))]
+             (get-analysis-context
+              :tail-analysis-id
+              :tail-analysis
+              view
+              data-map
+              (metric/type-pred :quantitative))]
     (let [tail-results (:tail-analysis analysis-map)]
       (when (seq tail-results)
         {:tail-results tail-results
@@ -39,7 +43,8 @@
     (when (seq summary-rows)
       (println (print-core/format-label (:label mc)))
       (doseq [{:keys [parameter value]} summary-rows]
-        (println (format "%s  %s: %s" (print-core/label-str "") parameter value))))))
+        (println
+         (format "%s  %s: %s" (print-core/label-str "") parameter value))))))
 
 (defn print-tail-summary
   "Print GPD/Hill summary statistics for all metrics."
@@ -76,11 +81,16 @@
         (doseq [[i [rname rval]] (map-indexed vector sorted-ratios)]
           (if (zero? i)
             (println (format "%s %s"
-                             (print-core/format-label (str (:label mc) " tail ratios"))
-                             (format-tail-ratio [rname rval] empirical-quantiles)))
+                             (print-core/format-label
+                              (str (:label mc) " tail ratios"))
+                             (format-tail-ratio
+                              [rname rval]
+                              empirical-quantiles)))
             (println (format "%s  %s"
                              (print-core/label-str "")
-                             (format-tail-ratio [rname rval] empirical-quantiles)))))))))
+                             (format-tail-ratio
+                              [rname rval]
+                              empirical-quantiles)))))))))
 
 (defn print-tail-ratios
   "Print tail ratio statistics for all metrics."
@@ -188,7 +198,8 @@
                     :height 12)]
     (tail-ascii/with-tail-metrics view data-map
       (fn [tail-data _samples transforms _mc]
-        (when-let [output (tail-ascii/render-ascii-mrl-plot tail-data transforms opts)]
+        (when-let [output
+                   (tail-ascii/render-ascii-mrl-plot tail-data transforms opts)]
           (println output)
           (println))))))
 
@@ -213,7 +224,11 @@
     (tail-ascii/with-tail-metrics view data-map
       (fn [_tail-data samples transforms _mc]
         (when samples
-          (when-let [output (tail-ascii/render-ascii-zipf-plot samples transforms opts)]
+          (when-let [output
+                     (tail-ascii/render-ascii-zipf-plot
+                      samples
+                      transforms
+                      opts)]
             (println output)
             (println)))))))
 

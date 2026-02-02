@@ -91,7 +91,11 @@
     (when call-tree
       (let [total-calls (call-graph/total-call-count call-tree)]
         (heading "Call Flame Chart")
-        (portal-vega (charts.profile/call-tree-flame-vega-spec call-tree total-calls {}))))))
+        (portal-vega
+         (charts.profile/call-tree-flame-vega-spec
+          call-tree
+          total-calls
+          {}))))))
 
 (defmethod view/most-called* :portal
   [_ {:keys [most-called-id]} data-map]
@@ -102,6 +106,7 @@
             total-in-list (reduce + 0 (map :total-calls methods))]
         (heading (format "Most Called Methods (top %d, %d total calls)"
                          (count methods) total-in-list))
-        (portal-vega-lite (charts.profile/most-called-vega-lite-spec most-called-data {}))))))
+        (portal-vega-lite
+         (charts.profile/most-called-vega-lite-spec most-called-data {}))))))
 
 

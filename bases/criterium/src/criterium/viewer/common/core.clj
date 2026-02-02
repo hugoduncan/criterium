@@ -464,7 +464,9 @@
         threshold-transformed (when threshold
                                 (util/transform-sample-> threshold transforms))
         threshold-formatted (when threshold-transformed
-                              (format/format-value :time threshold-transformed))]
+                              (format/format-value
+                               :time
+                               threshold-transformed))]
     (cond-> []
       threshold-formatted
       (conj {:parameter "Threshold"
@@ -483,7 +485,9 @@
              :value (if (and k-min k-max)
                       (clojure.core/format "%.4f (k: %d-%d)"
                                            (double stable-estimate) k-min k-max)
-                      (clojure.core/format "%.4f" (double stable-estimate)))}))))
+                      (clojure.core/format
+                       "%.4f"
+                       (double stable-estimate)))}))))
 
 (defn tail-ratios-table-data
   "Prepare tail ratios table data for display.

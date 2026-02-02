@@ -27,11 +27,17 @@
                               :name node-name
                               :depth (count path)}
                        ;; Only set stats on leaf nodes
-                       (not children) (assoc :value (:value node 0)
-                                             :bytes (:bytes node)
-                                             :count (:count node)
-                                             :freed-bytes (:freed-bytes node 0)
-                                             :freed-count (:freed-count node 0)))]
+                       (not children) (assoc
+                                       :value
+                                       (:value node 0)
+                                       :bytes
+                                       (:bytes node)
+                                       :count
+                                       (:count node)
+                                       :freed-bytes
+                                       (:freed-bytes node 0)
+                                       :freed-count
+                                       (:freed-count node 0)))]
      (if children
        (cons node-record
              (mapcat #(flatten-treemap-node % node-id current-path) children))
@@ -203,7 +209,9 @@
                         :depth (count path)}]
        (if (seq children)
          (cons node-record
-               (mapcat #(flatten-call-tree-node % node-id current-path) children))
+               (mapcat
+                #(flatten-call-tree-node % node-id current-path)
+                children))
          [node-record])))))
 
 (defn call-tree-tree-vega-spec
@@ -363,7 +371,10 @@
                       children (:children node)
                       ;; Children are sized proportionally within parent's width
                       children-total (double
-                                      (reduce + 0 (map #(or (:call-count %) 0) children)))]
+                                      (reduce
+                                       +
+                                       0
+                                       (map #(or (:call-count %) 0) children)))]
                   (if (seq children)
                     (let [child-data
                           (loop [remaining children
@@ -372,12 +383,20 @@
                             (if (empty? remaining)
                               acc
                               (let [child (first remaining)
-                                    child-count (double (or (:call-count child) 0))
+                                    child-count (double
+                                                 (or (:call-count child) 0))
                                     child-width (if (pos? children-total)
-                                                  (* node-width (/ child-count children-total))
+                                                  (*
+                                                   node-width
+                                                   (/
+                                                    child-count
+                                                    children-total))
                                                   0.0)
                                     child-results (compute-flame-data
-                                                   child child-x child-width (inc depth))]
+                                                   child
+                                                   child-x
+                                                   child-width
+                                                   (inc depth))]
                                 (recur (rest remaining)
                                        (+ child-x child-width)
                                        (into acc child-results)))))]
@@ -388,7 +407,10 @@
             max-depth (long (if (seq flame-data)
                               (apply max (map :depth flame-data))
                               0))
-            computed-height (long (Math/max height-d (* (double (inc max-depth)) row-height 1.2)))]
+            computed-height (long
+                             (Math/max
+                              height-d
+                              (* (double (inc max-depth)) row-height 1.2)))]
         {:$schema "https://vega.github.io/schema/vega/v5.json"
          :width width
          :height computed-height
@@ -503,4 +525,6 @@
                         :legend nil}
                 :tooltip [{:field "fullName" :type "nominal" :title "Full Name"}
                           {:field "calls" :type "quantitative" :title "Calls"}
-                          {:field "location" :type "nominal" :title "Location"}]}}))
+                          {:field "location"
+                           :type "nominal"
+                           :title "Location"}]}}))

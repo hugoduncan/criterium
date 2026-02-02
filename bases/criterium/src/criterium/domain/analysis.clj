@@ -305,14 +305,18 @@
                                                            metric-id value-key)]
                                                 {:coord coord
                                                  :value (if extract-bounds?
-                                                          (let [lower (helpers/stats-value
-                                                                       data stats-id
-                                                                       metric-id
-                                                                       :mean-minus-3sigma)
-                                                                upper (helpers/stats-value
-                                                                       data stats-id
-                                                                       metric-id
-                                                                       :mean-plus-3sigma)]
+                                                          (let [lower
+                                                                (helpers/stats-value
+                                                                 data
+                                                                 stats-id
+                                                                 metric-id
+                                                                 :mean-minus-3sigma)
+                                                                upper
+                                                                (helpers/stats-value
+                                                                 data
+                                                                 stats-id
+                                                                 metric-id
+                                                                 :mean-plus-3sigma)]
                                                             (when value
                                                               {:value value
                                                                :lower lower
@@ -338,8 +342,10 @@
                               (map (fn [[axis-val sub-domain]]
                                      [axis-val
                                       (mapv (fn [{:keys [coord data]}]
-                                              (let [median-value (extract-metric-value
-                                                                  data metric-id)
+                                              (let [median-value
+                                                    (extract-metric-value
+                                                     data
+                                                     metric-id)
                                                     ;; Base value with median
                                                     base-value
                                                     (if extract-bounds?
@@ -347,19 +353,26 @@
                                                             (extract-error-bounds
                                                              data metric-id)]
                                                         (when median-value
-                                                          (cond-> {:value median-value}
-                                                            lower (assoc :lower lower)
-                                                            upper (assoc :upper upper))))
+                                                          (cond->
+                                                            {:value median-value}
+                                                            lower
+                                                            (assoc :lower lower)
+                                                            upper
+                                                            (assoc
+                                                             :upper
+                                                             upper))))
                                                       median-value)
                                                     ;; Bootstrap stats (when available)
-                                                    bootstrap (helpers/bootstrap-box-plot-stats
-                                                               data metric-id)]
+                                                    bootstrap
+                                                    (helpers/bootstrap-box-plot-stats
+                                                     data metric-id)]
                                                 {:coord coord
                                                  :value (if bootstrap
-                                                          (merge (if (map? base-value)
-                                                                   base-value
-                                                                   {:value base-value})
-                                                                 bootstrap)
+                                                          (merge
+                                                           (if (map? base-value)
+                                                             base-value
+                                                             {:value base-value})
+                                                           bootstrap)
                                                           base-value)}))
                                             (types/runs sub-domain))]))
                               grouped)}))]
@@ -367,7 +380,8 @@
                   :axis axis-key
                   :metrics (into {}
                                  (map (fn [metric-id]
-                                        [metric-id (compare-with-median metric-id)]))
+                                        [metric-id
+                                         (compare-with-median metric-id)]))
                                  metric-ids-to-extract)}
            impls (assoc :implementations impls)))))))
 
@@ -1108,28 +1122,44 @@
                 ;; Filter: valid coord with axis, positive x and y
                 valid-data (filterv (fn [[coord value]]
                                       (let [y (get-value value)
-                                            x (when (map? coord) (get coord axis))]
+                                            x (when (map? coord)
+                                                (get coord axis))]
                                         (and (some? y) (pos? (double y))
                                              (some? x) (pos? (double x)))))
                                     data)]
             (when (>= (count valid-data) 2)
-              (let [xs (mapv (fn [[coord _]] (double (get coord axis))) valid-data)
-                    ys (mapv (fn [[_ v]] (double (get-value v))) valid-data)
-                    {:keys [slope intercept r-squared log-xs log-ys residuals predict-fn]}
+              (let [xs
+                    (mapv (fn [[coord _]] (double (get coord axis))) valid-data)
+                    ys
+                    (mapv (fn [[_ v]] (double (get-value v))) valid-data)
+                    {:keys
+                     [slope
+                      intercept
+                      r-squared
+                      log-xs
+                      log-ys
+                      residuals
+                      predict-fn]}
                     (log-log-regression xs ys)
                     ;; Transform error bounds to log space if present
-                    log-lowers (when with-error-bounds
-                                 (mapv (fn [[_ v]]
-                                         (let [lower (get-lower v)]
-                                           (when (and lower (pos? (double lower)))
-                                             (Math/log (double lower)))))
-                                       valid-data))
-                    log-uppers (when with-error-bounds
-                                 (mapv (fn [[_ v]]
-                                         (let [upper (get-upper v)]
-                                           (when (and upper (pos? (double upper)))
-                                             (Math/log (double upper)))))
-                                       valid-data))]
+                    log-lowers
+                    (when with-error-bounds
+                      (mapv (fn [[_ v]]
+                              (let [lower (get-lower v)]
+                                (when (and
+                                       lower
+                                       (pos? (double lower)))
+                                  (Math/log (double lower)))))
+                            valid-data))
+                    log-uppers
+                    (when with-error-bounds
+                      (mapv (fn [[_ v]]
+                              (let [upper (get-upper v)]
+                                (when (and
+                                       upper
+                                       (pos? (double upper)))
+                                  (Math/log (double upper)))))
+                            valid-data))]
                 (cond-> {:slope slope
                          :intercept intercept
                          :r-squared r-squared
@@ -1156,7 +1186,9 @@
         (fn [[_metric-id metric-data]]
           (let [{:keys [metric data with-error-bounds]} metric-data
                 ;; Group data by implementation
-                by-impl (group-by (fn [[coord _]] (get coord impl-axis-key)) data)
+                by-impl (group-by
+                         (fn [[coord _]] (get coord impl-axis-key))
+                         data)
                 ;; Fit each implementation separately
                 impl-results
                 (into {}
@@ -1178,7 +1210,8 @@
        :regressions (into {}
                           (map (fn [[metric-id metric-data]]
                                  [metric-id
-                                  (fit-single-by-impl [metric-id metric-data])]))
+                                  (fit-single-by-impl
+                                   [metric-id metric-data])]))
                           (:metrics extract))}
       ;; Single implementation
       {:type :criterium/domain-log-log-regression

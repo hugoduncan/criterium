@@ -67,7 +67,8 @@
         call-tree (get data-map call-tree-id)]
     (when call-tree
       (let [total-calls (call-graph/total-call-count call-tree)]
-        (kindly-heading (clojure.core/format "Call Tree (%d total calls)" total-calls))
+        (kindly-heading
+         (clojure.core/format "Call Tree (%d total calls)" total-calls))
         (kindly-vega (charts.profile/call-tree-tree-vega-spec call-tree {}))))))
 
 (defmethod view/call-flame* :kindly
@@ -77,7 +78,11 @@
     (when call-tree
       (let [total-calls (call-graph/total-call-count call-tree)]
         (kindly-heading "Call Flame Chart")
-        (kindly-vega (charts.profile/call-tree-flame-vega-spec call-tree total-calls {}))))))
+        (kindly-vega
+         (charts.profile/call-tree-flame-vega-spec
+          call-tree
+          total-calls
+          {}))))))
 
 (defmethod view/most-called* :kindly
   [_ {:keys [most-called-id]} data-map]
@@ -86,9 +91,11 @@
     (when most-called-data
       (let [methods (:most-called most-called-data)
             total-in-list (reduce + 0 (map :total-calls methods))]
-        (kindly-heading (clojure.core/format "Most Called Methods (top %d, %d total calls)"
-                                             (count methods) total-in-list))
-        (kindly-vega-lite (charts.profile/most-called-vega-lite-spec most-called-data {}))))))
+        (kindly-heading
+         (clojure.core/format "Most Called Methods (top %d, %d total calls)"
+                              (count methods) total-in-list))
+        (kindly-vega-lite
+         (charts.profile/most-called-vega-lite-spec most-called-data {}))))))
 
 ;;; Domain Apply View
 
@@ -104,8 +111,10 @@
     (if view-fn-var
       (view-fn-var (or opts {}))
       (binding [*out* *err*]
-        (println (format "WARNING: Unknown view-spec '%s' - no such view function in criterium.view"
-                         view-kw))))))
+        (println
+         (format
+          "WARNING: Unknown view-spec '%s' - no such view function in criterium.view"
+          view-kw))))))
 
 (defmethod view/domain-apply* :kindly
   [viewer {:keys [domain-id view-spec]} data-map]

@@ -49,7 +49,9 @@
   (let [abs-s (Math/abs s)]
     (cond
       (> abs-s 1.0) (if (neg? s) :strongly-left-skewed :strongly-right-skewed)
-      (> abs-s 0.5) (if (neg? s) :moderately-left-skewed :moderately-right-skewed)
+      (>
+       abs-s
+       0.5) (if (neg? s) :moderately-left-skewed :moderately-right-skewed)
       (> abs-s 0.1) (if (neg? s) :slightly-left-skewed :slightly-right-skewed)
       :else :symmetric)))
 

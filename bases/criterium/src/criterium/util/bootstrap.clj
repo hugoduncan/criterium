@@ -219,7 +219,9 @@
                       ;; Lower bound: p - inflation * (p - lo)
                       (- point-estimate (* inflation (- point-estimate value)))
                       ;; Upper bound: p + inflation * (hi - p)
-                      (+ point-estimate (* inflation (- value point-estimate))))]
+                      (+
+                       point-estimate
+                       (* inflation (- value point-estimate))))]
        (assoc eq :value adjusted)))
    estimate-quantiles))
 
@@ -275,7 +277,10 @@
        (if ess-analysis
          (let [inflation (double (:ci-inflation-factor ess-analysis 1.0))]
            (if (> inflation 1.0)
-             (assoc result metric-key (adjust-stat-within-metric metric-stats inflation))
+             (assoc
+              result
+              metric-key
+              (adjust-stat-within-metric metric-stats inflation))
              (assoc result metric-key metric-stats)))
          (assoc result metric-key metric-stats))))
    {}

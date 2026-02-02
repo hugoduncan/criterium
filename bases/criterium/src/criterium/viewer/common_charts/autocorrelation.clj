@@ -131,7 +131,9 @@
                        :color (get lag-1-threshold-colors level)
                        :label (str "lag-1 " (name level))})
         other-lines (for [[level ^double threshold] other-thresholds
-                          :when (other-lag-threshold-crossed? chart-data threshold)]
+                          :when (other-lag-threshold-crossed?
+                                 chart-data
+                                 threshold)]
                       {:threshold threshold
                        :neg-threshold (- threshold)
                        :color (get other-lag-threshold-colors level)
@@ -149,18 +151,28 @@
                               :strokeWidth 1}
                        :encoding {:y {:field "y" :type "quantitative"}
                                   :color {:value color}
-                                  :tooltip [{:field "category" :type "nominal" :title "Threshold"}
-                                            {:field "threshold" :type "nominal" :title "Value"}]}}
+                                  :tooltip [{:field "category"
+                                             :type "nominal"
+                                             :title "Threshold"}
+                                            {:field "threshold"
+                                             :type "nominal"
+                                             :title "Value"}]}}
                       {:data {:values [{:y neg-threshold
                                         :category display-label
-                                        :threshold (format "%.2f" neg-threshold)}]}
+                                        :threshold (format
+                                                    "%.2f"
+                                                    neg-threshold)}]}
                        :mark {:type "rule"
                               :strokeDash [4 4]
                               :strokeWidth 1}
                        :encoding {:y {:field "y" :type "quantitative"}
                                   :color {:value color}
-                                  :tooltip [{:field "category" :type "nominal" :title "Threshold"}
-                                            {:field "threshold" :type "nominal" :title "Value"}]}}])))
+                                  :tooltip [{:field "category"
+                                             :type "nominal"
+                                             :title "Threshold"}
+                                            {:field "threshold"
+                                             :type "nominal"
+                                             :title "Value"}]}}])))
          vec)))
 
 (defn period-annotation-layer
@@ -207,8 +219,13 @@
                       :legend {:title "Severity"
                                :orient "top-right"}}
               :tooltip [{:field "lag" :type "quantitative" :title "Lag"}
-                        {:field "acf" :type "quantitative" :title "ACF" :format ".3f"}
-                        {:field "severity" :type "nominal" :title "Severity"}]}})
+                        {:field "acf"
+                         :type "quantitative"
+                         :title "ACF"
+                         :format ".3f"}
+                        {:field "severity"
+                         :type "nominal"
+                         :title "Severity"}]}})
 
 (defn zero-line-layer
   "Create horizontal rule at y=0 for reference."
@@ -271,11 +288,15 @@
                                 0))
         lag-1-thresholds (:lag-1 thresholds)
         other-thresholds (:other thresholds)
-        lag-1-crossed (for [[level ^double threshold] (sort-by val lag-1-thresholds)
-                            :when (> lag-1-acf threshold)]
+        lag-1-crossed (for [[level ^double threshold]
+                            (sort-by val lag-1-thresholds)
+                            :when
+                            (> lag-1-acf threshold)]
                         (format "%s %.2f" (name level) threshold))
-        other-crossed (for [[level ^double threshold] (sort-by val other-thresholds)
-                            :when (> other-max-acf threshold)]
+        other-crossed (for [[level ^double threshold]
+                            (sort-by val other-thresholds)
+                            :when
+                            (> other-max-acf threshold)]
                         (format "%s %.2f" (name level) threshold))]
     (cond-> []
       (seq lag-1-crossed)
@@ -297,7 +318,9 @@
       :bar-width      - half-width of bar in characters (default 15)
       :header-fn      - fn [metric-label n] -> header string
       :indent         - string prefix for continuation lines"
-  [{:keys [acf effective-sample-size lag-severities thresholds]} metric-label opts]
+  [{:keys [acf effective-sample-size lag-severities thresholds]}
+   metric-label
+   opts]
   (let [{:keys [min-severity bar-width header-fn indent]
          :or {min-severity :moderate
               bar-width 15
@@ -332,7 +355,8 @@
                                          lag
                                          acf-val
                                          bar
-                                         (acf-common/format-severity severity))))
+                                         (acf-common/format-severity
+                                          severity))))
                              sorted-lags)
             legend-parts (format-threshold-legend acf thresholds)
             legend-lines (when (seq legend-parts)

@@ -151,7 +151,8 @@
   (let [{:keys [implementations axis]} comparison
         multi-impl? (and implementations (> (count implementations) 1))]
     (when multi-impl?
-      (let [{:keys [count has-non-axis-key?]} (comparison-point-count comparison)]
+      (let [{:keys [count has-non-axis-key?]}
+            (comparison-point-count comparison)]
         (if (= axis :impl)
           ;; For axis = :impl, single point means no non-axis variation
           (or (not has-non-axis-key?) (= 1 count))
