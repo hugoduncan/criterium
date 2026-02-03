@@ -52,20 +52,26 @@
         (is (= "root" (:id (first values))))
         (is (nil? (:parent (first values))))
         (is (= "allocations" (:name (first values))))
-        (is (nil? (:value (first values))) "Parent nodes should not have values")
+        (is
+         (nil? (:value (first values)))
+         "Parent nodes should not have values")
         ;; Check an intermediate node (parent)
         (let [myclass-node (second values)]
           (is (= "allocations/MyClass" (:id myclass-node)))
           (is (= "root" (:parent myclass-node)))
           (is (= "MyClass" (:name myclass-node)))
-          (is (nil? (:value myclass-node)) "Parent nodes should not have values"))
+          (is
+           (nil? (:value myclass-node))
+           "Parent nodes should not have values"))
         ;; Check leaf nodes have values
         (let [leaf-nodes (filter :value values)]
           (is (= 3 (count leaf-nodes)) "Expected 3 leaf nodes with values")
           (is (= #{500 300 200} (set (map :value leaf-nodes)))))))
 
     (testing "respects width/height options"
-      (let [spec (charts.profile/treemap-vega-spec sample-treemap {:width 500 :height 300})]
+      (let [spec (charts.profile/treemap-vega-spec
+                  sample-treemap
+                  {:width 500 :height 300})]
         (is (= 500 (:width spec)))
         (is (= 300 (:height spec)))))
 
@@ -75,7 +81,9 @@
         (is (= 400 (:height spec)))))
 
     (testing "respects color-scheme option"
-      (let [spec (charts.profile/treemap-vega-spec sample-treemap {:color-scheme "category20"})
+      (let [spec (charts.profile/treemap-vega-spec
+                  sample-treemap
+                  {:color-scheme "category20"})
             color-scale (first (:scales spec))]
         (is (= {:scheme "category20"} (:range color-scale)))))
 

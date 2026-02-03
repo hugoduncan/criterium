@@ -75,7 +75,9 @@
         (let [result (kindly/flush)]
           (when result
             (let [charts (filter #(and (map? %)
-                                       (= :kind/vega-lite (:kindly/kind (meta %))))
+                                       (=
+                                        :kind/vega-lite
+                                        (:kindly/kind (meta %))))
                                  result)]
               (when (seq charts)
                 (is (string? (:$schema (first charts)))
@@ -87,7 +89,9 @@
         (let [result (kindly/flush)]
           (when result
             (let [charts (filter #(and (map? %)
-                                       (= :kind/vega-lite (:kindly/kind (meta %))))
+                                       (=
+                                        :kind/vega-lite
+                                        (:kindly/kind (meta %))))
                                  result)]
               (when (seq charts)
                 (is (string? (:$schema (first charts)))

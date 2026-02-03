@@ -1,8 +1,8 @@
 (ns criterium.util.invariant
   "Assertion macros inspired by truss.
 
-  This namespace delegates to criterium.utils.interface for the core implementation
-  and is retained for backward compatibility."
+  This namespace delegates to criterium.utils.interface for the core
+  implementation and is retained for backward compatibility."
   (:require
    [criterium.utils.interface :as utils]))
 

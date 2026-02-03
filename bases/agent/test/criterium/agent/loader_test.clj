@@ -28,7 +28,10 @@
       ;; Currently no hash files bundled, so this should throw
       (let [ex (is (thrown? RuntimeException (#'loader/read-hash "linux-x64")))]
         (is (str/includes? (ex-message ex) "SHA256 hash file not found"))
-        (is (str/includes? (ex-message ex) "criterium/agent/linux-x64/libcriterium.so.sha256"))
+        (is
+         (str/includes?
+          (ex-message ex)
+          "criterium/agent/linux-x64/libcriterium.so.sha256"))
         (is (str/includes? (ex-message ex) "building-agent.md"))))))
 
 (deftest temp-path-test
@@ -84,7 +87,9 @@
   (testing "set-executable! and verify-permissions!"
     (testing "sets and verifies permissions on temp file"
       (let [temp-file (Files/createTempFile "test-agent-" ".dylib"
-                                            (into-array java.nio.file.attribute.FileAttribute []))]
+                                            (into-array
+                                             java.nio.file.attribute.FileAttribute
+                                             []))]
         (try
       ;; Set executable permissions
           (#'loader/set-executable! temp-file)

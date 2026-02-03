@@ -51,12 +51,17 @@
     (case (detection/visualization-strategy extract)
       :single-point
       (when extract
-        (let [box-spec (charts.comparison/single-point-box-chart-spec extract {:height 400})]
-          ;; Fall back to bar chart if box plot has no data (missing bootstrap stats)
+        (let [box-spec (charts.comparison/single-point-box-chart-spec
+                        extract
+                        {:height 400})]
+          ;; Fall back to bar chart if box plot has no data (missing bootstrap
+          ;; stats)
           (if (seq (:vconcat box-spec))
             (portal.core/portal-vega-lite box-spec)
             (portal.core/portal-vega-lite
-             (charts.comparison/single-point-bar-chart-spec extract {:height 400})))))
+             (charts.comparison/single-point-bar-chart-spec
+              extract
+              {:height 400})))))
 
       :multi-point
       (when extract
@@ -86,18 +91,21 @@
     (case (detection/comparison-visualization-strategy comparison)
       :single-point
       (when-let [{:keys [rows] heading-text :heading}
-                 (comparison/prepare-domain-comparison-table-transposed comparison)]
+                 (comparison/prepare-domain-comparison-table-transposed
+                  comparison)]
         (portal.core/heading heading-text)
         (portal.core/portal-table rows))
 
       :multi-point
-      (when-let [tables (comparison/prepare-domain-comparison-tables comparison)]
+      (when-let [tables (comparison/prepare-domain-comparison-tables
+                         comparison)]
         (doseq [{:keys [rows] heading-text :heading} tables]
           (portal.core/heading heading-text)
           (portal.core/portal-table rows)))
 
       :default-table
-      (when-let [tables (comparison/prepare-domain-comparison-tables comparison)]
+      (when-let [tables (comparison/prepare-domain-comparison-tables
+                         comparison)]
         (doseq [{:keys [rows] heading-text :heading} tables]
           (portal.core/heading heading-text)
           (portal.core/portal-table rows))))))
@@ -109,17 +117,25 @@
     (case (detection/comparison-visualization-strategy comparison)
       :single-point
       (when comparison
-        (let [box-spec (charts.comparison/comparison-box-chart-spec comparison {:height 400})]
-          ;; Fall back to bar chart if box plot has no data (missing bootstrap stats)
+        (let [box-spec
+              (charts.comparison/comparison-box-chart-spec
+               comparison
+               {:height 400})]
+          ;; Fall back to bar chart if box plot has no data (missing bootstrap
+          ;; stats)
           (if (seq (:vconcat box-spec))
             (portal.core/portal-vega-lite box-spec)
             (portal.core/portal-vega-lite
-             (charts.comparison/comparison-bar-chart-spec comparison {:height 400})))))
+             (charts.comparison/comparison-bar-chart-spec
+              comparison
+              {:height 400})))))
 
       :multi-point
       (when comparison
         (portal.core/portal-vega-lite
-         (charts.comparison/comparison-line-chart-spec comparison {:height 400})))
+         (charts.comparison/comparison-line-chart-spec
+          comparison
+          {:height 400})))
 
       ;; :default-table - no chart output
       nil)))
@@ -170,7 +186,8 @@
            (portal.core/portal-table table-rows)))
 
        :render-regression-charts
-       (fn [{:keys [points line-pts residual-pts y-title residual-title chart-opts]}]
+       (fn [{:keys
+             [points line-pts residual-pts y-title residual-title chart-opts]}]
          (when (seq points)
            (portal.core/portal-vega-lite
             (charts.regression/regression-chart-spec

@@ -18,8 +18,10 @@
     (testing "produces table with summary data"
       (let [tables (atom [])
             data-map (test-data/tail-analysis-data-map)]
-        (with-redefs [kindly.core/kindly-heading (fn [_])
-                      kindly.core/kindly-table (fn [rows & _] (swap! tables conj rows))]
+        (with-redefs [kindly.core/kindly-heading
+                      (fn [_])
+                      kindly.core/kindly-table
+                      (fn [rows & _] (swap! tables conj rows))]
           (view/tail-summary* :kindly {} data-map))
         (is (= 1 (count @tables)))
         (let [rows (first @tables)]
@@ -28,8 +30,10 @@
 
     (testing "handles missing tail analysis gracefully"
       (let [tables (atom [])]
-        (with-redefs [kindly.core/kindly-heading (fn [_])
-                      kindly.core/kindly-table (fn [rows & _] (swap! tables conj rows))]
+        (with-redefs [kindly.core/kindly-heading
+                      (fn [_])
+                      kindly.core/kindly-table
+                      (fn [rows & _] (swap! tables conj rows))]
           (is (nil? (view/tail-summary* :kindly {} {}))))
         (is (empty? @tables))))
 
@@ -37,8 +41,10 @@
       (let [tables (atom [])
             data-map (test-data/tail-analysis-data-map)
             custom-map {:my-tail (:tail-analysis data-map)}]
-        (with-redefs [kindly.core/kindly-heading (fn [_])
-                      kindly.core/kindly-table (fn [rows & _] (swap! tables conj rows))]
+        (with-redefs [kindly.core/kindly-heading
+                      (fn [_])
+                      kindly.core/kindly-table
+                      (fn [rows & _] (swap! tables conj rows))]
           (view/tail-summary* :kindly {:tail-analysis-id :my-tail} custom-map))
         (is (= 1 (count @tables)))))))
 
@@ -48,8 +54,10 @@
     (testing "produces table with ratio data"
       (let [tables (atom [])
             data-map (test-data/tail-analysis-data-map)]
-        (with-redefs [kindly.core/kindly-heading (fn [_])
-                      kindly.core/kindly-table (fn [rows & _] (swap! tables conj rows))]
+        (with-redefs [kindly.core/kindly-heading
+                      (fn [_])
+                      kindly.core/kindly-table
+                      (fn [rows & _] (swap! tables conj rows))]
           (view/tail-ratios* :kindly {} data-map))
         (is (= 1 (count @tables)))
         (let [rows (first @tables)]
@@ -57,8 +65,10 @@
 
     (testing "handles missing tail analysis gracefully"
       (let [tables (atom [])]
-        (with-redefs [kindly.core/kindly-heading (fn [_])
-                      kindly.core/kindly-table (fn [rows & _] (swap! tables conj rows))]
+        (with-redefs [kindly.core/kindly-heading
+                      (fn [_])
+                      kindly.core/kindly-table
+                      (fn [rows & _] (swap! tables conj rows))]
           (is (nil? (view/tail-ratios* :kindly {} {}))))
         (is (empty? @tables))))))
 
@@ -68,8 +78,10 @@
     (testing "produces table with quantile estimates"
       (let [tables (atom [])
             data-map (test-data/tail-analysis-data-map)]
-        (with-redefs [kindly.core/kindly-heading (fn [_])
-                      kindly.core/kindly-table (fn [rows & _] (swap! tables conj rows))]
+        (with-redefs [kindly.core/kindly-heading
+                      (fn [_])
+                      kindly.core/kindly-table
+                      (fn [rows & _] (swap! tables conj rows))]
           (view/tail-high-quantiles* :kindly {} data-map))
         (is (= 1 (count @tables)))
         (let [rows (first @tables)]
@@ -77,8 +89,10 @@
 
     (testing "handles missing tail analysis gracefully"
       (let [tables (atom [])]
-        (with-redefs [kindly.core/kindly-heading (fn [_])
-                      kindly.core/kindly-table (fn [rows & _] (swap! tables conj rows))]
+        (with-redefs [kindly.core/kindly-heading
+                      (fn [_])
+                      kindly.core/kindly-table
+                      (fn [rows & _] (swap! tables conj rows))]
           (is (nil? (view/tail-high-quantiles* :kindly {} {}))))
         (is (empty? @tables))))))
 

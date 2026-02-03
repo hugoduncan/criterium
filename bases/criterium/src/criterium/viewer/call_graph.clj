@@ -96,7 +96,8 @@
   (let [call-tree-id (or call-tree-id :call-tree)
         call-tree (get data-map call-tree-id)]
     (when call-tree
-      (println "Call Flame Chart (use :portal or :kindly viewer for visual display)"))))
+      (println
+       "Call Flame Chart (use :portal or :kindly viewer for visual display)"))))
 
 ;;; Most-Called View
 
@@ -146,12 +147,19 @@
     (when most-called-data
       (let [methods (:most-called most-called-data)
             total-in-list (reduce + 0 (map :total-calls methods))]
-        (println (format "\nMost Called Methods (top %d, %d total calls in list)"
-                         (count methods) total-in-list))
+        (println
+         (format "\nMost Called Methods (top %d, %d total calls in list)"
+                 (count methods) total-in-list))
         (println (str/join "" (repeat 70 "-")))
-        (println (format "%-4s %-40s %10s  %s" "Rank" "Method" "Calls" "Location"))
+        (println
+         (format "%-4s %-40s %10s  %s" "Rank" "Method" "Calls" "Location"))
         (println (str/join "" (repeat 70 "-")))
-        (doseq [[idx {:keys [class method file line total-calls]}] (map-indexed vector methods)]
+        (doseq [[idx
+                 {:keys [class
+                         method
+                         file
+                         line
+                         total-calls]}] (map-indexed vector methods)]
           (let [display-name (format-method-name class method)
                 location (or (format-location file line) "")]
             (println (format "%-4d %-40s %10d  %s"

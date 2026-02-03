@@ -55,27 +55,47 @@
 
 (definterface+ IPrimOps
   ;; transduce with long accumulator
-  (^long transduce [xform rf ^long init ^criterium.transducer.interfaces.ILLLReducible source])
+  (^long transduce
+   [xform rf ^long init ^criterium.transducer.interfaces.ILLLReducible source])
   ;; transduce with double accumulator
-  (^double transduce [xform rf ^double init ^criterium.transducer.interfaces.IDDDReducible source])
+  (^double transduce
+   [xform
+    rf
+    ^double init
+    ^criterium.transducer.interfaces.IDDDReducible source])
   ;; transduce with long accumulator from double source
-  (^long transduce [xform rf ^long init ^criterium.transducer.interfaces.ILDLReducible source])
+  (^long transduce
+   [xform rf ^long init ^criterium.transducer.interfaces.ILDLReducible source])
   ;; transduce with double accumulator from long source
-  (^double transduce [xform rf ^double init ^criterium.transducer.interfaces.IDLDReducible source])
+  (^double transduce
+   [xform
+    rf
+    ^double init
+    ^criterium.transducer.interfaces.IDLDReducible source])
   ;; transduce into long array
   (^criterium.array.interfaces.ILongArray transduce
-   [xform rf ^criterium.array.interfaces.ILongArray init ^criterium.transducer.interfaces.IOLOReducible source])
+   [xform
+    rf
+    ^criterium.array.interfaces.ILongArray init
+    ^criterium.transducer.interfaces.IOLOReducible source])
   ;; transduce into double array
   (^criterium.array.interfaces.IDoubleArray transduce
-   [xform rf ^criterium.array.interfaces.IDoubleArray init ^criterium.transducer.interfaces.IODOReducible source])
+   [xform
+    rf
+    ^criterium.array.interfaces.IDoubleArray init
+    ^criterium.transducer.interfaces.IODOReducible source])
   ;; transduce cross-type: long→double
-  (transduce [xform rf init ^criterium.transducer.interfaces.IOLDOReducible source])
+  (transduce
+   [xform rf init ^criterium.transducer.interfaces.IOLDOReducible source])
   ;; transduce cross-type: double→long
-  (transduce [xform rf init ^criterium.transducer.interfaces.IODLOReducible source])
+  (transduce
+   [xform rf init ^criterium.transducer.interfaces.IODLOReducible source])
 
   ;; reduce operations
-  (^long reduce [rf ^long init ^criterium.transducer.interfaces.ILLLReducible source])
-  (^double reduce [rf ^double init ^criterium.transducer.interfaces.IDDDReducible source])
+  (^long reduce
+   [rf ^long init ^criterium.transducer.interfaces.ILLLReducible source])
+  (^double reduce
+   [rf ^double init ^criterium.transducer.interfaces.IDDDReducible source])
   ;; reduce cross-type: double→object
   (reduce [rf init ^criterium.transducer.interfaces.IODLOReducible source])
   ;; reduce cross-type: long→object
@@ -83,15 +103,24 @@
 
   ;; into operations
   (^criterium.array.interfaces.ILongArray into
-   [^criterium.array.interfaces.ILongArray target xform ^criterium.transducer.interfaces.IOLOReducible source])
+   [^criterium.array.interfaces.ILongArray target
+    xform
+    ^criterium.transducer.interfaces.IOLOReducible source])
   (^criterium.array.interfaces.IDoubleArray into
-   [^criterium.array.interfaces.IDoubleArray target xform ^criterium.transducer.interfaces.IODOReducible source])
+   [^criterium.array.interfaces.IDoubleArray target
+    xform
+    ^criterium.transducer.interfaces.IODOReducible source])
 
   ;; range operations
-  (^criterium.transducer.interfaces.ILongReducible range [^long start ^long end])
-  (^criterium.transducer.interfaces.IDoubleReducible range [^double start ^double end ^double step])
+  (^criterium.transducer.interfaces.ILongReducible range
+   [^long start ^long end])
+  (^criterium.transducer.interfaces.IDoubleReducible range
+   [^double start ^double end ^double step])
 
   ;; fill operations
-  (^criterium.array.interfaces.IDoubleFill fill [^criterium.array.interfaces.IDoubleFill arr ^double value])
-  (^criterium.array.interfaces.ILongFill fill [^criterium.array.interfaces.ILongFill arr ^long value])
-  (^criterium.array.interfaces.IObjectFill fill [^criterium.array.interfaces.IObjectFill arr value]))
+  (^criterium.array.interfaces.IDoubleFill fill
+   [^criterium.array.interfaces.IDoubleFill arr ^double value])
+  (^criterium.array.interfaces.ILongFill fill
+   [^criterium.array.interfaces.ILongFill arr ^long value])
+  (^criterium.array.interfaces.IObjectFill fill
+   [^criterium.array.interfaces.IObjectFill arr value]))

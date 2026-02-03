@@ -44,5 +44,8 @@
             custom-map {:my-bootstrap (:bootstrap-stats data-map)}]
         (with-redefs [kindly.core/kindly-heading (fn [_])
                       kindly.core/kindly-table #(swap! tables conj %)]
-          (view/shape-stats* :kindly {:bootstrap-stats-id :my-bootstrap} custom-map))
+          (view/shape-stats*
+           :kindly
+           {:bootstrap-stats-id :my-bootstrap}
+           custom-map))
         (is (= 1 (count @tables)))))))

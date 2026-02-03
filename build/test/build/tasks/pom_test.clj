@@ -90,8 +90,17 @@
             (is (fs/exists? pom-path)))
 
           (testing "POM is at correct location"
-            (is (= (str (fs/path class-dir "META-INF" "maven" "criterium" "criterium" "pom.xml"))
-                   pom-path)))
+            (is
+             (=
+              (str
+               (fs/path
+                class-dir
+                "META-INF"
+                "maven"
+                "criterium"
+                "criterium"
+                "pom.xml"))
+              pom-path)))
 
           (let [pom-xml (parse-pom-xml pom-path)]
             (verify-pom-metadata pom-xml :criterium))
@@ -116,8 +125,17 @@
             (is (fs/exists? pom-path)))
 
           (testing "POM is at correct location"
-            (is (= (str (fs/path class-dir "META-INF" "maven" "criterium" "criterium.agent" "pom.xml"))
-                   pom-path)))
+            (is
+             (=
+              (str
+               (fs/path
+                class-dir
+                "META-INF"
+                "maven"
+                "criterium"
+                "criterium.agent"
+                "pom.xml"))
+              pom-path)))
 
           (let [pom-xml (parse-pom-xml pom-path)]
             (verify-pom-metadata pom-xml :agent))

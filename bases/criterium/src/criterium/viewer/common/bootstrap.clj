@@ -35,9 +35,18 @@
   [metric-config stat transforms]
   (let [{:keys [mean quantiles]} stat
         mean-fmt (format-bootstrap-estimate mean metric-config transforms)
-        p10 (format-bootstrap-estimate (get quantiles 0.1) metric-config transforms)
-        p50 (format-bootstrap-estimate (get quantiles 0.5) metric-config transforms)
-        p90 (format-bootstrap-estimate (get quantiles 0.9) metric-config transforms)]
+        p10 (format-bootstrap-estimate
+             (get quantiles 0.1)
+             metric-config
+             transforms)
+        p50 (format-bootstrap-estimate
+             (get quantiles 0.5)
+             metric-config
+             transforms)
+        p90 (format-bootstrap-estimate
+             (get quantiles 0.9)
+             metric-config
+             transforms)]
     {:metric (:label metric-config)
      :median (:value p50)
      :median-ci-lower (:ci-lower p50)

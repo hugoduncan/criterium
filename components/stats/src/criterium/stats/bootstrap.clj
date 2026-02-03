@@ -26,7 +26,8 @@
   (cond
     (instance? DoubleArray data) data
     (sequential? data) (arr/->double-array (double-array data))
-    :else (throw (ex-info "Expected DoubleArray or sequence" {:type (type data)}))))
+    :else (throw
+           (ex-info "Expected DoubleArray or sequence" {:type (type data)}))))
 
 (defn bootstrap-sample
   "Bootstrap sampling of a statistic, using resampling with replacement.

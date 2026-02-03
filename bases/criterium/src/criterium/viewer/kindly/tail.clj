@@ -21,7 +21,9 @@
              (common.tail/get-tail-context view data-map)]
     (doseq [mc metric-configs]
       (when-let [tail-data (get tail-results (:path mc))]
-        (let [summary-rows (common.core/tail-summary-table tail-data transforms)]
+        (let [summary-rows (common.core/tail-summary-table
+                            tail-data
+                            transforms)]
           (when (seq summary-rows)
             (kindly.core/kindly-heading (str "Tail Summary: " (:label mc)))
             (kindly.core/kindly-table summary-rows
@@ -37,7 +39,11 @@
           (when (seq ratios-rows)
             (kindly.core/kindly-heading (str "Tail Ratios: " (:label mc)))
             (kindly.core/kindly-table ratios-rows
-                                      {:column-names [:ratio :value :p95 :p99 :p999]})))))))
+                                      {:column-names [:ratio
+                                                      :value
+                                                      :p95
+                                                      :p99
+                                                      :p999]})))))))
 
 (defmethod view/tail-high-quantiles* :kindly
   [_ view data-map]
@@ -45,11 +51,15 @@
              (common.tail/get-tail-context view data-map)]
     (doseq [mc metric-configs]
       (when-let [tail-data (get tail-results (:path mc))]
-        (let [quantiles-rows (common.core/tail-high-quantiles-table tail-data transforms)]
+        (let [quantiles-rows (common.core/tail-high-quantiles-table
+                              tail-data
+                              transforms)]
           (when (seq quantiles-rows)
-            (kindly.core/kindly-heading (str "High Quantile Estimates: " (:label mc)))
+            (kindly.core/kindly-heading
+             (str "High Quantile Estimates: " (:label mc)))
             (kindly.core/kindly-table quantiles-rows
-                                      {:column-names [:quantile :estimate]})))))))
+                                      {:column-names [:quantile
+                                                      :estimate]})))))))
 
 (defmethod view/tail-ratios-chart* :kindly
   [_ view data-map]
@@ -59,7 +69,8 @@
       (when-let [tail-data (get tail-results (:path mc))]
         (when-let [chart (charts.tail/tail-ratios-table tail-data)]
           (kindly.core/kindly-heading (str "Tail Ratios Chart: " (:label mc)))
-          (kindly.core/kindly-vega-lite (merge {:width kindly.core/chart-width :height 200} chart)))))))
+          (kindly.core/kindly-vega-lite
+           (merge {:width kindly.core/chart-width :height 200} chart)))))))
 
 (defmethod view/hill-plot* :kindly
   [_ view data-map]
@@ -69,7 +80,10 @@
       (when-let [tail-data (get tail-results (:path mc))]
         (when-let [chart (charts.tail/hill-plot tail-data)]
           (kindly.core/kindly-heading (str "Hill Plot: " (:label mc)))
-          (kindly.core/kindly-vega-lite (merge {:width kindly.core/chart-width :height kindly.core/chart-height} chart)))))))
+          (kindly.core/kindly-vega-lite
+           (merge
+            {:width kindly.core/chart-width :height kindly.core/chart-height}
+            chart)))))))
 
 (defmethod view/mrl-plot* :kindly
   [_ view data-map]
@@ -78,8 +92,12 @@
     (doseq [mc metric-configs]
       (when-let [tail-data (get tail-results (:path mc))]
         (when-let [chart (charts.tail/mrl-plot tail-data transforms)]
-          (kindly.core/kindly-heading (str "Mean Residual Life Plot: " (:label mc)))
-          (kindly.core/kindly-vega-lite (merge {:width kindly.core/chart-width :height kindly.core/chart-height} chart)))))))
+          (kindly.core/kindly-heading
+           (str "Mean Residual Life Plot: " (:label mc)))
+          (kindly.core/kindly-vega-lite
+           (merge
+            {:width kindly.core/chart-width :height kindly.core/chart-height}
+            chart)))))))
 
 (defmethod view/zipf-plot* :kindly
   [_ view data-map]
@@ -87,10 +105,14 @@
              (common.tail/get-tail-context view data-map)]
     (doseq [mc metric-configs]
       (when-let [_tail-data (get tail-results (:path mc))]
-        (when-let [samples (when metric->values (get metric->values (:path mc)))]
+        (when-let [samples (when metric->values
+                             (get metric->values (:path mc)))]
           (when-let [chart (charts.tail/zipf-plot samples transforms)]
             (kindly.core/kindly-heading (str "Zipf Plot: " (:label mc)))
-            (kindly.core/kindly-vega-lite (merge {:width kindly.core/chart-width :height kindly.core/chart-height} chart))))))))
+            (kindly.core/kindly-vega-lite
+             (merge
+              {:width kindly.core/chart-width :height kindly.core/chart-height}
+              chart))))))))
 
 (defmethod view/exponential-qq-plot* :kindly
   [_ view data-map]
@@ -98,11 +120,20 @@
              (common.tail/get-tail-context view data-map)]
     (doseq [mc metric-configs]
       (when-let [tail-data (get tail-results (:path mc))]
-        (when-let [samples (when metric->values (get metric->values (:path mc)))]
+        (when-let [samples (when metric->values
+                             (get metric->values (:path mc)))]
           (when-let [threshold (:threshold tail-data)]
-            (when-let [chart (charts.tail/exponential-qq-plot samples threshold transforms)]
-              (kindly.core/kindly-heading (str "Exponential Q-Q Plot: " (:label mc)))
-              (kindly.core/kindly-vega-lite (merge {:width kindly.core/chart-width :height kindly.core/chart-height} chart)))))))))
+            (when-let [chart (charts.tail/exponential-qq-plot
+                              samples
+                              threshold
+                              transforms)]
+              (kindly.core/kindly-heading
+               (str "Exponential Q-Q Plot: " (:label mc)))
+              (kindly.core/kindly-vega-lite
+               (merge
+                {:width kindly.core/chart-width
+                 :height kindly.core/chart-height}
+                chart)))))))))
 
 (defmethod view/gpd-qq-plot* :kindly
   [_ view data-map]
@@ -110,9 +141,18 @@
              (common.tail/get-tail-context view data-map)]
     (doseq [mc metric-configs]
       (when-let [tail-data (get tail-results (:path mc))]
-        (when-let [samples (when metric->values (get metric->values (:path mc)))]
+        (when-let [samples (when metric->values
+                             (get metric->values (:path mc)))]
           (when-let [threshold (:threshold tail-data)]
             (when-let [gpd (:gpd tail-data)]
-              (when-let [chart (charts.tail/gpd-qq-plot samples threshold gpd transforms)]
+              (when-let [chart (charts.tail/gpd-qq-plot
+                                samples
+                                threshold
+                                gpd
+                                transforms)]
                 (kindly.core/kindly-heading (str "GPD Q-Q Plot: " (:label mc)))
-                (kindly.core/kindly-vega-lite (merge {:width kindly.core/chart-width :height kindly.core/chart-height} chart))))))))))
+                (kindly.core/kindly-vega-lite
+                 (merge
+                  {:width kindly.core/chart-width
+                   :height kindly.core/chart-height}
+                  chart))))))))))

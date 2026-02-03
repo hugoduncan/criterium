@@ -28,8 +28,14 @@
 (deftest sum-of-squares-test
   (testing "sum-of-squares"
     (testing "returns sum of squared data points"
-      (is (= 20.0 (core/sum-of-squares (darr (take 20 (repeatedly (constantly 1)))))))
-      (is (= 80.0 (core/sum-of-squares (darr (take 20 (repeatedly (constantly 2)))))))
+      (is
+       (=
+        20.0
+        (core/sum-of-squares (darr (take 20 (repeatedly (constantly 1)))))))
+      (is
+       (=
+        80.0
+        (core/sum-of-squares (darr (take 20 (repeatedly (constantly 2)))))))
       (is (= 91.0 (core/sum-of-squares (darr (range 0 7))))))))
 
 (deftest variance-test

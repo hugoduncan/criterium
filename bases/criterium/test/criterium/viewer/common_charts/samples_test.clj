@@ -30,7 +30,10 @@
       (let [data-map (test-data/histogram-data-map)
             view {}
             chart-options {:width 400 :height 300}
-            spec (charts.samples/histogram-vega-spec data-map view chart-options)
+            spec (charts.samples/histogram-vega-spec
+                  data-map
+                  view
+                  chart-options)
             result (schema/validate-vega-lite-spec spec)]
         (is (:valid? result)
             (str "histogram-vega-spec validation failed: "

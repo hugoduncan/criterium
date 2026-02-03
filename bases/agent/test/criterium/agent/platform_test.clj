@@ -146,5 +146,6 @@
       (when-let [platform (platform/detect)]
         (let [path (platform/resource-path platform)]
           (is (string? path))
-          (is (re-matches #"criterium/agent/[^/]+/libcriterium\.(so|dylib)" path)
-              "Resource path should match expected pattern"))))))
+          (is
+           (re-matches #"criterium/agent/[^/]+/libcriterium\.(so|dylib)" path)
+           "Resource path should match expected pattern"))))))

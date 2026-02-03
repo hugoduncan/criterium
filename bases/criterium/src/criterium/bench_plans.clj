@@ -52,14 +52,16 @@
   {:collector-config default-collector-config
    :analyse [:transform-log
              [:autocorrelation {:id :autocorrelation-raw}]
-             [:autocorrelation-classification {:id :autocorrelation-classification-raw
-                                               :autocorrelation-id :autocorrelation-raw}]
+             [:autocorrelation-classification
+              {:id :autocorrelation-classification-raw
+               :autocorrelation-id :autocorrelation-raw}]
              [:quantiles {:quantiles [0.9 0.99]}]
              :outliers
              [:autocorrelation {:id :autocorrelation-filtered
                                 :outlier-id :outliers}]
-             [:effective-sample-size-analysis {:id :effective-sample-size-filtered
-                                               :autocorrelation-id :autocorrelation-filtered}]
+             [:effective-sample-size-analysis
+              {:id :effective-sample-size-filtered
+               :autocorrelation-id :autocorrelation-filtered}]
              [:stats {}]
              [:stats {:samples-id :log-samples :id :log-stats}]
              [:bootstrap-stats {:quantiles [0.99]
@@ -110,14 +112,16 @@
   {:collector-config default-collector-config
    :analyse [:transform-log
              [:autocorrelation {:id :autocorrelation-raw}]
-             [:autocorrelation-classification {:id :autocorrelation-classification-raw
-                                               :autocorrelation-id :autocorrelation-raw}]
+             [:autocorrelation-classification
+              {:id :autocorrelation-classification-raw
+               :autocorrelation-id :autocorrelation-raw}]
              [:quantiles {:quantiles [0.9 0.99]}]
              :outliers
              [:autocorrelation {:id :autocorrelation-filtered
                                 :outlier-id :outliers}]
-             [:effective-sample-size-analysis {:id :effective-sample-size-filtered
-                                               :autocorrelation-id :autocorrelation-filtered}]
+             [:effective-sample-size-analysis
+              {:id :effective-sample-size-filtered
+               :autocorrelation-id :autocorrelation-filtered}]
              [:stats {}]
              [:stats {:samples-id :log-samples :id :log-stats}]
              [:bootstrap-stats {:quantiles [0.99]
@@ -183,14 +187,16 @@
   {:collector-config default-collector-config
    :analyse [:transform-log
              [:autocorrelation {:id :autocorrelation-raw}]
-             [:autocorrelation-classification {:id :autocorrelation-classification-raw
-                                               :autocorrelation-id :autocorrelation-raw}]
+             [:autocorrelation-classification
+              {:id :autocorrelation-classification-raw
+               :autocorrelation-id :autocorrelation-raw}]
              [:quantiles {:quantiles [0.9 0.99]}]
              :outliers
              [:autocorrelation {:id :autocorrelation-filtered
                                 :outlier-id :outliers}]
-             [:effective-sample-size-analysis {:id :effective-sample-size-filtered
-                                               :autocorrelation-id :autocorrelation-filtered}]
+             [:effective-sample-size-analysis
+              {:id :effective-sample-size-filtered
+               :autocorrelation-id :autocorrelation-filtered}]
              [:stats {}]
              [:stats {:samples-id :log-samples :id :log-stats}]
              :histogram
@@ -208,7 +214,8 @@
           :bootstrap-stats
           :extremes
           :shape-stats
-          [:autocorrelation-classification {:classification-id :autocorrelation-classification-raw}]
+          [:autocorrelation-classification
+           {:classification-id :autocorrelation-classification-raw}]
           [:effective-sample-size {:ess-id :effective-sample-size-filtered}]
           [:acf-plot {:autocorrelation-id :autocorrelation-raw
                       :min-severity :moderate}]
@@ -253,10 +260,12 @@
   {:collector-config default-collector-config
    :analyse [:transform-log
              [:autocorrelation {:id :autocorrelation-raw}]
-             [:autocorrelation-classification {:id :autocorrelation-classification-raw
-                                               :autocorrelation-id :autocorrelation-raw}]
-             [:effective-sample-size-analysis {:id :effective-sample-size-raw
-                                               :autocorrelation-id :autocorrelation-raw}]
+             [:autocorrelation-classification
+              {:id :autocorrelation-classification-raw
+               :autocorrelation-id :autocorrelation-raw}]
+             [:effective-sample-size-analysis
+              {:id :effective-sample-size-raw
+               :autocorrelation-id :autocorrelation-raw}]
              [:quantiles {:quantiles [0.9 0.95 0.99 0.999]}]
              [:stats {}]
              [:stats {:samples-id :log-samples :id :log-stats}]
@@ -270,7 +279,8 @@
              :allocation-by-type]
    :view [[:stats {:metric-ids [:memory]}]
           :bootstrap-stats
-          [:autocorrelation-classification {:classification-id :autocorrelation-classification-raw}]
+          [:autocorrelation-classification
+           {:classification-id :autocorrelation-classification-raw}]
           [:effective-sample-size {:ess-id :effective-sample-size-raw}]
           [:acf-plot {:autocorrelation-id :autocorrelation-raw
                       :min-severity :moderate}]

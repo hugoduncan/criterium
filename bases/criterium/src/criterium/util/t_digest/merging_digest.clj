@@ -1,5 +1,6 @@
 (ns criterium.util.t-digest.merging-digest
-  "Re-exports merging-digest functions from stats component for backward compatibility."
+  "Re-exports merging-digest functions from stats component for backward
+  compatibility."
   (:require [criterium.stats.t-digest.merging-digest :as md]))
 
 ;; Re-export records for backward compatibility

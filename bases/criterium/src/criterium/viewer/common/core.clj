@@ -48,7 +48,10 @@
               (fn add-key-k [res k]
                 (assoc res k
                        (format/round (* (double (get stat k)) scale) 4)))
-              {:_metric (str (:label metric) " " label)} ; underscore so it sorts first
+              {:_metric (str
+                         (:label metric)
+                         " "
+                         label)} ; underscore so it sorts first
               [:mean :min-val :mean-minus-3sigma :mean-plus-3sigma :max-val]))))
    []
    (filterv (metric/type-pred :quantitative) metric-configs)))
@@ -391,7 +394,7 @@
     (.toString sb)))
 
 (def ^:private ^String max-space-chars
-  "Pre-allocated string of 100 space characters for ascii-bar substring operations."
+  "Pre-allocated string of 100 space characters for ascii-bar operations."
   (let [sb (StringBuilder. 100)]
     (dotimes [_ 100] (.append sb \space))
     (.toString sb)))
@@ -461,7 +464,9 @@
         threshold-transformed (when threshold
                                 (util/transform-sample-> threshold transforms))
         threshold-formatted (when threshold-transformed
-                              (format/format-value :time threshold-transformed))]
+                              (format/format-value
+                               :time
+                               threshold-transformed))]
     (cond-> []
       threshold-formatted
       (conj {:parameter "Threshold"
@@ -480,13 +485,15 @@
              :value (if (and k-min k-max)
                       (clojure.core/format "%.4f (k: %d-%d)"
                                            (double stable-estimate) k-min k-max)
-                      (clojure.core/format "%.4f" (double stable-estimate)))}))))
+                      (clojure.core/format
+                       "%.4f"
+                       (double stable-estimate)))}))))
 
 (defn tail-ratios-table-data
   "Prepare tail ratios table data for display.
 
-  Returns a vector of row maps with ratio name, value, and constituent percentiles.
-  Takes tail-data map for a single metric."
+  Returns a vector of row maps with ratio name, value, and constituent
+  percentiles.  Takes tail-data map for a single metric."
   [tail-data]
   (let [{:keys [tail-ratios empirical-quantiles]} tail-data
         {:keys [p99-p95 p999-p99 p999-p95]} tail-ratios
@@ -511,8 +518,9 @@
 (defn tail-high-quantiles-table
   "Prepare high quantiles table data for display.
 
-  Returns a vector of row maps with quantile label and estimated value (SI units).
-  Takes tail-data map for a single metric and optional transforms."
+  Returns a vector of row maps with quantile label and estimated
+  value (SI units).  Takes tail-data map for a single metric and
+  optional transforms."
   [tail-data transforms]
   (let [{:keys [high-quantiles]} tail-data]
     (when (seq high-quantiles)

@@ -172,8 +172,10 @@
                               input-arguments))]
       (warn
        "JVM argument" (first arg) "is active,"
-       "and may lead to unexpected results as JIT C2 compiler may not be active."
-       "See http://www.slideshare.net/CharlesNutter/javaone-2012-jvm-jit-for-dummies."))))
+       "and may lead to unexpected results as JIT C2 compiler may not be"
+       " active. See "
+       #_:line-breaker/ignore
+       "http://www.slideshare.net/CharlesNutter/javaone-2012-jvm-jit-for-dummies."))))
 
 ;;; User top level functions
 

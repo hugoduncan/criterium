@@ -51,7 +51,10 @@
 
   (testing "clojure-core-boundary-filter"
     (testing "is re-exported from criterium.agent"
-      (is (= agent/clojure-core-boundary-filter cg/clojure-core-boundary-filter)))))
+      (is
+       (=
+        agent/clojure-core-boundary-filter
+        cg/clojure-core-boundary-filter)))))
 
 (deftest bench-macro-test
   ;; Tests bench macro functionality.
@@ -103,9 +106,12 @@
   (testing ":view [:call-tree] option"
     (testing "shows only tree, not flame chart"
       (when (agent/attached?)
-        (let [out (with-out-str (cg/bench (reduce + (range 5)) :view [:call-tree]))]
+        (let [out (with-out-str
+                    (cg/bench (reduce + (range 5)) :view [:call-tree]))]
           (is (re-find #"Call Tree" out) "should print call tree")
-          (is (not (re-find #"Flame Chart" out)) "should not print flame chart")))))
+          (is
+           (not (re-find #"Flame Chart" out))
+           "should not print flame chart")))))
 
   (testing ":view [] option"
     (testing "suppresses all output"
@@ -120,7 +126,9 @@
       (do
         (cg/bench (reduce + (range 5)) :view [])
         (let [call-tree (get-in (cg/last-bench) [:data :call-tree])]
-          (is (some? call-tree) "call-tree should be present when agent attached")
+          (is
+           (some? call-tree)
+           "call-tree should be present when agent attached")
           (testing "with jdk-filter excludes java.* classes"
             (let [filtered (cg/filter-call-tree call-tree cg/jdk-filter)]
               (is (some? filtered) "filtered tree should not be nil")

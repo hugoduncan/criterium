@@ -69,7 +69,8 @@
       (let [result (core/flush)]
         (is (= 2 (count result)))
         (let [[_ table] result]
-          (is (= {:metric "Total allocated" :value "256 bytes"} (first table))))))
+          (is
+           (= {:metric "Total allocated" :value "256 bytes"} (first table))))))
 
     (testing "returns nil for missing data"
       (reset! core/accumulated [])

@@ -78,7 +78,8 @@
                           "density" density}))
                      counts centers density))]
     {:data {:values data}
-     :transform [{:calculate (str "'" "Histogram " (:label metric) "'") :as "layer"}]
+     :transform [{:calculate (str "'" "Histogram " (:label metric) "'")
+                  :as "layer"}]
      :encoding {:y2 {:datum 0
                      :type "quantitative"}
                 :y {:field "density"
@@ -216,7 +217,8 @@
                                    "Median CI")]
                     {:data {:values [{field-name ci-lower
                                       :end ci-upper}]}
-                     :transform [{:calculate (str "'" ci-label "'") :as "layer"}]
+                     :transform [{:calculate (str "'" ci-label "'")
+                                  :as "layer"}]
                      :encoding {:x {:field field-name
                                     :type "quantitative"
                                     :scale {:zero false}}
@@ -224,8 +226,10 @@
                                      :type "quantitative"}
                                 :y {:datum box-y}
                                 :y2 {:datum box-height}
-                                :color {:field "layer" :type "nominal"
-                                        :legend {:orient "top-left" :offset 10}}}
+                                :color {:field "layer"
+                                        :type "nominal"
+                                        :legend {:orient "top-left"
+                                                 :offset 10}}}
                      :mark {:type "rect"
                             :opacity 0.6}}))
 
@@ -371,7 +375,9 @@
         hist-transforms (util/get-transforms data-map histogram-id)
         stats-transforms (util/get-transforms data-map (:source-id stats))
         bootstrap-transforms (when bootstrap-stats-map
-                               (util/get-transforms data-map bootstrap-stats-id))]
+                               (util/get-transforms
+                                data-map
+                                bootstrap-stats-id))]
     {:data {:values []}
      :resolve {:scale {:x "independent"
                        :y "independent"

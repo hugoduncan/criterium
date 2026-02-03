@@ -30,7 +30,8 @@
    metric-label]
   (println (print-core/format-sublabel "Sample Independence"))
   (println (format "%s %.2f (%s)"
-                   (print-core/format-sublabel (str metric-label " Lag-1 autocorrelation"))
+                   (print-core/format-sublabel
+                    (str metric-label " Lag-1 autocorrelation"))
                    (:value lag-1)
                    (acf-common/format-severity (:severity lag-1))))
   (println (format "%s %d of %d (%.0f%%)"
@@ -47,7 +48,9 @@
   (println (format "%s %s"
                    (print-core/format-sublabel "Assessment")
                    (str/capitalize (name classification))))
-  (when-let [formatted (acf-common/format-anomalous-lags anomalous-lags lag-severities)]
+  (when-let [formatted (acf-common/format-anomalous-lags
+                        anomalous-lags
+                        lag-severities)]
     (println (format "%s %s"
                      (print-core/format-sublabel "Anomalous lags")
                      formatted)))
@@ -91,7 +94,10 @@
         render-opts (assoc opts
                            :header-fn header-fn
                            :indent indent)]
-    (when-let [output (acf-charts/render-ascii-acf-plot acf-data metric-label render-opts)]
+    (when-let [output (acf-charts/render-ascii-acf-plot
+                       acf-data
+                       metric-label
+                       render-opts)]
       (println output))))
 
 (defn print-acf-plots
@@ -107,7 +113,13 @@
 
 (defn- print-classification-for-metric
   "Print classification analysis for a single metric."
-  [{:keys [acf lag-1 lag-severities ljung-box pattern classification detected-period]}
+  [{:keys [acf
+           lag-1
+           lag-severities
+           ljung-box
+           pattern
+           classification
+           detected-period]}
    metric-label]
   (println)
   (println (print-core/format-sublabel metric-label)
@@ -141,7 +153,9 @@
     (when (some #(not= :pass (:classification (first %))) metrics)
       (doseq [[class-data acf-data mc] metrics]
         (let [combined (merge class-data
-                              (select-keys acf-data [:lag-1 :acf :lag-severities]))]
+                              (select-keys
+                               acf-data
+                               [:lag-1 :acf :lag-severities]))]
           (print-classification-for-metric combined (:label mc)))))))
 
 (defmethod view/autocorrelation-classification* :print

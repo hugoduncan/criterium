@@ -18,7 +18,8 @@
           {:coord {:n 100 :impl :foo} :data <bench-result>}]}
 
   See also:
-  - criterium.domain.analysis for extract, compare-by, group-by-axis, fit-complexity
+  - criterium.domain.analysis for extract, compare-by, group-by-axis,
+    fit-complexity
   - criterium.domain.builder for domain-builder and input generators"
   (:require
    [criterium.domain-plans :as domain-plans]
@@ -68,7 +69,8 @@
 ;;; Domain Expression Macro
 
 (defn- transform-impl-expr
-  "Transform an implementation expression into (fn [{:keys [syms]}] (measured/expr body options)).
+  "Transform an implementation expression into a function.
+     (fn [{:keys [syms]}] (measured/expr body options)).
   Type hints on axis binding symbols transfer to the destructured keys.
   Options are passed through to measured/expr (e.g., :warmup-args-fn)."
   [expr axis-syms options]
@@ -130,7 +132,8 @@
                         axis-pairs)
          impls (if (map? body) body {:default body})
          impl-entries (map (fn [[impl-key expr]]
-                             [impl-key (transform-impl-expr expr axis-syms options)])
+                             [impl-key
+                              (transform-impl-expr expr axis-syms options)])
                            impls)]
      `{:axes ~axes-map
        :implementations ~(into {} impl-entries)})))
@@ -143,15 +146,17 @@
   Convenience wrapper combining domain-builder and analyse-domain.
 
   Arguments:
-    domain-spec - Map with :axes and :implementations (as returned by domain-expr)
+    domain-spec - Map with :axes and :implementations (as returned
+                  by domain-expr)
 
   Options:
     :domain-plan   - Analysis plan (default: domain-plans/extract-metrics)
     :viewer        - Output format (:print, :pprint, :kindly, :portal, :none).
                      Overrides any :viewer in the domain-plan.
     :reporter      - Progress reporter (default: dot-reporter, nil for silent)
-    :bench-options - Options passed to bench-measured (e.g., :limit-time-s, :metric-ids).
-                     Note: :warmup-args-fn is not supported here; use domain-expr options instead.
+    :bench-options - Options passed to bench-measured (e.g., :limit-time-s,
+                     :metric-ids). Note: :warmup-args-fn is not supported here;
+                     use domain-expr options instead.
     :time-axis     - Axis key for time estimation (default: first axis)
 
   Returns the analysis data-map (same as analyse-domain).
@@ -164,10 +169,12 @@
   [domain-spec & {:keys [domain-plan viewer reporter bench-options time-axis]
                   :or   {domain-plan domain-plans/extract-metrics}}]
   (let [builder-opts (cond-> {}
-                       (some? reporter)                  (assoc :reporter reporter)
-                       (contains? #{nil false} reporter) (assoc :reporter nil)
-                       bench-options                     (assoc :bench-options bench-options)
-                       time-axis                         (assoc :time-axis time-axis))
+                       (some? reporter) (assoc :reporter reporter)
+                       (contains?
+                        #{nil false}
+                        reporter)       (assoc :reporter nil)
+                       bench-options    (assoc :bench-options bench-options)
+                       time-axis        (assoc :time-axis time-axis))
         domain       (apply builder/domain-builder
                             (:axes domain-spec)
                             (:implementations domain-spec)

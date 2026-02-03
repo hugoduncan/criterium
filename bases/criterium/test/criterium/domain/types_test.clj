@@ -272,7 +272,8 @@
     (testing "filters by multiple partial coord keys"
       (let [d (domain/domain {:coord {:n 100 :impl :foo} :data sample-data}
                              {:coord {:n 100 :impl :bar} :data sample-data-2}
-                             {:coord {:n 200 :impl :foo} :data {:third "result"}})
+                             {:coord {:n 200 :impl :foo}
+                              :data {:third "result"}})
             d2 (domain/select d {:impl :foo})]
         (is (= 2 (count (:runs d2))))
         (is (= [{:coord {:n 100 :impl :foo} :data sample-data}
@@ -288,7 +289,9 @@
                   (hash-map :coord {:n 300 :impl :foo} :data sample-data)
                   (hash-map :coord {:n 200 :impl :foo} :data sample-data)]
             d (apply domain/domain
-                     (concat runs [{:coord {:n 100 :impl :bar} :data sample-data}]))
+                     (concat
+                      runs
+                      [{:coord {:n 100 :impl :bar} :data sample-data}]))
             d2 (domain/select d {:impl :foo})]
         (is (= runs (:runs d2)))))
     (testing "returns new domain (immutable)"

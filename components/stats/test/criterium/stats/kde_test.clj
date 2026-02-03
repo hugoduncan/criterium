@@ -49,7 +49,9 @@
       ;; Bimodal data where ISJ might give too large a bandwidth
       (let [bimodal (darr (concat (range 0 10) (range 90 100)))
             h (kde/isj-bandwidth bimodal)]
-        (is (< h 45) "should not return bandwidth larger than half the range")))))
+        (is
+         (< h 45)
+         "should not return bandwidth larger than half the range")))))
 
 (deftest gaussian-kde-test
   ;; Tests the Gaussian KDE evaluation function for correct density
@@ -302,10 +304,19 @@
           (let [h-k (double (get result k))
                 n-modes (kde/count-modes data h-k (long 128))]
             (is (<= n-modes k)
-                (str "h_" k " = " h-k " should give <= " k " modes, got " n-modes))))))
+                (str
+                 "h_"
+                 k
+                 " = "
+                 h-k
+                 " should give <= "
+                 k
+                 " modes, got "
+                 n-modes))))))
 
     (testing "bandwidths are monotonically decreasing"
-      (let [data (darr (concat (repeat 30 10.0) (repeat 30 50.0) (repeat 30 90.0)))
+      (let [data (darr
+                  (concat (repeat 30 10.0) (repeat 30 50.0) (repeat 30 90.0)))
             result (kde/critical-bandwidths data (long 3) {})]
         (is (> (get result 1) (get result 2)) "h_1 > h_2")
         (is (>= (get result 2) (get result 3)) "h_2 >= h_3")))))
@@ -317,7 +328,10 @@
       ;; Use bimodal data where h_1 > h_2
       (let [data (darr (concat (repeat 50 10.0) (repeat 50 90.0)))
             h1 (kde/critical-bandwidth data (long 1) {:n-points 128})
-            h2-with-bound (kde/critical-bandwidth data (long 2) {:h-max h1 :n-points 128})]
+            h2-with-bound (kde/critical-bandwidth
+                           data
+                           (long 2)
+                           {:h-max h1 :n-points 128})]
         ;; h_2 should not exceed h_1
         (is (<= h2-with-bound h1)
             "h_2 with bound should not exceed h_1")
@@ -330,7 +344,8 @@
       (let [data (darr (range 0 100))
             h1 (kde/critical-bandwidth data (long 1) {})
             ;; Provide a very small h-max that won't work for k=1
-            h1-with-small-max (kde/critical-bandwidth data (long 1) {:h-max (/ h1 10.0)})]
+            h1-with-small-max
+            (kde/critical-bandwidth data (long 1) {:h-max (/ h1 10.0)})]
         ;; Result should be clamped to h-max or nearby
         (is (<= h1-with-small-max (/ h1 10.0))
             "result should not exceed h-max")))))
@@ -346,7 +361,10 @@
             ;; Both should produce same critical bandwidth
             result-computed (kde/silverman-test data (long 1) opts)
             result-cached (kde/silverman-test data (long 1)
-                                              (assoc opts :cached-critical-bandwidth h-crit))]
+                                              (assoc
+                                               opts
+                                               :cached-critical-bandwidth
+                                               h-crit))]
         (is (= h-crit (:critical-bandwidth result-cached))
             "cached bandwidth should be used")
         (is (< (Math/abs (- (double (:critical-bandwidth result-computed))
@@ -363,7 +381,10 @@
             opts {:n-bootstrap 50 :n-points 128}
             result-computed (kde/acr-test data (long 1) opts)
             result-cached (kde/acr-test data (long 1)
-                                        (assoc opts :cached-critical-bandwidth h-crit))]
+                                        (assoc
+                                         opts
+                                         :cached-critical-bandwidth
+                                         h-crit))]
         (is (= h-crit (:critical-bandwidth result-cached))
             "cached bandwidth should be used")
         (is (< (Math/abs (- (double (:critical-bandwidth result-computed))

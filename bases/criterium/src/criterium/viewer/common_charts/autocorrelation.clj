@@ -42,7 +42,8 @@
 
   Parameters:
     lag-severities - map of lag -> severity keyword
-    min-severity - minimum severity to check for (:none, :minor, :moderate, :severe)
+    min-severity - minimum severity to check for
+                   (:none, :minor, :moderate, :severe)
 
   Returns true if any lag meets or exceeds the threshold."
   [lag-severities min-severity]
@@ -66,7 +67,8 @@
   Returns vector of maps: [{:lag k :acf rₖ :severity \"none\"} ...]
 
   Parameters:
-    acf-data - autocorrelation analysis result with :acf map and :effective-sample-size"
+    acf-data - autocorrelation analysis result with :acf map and
+               :effective-sample-size"
   [acf-data]
   (let [acf-map (:acf acf-data)
         n (get-in acf-data [:effective-sample-size :n-original])
@@ -131,7 +133,9 @@
                        :color (get lag-1-threshold-colors level)
                        :label (str "lag-1 " (name level))})
         other-lines (for [[level ^double threshold] other-thresholds
-                          :when (other-lag-threshold-crossed? chart-data threshold)]
+                          :when (other-lag-threshold-crossed?
+                                 chart-data
+                                 threshold)]
                       {:threshold threshold
                        :neg-threshold (- threshold)
                        :color (get other-lag-threshold-colors level)
@@ -149,24 +153,35 @@
                               :strokeWidth 1}
                        :encoding {:y {:field "y" :type "quantitative"}
                                   :color {:value color}
-                                  :tooltip [{:field "category" :type "nominal" :title "Threshold"}
-                                            {:field "threshold" :type "nominal" :title "Value"}]}}
+                                  :tooltip [{:field "category"
+                                             :type "nominal"
+                                             :title "Threshold"}
+                                            {:field "threshold"
+                                             :type "nominal"
+                                             :title "Value"}]}}
                       {:data {:values [{:y neg-threshold
                                         :category display-label
-                                        :threshold (format "%.2f" neg-threshold)}]}
+                                        :threshold (format
+                                                    "%.2f"
+                                                    neg-threshold)}]}
                        :mark {:type "rule"
                               :strokeDash [4 4]
                               :strokeWidth 1}
                        :encoding {:y {:field "y" :type "quantitative"}
                                   :color {:value color}
-                                  :tooltip [{:field "category" :type "nominal" :title "Threshold"}
-                                            {:field "threshold" :type "nominal" :title "Value"}]}}])))
+                                  :tooltip [{:field "category"
+                                             :type "nominal"
+                                             :title "Threshold"}
+                                            {:field "threshold"
+                                             :type "nominal"
+                                             :title "Value"}]}}])))
          vec)))
 
 (defn period-annotation-layer
   "Create text annotation layer for detected period.
 
-  Returns Vega-Lite layer spec with text mark at the period lag, or nil if no period."
+  Returns Vega-Lite layer spec with text mark at the period lag, or nil
+  if no period."
   [acf-data chart-data]
   (when-let [period (:detected-period acf-data)]
     (let [period-acf (some #(when (= (:lag %) period) (:acf %)) chart-data)]
@@ -207,8 +222,13 @@
                       :legend {:title "Severity"
                                :orient "top-right"}}
               :tooltip [{:field "lag" :type "quantitative" :title "Lag"}
-                        {:field "acf" :type "quantitative" :title "ACF" :format ".3f"}
-                        {:field "severity" :type "nominal" :title "Severity"}]}})
+                        {:field "acf"
+                         :type "quantitative"
+                         :title "ACF"
+                         :format ".3f"}
+                        {:field "severity"
+                         :type "nominal"
+                         :title "Severity"}]}})
 
 (defn zero-line-layer
   "Create horizontal rule at y=0 for reference."
@@ -227,10 +247,12 @@
   Takes autocorrelation analysis data for a single metric and chart options.
 
   Parameters:
-    acf-data - autocorrelation analysis result with :acf, :effective-sample-size, etc.
+    acf-data - autocorrelation analysis result with :acf,
+               :effective-sample-size, etc.
     chart-options - map with :width, :height, :title, :min-severity (optional)
       :min-severity - if provided, returns nil unless at least one lag has
-                      severity at or above this level (:none, :minor, :moderate, :severe)
+                      severity at or above this level
+                      (:none, :minor, :moderate, :severe)
 
   Returns Vega-Lite spec map, or nil if suppressed by min-severity threshold."
   [acf-data chart-options]
@@ -262,7 +284,8 @@
 
 (defn- format-threshold-legend
   "Format threshold legend showing only crossed thresholds.
-  Returns vector of strings like [\"lag-1 [minor 0.10, moderate 0.20]\" \"other [minor 0.15]\"]."
+  Returns vector of strings like [\"lag-1 [minor 0.10, moderate 0.20]\"
+  \"other [minor 0.15]\"]."
   [acf-map thresholds]
   (let [lag-1-acf (Math/abs (double (get acf-map 1 0)))
         other-max-acf (double (if (> (count acf-map) 1)
@@ -271,11 +294,15 @@
                                 0))
         lag-1-thresholds (:lag-1 thresholds)
         other-thresholds (:other thresholds)
-        lag-1-crossed (for [[level ^double threshold] (sort-by val lag-1-thresholds)
-                            :when (> lag-1-acf threshold)]
+        lag-1-crossed (for [[level ^double threshold]
+                            (sort-by val lag-1-thresholds)
+                            :when
+                            (> lag-1-acf threshold)]
                         (format "%s %.2f" (name level) threshold))
-        other-crossed (for [[level ^double threshold] (sort-by val other-thresholds)
-                            :when (> other-max-acf threshold)]
+        other-crossed (for [[level ^double threshold]
+                            (sort-by val other-thresholds)
+                            :when
+                            (> other-max-acf threshold)]
                         (format "%s %.2f" (name level) threshold))]
     (cond-> []
       (seq lag-1-crossed)
@@ -290,14 +317,17 @@
   Returns nil if no lags meet the min-severity threshold.
 
   Parameters:
-    acf-data     - map with :acf, :effective-sample-size, :lag-severities, :thresholds
+    acf-data     - map with :acf, :effective-sample-size,
+                   :lag-severities, :thresholds
     metric-label - string label for the metric
     opts         - options map:
       :min-severity   - minimum severity to display (default :moderate)
       :bar-width      - half-width of bar in characters (default 15)
       :header-fn      - fn [metric-label n] -> header string
       :indent         - string prefix for continuation lines"
-  [{:keys [acf effective-sample-size lag-severities thresholds]} metric-label opts]
+  [{:keys [acf effective-sample-size lag-severities thresholds]}
+   metric-label
+   opts]
   (let [{:keys [min-severity bar-width header-fn indent]
          :or {min-severity :moderate
               bar-width 15
@@ -332,7 +362,8 @@
                                          lag
                                          acf-val
                                          bar
-                                         (acf-common/format-severity severity))))
+                                         (acf-common/format-severity
+                                          severity))))
                              sorted-lags)
             legend-parts (format-threshold-legend acf thresholds)
             legend-lines (when (seq legend-parts)

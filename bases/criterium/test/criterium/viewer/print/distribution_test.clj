@@ -32,7 +32,9 @@
                   :ks {:statistic 0.08 :p-value 0.60}}}
      :parameter-cis
      {:gamma {:shape {:point-estimate 2.5 :ci-lower 2.0 :ci-upper 3.0}
-              :scale {:point-estimate 0.01 :ci-lower 0.008 :ci-upper 0.012}}}}}})
+              :scale {:point-estimate 0.01
+                      :ci-lower 0.008
+                      :ci-upper 0.012}}}}}})
 
 (def gamma-best-fit-with-params
   "Distribution fit results with full params for chart rendering."
@@ -46,7 +48,9 @@
               :params {:shape 2.5 :scale 1000000.0}}}
      :parameter-cis
      {:gamma {:shape {:point-estimate 2.5 :ci-lower 2.0 :ci-upper 3.0}
-              :scale {:point-estimate 1000000.0 :ci-lower 800000.0 :ci-upper 1200000.0}}}}}})
+              :scale {:point-estimate 1000000.0
+                      :ci-lower 800000.0
+                      :ci-upper 1200000.0}}}}}})
 
 (def small-sample-fit
   "Distribution fit with small sample warning."
@@ -91,7 +95,10 @@
   {:distribution-fit fit-data
    :samples {:type :criterium/metrics-samples
              :metrics-defs sample-metric-defs
-             :metric->values {[:elapsed-time] (make-sample-values 50 2500000.0 500000.0)}
+             :metric->values {[:elapsed-time] (make-sample-values
+                                               50
+                                               2500000.0
+                                               500000.0)}
              :transform collect-plan/identity-transforms
              :batch-size 1
              :eval-count 50
@@ -174,7 +181,10 @@
                       :print
                       {}
                       (data-map-with-fit gamma-best-fit))))]
-        (is (some #(.contains ^String % "Distribution Model Comparison") lines))))))
+        (is
+         (some
+          #(.contains ^String % "Distribution Model Comparison")
+          lines))))))
 
 (deftest distribution-parameter-cis-multimethod-test
   (testing "view/distribution-parameter-cis*"

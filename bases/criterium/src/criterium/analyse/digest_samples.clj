@@ -1,12 +1,13 @@
 (ns criterium.analyse.digest-samples
   "Analysis methods for t-digest compressed sample data.
 
-  Unlike metrics-samples which stores raw sample values, digest-samples uses
-  t-digest compression, which preserves quantile accuracy but loses individual
-  sample identity. This affects outlier detection: medcouple cannot be computed
-  from digest centroids, so this module uses standard symmetric boxplot thresholds
-  instead of the adjusted boxplot method. For skewed distributions, consider
-  using full sample collection if accurate outlier classification is important."
+  Unlike metrics-samples which stores raw sample values, digest-samples
+  uses t-digest compression, which preserves quantile accuracy but loses
+  individual sample identity. This affects outlier detection: medcouple
+  cannot be computed from digest centroids, so this module uses standard
+  symmetric boxplot thresholds instead of the adjusted boxplot
+  method. For skewed distributions, consider using full sample
+  collection if accurate outlier classification is important."
   (:require
    [criterium.analyse.methods :as methods]
    [criterium.collect-plan :as collect-plan]

@@ -72,7 +72,10 @@
   "Recursively render a treemap node.
   Returns a vector of lines."
   [node prefix is-last? max-value opts depth]
-  (let [{:keys [^long bar-width ^long name-width depth-limit ^double min-percent]}
+  (let [{:keys [^long bar-width
+                ^long name-width
+                depth-limit
+                ^double min-percent]}
         opts
         depth (long depth)
         {:keys [name value children]} node
@@ -95,7 +98,11 @@
                          ellipsis
 
                          (> node-name-len available-for-name)
-                         (str ellipsis (subs node-name (- node-name-len (dec available-for-name))))
+                         (str
+                          ellipsis
+                          (subs
+                           node-name
+                           (- node-name-len (dec available-for-name))))
 
                          :else
                          node-name)
@@ -116,9 +123,12 @@
       (let [root-value (double (:root-value opts))
             filtered-children (->> children
                                    (filter (fn [child]
-                                             (>= (* 100.0 (/ (double (:value child))
-                                                             root-value))
-                                                 min-percent)))
+                                             (>=
+                                              (*
+                                               100.0
+                                               (/ (double (:value child))
+                                                  root-value))
+                                              min-percent)))
                                    (sort-by :value >))
             num-children (long (count filtered-children))]
         (into current-line
@@ -136,7 +146,8 @@
 (defn render-ascii-treemap
   "Render an allocation treemap as an ASCII tree string.
 
-  treemap-data should be a :criterium/allocation-treemap map with :root, :group-by, :size-by.
+  treemap-data should be a :criterium/allocation-treemap map
+  with :root, :group-by, :size-by.
 
   Options:
     :bar-width   - max bar characters (default 20)
@@ -168,7 +179,12 @@
                             :class→line→type "class→line→type"
                             :type→class→line "type→class→line"
                             (name (or group-by :class→line→type)))
-             header (str "Allocation Treemap (by " size-by-str ", " group-by-str ")")
+             header (str
+                     "Allocation Treemap (by "
+                     size-by-str
+                     ", "
+                     group-by-str
+                     ")")
              root-name (str (:name root) "/")
              root-size (str "[" (format/format-value :memory root-value) "]")
              ;; Format root line with same fixed-width treatment as children
@@ -176,10 +192,18 @@
              root-line (let [padded (cond
                                       (< root-name-len name-width)
                                       (str root-name
-                                           (apply str (repeat (- name-width root-name-len) \space)))
+                                           (apply
+                                            str
+                                            (repeat
+                                             (- name-width root-name-len)
+                                             \space)))
 
                                       (> root-name-len name-width)
-                                      (str ellipsis (subs root-name (- root-name-len (dec name-width))))
+                                      (str
+                                       ellipsis
+                                       (subs
+                                        root-name
+                                        (- root-name-len (dec name-width))))
 
                                       :else
                                       root-name)]
@@ -192,9 +216,12 @@
              children (:children root)
              filtered-children (->> children
                                     (filter (fn [child]
-                                              (>= (* 100.0 (/ (double (:value child))
-                                                              root-value))
-                                                  (double min-percent))))
+                                              (>=
+                                               (*
+                                                100.0
+                                                (/ (double (:value child))
+                                                   root-value))
+                                               (double min-percent))))
                                     (sort-by :value >))
              num-children (long (count filtered-children))
              child-lines (mapcat (fn [^long idx child]

@@ -24,8 +24,14 @@
           (doseq [[path fit-data] fits]
             (let [{:keys [n warning distributions best-model]} fit-data
                   metric-label (name (first path))]
-              (kindly.core/kindly-heading (str "Distribution Models: " metric-label
-                                               " (n=" n (when warning " - small sample") ")"))
+              (kindly.core/kindly-heading
+               (str
+                "Distribution Models: "
+                metric-label
+                " (n="
+                n
+                (when warning " - small sample")
+                ")"))
               (kindly.core/kindly-table
                (mapv (fn [[dist result]]
                        (common.distribution/format-distribution-table-row
@@ -47,7 +53,8 @@
                   metric-label (name (first path))]
               (when-let [ci-rows (common.distribution/format-parameter-ci-rows
                                   best-model parameter-cis)]
-                (kindly.core/kindly-heading (str "Parameter CIs: " metric-label))
+                (kindly.core/kindly-heading
+                 (str "Parameter CIs: " metric-label))
                 (kindly.core/kindly-table ci-rows)))))))))
 
 ;;; Distribution PDF View
@@ -77,8 +84,11 @@
     (when kde-map
       (kindly.core/kindly-heading "Distribution CDF")
       (kindly.core/kindly-vega-lite
-       (charts.distribution/distribution-cdf-vega-spec data-map view {:width kindly.core/chart-width
-                                                                      :height kindly.core/chart-height})))))
+       (charts.distribution/distribution-cdf-vega-spec
+        data-map
+        view
+        {:width kindly.core/chart-width
+         :height kindly.core/chart-height})))))
 
 ;;; Distribution Q-Q View
 
@@ -89,5 +99,8 @@
     (when kde-map
       (kindly.core/kindly-heading "Q-Q Plot")
       (kindly.core/kindly-vega-lite
-       (charts.quantile/distribution-qq-vega-spec data-map view {:width kindly.core/chart-width
-                                                                 :height kindly.core/chart-height})))))
+       (charts.quantile/distribution-qq-vega-spec
+        data-map
+        view
+        {:width kindly.core/chart-width
+         :height kindly.core/chart-height})))))

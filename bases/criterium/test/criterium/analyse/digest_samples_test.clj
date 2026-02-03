@@ -146,7 +146,8 @@
                          101.8 103.9 106.2 108.7 111.3 114.8 119.5]
             samples     (digest-samples
                          {[:elapsed-time]         normal-data
-                          [:compilation :time-ms] (repeat (count normal-data) 0)}
+                          [:compilation
+                           :time-ms] (repeat (count normal-data) 0)}
                          1)
             data-map    {:samples samples}
             result      (-> data-map
@@ -206,7 +207,10 @@
           data-map {:samples samples}
           result ((analyse/stats) data-map)]
       (testing "calculates sample variance"
-        (is (approx= 12.0 (:variance (->> result :stats util/stats :elapsed-time))))))
+        (is
+         (approx=
+          12.0
+          (:variance (->> result :stats util/stats :elapsed-time))))))
     (let [raw-data [1 1 1 5 5 5 9 9 9]
           samples (digest-samples
                    {[:elapsed-time] raw-data

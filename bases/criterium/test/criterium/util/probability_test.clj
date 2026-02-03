@@ -84,7 +84,8 @@
                         [50.0  144.5657439463449]
                         [100.0 359.1342053695754]
                         [500.0 2605.115850361734]
-                        [1000.0 5905.220423209181]]] ; large x (Stirling region)
+                        [1000.0 5905.220423209181]]]
+        ; large x (Stirling region)
         (doseq [[x expected] test-cases]
           (test-max-error expected (probability/log-gamma x) max-error
                           (str "log-gamma(" x ")")))))

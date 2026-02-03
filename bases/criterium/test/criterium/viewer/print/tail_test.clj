@@ -62,7 +62,9 @@
             lines (trimmed-lines output)]
         (is (some #(str/includes? % "High Quantile Estimates") lines))
         (is (some #(str/includes? % "p99") lines) "Should show p99 estimate")
-        (is (some #(str/includes? % "p99.9") lines) "Should show p99.9 estimate")))
+        (is
+         (some #(str/includes? % "p99.9") lines)
+         "Should show p99.9 estimate")))
 
     (testing "handles missing tail analysis gracefully"
       (let [output (with-out-str (view/tail-high-quantiles* :print {} {}))]
@@ -189,6 +191,9 @@
 
     (testing "produces no output when no GPD fit"
       (let [data-map (test-data/tail-analysis-data-map)
-            no-gpd (update-in data-map [:tail-analysis :tail-analysis [:elapsed-time]]
-                              dissoc :gpd)]
+            no-gpd (update-in
+                    data-map
+                    [:tail-analysis :tail-analysis [:elapsed-time]]
+                    dissoc
+                    :gpd)]
         (is (= "" (with-out-str (view/gpd-qq-plot* :print {} no-gpd))))))))

@@ -41,9 +41,14 @@
                                       :height kindly.core/chart-height
                                       :title (str "ACF: " (:label mc)
                                                   " (n="
-                                                  (get-in acf-data [:effective-sample-size :n-original])
+                                                  (get-in
+                                                   acf-data
+                                                   [:effective-sample-size
+                                                    :n-original])
                                                   ")")}
-                               min-severity (assoc :min-severity min-severity)))]
+                               min-severity (assoc
+                                             :min-severity
+                                             min-severity)))]
               (kindly.core/kindly-heading (str "Autocorrelation: " (:label mc)))
               (kindly.core/kindly-vega-lite spec))))))))
 
@@ -52,7 +57,10 @@
   (let [metrics (common.autocorr/collect-classification-metrics view data-map)]
     (when (some #(not= :pass (:classification (first %))) metrics)
       (doseq [[class-data acf-data mc] metrics]
-        (let [{:keys [ljung-box classification pattern detected-period]} class-data
+        (let [{:keys [ljung-box
+                      classification
+                      pattern
+                      detected-period]} class-data
               lag-1 (:lag-1 acf-data)
               acf-map (:acf acf-data)
               anomalous-lags (:anomalous-lags acf-data)
@@ -63,22 +71,33 @@
                       {:metric (str (:label mc) " Lag-1 autocorrelation")
                        :value (format "%.2f (%s)"
                                       (:value lag-1)
-                                      (get severity-labels (:severity lag-1) "unknown"))})
+                                      (get
+                                       severity-labels
+                                       (:severity lag-1)
+                                       "unknown"))})
                     {:metric (str (:label mc) " Ljung-Box p-value")
                      :value (format "%.2f" (:p-value ljung-box))}
                     {:metric "Assessment"
                      :value (str/capitalize (name classification))}]
              (seq anomalous-lags)
              (conj {:metric "Anomalous lags"
-                    :value (common.autocorr/format-anomalous-lags anomalous-lags lag-severities)})
+                    :value (common.autocorr/format-anomalous-lags
+                            anomalous-lags
+                            lag-severities)})
 
              (and (#{:warning :fail} classification)
                   (displayable-patterns pattern))
              (conj {:metric "Pattern" :value (name pattern)})
 
-             (common.autocorr/format-detected-period detected-period acf-map lag-severities)
+             (common.autocorr/format-detected-period
+              detected-period
+              acf-map
+              lag-severities)
              (conj {:metric "Suspected period"
-                    :value (common.autocorr/format-detected-period detected-period acf-map lag-severities)})
+                    :value (common.autocorr/format-detected-period
+                            detected-period
+                            acf-map
+                            lag-severities)})
 
              true
              (->> (remove nil?) vec))))))))

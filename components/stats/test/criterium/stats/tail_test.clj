@@ -313,4 +313,5 @@
         (let [results (stats/hill-estimator samples [1 2 3])]
           (is (every? #(= 0.0 (:estimate %)) results)))
         ;; No exceedances when all equal to threshold
-        (is (= 0 (arr/length (stats/exceedances-over-threshold samples 5.0))))))))
+        (is
+         (= 0 (arr/length (stats/exceedances-over-threshold samples 5.0))))))))

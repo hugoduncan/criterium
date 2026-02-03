@@ -31,12 +31,18 @@
                                :implementations [:foo :bar]
                                :metrics {:elapsed-time
                                          {:metric [:stats :elapsed-time :mean]
-                                          :data {:foo [{:coord {:n 100} :value 1.0e-6}]
-                                                 :bar [{:coord {:n 100} :value 2.0e-6}]}}
+                                          :data {:foo [{:coord {:n 100}
+                                                        :value 1.0e-6}]
+                                                 :bar [{:coord {:n 100}
+                                                        :value 2.0e-6}]}}
                                          :thread-allocation
-                                         {:metric [:stats :thread-allocation :mean]
-                                          :data {:foo [{:coord {:n 100} :value 1000}]
-                                                 :bar [{:coord {:n 100} :value 2000}]}}}}
+                                         {:metric [:stats
+                                                   :thread-allocation
+                                                   :mean]
+                                          :data {:foo [{:coord {:n 100}
+                                                        :value 1000}]
+                                                 :bar [{:coord {:n 100}
+                                                        :value 2000}]}}}}
             result (comparison/prepare-comparison-bar-data domain-comparison)]
         (is (= 2 (count result)))
         (is (= #{:elapsed-time :thread-allocation}

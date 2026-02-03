@@ -17,7 +17,9 @@
 (defn- triangle-area
   "Calculate area of triangle formed by three points using cross product.
   Returns absolute area * 2 (sufficient for comparison)."
-  ^double [[^double x1 ^double y1] [^double x2 ^double y2] [^double x3 ^double y3]]
+  ^double [[^double x1 ^double y1]
+           [^double x2 ^double y2]
+           [^double x3 ^double y3]]
   (Math/abs
    (- (* (- x1 x3) (- y2 y1))
       (* (- x1 x2) (- y3 y1)))))
@@ -28,8 +30,14 @@
   (let [n (count points)]
     (if (zero? n)
       [0.0 0.0]
-      (let [^double sum-x (reduce (fn [^double acc [^double x _]] (+ acc x)) 0.0 points)
-            ^double sum-y (reduce (fn [^double acc [_ ^double y]] (+ acc y)) 0.0 points)
+      (let [^double sum-x (reduce
+                           (fn [^double acc [^double x _]] (+ acc x))
+                           0.0
+                           points)
+            ^double sum-y (reduce
+                           (fn [^double acc [_ ^double y]] (+ acc y))
+                           0.0
+                           points)
             nd (double n)]
         [(/ sum-x nd) (/ sum-y nd)]))))
 
@@ -107,7 +115,9 @@
      :positions [0.5]
      :unit nil}
     (let [[^double scale unit] (if dimension
-                                 (format/scale dimension (/ (+ min-val max-val) 2.0))
+                                 (format/scale
+                                  dimension
+                                  (/ (+ min-val max-val) 2.0))
                                  [1.0 nil])
           range-val (- max-val min-val)
           step (/ range-val (double (max 1 (dec num-labels))))
@@ -286,7 +296,8 @@
           ;; Build chart lines with y-axis
           y-label-positions (zipmap
                              (mapv (fn [^double pos]
-                                     (Math/round (* pos (double (dec plot-height)))))
+                                     (Math/round
+                                      (* pos (double (dec plot-height)))))
                                    (:positions y-axis-info))
                              (:labels y-axis-info))
 
@@ -306,16 +317,23 @@
           num-x-labels (min 5 (quot plot-width 10))
           x-axis-info (compute-axis-labels x-min x-max nil num-x-labels)
           x-labels-line (let [sb (StringBuilder.)
-                              _ (.append sb (apply str (repeat y-axis-width \space)))
+                              _ (.append
+                                 sb
+                                 (apply str (repeat y-axis-width \space)))
                               positions (vec (:positions x-axis-info))]
-                          (doseq [[^long i label] (map-indexed vector (:labels x-axis-info))]
+                          (doseq [[^long i
+                                   label] (map-indexed
+                                           vector
+                                           (:labels x-axis-info))]
                             (let [pos (long (* ^double (positions i)
                                                (double (dec plot-width))))
                                   current-len (.length sb)
                                   target-pos (+ y-axis-width pos)
                                   padding (max 0 (- target-pos current-len))]
                               (when (pos? padding)
-                                (.append sb (apply str (repeat padding \space))))
+                                (.append
+                                 sb
+                                 (apply str (repeat padding \space))))
                               (.append sb label)))
                           (.toString sb))
           _ (conj! lines x-labels-line)
@@ -327,8 +345,12 @@
                     label-line (str (when y-label (str y-label " "))
                                     unit-str
                                     (when x-label
-                                      (str (apply str (repeat (- (quot width 2) 10) \space))
-                                           "x: " x-label)))]
+                                      (str
+                                       (apply
+                                        str
+                                        (repeat (- (quot width 2) 10) \space))
+                                       "x: "
+                                       x-label)))]
                 (when (seq label-line)
                   (conj! lines label-line))))]
 

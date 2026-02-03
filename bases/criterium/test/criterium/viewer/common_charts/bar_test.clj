@@ -63,20 +63,23 @@
   ;; :has-error-bounds?. Data values are SI-scaled.
   (testing "prepare-single-point-bar-data"
     (testing "extracts data for each metric"
-      (let [result (charts.comparison/prepare-single-point-bar-data single-point-extract)]
+      (let [result (charts.comparison/prepare-single-point-bar-data
+                    single-point-extract)]
         (is (vector? result))
         (is (= 1 (count result)))
         (is (= :elapsed-time (:metric-id (first result))))))
 
     (testing "includes all implementations in data"
-      (let [result (charts.comparison/prepare-single-point-bar-data single-point-extract)
+      (let [result (charts.comparison/prepare-single-point-bar-data
+                    single-point-extract)
             data (:data (first result))]
         (is (= 3 (count data)))
         (is (= #{"foo" "bar" "baz"}
                (set (map #(get % "impl") data))))))
 
     (testing "applies SI scaling to values"
-      (let [result (charts.comparison/prepare-single-point-bar-data single-point-extract)
+      (let [result (charts.comparison/prepare-single-point-bar-data
+                    single-point-extract)
             first-metric (first result)]
         (is (string? (:y-title first-metric)))
         (let [data (:data first-metric)
@@ -92,13 +95,15 @@
                        :data [[{:n 100 :impl :foo} 1000]
                               [{:n 100 :impl :bar} 2000]
                               [{:n 100 :impl :baz} 1500]]})
-            result (charts.comparison/prepare-single-point-bar-data multi-metric-extract)]
+            result (charts.comparison/prepare-single-point-bar-data
+                    multi-metric-extract)]
         (is (= 2 (count result)))
         (is (= #{:elapsed-time :thread-allocation}
                (set (map :metric-id result))))))
 
     (testing "returns has-error-bounds? false for plain values"
-      (let [result (charts.comparison/prepare-single-point-bar-data single-point-extract)
+      (let [result (charts.comparison/prepare-single-point-bar-data
+                    single-point-extract)
             first-metric (first result)]
         (is (false? (:has-error-bounds? first-metric)))
         (is (every? #(not (contains? % "valueLower")) (:data first-metric)))
@@ -115,7 +120,8 @@
                                 {:value 1.0e-6 :lower 0.9e-6 :upper 1.1e-6}]
                                [{:n 100 :impl :bar}
                                 {:value 2.0e-6 :lower 1.8e-6 :upper 2.2e-6}]]}}}
-            result (charts.comparison/prepare-single-point-bar-data extract-with-bounds)
+            result (charts.comparison/prepare-single-point-bar-data
+                    extract-with-bounds)
             first-metric (first result)]
         (is (true? (:has-error-bounds? first-metric)))
         (is (re-find #"mean" (:y-title first-metric)))
@@ -137,7 +143,8 @@
                                 {:value 1.0e-6 :lower 0.9e-6 :upper 1.1e-6}]
                                [{:n 100 :impl :bar}
                                 {:value 2.0e-6 :lower 1.8e-6 :upper 2.2e-6}]]}}}
-            result (charts.comparison/prepare-single-point-bar-data extract-with-median)
+            result (charts.comparison/prepare-single-point-bar-data
+                    extract-with-median)
             first-metric (first result)]
         (is (re-find #"median" (:y-title first-metric)))))
 
@@ -151,7 +158,8 @@
                         :data [[{:n 100 :impl :foo}
                                 {:value 1.0e-6 :lower 0.9e-6 :upper 1.1e-6}]
                                [{:n 100 :impl :bar} 2.0e-6]]}}}
-            result (charts.comparison/prepare-single-point-bar-data extract-mixed)
+            result (charts.comparison/prepare-single-point-bar-data
+                    extract-mixed)
             first-metric (first result)
             data (:data first-metric)]
         (is (true? (:has-error-bounds? first-metric)))

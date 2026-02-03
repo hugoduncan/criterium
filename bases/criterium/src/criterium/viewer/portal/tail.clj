@@ -41,7 +41,9 @@
              (common.tail/get-tail-context view data-map)]
     (doseq [mc metric-configs]
       (when-let [tail-data (get tail-results (:path mc))]
-        (let [quantiles-rows (core/tail-high-quantiles-table tail-data transforms)]
+        (let [quantiles-rows (core/tail-high-quantiles-table
+                              tail-data
+                              transforms)]
           (when (seq quantiles-rows)
             (portal.core/heading (str "High Quantile Estimates: " (:label mc)))
             (portal.core/portal-table quantiles-rows)))))))
@@ -82,7 +84,8 @@
              (common.tail/get-tail-context view data-map)]
     (doseq [mc metric-configs]
       (when-let [_tail-data (get tail-results (:path mc))]
-        (when-let [samples (when metric->values (get metric->values (:path mc)))]
+        (when-let [samples (when metric->values
+                             (get metric->values (:path mc)))]
           (when-let [chart (charts.tail/zipf-plot samples transforms)]
             (portal.core/heading (str "Zipf Plot: " (:label mc)))
             (portal.core/portal-vega-lite (merge {:height 400} chart))))))))
@@ -93,7 +96,8 @@
              (common.tail/get-tail-context view data-map)]
     (doseq [mc metric-configs]
       (when-let [tail-data (get tail-results (:path mc))]
-        (when-let [samples (when metric->values (get metric->values (:path mc)))]
+        (when-let [samples (when metric->values
+                             (get metric->values (:path mc)))]
           (when-let [threshold (:threshold tail-data)]
             (when-let [chart (charts.tail/exponential-qq-plot
                               samples threshold transforms)]
@@ -106,10 +110,12 @@
              (common.tail/get-tail-context view data-map)]
     (doseq [mc metric-configs]
       (when-let [tail-data (get tail-results (:path mc))]
-        (when-let [samples (when metric->values (get metric->values (:path mc)))]
+        (when-let [samples (when metric->values
+                             (get metric->values (:path mc)))]
           (when-let [threshold (:threshold tail-data)]
             (when-let [gpd (:gpd tail-data)]
               (when-let [chart (charts.tail/gpd-qq-plot
                                 samples threshold gpd transforms)]
                 (portal.core/heading (str "GPD Q-Q Plot: " (:label mc)))
-                (portal.core/portal-vega-lite (merge {:height 400} chart))))))))))
+                (portal.core/portal-vega-lite
+                 (merge {:height 400} chart))))))))))

@@ -224,7 +224,8 @@
                          {:value 120.0 :alpha 0.975}]}}}
                  vectorized-identity-transforms
                  nil))))))
-    (testing "via bootstrap pipeline with degenerate data (default shows median and spread)"
+    (testing
+     "via bootstrap pipeline with degenerate data (default shows median and spread)"
       (is (= ["Elapsed Time median: 1.00 ns CI [1.00 1.00] (0.025 0.975)"
               "Elapsed Time spread: [1.00 1.00] ns (10th-90th percentile)"]
              (let [data-map

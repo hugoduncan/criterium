@@ -1,10 +1,9 @@
 (ns criterium.viewer.common-charts.profile
-  "Profile visualization charts for call trees, treemaps, and most-called methods.
+  "Profile visualization for call trees, treemaps, and most-called methods.
 
-  Provides Vega and Vega-Lite specs for:
-  - Allocation treemaps showing memory usage by type
-  - Call tree visualizations (hierarchical tree and flame chart)
-  - Most-called method bar charts"
+  Provides Vega and Vega-Lite specs for: - Allocation treemaps showing memory
+  usage by type - Call tree visualizations (hierarchical tree and flame chart) -
+  Most-called method bar charts"
   (:require
    [clojure.string :as str]))
 
@@ -12,8 +11,9 @@
 
 (defn- flatten-treemap-node
   "Flatten a hierarchical treemap node into a sequence of flat records.
-  Each record has :id, :parent, and :name keys for use with Vega stratify.
-  Only leaf nodes get stats - parent sizes are computed by Vega's treemap transform."
+  Each record has :id, :parent, and :name keys for use with Vega
+  stratify.  Only leaf nodes get stats - parent sizes are computed by
+  Vega's treemap transform."
   ([node] (flatten-treemap-node node nil []))
   ([node parent-id path]
    (let [node-name (:name node)
@@ -27,11 +27,17 @@
                               :name node-name
                               :depth (count path)}
                        ;; Only set stats on leaf nodes
-                       (not children) (assoc :value (:value node 0)
-                                             :bytes (:bytes node)
-                                             :count (:count node)
-                                             :freed-bytes (:freed-bytes node 0)
-                                             :freed-count (:freed-count node 0)))]
+                       (not children) (assoc
+                                       :value
+                                       (:value node 0)
+                                       :bytes
+                                       (:bytes node)
+                                       :count
+                                       (:count node)
+                                       :freed-bytes
+                                       (:freed-bytes node 0)
+                                       :freed-count
+                                       (:freed-count node 0)))]
      (if children
        (cons node-record
              (mapcat #(flatten-treemap-node % node-id current-path) children))
@@ -121,12 +127,15 @@
                 :fill {:value "transparent"}
                 :tooltip
                 {:signal
-                 (str "{'Type': datum.name, "
-                      "'Bytes': format(datum.bytes, '~s'), "
-                      "'Count': datum.count, "
-                      "'Bytes/Alloc': format(datum.bytes / datum.count, '.1f'), "
-                      "'Freed %': format(datum['freed-count'] / datum.count, '.1%'), "
-                      "'Path': replace(replace(datum.id, /^[^/]+\\//, ''), /\\/[^/]+$/, '')}")}}
+                 (str
+                  "{'Type': datum.name, "
+                  "'Bytes': format(datum.bytes, '~s'), "
+                  "'Count': datum.count, "
+                  "'Bytes/Alloc': format(datum.bytes / datum.count, '.1f'), "
+                  "'Freed %': "
+                  "format(datum['freed-count'] / datum.count, '.1%'), "
+                  "'Path': replace(replace(datum.id, /^[^/]+\\//, ''), "
+                  "/\\/[^/]+$/, '')}")}}
                :hover
                {:fill {:value "rgba(0,0,0,0.1)"}}}}]}))
 
@@ -177,8 +186,9 @@
 
 (defn- flatten-call-tree-node
   "Flatten a hierarchical call tree node into a sequence of flat records.
-  Each record has :id, :parent, :name, :call-count keys for use with Vega stratify.
-  Unlike treemap, all nodes get call-count since we're showing the call hierarchy."
+  Each record has :id, :parent, :name, :call-count keys for use with
+  Vega stratify.  Unlike treemap, all nodes get call-count since we're
+  showing the call hierarchy."
   ([node] (flatten-call-tree-node node nil []))
   ([node parent-id path]
    (when node
@@ -203,7 +213,9 @@
                         :depth (count path)}]
        (if (seq children)
          (cons node-record
-               (mapcat #(flatten-call-tree-node % node-id current-path) children))
+               (mapcat
+                #(flatten-call-tree-node % node-id current-path)
+                children))
          [node-record])))))
 
 (defn call-tree-tree-vega-spec
@@ -293,7 +305,8 @@
                       "'Function': datum.name, "
                       "'Full': datum.class + '.' + datum.method, "
                       "'Calls': datum['call-count'], "
-                      "'Location': datum.file ? (datum.file + ':' + datum.line) : 'unknown'"
+                      "'Location': datum.file ? "
+                      "(datum.file + ':' + datum.line) : 'unknown'"
                       "}")}}}}
              ;; Labels for nodes with high call counts
              {:type "text"
@@ -363,7 +376,10 @@
                       children (:children node)
                       ;; Children are sized proportionally within parent's width
                       children-total (double
-                                      (reduce + 0 (map #(or (:call-count %) 0) children)))]
+                                      (reduce
+                                       +
+                                       0
+                                       (map #(or (:call-count %) 0) children)))]
                   (if (seq children)
                     (let [child-data
                           (loop [remaining children
@@ -372,12 +388,20 @@
                             (if (empty? remaining)
                               acc
                               (let [child (first remaining)
-                                    child-count (double (or (:call-count child) 0))
+                                    child-count (double
+                                                 (or (:call-count child) 0))
                                     child-width (if (pos? children-total)
-                                                  (* node-width (/ child-count children-total))
+                                                  (*
+                                                   node-width
+                                                   (/
+                                                    child-count
+                                                    children-total))
                                                   0.0)
                                     child-results (compute-flame-data
-                                                   child child-x child-width (inc depth))]
+                                                   child
+                                                   child-x
+                                                   child-width
+                                                   (inc depth))]
                                 (recur (rest remaining)
                                        (+ child-x child-width)
                                        (into acc child-results)))))]
@@ -388,7 +412,10 @@
             max-depth (long (if (seq flame-data)
                               (apply max (map :depth flame-data))
                               0))
-            computed-height (long (Math/max height-d (* (double (inc max-depth)) row-height 1.2)))]
+            computed-height (long
+                             (Math/max
+                              height-d
+                              (* (double (inc max-depth)) row-height 1.2)))]
         {:$schema "https://vega.github.io/schema/vega/v5.json"
          :width width
          :height computed-height
@@ -416,13 +443,15 @@
                     :fill {:scale "color" :field "class"}
                     :tooltip
                     {:signal
-                     (str "{"
-                          "'Function': datum.name, "
-                          "'Full': datum.class + '.' + datum.method, "
-                          "'Calls': datum['call-count'], "
-                          "'Percentage': format(datum.percentage, '.1f') + '%', "
-                          "'Location': datum.file ? (datum.file + ':' + datum.line) : 'unknown'"
-                          "}")}}
+                     (str
+                      "{"
+                      "'Function': datum.name, "
+                      "'Full': datum.class + '.' + datum.method, "
+                      "'Calls': datum['call-count'], "
+                      "'Percentage': format(datum.percentage, '.1f') + '%', "
+                      "'Location': datum.file ? "
+                      "(datum.file + ':' + datum.line) : 'unknown'"
+                      "}")}}
                    :hover
                    {:fill {:value "#ff6600"}}}}
                  ;; Labels for wider bars
@@ -439,7 +468,8 @@
                    {:x {:signal "datum.x0 + 2"}
                     :y {:signal "(datum.y0 + datum.y1) / 2"}
                     ;; Only show text if bar is wide enough
-                    :text {:signal "(datum.x1 - datum.x0) > 60 ? datum.name : ''"}
+                    :text
+                    {:signal "(datum.x1 - datum.x0) > 60 ? datum.name : ''"}
                     :limit {:signal "datum.x1 - datum.x0 - 4"}}}}]}))))
 
 ;;; Most-Called Bar Chart
@@ -503,4 +533,6 @@
                         :legend nil}
                 :tooltip [{:field "fullName" :type "nominal" :title "Full Name"}
                           {:field "calls" :type "quantitative" :title "Calls"}
-                          {:field "location" :type "nominal" :title "Location"}]}}))
+                          {:field "location"
+                           :type "nominal"
+                           :title "Location"}]}}))

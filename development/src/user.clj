@@ -16,9 +16,12 @@
   (catch Exception _))
 (try
   (require 'cider.nrepl.inlined.deps.toolsreader.v1v4v1.clojure.tools.reader)
-  (require 'cider.nrepl.inlined.deps.compliment.v0v7v1.compliment.sources.class-members)
-  (require 'cider.nrepl.inlined.deps.compliment.v0v7v1.compliment.sources.classes)
-  (require 'cider.nrepl.inlined.deps.compliment.v0v7v1.compliment.sources.namespaces)
+  (require
+   'cider.nrepl.inlined.deps.compliment.v0v7v1.compliment.sources.class-members)
+  (require
+   'cider.nrepl.inlined.deps.compliment.v0v7v1.compliment.sources.classes)
+  (require
+   'cider.nrepl.inlined.deps.compliment.v0v7v1.compliment.sources.namespaces)
   (require 'cider.nrepl.inlined.deps.compliment.v0v7v1.compliment.sources.vars)
   (catch Exception _))
 (try

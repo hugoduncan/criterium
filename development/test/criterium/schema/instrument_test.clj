@@ -86,7 +86,9 @@
               (is (contains? inner-data :schema)
                   (str "Expected :schema in :data, got: " (keys inner-data)))
               (is (contains? inner-data :args)
-                  (str "Expected :args in :data, got: " (keys inner-data))))))))))
+                  (str
+                   "Expected :args in :data, got: "
+                   (keys inner-data))))))))))
 
 ;;; Valid input tests
 

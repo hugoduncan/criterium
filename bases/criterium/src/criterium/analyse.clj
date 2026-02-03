@@ -431,9 +431,9 @@
 (defn modes
   "Calculate statistically validated mode analysis for KDE output.
 
-  Returns a function that computes modes with multimodality testing for significance.
-  Tests from k=1 up to max-modes to determine the statistically supported
-  number of modes.
+  Returns a function that computes modes with multimodality testing for
+  significance.  Tests from k=1 up to max-modes to determine the
+  statistically supported number of modes.
 
   Parameters:
     opts - Optional map with keys:
@@ -450,8 +450,10 @@
                      :silverman uses bootstrap mode count
       :mode-method - Mode finding method (default: :isj)
                      :isj - find modes from KDE density at ISJ bandwidth
-                     :critical - find modes at critical bandwidth for validated k
-                     When :critical, output includes :antimodes and :mode-bandwidth
+                     :critical - find modes at critical bandwidth for
+                                 validated k
+                     When :critical, output includes
+                         :antimodes and :mode-bandwidth
 
   The returned function:
   - Takes a data map containing KDE and samples
@@ -469,8 +471,8 @@
         result (analyze {:log-samples {...}})]
     (get-in result [:modes :elapsed-time :n-modes]))"
   ([] (modes {}))
-  ([{:keys [id kde-id samples-id outliers-id metric-ids max-modes n-bootstrap alpha
-            method mode-method]
+  ([{:keys [id kde-id samples-id outliers-id metric-ids max-modes n-bootstrap
+            alpha method mode-method]
      :as _options}]
    (let [id (or id :modes)
          kde-id (or kde-id :kde)
@@ -663,7 +665,8 @@
 
   Parameters:
     opts - Optional map with keys:
-      :id          - Key for significance results (default: :outlier-significance)
+      :id          - Key for significance results
+                     (default: :outlier-significance)
       :outliers-id - Key for outlier analysis (default: :outliers)
       :stats-id    - Key for statistical analysis (default: :stats)
       :metric-ids  - Set of metric ids to analyze (default: all quantitative)
@@ -673,7 +676,8 @@
   - Returns the map with significance analysis added under :id key
   - For each metric provides:
     - significance: A value between 0-1 indicating outlier impact
-    - effect: Keyword describing impact (:unaffected, :slight, :moderate, :severe)
+    - effect: Keyword describing impact
+       (:unaffected, :slight, :moderate, :severe)
   - Requires prior outlier and statistical analysis in input data
 
   Effects are classified as:
@@ -731,7 +735,8 @@
   Parameters:
     opts - Optional map with keys:
       :id       - Key for result in output (default: :allocation-summary)
-      :trace-id - Path for source trace in input (default: [:samples :allocation-trace])"
+      :trace-id - Path for source trace in input
+                  (default: [:samples :allocation-trace])"
   ([] (allocation-summary {}))
   ([opts]
    (allocation-analysis/summary-fn opts)))
@@ -745,7 +750,8 @@
   Parameters:
     opts - Optional map with keys:
       :id       - Key for result in output (default: :allocation-hotspots)
-      :trace-id - Path for source trace in input (default: [:samples :allocation-trace])
+      :trace-id - Path for source trace in input
+                  (default: [:samples :allocation-trace])
       :limit    - Maximum number of hotspots to return (default: 10)
       :order-by - Sort key, :bytes or :count (default: :bytes)"
   ([] (allocation-hotspots {}))
@@ -761,7 +767,8 @@
   Parameters:
     opts - Optional map with keys:
       :id       - Key for result in output (default: :allocation-by-type)
-      :trace-id - Path for source trace in input (default: [:samples :allocation-trace])"
+      :trace-id - Path for source trace in input
+                  (default: [:samples :allocation-trace])"
   ([] (allocation-by-type {}))
   ([opts]
    (allocation-analysis/by-type-fn opts)))
@@ -775,9 +782,12 @@
   Parameters:
     opts - Optional map with keys:
       :id        - Key for result in output (default: :allocation-treemap)
-      :trace-id  - Path for source trace in input (default: [:samples :allocation-trace])
-      :group-by  - Hierarchy: :class→line→type or :type→class→line (default: :class→line→type)
-      :size-by   - Value sizing: :count, :bytes, :bytes-per-allocation (default: :bytes)
+      :trace-id  - Path for source trace in input
+                   (default: [:samples :allocation-trace])
+      :group-by  - Hierarchy: :class→line→type or :type→class→line
+                   (default: :class→line→type)
+      :size-by   - Value sizing: :count, :bytes, :bytes-per-allocation
+                   (default: :bytes)
       :filter-by - Filter: :freed, :not-freed, :all (default: :all)"
   ([] (allocation-treemap {}))
   ([opts]
@@ -847,7 +857,9 @@
                                    (metric/type-pred :quantitative)))
                  metric-configs (metric/all-metric-configs metrics-defs)
                  fit-options (cond-> {}
-                               distributions (assoc :distributions distributions)
+                               distributions (assoc
+                                              :distributions
+                                              distributions)
                                n-bootstrap (assoc :n-bootstrap n-bootstrap)
                                alpha (assoc :alpha alpha))
                  fit-result (methods/distribution-fit
@@ -879,18 +891,21 @@
     opts - Optional map with keys:
       :id               - Key for result in output (default: :tail-analysis)
       :samples-id       - Key for source samples (default: :samples)
-      :metric-ids       - Set of metric ids to analyze (default: all quantitative)
+      :metric-ids       - Set of metric ids to analyze
+                          (default: all quantitative)
       :threshold        - Explicit threshold value for POT analysis
       :threshold-quantile - Quantile to use as threshold (default: 0.9)
       :k-range          - Range of k values for Hill estimator
-      :high-quantiles   - Quantiles to estimate via GPD (default: [0.99 0.999 0.9999])
+      :high-quantiles   - Quantiles to estimate via GPD
+                          (default: [0.99 0.999 0.9999])
 
   The returned function:
   - Takes a sampled data map containing samples
   - Returns the map with tail analysis added under :id key
   - For each metric provides:
     - :tail-ratios - p99/p95, p999/p99 ratios indicating tail heaviness
-    - :hill - Hill estimator results with k-range, estimates, and stable-estimate
+    - :hill - Hill estimator results with k-range, estimates, and
+              stable-estimate
     - :gpd - GPD fit parameters (xi, sigma) for exceedances over threshold
     - :mrl - Mean residual life values for threshold selection guidance
     - :high-quantiles - Extreme quantile estimates using GPD extrapolation
@@ -942,8 +957,10 @@
     opts - Optional map with keys:
       :id               - Key for result in output (default: :autocorrelation)
       :samples-id       - Key for source samples (default: :samples)
-      :outlier-id       - Key for outlier data to filter (default: nil, no filtering)
-      :metric-ids       - Set of metric ids to analyze (default: all quantitative)
+      :outlier-id       - Key for outlier data to filter
+                          (default: nil, no filtering)
+      :metric-ids       - Set of metric ids to analyze
+                          (default: all quantitative)
 
   The returned function:
   - Takes a sampled data map containing samples
@@ -1000,9 +1017,12 @@
 
   Parameters:
     opts - Optional map with keys:
-      :id               - Key for result in output (default: :effective-sample-size)
-      :autocorrelation-id - Key for source autocorrelation analysis (default: :autocorrelation)
-      :metric-ids       - Set of metric ids to analyze (default: all from source)
+      :id               - Key for result in output
+                          (default: :effective-sample-size)
+      :autocorrelation-id - Key for source autocorrelation analysis
+                            (default: :autocorrelation)
+      :metric-ids       - Set of metric ids to analyze
+                          (default: all from source)
 
   The returned function:
   - Takes a data map containing autocorrelation analysis results
@@ -1014,7 +1034,9 @@
   Example:
   (let [analyze (effective-sample-size-analysis {})
         result (analyze {:autocorrelation {...}})]
-    (get-in result [:effective-sample-size :elapsed-time :ci-inflation-factor]))"
+    (get-in
+      result
+      [:effective-sample-size :elapsed-time :ci-inflation-factor]))"
   ([] (effective-sample-size-analysis {}))
   ([{:keys [id autocorrelation-id metric-ids] :as _options}]
    (let [autocorrelation-id (or autocorrelation-id :autocorrelation)
@@ -1032,9 +1054,13 @@
                   (fn [result metric-config]
                     (let [p (:path metric-config)
                           acf-data (get-in autocorr-data [p :acf])
-                          n (get-in autocorr-data [p :effective-sample-size :n-original])]
+                          n (get-in
+                             autocorr-data
+                             [p :effective-sample-size :n-original])]
                       (if (and acf-data n)
-                        (let [ess (stats/effective-sample-size-analysis acf-data n)]
+                        (let [ess (stats/effective-sample-size-analysis
+                                   acf-data
+                                   n)]
                           (assoc result p ess))
                         result)))
                   {}
@@ -1055,16 +1081,20 @@
 
   Parameters:
     opts - Optional map with keys:
-      :id               - Key for result in output (default: :autocorrelation-classification)
-      :autocorrelation-id - Key for source autocorrelation analysis (default: :autocorrelation)
-      :metric-ids       - Set of metric ids to analyze (default: all from source)
+      :id               - Key for result in output
+                          (default: :autocorrelation-classification)
+      :autocorrelation-id - Key for source autocorrelation analysis
+                           (default: :autocorrelation)
+      :metric-ids       - Set of metric ids to analyze
+                          (default: all from source)
 
   The returned function:
   - Takes a data map containing autocorrelation analysis results
   - Returns the map with classification analysis added under :id key
   - For each metric provides:
     - :ljung-box - {:q-statistic Q :df h :p-value p}
-    - :pattern - :clean, :transient-effects, :drift, :periodic, :severe, or :alternating-*
+    - :pattern - :clean, :transient-effects, :drift, :periodic,
+                 :severe, or :alternating-*
     - :classification - :pass, :acceptable, :warning, or :fail
     - :detected-period - Integer period for :periodic pattern, nil otherwise
 
@@ -1089,9 +1119,14 @@
                   (fn [result metric-config]
                     (let [p (:path metric-config)
                           acf-data (get-in autocorr-data [p :acf])
-                          n (get-in autocorr-data [p :effective-sample-size :n-original])]
+                          n (get-in
+                             autocorr-data
+                             [p :effective-sample-size :n-original])]
                       (if (and acf-data n)
-                        (let [classification (stats/autocorrelation-classification acf-data n)]
+                        (let [classification
+                              (stats/autocorrelation-classification
+                               acf-data
+                               n)]
                           (assoc result p classification))
                         result)))
                   {}
@@ -1115,12 +1150,16 @@
       :id                 - Key for result in output (default: :bootstrap-stats)
       :samples-id         - Key for source samples (default: :samples)
       :outliers-id        - Key for outlier analysis (default: :outliers)
-      :ess-id             - Key for effective sample size analysis (default: nil).
-                            When provided, CI widths are inflated by ci-inflation-factor.
-      :metric-ids         - Set of metric ids to analyze (default: all quantitative)
+
+      :ess-id             - Key for effective sample size analysis
+                            (default: nil).  When provided, CI widths
+                            are inflated by ci-inflation-factor.
+      :metric-ids         - Set of metric ids to analyze
+                            (default: all quantitative)
       :quantiles          - Additional quantiles beyond defaults (e.g., [0.99])
       :estimate-quantiles - Confidence interval bounds (e.g., [0.025 0.975])
-      :bootstrap-size     - Number of bootstrap resamples (default: sample count)
+      :bootstrap-size     - Number of bootstrap resamples
+                            (default: sample count)
       :min-samples        - Minimum sample size threshold (default: 30)
 
   The returned function:

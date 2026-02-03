@@ -229,10 +229,14 @@
         (let [[allocations _res] (agent/with-allocation-tracing
                                    (jvm/thread-sample))
               {:keys [freed-bytes]} (agent/allocations-summary
-                                     (filterv (agent/allocation-on-thread?) allocations))]
+                                     (filterv
+                                      (agent/allocation-on-thread?)
+                                      allocations))]
           (is (zero? freed-bytes)
               (pr-str (mapv agent/allocation-freed?
-                            (filterv (agent/allocation-on-thread?) allocations)))))))))
+                            (filterv
+                             (agent/allocation-on-thread?)
+                             allocations)))))))))
 
 (comment
   (deftest transient-persistent-overhead-test

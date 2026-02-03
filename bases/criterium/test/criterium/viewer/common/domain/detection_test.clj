@@ -67,7 +67,8 @@
 
 (deftest single-axis-multi-point?-test
   (testing "single-axis-multi-point?"
-    (testing "returns true when one axis with multiple values and multiple impls"
+    (testing
+     "returns true when one axis with multiple values and multiple impls"
       (let [extract {:type :criterium/domain-extract
                      :impl-axis :impl
                      :implementations [:foo :bar]
@@ -127,7 +128,8 @@
 
 (deftest single-axis-multi-point-any-impl?-test
   (testing "single-axis-multi-point-any-impl?"
-    (testing "returns true when one axis with multiple values and multiple impls"
+    (testing
+     "returns true when one axis with multiple values and multiple impls"
       (let [extract {:type :criterium/domain-extract
                      :impl-axis :impl
                      :implementations [:foo :bar]

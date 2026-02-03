@@ -97,7 +97,9 @@
   ([opts]
    (let [platform (current-platform)
          ^java.io.File agent-dir (agent-cpp-dir)
-         ^java.io.File build-dir (or (:build-dir opts) (io/file agent-dir "build"))
+         ^java.io.File build-dir (or
+                                  (:build-dir opts)
+                                  (io/file agent-dir "build"))
          lib-name (library-name platform)
          ^java.io.File lib-file (io/file build-dir lib-name)]
      (when-not (.isDirectory agent-dir)
@@ -105,7 +107,10 @@
                        {:agent-dir (.getAbsolutePath agent-dir)})))
      (.mkdirs build-dir)
      (println "Building agent for" platform "using CMake...")
-     (run-process! ["cmake" (.getAbsolutePath agent-dir)] build-dir "CMake configure")
+     (run-process!
+      ["cmake" (.getAbsolutePath agent-dir)]
+      build-dir
+      "CMake configure")
      (run-process! ["cmake" "--build" "."] build-dir "CMake build")
      (when-not (.exists lib-file)
        (throw (ex-info "Build succeeded but library file not found"

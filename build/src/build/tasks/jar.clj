@@ -42,7 +42,9 @@
       (let [basis (or basis (b/create-basis))
             jar-file (or jar-file
                          (-> aliases :jar :jar-file)
-                         (fs/path "target" (str (clojure.core/name project) ".jar")))
+                         (fs/path
+                          "target"
+                          (str (clojure.core/name project) ".jar")))
 
             opts (merge opts
                         {:basis basis

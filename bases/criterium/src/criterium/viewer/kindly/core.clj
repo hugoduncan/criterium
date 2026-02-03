@@ -39,7 +39,8 @@
   accumulated
   (atom []))
 
-(defonce ^{:doc "Last flushed Kindly fragment for retrieval after bench completes."}
+(defonce
+  ^{:doc "Last flushed Kindly fragment for retrieval after bench completes."}
   last-fragment
   (atom nil))
 
@@ -99,7 +100,8 @@
 
 (defn flush
   "Return accumulated values as a kind/fragment and clear the accumulator.
-  Also stores the fragment in `last-fragment` for retrieval after bench completes."
+  Also stores the fragment in `last-fragment` for retrieval after bench
+  completes."
   []
   (let [[values _] (swap-vals! accumulated (constantly []))]
     (when (seq values)
@@ -210,13 +212,15 @@
 
 (defmethod view/kde* :kindly
   [_ view data-map]
-  (let [kde-id (or (:kde-id view) :kde)
+  (let [kde-id  (or (:kde-id view) :kde)
         kde-map (get data-map kde-id)]
     (when kde-map
       (kindly-heading "Kernel Density Estimation")
       (kindly-vega-lite
-       (charts.distribution/kde-vega-spec data-map view {:width chart-width
-                                                         :height chart-height})))))
+       (charts.distribution/kde-vega-spec
+        data-map view
+        {:width  chart-width
+         :height chart-height})))))
 
 ;;; Sample Percentiles
 
@@ -367,10 +371,11 @@
     (when (and total-gc (> frac warn-threshold))
       (kindly-heading "Final GC Warning")
       (kindly-table
-       [{:warning (format "Final GC ran for %s, %.1f%% of total sampling time (%s)"
-                          (format/format-value :time total-gc)
-                          (* frac 100)
-                          (format/format-value :time total))}]))))
+       [{:warning (format
+                   "Final GC ran for %s, %.1f%% of total sampling time (%s)"
+                   (format/format-value :time total-gc)
+                   (* frac 100)
+                   (format/format-value :time total))}]))))
 
 ;;; OS Info
 
@@ -394,4 +399,5 @@
      [{:property "VM Name" :value (:vm-name runtime)}
       {:property "VM Version" :value (:vm-version runtime)}
       {:property "VM Vendor" :value (:vm-vendor runtime)}
-      {:property "Arguments" :value (str/join " " (:input-arguments runtime))}])))
+      {:property "Arguments"
+       :value (str/join " " (:input-arguments runtime))}])))

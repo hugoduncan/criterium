@@ -46,7 +46,8 @@
     [value]
     (swap! tapped update :values conj value)))
 
-;; Sentinel value for flush synchronization - must match ::criterium.viewer.portal/_
+;; Sentinel value for flush synchronization - must
+;; match ::criterium.viewer.portal/_
 (def ^:private flush-sentinel :criterium.viewer.portal/_)
 
 (defn flush
@@ -322,10 +323,11 @@
     (when (and total-gc (> frac warn-threshold))
       (heading "Final GC Warning")
       (portal-table
-       [{:warning (format "Final GC ran for %s, %.1f%% of total sampling time (%s)"
-                          (format/format-value :time total-gc)
-                          (* frac 100)
-                          (format/format-value :time total))}]))))
+       [{:warning (format
+                   "Final GC ran for %s, %.1f%% of total sampling time (%s)"
+                   (format/format-value :time total-gc)
+                   (* frac 100)
+                   (format/format-value :time total))}]))))
 
 ;;; OS Info
 
@@ -349,4 +351,5 @@
      [{:property "VM Name" :value (:vm-name runtime)}
       {:property "VM Version" :value (:vm-version runtime)}
       {:property "VM Vendor" :value (:vm-vendor runtime)}
-      {:property "Arguments" :value (str/join " " (:input-arguments runtime))}])))
+      {:property "Arguments"
+       :value (str/join " " (:input-arguments runtime))}])))

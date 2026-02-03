@@ -27,7 +27,10 @@
   "List all entries in a JAR file."
   [jar-path]
   (with-open [jar (JarFile. (str jar-path))]
-    (vec (map #(.getName ^java.util.jar.JarEntry %) (enumeration-seq (.entries jar))))))
+    (vec
+     (map
+      #(.getName ^java.util.jar.JarEntry %)
+      (enumeration-seq (.entries jar))))))
 
 (defn- jar-contains-pom?
   "Check if JAR contains a POM file."
@@ -42,9 +45,16 @@
   [jar-path]
   (with-open [jar (JarFile. (str jar-path))]
     (let [entries (enumeration-seq (.entries jar))
-          pom-entry (first (filter #(and (.startsWith (.getName ^java.util.jar.JarEntry %) "META-INF/maven/")
-                                         (.endsWith (.getName ^java.util.jar.JarEntry %) "/pom.xml"))
-                                   entries))]
+          pom-entry (first
+                     (filter
+                      #(and
+                        (.startsWith
+                         (.getName ^java.util.jar.JarEntry %)
+                         "META-INF/maven/")
+                        (.endsWith
+                         (.getName ^java.util.jar.JarEntry %)
+                         "/pom.xml"))
+                      entries))]
       (when pom-entry
         (with-open [is (.getInputStream jar pom-entry)]
           (xml/parse is))))))

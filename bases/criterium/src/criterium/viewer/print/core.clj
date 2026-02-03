@@ -37,15 +37,18 @@
   36)
 
 (def ^:const label-indent
-  "Indent width for continuation lines after a label (label-width + 2 for ': ')."
+  "Indent width for continuation lines after a label
+  (label-width + 2 for ': ')."
   (+ label-width 2))
 
 (def ^:const sublabel-indent
-  "Indent width for continuation lines after a sublabel (sublabel-width + 2 for ': ')."
+  "Indent width for continuation lines after a sublabel
+  (sublabel-width + 2 for ': ')."
   (+ sublabel-width 2))
 
 (def print-table
-  "Alias to criterium.viewer.print.table/print-table for backwards compatibility."
+  "Alias to criterium.viewer.print.table/print-table
+  for backwards compatibility."
   table/print-table)
 
 (defn label-str
@@ -338,7 +341,9 @@
         p10-est (get quantiles 0.1)
         p90-est (get quantiles 0.9)
         scale (* (:scale metric) scale)
-        show-stats (if (seq show-stats) (set show-stats) default-bootstrap-stats)]
+        show-stats (if (seq show-stats)
+                     (set show-stats)
+                     default-bootstrap-stats)]
     (when (and (show-stats :median) median-est (seq median-ci))
       (println
        (format "%s %.3g %s CI [%.3g %.3g] (%.3f %.3f)"
@@ -376,7 +381,12 @@
                           Default: #{:median :spread}"
   [view data-map]
   (when-let [{:keys [analysis-map metric-configs transforms]}
-             (get-analysis-context :bootstrap-stats-id :bootstrap-stats view data-map nil)]
+             (get-analysis-context
+              :bootstrap-stats-id
+              :bootstrap-stats
+              view
+              data-map
+              nil)]
     (let [bootstrap (util/bootstrap analysis-map)
           show-stats (:show-stats view)]
       (for-each-metric metric-configs bootstrap
@@ -513,8 +523,12 @@
 (defn print-outlier-significances
   [view data-map]
   (when-let [{:keys [analysis-map metric-configs]}
-             (get-analysis-context :outlier-significance-id :outlier-significance
-                                   view data-map (metric/type-pred :quantitative))]
+             (get-analysis-context
+              :outlier-significance-id
+              :outlier-significance
+              view
+              data-map
+              (metric/type-pred :quantitative))]
     (let [outlier-sig (util/outlier-significance analysis-map)
           filtered-metrics (for [m metric-configs
                                  :let [data (get-in outlier-sig (:path m))]
@@ -558,7 +572,9 @@
                 values
                 (fn [acc ^long idx ^double val]
                   (conj acc [(double idx)
-                             (* scale (util/transform-sample-> val transforms))]))
+                             (*
+                              scale
+                              (util/transform-sample-> val transforms))]))
                 [])]
     (when (pos? n)
       (ascii-chart/render-chart
@@ -694,7 +710,8 @@
      (if ci-hi (format/format-value dimension (* scale ci-hi)) "-")]))
 
 (defn- print-kde-metric
-  "Print KDE summary for a single metric with optional modes from separate analysis."
+  "Print KDE summary for a single metric.
+  Optional modes from separate analysis."
   [metric-config kde-data modes-data transforms]
   (let [{:keys [bandwidth n]} kde-data
         {:keys [label dimension scale]} metric-config
@@ -709,10 +726,16 @@
     (when (seq modes)
       (println (format "%s modes: %d (validated: %s)"
                        (label-indent-str) (count modes) (or n-modes "?")))
-      (println (format "%s %12s %12s %12s %12s"
-                       (label-indent-str) "Location" "Density" "CI Lower" "CI Upper"))
+      (println (format
+                "%s %12s %12s %12s %12s"
+                (label-indent-str)
+                "Location"
+                "Density"
+                "CI Lower"
+                "CI Upper"))
       (doseq [mode modes]
-        (let [[loc dens ci-lo ci-hi] (format-kde-mode mode metric-config transforms)]
+        (let [[loc dens ci-lo ci-hi]
+              (format-kde-mode mode metric-config transforms)]
           (println (format "%s %12s %12s %12s %12s"
                            (label-indent-str) loc dens ci-lo ci-hi))))
       (when test-results
@@ -721,9 +744,15 @@
                             :acr "ACR"
                             :silverman "Silverman"
                             (name method))]
-          (println (format "%s %s test p-values:" (label-indent-str) method-name))
+          (println
+           (format "%s %s test p-values:" (label-indent-str) method-name))
           (doseq [k (sort (keys p-values))]
-            (println (format "%s k=%d: p=%.4f" (sublabel-str "") k (get p-values k)))))))
+            (println
+             (format
+              "%s k=%d: p=%.4f"
+              (sublabel-str "")
+              k
+              (get p-values k)))))))
     (println)))
 
 (defmethod view/kde* :print
@@ -803,7 +832,9 @@
         ;; Transform values
         transformed (arr/dmap values
                               (fn ^double [^double x]
-                                (* scale (util/transform-sample-> x transforms))))
+                                (*
+                                 scale
+                                 (util/transform-sample-> x transforms))))
         sorted-arr (arr/sorted transformed)
         n (arr/length sorted-arr)]
     (when (pos? n)
@@ -812,7 +843,9 @@
                     (fn [acc ^long idx ^double val]
                       (let [percentile (if (= n 1)
                                          50.0
-                                         (* 100.0 (/ (double idx) (double (dec n)))))]
+                                         (*
+                                          100.0
+                                          (/ (double idx) (double (dec n)))))]
                         (conj acc [percentile val])))
                     [])]
         (ascii-chart/render-chart
@@ -861,7 +894,9 @@
         ;; Transform and sort values
         transformed (arr/dmap values
                               (fn ^double [^double x]
-                                (* scale (util/transform-sample-> x transforms))))
+                                (*
+                                 scale
+                                 (util/transform-sample-> x transforms))))
         sorted-arr (arr/sorted transformed)
         n (arr/length sorted-arr)]
     (when (pos? n)

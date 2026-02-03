@@ -46,14 +46,20 @@
         (when (seq hotspots)
           (portal.core/heading "Allocation Hotspots")
           (portal.core/portal-table
-           (mapv (fn [{:keys [call-site object-type count bytes freed-count freed-bytes]}]
-                   {:call-site (allocation/format-call-site call-site nil)
-                    :object-type (or object-type "")
-                    :count count
-                    :bytes bytes
-                    :freed-count freed-count
-                    :freed-bytes freed-bytes})
-                 hotspots)))))))
+           (mapv
+            (fn [{:keys [call-site
+                         object-type
+                         count
+                         bytes
+                         freed-count
+                         freed-bytes]}]
+              {:call-site (allocation/format-call-site call-site nil)
+               :object-type (or object-type "")
+               :count count
+               :bytes bytes
+               :freed-count freed-count
+               :freed-bytes freed-bytes})
+            hotspots)))))))
 
 ;;; Allocations by Type
 
@@ -83,4 +89,5 @@
         treemap-data (data-map treemap-id)]
     (when (and treemap-data (:root treemap-data))
       (portal.core/heading "Allocation Treemap")
-      (portal.core/portal-vega (charts.profile/treemap-vega-spec treemap-data {})))))
+      (portal.core/portal-vega
+       (charts.profile/treemap-vega-spec treemap-data {})))))

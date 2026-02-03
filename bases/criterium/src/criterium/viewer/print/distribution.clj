@@ -67,9 +67,13 @@
                      (if warning " - WARNING: small sample" "")))
     ;; Print each distribution result, best model first
     (when best-model
-      (print-distribution-result best-model (get distributions best-model) true))
-    (doseq [[dist result] (sort-by (fn [[_ r]] (or (:delta-aic r) Double/MAX_VALUE))
-                                   distributions)]
+      (print-distribution-result
+       best-model
+       (get distributions best-model)
+       true))
+    (doseq [[dist
+             result] (sort-by (fn [[_ r]] (or (:delta-aic r) Double/MAX_VALUE))
+                              distributions)]
       (when (not= dist best-model)
         (print-distribution-result dist result false)))
     (println)))
@@ -110,7 +114,10 @@
     (when (and best-model (get parameter-cis best-model))
       (println (format "%s %s Parameter CIs"
                        (print-core/format-label label)
-                       (get common.distribution/distribution-labels best-model (name best-model))))
+                       (get
+                        common.distribution/distribution-labels
+                        best-model
+                        (name best-model))))
       (print-parameter-cis best-model (get parameter-cis best-model))
       (println))))
 
@@ -159,7 +166,10 @@
                     :height 12)]
     (dist-ascii/with-distribution-metrics view data-map
       (fn [fit-data _samples transforms _mc]
-        (when-let [output (dist-ascii/render-ascii-pdf fit-data transforms opts)]
+        (when-let [output (dist-ascii/render-ascii-pdf
+                           fit-data
+                           transforms
+                           opts)]
           (println output)
           (println))))))
 
@@ -209,7 +219,11 @@
                     :height 12)]
     (dist-ascii/with-distribution-metrics view data-map
       (fn [fit-data samples transforms _mc]
-        (when-let [output (dist-ascii/render-ascii-qq samples fit-data transforms opts)]
+        (when-let [output (dist-ascii/render-ascii-qq
+                           samples
+                           fit-data
+                           transforms
+                           opts)]
           (println output)
           (println))))))
 

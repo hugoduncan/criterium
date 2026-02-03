@@ -106,7 +106,8 @@
                       (for [metric-id metric-ids]
                         {:metric-id metric-id}))
 
-          ;; Build lookup: {[row-key metric-id impl?] -> {:value V :lower L :upper U}}
+          ;; Build lookup:
+          ;;   {[row-key metric-id impl?] -> {:value V :lower L :upper U}}
           ;; Store full value map for error bounds
           lookup (reduce (fn [acc {:keys [metric-id coord raw-value value]}]
                            (let [row-key (row-key-fn coord)
@@ -141,7 +142,8 @@
                                                v (:value entry)]
                                          :when (some? v)]
                                      v)]
-                    [col-spec (core/compute-si-scaling metric-path col-values)])))
+                    [col-spec
+                     (core/compute-si-scaling metric-path col-values)])))
            col-specs)
 
           ;; Build column headers with metric type prefix
@@ -190,7 +192,7 @@
        :rows table-rows})))
 
 (defn prepare-domain-extract-table-transposed
-  "Prepare transposed domain-extract table for single-point multi-impl scenarios.
+  "Prepare transposed domain-extract table for single-point multi-impl.
   Returns {:heading :col-headers :rows} where each row is one implementation.
 
   Columns include implementation name, then for each metric: value and factor.
@@ -230,9 +232,11 @@
                 (map (fn [metric-id]
                        (let [metric-path (get-in metrics [metric-id :metric])
                              all-values (keep (fn [impl]
-                                                (:value (get lookup [impl metric-id])))
+                                                (:value
+                                                 (get lookup [impl metric-id])))
                                               implementations)]
-                         [metric-id (core/compute-si-scaling metric-path all-values)])))
+                         [metric-id
+                          (core/compute-si-scaling metric-path all-values)])))
                 metric-ids)
 
           ;; Build column headers with metric type prefix
@@ -269,7 +273,9 @@
                             factor-header (str metric-name " ×")
                             impl-entry (get lookup [impl metric-id])
                             impl-value (:value impl-entry)
-                            baseline-entry (get lookup [baseline-impl metric-id])
+                            baseline-entry (get
+                                            lookup
+                                            [baseline-impl metric-id])
                             baseline-value (:value baseline-entry)
                             formatted-value (when impl-value
                                               (format-value-with-ci
@@ -278,7 +284,8 @@
                                                (:upper impl-entry)
                                                total-scale))
                             factor (when (and impl-value baseline-value
-                                              (not (zero? (double baseline-value))))
+                                              (not
+                                               (zero? (double baseline-value))))
                                      (format "%.2f"
                                              (/ (double impl-value)
                                                 (double baseline-value))))]

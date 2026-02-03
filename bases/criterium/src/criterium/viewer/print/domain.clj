@@ -68,7 +68,8 @@
            (format "%g" base-value)))))))
 
 (defn- sort-data-by-coords
-  "Sort coordinate-value pairs, using numeric sort when coord values are numbers."
+  "Sort coordinate-value pairs.
+  Using numeric sort when coord values are numbers."
   [data single-key-info]
   (let [coords (map first data)
         sorted-coords (core/sort-row-keys coords single-key-info)
@@ -83,7 +84,8 @@
 
 (defn- print-transposed-table
   "Print a transposed table with implementation rows and metric columns.
-  Takes {:heading :col-headers :rows} from prepare-*-table-transposed functions."
+  Takes {:heading :col-headers :rows} from prepare-*-table-transposed
+  functions."
   [{:keys [heading col-headers rows]}]
   (let [;; Convert rows from maps to vectors based on col-headers order
         row-vectors (mapv (fn [row]
@@ -118,7 +120,9 @@
             (doseq [[coord value] sorted-data]
               (let [display-coord (get coord-map coord coord)]
                 (println (format "  %24s: %s"
-                                 (format-coord-value display-coord single-key-info)
+                                 (format-coord-value
+                                  display-coord
+                                  single-key-info)
                                  (format-extract-value value metric)))))
             (println)))))))
 
@@ -243,10 +247,14 @@
                            (into [row-key] vals))
                          row-keys formatted-vals)]
     (table/print-table
-     {:heading (format "Domain Comparison by %s: %s" (name axis) (pr-str metric))
-      :row-key-col {:header ""}
-      :columns (mapv (fn [h] {:header h}) col-headers)
-      :rows table-rows})))
+     {:heading
+      (format "Domain Comparison by %s: %s" (name axis) (pr-str metric))
+      :row-key-col
+      {:header ""}
+      :columns
+      (mapv (fn [h] {:header h}) col-headers)
+      :rows
+      table-rows})))
 
 (defn- print-single-metric-factor-table
   "Print single-metric comparison with factor display.
@@ -265,7 +273,9 @@
         ;; Build lookup: impl -> row-key -> value
         lookup (reduce (fn [acc [impl-val entries]]
                          (reduce (fn [acc2 {:keys [coord value]}]
-                                   (let [row-key (coord-without-axis coord axis)]
+                                   (let [row-key (coord-without-axis
+                                                  coord
+                                                  axis)]
                                      (assoc-in acc2 [impl-val row-key] value)))
                                  acc
                                  entries))
@@ -286,15 +296,26 @@
         ;; Format cell values
         format-cell (fn [{:keys [type impl]} row-key]
                       (let [value (get-in lookup [impl row-key])
-                            baseline-value (get-in lookup [baseline-impl row-key])]
+                            baseline-value (get-in
+                                            lookup
+                                            [baseline-impl row-key])]
                         (case type
-                          :baseline (or (format-extract-value-with-unit value metric) "-")
-                          :value (or (format-extract-value-with-unit value metric) "-")
+                          :baseline (or
+                                     (format-extract-value-with-unit
+                                      value
+                                      metric)
+                                     "-")
+                          :value (or
+                                  (format-extract-value-with-unit value metric)
+                                  "-")
                           :factor (cond
                                     (nil? value) "-"
                                     (nil? baseline-value) "-"
                                     (zero? baseline-value) "-"
-                                    :else (format "%.2f" (double (/ value baseline-value)))))))
+                                    :else (format
+                                           "%.2f"
+                                           (double
+                                            (/ value baseline-value)))))))
         formatted-rows (mapv (fn [row-key]
                                (mapv #(format-cell % row-key) col-specs))
                              all-row-keys)
@@ -303,10 +324,14 @@
                            (into [row-key] vals))
                          row-keys-formatted formatted-rows)]
     (table/print-table
-     {:heading (format "Domain Comparison by %s: %s" (name axis) (pr-str metric))
-      :row-key-col {:header ""}
-      :columns (mapv (fn [h] {:header h}) col-headers)
-      :rows table-rows})))
+     {:heading
+      (format "Domain Comparison by %s: %s" (name axis) (pr-str metric))
+      :row-key-col
+      {:header ""}
+      :columns
+      (mapv (fn [h] {:header h}) col-headers)
+      :rows
+      table-rows})))
 
 (defn- print-multi-metric-comparison-table
   "Print multi-metric comparison with factor display.
@@ -320,7 +345,9 @@
                           (mapcat (fn [{:keys [data]}]
                                     (mapcat (fn [[_impl-val entries]]
                                               (map (fn [{:keys [coord]}]
-                                                     (coord-without-axis coord axis))
+                                                     (coord-without-axis
+                                                      coord
+                                                      axis))
                                                    entries))
                                             data)))
                           distinct
@@ -329,8 +356,14 @@
         lookup (reduce (fn [acc [metric-id {:keys [data]}]]
                          (reduce (fn [acc2 [impl-val entries]]
                                    (reduce (fn [acc3 {:keys [coord value]}]
-                                             (let [row-key (coord-without-axis coord axis)]
-                                               (assoc-in acc3 [metric-id impl-val row-key] value)))
+                                             (let [row-key
+                                                   (coord-without-axis
+                                                    coord
+                                                    axis)]
+                                               (assoc-in
+                                                acc3
+                                                [metric-id impl-val row-key]
+                                                value)))
                                            acc2
                                            entries))
                                  acc
@@ -339,7 +372,8 @@
                        metrics)
         ;; Build columns: baseline metric (unit), other impl × for each metric
         col-specs (vec (mapcat (fn [metric-id]
-                                 (let [metric-path (get-in metrics [metric-id :metric])]
+                                 (let [metric-path
+                                       (get-in metrics [metric-id :metric])]
                                    (cons {:type :baseline
                                           :metric-id metric-id
                                           :metric-path metric-path
@@ -360,12 +394,21 @@
         ;; Format cell values
         format-cell (fn [{:keys [type metric-id metric-path impl]} row-key]
                       (let [value (get-in lookup [metric-id impl row-key])
-                            baseline-value (get-in lookup [metric-id baseline-impl row-key])
+                            baseline-value (get-in
+                                            lookup
+                                            [metric-id baseline-impl row-key])
                             ;; Extract :value from error-bound maps
                             rv (if (map? value) (:value value) value)
-                            bv (if (map? baseline-value) (:value baseline-value) baseline-value)]
+                            bv (if (map? baseline-value)
+                                 (:value baseline-value)
+                                 baseline-value)]
                         (if (= type :baseline)
-                          (or (format-extract-value-with-unit value metric-path :value) "-")
+                          (or
+                           (format-extract-value-with-unit
+                            value
+                            metric-path
+                            :value)
+                           "-")
                           ;; Factor relative to baseline
                           (cond
                             (nil? rv) "-"
@@ -414,7 +457,9 @@
                   (when (seq missing)
                     (throw
                      (ex-info
-                      "Domain :implementations do not match comparison data keys"
+                      (str
+                       "Domain :"
+                       "implementations do not match comparison data keys")
                       {:implementations implementations
                        :data-keys (keys data)
                        :missing missing})))

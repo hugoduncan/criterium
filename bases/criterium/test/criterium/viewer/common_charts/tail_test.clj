@@ -179,7 +179,10 @@
       (let [samples (arr/->double-array
                      (double-array [1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 10.0 15.0]))
             threshold 5.0
-            spec (charts.tail/exponential-qq-plot samples threshold identity-transforms)]
+            spec (charts.tail/exponential-qq-plot
+                  samples
+                  threshold
+                  identity-transforms)]
         (is (map? spec))
         (is (contains? spec :layer))
         (is (= 2 (count (:layer spec))))
@@ -192,7 +195,10 @@
       (let [samples (arr/->double-array
                      (double-array [1.0 2.0 5.0 6.0 7.0 8.0 10.0 15.0]))
             threshold 5.0
-            spec (charts.tail/exponential-qq-plot samples threshold identity-transforms)
+            spec (charts.tail/exponential-qq-plot
+                  samples
+                  threshold
+                  identity-transforms)
             ref-line (first (:layer spec))
             x-domain (get-in ref-line [:encoding :x :scale :domain])
             y-domain (get-in ref-line [:encoding :y :scale :domain])]
@@ -201,7 +207,11 @@
     (testing "returns nil when too few exceedances"
       (let [samples (arr/->double-array (double-array [1.0 2.0 3.0 6.0]))
             threshold 5.0  ; Only 1 exceedance
-            spec (charts.tail/exponential-qq-plot samples threshold identity-transforms)]
+            spec
+            (charts.tail/exponential-qq-plot
+             samples
+             threshold
+             identity-transforms)]
         (is (nil? spec))))
 
     (testing "returns nil for nil samples"
@@ -219,7 +229,11 @@
                      (double-array [1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 10.0 15.0]))
             threshold 5.0
             gpd-fit {:xi 0.3 :sigma 2.5}
-            spec (charts.tail/gpd-qq-plot samples threshold gpd-fit identity-transforms)]
+            spec (charts.tail/gpd-qq-plot
+                  samples
+                  threshold
+                  gpd-fit
+                  identity-transforms)]
         (is (map? spec))
         (is (contains? spec :layer))
         (is (= 2 (count (:layer spec))))
@@ -236,13 +250,21 @@
     (testing "returns nil when xi is missing"
       (let [samples (arr/->double-array (double-array [1.0 2.0 6.0 7.0 8.0]))
             gpd-fit {:sigma 2.5}
-            spec (charts.tail/gpd-qq-plot samples 5.0 gpd-fit identity-transforms)]
+            spec (charts.tail/gpd-qq-plot
+                  samples
+                  5.0
+                  gpd-fit
+                  identity-transforms)]
         (is (nil? spec))))
 
     (testing "returns nil when sigma is zero"
       (let [samples (arr/->double-array (double-array [1.0 2.0 6.0 7.0 8.0]))
             gpd-fit {:xi 0.3 :sigma 0.0}
-            spec (charts.tail/gpd-qq-plot samples 5.0 gpd-fit identity-transforms)]
+            spec (charts.tail/gpd-qq-plot
+                  samples
+                  5.0
+                  gpd-fit
+                  identity-transforms)]
         (is (nil? spec))))))
 
 ;;; Complete Vega Spec Tests
@@ -341,7 +363,10 @@
       (let [samples (arr/->double-array
                      (double-array [1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 10.0 15.0]))
             threshold 5.0
-            spec (charts.tail/exponential-qq-plot samples threshold identity-transforms)
+            spec (charts.tail/exponential-qq-plot
+                  samples
+                  threshold
+                  identity-transforms)
             result (schema/validate-vega-lite-spec spec)]
         (is (:valid? result)
             (str "exponential-qq-plot validation failed: "
@@ -355,7 +380,11 @@
                      (double-array [1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 10.0 15.0]))
             threshold 5.0
             gpd-fit {:xi 0.3 :sigma 2.5}
-            spec (charts.tail/gpd-qq-plot samples threshold gpd-fit identity-transforms)
+            spec (charts.tail/gpd-qq-plot
+                  samples
+                  threshold
+                  gpd-fit
+                  identity-transforms)
             result (schema/validate-vega-lite-spec spec)]
         (is (:valid? result)
             (str "gpd-qq-plot validation failed: "

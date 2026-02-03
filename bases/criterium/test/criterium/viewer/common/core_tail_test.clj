@@ -38,7 +38,8 @@
                        :gpd {:xi 0.3 :sigma 0.5e-6 :exceedances-count 50}
                        :hill {:stable-estimate 0.82 :k-range [10 20]}}
             result (core/tail-summary-table tail-data identity-transforms)
-            threshold-row (first (filter #(= "Threshold" (:parameter %)) result))]
+            threshold-row (first
+                           (filter #(= "Threshold" (:parameter %)) result))]
         (is (some? threshold-row))
         (is (string? (:value threshold-row)))))
 
@@ -47,7 +48,8 @@
                        :gpd {:xi 0.3 :sigma 0.5e-6 :exceedances-count 50}
                        :hill {:stable-estimate 0.82 :k-range [10 20 30]}}
             result (core/tail-summary-table tail-data identity-transforms)
-            hill-row (first (filter #(= "Hill estimate" (:parameter %)) result))]
+            hill-row (first
+                      (filter #(= "Hill estimate" (:parameter %)) result))]
         (is (some? hill-row))
         ;; Should include k-range bounds
         (is (re-find #"k: \d+-\d+" (:value hill-row)))))
@@ -119,7 +121,9 @@
       (let [tail-data {:high-quantiles {0.99 1.5e-6
                                         0.999 2.0e-6
                                         0.9999 3.0e-6}}
-            result (core/tail-high-quantiles-table tail-data identity-transforms)]
+            result (core/tail-high-quantiles-table
+                    tail-data
+                    identity-transforms)]
         (is (= 3 (count result)) "Expected 3 quantile rows")
         (is (every? #(contains? % :quantile) result))
         (is (every? #(contains? % :estimate) result))
@@ -130,17 +134,23 @@
       (let [tail-data {:high-quantiles {0.9999 3.0e-6
                                         0.99 1.5e-6
                                         0.999 2.0e-6}}
-            result (core/tail-high-quantiles-table tail-data identity-transforms)
+            result (core/tail-high-quantiles-table
+                    tail-data
+                    identity-transforms)
             quantiles (mapv :quantile result)]
         ;; Quantiles formatted as p%.4g which gives e.g. p99.00, p99.90, p99.99
         (is (= ["p99.00" "p99.90" "p99.99"] quantiles))))
 
     (testing "handles missing high-quantiles"
       (let [tail-data {}
-            result (core/tail-high-quantiles-table tail-data identity-transforms)]
+            result (core/tail-high-quantiles-table
+                    tail-data
+                    identity-transforms)]
         (is (nil? result))))
 
     (testing "handles empty high-quantiles"
       (let [tail-data {:high-quantiles {}}
-            result (core/tail-high-quantiles-table tail-data identity-transforms)]
+            result (core/tail-high-quantiles-table
+                    tail-data
+                    identity-transforms)]
         (is (nil? result))))))

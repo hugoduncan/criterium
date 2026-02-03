@@ -196,7 +196,10 @@
       (let [data-map {:call-tree filter-test-tree}
             opts {:exclude-packages #{"java."}}
             result ((analyse/filter-calls opts) data-map)]
-        (is (= #{"java."} (get-in result [:filtered :filter-opts :exclude-packages])))))))
+        (is
+         (=
+          #{"java."}
+          (get-in result [:filtered :filter-opts :exclude-packages])))))))
 
 (deftest filter-calls-stop-at-packages-test
   (testing "filter-calls with :stop-at-packages"

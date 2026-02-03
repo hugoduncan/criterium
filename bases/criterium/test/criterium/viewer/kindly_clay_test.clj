@@ -14,7 +14,9 @@
   "Creates a temporary directory, binds it to dir-sym, cleans up after body."
   [[dir-sym] & body]
   `(let [temp-dir# (io/file (System/getProperty "java.io.tmpdir")
-                            (str "criterium-clay-test-" (System/currentTimeMillis)))]
+                            (str
+                             "criterium-clay-test-"
+                             (System/currentTimeMillis)))]
      (.mkdirs temp-dir#)
      (try
        (let [~dir-sym temp-dir#]

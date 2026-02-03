@@ -20,8 +20,11 @@
   more representative JIT optimization.
 
   Priority rule for warmup arguments:
-  1. The bench macro's :warmup-args-fn option (baked into Measured at compile time)
-  2. Measured-level warmup-args-fn (from measured constructor or with-warmup-args-fn)
+
+  1. The bench macro's :warmup-args-fn option (baked into Measured at
+     compile time)
+  2. Measured-level warmup-args-fn (from measured constructor or
+     with-warmup-args-fn)
   3. Fall back to regular args-fn
 
   While Criterium automatically creates Measured instances for expressions,
@@ -69,7 +72,8 @@
 
 (defn with-args-fn
   "Return a new Measured with the args-fn replaced.
-  Preserves the measurement function, symbolic representation, and warmup-args-fn.
+  Preserves the measurement function, symbolic representation, and
+  warmup-args-fn.
 
   This is useful for running the same measured expression with different
   input generators, e.g., when benchmarking across a parameter space."
@@ -118,8 +122,8 @@
   "Invoke the given Measured.
 
   Calls the Measured's function with the given state and eval-count.
-  The state can be created with `args`. Returns a tuple of [elapsed-time expr-value]
-  where:
+  The state can be created with `args`.
+  Returns a tuple of [elapsed-time expr-value] where:
   - elapsed-time is a long representing the execution time in nanoseconds
   - expr-value is the result of evaluating the measured expression
 

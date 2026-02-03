@@ -1,5 +1,6 @@
 (ns criterium.util.t-digest
-  "Re-exports t-digest functionality from stats component for backward compatibility."
+  "Re-exports t-digest functionality from stats component for backward
+  compatibility."
   (:require
    [criterium.stats.t-digest :as t-digest]))
 

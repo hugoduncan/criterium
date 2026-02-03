@@ -88,8 +88,10 @@
             (is (= 64 (count hash)))
             (is (re-matches #"[0-9a-f]+" hash))
             ;; Expected hash for "hello\n"
-            (is (= "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03"
-                   hash)))
+            (is
+             (=
+              "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03"
+              hash)))
           (finally
             (.delete test-file)
             (.delete test-dir)))))))

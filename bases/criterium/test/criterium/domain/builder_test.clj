@@ -86,7 +86,10 @@
             mean-diff (/ (double (reduce + diffs)) (count diffs))
             ;; Allow 1% tolerance for rounding errors
             tolerance (* 0.01 (double mean-diff))]
-        (is (every? #(< (Math/abs (- (double %) (double mean-diff))) tolerance) diffs))))
+        (is
+         (every?
+          #(< (Math/abs (- (double %) (double mean-diff))) tolerance)
+          diffs))))
     (testing "handles 2-point range"
       (is (= [10 1000] (builder/n-log-n-range 10 1000 2))))
     (testing "handles single point"
@@ -131,7 +134,8 @@
         (is (= "test (5 runs): " output))))
     (testing "report-run prints a dot"
       (let [reporter (builder/dot-reporter)
-            output (with-out-str (builder/report-run reporter :test {:n 100} 0))]
+            output (with-out-str
+                     (builder/report-run reporter :test {:n 100} 0))]
         (is (= "." output))))
     (testing "report-end prints newline"
       (let [reporter (builder/dot-reporter)
@@ -174,7 +178,8 @@
     (testing "preserves multiple implementations"
       (let [m1 (measured/expr (+ 1 2))
             m2 (measured/expr (* 3 4))
-            result (#'builder/normalize-implementations {:impl-a m1 :impl-b m2})]
+            result (#'builder/normalize-implementations
+                    {:impl-a m1 :impl-b m2})]
         (is (= #{:impl-a :impl-b} (set (keys result))))
         (is (= m1 ((:impl-a result) {})))
         (is (= m2 ((:impl-b result) {})))))

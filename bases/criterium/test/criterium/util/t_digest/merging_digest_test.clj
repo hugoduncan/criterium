@@ -20,7 +20,10 @@
                             (td/->Centroid 2.0 1.0)
                             (td/->Centroid 3.0 1.0)]
               total-weight 4.0
-              result       (#'td/merge-centroids compression centroids total-weight)
+              result       (#'td/merge-centroids
+                            compression
+                            centroids
+                            total-weight)
               _            (println "\nResult centroids:" result)
               weights      (reductions + (map :weight result))
               _            (println "Cumulative weights:" weights)
@@ -94,10 +97,24 @@
                                       sorted
                                       total-weight
                                       scale/k2)]
-                    (testing "Check separation between centroids meets k1 requirements"
-                      (let [qs         (reductions + (map #(/ (:weight %) total-weight) merged))
-                            normalizer (scale/normalizer scale/k0 compression total-weight)
-                            k-values   (map #(scale/k scale/k0 % normalizer total-weight) qs)
+                    (testing
+                     "Check separation between centroids meets k1 requirements"
+                      (let [qs         (reductions
+                                        +
+                                        (map
+                                         #(/ (:weight %) total-weight)
+                                         merged))
+                            normalizer (scale/normalizer
+                                        scale/k0
+                                        compression
+                                        total-weight)
+                            k-values   (map
+                                        #(scale/k
+                                          scale/k0
+                                          %
+                                          normalizer
+                                          total-weight)
+                                        qs)
                             k-gaps     (map - (rest k-values) k-values)]
                         (when (not (every? #(>= % 1.0) k-gaps))
                           (prn :k-values k-values :k-gaps k-gaps))

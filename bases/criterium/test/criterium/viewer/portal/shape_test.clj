@@ -44,5 +44,8 @@
             custom-map {:my-bootstrap (:bootstrap-stats data-map)}]
         (with-redefs [portal.core/heading (fn [_])
                       portal.core/portal-table #(swap! tapped conj %)]
-          (view/shape-stats* :portal {:bootstrap-stats-id :my-bootstrap} custom-map))
+          (view/shape-stats*
+           :portal
+           {:bootstrap-stats-id :my-bootstrap}
+           custom-map))
         (is (= 1 (count @tapped)))))))

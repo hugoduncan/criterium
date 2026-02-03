@@ -4,8 +4,8 @@
   Provides functions and macros for tracing method calls during expression
   evaluation and displaying the resulting call graph.
 
-  This is a standalone tracing feature (not integrated with benchmark collection),
-  providing visibility into what code paths are exercised.
+  This is a standalone tracing feature (not integrated with benchmark
+  collection), providing visibility into what code paths are exercised.
 
   Primary API:
   - bench             - Macro for tracing expressions and displaying call graphs
@@ -60,7 +60,8 @@
   "Set the default viewer for all bench calls that don't specify an explicit
   :viewer option.
 
-  viewer - Keyword identifying the viewer, e.g. :print, :pprint, :portal, :kindly
+  viewer - Keyword identifying the viewer,
+           e.g. :print, :pprint, :portal, :kindly
 
   Example:
     (set-default-viewer! :kindly)
@@ -105,7 +106,8 @@
     Nodes with matching classes are removed, their children promoted up.
   - :stop-at-packages - Set of package prefixes where traversal stops.
     Matching nodes are kept but their children are truncated.
-  - :max-depth - Maximum depth to include (1 = root only, 2 = root + children, etc.)
+  - :max-depth - Maximum depth to include
+                 (1 = root only, 2 = root + children, etc.)
 
   Returns the filtered call tree, or nil if the root is excluded.
 
@@ -137,7 +139,8 @@
   Options:
   - :viewer  - Output format [:print, :pprint, :portal, :kindly]
   - :analyse - Vector of analysis steps (default: [:most-called])
-  - :view    - Vector of view components (default: [:call-tree :call-flame :most-called])
+  - :view    - Vector of view components
+               (default: [:call-tree :call-flame :most-called])
   - :limit   - Maximum methods for most-called analysis (default: 20)
 
   Returns a plan map with :viewer, :analyse, :view, and :limit keys."
@@ -208,7 +211,8 @@
       :viewer  - Output format [:print, :pprint, :portal, :kindly]
                  Default can be set via (set-default-viewer! :kindly)
       :analyse - Vector of analysis steps (default: [:most-called])
-      :view    - Vector of view components (default: [:call-tree :call-flame :most-called])
+      :view    - Vector of view components
+                 (default: [:call-tree :call-flame :most-called])
       :limit   - Maximum methods for most-called analysis (default: 20)
 
   Returns:
@@ -233,7 +237,8 @@
   - Method tracing has significant overhead; use for profiling, not production
   - The expression is evaluated twice: once for warmup, once while tracing
   - The call tree represents aggregated calls across all threads
-  - If the agent is not attached, returns the expression value with nil call-tree"
+  - If the agent is not attached, returns the expression value with nil
+    call-tree"
   [expr & options]
   (let [options-map (apply hash-map options)]
     `(bench-call-graph

@@ -36,8 +36,13 @@
                  (fn [col-idx {:keys [header width] :as col}]
                    (let [data-col-idx (if row-key-col (inc col-idx) col-idx)
                          max-data-width (when (seq rows)
-                                          (apply max 0 (map #(count (str (nth % data-col-idx "")))
-                                                            rows)))
+                                          (apply
+                                           max
+                                           0
+                                           (map
+                                            #(count
+                                              (str (nth % data-col-idx "")))
+                                            rows)))
                          calc-width (max (count header)
                                          (or max-data-width 0))]
                      (assoc col :width (or width calc-width))))
@@ -46,7 +51,12 @@
         row-key-col (when row-key-col
                       (let [{:keys [header width]} row-key-col
                             max-key-width (when (seq rows)
-                                            (apply max 0 (map #(count (str (first %))) rows)))
+                                            (apply
+                                             max
+                                             0
+                                             (map
+                                              #(count (str (first %)))
+                                              rows)))
                             calc-width (max (count (or header ""))
                                             (or max-key-width 0)
                                             8)]

@@ -31,8 +31,14 @@
                          [nil forms])
         tag            (fn [x] (or (:tag (meta x)) Object))
         psig           (fn [[mname [& args]]]
-                         (vector mname (vec (map tag args)) (tag mname) (map meta args)))
-        cname          (with-meta (symbol (str (namespace-munge *ns*) "." name)) (meta name))]
+                         (vector
+                          mname
+                          (vec (map tag args))
+                          (tag mname)
+                          (map meta args)))
+        cname          (with-meta
+                         (symbol (str (namespace-munge *ns*) "." name))
+                         (meta name))]
     `(do
        (gen-interface
         :name ~cname

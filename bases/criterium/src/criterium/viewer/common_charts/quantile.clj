@@ -32,7 +32,9 @@
                  (let [;; Hazen plotting position: (i - 0.5) / n
                        p (/ (- (double (inc (long i))) 0.5) (double n))
                        theoretical (quantile-fn p)]
-                   {"theoretical" (util/transform-sample-> theoretical transforms)
+                   {"theoretical" (util/transform-sample->
+                                   theoretical
+                                   transforms)
                     "observed" (util/transform-sample-> x transforms)}))
                (range n)
                sorted-samples)
@@ -68,9 +70,11 @@
                   :y {:field "observed" :type "quantitative"
                       :title "Sample Quantiles"
                       :scale {:zero false}}
-                  :color {:field "distribution" :type "nominal"
+                  :color {:field "distribution"
+                          :type "nominal"
                           :scale distribution/distribution-color-scale
-                          :legend {:orient "top-right" :title "Fitted Distributions"}}
+                          :legend {:orient "top-right"
+                                   :title "Fitted Distributions"}}
                   :tooltip [{:field "theoretical" :type "quantitative"
                              :title "Theoretical" :format ".4g"}
                             {:field "observed" :type "quantitative"
@@ -99,7 +103,8 @@
   "Build Q-Q overlay layers for all fitted distributions.
 
   Takes distribution-fit data for a metric, samples, and transforms.
-  Returns a vector of Vega-Lite layer specs for successfully fitted distributions."
+  Returns a vector of Vega-Lite layer specs for successfully fitted
+  distributions."
   [fit-data samples transforms]
   (let [distributions (:distributions fit-data)
         best-model (:best-model fit-data)]
@@ -172,18 +177,20 @@
                                 :title "Observed" :format ".4g"}]}}]}))))
 
 (defn distribution-qq-vega-spec
-  "Build a complete Vega-Lite spec for Q-Q plots with separate subplots per distribution.
+  "Build a complete Vega-Lite spec for Q-Q plots.
+  Separate subplots per distribution.
 
   Takes data-map, view options, and chart-options map containing :width and/or
   :height for chart dimensions.
 
   View options:
     :samples-id - Key for samples data in data-map (default :samples)
-    :distribution-fit-id - Key for distribution fit data (default :distribution-fit)
+    :distribution-fit-id - Key for distribution fit data
+                           (default :distribution-fit)
 
-  Each fitted distribution gets its own subplot. If data follows the distribution,
-  points lie along the y=x reference line. The best-fit model has bold title.
-  Subplots are arranged in a 2-column grid.
+  Each fitted distribution gets its own subplot. If data follows the
+  distribution, points lie along the y=x reference line. The best-fit
+  model has bold title.  Subplots are arranged in a 2-column grid.
 
   Returns the Vega-Lite spec without viewer-specific wrapping."
   [data-map view chart-options]

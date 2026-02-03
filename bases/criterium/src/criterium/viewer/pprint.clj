@@ -42,7 +42,12 @@
             transforms (util/get-transforms data-map stats-id)]
         (when (seq metric-configs)
           (pprint/print-table
-           [:_metric :mean-minus-3sigma :mean :mean-plus-3sigma :min-val :max-val]
+           [:_metric
+            :mean-minus-3sigma
+            :mean
+            :mean-plus-3sigma
+            :min-val
+            :max-val]
            (core/stats-map
             (util/stats stats-map)
             metric-configs
@@ -373,14 +378,15 @@
 (defmethod view/domain-regression* :pprint
   [_ {:keys [regression-id tolerance]} data-map]
   (let [regression-id (or regression-id :regression)
-        regression (data-map regression-id)
-        tolerance (or tolerance 0.01)
+        regression    (data-map regression-id)
+        tolerance     (or tolerance 0.01)
         table-options {:best-fit-marker "<- best"
-                       :plotted-marker "[plotted]"
-                       :tolerance tolerance}]
+                       :plotted-marker  "[plotted]"
+                       :tolerance       tolerance}]
     (when regression
-      (let [{:keys [axis regressions impl-axis implementations]} regression
-            multi-impl? (> (count implementations) 1)]
+      (let [{:keys [axis regressions
+                    impl-axis implementations]} regression
+            multi-impl?                         (> (count implementations) 1)]
         (if multi-impl?
           ;; Multi-implementation mode
           (doseq [[_metric-id {:keys [metric by-impl]}] regressions]
@@ -388,8 +394,9 @@
                              (name axis) (pr-str metric) (name impl-axis)))
             (if (seq by-impl)
               (let [impl-keys (sort (keys by-impl))
-                    table-rows (regression/prepare-regression-model-table-multi-impl
-                                by-impl impl-keys table-options)]
+                    table-rows
+                    (regression/prepare-regression-model-table-multi-impl
+                     by-impl impl-keys table-options)]
                 (pprint/print-table
                  [:implementation :model :r-squared :equation :best-fit]
                  table-rows))
@@ -404,7 +411,9 @@
               (let [table-rows (regression/prepare-regression-model-table
                                 {:models models :best-fit best-fit}
                                 table-options)]
-                (pprint/print-table [:model :r-squared :equation :best-fit] table-rows))
+                (pprint/print-table
+                 [:model :r-squared :equation :best-fit]
+                 table-rows))
               (println "  (insufficient data for regression)"))
             (println)))))))
 
@@ -447,14 +456,16 @@
           (println "Allocation Hotspots:")
           (pprint/print-table
            [:count :bytes :freed-count :freed-bytes :object-type :call-site]
-           (mapv (fn [{:keys [call-site object-type count bytes freed-count freed-bytes]}]
-                   {:count count
-                    :bytes bytes
-                    :freed-count freed-count
-                    :freed-bytes freed-bytes
-                    :object-type (or object-type "")
-                    :call-site (allocation/format-call-site call-site nil)})
-                 hotspots)))))))
+           (mapv
+            (fn [{:keys
+                  [call-site object-type count bytes freed-count freed-bytes]}]
+              {:count count
+               :bytes bytes
+               :freed-count freed-count
+               :freed-bytes freed-bytes
+               :object-type (or object-type "")
+               :call-site (allocation/format-call-site call-site nil)})
+            hotspots)))))))
 
 (defmethod view/allocation-by-type* :pprint
   [_ {:keys [by-type-id]} data-map]
@@ -538,7 +549,9 @@
     (cond-> rows
       (seq anomalous-lags)
       (conj {:metric "Anomalous lags"
-             :value (acf-common/format-anomalous-lags anomalous-lags lag-severities)})
+             :value (acf-common/format-anomalous-lags
+                     anomalous-lags
+                     lag-severities)})
 
       (and (#{:warning :fail} classification)
            (acf-common/displayable-patterns pattern))
@@ -547,7 +560,10 @@
 
       (acf-common/format-detected-period detected-period acf lag-severities)
       (conj {:metric "Suspected period"
-             :value (acf-common/format-detected-period detected-period acf lag-severities)})
+             :value (acf-common/format-detected-period
+                     detected-period
+                     acf
+                     lag-severities)})
 
       (and (#{:warning :fail} classification)
            (acf-common/displayable-patterns pattern)
@@ -569,7 +585,8 @@
   [_ view data-map]
   (acf-common/with-autocorrelation-metrics view data-map
     (fn [acf-data mc]
-      (when-let [output (acf-charts/render-ascii-acf-plot acf-data (:label mc) view)]
+      (when-let [output
+                 (acf-charts/render-ascii-acf-plot acf-data (:label mc) view)]
         (println output)))))
 
 (defn- classification-table-rows
@@ -590,7 +607,9 @@
     (cond-> rows
       (seq anomalous-lags)
       (conj {:metric "Anomalous lags"
-             :value (acf-common/format-anomalous-lags anomalous-lags lag-severities)})
+             :value (acf-common/format-anomalous-lags
+                     anomalous-lags
+                     lag-severities)})
 
       (and (#{:warning :fail} classification)
            (acf-common/displayable-patterns pattern))
@@ -599,7 +618,10 @@
 
       (acf-common/format-detected-period detected-period acf lag-severities)
       (conj {:metric "Suspected period"
-             :value (acf-common/format-detected-period detected-period acf lag-severities)})
+             :value (acf-common/format-detected-period
+                     detected-period
+                     acf
+                     lag-severities)})
 
       (and (#{:warning :fail} classification)
            (acf-common/displayable-patterns pattern)
@@ -685,7 +707,10 @@
 ;; Distribution parameter CIs
 (defmethod view/distribution-parameter-cis* :pprint
   [viewer view-opts data-map]
-  ((get-method view/distribution-parameter-cis* :print) viewer view-opts data-map))
+  ((get-method view/distribution-parameter-cis* :print)
+   viewer
+   view-opts
+   data-map))
 
 ;; Tail summary (GPD/Hill)
 (defmethod view/tail-summary* :pprint

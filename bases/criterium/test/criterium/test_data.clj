@@ -46,7 +46,8 @@
      {:samples
       {:type           :criterium/metrics-samples
        :metrics-defs   metrics-defs
-       :metric->values {[:elapsed-time] (arr/->double-array (double-array [42.5]))}
+       :metric->values {[:elapsed-time] (arr/->double-array
+                                         (double-array [42.5]))}
        :transform      collect-plan/identity-transforms
        :batch-size     1
        :eval-count     1
@@ -60,8 +61,10 @@
      {:samples
       {:type           :criterium/metrics-samples
        :metrics-defs   metrics-defs
-       :metric->values {[:elapsed-time] (arr/->double-array (double-array [1.0 1.0]))
-                        [:expr-value]   (arr/->object-array (object-array [42 42]))}
+       :metric->values {[:elapsed-time] (arr/->double-array
+                                         (double-array [1.0 1.0]))
+                        [:expr-value]   (arr/->object-array
+                                         (object-array [42 42]))}
        :transform      collect-plan/identity-transforms
        :batch-size     1
        :eval-count     2
@@ -75,7 +78,8 @@
      {:samples
       {:type           :criterium/metrics-samples
        :metrics-defs   metrics-defs
-       :metric->values {[:elapsed-time] (arr/->double-array (double-array [2.0 4.0 8.0]))}
+       :metric->values {[:elapsed-time] (arr/->double-array
+                                         (double-array [2.0 4.0 8.0]))}
        :transform      (#'collect-plan/batch-transforms 2)
        :batch-size     3
        :eval-count     6
@@ -89,7 +93,17 @@
      {:samples
       {:type           :criterium/metrics-samples
        :metrics-defs   metrics-defs
-       :metric->values {[:elapsed-time] (arr/->double-array (double-array [1.0 1.0 1.0 5.0 5.0 5.0 9.0 9.0 9.0]))}
+       :metric->values {[:elapsed-time] (arr/->double-array
+                                         (double-array
+                                          [1.0
+                                           1.0
+                                           1.0
+                                           5.0
+                                           5.0
+                                           5.0
+                                           9.0
+                                           9.0
+                                           9.0]))}
        :transform      collect-plan/identity-transforms
        :batch-size     1
        :eval-count     9
@@ -103,7 +117,15 @@
      {:samples
       {:type           :criterium/metrics-samples
        :metrics-defs   metrics-defs
-       :metric->values {[:elapsed-time] (arr/->double-array (double-array [9.0 10.0 9.0 10.0 9.0 10.0 10000.0]))}
+       :metric->values {[:elapsed-time] (arr/->double-array
+                                         (double-array
+                                          [9.0
+                                           10.0
+                                           9.0
+                                           10.0
+                                           9.0
+                                           10.0
+                                           10000.0]))}
        :transform      collect-plan/identity-transforms
        :batch-size     1
        :num-samples    7
@@ -172,7 +194,8 @@
      {:samples
       {:type           :criterium/metrics-samples
        :metrics-defs   metrics-defs
-       :metric->values {[:elapsed-time] (arr/->object-array (object-array ["unavailable"]))}
+       :metric->values {[:elapsed-time] (arr/->object-array
+                                         (object-array ["unavailable"]))}
        :transform      collect-plan/identity-transforms
        :batch-size     1
        :eval-count     1
@@ -210,7 +233,8 @@
      {:samples
       {:type           :criterium/metrics-samples
        :metrics-defs   metrics-defs
-       :metric->values {[:elapsed-time]                      (arr/->double-array (double-array [1.0]))
+       :metric->values {[:elapsed-time]                      (arr/->double-array
+                                                              (double-array [1.0]))
                         [:compilation :time-ms]              (arr/->long-array (long-array [3]))
                         [:garbage-collector :total :time-ms] (arr/->long-array (long-array [1]))
                         [:garbage-collector :total :count]   (arr/->long-array (long-array [2]))

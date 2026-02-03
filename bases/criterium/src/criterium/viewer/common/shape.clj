@@ -44,12 +44,15 @@
 
 (defn- classify-skewness
   "Classify skewness based on absolute value.
-  Uses standard thresholds: |s| > 1 strongly skewed, |s| > 0.5 moderately skewed."
+  Uses standard thresholds: |s| > 1 strongly skewed, |s| > 0.5
+  moderately skewed."
   [^double s]
   (let [abs-s (Math/abs s)]
     (cond
       (> abs-s 1.0) (if (neg? s) :strongly-left-skewed :strongly-right-skewed)
-      (> abs-s 0.5) (if (neg? s) :moderately-left-skewed :moderately-right-skewed)
+      (>
+       abs-s
+       0.5) (if (neg? s) :moderately-left-skewed :moderately-right-skewed)
       (> abs-s 0.1) (if (neg? s) :slightly-left-skewed :slightly-right-skewed)
       :else :symmetric)))
 
@@ -73,8 +76,10 @@
     :else :high-variability))
 
 (defn shape-stats-data
-  "Extract and format shape statistics (skewness, kurtosis, CV) from bootstrap results.
-  Returns a vector of maps with :metric :skewness :kurtosis :cv and classification info."
+  "Extract and format bootstrap shape statistics (skewness, kurtosis, CV).
+
+  Returns a vector of maps with :metric :skewness :kurtosis :cv and
+  classification info."
   [metric-configs bootstrap-data]
   (reduce
    (fn [res metric-config]

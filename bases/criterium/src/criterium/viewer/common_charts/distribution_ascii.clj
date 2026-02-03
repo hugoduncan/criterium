@@ -86,7 +86,8 @@
         (when (seq points)
           ;; Transform x-values for display
           (let [display-points (mapv (fn [[x y]]
-                                       [(util/transform-sample-> x transforms) y])
+                                       [(util/transform-sample-> x transforms)
+                                        y])
                                      points)
                 header (header-fn label n)
                 chart-lines (ascii-chart/render-chart
@@ -134,21 +135,22 @@
   [samples transforms opts]
   (when (and samples (pos? (arr/length samples)))
     (let [{:keys [width height header-fn indent]
-           :or {width 60
-                height 15
-                header-fn (fn [n] (format "CDF (n=%d)" n))
-                indent ""}} opts
-          n (arr/length samples)
+           :or   {width     60
+                  height    15
+                  header-fn (fn [n] (format "CDF (n=%d)" n))
+                  indent    ""}} opts
+          n                 (arr/length samples)
           ;; Compute ECDF points
-          ecdf (ecdf-points samples transforms)
-          header (header-fn n)
-          chart-lines (ascii-chart/render-chart
-                       ecdf
-                       {:width (- (long width) (count indent))
-                        :height height
-                        :y-label "cumulative"
-                        :point-char \*
-                        :line-char nil})] ; No lines, just points for step effect
+          ecdf              (ecdf-points samples transforms)
+          header            (header-fn n)
+          chart-lines       (ascii-chart/render-chart
+                             ecdf
+                             {:width      (- (long width) (count indent))
+                              :height     height
+                              :y-label    "cumulative"
+                              :point-char \*
+                        ;; No lines, just points for step effect
+                              :line-char  nil})]
       (when (seq chart-lines)
         (str header "\n"
              (->> chart-lines
@@ -195,8 +197,12 @@
                            (fn [acc ^long i ^double observed]
                              (let [p (/ (- (double (inc i)) 0.5) nd)
                                    theoretical (quantile-fn p)
-                                   t-obs (util/transform-sample-> observed transforms)
-                                   t-theo (util/transform-sample-> theoretical transforms)]
+                                   t-obs (util/transform-sample->
+                                          observed
+                                          transforms)
+                                   t-theo (util/transform-sample->
+                                           theoretical
+                                           transforms)]
                                (if (and (Double/isFinite t-theo)
                                         (not (Double/isNaN t-theo)))
                                  (conj acc [t-theo t-obs])

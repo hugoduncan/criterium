@@ -30,7 +30,9 @@
     (testing "returns negative value for uniform split into 2 bins"
       ;; M=2 with equal split has lower log-posterior than M=1 for uniform data
       (let [result (knuth/log-posterior 100 (larr [50 50]))]
-        (is (< result 0.0) "log-posterior should be negative for M=2 uniform split")))
+        (is
+         (< result 0.0)
+         "log-posterior should be negative for M=2 uniform split")))
 
     (testing "rewards concentrated data structure"
       ;; Knuth method finds structure - concentrated data has higher log-posterior

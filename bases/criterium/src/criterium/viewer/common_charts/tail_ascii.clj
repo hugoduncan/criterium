@@ -49,22 +49,31 @@
                                     :detail (format "p99=%.3g p95=%.3g"
                                                     (double p99) (double p95))})
                      p999-p99 (conj {:label "p999/p99" :value p999-p99
-                                     :detail (format "p999=%.3g p99=%.3g"
-                                                     (double p999) (double p99))})
+                                     :detail (format
+                                              "p999=%.3g p99=%.3g"
+                                              (double p999)
+                                              (double p99))})
                      p999-p95 (conj {:label "p999/p95" :value p999-p95
-                                     :detail (format "p999=%.3g p95=%.3g"
-                                                     (double p999) (double p95))}))]
+                                     :detail (format
+                                              "p999=%.3g p95=%.3g"
+                                              (double p999)
+                                              (double p95))}))]
         (when (seq ratios)
           (let [n (count ratios)
                 max-val (double (apply max (map :value ratios)))
-                bar-width (- (long width) (count indent) 25) ; label + value + spacing
-                header (header-fn n)
-                lines (for [{:keys [label value detail]} ratios]
-                        (let [bar-len (long (* (/ (double value) max-val)
-                                               (double bar-width)))
-                              bar (apply str (repeat bar-len \#))]
-                          (format "%s%9s |%s %.3f  %s"
-                                  indent label bar value detail)))]
+                bar-width (-
+                           (long width)
+                           (count indent)
+                           25) ; label + value + spacing
+                header
+                (header-fn n)
+                lines
+                (for [{:keys [label value detail]} ratios]
+                  (let [bar-len (long (* (/ (double value) max-val)
+                                         (double bar-width)))
+                        bar (apply str (repeat bar-len \#))]
+                    (format "%s%9s |%s %.3f  %s"
+                            indent label bar value detail)))]
             (str header "\n" (str/join "\n" lines))))))))
 
 ;;; Hill Plot
@@ -103,7 +112,10 @@
                           :line-char \.})]
         (when (seq chart-lines)
           (let [stable-line (when stable-estimate
-                              (format "%sStable estimate: %.4f" indent stable-estimate))]
+                              (format
+                               "%sStable estimate: %.4f"
+                               indent
+                               stable-estimate))]
             (str header "\n"
                  (->> chart-lines
                       (map #(str indent %))
@@ -123,7 +135,8 @@
     opts        - options map:
       :width      - chart width in characters (default 60)
       :height     - chart height in lines (default 15)
-      :header-fn  - fn [n] -> header string, where n is number of threshold points
+      :header-fn  - fn [n] -> header string,
+                    where n is number of threshold points
       :indent     - string prefix for each line
 
   Returns string of ASCII chart, or nil if no MRL data."
@@ -156,7 +169,10 @@
                (->> chart-lines
                     (map #(str indent %))
                     (str/join "\n"))
-               (format "\n%sSelected threshold: %.4g" indent threshold-transformed)))))))
+               (format
+                "\n%sSelected threshold: %.4g"
+                indent
+                threshold-transformed)))))))
 
 ;;; Zipf Plot
 
@@ -243,14 +259,18 @@
     (let [{:keys [width height header-fn indent]
            :or {width 60
                 height 15
-                header-fn (fn [n] (format "Exponential Q-Q Plot (n=%d exceedances)" n))
+                header-fn (fn [n]
+                            (format
+                             "Exponential Q-Q Plot (n=%d exceedances)"
+                             n))
                 indent ""}} opts
           exceedances (stats/exceedances-over-threshold samples threshold)
           n-exceed (arr/length exceedances)]
       (when (> n-exceed 2)
         (let [;; Compute mean for scaling
               mean-exceed (/ (arr/fold-double exceedances
-                                              (fn ^double [^double acc ^double y]
+                                              (fn ^double [^double acc
+                                                           ^double y]
                                                 (+ acc y))
                                               0.0)
                              n-exceed)
@@ -260,10 +280,16 @@
                       sorted-exceed
                       (fn [acc ^long i ^double y]
                         (let [p (/ (- (double (inc i)) 0.5) (double n-exceed))
-                              theoretical (* mean-exceed (exponential-quantile p))
-                              t-theo (util/transform-sample-> theoretical transforms)
+                              theoretical (*
+                                           mean-exceed
+                                           (exponential-quantile p))
+                              t-theo (util/transform-sample->
+                                      theoretical
+                                      transforms)
                               t-obs (util/transform-sample-> y transforms)]
-                          (if (and (Double/isFinite t-theo) (Double/isFinite t-obs))
+                          (if (and
+                               (Double/isFinite t-theo)
+                               (Double/isFinite t-obs))
                             (conj acc [t-theo t-obs])
                             acc)))
                       [])
@@ -311,26 +337,39 @@
         (let [{:keys [width height header-fn indent]
                :or {width 60
                     height 15
-                    header-fn (fn [n] (format "GPD Q-Q Plot (n=%d exceedances)" n))
+                    header-fn (fn [n]
+                                (format "GPD Q-Q Plot (n=%d exceedances)" n))
                     indent ""}} opts
               exceedances (stats/exceedances-over-threshold samples threshold)
               n-exceed (arr/length exceedances)]
           (when (> n-exceed 2)
-            (let [gpd-quantile-fn (stats/gpd-quantile (double xi) (double sigma))
-                  sorted-exceed (arr/sorted exceedances)
+            (let [gpd-quantile-fn
+                  (stats/gpd-quantile (double xi) (double sigma))
+                  sorted-exceed
+                  (arr/sorted exceedances)
                   ;; Generate Q-Q points
-                  points (arr/indexed-dfold
-                          sorted-exceed
-                          (fn [acc ^long i ^double y]
-                            (let [p (/ (- (double (inc i)) 0.5) (double n-exceed))
-                                  theoretical (gpd-quantile-fn p)
-                                  t-theo (util/transform-sample-> theoretical transforms)
-                                  t-obs (util/transform-sample-> y transforms)]
-                              (if (and (Double/isFinite t-theo) (Double/isFinite t-obs))
-                                (conj acc [t-theo t-obs])
-                                acc)))
-                          [])
-                  header (header-fn n-exceed)]
+                  points
+                  (arr/indexed-dfold
+                   sorted-exceed
+                   (fn [acc ^long i ^double y]
+                     (let [p
+                           (/ (- (double (inc i)) 0.5) (double n-exceed))
+                           theoretical
+                           (gpd-quantile-fn p)
+                           t-theo
+                           (util/transform-sample->
+                            theoretical
+                            transforms)
+                           t-obs
+                           (util/transform-sample-> y transforms)]
+                       (if (and
+                            (Double/isFinite t-theo)
+                            (Double/isFinite t-obs))
+                         (conj acc [t-theo t-obs])
+                         acc)))
+                   [])
+                  header
+                  (header-fn n-exceed)]
               (when (seq points)
                 (let [chart-lines (ascii-chart/render-chart
                                    points

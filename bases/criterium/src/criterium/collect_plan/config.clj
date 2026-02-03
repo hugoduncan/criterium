@@ -36,8 +36,9 @@
 
   :one-shot - Single measurement without JIT warmup.
     Options:
-      :num-warmup-samples - Number of warmup invocations (not batched) before measurement.
-                         Use 1 to skip JVM first-invocation allocation overhead. Default: 0
+      :num-warmup-samples - Number of warmup invocations (not batched) before
+                            measurement. Use 1 to skip JVM first-invocation
+                            allocation overhead. Default: 0
       :max-gc-attempts - Maximum GC attempts after warmup. Default: 3
 
   :with-jit-warmup - Multiple samples with JIT warmup phase.
@@ -62,8 +63,9 @@
   ;; Configure a one-shot collection plan.
   ;;
   ;; Options:
-  ;;   :num-warmup-samples - Number of warmup invocations (not batched) before measurement.
-  ;;                         Use 1 to skip JVM first-invocation allocation overhead. Default: 0
+  ;;   :num-warmup-samples - Number of warmup invocations (not batched) before
+  ;;                         measurement. Use 1 to skip JVM first-invocation
+  ;;                         allocation overhead. Default: 0
   ;;   :max-gc-attempts - Maximum GC attempts after warmup. Default: 3
   ;;
   ;; Returns config map with :scheme-type :one-shot.

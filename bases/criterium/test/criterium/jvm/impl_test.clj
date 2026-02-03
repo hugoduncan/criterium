@@ -281,9 +281,12 @@
     (testing "changes with actual GC data"
       (let [first-sample (impl/garbage-collector-sample)
             ;; Force some GC activity
-            _            (System/gc)
-            last-sample  (impl/garbage-collector-sample)
-            changes      (impl/garbage-collector-change first-sample last-sample)]
+            _
+            (System/gc)
+            last-sample
+            (impl/garbage-collector-sample)
+            changes
+            (impl/garbage-collector-change first-sample last-sample)]
         ;; Structure tests
         (is (contains? changes :total))
         (is (= (count impl/garbage-collector-keywords)
