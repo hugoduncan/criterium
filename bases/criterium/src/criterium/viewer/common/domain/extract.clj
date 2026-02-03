@@ -106,7 +106,8 @@
                       (for [metric-id metric-ids]
                         {:metric-id metric-id}))
 
-          ;; Build lookup: {[row-key metric-id impl?] -> {:value V :lower L :upper U}}
+          ;; Build lookup:
+          ;;   {[row-key metric-id impl?] -> {:value V :lower L :upper U}}
           ;; Store full value map for error bounds
           lookup (reduce (fn [acc {:keys [metric-id coord raw-value value]}]
                            (let [row-key (row-key-fn coord)
@@ -191,7 +192,7 @@
        :rows table-rows})))
 
 (defn prepare-domain-extract-table-transposed
-  "Prepare transposed domain-extract table for single-point multi-impl scenarios.
+  "Prepare transposed domain-extract table for single-point multi-impl.
   Returns {:heading :col-headers :rows} where each row is one implementation.
 
   Columns include implementation name, then for each metric: value and factor.

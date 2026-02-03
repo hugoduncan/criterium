@@ -160,8 +160,8 @@
     :metric-path - the metric path vector
     :y-title - y-axis title with SI unit (uses 'median' prefix)
     :data - vector of maps with string keys:
-            {\"impl\" string \"median\" number \"ciLower\" number \"ciUpper\" number
-             \"p10\" number \"p90\" number}
+            {\"impl\" string \"median\" number \"ciLower\" number
+             \"ciUpper\" number \"p10\" number \"p90\" number}
             (ciLower/ciUpper omitted when CI bounds not available)
 
   If bootstrap stats are missing for a metric, warns to stdout and returns nil
@@ -181,7 +181,8 @@
     :metric-path - the metric path vector
     :y-title - y-axis title with SI unit
     :has-error-bounds? - true if error bounds data is present
-    :data - vector of {:impl string :value number :valueLower number :valueUpper number} maps
+    :data - vector of {:impl string :value number :valueLower number
+                       :valueUpper number} maps
             (valueLower/valueUpper only present when error bounds exist)"
   [comparison]
   (let [{:keys [metric metrics implementations data]} comparison]
@@ -189,7 +190,8 @@
       ;; Multi-metric mode
       (mapv
        (fn [[metric-id {:keys [metric data]}]]
-         (let [;; Build lookup: impl -> full value (may be map with :value/:lower/:upper)
+         (let [;; Build lookup: impl -> full value (may be map
+               ;; with :value/:lower/:upper)
                lookup (reduce
                        (fn [acc [impl-val entries]]
                          (reduce
@@ -199,7 +201,8 @@
                           entries))
                        {}
                        data)
-               ;; Get all values from lookup for error bounds check and SI scaling
+               ;; Get all values from lookup for error bounds check and SI
+               ;; scaling
                all-raw-values (keep #(get lookup %) implementations)
                ;; Check if any values have error bounds
                has-error-bounds? (core/values-have-error-bounds? all-raw-values)
@@ -249,7 +252,8 @@
             :data chart-data}))
        (sort-by key metrics))
       ;; Single-metric mode
-      (let [;; Build lookup: impl -> full value (may be map with :value/:lower/:upper)
+      (let [;; Build lookup: impl -> full value (may be map
+            ;; with :value/:lower/:upper)
             lookup (reduce
                     (fn [acc [impl-val entries]]
                       (reduce
@@ -454,7 +458,8 @@
                ;; Check if any values have error bounds (with :lower/:upper)
                has-error-bounds?
                (core/values-have-error-bounds? all-raw-values)
-               ;; Also check for error-bound-value? (with :value key) for y-title
+               ;; Also check for error-bound-value? (with :value key) for
+               ;; y-title
                has-error-bound-format
                (some core/error-bound-value? all-raw-values)
                all-values
@@ -649,7 +654,8 @@
                                    entries))
                          {}
                          data)
-          ;; Build column specs: baseline shows value, others show value + factor
+          ;; Build column specs: baseline shows value, others show value +
+          ;; factor
           col-specs (vec (cons {:type :baseline :impl baseline-impl}
                                (mapcat (fn [impl]
                                          [{:type :value :impl impl}
@@ -813,7 +819,8 @@
 (defn prepare-domain-comparison-tables
   "Prepare domain-comparison data for table rendering.
   Returns a vector of table specs, each with:
-    {:heading string :coord-header string :col-headers [string...] :rows [{...}...]}
+    {:heading string :coord-header string
+     :col-headers [string...] :rows [{...}...]}
   Returns nil if comparison is nil.
 
   Handles 4 modes:
@@ -858,7 +865,7 @@
        (contains? value :ci-upper)))
 
 (defn prepare-domain-comparison-table-transposed
-  "Prepare transposed domain-comparison table for single-point multi-impl scenarios.
+  "Prepare transposed domain-comparison table for single-point multi-impl.
   Returns {:heading :col-headers :rows} where each row is one implementation.
 
   Columns include implementation name, then for each metric: median value,

@@ -12,7 +12,8 @@
 (defn regression-scatter-layer
   "Build scatter plot layer for regression points.
   Options:
-    :color-field - field name for color encoding (e.g., \"impl\" or nil for static color)
+    :color-field - field name for color encoding
+                   (e.g., \"impl\" or nil for static color)
     :color-value - static color when color-field is nil (default \"steelblue\")
     :legend-options - legend config map or nil for default
 

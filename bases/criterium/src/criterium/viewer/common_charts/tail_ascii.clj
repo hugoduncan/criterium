@@ -135,7 +135,8 @@
     opts        - options map:
       :width      - chart width in characters (default 60)
       :height     - chart height in lines (default 15)
-      :header-fn  - fn [n] -> header string, where n is number of threshold points
+      :header-fn  - fn [n] -> header string,
+                    where n is number of threshold points
       :indent     - string prefix for each line
 
   Returns string of ASCII chart, or nil if no MRL data."

@@ -54,7 +54,8 @@
   portal.core/flush)
 
 (def portal-heading
-  "Send hiccup-formatted heading to tap>. Delegates to criterium.viewer.portal.core."
+  "Send hiccup-formatted heading to tap>. Delegates to
+  criterium.viewer.portal.core."
   portal.core/portal-heading)
 
 (def portal-table
@@ -108,5 +109,3 @@
                          (count methods) total-in-list))
         (portal-vega-lite
          (charts.profile/most-called-vega-lite-spec most-called-data {}))))))
-
-

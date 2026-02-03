@@ -173,7 +173,8 @@
   Returns the point estimate for that quantile with transforms applied,
   or nil if bootstrap stats are not available.
 
-  Bootstrap stats structure: [:bootstrap-stats :bootstrap metric-id :quantiles q]
+  Bootstrap stats structure:
+     [:bootstrap-stats :bootstrap metric-id :quantiles q]
   where each quantile has :point-estimate and :estimate-quantiles."
   [data-map metric-id quantile]
   (when (contains? data-map :bootstrap-stats)

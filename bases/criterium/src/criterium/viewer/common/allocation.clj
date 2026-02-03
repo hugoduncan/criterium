@@ -146,7 +146,8 @@
 (defn render-ascii-treemap
   "Render an allocation treemap as an ASCII tree string.
 
-  treemap-data should be a :criterium/allocation-treemap map with :root, :group-by, :size-by.
+  treemap-data should be a :criterium/allocation-treemap map
+  with :root, :group-by, :size-by.
 
   Options:
     :bar-width   - max bar characters (default 20)

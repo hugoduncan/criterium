@@ -54,7 +54,8 @@
         (let [box-spec (charts.comparison/single-point-box-chart-spec
                         extract
                         {:height 400})]
-          ;; Fall back to bar chart if box plot has no data (missing bootstrap stats)
+          ;; Fall back to bar chart if box plot has no data (missing bootstrap
+          ;; stats)
           (if (seq (:vconcat box-spec))
             (portal.core/portal-vega-lite box-spec)
             (portal.core/portal-vega-lite
@@ -120,7 +121,8 @@
               (charts.comparison/comparison-box-chart-spec
                comparison
                {:height 400})]
-          ;; Fall back to bar chart if box plot has no data (missing bootstrap stats)
+          ;; Fall back to bar chart if box plot has no data (missing bootstrap
+          ;; stats)
           (if (seq (:vconcat box-spec))
             (portal.core/portal-vega-lite box-spec)
             (portal.core/portal-vega-lite

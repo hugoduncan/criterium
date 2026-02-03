@@ -12,7 +12,7 @@
   View specs follow the same pattern.")
 
 (def complexity-analysis
-  "Analyze scaling complexity by extracting all quantitative metrics and fitting models.
+  "Analyze complexity by extracting all quantitative metrics and fitting models.
 
   Fits O(log n), O(n), O(n log n), O(n²) models to determine algorithmic
   complexity. Requires map coordinates with an :n key for input size.
@@ -36,9 +36,9 @@
   Groups runs by :impl axis and compares all quantitative metrics.
   Requires map coordinates with an :impl key distinguishing implementations.
 
-  Extracts median values (with fallback to mean when bootstrap stats unavailable)
-  with error bounds for bar chart visualization.
-  When bootstrap stats are available, also includes quantile statistics
+  Extracts median values (with fallback to mean when bootstrap stats
+  unavailable) with error bounds for bar chart visualization.  When
+  bootstrap stats are available, also includes quantile statistics
   (median, p10, p90, CI) enabling box plot visualization.
 
   In the output, the baseline implementation (first in :implementations) shows
@@ -54,11 +54,12 @@
 (def extract-metrics
   "Extract all quantitative metrics from all runs.
 
-  Discovers available metrics automatically (elapsed-time, thread-allocation, etc.)
-  and extracts median values for each (with fallback to mean when bootstrap stats
-  unavailable).
+  Discovers available metrics automatically (elapsed-time,
+  thread-allocation, etc.)  and extracts median values for each (with
+  fallback to mean when bootstrap stats unavailable).
 
-  Includes error bounds (±3σ) for each data point when viewed with portal or kindly.
+  Includes error bounds (±3σ) for each data point when viewed with
+  portal or kindly.
 
   Example:
     (analyse-domain extract-metrics my-domain)"

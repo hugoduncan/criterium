@@ -63,41 +63,42 @@
 (defn hill-plot
   "Build a Vega-Lite spec for the Hill plot.
 
-  The Hill plot shows the Hill estimator H_k vs k (number of order statistics used).
-  A stable region where estimates don't vary much with k indicates a reliable
-  tail index estimate. The stable estimate is shown as a horizontal reference line.
+  The Hill plot shows the Hill estimator H_k vs k (number of order
+  statistics used).  A stable region where estimates don't vary much
+  with k indicates a reliable tail index estimate. The stable estimate
+  is shown as a horizontal reference line.
 
-  Takes tail-analysis data for a single metric.
-  Returns a Vega-Lite layered spec with the Hill curve and stable estimate line."
+  Takes tail-analysis data for a single metric.  Returns a Vega-Lite
+  layered spec with the Hill curve and stable estimate line."
   [tail-data]
-  (let [{:keys [hill]} tail-data
+  (let [{:keys [hill]}                              tail-data
         {:keys [k-range estimates stable-estimate]} hill]
     (when (and (seq k-range) (seq estimates))
-      (let [data (mapv (fn [k est]
-                         {"k" k "estimate" est})
-                       k-range estimates)
-            layers [{:data {:values data}
-                     :mark {:type "line" :color "#4682b4" :strokeWidth 2}
-                     :encoding {:x {:field "k" :type "quantitative"
-                                    :title "k (order statistics)"}
-                                :y {:field "estimate" :type "quantitative"
-                                    :title "Hill Estimate (H_k)"
-                                    :scale {:zero false}}
+      (let [data   (mapv (fn [k est]
+                           {"k" k "estimate" est})
+                         k-range estimates)
+            layers [{:data     {:values data}
+                     :mark     {:type "line" :color "#4682b4" :strokeWidth 2}
+                     :encoding {:x       {:field "k" :type "quantitative"
+                                          :title "k (order statistics)"}
+                                :y       {:field "estimate" :type "quantitative"
+                                          :title "Hill Estimate (H_k)"
+                                          :scale {:zero false}}
                                 :tooltip [{:field "k" :type "quantitative"}
-                                          {:field "estimate"
-                                           :type "quantitative"
+                                          {:field  "estimate"
+                                           :type   "quantitative"
                                            :format ".4f"}]}}]]
         {:layer
          (if stable-estimate
            (conj layers
-                 {:data {:values [{"stable" stable-estimate}]}
-                  :mark {:type "rule"
-                         :color "#e41a1c"
-                         :strokeWidth 2
-                         :strokeDash [4 4]}
-                  :encoding {:y {:field "stable" :type "quantitative"}
-                             :tooltip [{:field "stable" :type "quantitative"
-                                        :title "Stable Estimate"
+                 {:data     {:values [{"stable" stable-estimate}]}
+                  :mark     {:type        "rule"
+                             :color       "#e41a1c"
+                             :strokeWidth 2
+                             :strokeDash  [4 4]}
+                  :encoding {:y       {:field "stable" :type "quantitative"}
+                             :tooltip [{:field  "stable" :type "quantitative"
+                                        :title  "Stable Estimate"
                                         :format ".4f"}]}})
            layers)}))))
 
@@ -160,32 +161,33 @@
   [samples transforms]
   (when (and samples (pos? (arr/length samples)))
     (let [sorted-arr (arr/sorted samples)
-          n (arr/length sorted-arr)
-          ;; Compute complementary CDF: P(X > x) = (n - i) / n for i-th order statistic
-          data (arr/indexed-dfold
-                sorted-arr
-                (fn [acc ^long i ^double x]
-                  (let [ccdf (/ (double (- n i)) (double n))
-                        tx (util/transform-sample-> x transforms)]
-                    (if (and (pos? tx) (pos? ccdf))
-                      (conj acc {"x" tx
-                                 "ccdf" ccdf
-                                 "log_x" (Math/log10 tx)
-                                 "log_ccdf" (Math/log10 ccdf)})
-                      acc)))
-                [])]
+          n          (arr/length sorted-arr)
+          ;; Compute complementary CDF:
+          ;; P (X > x) = (n - i) / n for i-th order statistic
+          data       (arr/indexed-dfold
+                      sorted-arr
+                      (fn [acc ^long i ^double x]
+                        (let [ccdf (/ (double (- n i)) (double n))
+                              tx   (util/transform-sample-> x transforms)]
+                          (if (and (pos? tx) (pos? ccdf))
+                            (conj acc {"x"        tx
+                                       "ccdf"     ccdf
+                                       "log_x"    (Math/log10 tx)
+                                       "log_ccdf" (Math/log10 ccdf)})
+                            acc)))
+                      [])]
       (when (seq data)
-        {:data {:values data}
-         :mark {:type "point" :size 30 :opacity 0.6 :color "#4682b4"}
-         :encoding {:x {:field "log_x" :type "quantitative"
-                        :title "log₁₀(x)"
-                        :scale {:zero false}}
-                    :y {:field "log_ccdf" :type "quantitative"
-                        :title "log₁₀(1 - F(x))"
-                        :scale {:zero false}}
-                    :tooltip [{:field "x" :type "quantitative"
+        {:data     {:values data}
+         :mark     {:type "point" :size 30 :opacity 0.6 :color "#4682b4"}
+         :encoding {:x       {:field "log_x" :type "quantitative"
+                              :title "log₁₀(x)"
+                              :scale {:zero false}}
+                    :y       {:field "log_ccdf" :type "quantitative"
+                              :title "log₁₀(1 - F(x))"
+                              :scale {:zero false}}
+                    :tooltip [{:field "x"     :type   "quantitative"
                                :title "Value" :format ".4g"}
-                              {:field "ccdf" :type "quantitative"
+                              {:field "ccdf"     :type   "quantitative"
                                :title "P(X > x)" :format ".4f"}]}}))))
 
 ;;; Exponential Q-Q Plot
@@ -288,8 +290,9 @@
   Compares the tail exceedances to the fitted Generalized Pareto Distribution.
   If the GPD fit is good, points lie on the y=x diagonal.
 
-  Takes samples (typed array), threshold, gpd-fit map {:xi :sigma}, and transforms.
-  Returns a Vega-Lite layered spec with Q-Q scatter and reference line."
+  Takes samples (typed array), threshold, gpd-fit map {:xi :sigma}, and
+  transforms.  Returns a Vega-Lite layered spec with Q-Q scatter and
+  reference line."
   [samples ^double threshold gpd-fit transforms]
   (when (and samples (pos? (arr/length samples)) gpd-fit)
     (let [{:keys [xi sigma]} gpd-fit]
@@ -392,8 +395,8 @@
         samples-map (get data-map samples-id)
         tail-results (when tail-analysis-map
                        (:tail-analysis tail-analysis-map))
-        ;; Extract transforms directly - tail analysis uses simple identity transforms
-        ;; that don't need the full get-transforms chain
+        ;; Extract transforms directly - tail analysis uses simple identity
+        ;; transforms that don't need the full get-transforms chain
         raw-transform (when tail-analysis-map
                         (:transform tail-analysis-map))
         transforms (when raw-transform

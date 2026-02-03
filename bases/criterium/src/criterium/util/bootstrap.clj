@@ -1,8 +1,9 @@
 (ns criterium.util.bootstrap
   "Bootstrap statistics for criterium.
 
-  Core bootstrap algorithms are provided by criterium.stats.bootstrap. This namespace
-  provides criterium-specific integration with metrics and collect plans."
+  Core bootstrap algorithms are provided by
+  criterium.stats.bootstrap. This namespace provides criterium-specific
+  integration with metrics and collect plans."
   (:require
    [criterium.array :as arr]
    [criterium.collect-plan :as collect-plan]
@@ -150,25 +151,28 @@
   [samples opts]
   {:pre [(:quantiles opts)
          (:estimate-quantiles opts)]}
-  (let [darr          (ensure-double-array samples)
-        n             (arr/length darr)
+  (let [darr         (ensure-double-array samples)
+        n            (arr/length darr)
         ;; Convert to vector for stats functions that need sequences
-        vs            (typed-array->double-vec darr)
-        min-samples   (long (:min-samples opts default-min-samples))
-        low-samples?  (< n min-samples)
-        _             (when low-samples?
-                        (util/report
-                         "Warning: bootstrap sample count (%d) below minimum (%d). Results may be unreliable.\n"
-                         n min-samples))
-        quantiles     (into [0.1 0.25 0.5 0.75 0.9] (:quantiles opts))
-        stats-fn      (stats/stats-fn (stats/stats-fns quantiles))
-        stats         (stats/bootstrap-bca
-                       vs
-                       stats-fn
-                       (:bootstrap-size opts n)
-                       (into [0.5] (:estimate-quantiles opts))
-                       random/make-well-rng-1024a)
-        ks            (keys stats/stats-fn-map)]
+        vs           (typed-array->double-vec darr)
+        min-samples  (long (:min-samples opts default-min-samples))
+        low-samples? (< n min-samples)
+        _            (when low-samples?
+                       (util/report
+                        (str
+                         "Warning: bootstrap "
+                         "sample count (%d) below minimum (%d)."
+                         " Results may be unreliable.\n")
+                        n min-samples))
+        quantiles    (into [0.1 0.25 0.5 0.75 0.9] (:quantiles opts))
+        stats-fn     (stats/stats-fn (stats/stats-fns quantiles))
+        stats        (stats/bootstrap-bca
+                      vs
+                      stats-fn
+                      (:bootstrap-size opts n)
+                      (into [0.5] (:estimate-quantiles opts))
+                      random/make-well-rng-1024a)
+        ks           (keys stats/stats-fn-map)]
     (cond-> (-> (zipmap ks stats)
                 (dissoc :min-val :max-val)
                 (assoc :quantiles
@@ -188,7 +192,8 @@
 
 (defn bootstrap-stats*
   "Compute bootstrap stats for all metric paths.
-  When outliers is non-nil, removes outlier samples before bootstrap resampling."
+  When outliers is non-nil, removes outlier samples before bootstrap
+  resampling."
   [metric->values outliers metric-configs config]
   (reduce
    (fn [res path]
@@ -235,7 +240,7 @@
     stat))
 
 (defn- adjust-stat-within-metric
-  "Recursively adjust all stats within a metric's result using the given inflation factor.
+  "Recursively adjust all stats within a metric's result by inflation factor.
   Handles both top-level stats (mean, variance) and nested :quantiles map."
   [metric-stats ^double inflation]
   (reduce-kv
@@ -291,19 +296,28 @@
 
   Parameters:
     opts - Optional map with keys:
-      :id            - Key for bootstrap stats in output (default: :bootstrap-stats)
+      :id            - Key for bootstrap stats in output
+                       (default: :bootstrap-stats)
       :samples-id    - Key for source samples (default: :samples)
-      :outliers-id   - Key for outlier analysis if available (default: :outliers)
-      :ess-id        - Key for effective sample size analysis (default: nil). When
-                       provided and ESS data exists, CI widths are inflated by the
-                       ci-inflation-factor and stored as :adjusted-estimate-quantiles.
+      :outliers-id   - Key for outlier analysis if available
+                       (default: :outliers)
+
+      :ess-id        - Key for effective sample size analysis (default: nil).
+                       When provided and ESS data exists, CI widths are inflated
+                       by the ci-inflation-factor and stored as
+                       :adjusted-estimate-quantiles.
+
       :metric-ids    - Set of metric ids to analyze (default: all quantitative)
       :quantiles     - Additional quantiles to compute (default: none)
-      :estimate-quantiles - Confidence interval quantiles (default: [0.025 0.975])
-      :bootstrap-size     - Number of bootstrap resamples (default: sample count)
-      :min-samples        - Minimum sample size for reliable results (default: 30).
+      :estimate-quantiles - Confidence interval quantiles
+                            (default: [0.025 0.975])
+      :bootstrap-size     - Number of bootstrap resamples
+                            (default: sample count)
+      :min-samples        - Minimum sample size for reliable results
+                            (default: 30).
                             When sample count is below this threshold, a warning
-                            is printed and results include :low-sample-count? true.
+                            is printed and results include
+                            :low-sample-count? true.
 
   When :outliers-id is provided, outliers identified in the outlier analysis
   are removed from samples before bootstrap resampling. This prevents outliers

@@ -56,7 +56,8 @@
 
 (def flush
   "Return accumulated values as a kind/fragment and clear the accumulator.
-  Also stores the fragment in `last-fragment` for retrieval after bench completes."
+  Also stores the fragment in `last-fragment` for retrieval after bench
+  completes."
   core/flush)
 
 ;;; Call Tree Views
@@ -107,13 +108,14 @@
   (let [[view-kw opts] (if (sequential? view-spec)
                          [(first view-spec) (second view-spec)]
                          [view-spec {}])
-        view-fn-var (ns-resolve 'criterium.view (symbol (name view-kw)))]
+        view-fn-var    (ns-resolve 'criterium.view (symbol (name view-kw)))]
     (if view-fn-var
       (view-fn-var (or opts {}))
       (binding [*out* *err*]
         (println
          (format
-          "WARNING: Unknown view-spec '%s' - no such view function in criterium.view"
+          (str "WARNING: Unknown view-spec '%s' "
+               "- no such view function in criterium.view")
           view-kw))))))
 
 (defmethod view/domain-apply* :kindly

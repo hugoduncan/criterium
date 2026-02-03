@@ -135,21 +135,22 @@
   [samples transforms opts]
   (when (and samples (pos? (arr/length samples)))
     (let [{:keys [width height header-fn indent]
-           :or {width 60
-                height 15
-                header-fn (fn [n] (format "CDF (n=%d)" n))
-                indent ""}} opts
-          n (arr/length samples)
+           :or   {width     60
+                  height    15
+                  header-fn (fn [n] (format "CDF (n=%d)" n))
+                  indent    ""}} opts
+          n                 (arr/length samples)
           ;; Compute ECDF points
-          ecdf (ecdf-points samples transforms)
-          header (header-fn n)
-          chart-lines (ascii-chart/render-chart
-                       ecdf
-                       {:width (- (long width) (count indent))
-                        :height height
-                        :y-label "cumulative"
-                        :point-char \*
-                        :line-char nil})] ; No lines, just points for step effect
+          ecdf              (ecdf-points samples transforms)
+          header            (header-fn n)
+          chart-lines       (ascii-chart/render-chart
+                             ecdf
+                             {:width      (- (long width) (count indent))
+                              :height     height
+                              :y-label    "cumulative"
+                              :point-char \*
+                        ;; No lines, just points for step effect
+                              :line-char  nil})]
       (when (seq chart-lines)
         (str header "\n"
              (->> chart-lines

@@ -378,14 +378,15 @@
 (defmethod view/domain-regression* :pprint
   [_ {:keys [regression-id tolerance]} data-map]
   (let [regression-id (or regression-id :regression)
-        regression (data-map regression-id)
-        tolerance (or tolerance 0.01)
+        regression    (data-map regression-id)
+        tolerance     (or tolerance 0.01)
         table-options {:best-fit-marker "<- best"
-                       :plotted-marker "[plotted]"
-                       :tolerance tolerance}]
+                       :plotted-marker  "[plotted]"
+                       :tolerance       tolerance}]
     (when regression
-      (let [{:keys [axis regressions impl-axis implementations]} regression
-            multi-impl? (> (count implementations) 1)]
+      (let [{:keys [axis regressions
+                    impl-axis implementations]} regression
+            multi-impl?                         (> (count implementations) 1)]
         (if multi-impl?
           ;; Multi-implementation mode
           (doseq [[_metric-id {:keys [metric by-impl]}] regressions]
@@ -393,8 +394,9 @@
                              (name axis) (pr-str metric) (name impl-axis)))
             (if (seq by-impl)
               (let [impl-keys (sort (keys by-impl))
-                    table-rows (regression/prepare-regression-model-table-multi-impl
-                                by-impl impl-keys table-options)]
+                    table-rows
+                    (regression/prepare-regression-model-table-multi-impl
+                     by-impl impl-keys table-options)]
                 (pprint/print-table
                  [:implementation :model :r-squared :equation :best-fit]
                  table-rows))

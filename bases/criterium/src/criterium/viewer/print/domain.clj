@@ -68,7 +68,8 @@
            (format "%g" base-value)))))))
 
 (defn- sort-data-by-coords
-  "Sort coordinate-value pairs, using numeric sort when coord values are numbers."
+  "Sort coordinate-value pairs.
+  Using numeric sort when coord values are numbers."
   [data single-key-info]
   (let [coords (map first data)
         sorted-coords (core/sort-row-keys coords single-key-info)
@@ -83,7 +84,8 @@
 
 (defn- print-transposed-table
   "Print a transposed table with implementation rows and metric columns.
-  Takes {:heading :col-headers :rows} from prepare-*-table-transposed functions."
+  Takes {:heading :col-headers :rows} from prepare-*-table-transposed
+  functions."
   [{:keys [heading col-headers rows]}]
   (let [;; Convert rows from maps to vectors based on col-headers order
         row-vectors (mapv (fn [row]
@@ -455,7 +457,9 @@
                   (when (seq missing)
                     (throw
                      (ex-info
-                      "Domain :implementations do not match comparison data keys"
+                      (str
+                       "Domain :"
+                       "implementations do not match comparison data keys")
                       {:implementations implementations
                        :data-keys (keys data)
                        :missing missing})))

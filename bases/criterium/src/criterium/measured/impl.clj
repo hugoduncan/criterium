@@ -234,7 +234,8 @@
                                                                     arg-val)]
                    (when (.hasJavaClass lb)
                      (tag-meta (.getJavaClass lb)))))
-               ;; For compound expressions, find locals and use their type if uniform
+               ;; For compound expressions, find locals and use their type if
+               ;; uniform
                (let [local-syms
                      (filter #(contains? env %) (collect-symbols arg-val))
                      local-types

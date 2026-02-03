@@ -46,7 +46,8 @@
     [value]
     (swap! tapped update :values conj value)))
 
-;; Sentinel value for flush synchronization - must match ::criterium.viewer.portal/_
+;; Sentinel value for flush synchronization - must
+;; match ::criterium.viewer.portal/_
 (def ^:private flush-sentinel :criterium.viewer.portal/_)
 
 (defn flush

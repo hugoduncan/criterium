@@ -39,12 +39,13 @@
 
 (def pattern-recommendations
   "Recommendations for each displayable pattern."
-  {:transient-effects "Check: warmup iterations, system load, thermal throttling"
-   :drift "Shorter benchmark duration; check thermal throttling"
-   :periodic "Investigate GC logs; increase heap"
-   :severe "Review methodology; results unreliable"
+  {:transient-effects
+   "Check: warmup iterations, system load, thermal throttling"
+   :drift                "Shorter benchmark duration; check thermal throttling"
+   :periodic             "Investigate GC logs; increase heap"
+   :severe               "Review methodology; results unreliable"
    :alternating-moderate "Review methodology; results unreliable"
-   :alternating-severe "Review methodology; results unreliable"})
+   :alternating-severe   "Review methodology; results unreliable"})
 
 ;;; Formatting Functions
 
@@ -68,7 +69,8 @@
 
 (defn format-detected-period
   "Format detected period with ACF value and severity.
-  Returns a string like '60 samples (r=0.35, moderate)' or nil if period is nil."
+  Returns a string like '60 samples (r=0.35, moderate)' or nil if period
+  is nil."
   [detected-period acf-map lag-severities]
   (when detected-period
     (let [acf-val (get acf-map detected-period)
@@ -97,7 +99,8 @@
             (f acf-data mc)))))))
 
 (defn collect-classification-metrics
-  "Collect classification data for all metrics. Returns seq of [class-data acf-data mc].
+  "Collect classification data for all metrics.
+   Returns seq of [class-data acf-data mc].
   Uses :classification-id to get classification analysis results, and looks up
   the source autocorrelation for lag-1 data."
   [{:keys [classification-id autocorrelation-id]} data-map]

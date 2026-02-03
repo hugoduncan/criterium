@@ -20,8 +20,8 @@
     :metric-path - the metric path vector
     :y-title - y-axis title with SI unit (uses 'median' prefix)
     :data - vector of maps with string keys:
-            {\"impl\" string \"median\" number \"ciLower\" number \"ciUpper\" number
-             \"p10\" number \"p90\" number}
+            {\"impl\" string \"median\" number \"ciLower\" number
+             \"ciUpper\" number \"p10\" number \"p90\" number}
             (ciLower/ciUpper omitted when CI bounds not available)
 
   If bootstrap stats are missing for a metric, warns to stdout and returns nil
@@ -98,7 +98,8 @@
     :metric-path - the metric path vector
     :y-title - y-axis title with SI unit
     :has-error-bounds? - true if error bounds data is present
-    :data - vector of {:impl string :value number :valueLower number :valueUpper number} maps
+    :data - vector of {:impl string :value number :valueLower number
+                       :valueUpper number} maps
             (valueLower/valueUpper only present when error bounds exist)"
   [extract]
   (let [impl-axis-key (:impl-axis extract)
@@ -106,7 +107,8 @@
         metrics (:metrics extract)]
     (mapv
      (fn [[metric-id {:keys [metric data]}]]
-       (let [;; Build lookup: impl -> full value (may be map with :value/:lower/:upper)
+       (let [;; Build lookup: impl -> full value (may be map
+             ;; with :value/:lower/:upper)
              lookup (reduce
                      (fn [acc [coord value]]
                        (let [impl-val (get coord impl-axis-key)]
@@ -193,7 +195,8 @@
 
 (defn- box-plot-whisker-layer
   "Build whisker layer for box plot (rule from p10 to p90 with end caps).
-  Returns a layer with sub-layers: the main whisker rule and tick caps at p10/p90."
+  Returns a layer with sub-layers: the main whisker rule and tick caps
+  at p10/p90."
   [data]
   {:layer
    [{:data {:values data}
@@ -361,11 +364,13 @@
   - Box: Confidence interval on median (ciLower, ciUpper) when available
   - Center line: Median point estimate
 
-  Requires bootstrap stats in the extract data. If bootstrap stats are missing,
-  the chart will be empty (data prep warns and filters out metrics without stats).
+  Requires bootstrap stats in the extract data. If bootstrap stats are
+  missing, the chart will be empty (data prep warns and filters out
+  metrics without stats).
 
   Parameters:
-    extract - Domain extract with single-point multi-impl data containing bootstrap stats
+    extract - Domain extract with single-point multi-impl data containing
+              bootstrap stats
     chart-options - Map with :width and/or :height for chart dimensions
 
   Returns a Vega-Lite spec with vconcat of box plots (one per metric)."
@@ -398,11 +403,13 @@
   - Box: Confidence interval on median (ciLower, ciUpper) when available
   - Center line: Median point estimate
 
-  Requires bootstrap stats in the comparison data. If bootstrap stats are missing,
-  the chart will be empty (data prep warns and filters out metrics without stats).
+  Requires bootstrap stats in the comparison data. If bootstrap stats
+  are missing, the chart will be empty (data prep warns and filters out
+  metrics without stats).
 
   Parameters:
-    comparison - Domain comparison with single-point multi-impl data containing bootstrap stats
+    comparison - Domain comparison with single-point multi-impl data
+                 containing bootstrap stats
     chart-options - Map with :width and/or :height for chart dimensions
 
   Returns a Vega-Lite spec with vconcat of box plots (one per metric)."
@@ -479,7 +486,7 @@
      :vconcat (mapv #(line-chart-layer % chart-options) line-data)}))
 
 (defn comparison-line-chart-spec
-  "Build a Vega-Lite line chart spec for single-axis multi-point comparison data.
+  "Build a Vega-Lite line chart spec for single-axis multi-point comparison.
 
   Shows axis values on x-axis and measured values on y-axis, with one line
   per implementation differentiated by color.

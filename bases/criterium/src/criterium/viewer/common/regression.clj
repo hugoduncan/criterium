@@ -11,12 +11,15 @@
 
 (defn prepare-regression-model-table
   "Prepare model table rows for single-impl regression display.
-  Returns vector of row maps with :model :r-squared :aic :bic :equation :best-fit keys.
+  Returns vector of row maps
+  with :model :r-squared :aic :bic :equation :best-fit keys.
   AIC and BIC values may be nil when insufficient data points.
   Options:
     :best-fit-marker - string to show for best fit (default \"✓\")
     :plotted-marker - string to show for plotted but not best (default \"\")
-    :tolerance - fraction within best r-squared to mark as plotted (default 0.01)"
+
+    :tolerance - fraction within best r-squared to mark as
+                 plotted (default 0.01)"
   [{:keys [models best-fit]}
    {:keys [best-fit-marker plotted-marker ^double tolerance]
     :or {best-fit-marker "✓" plotted-marker "" tolerance 0.01}}]
@@ -48,7 +51,9 @@
 
 (defn prepare-regression-model-table-multi-impl
   "Prepare model table rows for multi-impl regression display.
-  Returns vector of row maps with :implementation :model :r-squared :aic :bic :equation :best-fit.
+  Returns vector of row maps
+  with :implementation :model :r-squared :aic :bic :equation :best-fit.
+
   Options same as prepare-regression-model-table."
   [by-impl impl-keys options]
   (vec
@@ -112,7 +117,8 @@
 (defn prepare-regression-fit-lines
   "Generate fit line points for plotting.
   For single-impl mode, models is a seq of model maps.
-  For multi-impl mode, by-impl is a map of impl-key -> {:models [...] :best-fit id}.
+  For multi-impl mode, by-impl is a map of impl-key ->
+  {:models [...] :best-fit id}.
   Returns vector of point maps with x, y, and model or impl key."
   [{:keys [x-vals ^double total-scale]} {:keys [models by-impl impl-keys]}]
   (when (seq x-vals)
@@ -369,9 +375,11 @@
     :table-options - options for prepare-regression-model-table functions
 
   The handlers map must contain render functions:
-    :render-log-log-charts     - (fn [{:keys [title axis metric impl-axis points
-                                             line-pts residual-pts chart-opts]}] ...)
-    :render-model-heading      - (fn [{:keys [title axis metric impl-axis]}] ...)
+    :render-log-log-charts     - (fn [{:keys
+                                       [title axis metric impl-axis points
+                                       line-pts residual-pts chart-opts]}] ...)
+    :render-model-heading      - (fn [{:keys
+                                       [title axis metric impl-axis]}] ...)
     :render-model-table        - (fn [{:keys [table-rows multi-impl?]}] ...)
     :render-regression-charts  - (fn [{:keys [points line-pts residual-pts
                                              y-title residual-title axis

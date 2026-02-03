@@ -37,15 +37,18 @@
   36)
 
 (def ^:const label-indent
-  "Indent width for continuation lines after a label (label-width + 2 for ': ')."
+  "Indent width for continuation lines after a label
+  (label-width + 2 for ': ')."
   (+ label-width 2))
 
 (def ^:const sublabel-indent
-  "Indent width for continuation lines after a sublabel (sublabel-width + 2 for ': ')."
+  "Indent width for continuation lines after a sublabel
+  (sublabel-width + 2 for ': ')."
   (+ sublabel-width 2))
 
 (def print-table
-  "Alias to criterium.viewer.print.table/print-table for backwards compatibility."
+  "Alias to criterium.viewer.print.table/print-table
+  for backwards compatibility."
   table/print-table)
 
 (defn label-str
@@ -707,7 +710,8 @@
      (if ci-hi (format/format-value dimension (* scale ci-hi)) "-")]))
 
 (defn- print-kde-metric
-  "Print KDE summary for a single metric with optional modes from separate analysis."
+  "Print KDE summary for a single metric.
+  Optional modes from separate analysis."
   [metric-config kde-data modes-data transforms]
   (let [{:keys [bandwidth n]} kde-data
         {:keys [label dimension scale]} metric-config

@@ -1,9 +1,9 @@
 (ns criterium.viewer.common.domain.detection
   "Domain shape detection predicates for visualization strategy selection.
 
-  Provides functions to analyze the structure of domain extract and comparison
-  data to determine the appropriate visualization strategy (box plot, line chart,
-  or table).")
+  Provides functions to analyze the structure of domain extract and
+  comparison data to determine the appropriate visualization
+  strategy (box plot, line chart, or table).")
 
 ;;; Domain extract shape detection
 
@@ -105,7 +105,8 @@
 ;;; Domain comparison shape detection
 
 (defn- comparison-all-entries
-  "Iterate over all entries in a comparison, handling both single and multi-metric modes.
+  "Iterate over all entries in a comparison.
+  Handles both single and multi-metric modes.
   Returns a lazy sequence of entry maps (each containing :coord, :value)."
   [{:keys [data metrics]}]
   (if metrics
@@ -140,7 +141,7 @@
      :single-non-axis-key? single-non-axis-key?}))
 
 (defn single-point-multi-impl-comparison?
-  "Return true when comparison has multiple implementations at a single parameter point.
+  "Return true when comparison has multiple implementations at a single point.
 
   Bar chart scenario: comparing implementations without varying parameters.
   - axis = :impl with no other params → true (bar chart)
@@ -160,7 +161,7 @@
           (= 1 count))))))
 
 (defn single-axis-multi-point-comparison?
-  "Return true when comparison has multiple implementations across multiple parameter points.
+  "Return true when comparison has multiple implementations at multiple points.
 
   Line chart scenario: comparing implementations with a varying parameter axis.
   - axis = :impl with different n values → true (line chart)

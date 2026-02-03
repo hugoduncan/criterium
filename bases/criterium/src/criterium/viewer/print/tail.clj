@@ -21,7 +21,8 @@
 
 (defn- get-tail-context
   "Extract tail analysis context using common helper plus tail-specific data.
-  Returns map with :tail-results, :metric-configs, :transforms, or nil if no data."
+  Returns map with :tail-results, :metric-configs, :transforms, or nil
+  if no data."
   [view data-map]
   (when-let [{:keys [analysis-map metric-configs transforms]}
              (get-analysis-context

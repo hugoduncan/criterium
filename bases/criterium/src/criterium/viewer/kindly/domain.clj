@@ -58,7 +58,8 @@
                         extract
                         {:width core/chart-width
                          :height core/chart-height})]
-          ;; Fall back to bar chart if box plot has no data (missing bootstrap stats)
+          ;; Fall back to bar chart if box plot has no data (missing bootstrap
+          ;; stats)
           (if (seq (:vconcat box-spec))
             (core/kindly-vega-lite box-spec)
             (core/kindly-vega-lite
@@ -129,7 +130,8 @@
                comparison
                {:width core/chart-width
                 :height core/chart-height})]
-          ;; Fall back to bar chart if box plot has no data (missing bootstrap stats)
+          ;; Fall back to bar chart if box plot has no data (missing bootstrap
+          ;; stats)
           (if (seq (:vconcat box-spec))
             (core/kindly-vega-lite box-spec)
             (core/kindly-vega-lite

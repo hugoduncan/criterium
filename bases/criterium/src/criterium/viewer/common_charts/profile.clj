@@ -1,10 +1,9 @@
 (ns criterium.viewer.common-charts.profile
-  "Profile visualization charts for call trees, treemaps, and most-called methods.
+  "Profile visualization for call trees, treemaps, and most-called methods.
 
-  Provides Vega and Vega-Lite specs for:
-  - Allocation treemaps showing memory usage by type
-  - Call tree visualizations (hierarchical tree and flame chart)
-  - Most-called method bar charts"
+  Provides Vega and Vega-Lite specs for: - Allocation treemaps showing memory
+  usage by type - Call tree visualizations (hierarchical tree and flame chart) -
+  Most-called method bar charts"
   (:require
    [clojure.string :as str]))
 
@@ -12,8 +11,9 @@
 
 (defn- flatten-treemap-node
   "Flatten a hierarchical treemap node into a sequence of flat records.
-  Each record has :id, :parent, and :name keys for use with Vega stratify.
-  Only leaf nodes get stats - parent sizes are computed by Vega's treemap transform."
+  Each record has :id, :parent, and :name keys for use with Vega
+  stratify.  Only leaf nodes get stats - parent sizes are computed by
+  Vega's treemap transform."
   ([node] (flatten-treemap-node node nil []))
   ([node parent-id path]
    (let [node-name (:name node)
@@ -127,12 +127,15 @@
                 :fill {:value "transparent"}
                 :tooltip
                 {:signal
-                 (str "{'Type': datum.name, "
-                      "'Bytes': format(datum.bytes, '~s'), "
-                      "'Count': datum.count, "
-                      "'Bytes/Alloc': format(datum.bytes / datum.count, '.1f'), "
-                      "'Freed %': format(datum['freed-count'] / datum.count, '.1%'), "
-                      "'Path': replace(replace(datum.id, /^[^/]+\\//, ''), /\\/[^/]+$/, '')}")}}
+                 (str
+                  "{'Type': datum.name, "
+                  "'Bytes': format(datum.bytes, '~s'), "
+                  "'Count': datum.count, "
+                  "'Bytes/Alloc': format(datum.bytes / datum.count, '.1f'), "
+                  "'Freed %': "
+                  "format(datum['freed-count'] / datum.count, '.1%'), "
+                  "'Path': replace(replace(datum.id, /^[^/]+\\//, ''), "
+                  "/\\/[^/]+$/, '')}")}}
                :hover
                {:fill {:value "rgba(0,0,0,0.1)"}}}}]}))
 
@@ -183,8 +186,9 @@
 
 (defn- flatten-call-tree-node
   "Flatten a hierarchical call tree node into a sequence of flat records.
-  Each record has :id, :parent, :name, :call-count keys for use with Vega stratify.
-  Unlike treemap, all nodes get call-count since we're showing the call hierarchy."
+  Each record has :id, :parent, :name, :call-count keys for use with
+  Vega stratify.  Unlike treemap, all nodes get call-count since we're
+  showing the call hierarchy."
   ([node] (flatten-call-tree-node node nil []))
   ([node parent-id path]
    (when node
@@ -301,7 +305,8 @@
                       "'Function': datum.name, "
                       "'Full': datum.class + '.' + datum.method, "
                       "'Calls': datum['call-count'], "
-                      "'Location': datum.file ? (datum.file + ':' + datum.line) : 'unknown'"
+                      "'Location': datum.file ? "
+                      "(datum.file + ':' + datum.line) : 'unknown'"
                       "}")}}}}
              ;; Labels for nodes with high call counts
              {:type "text"
@@ -438,13 +443,15 @@
                     :fill {:scale "color" :field "class"}
                     :tooltip
                     {:signal
-                     (str "{"
-                          "'Function': datum.name, "
-                          "'Full': datum.class + '.' + datum.method, "
-                          "'Calls': datum['call-count'], "
-                          "'Percentage': format(datum.percentage, '.1f') + '%', "
-                          "'Location': datum.file ? (datum.file + ':' + datum.line) : 'unknown'"
-                          "}")}}
+                     (str
+                      "{"
+                      "'Function': datum.name, "
+                      "'Full': datum.class + '.' + datum.method, "
+                      "'Calls': datum['call-count'], "
+                      "'Percentage': format(datum.percentage, '.1f') + '%', "
+                      "'Location': datum.file ? "
+                      "(datum.file + ':' + datum.line) : 'unknown'"
+                      "}")}}
                    :hover
                    {:fill {:value "#ff6600"}}}}
                  ;; Labels for wider bars
@@ -461,7 +468,8 @@
                    {:x {:signal "datum.x0 + 2"}
                     :y {:signal "(datum.y0 + datum.y1) / 2"}
                     ;; Only show text if bar is wide enough
-                    :text {:signal "(datum.x1 - datum.x0) > 60 ? datum.name : ''"}
+                    :text
+                    {:signal "(datum.x1 - datum.x0) > 60 ? datum.name : ''"}
                     :limit {:signal "datum.x1 - datum.x0 - 4"}}}}]}))))
 
 ;;; Most-Called Bar Chart
