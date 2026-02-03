@@ -124,7 +124,8 @@
      (have
       #(= 3 (count %)) metric-path
       {:reason
-       "metric-path must have 3 elements: [stats-id metric-id value-key]"
+       (str "metric-path must have exactly 3 elements: "
+            "[stats-id metric-id value-key]")
        :metric-path metric-path}))
    (let [runs (types/runs domain)
          impl-axis-key (types/impl-axis domain)
@@ -292,7 +293,9 @@
        :metric-path metric-path})
      (have
       #(= 3 (count %)) metric-path
-      {:reason "metric-path must have 3 elements:[stats-id metric-id value-key]"
+      {:reason
+       (str "metric-path must have exactly 3 elements: "
+            "[stats-id metric-id value-key]")
        :metric-path metric-path}))
    (let [runs (types/runs domain)
          impls (:implementations domain)
