@@ -28,7 +28,7 @@
   "Verify that POM contains all required Maven Central/Clojars metadata."
   [pom-xml _project-name]
   (testing "has groupId"
-    (is (= "criterium" (element-text (find-element pom-xml :groupId)))))
+    (is (= "org.hugoduncan" (element-text (find-element pom-xml :groupId)))))
 
   (testing "has artifactId"
     (let [artifact-id (element-text (find-element pom-xml :artifactId))]
@@ -79,7 +79,7 @@
             class-dir (str temp-dir)
             opts {:project :criterium
                   :class-dir class-dir
-                  :name "criterium/criterium"
+                  :name "org.hugoduncan/criterium"
                   :version "0.5.246-ALPHA"
                   :basis (b/create-basis)}
             result (pom/write-pom opts)
@@ -97,7 +97,7 @@
                 class-dir
                 "META-INF"
                 "maven"
-                "criterium"
+                "org.hugoduncan"
                 "criterium"
                 "pom.xml"))
               pom-path)))
@@ -114,7 +114,7 @@
             class-dir (str temp-dir)
             opts {:project :agent
                   :class-dir class-dir
-                  :name "criterium/criterium.agent"
+                  :name "org.hugoduncan/criterium.agent"
                   :version "0.5.246-ALPHA"
                   :basis (b/create-basis)}
             result (pom/write-pom opts)
@@ -132,7 +132,7 @@
                 class-dir
                 "META-INF"
                 "maven"
-                "criterium"
+                "org.hugoduncan"
                 "criterium.agent"
                 "pom.xml"))
               pom-path)))
@@ -149,7 +149,7 @@
             class-dir (str temp-dir)
             opts {:project :criterium
                   :class-dir class-dir
-                  :name "criterium/criterium"
+                  :name "org.hugoduncan/criterium"
                   :version "0.5.246-ALPHA"
                   :basis (b/create-basis)}
             result (pom/pom opts)]

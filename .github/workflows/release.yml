@@ -198,7 +198,7 @@ jobs:
         run: |
           JAR_FILE="projects/criterium/target/criterium.jar"
           echo "Running smoke test benchmark..."
-          clojure -Sdeps "{:deps {criterium/criterium {:local/root \"$JAR_FILE\"} org.clojure/clojure {:mvn/version \"1.11.2\"}}}" \
+          clojure -Sdeps "{:deps {org.hugoduncan/criterium {:local/root \"$JAR_FILE\"} org.clojure/clojure {:mvn/version \"1.11.2\"}}}" \
             -M -e "(require 'criterium.core) (criterium.core/quick-bench (+ 1 1)) (println \"Smoke test passed\")"
 
       - name: Create and push tag

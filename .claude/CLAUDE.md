@@ -157,8 +157,8 @@ When completing a story, kill any nREPL processes that are running in the story'
 - `bases/arg-gen/` - Argument generation using test.check generators
 - `bases/notebooks/` - Computational notebooks and examples
 - `components/r-validation/` - R connection helper for validation tests
-- `projects/criterium/` - Main criterium JAR (criterium/criterium)
-- `projects/arg-gen/` - Argument generation JAR (criterium/arg-gen)
+- `projects/criterium/` - Main criterium JAR (org.hugoduncan/criterium)
+- `projects/arg-gen/` - Argument generation JAR (org.hugoduncan/criterium.arg-gen)
 - `development/` - Development environment setup
 
 ### Core Components
