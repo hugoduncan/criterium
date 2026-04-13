@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.243-ALPHA] - 2026-04-13
+
+### Bug Fixes
+
+- *(build)* Use :name param directly for lib symbol in deploy (#149)
+
 ## [0.5.241-ALPHA] - 2026-04-13
 
 ### Features
@@ -79,6 +85,7 @@
 ### Documentation
 
 - Update installation instructions for 0.5.153-ALPHA
+- Update changelog for v0.5.241-ALPHA
 
 ### Performance
 
