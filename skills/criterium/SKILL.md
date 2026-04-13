@@ -15,7 +15,7 @@ Criterium is the standard benchmarking library for Clojure. Unlike naive timing 
 - **Statistical rigor** - Bootstrap confidence intervals, outlier detection
 - **Multiple output formats** - Text, structured data, interactive charts
 
-**Library:** `criterium/criterium`
+**Library:** `org.hugoduncan/criterium`
 **Current Version:** 0.5.x (alpha)
 **License:** EPL-1.0
 
@@ -313,11 +313,11 @@ Use `n-log-n-range` for better sampling when expecting O(n log n) complexity.
 
 Generate diverse inputs for each benchmark iteration using test.check generators.
 
-**Dependency:** `criterium/arg-gen` (separate artifact)
+**Dependency:** `org.hugoduncan/criterium.arg-gen` (separate artifact)
 
 ```clojure
 ;; deps.edn
-{:deps {criterium/arg-gen {:mvn/version "0.5.x"}}}
+{:deps {org.hugoduncan/criterium.arg-gen {:mvn/version "0.5.x"}}}
 ```
 
 ### The measured Macro

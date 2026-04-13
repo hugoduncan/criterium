@@ -1,6 +1,6 @@
 {:config-paths
- ["../bases/arg-gen/resources/clj-kondo.exports/criterium/arg-gen/"
-  "../bases/criterium/resources/clj-kondo.exports/criterium/criterium/"]
+ ["../bases/arg-gen/resources/clj-kondo.exports/org.hugoduncan/arg-gen/"
+  "../bases/criterium/resources/clj-kondo.exports/org.hugoduncan/criterium/"]
  :hooks
  {:analyze-call
   {criterium.view/def-multi-view         hooks.impl/def-multi-view
@@ -11,12 +11,18 @@
    criterium.primitive-fn/defprim-wrappers  hooks.impl/defprim-wrappers
    criterium.primitive-fn/defpred-wrappers  hooks.impl/defpred-wrappers
    criterium.array.util/definterface+    hooks.impl/definterface+}}
- :lint-as {babashka.fs/with-temp-dir                    clojure.core/with-open
-           build-test/with-cached-agent-build         clj-kondo.lint-as/def-catch-all
-           clojure.test.check.clojure-test/defspec    clojure.core/def
-           clojure.test.check.properties/for-all      clojure.core/let
-           criterium.util/optional-require            clojure.core/require
-           criterium.viewer.kindly-clay-test/with-temp-dir clj-kondo.lint-as/def-catch-all}
+ :lint-as {babashka.fs/with-temp-dir
+           clojure.core/with-open
+           build-test/with-cached-agent-build
+           clj-kondo.lint-as/def-catch-all
+           clojure.test.check.clojure-test/defspec
+           clojure.core/def
+           clojure.test.check.properties/for-all
+           clojure.core/let
+           criterium.util/optional-require
+           clojure.core/require
+           criterium.viewer.kindly-clay-test/with-temp-dir
+           clj-kondo.lint-as/def-catch-all}
  :linters {:unused-binding               {:exclude-defmulti-args true}
            :used-underscored-binding     {:level :warning}
            :unsorted-required-namespaces {:level :warning}

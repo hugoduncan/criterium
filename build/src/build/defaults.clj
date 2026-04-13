@@ -2,24 +2,24 @@
   "Default configuration and project coordinates for build tasks.
   
   ## Project Coordinates Schema
-  
-  The `project-coordinates` map contains configuration for each project artifact.
+
+  The `project-coordinates` map holds configuration for each artifact.
   Each project entry follows this schema:
-  
+
       [:map
-       [:lib symbol?]                        ; Maven coordinate symbol (e.g., criterium/criterium)
+       [:lib symbol?]                        ; Maven coordinate symbol
        [:name string?]                       ; Project name string
-       [:version string?]                    ; Version string with optional template vars
+       [:version string?]                    ; Version, optional template vars
        [:manifest {:optional true}           ; Optional JAR manifest attributes
         [:map-of string? string?]]]
-  
+
   Example:
-  
-      {:criterium {:lib 'criterium/criterium
-                   :name \"criterium/criterium\"
+
+      {:criterium {:lib 'org.hugoduncan/criterium
+                   :name \"org.hugoduncan/criterium\"
                    :version \"0.5.{{git-rev-count}}-ALPHA\"}
-       :agent {:lib 'criterium/criterium.agent
-               :name \"criterium/criterium.agent\"
+       :agent {:lib 'org.hugoduncan/criterium.agent
+               :name \"org.hugoduncan/criterium.agent\"
                :version \"0.5.{{git-rev-count}}-ALPHA\"
                :manifest {\"Agent-Class\" \"criterium.agent\"}}}"
   (:require
@@ -47,23 +47,25 @@
 
 (def project-coordinates
   "Project coordinates for all artifacts"
-  {:criterium {:lib 'criterium/criterium
-               :name "criterium/criterium"
+  {:criterium {:lib 'org.hugoduncan/criterium
+               :name "org.hugoduncan/criterium"
                :version "0.5.{{git-rev-count}}-ALPHA"}
-   :agent {:lib 'criterium/criterium.agent
-           :name "criterium/criterium.agent"
+   :agent {:lib 'org.hugoduncan/criterium.agent
+           :name "org.hugoduncan/criterium.agent"
            :version "0.5.{{git-rev-count}}-ALPHA"
            :manifest {"Agent-Class" "criterium.agent"}
            :validate-fn 'build.agent/validate-agent-binaries!}
-   :blackhole {:lib 'criterium/criterium.blackhole
-               :name "criterium/criterium.blackhole"
+   :blackhole {:lib 'org.hugoduncan/criterium.blackhole
+               :name "org.hugoduncan/criterium.blackhole"
                :version "0.5.{{git-rev-count}}-ALPHA"}
-   :arg-gen {:lib 'criterium/criterium.arg-gen
-             :name "criterium/criterium.arg-gen"
+   :arg-gen {:lib 'org.hugoduncan/criterium.arg-gen
+             :name "org.hugoduncan/criterium.arg-gen"
              :version "0.5.{{git-rev-count}}-ALPHA"
              ;; Dependencies to include in the POM (replacing local/root deps)
-             :pom-deps {'criterium/criterium {:mvn/version "0.5.{{git-rev-count}}-ALPHA"}
-                        'org.clojure/test.check {:mvn/version "1.1.1"}}}})
+             :pom-deps
+             {'org.hugoduncan/criterium
+              {:mvn/version "0.5.{{git-rev-count}}-ALPHA"}
+              'org.clojure/test.check {:mvn/version "1.1.1"}}}})
 
 (defn project-data
   "Return the params with default project coordinates.
@@ -74,8 +76,10 @@
   [{:keys [project] :as params}]
   (let [coords (get project-coordinates project)]
     (when-not coords
-      (throw (ex-info "Unknown project" {:project project
-                                         :available (keys project-coordinates)})))
+      (throw
+       (ex-info
+        "Unknown project"
+        {:project project :available (keys project-coordinates)})))
     (when-not (m/validate project-coordinate-schema coords)
       (throw (ex-info "Invalid project coordinates"
                       {:project project

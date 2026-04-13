@@ -17,7 +17,7 @@ Starting with version 0.5.x, the agent is **bundled in the JAR** with pre-compil
 clojure -J-agentpath:/path/to/libcriterium.dylib -M:dev
 
 # Or use agent/jvm-opts to get the path
-clojure -Sdeps '{:deps {criterium/criterium {:mvn/version "0.5.x"}}}' \
+clojure -Sdeps '{:deps {org.hugoduncan/criterium {:mvn/version "0.5.x"}}}' \
   -e '(require '"'"'[criterium.agent :as agent]) (println (first (agent/jvm-opts)))'
 # Then restart with that path
 ```
