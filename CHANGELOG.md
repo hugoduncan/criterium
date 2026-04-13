@@ -1,10 +1,20 @@
 # Changelog
 
+## [0.5.245-ALPHA] - 2026-04-13
+
+### Miscellaneous
+
+- *(build)* Change group id to org.hugoduncan (#150)
+
 ## [0.5.243-ALPHA] - 2026-04-13
 
 ### Bug Fixes
 
 - *(build)* Use :name param directly for lib symbol in deploy (#149)
+
+### Documentation
+
+- Update changelog for v0.5.243-ALPHA
 
 ## [0.5.241-ALPHA] - 2026-04-13
 
