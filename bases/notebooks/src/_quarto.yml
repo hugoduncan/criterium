@@ -23,3 +23,7 @@ website:
         contents:
           - domain_complexity_analysis.qmd
           - domain_comparison_analysis.qmd
+      - section: "Allocation Analysis"
+        contents:
+          - allocation_tracking.qmd
+          - allocation_bench.qmd
