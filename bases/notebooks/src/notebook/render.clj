@@ -16,7 +16,9 @@
    "bases/notebooks/src/analysis_and_view_options.clj"
    "bases/notebooks/src/in_situ.clj"
    "bases/notebooks/src/domain_complexity_analysis.clj"
-   "bases/notebooks/src/domain_comparison_analysis.clj"])
+   "bases/notebooks/src/domain_comparison_analysis.clj"
+   "bases/notebooks/src/allocation_tracking.clj"
+   "bases/notebooks/src/allocation_bench.clj"])
 
 (def quarto-config-source
   "Source path for Quarto configuration."
