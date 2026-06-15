@@ -51,10 +51,16 @@
     "libcriterium.dylib"))
 
 (defn resources-base-dir
-  "Returns the base directory for agent resources.
+  "Returns the base directory for bundled agent resources.
+
+  Binaries live at {resources-base-dir}/{platform}/libcriterium.{ext}, which on
+  the classpath resolves to the resource path `criterium/agent/{platform}/...`
+  that `criterium.agent.platform/resource-path` reads at runtime. This is the
+  same location the release workflow populates.
+
   This function exists to allow tests to override the target directory."
   []
-  (io/file "bases/agent/resources/native"))
+  (io/file "bases/criterium/resources/criterium/agent"))
 
 ;;; Agent Build and Copy
 
@@ -151,12 +157,13 @@
 (defn validate-agent-binaries!
   "Validates that required agent binaries are present before building JAR.
 
-  Agent binaries are downloaded from CI and placed in bases/agent/resources/native/{platform}/
-  but are NOT committed to version control (they are in .gitignore).
+  Agent binaries are downloaded from CI and placed in
+  bases/criterium/resources/criterium/agent/{platform}/ but are NOT committed to
+  version control (they are in .gitignore).
 
   Throws an exception with helpful error message if binaries are missing."
   []
-  (let [base-path "bases/agent/resources/native"
+  (let [base-path "bases/criterium/resources/criterium/agent"
         platforms ["linux-x64" "macos-x64" "macos-arm64"]
         required-files {"linux-x64" ["libcriterium.so" "libcriterium.so.sha256"]
                         "macos-x64" ["libcriterium.dylib" "libcriterium.dylib.sha256"]

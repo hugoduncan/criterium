@@ -74,13 +74,113 @@
           (is (str/includes? (ex-message ex) "SHA256 hash file not found")))))))
 
 (deftest extract-agent-missing-binary-test
-  ;; Missing binary file handling
+  ;; Missing binary file handling - now a structured failure, not a silent nil
   (testing "extract-agent with missing binary"
-    (testing "returns nil when agent binary not found"
+    (testing "throws structured :resolve-binary error when agent binary not found"
       (with-redefs [platform/detect (constantly "linux-x64")
                     loader/read-hash (constantly "testhash123")]
-        ;; No binaries bundled yet, so should return nil
-        (is (nil? (loader/extract-agent)))))))
+        ;; No binaries bundled in dev, so this must surface a failure
+        (let [ex (is (thrown? clojure.lang.ExceptionInfo (loader/extract-agent)))]
+          (is (= :resolve-binary (:stage (ex-data ex))))
+          (is (true? (:criterium.agent/extraction-failure (ex-data ex))))
+          (is (str/includes? (ex-message ex) "agent binary not found")))))))
+
+(deftest verify-hash-test
+  ;; SHA-256 integrity verification of extracted bytes
+  (testing "verify-hash!"
+    (let [tmp (Files/createTempFile
+               "vh-" ".bin"
+               (into-array java.nio.file.attribute.FileAttribute []))]
+      (try
+        (spit (.toFile tmp) "hello criterium")
+        (let [good (#'loader/compute-sha256 tmp)]
+          (testing "passes for matching hash"
+            (is (nil? (#'loader/verify-hash! tmp good {}))))
+          (testing "is a no-op when no expected hash provided"
+            (is (nil? (#'loader/verify-hash! tmp nil {})))
+            (is (nil? (#'loader/verify-hash! tmp "" {}))))
+          (testing "throws :verify-hash on mismatch"
+            (let [ex (is (thrown? clojure.lang.ExceptionInfo
+                                  (#'loader/verify-hash! tmp "deadbeef" {})))]
+              (is (= :verify-hash (:stage (ex-data ex))))
+              (is (str/includes? (ex-message ex) "SHA-256 mismatch")))))
+        (finally
+          (Files/delete tmp))))))
+
+(deftest extract-with-lock-success-test
+  ;; End-to-end extraction of a real classpath resource (no hash check).
+  ;; Exercises lock-dir-create, open-lock, acquire-lock, create-temp, copy,
+  ;; atomic-move, set-executable and verify-permissions stages on a real FS.
+  (testing "extract-with-lock"
+    (let [resource "criterium/agent/platform.clj" ; always on the classpath
+          target (str (System/getProperty "java.io.tmpdir")
+                      "/criterium-extract-ok-" (System/nanoTime) ".so")]
+      (is (some? (io/resource resource)) "test resource must be on classpath")
+      (try
+        (testing "copies resource and returns true"
+          (is (true? (#'loader/extract-with-lock resource target "linux-x64" nil)))
+          (is (.exists (io/file target)))
+          (is (Files/isExecutable (.toPath (io/file target)))))
+        (finally
+          (.delete (io/file target))
+          (.delete (io/file (str target ".lock"))))))))
+
+(deftest extract-with-lock-hash-mismatch-test
+  ;; A wrong expected hash fails with :verify-hash and leaves no target behind.
+  (testing "extract-with-lock with bad hash"
+    (let [resource "criterium/agent/platform.clj"
+          target (str (System/getProperty "java.io.tmpdir")
+                      "/criterium-extract-bad-" (System/nanoTime) ".so")]
+      (try
+        (let [ex (is (thrown? clojure.lang.ExceptionInfo
+                              (#'loader/extract-with-lock
+                               resource target "linux-x64" "deadbeef")))]
+          (is (= :verify-hash (:stage (ex-data ex))))
+          (is (not (.exists (io/file target)))
+              "no partially-published target should be left behind"))
+        (finally
+          (.delete (io/file target))
+          (.delete (io/file (str target ".lock"))))))))
+
+(deftest extract-with-lock-copy-failure-test
+  ;; A missing resource surfaces as a :copy stage failure (not a silent false).
+  (testing "extract-with-lock with missing resource"
+    (let [target (str (System/getProperty "java.io.tmpdir")
+                      "/criterium-extract-copyfail-" (System/nanoTime) ".so")]
+      (try
+        (let [ex (is (thrown? clojure.lang.ExceptionInfo
+                              (#'loader/extract-with-lock
+                               "no/such/resource.bin" target "linux-x64" nil)))]
+          (is (= :copy (:stage (ex-data ex)))))
+        (finally
+          (.delete (io/file target))
+          (.delete (io/file (str target ".lock"))))))))
+
+(deftest extract-agent-persistence-test
+  ;; Part A: extraction is persistent by default; cleanup is opt-in.
+  ;; Exercises the reuse branch (target already present) so no real bundled
+  ;; binary is required.
+  (testing "extract-agent cleanup registration"
+    (with-redefs [platform/detect (constantly "macos-x64")
+                  loader/read-hash (constantly "persisttest")]
+      (let [target-path (#'loader/temp-path "macos-x64" "persisttest")
+            target-file (io/file target-path)
+            agents-atom (deref #'loader/extracted-agents)]
+        (try
+          (spit target-file "stub-agent-bytes")
+          (testing "default extraction does NOT register file for deletion"
+            (reset! agents-atom #{})
+            (is (= target-path (loader/extract-agent)))
+            (is (not (contains? @agents-atom target-path))
+                "default extraction must be persistent (no cleanup registration)"))
+          (testing "cleanup-on-exit? true registers file for deletion"
+            (reset! agents-atom #{})
+            (is (= target-path (loader/extract-agent {:cleanup-on-exit? true})))
+            (is (contains? @agents-atom target-path)
+                "cleanup-on-exit? true must register the file for shutdown deletion"))
+          (finally
+            (reset! agents-atom #{})
+            (.delete target-file)))))))
 
 (deftest permission-functions-test
   ;; File permission setting and verification

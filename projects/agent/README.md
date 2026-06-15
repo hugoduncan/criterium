@@ -156,9 +156,9 @@ When making changes to the native agent that should be released:
 
 1. **Wait for CI to build** - The GitHub Actions workflow builds binaries for all supported platforms
 2. **Download artifacts** - See [docs/contributor/building-agent.md](../../docs/contributor/building-agent.md) for detailed instructions
-3. **Place in resources** - Copy to `projects/agent/resources/native/{platform}/`
-4. **Update SHA256 hashes** - Generate `.sha256` files for version tracking
-5. **Commit and release** - Include binaries in the release commit
+3. **Place in resources** - Copy to `bases/criterium/resources/criterium/agent/{platform}/`
+4. **SHA256 hashes** - Each artifact ships a `.sha256` used for the extracted-file name and integrity check
+5. **Build and release** - Binaries are gitignored (not committed); the release workflow downloads them fresh into the JAR
 
 Full process documentation: [Building the Agent](../../docs/contributor/building-agent.md)
 
@@ -178,20 +178,20 @@ Tests gracefully skip when agent binaries are unavailable.
 
 ### Resource Layout
 
-Agent binaries are stored in the JAR at:
+Agent binaries are stored in the JAR at (source: `bases/criterium/resources/`):
 
 ```
-resources/native/linux-x64/libcriterium.so
-resources/native/macos-x64/libcriterium.dylib
-resources/native/macos-arm64/libcriterium.dylib
+criterium/agent/linux-x64/libcriterium.so
+criterium/agent/macos-x64/libcriterium.dylib
+criterium/agent/macos-arm64/libcriterium.dylib
 ```
 
 SHA256 hash files track binary versions:
 
 ```
-resources/native/linux-x64/libcriterium.so.sha256
-resources/native/macos-x64/libcriterium.dylib.sha256
-resources/native/macos-arm64/libcriterium.dylib.sha256
+criterium/agent/linux-x64/libcriterium.so.sha256
+criterium/agent/macos-x64/libcriterium.dylib.sha256
+criterium/agent/macos-arm64/libcriterium.dylib.sha256
 ```
 
 ### Extraction Strategy

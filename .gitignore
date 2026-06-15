@@ -26,7 +26,7 @@ version.edn
 agent-cpp/build/
 node_modules/
 # Native agent binaries (downloaded from CI before JAR builds)
-bases/agent/resources/native/**/*.so
-bases/agent/resources/native/**/*.dylib
-bases/agent/resources/native/**/*.sha256
+bases/criterium/resources/criterium/agent/**/*.so
+bases/criterium/resources/criterium/agent/**/*.dylib
+bases/criterium/resources/criterium/agent/**/*.sha256
 /bases/criterium/.clj-kondo/imports/

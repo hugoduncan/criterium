@@ -57,12 +57,53 @@
   []
   (runtime/loaded?))
 
+(defn extract-agent!
+  "Explicitly extract the bundled native agent to a persistent temp file, with
+  full error handling.
+
+  Use this when you want extraction to either succeed or fail *loudly* - for
+  example tooling that wires `-agentpath` for a separately-launched JVM and must
+  not silently continue without an agent. This is the explicit counterpart to
+  `jvm-opts` and the auto-loading helpers, which degrade gracefully.
+
+  Returns:
+  - the absolute path to the extracted binary on success;
+  - nil only when the current platform is unsupported (a legitimate outcome).
+
+  Throws:
+  - clojure.lang.ExceptionInfo on any extraction failure. The ex-data carries
+    `:criterium.agent/extraction-failure`, a `:stage` keyword identifying the
+    failing step (e.g. :read-hash, :resolve-binary, :copy, :verify-hash,
+    :atomic-move, :verify-permissions), and context (`:platform`,
+    `:resource-path`, `:target-path`, `:tmpdir`). See
+    `criterium.agent.runtime/extract-agent!` for the full stage list.
+
+  Options (map, optional):
+  - :cleanup-on-exit? (default false) - delete the extracted file on JVM exit.
+    Only for ephemeral in-process use; do NOT use when passing the path to a
+    separately-launched JVM, as the file would be removed when this JVM exits.
+
+  The extracted file is persistent by default (not deleted on JVM exit), so the
+  returned path is safe to pass to another JVM via -agentpath.
+
+  Example:
+  ```clojure
+  (criterium.agent/extract-agent!)
+  ;=> \"/tmp/criterium-agent-macos-arm64-<hash>.dylib\"
+  ```"
+  ([] (runtime/extract-agent!))
+  ([opts] (runtime/extract-agent! opts)))
+
 (defn jvm-opts
   "Returns a vector of JVM arguments for loading the native agent.
 
   Returns a vector like [\"-agentpath:/tmp/criterium-agent-...\"] that can be
   used when spawning subprocesses or configuring REPL JVM options. Returns an
   empty vector if the agent is unavailable or the platform is unsupported.
+
+  The referenced binary is extracted persistently (not deleted on JVM exit), so
+  the path is safe to pass to a separately-launched JVM, including restarting
+  this JVM with the returned -agentpath option.
 
   Useful for configuring JVM processes to use the bundled agent without manual
   -agentpath specification."

@@ -22,7 +22,8 @@
   The agent can also be loaded via -agentpath JVM argument, in which case
   load-agent! will detect it's already loaded and skip loading."
   (:require
-   [criterium.agent.loader :as loader])
+   [criterium.agent.loader :as loader]
+   [criterium.agent.platform :as platform])
   (:import
    [com.sun.tools.attach VirtualMachine]
    [java.lang.management ManagementFactory]))
@@ -41,7 +42,17 @@
   "Returns the absolute path to the extracted native agent, or nil if unavailable.
 
   Extracts the bundled agent binary to a temporary directory on first call.
-  Returns nil for unsupported platforms with a logged warning.
+
+  Returns nil only when the platform is unsupported - a legitimate outcome,
+  logged once to stderr with the detected os.name/os.arch so the reason is
+  never silent. Genuine extraction failures are caught and logged to stderr
+  with their failing stage and context (rather than throwing, to preserve
+  graceful degradation of higher-level allocation tracking) and also return
+  nil; they are never silently swallowed.
+
+  The extracted file is persistent (not deleted on JVM exit), so the returned
+  path stays valid for a separately-launched JVM, e.g. one started with the
+  `-agentpath` from `criterium.agent/jvm-opts`.
 
   The path points to a platform-specific shared library (.so or .dylib) that
   can be loaded via -agentpath or VirtualMachine.loadAgent().
@@ -49,10 +60,60 @@
   Thread-safe - concurrent calls will safely extract to the same location."
   []
   (try
-    (loader/extract-agent)
+    (if-let [path (loader/extract-agent)]
+      path
+      (do
+        (binding [*out* *err*]
+          (println "criterium: native agent not available -"
+                   "unsupported platform:" (pr-str (platform/describe))))
+        nil))
     (catch Exception e
-      (println "WARNING: Failed to extract agent:" (.getMessage e))
+      (let [data (ex-data e)]
+        (binding [*out* *err*]
+          (println "WARNING: Failed to extract agent:"
+                   (ex-message e)
+                   (if data
+                     (pr-str (select-keys data [:stage :platform
+                                                :resource-path :target-path
+                                                :tmpdir]))
+                     ""))))
       nil)))
+
+(defn extract-agent!
+  "Explicitly extract the bundled native agent, surfacing all errors.
+
+  This is the explicit, fail-loud counterpart to `agent-path`. Where
+  `agent-path` degrades gracefully (logs and returns nil on failure, to keep
+  higher-level allocation tracking working without an agent), `extract-agent!`
+  performs the same extraction but *throws* a structured failure so callers can
+  detect and diagnose problems - useful for tooling that wires `-agentpath` and
+  must fail clearly if the agent cannot be extracted.
+
+  Options (map, optional):
+  - :cleanup-on-exit? (default false) - register a JVM shutdown hook to delete
+    the extracted file on exit. Only appropriate for ephemeral in-process use;
+    do NOT use when handing the path to a separately-launched JVM.
+
+  Returns:
+  - the absolute path to the extracted, persistent agent binary on success;
+  - nil only when the current platform is unsupported (a legitimate outcome).
+
+  Throws:
+  - clojure.lang.ExceptionInfo on any genuine failure. The ex-data carries:
+    - :criterium.agent/extraction-failure true
+    - :stage - the failing stage keyword, one of :read-hash, :resolve-binary,
+      :lock-dir-create, :open-lock, :acquire-lock, :create-temp, :copy,
+      :verify-hash, :atomic-move, :set-executable, :verify-permissions
+    - :platform, :resource-path, :target-path, :tmpdir - context for diagnosis
+    with the underlying throwable attached as the exception cause.
+
+  The extracted file is persistent (not deleted on JVM exit unless
+  :cleanup-on-exit? is set), so the returned path is valid for a
+  separately-launched JVM (e.g. via -agentpath).
+
+  Thread-safe - concurrent calls will safely extract to the same location."
+  ([] (loader/extract-agent))
+  ([opts] (loader/extract-agent opts)))
 
 (defn loaded?
   "Returns true if the Criterium native agent is currently loaded.

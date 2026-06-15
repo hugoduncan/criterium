@@ -13,8 +13,8 @@
   - JNI interface verification tests
   - Full integration smoke tests
 
-  Note: These tests require the agent binary to be present in
-  resources/native/{platform}/ and cannot run if the agent is
+  Note: These tests require the agent binary to be present as the resource
+  criterium/agent/{platform}/ and cannot run if the agent is
   already loaded via -agentpath."
   (:require
    [clojure.java.io :as io]

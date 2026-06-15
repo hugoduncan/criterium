@@ -53,6 +53,27 @@
     (when (and canonical-os canonical-arch)
       (str canonical-os "-" canonical-arch))))
 
+(defn describe
+  "Return a diagnostic map of raw and canonical platform values.
+
+  Useful for explaining *why* a platform was (un)supported instead of leaving
+  a bare nil from `detect`. Includes the raw `os.name`/`os.arch` system
+  properties, their canonical mappings, the resulting platform id, and whether
+  it is supported."
+  []
+  (let [os-name (System/getProperty "os.name")
+        os-arch (System/getProperty "os.arch")
+        canonical-os (get os-name-mapping os-name)
+        canonical-arch (get os-arch-mapping os-arch)
+        platform (when (and canonical-os canonical-arch)
+                   (str canonical-os "-" canonical-arch))]
+    {:os-name os-name
+     :os-arch os-arch
+     :canonical-os canonical-os
+     :canonical-arch canonical-arch
+     :platform platform
+     :supported? (some? platform)}))
+
 (defn extension
   "Return the native library file extension for the given platform.
 
