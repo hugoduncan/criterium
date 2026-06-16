@@ -280,7 +280,9 @@
                          "(the temp directory may be mounted noexec)")
                     #(verify-permissions! (.toPath target-file)))))))
       ;; Clean up lock file (best effort)
-      (try (.delete lock-file) (catch Exception _))
+      (try (.delete lock-file)
+           (catch Exception e
+             (warn "could not delete lock file" (str lock-file) "-" (.getMessage e))))
       true
       (catch clojure.lang.ExceptionInfo e
         ;; Structured failure: remove any partially-published target and rethrow
