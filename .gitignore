@@ -20,7 +20,7 @@ version.edn
 *.dylib
 *.log
 *.dSYM
-.clj-kondo/.cache/
+**/.clj-kondo/.cache/
 .clj-kondo/imports/
 .aider*
 agent-cpp/build/
