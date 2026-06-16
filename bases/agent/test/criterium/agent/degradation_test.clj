@@ -97,6 +97,42 @@
         (is (str/includes? (first @warnings) "Failed to extract agent")
             "Warning should mention extraction failure")))))
 
+(deftest explicit-extract-test
+  ;; extract-agent! is the explicit, fail-loud counterpart to agent-path.
+  (let [boom (fn [stage]
+               (fn
+                 ([] (throw (ex-info "boom"
+                                     {:criterium.agent/extraction-failure true
+                                      :stage stage})))
+                 ([_] (throw (ex-info "boom"
+                                      {:criterium.agent/extraction-failure true
+                                       :stage stage})))))]
+    (testing "runtime/extract-agent! throws structured error on failure"
+      (with-redefs [loader/extract-agent (boom :copy)]
+        (let [ex (is (thrown? clojure.lang.ExceptionInfo (runtime/extract-agent!)))]
+          (is (= :copy (:stage (ex-data ex))))
+          (is (true? (:criterium.agent/extraction-failure (ex-data ex)))))))
+
+    (testing "runtime/extract-agent! returns nil for unsupported platform"
+      (with-redefs [loader/extract-agent (constantly nil)]
+        (is (nil? (runtime/extract-agent!)))))
+
+    (testing "agent/extract-agent! propagates structured failure"
+      (with-redefs [loader/extract-agent (boom :resolve-binary)]
+        (let [ex (is (thrown? clojure.lang.ExceptionInfo (agent/extract-agent!)))]
+          (is (= :resolve-binary (:stage (ex-data ex)))))))
+
+    (testing "agent/extract-agent! returns nil for unsupported platform"
+      (with-redefs [loader/extract-agent (constantly nil)]
+        (is (nil? (agent/extract-agent!)))))
+
+    (testing "agent/extract-agent! passes options through"
+      (let [seen (atom nil)]
+        (with-redefs [loader/extract-agent (fn ([] (reset! seen {}) "/tmp/x")
+                                             ([opts] (reset! seen opts) "/tmp/x"))]
+          (is (= "/tmp/x" (agent/extract-agent! {:cleanup-on-exit? true})))
+          (is (= {:cleanup-on-exit? true} @seen)))))))
+
 (deftest jvm-opts-degradation-test
   ;; Test jvm-opts graceful degradation
   (testing "jvm-opts with unavailable agent"

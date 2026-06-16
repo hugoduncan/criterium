@@ -72,20 +72,20 @@ Move the downloaded binaries and hash files to the appropriate resource paths:
 
 ```bash
 # Create resource directories if they don't exist
-mkdir -p bases/agent/resources/native/linux-x64
-mkdir -p bases/agent/resources/native/macos-x64
-mkdir -p bases/agent/resources/native/macos-arm64
+mkdir -p bases/criterium/resources/criterium/agent/linux-x64
+mkdir -p bases/criterium/resources/criterium/agent/macos-x64
+mkdir -p bases/criterium/resources/criterium/agent/macos-arm64
 
 # Copy binaries and hash files to resource paths
-cp agent-cpp-linux-x64/libcriterium.* bases/agent/resources/native/linux-x64/
-cp agent-cpp-macos-x64/libcriterium.* bases/agent/resources/native/macos-x64/
-cp agent-cpp-macos-arm64/libcriterium.* bases/agent/resources/native/macos-arm64/
+cp agent-cpp-linux-x64/libcriterium.* bases/criterium/resources/criterium/agent/linux-x64/
+cp agent-cpp-macos-x64/libcriterium.* bases/criterium/resources/criterium/agent/macos-x64/
+cp agent-cpp-macos-arm64/libcriterium.* bases/criterium/resources/criterium/agent/macos-arm64/
 ```
 
 **Resource Path Convention:**
 ```
-bases/agent/resources/native/{platform}/libcriterium.{ext}
-bases/agent/resources/native/{platform}/libcriterium.{ext}.sha256
+bases/criterium/resources/criterium/agent/{platform}/libcriterium.{ext}
+bases/criterium/resources/criterium/agent/{platform}/libcriterium.{ext}.sha256
 ```
 
 Where:
@@ -123,7 +123,7 @@ Use this checklist when updating agent binaries for a release:
   - Download `agent-cpp-linux-x64`, `agent-cpp-macos-x64`, and `agent-cpp-macos-arm64` artifacts
 
 - [ ] **Place in Resources (Not Committed to Git):**
-  - Copy binaries to `bases/agent/resources/native/{platform}/`
+  - Copy binaries to `bases/criterium/resources/criterium/agent/{platform}/`
   - Verify file permissions (should be readable)
   - **IMPORTANT:** Binaries are in `.gitignore` and should NOT be committed to version control
   - Binaries must be downloaded fresh from CI before building release JARs
