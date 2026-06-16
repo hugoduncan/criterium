@@ -15,7 +15,7 @@ Add criterium as an alias in your `deps.edn`:
 
 ```clojure
 {:aliases
- {:bench {:extra-deps {org.hugoduncan/criterium {:mvn/version "0.5.153-ALPHA"}}
+ {:bench {:extra-deps {org.hugoduncan/criterium {:mvn/version "0.5.245-ALPHA"}}
           ;; JDK 17+ options for optimal dead-code elimination
           :jvm-opts ["-XX:+UnlockExperimentalVMOptions"
                      "-XX:CompileCommand=blackhole,criterium.blackhole.Blackhole::consume"]}}}
@@ -25,8 +25,8 @@ For benchmarks with generated arguments, also add the arg-gen library:
 
 ```clojure
 {:aliases
- {:bench {:extra-deps {org.hugoduncan/criterium {:mvn/version "0.5.153-ALPHA"}
-                       org.hugoduncan/criterium.arg-gen {:mvn/version "0.5.153-ALPHA"}}
+ {:bench {:extra-deps {org.hugoduncan/criterium {:mvn/version "0.5.245-ALPHA"}
+                       org.hugoduncan/criterium.arg-gen {:mvn/version "0.5.245-ALPHA"}}
           :jvm-opts ["-XX:+UnlockExperimentalVMOptions"
                      "-XX:CompileCommand=blackhole,criterium.blackhole.Blackhole::consume"]}}}
 ```
@@ -62,7 +62,7 @@ The native agent provides detailed allocation tracking. Due to JVMTI limitations
 
 ```bash
 # Get the agent path
-clojure -Sdeps '{:deps {org.hugoduncan/criterium {:mvn/version "0.5.153-ALPHA"}}}' \
+clojure -Sdeps '{:deps {org.hugoduncan/criterium {:mvn/version "0.5.245-ALPHA"}}}' \
   -e '(require '"'"'[criterium.agent :as agent]) (println (first (agent/jvm-opts)))'
 
 # Restart with the agent (use the path from above)
