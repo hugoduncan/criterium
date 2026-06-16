@@ -346,8 +346,11 @@
      `(measured
        (fn ~'measured-args [] (~args-f))
        ~(measured-expr-fn
-         [args]
-         `(apply ~f [~args])
+         ;; bind the whole arg-list state (`[:as args]`) and spread it into
+         ;; f, so callables of any arity work.  `[args]` would bind only the
+         ;; first element, silently dropping the rest.
+         [:as args]
+         `(apply ~f ~args)
          {})
        (fn ~'measured-expr []
          ~(list 'quote
@@ -357,8 +360,8 @@
      `(measured
        (fn ~'measured-args [] (~args-f))
        ~(measured-expr-fn
-         [args]
-         `(apply ~f [~args])
+         [:as args]
+         `(apply ~f ~args)
          {})
        (fn ~'measured-expr []
          ~(list 'quote

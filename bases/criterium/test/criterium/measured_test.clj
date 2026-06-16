@@ -122,6 +122,36 @@
         (is (= [:new-args] (measured/args modified-m)))
         (is (= [:warmup-args] (measured/warmup-args modified-m)))))))
 
+(deftest callable-test
+  ;; measured/callable builds a measured that applies f to the argument list
+  ;; returned by the setup function.  The setup function returns the *sequence
+  ;; of arguments*; f is called with those arguments spread.  Regression test
+  ;; for a bug where only the first argument reached f (multi-arg callables
+  ;; failed with an arity error).
+  (testing "no setup function (zero-arg f)"
+    (let [m (measured/callable (fn [] 41))]
+      (is (= 41 (second (invoke m))))))
+  (testing "single collection argument"
+    (let [f (fn [coll] (reduce + coll))
+          m (measured/callable (fn [] [[1 2 3]]) f)]
+      (is (= 6 (second (invoke m))))))
+  (testing "two arguments are both passed to f"
+    (let [f (fn [a b] (+ (long a) (long b)))
+          m (measured/callable (fn [] [10 20]) f)]
+      (is (= 30 (second (invoke m))))))
+  (testing "three arguments are all passed to f"
+    (let [f (fn [a b c] (* (long a) (long b) (long c)))
+          m (measured/callable (fn [] [2 3 4]) f)]
+      (is (= 24 (second (invoke m))))))
+  (testing "zero-arg f via empty argument list"
+    (let [f (fn [] 42)
+          m (measured/callable (fn [] []) f)]
+      (is (= 42 (second (invoke m))))))
+  (testing "warmup-args-fn arity also spreads all arguments"
+    (let [f (fn [a b] (* (long a) (long b)))
+          m (measured/callable (fn [] [6 7]) f (fn [] [1 1]))]
+      (is (= 42 (second (invoke m)))))))
+
 (defn random-seq
   [n]
   (mapv rand-int (repeat n 10000)))

@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Bug Fixes
+
+- *(measured)* Pass all arguments to `measured/callable` functions. Multi-arity
+  callables previously received only their first argument (failing with an
+  arity error), because the measured bound only the first element of the
+  argument list. The measured now binds and spreads the whole argument list.
+
 ## [0.5.245-ALPHA] - 2026-04-13
 
 ### Miscellaneous
