@@ -122,6 +122,36 @@
         (is (= [:new-args] (measured/args modified-m)))
         (is (= [:warmup-args] (measured/warmup-args modified-m)))))))
 
+(deftest callable-test
+  ;; measured/callable builds a measured that applies f to the argument list
+  ;; returned by the setup function.  The setup function returns the *sequence
+  ;; of arguments*; f is called with those arguments spread.  Regression test
+  ;; for a bug where only the first argument reached f (multi-arg callables
+  ;; failed with an arity error).
+  (testing "no setup function (zero-arg f)"
+    (let [m (measured/callable (fn [] 41))]
+      (is (= 41 (second (invoke m))))))
+  (testing "single collection argument"
+    (let [f (fn [coll] (reduce + coll))
+          m (measured/callable (fn [] [[1 2 3]]) f)]
+      (is (= 6 (second (invoke m))))))
+  (testing "two arguments are both passed to f"
+    (let [f (fn [a b] (+ (long a) (long b)))
+          m (measured/callable (fn [] [10 20]) f)]
+      (is (= 30 (second (invoke m))))))
+  (testing "three arguments are all passed to f"
+    (let [f (fn [a b c] (* (long a) (long b) (long c)))
+          m (measured/callable (fn [] [2 3 4]) f)]
+      (is (= 24 (second (invoke m))))))
+  (testing "zero-arg f via empty argument list"
+    (let [f (fn [] 42)
+          m (measured/callable (fn [] []) f)]
+      (is (= 42 (second (invoke m))))))
+  (testing "warmup-args-fn arity also spreads all arguments"
+    (let [f (fn [a b] (* (long a) (long b)))
+          m (measured/callable (fn [] [6 7]) f (fn [] [1 1]))]
+      (is (= 42 (second (invoke m)))))))
+
 (defn random-seq
   [n]
   (mapv rand-int (repeat n 10000)))
@@ -209,6 +239,30 @@
         (tap> {:zero-garbage-test
                {:allocations (frequencies thread-allocations)}}))
       (is (= [1 2] ret) "hold reference to return value until end of test"))))
+
+(deftest callable-unrolled-invocation-test
+  ;; The callable measurement loop invokes f via an unrolled arity dispatch
+  ;; rather than `apply`, so it allocates no argument seq per iteration.
+  ;; `apply` over the argument vector would surface as a ChunkedSeq/ArraySeq;
+  ;; assert those never appear.  Degrades to a vacuous pass when the native
+  ;; agent is not attached (allocations is nil).
+  (testing "callable does not allocate an argument seq via apply"
+    (let [f                  (fn [a b] (unchecked-add (long a) (long b)))
+          ;; values outside the Long cache so any apply seq would be obvious
+          mm                 (measured/callable (fn [] [100000 200000]) f)
+          st                 (measured/args mm)
+          _                  (dotimes [_ 1000] (measured/invoke mm st 1000))
+          [allocations ret]  (agent/with-allocation-tracing
+                               (measured/invoke mm st 1000))
+          thread-allocations (->> allocations
+                                  (filterv (agent/allocation-on-thread?)))
+          types              (set (map :object-type thread-allocations))]
+      (is (not (contains? types "clojure.lang.PersistentVector$ChunkedSeq"))
+          thread-allocations)
+      (is (not (contains? types "clojure.lang.ArraySeq"))
+          thread-allocations)
+      (is (= 300000 (second ret))
+          "hold reference to return value until end of test"))))
 
 ;;; Local detection tests
 ;; Tests for the local binding detection functionality used by measured-expr*.

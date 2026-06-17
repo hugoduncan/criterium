@@ -1,5 +1,25 @@
 # Changelog
 
+## [Unreleased]
+
+### Bug Fixes
+
+- *(measured)* Pass all arguments to `measured/callable` functions. Multi-arity
+  callables previously received only their first argument (failing with an
+  arity error), because the measured bound only the first element of the
+  argument list. The measured now binds and spreads the whole argument list.
+
+### Performance
+
+- *(measured)* Unroll the function invocation in `measured/callable` by arg
+  count, avoiding the per-iteration argument-seq allocation `apply` produced in
+  the measurement loop. Arities above 20 fall back to `apply`.
+- *(utils)* Extract the invocation unroll into `criterium.utils.forms`
+  (`unrolled-apply-form` / `unrolled-invoke`) so it can be shared.
+- *(instrument-fn, sampled-fn)* Invoke the wrapped function via the unrolled
+  dispatch instead of `apply`, removing the per-call argument-seq allocation
+  from the wrappers' measurement function.
+
 ## [0.5.245-ALPHA] - 2026-04-13
 
 ### Miscellaneous

@@ -3,6 +3,7 @@
    [clojure.set]
    [criterium.jvm :as jvm]
    [criterium.util.blackhole :as blackhole]
+   [criterium.util.forms :as forms]
    [criterium.util.helpers :as util]))
 
 (defrecord Measured
@@ -342,25 +343,32 @@
        ~(list 'quote
               `(time (~f))))))
   ([args-f f]
-   (let [args (gensym "args")]
-     `(measured
-       (fn ~'measured-args [] (~args-f))
-       ~(measured-expr-fn
-         [args]
-         `(apply ~f [~args])
-         {})
-       (fn ~'measured-expr []
-         ~(list 'quote
-                `(time (~f)))))))
+   (let [args  (gensym "args")
+         f-sym (gensym "f")]
+     `(let [~f-sym ~f]
+        (measured
+         (fn ~'measured-args [] (~args-f))
+         ~(measured-expr-fn
+           ;; bind the whole arg-list state (`[:as args]`) and spread it into
+           ;; f, so callables of any arity work.  `[args]` would bind only the
+           ;; first element, silently dropping the rest.
+           [:as args]
+           (forms/unrolled-apply-form f-sym args)
+           {})
+         (fn ~'measured-expr []
+           ~(list 'quote
+                  `(time (~f))))))))
   ([args-f f warmup-args-fn]
-   (let [args (gensym "args")]
-     `(measured
-       (fn ~'measured-args [] (~args-f))
-       ~(measured-expr-fn
-         [args]
-         `(apply ~f [~args])
-         {})
-       (fn ~'measured-expr []
-         ~(list 'quote
-                `(time (~f))))
-       ~warmup-args-fn))))
+   (let [args  (gensym "args")
+         f-sym (gensym "f")]
+     `(let [~f-sym ~f]
+        (measured
+         (fn ~'measured-args [] (~args-f))
+         ~(measured-expr-fn
+           [:as args]
+           (forms/unrolled-apply-form f-sym args)
+           {})
+         (fn ~'measured-expr []
+           ~(list 'quote
+                  `(time (~f))))
+         ~warmup-args-fn)))))

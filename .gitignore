@@ -30,3 +30,5 @@ bases/criterium/resources/criterium/agent/**/*.so
 bases/criterium/resources/criterium/agent/**/*.dylib
 bases/criterium/resources/criterium/agent/**/*.sha256
 /bases/criterium/.clj-kondo/imports/
+.nrepl-port
+.psi/project.local.edn
