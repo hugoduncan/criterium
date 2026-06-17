@@ -9,6 +9,12 @@
   arity error), because the measured bound only the first element of the
   argument list. The measured now binds and spreads the whole argument list.
 
+### Performance
+
+- *(measured)* Unroll the function invocation in `measured/callable` by arg
+  count, avoiding the per-iteration argument-seq allocation `apply` produced in
+  the measurement loop. Arities above 20 fall back to `apply`.
+
 ## [0.5.245-ALPHA] - 2026-04-13
 
 ### Miscellaneous

@@ -240,6 +240,30 @@
                {:allocations (frequencies thread-allocations)}}))
       (is (= [1 2] ret) "hold reference to return value until end of test"))))
 
+(deftest callable-unrolled-invocation-test
+  ;; The callable measurement loop invokes f via an unrolled arity dispatch
+  ;; rather than `apply`, so it allocates no argument seq per iteration.
+  ;; `apply` over the argument vector would surface as a ChunkedSeq/ArraySeq;
+  ;; assert those never appear.  Degrades to a vacuous pass when the native
+  ;; agent is not attached (allocations is nil).
+  (testing "callable does not allocate an argument seq via apply"
+    (let [f                  (fn [a b] (unchecked-add (long a) (long b)))
+          ;; values outside the Long cache so any apply seq would be obvious
+          mm                 (measured/callable (fn [] [100000 200000]) f)
+          st                 (measured/args mm)
+          _                  (dotimes [_ 1000] (measured/invoke mm st 1000))
+          [allocations ret]  (agent/with-allocation-tracing
+                               (measured/invoke mm st 1000))
+          thread-allocations (->> allocations
+                                  (filterv (agent/allocation-on-thread?)))
+          types              (set (map :object-type thread-allocations))]
+      (is (not (contains? types "clojure.lang.PersistentVector$ChunkedSeq"))
+          thread-allocations)
+      (is (not (contains? types "clojure.lang.ArraySeq"))
+          thread-allocations)
+      (is (= 300000 (second ret))
+          "hold reference to return value until end of test"))))
+
 ;;; Local detection tests
 ;; Tests for the local binding detection functionality used by measured-expr*.
 ;; These verify that locals from &env are correctly identified in expressions.
