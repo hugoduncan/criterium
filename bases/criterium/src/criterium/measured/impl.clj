@@ -3,6 +3,7 @@
    [clojure.set]
    [criterium.jvm :as jvm]
    [criterium.util.blackhole :as blackhole]
+   [criterium.util.forms :as forms]
    [criterium.util.helpers :as util]))
 
 (defrecord Measured
@@ -330,32 +331,6 @@
                        (~'time ~expr))))
       ~warmup-args-fn)))
 
-(def ^:no-doc max-unrolled-arity
-  "Highest arity for which `measured/callable` invocation is unrolled to a
-  direct call.  Higher arities fall back to `apply`."
-  20)
-
-(defn ^:no-doc unrolled-apply-form
-  "Return a form that invokes `f-sym` with the elements of the collection
-  bound to `args-sym`.
-
-  Dispatches on the argument count so common arities are called directly
-  (e.g. `(f (nth args 0) (nth args 1))`) rather than via `apply`, which
-  allocates a seq on every call.  This matters because the form is evaluated
-  on every iteration of the zero-garbage measurement loop.  Arities above
-  `max-unrolled-arity` fall back to `apply`.
-
-  `f-sym` must be a symbol (it is repeated across the dispatch arms), so the
-  caller should bind the function to a local first."
-  [f-sym args-sym]
-  `(case (count ~args-sym)
-     ~@(mapcat
-        (fn [n]
-          [n (cons f-sym
-                   (map (fn [i] `(nth ~args-sym ~i)) (range n)))])
-        (range (inc (long max-unrolled-arity))))
-     (apply ~f-sym ~args-sym)))
-
 (defn measured-callable
   ([f]
    `(measured
@@ -378,7 +353,7 @@
            ;; f, so callables of any arity work.  `[args]` would bind only the
            ;; first element, silently dropping the rest.
            [:as args]
-           (unrolled-apply-form f-sym args)
+           (forms/unrolled-apply-form f-sym args)
            {})
          (fn ~'measured-expr []
            ~(list 'quote
@@ -391,7 +366,7 @@
          (fn ~'measured-args [] (~args-f))
          ~(measured-expr-fn
            [:as args]
-           (unrolled-apply-form f-sym args)
+           (forms/unrolled-apply-form f-sym args)
            {})
          (fn ~'measured-expr []
            ~(list 'quote

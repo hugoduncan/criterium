@@ -11,6 +11,7 @@
    [criterium.jvm :as jvm]
    [criterium.measured :as measured]
    [criterium.sampler :as sampler]
+   [criterium.util.forms :as forms]
    [criterium.util.invariant :refer [have]])
   (:import
    [java.util.concurrent Callable]))
@@ -21,7 +22,7 @@
    (fn measured-f [args ^long eval-count]
      (have (partial = 1) eval-count)
      (let [start  (jvm/timestamp)
-           res    (apply original-fn args)
+           res    (forms/unrolled-invoke original-fn args)
            finish (jvm/timestamp)]
        [(unchecked-subtract finish start) res]))))
 

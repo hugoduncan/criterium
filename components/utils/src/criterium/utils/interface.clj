@@ -48,6 +48,22 @@
   [& clauses]
   `(forms/cond* ~@clauses))
 
+(def ^:no-doc max-unrolled-arity
+  "Highest arity for which function invocation is unrolled to a direct call."
+  forms/max-unrolled-arity)
+
+(defn ^:no-doc unrolled-apply-form
+  "Return a form invoking f-sym with the elements of args-sym, dispatching on
+  arg count to avoid apply's per-call seq allocation.  f-sym must be a symbol."
+  [f-sym args-sym]
+  (forms/unrolled-apply-form f-sym args-sym))
+
+(defmacro unrolled-invoke
+  "Invoke f with the elements of the args collection, unrolled by argument
+  count to avoid apply's per-call seq allocation."
+  [f args]
+  `(forms/unrolled-invoke ~f ~args))
+
 ;;; Helpers - math
 
 (defmacro sqr
