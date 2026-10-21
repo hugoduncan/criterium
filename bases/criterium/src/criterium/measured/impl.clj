@@ -1,6 +1,7 @@
 (ns criterium.measured.impl
   (:require
    [clojure.set]
+   [clojure.string :as str]
    [criterium.jvm :as jvm]
    [criterium.util.blackhole :as blackhole]
    [criterium.util.forms :as forms]
@@ -150,11 +151,123 @@
       [arg-sym (list f arg-sym)]
       [(with-meta arg-sym arg-meta) arg-sym])))
 
+(def ^:private OTHER-PRIMITIVE-TAGS
+  '#{boolean byte short char})
+
+(defn ^:no-doc array-tag?
+  "Predicate for a tag symbol naming an array type (name ends in `[]`)."
+  [tag]
+  (and (symbol? tag)
+       (str/ends-with? (name tag) "[]")))
+
+(defn ^:no-doc cell-kind
+  "Classify an argument tag into the single cell taxonomy.
+  Returns the primitive-cell kind (`:long`/`:int`/`:double`/`:float`), or
+  `:reference` for a reference-class symbol or no tag (both read through an
+  `AtomicReference`), or `:fallback` for the other primitives
+  (`boolean`/`byte`/`short`/`char`) and array tags, which have no unboxed
+  cell and keep the non-opaque binding.
+
+  Every kind is a keyword, so the codomain is one data shape: the
+  `opaque-cell` `case` dispatches on a single kind vocabulary and the
+  eligibility ⟺ cell invariant is expressed over a homogeneous set.
+
+  This is the single source of truth for the tag taxonomy: `arg-bindings`
+  dispatches opaque-vs-fallback on it, and `opaque-cell` dispatches the
+  per-kind cell construction on it, so the eligibility ⟺ cell invariant is
+  structural rather than maintained across two parallel decisions."
+  [tag]
+  (if-let [cast (cast-fn tag)]
+    (keyword cast)
+    (cond
+      (nil? tag)                                     :reference
+      (OTHER-PRIMITIVE-TAGS tag)                     :fallback
+      (and (symbol? tag) (not (array-tag? tag)))     :reference
+      :else                                          :fallback)))
+
+(defn ^:no-doc opaque-tag?
+  "Predicate for an argument tag that can be read through an opaque cell.
+  True for the unboxed primitive tags (see `cast-fn`), reference-class
+  symbols, and no tag. False for other primitives and array tags, which
+  have no unboxed cell.  Derived from `cell-kind`."
+  [tag]
+  (not= :fallback (cell-kind tag)))
+
+(defn- hinted [sym tag]
+  (with-meta sym {:tag tag}))
+
+(defn ^:no-doc opaque-cell
+  "Return `{:init [cell-sym ctor] :read [arg-sym read]}` binding pairs
+  for reading arg-sym through an opaque `java.util.concurrent.atomic` cell.
+  The init pair is evaluated once, before the loop; the read pair on every
+  iteration.  Dispatches on `cell-kind`.
+
+  Precondition: the argument tag must be opaque-eligible
+  (`cell-kind` ≠ `:fallback`); a `:fallback` tag has no unboxed cell and must
+  take `binding-with-hint-or-cast` instead.  The assertion states that
+  contract locally, so a caller that skips the `arg-bindings` dispatch gets a
+  named signal rather than an opaque `No matching clause` from the `case`."
+  [arg-sym arg-meta]
+  (let [kind (cell-kind (:tag arg-meta))]
+    (assert (not= :fallback kind)
+            (str "opaque-cell requires an opaque-eligible tag; got fallback "
+                 "tag " (pr-str (:tag arg-meta))))
+    (let [cell (gensym (str (name arg-sym) "-cell"))
+          al   'java.util.concurrent.atomic.AtomicLong
+          ai   'java.util.concurrent.atomic.AtomicInteger
+          ar   'java.util.concurrent.atomic.AtomicReference
+          read (fn [t] `(.getOpaque ~(hinted cell t)))]
+      (case kind
+        :long   {:init [(hinted cell al) `(new ~al (long ~arg-sym))]
+                 :read [arg-sym (read al)]}
+        :int    {:init [(hinted cell ai) `(new ~ai (int ~arg-sym))]
+                 :read [arg-sym `(int ~(read ai))]}
+        :double {:init [(hinted cell al)
+                        `(new ~al (Double/doubleToRawLongBits (double ~arg-sym)))]
+                 :read [arg-sym `(Double/longBitsToDouble ~(read al))]}
+        :float  {:init [(hinted cell ai)
+                        `(new ~ai (Float/floatToRawIntBits (float ~arg-sym)))]
+                 :read [arg-sym `(Float/intBitsToFloat ~(read ai))]}
+        :reference
+        {:init [(hinted cell ar) `(new ~ar ~arg-sym)]
+         :read [(with-meta arg-sym arg-meta) (read ar)]}))))
+
+(defn ^:no-doc arg-bindings
+  "Return `{:init [...] :read [...]}` binding vectors for the arguments.
+  Opaque-eligible arguments (`cell-kind` ≠ `:fallback`) get a cell init and
+  a per-iteration opaque read; `:fallback` arguments keep the non-opaque
+  `binding-with-hint-or-cast` binding in :init and add nothing to :read.
+
+  The arg-sym⟺meta pairing is total: every arg-sym is bound. An arg-sym with
+  no corresponding meta defaults to `{}` (classified `:reference`, so it is
+  still barriered), so a shorter `arg-metas` can not silently leave a trailing
+  argument unbound. The empty-`arg-metas` callable path (`[:as args]`, no
+  metas) is preserved explicitly: it produces no cells and leaves the
+  destructure intact rather than defaulting the whole-args symbols to
+  `:reference` cells."
+  [arg-syms arg-metas]
+  (if (empty? arg-metas)
+    {:init [] :read []}
+    (reduce
+     (fn [acc [arg-sym arg-meta]]
+       (if (= :fallback (cell-kind (:tag arg-meta)))
+         (update acc :init into (binding-with-hint-or-cast arg-sym arg-meta))
+         (let [{:keys [init read]} (opaque-cell arg-sym arg-meta)]
+           (-> acc (update :init into init) (update :read into read)))))
+     {:init [] :read []}
+     (map vector arg-syms (concat arg-metas (repeat {}))))))
+
 (defn ^:internal ^:no-doc measured-expr-fn
   "Construct a function expression to measure the given expr.
-  Captures the expression arguments into a state function."
+  Captures the expression arguments into a state function.
+
+  Each opaque-eligible argument (see `opaque-tag?`) is stored once in an
+  atomic cell before timing starts, and read with `getOpaque` on every
+  iteration. This stops the JIT proving the input stable, so it can not
+  hoist or constant fold the expression out of the loop."
   [arg-syms expr {:keys [arg-metas time-fn]}]
   (let [eval-count-sym (gensym "eval-count")
+        {:keys [init read]} (arg-bindings arg-syms arg-metas)
         time-fn (when time-fn
                   (with-meta
                     time-fn
@@ -164,7 +277,7 @@
         ;; explicitly not tagged as 'long, since this function is invoked
         ;; non-literally, so the calling value will always be an object.
         ~eval-count-sym]
-       (let [~@(mapcat binding-with-hint-or-cast arg-syms arg-metas)
+       (let [~@init
              ;; primitive loop coounter.  Decrement since we evaluate
              ;; once outside the loop.
              ~(with-meta eval-count-sym {:tag 'long})
@@ -173,10 +286,12 @@
              start# ~(if time-fn
                        `(. ~time-fn invokePrim)
                        `(jvm/timestamp))
-             val# ~expr] ; evaluate once to get a return value
+             ;; evaluate once to get a return value
+             val# (let [~@read] ~expr)]
          (loop [i# n#]
            (when (pos? i#)
-             (blackhole/consume ~expr)
+             (let [~@read]
+               (blackhole/consume ~expr))
              (recur (long (unchecked-dec i#)))))
          (let [finish# ~(if time-fn
                           `(. ~time-fn invokePrim)

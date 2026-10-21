@@ -43,10 +43,13 @@
 ;;
 ;; ** Metric Statistics**
 ;;
+;; The numbers below illustrate the output format only; the magnitudes are
+;; not a current measurement.
+;;
 ;; ```
-;;   Elapsed Time median: 0.00390 ns CI [0.00390 0.00390] (0.025 0.975)
-;;   Elapsed Time spread: [0.00376 0.00410] ns (10th-90th percentile)
-;; Elapsed Time extremes: [0.00376 0.00410] ns
+;;   Elapsed Time median: 3.90 ns CI [3.88 3.92] (0.025 0.975)
+;;   Elapsed Time spread: [3.76 4.10] ns (10th-90th percentile)
+;; Elapsed Time extremes: [3.76 4.10] ns
 ;; ```
 ;;
 ;; Criterium takes the measured samples and bootstraps statistics.  The reported
@@ -87,8 +90,11 @@
 ;; The `data` binding is captured before timing begins. Only the `reduce`
 ;; call is measured, not the vector creation.
 ;;
-;; This works because criterium "hoists" local bindings—it captures their
-;; values once, then uses those values for every timed execution.
+;; Each captured argument value is stored once, before timing, and then read
+;; opaquely on every timed iteration. The read keeps the work in the loop:
+;; the JIT can not prove the input is stable, so it can not hoist the measured
+;; expression out of the loop or fold a `final` field read to a constant. The
+;; setup (here the vector creation) still happens once, before timing.
 
 ;; Here's a clearer example showing what gets measured:
 

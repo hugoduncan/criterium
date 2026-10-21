@@ -1,7 +1,9 @@
 (ns criterium.measured-test
   (:require
+   [clojure.string :as str]
    [clojure.test :refer [deftest is testing]]
    [criterium.agent :as agent]
+   [criterium.blackhole :as blackhole]
    [criterium.jvm :as jvm]
    [criterium.measured :as measured]
    [criterium.measured.impl :as impl]))
@@ -199,6 +201,15 @@
         (is (= [1] (measured/args m)))
         (is (= 1 (second (invoke m))))
         (is (= 2 @invokes))))
+    (testing "with time-fn option over an opaque-eligible argument"
+      ;; exercise the custom-timer start#/finish# forms together with a
+      ;; live opaque cell: the constant subject above has no cell, so this
+      ;; is the only end-to-end check of the two codegen concerns combined.
+      (let [f (fn ^long [] (jvm/thread-cpu-time))
+            x 41
+            m (measured/expr (unchecked-inc ^long x) {:time-fn f})]
+        (is (= [41] (measured/args m)))
+        (is (= 42 (second (invoke m))))))
     (testing "with transduce lifts the collection argument"
       (let [m    (measured/expr
                   (transduce (comp (filter odd?) (map inc)) + (range 5)))
@@ -891,3 +902,386 @@
         (is (= 30 new-result))
         (is (not= original-result new-result)
             "results must differ to prove arguments are dynamic")))))
+
+;;; Opaque input barrier (#155)
+
+(defn- form-seq [form]
+  (tree-seq coll? seq form))
+
+(defn- count-matching [pred form]
+  (count (filter pred (form-seq form))))
+
+(defn- get-opaque? [x]
+  (and (seq? x) (= '.getOpaque (first x))))
+
+(defn- cell-ctor? [x]
+  (and (seq? x) (= 'new (first x))))
+
+(defn- loop-form [fn-form]
+  (first (filter #(and (seq? %) (= `loop (first %)))
+                 (form-seq fn-form))))
+
+(defn- start-timestamp? [x]
+  ;; the `start#` binding value: `(jvm/timestamp)` or
+  ;; `(. time-fn invokePrim)`, depending on whether a custom timer is used.
+  (and (seq? x)
+       (or (= `jvm/timestamp (first x))
+           (and (= '. (first x))
+                (symbol? (last x))
+                (= "invokePrim" (name (last x)))))))
+
+(defn- outer-let-bindings
+  "The binding vector of the outer `let` in the generated fn form."
+  [fn-form]
+  (let [let-form (first (filter #(and (seq? %) (= `let (first %)))
+                                (form-seq fn-form)))]
+    (second let-form)))
+
+(defn- binding-value-index
+  "Index in a let binding vector of the first bound value matching `pred`,
+  or nil. Binding vectors alternate name/value, so values are odd indices."
+  [bindings pred]
+  (->> (map vector (range) bindings)
+       (filter (fn [[i v]] (and (odd? i) (pred v))))
+       ffirst))
+
+(defn- expr-fn-form
+  ([tag] (expr-fn-form tag nil))
+  ([tag time-fn]
+   (impl/measured-expr-fn
+    '[a] '(identity a)
+    (cond-> {:arg-metas [(when tag {:tag tag})]}
+      time-fn (assoc :time-fn time-fn)))))
+
+(deftest opaque-tag-test
+  (testing "opaque-tag?"
+    (testing "is true for unboxed primitives, references and no tag"
+      (doseq [tag '[long int double float java.lang.String clojure.lang.IFn]]
+        (is (impl/opaque-tag? tag) (str tag)))
+      (is (impl/opaque-tag? nil)))
+    (testing "is false for other primitives and array tags"
+      (doseq [tag '[boolean byte short char]]
+        (is (not (impl/opaque-tag? tag)) (str tag)))
+      (doseq [tag (map symbol ["long[]" "double[]" "java.lang.String[]"])]
+        (is (not (impl/opaque-tag? tag)) (str tag)))))
+  (testing "opaque-cell rejects a fallback tag with a named signal"
+    (doseq [tag '[boolean byte short char]]
+      (is (thrown-with-msg?
+           AssertionError #"opaque-cell requires an opaque-eligible tag"
+           (impl/opaque-cell 'x {:tag tag}))
+          (str tag))))
+  (testing "cell-kind classifies each tag into one kind"
+    (testing "unboxed primitives map to their keyword kind"
+      (is (= :long (impl/cell-kind 'long)))
+      (is (= :int (impl/cell-kind 'int)))
+      (is (= :double (impl/cell-kind 'double)))
+      (is (= :float (impl/cell-kind 'float))))
+    (testing "reference-class symbols and no tag map to :reference"
+      (is (= :reference (impl/cell-kind 'java.lang.String)))
+      (is (= :reference (impl/cell-kind 'clojure.lang.IFn)))
+      (is (= :reference (impl/cell-kind nil))))
+    (testing "other primitives map to :fallback"
+      (doseq [tag '[boolean byte short char]]
+        (is (= :fallback (impl/cell-kind tag)) (str tag))))
+    (testing "array tags map to :fallback, not :reference"
+      ;; Array tags are symbols; pin that they are excluded from the
+      ;; generic reference catch regardless of cond clause order (#156).
+      (doseq [tag (map symbol ["long[]" "double[]" "java.lang.String[]"])]
+        (is (= :fallback (impl/cell-kind tag)) (str tag)))))
+  (testing "arg-bindings is total over the arg-sym⟺meta pairing"
+    (testing "a shorter arg-metas binds every arg-sym, none left unbound"
+      ;; N syms / (N-1) metas: the trailing argument must still be bound
+      ;; (defaulted to :reference, so barriered) rather than silently
+      ;; dropped by a truncating pairing (criterion 1).
+      (let [{:keys [init read]} (impl/arg-bindings '[a b] [{:tag 'long}])
+            init-syms (set (take-nth 2 init))
+            read-syms (set (take-nth 2 read))]
+        ;; a: long cell + opaque read; b: defaulted reference cell + read.
+        (is (= 2 (count (filter symbol? init-syms))))
+        (is (contains? read-syms 'a))
+        (is (contains? read-syms 'b))))
+    (testing "an empty arg-metas (callable path) produces no bindings"
+      ;; `[:as args]` with no metas must leave the destructure intact: no
+      ;; cell for the whole-args symbols, no fallback binding.
+      (is (= {:init [] :read []} (impl/arg-bindings '[:as args] [])))
+      (is (= {:init [] :read []} (impl/arg-bindings '[:as args] nil))))))
+
+(defn- assert-opaque-structure
+  "Assert the once-outside / read-inside / ctor-before-start# invariants
+  on a generated opaque expr-fn `form`."
+  [form]
+  (let [lp (loop-form form)]
+    (is (= 1 (count-matching cell-ctor? form))
+        "constructs the cell exactly once")
+    (is (zero? (count-matching cell-ctor? lp))
+        "constructs no cell inside the loop")
+    (is (= 1 (count-matching get-opaque? lp))
+        "reads the cell opaquely inside the loop")
+    (is (= 2 (count-matching get-opaque? form))
+        "reads the cell for the primed value and in the loop")
+    (is (zero? (count-matching
+                #(and (symbol? %)
+                      (re-find #"(?i)^\.?set" (name %)))
+                lp))
+        "stores nothing inside the loop")
+    (let [bindings  (outer-let-bindings form)
+          ctor-idx  (binding-value-index
+                     bindings
+                     #(< 0 (long (count-matching cell-ctor? %))))
+          start-idx (binding-value-index bindings start-timestamp?)]
+      (is (some? ctor-idx)
+          "cell ctor is a binding value in the outer let")
+      (is (some? start-idx)
+          "start# timestamp is a binding value in the outer let")
+      (is (and ctor-idx start-idx
+               (< (long ctor-idx) (long start-idx)))
+          "constructs the cell before start# (outside the timed region)"))))
+
+(deftest opaque-structure-test
+  (testing "measured-expr-fn for an opaque-eligible argument"
+    (doseq [tag '[long int double float java.lang.String nil]]
+      (testing (str "tagged " tag " (default timer)")
+        (assert-opaque-structure (expr-fn-form tag)))
+      (testing (str "tagged " tag " (custom time-fn)")
+        ;; the custom-timer branch emits a different outer-let shape:
+        ;; start# is `(. time-fn invokePrim)`, exercising the
+        ;; `invokePrim` arm of `start-timestamp?`.  Confirm the cell
+        ;; still builds once, outside the loop, before start#.
+        (assert-opaque-structure (expr-fn-form tag 'time-fn))))))
+
+(deftest opaque-structure-multi-arg-test
+  (testing "every opaque-eligible argument is read through its own cell"
+    ;; criterion 1 says *every* opaque-eligible argument is read through
+    ;; an atomic cell.  A single-argument form fixes the counts at N=1, so
+    ;; dropping a cell for any argument but the first would still pass the
+    ;; one-arg structural test.  Assert ctor / getOpaque counts scale with
+    ;; the number of opaque-eligible arguments.
+    (doseq [n' [2 3]]
+      (testing (str n' " opaque arguments")
+        (let [n         (long n')
+              arg-syms  (mapv #(symbol (str "a" %)) (range n))
+              form      (impl/measured-expr-fn
+                         arg-syms (cons '+ (map #(list 'long %) arg-syms))
+                         {:arg-metas (repeat n {:tag 'long})})
+              lp        (loop-form form)
+              bindings  (outer-let-bindings form)
+              start-idx (binding-value-index bindings start-timestamp?)]
+          (is (= n (count-matching cell-ctor? form))
+              "constructs one cell per opaque argument")
+          (is (zero? (count-matching cell-ctor? lp))
+              "constructs no cell inside the loop")
+          (is (= n (count-matching get-opaque? lp))
+              "reads every cell opaquely inside the loop")
+          (is (= (* 2 n) (count-matching get-opaque? form))
+              "reads every cell for the primed value and in the loop")
+          ;; each cell ctor must still precede start# (outside the timed
+          ;; region), so dropping a cell for any argument but the first is
+          ;; caught even when the ctor order is permuted.
+          (is (some? start-idx) "start# timestamp is in the outer let")
+          (is (= n (->> bindings
+                        (map vector (range))
+                        (filter (fn [[i v]]
+                                  (and (odd? i)
+                                       (< 0 (long (count-matching
+                                                   cell-ctor? v)))
+                                       (< (long i) (long start-idx)))))
+                        count))
+              "constructs every cell before start#"))))))
+
+(deftest opaque-fallback-test
+  (testing "measured-expr-fn falls back to a plain binding"
+    (doseq [tag (conj '[boolean byte short char] (symbol "long[]"))]
+      (testing (str "for tag " tag)
+        (let [form (expr-fn-form tag)]
+          (is (zero? (count-matching cell-ctor? form)))
+          (is (zero? (count-matching get-opaque? form))))))
+    (testing "for the callable path"
+      (let [form (impl/measured-callable `(fn [] 1))]
+        (is (zero? (count-matching get-opaque? form))))
+      (let [form (impl/measured-callable `(fn [] [1]) `identity)]
+        (is (zero? (count-matching get-opaque? form)))))))
+
+(deftest opaque-mixed-args-test
+  (testing "opaque and fallback arguments coexist"
+    (let [xs  (long-array [1 2 3])
+          n   2
+          d   1.5
+          m   (measured/expr (+ ^long (aget ^longs xs n) d))
+          c   (.charAt "abc" 1) ; primitive char tag falls back
+          a   (measured/expr (str c n))]
+      (is (== 4.5 (second (invoke m))))
+      (is (== 4.5 (second (invoke m 1000))))
+      (is (= "b2" (second (invoke a 1000)))))
+    (testing "and primitive values round trip through their cells"
+      (let [i (int 7)
+            f (float 2.5)
+            d -0.0
+            l Long/MIN_VALUE]
+        (is (= 7 (second (invoke (measured/expr (identity i)) 10))))
+        (is (= 2.5 (double (second (invoke (measured/expr (identity f)) 10)))))
+        (is (= "-0.0" (str (second (invoke (measured/expr (identity d)) 10)))))
+        (is (= Long/MIN_VALUE
+               (second (invoke (measured/expr (identity l)) 10))))))
+    (testing "and the boolean/byte/short fallback tags still measure correctly"
+      ;; These primitive tags have no unboxed atomic cell, so they take the
+      ;; non-opaque binding-with-hint-or-cast path (criterion 4). Exercise a
+      ;; real measurement rather than only the structural opaque-fallback-test.
+      (let [b  true
+            by (byte 5)
+            sh (short 1000)]
+        (is (= false (second (invoke (measured/expr (not ^boolean b)) 10))))
+        (is (= 6 (second (invoke (measured/expr (unchecked-inc ^byte by)) 10))))
+        (is (= 1001
+               (second (invoke (measured/expr (unchecked-inc ^short sh)) 10))))))))
+
+(defn- boxing-reflection-warnings
+  "Compile `form` and return only its boxed-math/reflection warning lines.
+  Filters out unrelated *err* noise (such as the blackhole JVM-17 fallback
+  warning) so the signal is just boxing/reflection, not raw stderr."
+  [form]
+  (let [err (java.io.StringWriter.)]
+    (binding [*err*                err
+              *warn-on-reflection* true
+              *unchecked-math*     :warn-on-boxed
+              *ns*                 (the-ns 'criterium.measured.impl)]
+      (eval form))
+    (->> (str/split-lines (str err))
+         (filter #(re-find #"Boxed math warning|Reflection warning" %)))))
+
+(deftest opaque-no-boxing-test
+  (testing "primitive cells compile without boxing or reflection"
+    (doseq [[tag expr] '[[long (unchecked-inc a)]
+                         [int (unchecked-inc-int a)]
+                         [double (unchecked-add a 1.0)]
+                         [float (unchecked-add a 1.0)]]]
+      (let [form     (impl/measured-expr-fn '[a] expr {:arg-metas [{:tag tag}]})
+            warnings (boxing-reflection-warnings form)]
+        (is (empty? warnings) (str tag " " (vec warnings)))))))
+
+(deftest opaque-reference-no-reflection-test
+  ;; The reference-cell read re-hints the AtomicReference.getOpaque Object
+  ;; result with the argument tag (acceptance criterion 4). A subject that
+  ;; needs the hint to resolve a method must compile without reflection; a
+  ;; dropped re-hint would turn the read reflective and this test would fail.
+  (testing "a class-tagged reference read re-hints so the subject resolves"
+    (let [form     (impl/measured-expr-fn
+                    '[a] '(.length a) {:arg-metas [{:tag 'java.lang.String}]})
+          warnings (boxing-reflection-warnings form)]
+      (is (empty? warnings) (str (vec warnings)))))
+  (testing "and the hinted reference round trips through the cell"
+    (let [s "abcde"]
+      (is (= 5 (second (invoke (measured/expr (.length ^String s)) 10)))))))
+
+(defrecord OpaqueRec [^long x])
+
+(defn- best-ns-per-call
+  [m ^long n]
+  (invoke m n)
+  (->> (repeatedly 5 #(first (invoke m n)))
+       (map #(/ (double %) n))
+       (apply min)))
+
+(deftest opaque-behaviour-test
+  ;; Guarded on the compiler blackhole: under the runtime blackhole every
+  ;; consume costs ~3 ns, so both subject and control are >=1 ns and the
+  ;; assertion holds regardless of whether the opaque barrier works. The
+  ;; defect (a final-field read hoisted out of the loop) is only observable
+  ;; under the compiler blackhole (the `:blackhole` alias). Skip explicitly
+  ;; otherwise rather than passing vacuously.
+  ;;
+  ;; The floor is `(< (* 0.5 c) s)`, not `(* 0.1 c)`. A working barrier makes
+  ;; subject ~= control (ratio ~1.0); a hoisted subject still costs the
+  ;; empty-loop/consume cost, measured at ~0.4x control, not zero. At these
+  ;; magnitudes a `0.1*c` floor passes for BOTH regimes, so it has no teeth:
+  ;; it would not catch a broken barrier. `0.5*c` separates them (measured:
+  ;; working ratio ~1.0 passes, hoisted ratio ~0.3-0.4 fails), so a hoisting
+  ;; regression fails the assertion.
+  (if (blackhole/compiler-blackhole-enabled?)
+    (testing "the opaque barrier keeps work in the loop (criterion 2)"
+      (testing "a final field read is not hoisted (reference-cell path)"
+        (let [n       10000000
+              r       (->OpaqueRec 1)
+              v       (volatile! r)
+              subject (measured/expr (.-x ^OpaqueRec r))
+              ;; a volatile read per call can not be hoisted
+              control (measured/expr (.-x ^OpaqueRec (deref ^clojure.lang.Volatile v)))
+              _       (best-ns-per-call subject n)
+              s       (best-ns-per-call subject n)
+              c       (best-ns-per-call control n)]
+          (is (< (* 0.5 (double c)) s)
+              (str "subject " s " ns, control " c " ns"))))
+      (testing "a primitive arithmetic expression is not hoisted (primitive-cell path)"
+        ;; Distinct code from the reference path: the `long` argument flows
+        ;; through an AtomicLong cell read with getOpaque. A regression that
+        ;; re-enabled hoisting for primitive arguments only would pass the
+        ;; reference case above but fail here.
+        (let [n       10000000
+              x       1
+              v       (volatile! x)
+              subject (measured/expr (unchecked-inc ^long x))
+              ;; a volatile read per call can not be hoisted
+              control (measured/expr
+                       (unchecked-inc ^long (deref ^clojure.lang.Volatile v)))
+              _       (best-ns-per-call subject n)
+              s       (best-ns-per-call subject n)
+              c       (best-ns-per-call control n)]
+          (is (< (* 0.5 (double c)) s)
+              (str "subject " s " ns, control " c " ns"))))
+      (testing "a double bit-reinterpretation read is not hoisted (double-cell path)"
+        ;; Distinct code from both long and reference: the `double` argument
+        ;; flows through an AtomicLong cell whose read is wrapped in
+        ;; (Double/longBitsToDouble (.getOpaque cell)). A regression that
+        ;; folded that bit-reinterpretation of a now-provably-stable read
+        ;; would pass the long case above but fail here.
+        (let [n       10000000
+              x       1.5
+              v       (volatile! x)
+              subject (measured/expr (unchecked-add 1.0 ^double x))
+              ;; a volatile read per call can not be hoisted
+              control (measured/expr
+                       (unchecked-add 1.0 ^double (deref ^clojure.lang.Volatile v)))
+              _       (best-ns-per-call subject n)
+              s       (best-ns-per-call subject n)
+              c       (best-ns-per-call control n)]
+          (is (< (* 0.5 (double c)) s)
+              (str "subject " s " ns, control " c " ns"))))
+      (testing "an int read is not hoisted (int-cell path)"
+        ;; Distinct code from the long path: the `int` argument flows through
+        ;; an AtomicInteger cell whose read is re-wrapped (int (.getOpaque
+        ;; cell)). A regression that re-enabled hoisting on the narrower
+        ;; AtomicInteger path only would pass the long case above but fail
+        ;; here.
+        (let [n       10000000
+              x       (int 1)
+              v       (volatile! x)
+              subject (measured/expr (unchecked-inc-int ^int x))
+              ;; a volatile read per call can not be hoisted
+              control (measured/expr
+                       (unchecked-inc-int ^int (deref ^clojure.lang.Volatile v)))
+              _       (best-ns-per-call subject n)
+              s       (best-ns-per-call subject n)
+              c       (best-ns-per-call control n)]
+          (is (< (* 0.5 (double c)) s)
+              (str "subject " s " ns, control " c " ns"))))
+      (testing "a float bit-reinterpretation read is not hoisted (float-cell path)"
+        ;; Distinct code from both long and double: the `float` argument
+        ;; flows through an AtomicInteger cell whose read is wrapped in
+        ;; (Float/intBitsToFloat (.getOpaque cell)) — the only
+        ;; AtomicInteger-based bit-reinterpretation path. A regression that
+        ;; folded that bit-reinterpretation would pass the long/double cases
+        ;; above but fail here.
+        (let [n       10000000
+              x       (float 1.5)
+              v       (volatile! x)
+              subject (measured/expr (unchecked-add 1.0 ^float x))
+              ;; a volatile read per call can not be hoisted
+              control (measured/expr
+                       (unchecked-add 1.0 ^float (deref ^clojure.lang.Volatile v)))
+              _       (best-ns-per-call subject n)
+              s       (best-ns-per-call subject n)
+              c       (best-ns-per-call control n)]
+          (is (< (* 0.5 (double c)) s)
+              (str "subject " s " ns, control " c " ns")))))
+    (testing "skipped: opaque barrier only observable under compiler blackhole"
+      (is (= :runtime (blackhole/mode))
+          "expected runtime blackhole when compiler blackhole is disabled"))))

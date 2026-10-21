@@ -26,6 +26,31 @@ This includes:
     to testing
   * a final forced GC after testing to estimate impact of cleanup on the
     timing results
+  * prevention of JIT optimisations that remove the measured work (see
+    below)
+
+### What the harness stops, and its cost
+
+The harness stops constant folding and dead-code elimination of the
+measured expression:
+
+  * Each argument of a `measured/expr` expression is stored once, before
+    timing starts, in an atomic cell. The measured loop reads the cell
+    with an opaque read (`getOpaque`) on every iteration. The JIT can not
+    prove the input is stable, so it can not move the expression out of
+    the loop or fold a `final` field read (for example a record field) to
+    a constant.
+  * The result of each iteration goes to a blackhole, so the JIT can not
+    remove the expression as dead code.
+
+The opaque read has a small cost. For very cheap expressions the
+reported time includes about 0.07 ns per primitive argument and about
+0.11 ns per reference argument (the value changes by about 25-30%
+between JVM runs). Criterium does not subtract this cost.
+
+Arguments with an array type, with a `boolean`, `byte`, `short` or `char`
+type, and `measured/callable` arguments use a plain binding, without the
+opaque read.
 
 ## Installation
 
