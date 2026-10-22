@@ -114,21 +114,31 @@ jobs:
           clojure -M:kaocha:dev:test :all --reporter dots
         fi
 
-    # The opaque-input-barrier behavioural test (criterion 2: a final-field
-    # read must not be hoisted) is only discriminating under the compiler
+    # The opaque-input-barrier behavioural tests (criterion 2: a final-field
+    # read must not be hoisted) are only discriminating under the compiler
     # blackhole, which needs JVM 17+ and the :blackhole alias. The default
-    # JVM here is 11, so install a 17+ JDK and run the test under :blackhole
+    # JVM here is 11, so install a 17+ JDK and run the tests under :blackhole
     # to exercise the barrier repeatably; a regression that re-enables
     # hoisting fails here instead of passing the default suite unnoticed.
+    #
+    # Linux (x86-64) only. The hoisting-floor oracle compares the opaque
+    # `getOpaque` subject against a `volatile`-read control and assumes they
+    # cost about the same when the barrier works. That holds on x86-64 (TSO:
+    # a volatile load is a plain load), but not on Apple-Silicon macOS, where
+    # a volatile load needs an `ldar` barrier and so costs about twice the
+    # opaque read; the control is then no longer a fair same-cost baseline
+    # and the floor cannot separate "working" from "hoisted". The barrier
+    # itself is platform-independent; only this timing oracle is calibrated
+    # for x86-64, so pin it to the Linux runner.
     - name: Prepare java 21 for compiler-blackhole test
-      if: matrix.with-agent == false
+      if: matrix.with-agent == false && runner.os == 'Linux'
       uses: actions/setup-java@v3
       with:
         distribution: 'zulu'
         java-version: '21'
 
     - name: opaque barrier under compiler blackhole
-      if: matrix.with-agent == false
+      if: matrix.with-agent == false && runner.os == 'Linux'
       run: |
         set -x
         clojure -M:kaocha:dev:test:blackhole :all \
@@ -137,7 +147,7 @@ jobs:
           --reporter dots
 
     - name: Restore java 11
-      if: matrix.with-agent == false
+      if: matrix.with-agent == false && runner.os == 'Linux'
       uses: actions/setup-java@v3
       with:
         distribution: 'zulu'
