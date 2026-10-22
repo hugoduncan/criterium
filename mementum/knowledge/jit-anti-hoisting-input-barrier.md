@@ -61,6 +61,51 @@ do not pipeline, so cost scales with arity; run-to-run variance ~25-30%. It is
 documented, not subtracted (subtracting a noisy same-order baseline produces
 negative times — #19).
 
+# DEFECT: escape analysis folds downstream computation (default JVM)
+
+Confirmed empirically (JDK 25, arm64, compiler blackhole): the barrier keeps
+the opaque *read* in the loop but does NOT keep pure computation *downstream*
+of the read in the loop, because C2 escape analysis defeats opaque semantics.
+
+The `AtomicLong`/`AtomicReference` cell is a thread-local object that never
+escapes the measured function and is never written inside the loop. Opaque
+access mode only promises "treat this location as if another thread may change
+it." But escape analysis proves no other thread can ever reach this object, so
+there is no possible concurrent writer — and C2 then treats the `getOpaque`
+value as the loop-invariant constant it provably is, re-emitting the cheap load
+but constant-folding and hoisting any pure computation built on it.
+
+Proof (toggle `-XX:-DoEscapeAnalysis`):
+
+| subject | EA on (default) | EA off |
+|---|---|---|
+| `(Math/sqrt x)` | 0.054 ns | 0.442 ns |
+| `(Math/sqrt (Math/sqrt (Math/sqrt x)))` | 0.054 ns | 1.33 ns |
+| `(/ 1.0 x)` | 0.108 ns | 0.217 ns |
+
+With EA on the sqrt result is depth-independent (0.054 ns for 1 and for 3
+nested) — the chain is folded away. With EA off it scales ~3× (0.442 → 1.33),
+proving the sqrts execute, throughput-bound on the FSQRT unit (~0.44 ns each).
+The macroexpansion is correct in both cases (opaque read + sqrt present in the
+loop body); the difference is purely C2's EA decision.
+
+Consequences:
+
+- The barrier only reliably measures subjects where **the read is the work**
+  (the canonical record field read). For arithmetic / `sqrt` / `/` / `inc`
+  downstream of the read, the default JVM folds it to a sub-cycle floor and
+  the reported number is meaningless.
+- The canonical field-read success case is itself suspect under EA: a
+  non-escaping `AtomicReference` cell could be folded the same way. Needs a
+  dedicated check (field read with EA on vs off).
+- Honest sub-ns numbers require one of: run with `-XX:-DoEscapeAnalysis`; make
+  the cell escape (store it where EA cannot prove thread-locality); or impose a
+  loop-carried dependency (the current read-only barrier provides none).
+- This is a candidate issue against the task-001 design: its stated goal
+  ("report a per-call time that reflects the subject expression, including for
+  pure expressions whose cost is below about one nanosecond") is not met on a
+  default JVM for computation downstream of the barrier read.
+
 # Throughput vs latency: the barrier does not serialize iterations
 
 The barrier defeats *hoisting* (lifting work out of the loop). It does NOT
