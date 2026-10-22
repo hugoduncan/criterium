@@ -50,9 +50,10 @@ reported time includes about 0.07 ns per primitive argument and about
 0.2-0.35 ns per reference argument (the value changes by about 25-30%
 between JVM runs). Criterium does not subtract this cost.
 
-Arguments with an array type, with a `boolean`, `byte`, `short` or `char`
-type, and `measured/callable` arguments use a plain binding, without the
-opaque read.
+Every primitive argument (including `boolean`, `byte`, `short` and
+`char`) reads through the opaque cell. Arguments with an array type and
+`measured/callable` arguments use a plain binding, without the opaque
+read.
 
 ## Installation
 

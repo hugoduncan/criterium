@@ -241,8 +241,13 @@ assumptions, scope, commitment>`.
   `Double` bit reinterpretation for `double`, and `AtomicInteger` plus
   `Float` bit reinterpretation for `float` (`Float/floatToRawIntBits` yields
   an `int`, so an `int`-sized cell is the natural unboxed fit, parallel to
-  the `int` mapping). Other primitive tags (`boolean`/`byte`/`short`/`char`)
-  have no unboxed atomic cell and take the non-opaque fallback.
+  the `int` mapping). The small primitive tags
+  (`boolean`/`byte`/`short`/`char`) also take an unboxed `AtomicInteger`:
+  each widens into an `int` on store and narrows back on read
+  (`byte`/`short`/`char` by `unchecked-byte`/`unchecked-short`/
+  `unchecked-char`; `boolean` by `(if b 1 0)` on store and `(not (zero? x))`
+  on read), so the round-trip is exact across the whole value range and the
+  read path stays unboxed, parallel to the `float` bit-reinterpretation case.
 - rejects:
   - a hand-written Java shim over `arrayElementVarHandle` — works and is
     equally fast, but adds a Java artifact to build and ship;
@@ -261,6 +266,14 @@ assumptions, scope, commitment>`.
 - assumptions: A-1.
 - scope: barrier implementation.
 - commitment: firm, pending task review.
+- amendedBy: task 003. The original rationale — that
+  `boolean`/`byte`/`short`/`char` "have no unboxed atomic cell" and must take
+  the non-opaque fallback — was wrong: these tags widen unboxed into an
+  `AtomicInteger`, exactly as `float` widens via `int` bit reinterpretation.
+  Task 003 corrects the rationale (above), reclassifies the four tags as
+  opaque-eligible, and moves them onto the opaque path. After this amendment
+  the non-opaque fallback holds only array-typed tags (pending #156), not
+  "small primitives and arrays".
 
 ```text
 id: D-003

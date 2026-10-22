@@ -481,6 +481,19 @@
             local-arg-syms #{'arg1}]
         (is (= [{:tag 'String}]
                (impl/capture-arg-types ['arg1] arg-vals local-arg-syms nil)))))
+    (testing "preserves small-primitive user hint on local symbol"
+      ;; Task 003 made small-primitive hints load-bearing: each of
+      ;; boolean/byte/short/char must reach arg-bindings as its own :tag so
+      ;; cell-kind routes it to the dedicated AtomicInteger cell. A
+      ;; small-primitive-hinted arg defaulting to :reference mis-routed the
+      ;; behaviour and allocation subjects twice; this pins the contract at
+      ;; the capture-arg-types boundary.
+      (doseq [tag '[boolean byte short char]]
+        (let [arg-vals {'arg1 (with-meta 'x {:tag tag})}
+              local-arg-syms #{'arg1}]
+          (is (= [{:tag tag}]
+                 (impl/capture-arg-types ['arg1] arg-vals local-arg-syms nil))
+              (str "small-primitive hint " tag " preserved on local symbol")))))
     (testing "uses eval for non-local constants"
       (let [arg-vals {'arg1 42}
             local-arg-syms #{}]
@@ -959,13 +972,14 @@
       (doseq [tag '[long int double float java.lang.String clojure.lang.IFn]]
         (is (impl/opaque-tag? tag) (str tag)))
       (is (impl/opaque-tag? nil)))
-    (testing "is false for other primitives and array tags"
-      (doseq [tag '[boolean byte short char]]
-        (is (not (impl/opaque-tag? tag)) (str tag)))
+    (testing "is true for every tag in both primitive sets"
+      (doseq [tag (into impl/PRIMITIVE-CELL-TAGS impl/SMALL-PRIMITIVE-CELL-TAGS)]
+        (is (impl/opaque-tag? tag) (str tag))))
+    (testing "is false for array tags"
       (doseq [tag (map symbol ["long[]" "double[]" "java.lang.String[]"])]
         (is (not (impl/opaque-tag? tag)) (str tag)))))
   (testing "opaque-cell rejects a fallback tag with a named signal"
-    (doseq [tag '[boolean byte short char]]
+    (doseq [tag (map symbol ["long[]" "java.lang.String[]"])]
       (is (thrown-with-msg?
            AssertionError #"opaque-cell requires an opaque-eligible tag"
            (impl/opaque-cell 'x {:tag tag}))
@@ -980,14 +994,20 @@
       (is (= :reference (impl/cell-kind 'java.lang.String)))
       (is (= :reference (impl/cell-kind 'clojure.lang.IFn)))
       (is (= :reference (impl/cell-kind nil))))
-    (testing "other primitives map to :fallback"
-      (doseq [tag '[boolean byte short char]]
-        (is (= :fallback (impl/cell-kind tag)) (str tag))))
+    (testing "small primitives map to their keyword kind"
+      (doseq [tag impl/SMALL-PRIMITIVE-CELL-TAGS]
+        (is (= (keyword tag) (impl/cell-kind tag)) (str tag))))
     (testing "array tags map to :fallback, not :reference"
       ;; Array tags are symbols; pin that they are excluded from the
       ;; generic reference catch regardless of cond clause order (#156).
       (doseq [tag (map symbol ["long[]" "double[]" "java.lang.String[]"])]
         (is (= :fallback (impl/cell-kind tag)) (str tag)))))
+  (testing "opaque-eligible-tags-by-kind covers both primitive sets"
+    (doseq [tag (into impl/PRIMITIVE-CELL-TAGS impl/SMALL-PRIMITIVE-CELL-TAGS)]
+      (is (= tag (get impl/opaque-eligible-tags-by-kind (impl/cell-kind tag)))
+          (str tag)))
+    (doseq [[kind tag] impl/opaque-eligible-tags-by-kind]
+      (is (= kind (impl/cell-kind tag)) (str tag))))
   (testing "arg-bindings is total over the arg-sym⟺meta pairing"
     (testing "a shorter arg-metas binds every arg-sym, none left unbound"
       ;; N syms / (N-1) metas: the trailing argument must still be bound
@@ -1146,7 +1166,7 @@
       (is (= cells (set (map second escapes))))
       (is (= 3 (count escapes)))))
   (testing "fallback args and the callable path produce no escape"
-    (doseq [tag (conj '[boolean byte short char] (symbol "long[]"))]
+    (doseq [tag (map symbol ["long[]" "java.lang.String[]"])]
       (is (zero? (count-matching cell-escape? (expr-fn-form tag)))
           (str tag)))
     (is (zero? (count-matching cell-escape?
@@ -1154,7 +1174,7 @@
 
 (deftest opaque-fallback-test
   (testing "measured-expr-fn falls back to a plain binding"
-    (doseq [tag (conj '[boolean byte short char] (symbol "long[]"))]
+    (doseq [tag (map symbol ["long[]" "java.lang.String[]"])]
       (testing (str "for tag " tag)
         (let [form (expr-fn-form tag)]
           (is (zero? (count-matching cell-ctor? form)))
@@ -1171,7 +1191,7 @@
           n   2
           d   1.5
           m   (measured/expr (+ ^long (aget ^longs xs n) d))
-          c   (.charAt "abc" 1) ; primitive char tag falls back
+          c   (.charAt "abc" 1) ; primitive char reads through its cell
           a   (measured/expr (str c n))]
       (is (== 4.5 (second (invoke m))))
       (is (== 4.5 (second (invoke m 1000))))
@@ -1186,17 +1206,29 @@
         (is (= "-0.0" (str (second (invoke (measured/expr (identity d)) 10)))))
         (is (= Long/MIN_VALUE
                (second (invoke (measured/expr (identity l)) 10))))))
-    (testing "and the boolean/byte/short fallback tags still measure correctly"
-      ;; These primitive tags have no unboxed atomic cell, so they take the
-      ;; non-opaque binding-with-hint-or-cast path (criterion 4). Exercise a
-      ;; real measurement rather than only the structural opaque-fallback-test.
-      (let [b  true
-            by (byte 5)
-            sh (short 1000)]
-        (is (= false (second (invoke (measured/expr (not ^boolean b)) 10))))
-        (is (= 6 (second (invoke (measured/expr (unchecked-inc ^byte by)) 10))))
-        (is (= 1001
-               (second (invoke (measured/expr (unchecked-inc ^short sh)) 10))))))))
+    (testing "and small primitive values round trip exactly through their cells"
+      ;; NOTE: value preservation alone does NOT discriminate the
+      ;; small-primitive AtomicInteger cell from the AtomicReference fallback
+      ;; — both round-trip the value. The small-primitive cell *routing* is
+      ;; guarded elsewhere: `capture-arg-types-test` pins hint preservation,
+      ;; and `opaque-tag-test` / `opaque-structure-test` pin the eligibility ⟺
+      ;; cell invariant. This block only asserts exact round-trip over
+      ;; boundary values; read it as a round-trip guard, not a routing guard.
+      (doseq [b [true false]]
+        (is (= b (second (invoke (measured/expr (identity ^boolean b)) 10)))
+            (str b)))
+      (doseq [x [Byte/MIN_VALUE (byte -1) (byte 0) Byte/MAX_VALUE]]
+        (let [by (byte x)]
+          (is (= x (second (invoke (measured/expr (identity ^byte by)) 10)))
+              (str x))))
+      (doseq [x [Short/MIN_VALUE (short -1) (short 0) Short/MAX_VALUE]]
+        (let [sh (short x)]
+          (is (= x (second (invoke (measured/expr (identity ^short sh)) 10)))
+              (str x))))
+      (doseq [x [\u0000 \a \uffff]]
+        (let [ch (char x)]
+          (is (= x (second (invoke (measured/expr (identity ^char ch)) 10)))
+              (str (int x))))))))
 
 (defn- boxing-reflection-warnings
   "Compile `form` and return only its boxed-math/reflection warning lines.
@@ -1217,7 +1249,11 @@
     (doseq [[tag expr] '[[long (unchecked-inc a)]
                          [int (unchecked-inc-int a)]
                          [double (unchecked-add a 1.0)]
-                         [float (unchecked-add a 1.0)]]]
+                         [float (unchecked-add a 1.0)]
+                         [byte (unchecked-inc a)]
+                         [short (unchecked-inc a)]
+                         [char (unchecked-inc (int a))]
+                         [boolean (if a 1 0)]]]
       (let [form     (impl/measured-expr-fn '[a] expr {:arg-metas [{:tag tag}]})
             warnings (boxing-reflection-warnings form)]
         (is (empty? warnings) (str tag " " (vec warnings)))))))
@@ -1257,11 +1293,28 @@
     (let [l 3
           i (int 3)
           d 3.0
-          f (float 3.0)]
+          f (float 3.0)
+          b (byte 3)
+          s (short 3)
+          c \a
+          ;; The :boolean read is `(not (zero? (.getOpaque cell)))`, which
+          ;; returns a canonical Boolean (TRUE/FALSE), not a fresh object; the
+          ;; `(if ^boolean x ...)` subject exercises that read and confirms it
+          ;; adds no per-iteration allocation (plan Risks: boxed-boolean read).
+          bl true]
       (doseq [[kind m] [[:long (measured/expr (unchecked-inc ^long l))]
                         [:int (measured/expr (unchecked-inc-int ^int i))]
                         [:double (measured/expr (unchecked-add 1.0 ^double d))]
-                        [:float (measured/expr (unchecked-add 1.0 ^float f))]]]
+                        [:float (measured/expr (unchecked-add 1.0 ^float f))]
+                        ;; Bare hinted symbol direct to the op so the
+                        ;; small-primitive cell is on the path; a `(int x)`
+                        ;; subform would factor into a `:reference`-routed arg
+                        ;; (capture-arg-types only widens Long/Double locals),
+                        ;; probing the AtomicReference path, not the cell.
+                        [:byte (measured/expr (unchecked-inc-int ^byte b))]
+                        [:short (measured/expr (unchecked-inc-int ^short s))]
+                        [:char (measured/expr (int ^char c))]
+                        [:boolean (measured/expr (if ^boolean bl 1 2))]]]
         (let [args (measured/args m)
               _    (dotimes [_ alloc-warmup-iterations]
                      (measured/invoke m args alloc-warmup-eval-count))
@@ -1456,6 +1509,47 @@
              (measured/expr (unchecked-add 1.0 ^float x))
              (measured/expr
               (unchecked-add 1.0 ^float (deref ^clojure.lang.Volatile v)))
+             n)))
+        ;; Small primitives (task 003): each widens into an AtomicInteger
+        ;; cell and narrows on read. Without the barrier they are bound once
+        ;; before the loop and the subject is hoisted. The subject must put
+        ;; the bare hinted symbol directly as an argument of the op so the
+        ;; small-primitive cell is on the path: a `(int x)` subform would be
+        ;; factored into its own captured arg, and `capture-arg-types` only
+        ;; widens `Long`/`Double` locals, so that arg would default to
+        ;; `:reference` and route through an `AtomicReference`, giving no
+        ;; small-primitive-barrier signal.
+        (testing "a byte read is not hoisted (byte-cell path)"
+          (let [x (byte 1)
+                v (volatile! x)]
+            (assert-not-hoisted
+             (measured/expr (unchecked-inc-int ^byte x))
+             (measured/expr
+              (unchecked-inc-int ^byte (deref ^clojure.lang.Volatile v)))
+             n)))
+        (testing "a short read is not hoisted (short-cell path)"
+          (let [x (short 1)
+                v (volatile! x)]
+            (assert-not-hoisted
+             (measured/expr (unchecked-inc-int ^short x))
+             (measured/expr
+              (unchecked-inc-int ^short (deref ^clojure.lang.Volatile v)))
+             n)))
+        (testing "a char read is not hoisted (char-cell path)"
+          (let [x \a
+                v (volatile! x)]
+            (assert-not-hoisted
+             (measured/expr (int ^char x))
+             (measured/expr
+              (int ^char (deref ^clojure.lang.Volatile v)))
+             n)))
+        (testing "a boolean read is not hoisted (boolean-cell path)"
+          (let [x true
+                v (volatile! x)]
+            (assert-not-hoisted
+             (measured/expr (if ^boolean x 1 2))
+             (measured/expr
+              (if ^boolean (deref ^clojure.lang.Volatile v) 1 2))
              n)))))
     (testing "skipped: opaque barrier only observable under compiler blackhole"
       (is (= :runtime (blackhole/mode))

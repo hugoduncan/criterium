@@ -23,9 +23,10 @@
   non-folded time. For very cheap pure expressions the reported time now
   includes a small, documented, non-subtracted per-argument barrier cost
   (about 0.07 ns per primitive argument, about 0.2-0.35 ns per reference
-  argument; varies about 25-30% between JVM runs). Arguments with an array
-  type, with a `boolean`, `byte`, `short` or `char` type, and
-  `measured/callable` arguments use a plain binding, without the opaque read.
+  argument; varies about 25-30% between JVM runs). Every primitive argument
+  (including `boolean`, `byte`, `short` and `char`) reads through the opaque
+  barrier. Arguments with an array type and `measured/callable` arguments use a
+  plain binding, without the opaque read.
 - *(measured)* Unroll the function invocation in `measured/callable` by arg
   count, avoiding the per-iteration argument-seq allocation `apply` produced in
   the measurement loop. Arities above 20 fall back to `apply`.

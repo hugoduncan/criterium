@@ -143,7 +143,7 @@
   '#{long int double float})
 
 (defn ^:no-doc cast-fn
-  "Return a cast function givent a tag."
+  "Return a cast function given a tag."
   [tag]
   (when (and (symbol? tag)
              (PRIMITIVE-CELL-TAGS tag))
@@ -157,7 +157,11 @@
       [arg-sym (list f arg-sym)]
       [(with-meta arg-sym arg-meta) arg-sym])))
 
-(def ^:private OTHER-PRIMITIVE-TAGS
+(def ^:no-doc SMALL-PRIMITIVE-CELL-TAGS
+  "The small primitive tags read through an `AtomicInteger` cell: the store
+  widens to `int`, the read narrows back.  Small-primitive side of the
+  `cell-kind` taxonomy: each tag maps to the like-named kind keyword.  Kept
+  out of `PRIMITIVE-CELL-TAGS`, so `cast-fn` does not cast them."
   '#{boolean byte short char})
 
 (defn ^:no-doc array-tag?
@@ -168,11 +172,11 @@
 
 (defn ^:no-doc cell-kind
   "Classify an argument tag into the single cell taxonomy.
-  Returns the primitive-cell kind (`:long`/`:int`/`:double`/`:float`), or
-  `:reference` for a reference-class symbol or no tag (both read through an
-  `AtomicReference`), or `:fallback` for the other primitives
-  (`boolean`/`byte`/`short`/`char`) and array tags, which have no unboxed
-  cell and keep the non-opaque binding.
+  Returns the primitive-cell kind (`:long`/`:int`/`:double`/`:float`), the
+  small-primitive kind (`:boolean`/`:byte`/`:short`/`:char`, widened into an
+  `AtomicInteger`), `:reference` for a reference-class symbol or no tag
+  (both read through an `AtomicReference`), or `:fallback` for array tags,
+  which have no unboxed cell and keep the non-opaque binding (#156).
 
   Every kind is a keyword, so the codomain is one data shape: the
   `opaque-cell` `case` dispatches on a single kind vocabulary and the
@@ -183,32 +187,32 @@
   per-kind cell construction on it, so the eligibility ⟺ cell invariant is
   structural rather than maintained across two parallel decisions."
   [tag]
-  (if-let [cast (cast-fn tag)]
-    (keyword cast)
+  (if (cast-fn tag)
+    (keyword tag)
     (cond
       (nil? tag)                                     :reference
-      (OTHER-PRIMITIVE-TAGS tag)                     :fallback
+      (SMALL-PRIMITIVE-CELL-TAGS tag)                (keyword tag)
       (and (symbol? tag) (not (array-tag? tag)))     :reference
       :else                                          :fallback)))
 
 (defn ^:no-doc opaque-tag?
   "Predicate for an argument tag that can be read through an opaque cell.
-  True for the unboxed primitive tags (see `cast-fn`), reference-class
-  symbols, and no tag. False for other primitives and array tags, which
-  have no unboxed cell.  Derived from `cell-kind`."
+  True for all primitive tags, reference-class symbols, and no tag. False
+  only for array tags, which have no unboxed cell.  Derived from `cell-kind`."
   [tag]
   (not= :fallback (cell-kind tag)))
 
 (def ^:no-doc opaque-eligible-tags-by-kind
   "Map from each opaque-eligible `cell-kind` to one representative tag.
-  Derived from the taxonomy (`PRIMITIVE-CELL-TAGS` plus a representative
-  reference tag), not re-enumerated: adding a primitive to
-  `PRIMITIVE-CELL-TAGS` extends this map automatically.  Each entry
+  Derived from the taxonomy (the union of `PRIMITIVE-CELL-TAGS` and
+  `SMALL-PRIMITIVE-CELL-TAGS`, plus a representative reference tag), not
+  re-enumerated: adding a tag to either set extends this map automatically.  Each entry
   satisfies `(= kind (cell-kind tag))`.  Used by structural tests to cover
   every opaque-eligible kind without hard-coding a tag list."
   (into {}
         (map (fn [tag] [(cell-kind tag) tag]))
-        (conj PRIMITIVE-CELL-TAGS 'java.lang.String)))
+        (conj (into PRIMITIVE-CELL-TAGS SMALL-PRIMITIVE-CELL-TAGS)
+              'java.lang.String)))
 
 (defn- hinted [sym tag]
   (with-meta sym {:tag tag}))
@@ -251,6 +255,14 @@
          :float  {:init [(hinted cell ai)
                          `(new ~ai (Float/floatToRawIntBits (float ~arg-sym)))]
                   :read [arg-sym `(Float/intBitsToFloat ~(read ai))]}
+         :byte   {:init [(hinted cell ai) `(new ~ai (int ~arg-sym))]
+                  :read [arg-sym `(unchecked-byte ~(read ai))]}
+         :short  {:init [(hinted cell ai) `(new ~ai (int ~arg-sym))]
+                  :read [arg-sym `(unchecked-short ~(read ai))]}
+         :char   {:init [(hinted cell ai) `(new ~ai (int ~arg-sym))]
+                  :read [arg-sym `(unchecked-char ~(read ai))]}
+         :boolean {:init [(hinted cell ai) `(new ~ai (if ~arg-sym 1 0))]
+                   :read [arg-sym `(not (zero? ~(read ai)))]}
          :reference
          {:init [(hinted cell ar) `(new ~ar ~arg-sym)]
           :read [(with-meta arg-sym arg-meta) (read ar)]})
