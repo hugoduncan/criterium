@@ -1405,26 +1405,37 @@
   ;; internal dependency chain must cost more at depth 3 than at depth 1.
   ;; A depth-independent time means escape analysis proved the cell
   ;; thread-local and folded the chain (missing setup escape, I-4).
-  ;; Mode-agnostic: runs unguarded under both the runtime blackhole
-  ;; (default suite) and the compiler blackhole (CI `:blackhole` focus).
-  (let [n behaviour-eval-count]
-    (testing "a nested Math/sqrt chain scales with depth (double cell)"
-      (let [x 2.0]
-        (assert-depth-scales
-         (measured/expr (Math/sqrt x))
-         (measured/expr (Math/sqrt (Math/sqrt (Math/sqrt x))))
-         n)))
-    (testing "a Math/sqrt chain on a field read scales with depth (reference cell)"
-      ;; A pure field-read chain does not scale measurably: independent
-      ;; iterations overlap the loads (~1 cycle/iteration at depth 1..8 when
-      ;; escaped, see task 002 implementation.md).  The dependency op is a
-      ;; sqrt chain fed by a field read through the reference cell instead.
-      (let [r (->DoubleNode 2.0)]
-        (assert-depth-scales
-         (measured/expr (Math/sqrt (.-v ^DoubleNode r)))
-         (measured/expr
-          (Math/sqrt (Math/sqrt (Math/sqrt (.-v ^DoubleNode r)))))
-         n)))))
+  ;;
+  ;; Guarded on the compiler blackhole, like `opaque-behaviour-test`. Under
+  ;; the runtime blackhole the fixed per-call consume cost (~3 ns) dominates
+  ;; both depth-1 and depth-3, compressing the ratio toward 1.0: the oracle
+  ;; is then both noisy (flaky just under the 1.5 threshold) and weakly
+  ;; toothed. It is reliable only under the compiler blackhole (the CI
+  ;; `:blackhole` focus, which `--focus`es this test), where consume is a
+  ;; cheap intrinsic and the depth-dependent chain shows a clean ratio. Skip
+  ;; explicitly otherwise rather than failing on measurement noise.
+  (if (blackhole/compiler-blackhole-enabled?)
+    (let [n behaviour-eval-count]
+      (testing "a nested Math/sqrt chain scales with depth (double cell)"
+        (let [x 2.0]
+          (assert-depth-scales
+           (measured/expr (Math/sqrt x))
+           (measured/expr (Math/sqrt (Math/sqrt (Math/sqrt x))))
+           n)))
+      (testing "a Math/sqrt chain on a field read scales with depth (reference cell)"
+        ;; A pure field-read chain does not scale measurably: independent
+        ;; iterations overlap the loads (~1 cycle/iteration at depth 1..8 when
+        ;; escaped, see task 002 implementation.md).  The dependency op is a
+        ;; sqrt chain fed by a field read through the reference cell instead.
+        (let [r (->DoubleNode 2.0)]
+          (assert-depth-scales
+           (measured/expr (Math/sqrt (.-v ^DoubleNode r)))
+           (measured/expr
+            (Math/sqrt (Math/sqrt (Math/sqrt (.-v ^DoubleNode r)))))
+           n))))
+    (testing "skipped: depth-scaling oracle only reliable under compiler blackhole"
+      (is (= :runtime (blackhole/mode))
+          "expected runtime blackhole when compiler blackhole is disabled"))))
 
 (deftest opaque-behaviour-test
   ;; Guarded on the compiler blackhole: under the runtime blackhole every
