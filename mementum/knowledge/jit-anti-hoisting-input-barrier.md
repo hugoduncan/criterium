@@ -42,14 +42,28 @@ Implementation choices (criterium `measured.impl`):
   custom Java shim/build step. `deftype` offers only plain (hoistable) or
   volatile (over-strong) mutability, never opaque.
 - Cell selection is a pure code-gen-time predicate over the captured `:tag`.
-  Opaque-eligible iff tag ∈ `#{long int double float}` (mirror `cast-fn`'s
-  set), a reference-class symbol, or absent. Fallback to the plain binding for
-  `boolean`/`byte`/`short`/`char`, array tags (`long[]` ...), and anything
-  else — no unboxed atomic cell exists for them, so a cell would box.
+  Opaque-eligible iff tag ∈ `#{long int double float}` (the direct-cast
+  primitives, mirror `cast-fn`'s set) OR tag ∈ `#{boolean byte short char}`
+  (the small primitives, task 003) OR a reference-class symbol OR absent.
+  Fallback to the plain binding is now **array tags only** (`long[]` ...,
+  pending #156); the `measured/callable` whole-binding path (#157) is separate.
 - Unboxed cells: `AtomicLong` for `long`/`double` (`double` via
   `Double/doubleToRawLongBits`/`longBitsToDouble`); `AtomicInteger` for
   `int`/`float` (`float` via `Float/floatToRawIntBits`/`intBitsToFloat`, the
-  int-sized-bits → int-sized-cell rule).
+  int-sized-bits → int-sized-cell rule), and for the small primitives
+  `boolean`/`byte`/`short`/`char` (task 003) by **widening into the
+  `AtomicInteger` on store and narrowing on read**: `byte`/`short`/`char`
+  store `(int x)` and read `(unchecked-byte|short|char (.getOpaque cell))`;
+  `boolean` stores `(if b 1 0)` and reads `(not (zero? (.getOpaque cell)))`.
+  CORRECTION: the earlier "a cell would box, so these fall back" claim was
+  wrong — it holds only for `AtomicReference`, NOT for the widen-into-a-
+  primitive-cell pattern. Any primitive narrower than `int` fits unboxed in an
+  `AtomicInteger`; `(int ^byte x)` widening, the `AtomicInteger(int)` ctor,
+  `getOpaque`, and the `unchecked-*`/`zero?` reads all stay unboxed (verified
+  under `*warn-on-reflection*` + `*unchecked-math* :warn-on-boxed`, and no
+  per-iteration allocation with the native agent — the boolean read's
+  `Boolean/TRUE`/`FALSE` are canonical, not allocated). Only array tags still
+  lack an unboxed cell.
 - Store exactly once before timing starts (I-1); the loop only reads opaquely.
   A store inside the loop adds cost and enables store-to-load forwarding that
   cancels opacity.
@@ -199,4 +213,4 @@ scope of any current issue (#156 array tags, #157 callable path, #158
 Scalar, one cell per argument; the input pool (`:args-pool`, #158) is a later
 extension that reuses the cell abstraction. The callable path (`[:as args]`)
 is not per-argument decomposed, so it takes the whole-binding fallback (#157).
-Array-typed tags take the fallback and are a pre-existing defect (#156).
+Array-typed tags take the fallback and are a pre-existing defect (#156). Small primitives (`boolean`/`byte`/`short`/`char`) no longer fall back — task 003 moved them onto the opaque path via `AtomicInteger` widen/narrow, so `:fallback` now means array tags only.
