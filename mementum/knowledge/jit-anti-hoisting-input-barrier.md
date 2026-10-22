@@ -96,8 +96,12 @@ Consequences:
   downstream of the read, the default JVM folds it to a sub-cycle floor and
   the reported number is meaningless.
 - The canonical field-read success case is itself suspect under EA: a
-  non-escaping `AtomicReference` cell could be folded the same way. Needs a
-  dedicated check (field read with EA on vs off).
+  non-escaping `AtomicReference` cell is folded the same way. Confirmed in task
+  002: a pure reference field-read chain reads ~0.072 ns without escape (folded)
+  and ~0.22 ns escaped — and does NOT scale with chain depth even escaped,
+  because independent iterations overlap the loads (see memory
+  `reference-depth-oracle-needs-compute`). Escape makes a field-read→compute
+  subject measurable, but a pure pointer-chase is not a usable folding oracle.
 - Honest sub-ns numbers require one of: run with `-XX:-DoEscapeAnalysis`; make
   the cell escape (store it where EA cannot prove thread-locality); or impose a
   loop-carried dependency (the current read-only barrier provides none).
@@ -141,14 +145,23 @@ to ~1.308 ns in both (compiler 1.3085, runtime 1.3079) because the FSQRT-unit
 throughput then dominates and swamps the per-consume overhead (compiler ~0.055
 floor vs runtime ~0.568 floor).
 
-Implication for a task-001 fix: make the opaque cells escape (blackhole each
-cell reference once at setup, or hold them in a retained/escaping object, à la
-JMH `@State`). This is the robust, portable fix — not per-iteration blackholing
-and not a global EA flag.
-- This is a candidate issue against the task-001 design: its stated goal
-  ("report a per-call time that reflects the subject expression, including for
-  pure expressions whose cost is below about one nanosecond") is not met on a
-  default JVM for computation downstream of the barrier read.
+LANDED (task 002, D-5 / I-4): the opaque cells now escape — codegen emits one
+`[_ (blackhole/consume cell-sym)]` setup binding pair per opaque-eligible cell,
+after its init store and before `start#`, outside the loop (zero per-iteration
+cost). Reuses the existing blackhole (no new Java artifact / namespace); the
+cell object is already an `Object`, so `consume` adds no boxing (I-2). Confirmed
+green in-suite under BOTH blackhole modes: `double` nested-`sqrt` depth oracle
+scales ~3× with escape and goes depth-flat when the escape is removed (verified
+teeth). This closes the task-001 gap (sub-ns pure subjects downstream of the
+read now report genuine, non-folded time).
+
+Testing-infra fact: blackhole mode is a LOAD-TIME / process-level property
+(`detected-mode` is a `delay` baked into the `measured` fn at macroexpansion);
+there is NO in-process switch. Write mode-agnostic behavioural tests (do not
+`with-redefs` `detected-mode`); get both-mode coverage by running the suite
+under two process configs (default-JVM runtime + `:blackhole`-alias compiler on
+JVM 17+). A mode-agnostic depth oracle must be its own always-running deftest,
+NOT nested in a compiler-only-guarded test (that would drop the runtime half).
 
 # Throughput vs latency: the barrier does not serialize iterations
 
