@@ -167,8 +167,9 @@
   loop iteration, so the JIT keeps the work in the loop. The loop result
   goes to a blackhole. For very cheap expressions, the reported time
   includes a small per-argument read cost (about 0.07 ns primitive,
-  0.2-0.35 ns reference) that is not subtracted. Array, `boolean`, `byte`, `short` and `char` arguments use
-  a plain binding."
+  0.2-0.35 ns reference) that is not subtracted. Every primitive argument,
+  including `boolean`, `byte`, `short` and `char`, reads through the opaque
+  barrier; only array-typed arguments use a plain binding."
   ([expr]
    (impl/measured-expr* expr nil &env))
   ([expr options]
