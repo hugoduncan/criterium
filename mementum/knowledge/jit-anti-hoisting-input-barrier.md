@@ -126,6 +126,21 @@ escaped cells execute and scale ~3× with chain depth. Blackholing the loaded
 *value* each iteration does NOT help — only escaping the *object* changes the
 EA conclusion (value-blackhole blocks DCE, not constant propagation).
 
+Flavor-independent (confirmed both ways):
+
+- Compiler blackhole (`-XX:CompileCommand=blackhole,...`): escape forced by the
+  HotSpot blackhole *intrinsic* marking reference args as globally escaping.
+- Runtime blackhole (volatile publication in `consumeRuntime(Object)`:
+  `this.obj1 = new WeakReference<>(obj)` under a volatile-guarded branch):
+  genuine escape. Rerun (no compiler flag): local cell folded (depth-
+  independent 0.568 ns), escaped cell executes (1-sqrt 0.640, 3-nested 1.308).
+
+In BOTH flavors the in-loop *value* sink leaves the local cell folded; only
+escaping the cell *reference* defeats EA. The 3-nested-escaped figure converges
+to ~1.308 ns in both (compiler 1.3085, runtime 1.3079) because the FSQRT-unit
+throughput then dominates and swamps the per-consume overhead (compiler ~0.055
+floor vs runtime ~0.568 floor).
+
 Implication for a task-001 fix: make the opaque cells escape (blackhole each
 cell reference once at setup, or hold them in a retained/escaping object, à la
 JMH `@State`). This is the robust, portable fix — not per-iteration blackholing
