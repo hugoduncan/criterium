@@ -101,6 +101,35 @@ Consequences:
 - Honest sub-ns numbers require one of: run with `-XX:-DoEscapeAnalysis`; make
   the cell escape (store it where EA cannot prove thread-locality); or impose a
   loop-carried dependency (the current read-only barrier provides none).
+
+## CONFIRMED FIX: escape each cell once at setup
+
+Blackholing the cell *object* once, before the loop, defeats EA with zero
+per-iteration cost. HotSpot's compiler-blackhole intrinsic marks reference
+arguments as globally escaping, so a single `Blackhole/consume ^Object cell`
+before timing taints the object's escape state; EA can then no longer prove
+thread-locality, the opaque load is no longer a provable constant, and
+downstream pure computation stays in the loop.
+
+Manual experiment (JDK 25, arm64, compiler blackhole, min of 7 × 1e9 iters):
+
+| variant                             | ns/iter |
+|-------------------------------------|---------|
+| cell stays local, 1 sqrt            | 0.0549  |
+| cell stays local, 3 nested sqrt     | 0.0549  |
+| cell blackholed once pre-loop, 1 sqrt   | 0.4359  |
+| cell blackholed once pre-loop, 3 nested | 1.3085  |
+
+Escaping the cell reproduces the `-XX:-DoEscapeAnalysis` numbers (0.442 /
+1.33) surgically: local cells stay folded (depth-independent 0.055 ns);
+escaped cells execute and scale ~3× with chain depth. Blackholing the loaded
+*value* each iteration does NOT help — only escaping the *object* changes the
+EA conclusion (value-blackhole blocks DCE, not constant propagation).
+
+Implication for a task-001 fix: make the opaque cells escape (blackhole each
+cell reference once at setup, or hold them in a retained/escaping object, à la
+JMH `@State`). This is the robust, portable fix — not per-iteration blackholing
+and not a global EA flag.
 - This is a candidate issue against the task-001 design: its stated goal
   ("report a per-call time that reflects the subject expression, including for
   pure expressions whose cost is below about one nanosecond") is not met on a
