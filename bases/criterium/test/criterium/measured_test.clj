@@ -1311,7 +1311,9 @@
                         ;; subform would factor into a `:reference`-routed arg
                         ;; (capture-arg-types only widens Long/Double locals),
                         ;; probing the AtomicReference path, not the cell.
-                        [:byte (measured/expr (unchecked-inc-int ^byte b))]
+                        ;; clj-kondo types unchecked-inc-int's arg as int and
+                        ;; flags the required ^byte hint; the widening is valid.
+                        [:byte (measured/expr #_{:clj-kondo/ignore [:type-mismatch]} (unchecked-inc-int ^byte b))]
                         [:short (measured/expr (unchecked-inc-int ^short s))]
                         [:char (measured/expr (int ^char c))]
                         [:boolean (measured/expr (if ^boolean bl 1 2))]]]
@@ -1534,7 +1536,9 @@
           (let [x (byte 1)
                 v (volatile! x)]
             (assert-not-hoisted
-             (measured/expr (unchecked-inc-int ^byte x))
+             ;; clj-kondo types unchecked-inc-int's arg as int and flags the
+             ;; required ^byte hint; the widening is valid.
+             (measured/expr #_{:clj-kondo/ignore [:type-mismatch]} (unchecked-inc-int ^byte x))
              (measured/expr
               (unchecked-inc-int ^byte (deref ^clojure.lang.Volatile v)))
              n)))
