@@ -161,12 +161,13 @@
   the expression.
 
   The harness stops constant folding and dead-code elimination. Each
-  argument is stored once in an atomic cell before timing starts, and is
-  read with `getOpaque` on every loop iteration, so the JIT keeps the
-  work in the loop. The loop result goes to a blackhole. For very cheap
-  expressions, the reported time includes a small per-argument read
-  cost (about 0.07 ns primitive, 0.11 ns reference) that is not
-  subtracted. Array, `boolean`, `byte`, `short` and `char` arguments use
+  argument is stored once in an atomic cell before timing starts, the
+  cell is published once to the blackhole (so escape analysis can not
+  prove it thread-local), and the cell is read with `getOpaque` on every
+  loop iteration, so the JIT keeps the work in the loop. The loop result
+  goes to a blackhole. For very cheap expressions, the reported time
+  includes a small per-argument read cost (about 0.07 ns primitive,
+  0.2-0.35 ns reference) that is not subtracted. Array, `boolean`, `byte`, `short` and `char` arguments use
   a plain binding."
   ([expr]
    (impl/measured-expr* expr nil &env))

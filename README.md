@@ -35,7 +35,9 @@ The harness stops constant folding and dead-code elimination of the
 measured expression:
 
   * Each argument of a `measured/expr` expression is stored once, before
-    timing starts, in an atomic cell. The measured loop reads the cell
+    timing starts, in an atomic cell. The cell is published once to the
+    blackhole, so escape analysis can not prove that the cell is local to
+    the thread. The measured loop reads the cell
     with an opaque read (`getOpaque`) on every iteration. The JIT can not
     prove the input is stable, so it can not move the expression out of
     the loop or fold a `final` field read (for example a record field) to
@@ -45,7 +47,7 @@ measured expression:
 
 The opaque read has a small cost. For very cheap expressions the
 reported time includes about 0.07 ns per primitive argument and about
-0.11 ns per reference argument (the value changes by about 25-30%
+0.2-0.35 ns per reference argument (the value changes by about 25-30%
 between JVM runs). Criterium does not subtract this cost.
 
 Arguments with an array type, with a `boolean`, `byte`, `short` or `char`

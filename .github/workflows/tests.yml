@@ -133,6 +133,7 @@ jobs:
         set -x
         clojure -M:kaocha:dev:test:blackhole :all \
           --focus criterium.measured-test/opaque-behaviour-test \
+          --focus criterium.measured-test/opaque-depth-scaling-test \
           --reporter dots
 
     - name: Restore java 11

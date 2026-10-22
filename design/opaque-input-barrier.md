@@ -60,6 +60,12 @@ confidence: high
 - `Constraint` (project): no backward-compatibility obligation
   (`AGENTS.md`), but the existing non-opaque path must remain the default
   until the new path is validated.
+- `Constraint`: HotSpot C2 escape analysis. A cell that never escapes the
+  measurement function and is never written inside the loop has no possible
+  concurrent writer. C2 then treats the opaque load value as the
+  loop-invariant constant it provably is, and folds or hoists any pure
+  computation built on it. Opaque access mode promises only "assume memory
+  may change"; escape analysis can prove it cannot. See C-004.
 
 ### Failure mode being addressed
 
@@ -87,6 +93,17 @@ predicate: constrainedBy
 object: @PolymorphicSignature varargs boxing
 scope: measured loop code generation
 basis: experiment; reflection/boxing warnings when called from Clojure
+confidence: high
+```
+
+```text
+id: C-004
+status: observed
+subject: non-escaping opaque cell (thread-local, never written in loop)
+predicate: exposedTo
+object: escape-analysis constant folding of the opaque load value
+scope: HotSpot C2, default escape analysis on
+basis: post-implementation experiment; -XX:-DoEscapeAnalysis toggle and one-time cell escape both restore execution (section 8)
 confidence: high
 ```
 
@@ -128,6 +145,24 @@ scope: HotSpot C2
 basis: experiment (runtime blackhole does not keep the read in the loop)
 confidence: high
 ```
+
+### Refinement: opaque read necessary, not sufficient (escape analysis)
+
+Post-implementation measurement falsified assumption A-2. Making the input
+reference opaque is *necessary* but not *sufficient*. The opaque cell the
+harness builds is a thread-local `Atomic*` that never escapes the measurement
+function and is never written inside the loop. HotSpot C2 escape analysis
+proves no other thread can reach it, hence no concurrent writer can exist,
+hence the opaque load value is a provable constant — so C2 folds or hoists the
+pure computation built on it, exactly the hoisting the barrier was meant to
+stop. The generated code is correct (opaque read and subject both present in
+the loop); C2 removes the work anyway.
+
+The missing fact is **escape**. The input read is treated as genuinely unknown
+only when C2 cannot prove the cell is thread-local. The barrier must therefore
+make each cell escape (C-004, D-5, I-4). This refines, not reverses, C-003: the
+point of attack is still the input, but the input must be both opaque *and*
+escaped.
 
 ---
 
@@ -179,6 +214,11 @@ assumptions, scope, commitment>`.
   hatch (for example an `:inputs :constant` mode or a separate
   `measured/expr-raw`) whose name carries the "give me the optimiser's
   number" intent, not a boolean that reads as a performance knob.
+
+- amendedBy: D-5. The opaque read alone is insufficient: HotSpot escape
+  analysis folds the dependent computation when the cell does not escape (see
+  §3 refinement, C-004, A-2). D-5 adds the required one-time cell escape; D-1
+  otherwise stands.
 
 ### D-2 Keep the barrier scalar, one cell per argument
 
@@ -262,6 +302,55 @@ confidence: high
 - commitment: firm. The barrier cost is reported as measured; it is not
   subtracted.
 
+### D-5 Make each opaque cell escape once, at setup
+
+- subject: the opaque cell lifetime and escape state.
+- chosen: force each cell to escape exactly once, before timing starts, so
+  HotSpot escape analysis cannot prove it thread-local. Concretely, publish
+  the cell reference once through the active blackhole (`blackhole/consume` of
+  the cell as an `Object`) after the init store and before `start#`, or hold
+  the cells in a retained object the harness keeps live (the JMH `@State`
+  pattern). One escape point per cell is enough; the loop body is unchanged.
+- rejects:
+  - relying on the opaque read alone (the as-built D-1 barrier): escape
+    analysis folds the dependent computation for non-escaping cells (C-004,
+    §3 refinement).
+  - disabling escape analysis globally (`-XX:-DoEscapeAnalysis`): a coarse,
+    whole-JVM flag that pessimises all user code and is not portable to the
+    common invocation path.
+  - blackholing the loaded *value* each iteration: that blocks dead-code
+    elimination of the load, not constant propagation of its value, so the
+    computation still folds. Only escaping the cell *object* changes the EA
+    conclusion.
+- rationale: escape analysis defeats opaque semantics by proving the cell
+  cannot be written concurrently. A single escape point removes that proof, so
+  the opaque load becomes genuinely unknown and the dependent work stays in the
+  loop. Confirmed flavor-independent: the compiler blackhole marks reference
+  arguments as globally escaping (intrinsic), and the runtime blackhole
+  publishes the reference through a volatile field; both restore execution
+  (section 8). The one-time escape adds no per-iteration cost.
+- affected qualities: accuracy (restores — subject work is measured),
+  robustness (improves — barrier no longer silently defeated by a default JIT),
+  per-call overhead (unchanged — escape is once, outside the loop), simplicity
+  (small cost — one extra setup step per cell).
+- assumptions: A-3 below.
+- scope: cell setup in the generated measurement function; the loop body and
+  the opaque read are unchanged.
+- commitment: firm, pending task review. This decision post-dates the original
+  task-001 implementation; the as-built harness implements D-1..D-4 but not
+  D-5, so it is subject to C-004 on a default JVM.
+
+```text
+id: D-005
+status: intended
+subject: opaque input barrier cell
+predicate: requires
+object: one-time escape of each cell at setup (defeat escape analysis)
+scope: criterium.measured.impl code generation
+basis: section 8 post-implementation experiments (EA toggle; one-time escape; compiler and runtime blackhole)
+confidence: high
+```
+
 ---
 
 ## 5. Principles and patterns
@@ -303,9 +392,20 @@ only when used.
 - `Assumption` A-1: `getOpaque` on `Atomic*` is intrinsified by HotSpot and
   stays unboxed for primitive variants. Status: observed on JDK 25.
 - `Assumption` A-2: making the input reference opaque is sufficient to keep
-  the dependent expression in the loop. Status: observed for field read and
-  for `long`/`double` arithmetic; confidence that it generalises is high but
-  each new subject class should be spot-checked.
+  the dependent expression in the loop. Status: **falsified**
+  (post-implementation). True only when the cell escapes. For a non-escaping
+  cell, HotSpot escape analysis proves the opaque load constant and folds the
+  dependent computation (C-004, §3 refinement, section 8). The opaque read is
+  necessary but not sufficient; see D-5 and A-3. Earlier "observed" evidence
+  for the field read predates this finding and must be re-validated with escape
+  analysis on (the non-escaping `AtomicReference` cell could be folded the same
+  way).
+- `Assumption` A-3: forcing each cell to escape once, at setup, is sufficient
+  to keep the dependent expression in the loop under default escape analysis.
+  Status: observed on JDK 25 arm64 for `Math/sqrt` chains (depth-independent
+  0.055 ns when local; ~0.44 ns and 3x scaling when escaped) and for FP
+  division, with both the compiler and runtime blackhole (section 8). Each new
+  subject class should still be spot-checked.
 
 ---
 
@@ -336,7 +436,8 @@ only when used.
 
 - `State` the opaque cell. `owns`: the generated measurement function.
   `mayMutate`: only the init step, once, before the loop.
-  `mayRead`: the loop body, opaquely. Lifetime: one measurement invocation.
+  `mayRead`: the loop body, opaquely. `mustEscape`: once, at setup, before the
+  loop (I-4). Lifetime: one measurement invocation.
 
 ### Invariants
 
@@ -351,6 +452,13 @@ only when used.
 - `Invariant` I-3: the opaque barrier is orthogonal to blackhole mode. The
   input barrier is identical whether the output sink is the compiler or the
   runtime blackhole.
+- `Invariant` I-4: each cell escapes exactly once, at setup, before the loop.
+  Enforcement point: code generation (a one-time publication of the cell
+  reference through the blackhole, or retention in an escaping object).
+  Rationale: without escape, HotSpot escape analysis proves the cell
+  thread-local and constant and folds the dependent computation (C-004, D-5).
+  The escape is one-time and outside the loop, so it adds no per-iteration cost
+  and does not interact with I-1.
 
 ### Boundary
 
@@ -376,6 +484,17 @@ predicate: enforces
 object: invariant I-1 (store once, read in loop)
 scope: generated measurement function
 basis: experiment (store-in-loop risk)
+confidence: high
+```
+
+```text
+id: E-003
+status: intended
+subject: opaque cell
+predicate: enforces
+object: invariant I-4 (escape once at setup)
+scope: generated measurement function
+basis: section 8 (escape analysis folds a non-escaping cell)
 confidence: high
 ```
 
@@ -487,17 +606,70 @@ barrier cost must be measured per run and documented, not subtracted as a
 fixed constant (D-4): a hardcoded subtraction would be wrong by this margin
 and can drive cheap results negative (#19).
 
+### Escape analysis defeats the non-escaping cell (post-implementation)
+
+A later investigation found that the as-built barrier does not keep pure
+computation downstream of the opaque read in the loop on a default JVM. The
+cell is a thread-local `AtomicLong` that never escapes and is never written in
+the loop, so escape analysis proves its value constant and folds the subject.
+The generated code is correct in every case (opaque read and subject present in
+the loop body); C2 removes the work.
+
+Subject `(Math/sqrt x)` and its 3-deep nesting, JDK 25 arm64, compiler
+blackhole, best of several 1e9-iteration runs:
+
+| subject                                 | EA on (default) | EA off |
+|-----------------------------------------|-----------------|--------|
+| `(Math/sqrt x)`                         | 0.0542          | 0.442  |
+| `(Math/sqrt (Math/sqrt (Math/sqrt x)))` | 0.0542          | 1.33   |
+| `(/ 1.0 x)`                             | 0.108           | 0.217  |
+
+With EA on, the sqrt result is depth-independent (1 and 3 nested both 0.054 ns)
+— the chain is folded away. With EA off it scales ~3x (0.44 -> 1.33), proving
+the sqrts execute, throughput-bound on the FSQRT unit. The toggle is
+`-XX:-DoEscapeAnalysis`.
+
+One-time cell escape reproduces the EA-off result surgically, with no
+per-iteration cost, and is flavor-independent:
+
+| variant (1e9 iters, min of 7)        | compiler bh | runtime bh |
+|--------------------------------------|-------------|------------|
+| cell stays local, 1 sqrt             | 0.0549      | 0.5685     |
+| cell stays local, 3 nested sqrt      | 0.0549      | 0.5680     |
+| cell escaped once pre-loop, 1 sqrt   | 0.4359      | 0.6405     |
+| cell escaped once pre-loop, 3 nested | 1.3085      | 1.3079     |
+
+- local cell: folded (depth-independent) under both blackholes;
+- escaped cell: executes, 3-nested ~3x the single sqrt;
+- the compiler blackhole escapes via the HotSpot blackhole intrinsic (reference
+  args marked globally escaping); the runtime blackhole escapes via volatile
+  publication (`this.obj1 = new WeakReference<>(obj)`);
+- blackholing the loaded *value* each iteration does not help — only escaping
+  the cell *object* changes the EA conclusion;
+- the 3-nested-escaped figure converges to ~1.308 ns under both flavors because
+  the FSQRT-unit throughput then dominates and swamps the per-consume overhead
+  (compiler ~0.055 floor vs runtime ~0.568 floor).
+
+Caveat on the "reads do not pipeline" claim above: that linear per-read
+additivity is a *within-iteration* arity effect, consistent with load-port
+throughput saturation. It does not mean iterations cannot overlap. Across
+iterations the loop is throughput-bound: a dependency-free subject (same cell
+value every iteration, result consumed) overlaps freely, so a
+single-read-per-iteration loop can report a sub-cycle median. Honest latency
+requires a loop-carried dependency, which the read-only barrier does not
+provide.
+
 ### Quality assertions
 
 ```text
 id: Q-001
-status: observed
-subject: opaque read + compiler blackhole
+status: disputed
+subject: opaque read + compiler blackhole (non-escaping cell)
 predicate: improves
 object: measurement accuracy for sub-ns pure expressions
 scope: JDK 25 arm64, record field read and primitive arithmetic
-basis: section 8 measurements
-confidence: high
+basis: section 8 measurements; disputed by C-004 — escape analysis folds downstream computation for a non-escaping cell; the field-read case needs re-validation with escape analysis on
+confidence: low
 ```
 
 ```text
@@ -565,6 +737,28 @@ basis: D-4 rationale; #19
 confidence: high
 ```
 
+```text
+id: Q-007
+status: observed
+subject: as-built opaque barrier (non-escaping cell), default escape analysis
+predicate: violates
+object: success criterion P-001 (folds pure computation downstream of the read; reports a sub-cycle residue)
+scope: JDK 25 arm64, Math/sqrt chains and FP division
+basis: section 8 EA-toggle and one-time-escape experiments
+confidence: high
+```
+
+```text
+id: Q-008
+status: observed
+subject: one-time cell escape (D-5, I-4)
+predicate: improves
+object: measurement accuracy for sub-ns pure computation (restores in-loop execution)
+scope: JDK 25 arm64, compiler and runtime blackhole
+basis: section 8 (local folded vs escaped 3x-scaling)
+confidence: high
+```
+
 ---
 
 ## 9. Evolution
@@ -587,6 +781,17 @@ confidence: high
 - `ErosionRisk`: a future change that stores into the cell inside the loop
   would violate I-1 and silently restore hoisting. Guard with a test that
   asserts a known-cheap subject reports a non-zero per-call cost.
+- `Change`: make each cell escape once at setup (D-5, I-4). The as-built
+  task-001 harness implements D-1..D-4 but not D-5, so on a default JVM it is
+  subject to C-004. `CompatibilityRule`: fixing this will again raise the
+  reported number for cheap pure subjects (from a folded sub-cycle residue to
+  the real throughput-bound cost); document as intended.
+- `ErosionRisk`: a future change that makes a cell non-escaping again (for
+  example dropping the setup publication, or a refactor that lets escape
+  analysis prove thread-locality) would silently restore folding. Guard with a
+  test that a sub-ns pure subject with a known internal dependency chain (for
+  example nested `Math/sqrt`) scales with chain depth; depth-independence
+  signals folding.
 - Falls back automatically (not out of scope, but non-opaque): the callable
   path (`[:as args]`), which uses `:as` destructuring and indirect
   invocation that already resists hoisting; array-typed argument tags
@@ -603,18 +808,35 @@ basis: D-1, D-4
 confidence: medium
 ```
 
+```text
+id: V-002
+status: intended
+subject: one-time cell escape (D-5)
+predicate: changes
+object: measured/expr reported time for cheap pure subjects (from folded residue to real cost)
+scope: criterium.measured.impl
+basis: D-5, C-004, section 8
+confidence: high
+```
+
 ---
 
 ## 10. Traceability summary
 
-- Purpose P-001 is served by decisions D-1..D-4.
+- Purpose P-001 is served by decisions D-1..D-5.
 - D-1 and D-3 are realized by E-001 (code generation) and the opaque-cell
-  abstraction.
-- Qualities Q-001..Q-006 provide scoped evidence from section 8 and the D-4
+  abstraction; D-5 is realized by E-003 (one-time cell escape, I-4).
+- Qualities Q-001..Q-008 provide scoped evidence from section 8 and the D-4
   rationale.
 - D-4 keeps accuracy honest through documentation plus the existing platform
   baseline facility (`criterium.platform`), and explicitly rejects dynamic
   subtraction; Q-005 records the resulting documented artifact and Q-006 the
   robustness reason for not subtracting (#19).
-- Open dependencies: #158 (pool, optional extension), #156 (array tags,
-  blocks a subset of inputs).
+- Post-implementation finding: constraint C-004 (escape analysis) falsified
+  assumption A-2 and showed the as-built barrier (D-1..D-4) folds pure
+  computation downstream of the read on a default JVM (Q-007). D-5 / I-4
+  (one-time cell escape) restore in-loop execution (Q-008, A-3); the task-001
+  code does not yet implement D-5.
+- Open dependencies: #158 (pool, optional extension), #156 (array tags, blocks
+  a subset of inputs). Follow-up: implement D-5 and re-validate the field-read
+  success (Q-001) with escape analysis on.

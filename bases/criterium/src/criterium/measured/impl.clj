@@ -136,11 +136,17 @@
     (factor-form expr env)
     (factor-const expr)))
 
+(def ^:no-doc PRIMITIVE-CELL-TAGS
+  "The unboxed primitive tags read through a primitive atomic cell.  Single
+  source of truth for the primitive side of the `cell-kind` taxonomy: each
+  tag maps to the like-named kind keyword."
+  '#{long int double float})
+
 (defn ^:no-doc cast-fn
   "Return a cast function givent a tag."
   [tag]
   (when (and (symbol? tag)
-             (#{'long 'int 'double 'float} tag))
+             (PRIMITIVE-CELL-TAGS tag))
     tag))
 
 (defn ^:no-doc binding-with-hint-or-cast
@@ -193,14 +199,30 @@
   [tag]
   (not= :fallback (cell-kind tag)))
 
+(def ^:no-doc opaque-eligible-tags-by-kind
+  "Map from each opaque-eligible `cell-kind` to one representative tag.
+  Derived from the taxonomy (`PRIMITIVE-CELL-TAGS` plus a representative
+  reference tag), not re-enumerated: adding a primitive to
+  `PRIMITIVE-CELL-TAGS` extends this map automatically.  Each entry
+  satisfies `(= kind (cell-kind tag))`.  Used by structural tests to cover
+  every opaque-eligible kind without hard-coding a tag list."
+  (into {}
+        (map (fn [tag] [(cell-kind tag) tag]))
+        (conj PRIMITIVE-CELL-TAGS 'java.lang.String)))
+
 (defn- hinted [sym tag]
   (with-meta sym {:tag tag}))
 
 (defn ^:no-doc opaque-cell
-  "Return `{:init [cell-sym ctor] :read [arg-sym read]}` binding pairs
-  for reading arg-sym through an opaque `java.util.concurrent.atomic` cell.
-  The init pair is evaluated once, before the loop; the read pair on every
-  iteration.  Dispatches on `cell-kind`.
+  "Return `{:init [cell-sym ctor] :read [arg-sym read] :escape [_ consume]}`
+  binding pairs for reading arg-sym through an opaque
+  `java.util.concurrent.atomic` cell.  The init and escape pairs are
+  evaluated once, before the loop; the read pair on every iteration.
+  Dispatches on `cell-kind`.
+
+  The escape pair publishes the cell object once through the blackhole
+  (I-4, D-5).  Without it, escape analysis proves the cell thread-local and
+  folds the opaque read to a constant, so dependent work is hoisted.
 
   Precondition: the argument tag must be opaque-eligible
   (`cell-kind` ≠ `:fallback`); a `:fallback` tag has no unboxed cell and must
@@ -217,26 +239,29 @@
           ai   'java.util.concurrent.atomic.AtomicInteger
           ar   'java.util.concurrent.atomic.AtomicReference
           read (fn [t] `(.getOpaque ~(hinted cell t)))]
-      (case kind
-        :long   {:init [(hinted cell al) `(new ~al (long ~arg-sym))]
-                 :read [arg-sym (read al)]}
-        :int    {:init [(hinted cell ai) `(new ~ai (int ~arg-sym))]
-                 :read [arg-sym `(int ~(read ai))]}
-        :double {:init [(hinted cell al)
-                        `(new ~al (Double/doubleToRawLongBits (double ~arg-sym)))]
-                 :read [arg-sym `(Double/longBitsToDouble ~(read al))]}
-        :float  {:init [(hinted cell ai)
-                        `(new ~ai (Float/floatToRawIntBits (float ~arg-sym)))]
-                 :read [arg-sym `(Float/intBitsToFloat ~(read ai))]}
-        :reference
-        {:init [(hinted cell ar) `(new ~ar ~arg-sym)]
-         :read [(with-meta arg-sym arg-meta) (read ar)]}))))
+      (assoc
+       (case kind
+         :long   {:init [(hinted cell al) `(new ~al (long ~arg-sym))]
+                  :read [arg-sym (read al)]}
+         :int    {:init [(hinted cell ai) `(new ~ai (int ~arg-sym))]
+                  :read [arg-sym `(int ~(read ai))]}
+         :double {:init [(hinted cell al)
+                         `(new ~al (Double/doubleToRawLongBits (double ~arg-sym)))]
+                  :read [arg-sym `(Double/longBitsToDouble ~(read al))]}
+         :float  {:init [(hinted cell ai)
+                         `(new ~ai (Float/floatToRawIntBits (float ~arg-sym)))]
+                  :read [arg-sym `(Float/intBitsToFloat ~(read ai))]}
+         :reference
+         {:init [(hinted cell ar) `(new ~ar ~arg-sym)]
+          :read [(with-meta arg-sym arg-meta) (read ar)]})
+       :escape ['_ `(blackhole/consume ~cell)]))))
 
 (defn ^:no-doc arg-bindings
-  "Return `{:init [...] :read [...]}` binding vectors for the arguments.
-  Opaque-eligible arguments (`cell-kind` ≠ `:fallback`) get a cell init and
-  a per-iteration opaque read; `:fallback` arguments keep the non-opaque
-  `binding-with-hint-or-cast` binding in :init and add nothing to :read.
+  "Return `{:init [...] :read [...] :escape [...]}` binding vectors for the
+  arguments.  Opaque-eligible arguments (`cell-kind` ≠ `:fallback`) get a
+  cell init, a one-time setup escape, and a per-iteration opaque read;
+  `:fallback` arguments keep the non-opaque `binding-with-hint-or-cast`
+  binding in :init and add nothing to :escape or :read.
 
   The arg-sym⟺meta pairing is total: every arg-sym is bound. An arg-sym with
   no corresponding meta defaults to `{}` (classified `:reference`, so it is
@@ -247,14 +272,17 @@
   `:reference` cells."
   [arg-syms arg-metas]
   (if (empty? arg-metas)
-    {:init [] :read []}
+    {:init [] :read [] :escape []}
     (reduce
      (fn [acc [arg-sym arg-meta]]
        (if (= :fallback (cell-kind (:tag arg-meta)))
          (update acc :init into (binding-with-hint-or-cast arg-sym arg-meta))
-         (let [{:keys [init read]} (opaque-cell arg-sym arg-meta)]
-           (-> acc (update :init into init) (update :read into read)))))
-     {:init [] :read []}
+         (let [{:keys [init read escape]} (opaque-cell arg-sym arg-meta)]
+           (-> acc
+               (update :init into init)
+               (update :escape into escape)
+               (update :read into read)))))
+     {:init [] :read [] :escape []}
      (map vector arg-syms (concat arg-metas (repeat {}))))))
 
 (defn ^:internal ^:no-doc measured-expr-fn
@@ -264,10 +292,14 @@
   Each opaque-eligible argument (see `opaque-tag?`) is stored once in an
   atomic cell before timing starts, and read with `getOpaque` on every
   iteration. This stops the JIT proving the input stable, so it can not
-  hoist or constant fold the expression out of the loop."
+  hoist or constant fold the expression out of the loop.
+
+  Each cell escapes exactly once, through the blackhole, after its init and
+  before timing starts (I-4).  This stops escape analysis proving the cell
+  thread-local, which would let the JIT treat the opaque read as constant."
   [arg-syms expr {:keys [arg-metas time-fn]}]
   (let [eval-count-sym (gensym "eval-count")
-        {:keys [init read]} (arg-bindings arg-syms arg-metas)
+        {:keys [init read escape]} (arg-bindings arg-syms arg-metas)
         time-fn (when time-fn
                   (with-meta
                     time-fn
@@ -278,6 +310,7 @@
         ;; non-literally, so the calling value will always be an object.
         ~eval-count-sym]
        (let [~@init
+             ~@escape
              ;; primitive loop coounter.  Decrement since we evaluate
              ;; once outside the loop.
              ~(with-meta eval-count-sym {:tag 'long})

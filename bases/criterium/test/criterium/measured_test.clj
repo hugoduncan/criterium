@@ -1003,8 +1003,10 @@
     (testing "an empty arg-metas (callable path) produces no bindings"
       ;; `[:as args]` with no metas must leave the destructure intact: no
       ;; cell for the whole-args symbols, no fallback binding.
-      (is (= {:init [] :read []} (impl/arg-bindings '[:as args] [])))
-      (is (= {:init [] :read []} (impl/arg-bindings '[:as args] nil))))))
+      (is (= {:init [] :read [] :escape []}
+             (impl/arg-bindings '[:as args] [])))
+      (is (= {:init [] :read [] :escape []}
+             (impl/arg-bindings '[:as args] nil))))))
 
 (defn- assert-opaque-structure
   "Assert the once-outside / read-inside / ctor-before-start# invariants
@@ -1039,10 +1041,14 @@
 
 (deftest opaque-structure-test
   (testing "measured-expr-fn for an opaque-eligible argument"
-    (doseq [tag '[long int double float java.lang.String nil]]
-      (testing (str "tagged " tag " (default timer)")
+    ;; Coverage is derived from the `cell-kind` taxonomy (one representative
+    ;; tag per non-:fallback kind), not a re-enumerated tag list: adding an
+    ;; opaque-eligible kind extends this loop automatically, keeping the
+    ;; ctor/read-structure coverage aligned with `opaque-escape-structure-test`.
+    (doseq [[kind tag] impl/opaque-eligible-tags-by-kind]
+      (testing (str "kind " kind " tagged " tag " (default timer)")
         (assert-opaque-structure (expr-fn-form tag)))
-      (testing (str "tagged " tag " (custom time-fn)")
+      (testing (str "kind " kind " tagged " tag " (custom time-fn)")
         ;; the custom-timer branch emits a different outer-let shape:
         ;; start# is `(. time-fn invokePrim)`, exercising the
         ;; `invokePrim` arm of `start-timestamp?`.  Confirm the cell
@@ -1087,6 +1093,64 @@
                                        (< (long i) (long start-idx)))))
                         count))
               "constructs every cell before start#"))))))
+
+(defn- cell-escape?
+  "A setup escape of a cell: `(blackhole/consume <cell-sym>)`."
+  [x]
+  (and (seq? x)
+       (= 'criterium.util.blackhole/consume (first x))
+       (symbol? (second x))
+       (some? (re-find #"-cell\d+$" (name (second x))))))
+
+(defn- cell-syms
+  "Cell symbols bound in the outer let (those bound to a cell ctor)."
+  [bindings]
+  (->> (partition 2 bindings)
+       (filter (fn [[_ v]] (cell-ctor? v)))
+       (map first)
+       set))
+
+(deftest opaque-escape-structure-test
+  ;; I-4 / D-5: each cell escapes exactly once, after its init and before
+  ;; start#, never inside the loop.
+  (testing "every opaque-eligible kind escapes its cell once, at setup"
+    ;; Coverage is derived from the `cell-kind` taxonomy (one representative
+    ;; tag per non-:fallback kind), not a re-enumerated tag list: adding an
+    ;; opaque-eligible kind extends this loop automatically.
+    (doseq [[kind tag] impl/opaque-eligible-tags-by-kind
+            time-fn     [nil 'time-fn]]
+      (testing (str "kind " kind " tagged " tag " time-fn " time-fn)
+        (let [form      (expr-fn-form tag time-fn)
+              bindings  (outer-let-bindings form)
+              cells     (cell-syms bindings)
+              escapes   (filter cell-escape? (form-seq form))
+              ctor-idx  (binding-value-index bindings cell-ctor?)
+              esc-idx   (binding-value-index bindings cell-escape?)
+              start-idx (binding-value-index bindings start-timestamp?)]
+          (is (= 1 (count cells)))
+          (is (= 1 (count escapes)) "escapes exactly once")
+          (is (= cells (set (map second escapes)))
+              "escapes the cell object itself")
+          (is (zero? (count-matching cell-escape? (loop-form form)))
+              "no escape inside the loop")
+          (is (and ctor-idx esc-idx start-idx
+                   (< (long ctor-idx) (long esc-idx) (long start-idx)))
+              "escape is after the init and before start#")))))
+  (testing "every cell of a multi-argument form escapes once"
+    (let [form     (impl/measured-expr-fn
+                    '[a b c] '(+ a b c)
+                    {:arg-metas [{:tag 'long} {:tag 'double} {}]})
+          cells    (cell-syms (outer-let-bindings form))
+          escapes  (filter cell-escape? (form-seq form))]
+      (is (= 3 (count cells)))
+      (is (= cells (set (map second escapes))))
+      (is (= 3 (count escapes)))))
+  (testing "fallback args and the callable path produce no escape"
+    (doseq [tag (conj '[boolean byte short char] (symbol "long[]"))]
+      (is (zero? (count-matching cell-escape? (expr-fn-form tag)))
+          (str tag)))
+    (is (zero? (count-matching cell-escape?
+                               (impl/measured-callable `(fn [] 1)))))))
 
 (deftest opaque-fallback-test
   (testing "measured-expr-fn falls back to a plain binding"
@@ -1158,6 +1222,63 @@
             warnings (boxing-reflection-warnings form)]
         (is (empty? warnings) (str tag " " (vec warnings)))))))
 
+(defn- thread-allocation-count
+  "Count allocations on this thread during `(measured/invoke m args n)`, or
+  nil when the native agent is not attached."
+  [m args ^long n]
+  (let [[allocations _] (agent/with-allocation-tracing
+                          (measured/invoke m args n))]
+    (when allocations
+      (count (filterv (agent/allocation-on-thread?) allocations)))))
+
+;; Eval-counts for the allocation probe: a tiny baseline and a large probe.
+;; The gap between them is what gives `max-constant-allocation-noise` its
+;; teeth — a single per-iteration allocation would add >= `alloc-probe-count`
+;; (one per iteration), far above the noise tolerance.
+(def ^:private alloc-baseline-count 1)
+(def ^:private alloc-probe-count 10000)
+
+;; Allocation growth below this count between the baseline and probe eval-
+;; counts is constant tracing noise (a few objects), not per-iteration
+;; allocation.  A single per-iteration allocation would add >=
+;; `alloc-probe-count`, far above this bound.
+(def ^:private max-constant-allocation-noise 100)
+
+;; Warmup for the allocation probe: compile and JIT the measured fn before
+;; tracing, so the traced run sees no first-touch (class-load / JIT) noise.
+(def ^:private alloc-warmup-iterations 1000)
+(def ^:private alloc-warmup-eval-count 1000)
+
+(deftest opaque-no-per-iteration-allocation-test
+  ;; I-2 / I-4: the setup escape and the opaque read add no per-iteration
+  ;; allocation for the primitive cell kinds: allocation count does not grow
+  ;; with eval-count (beyond a few objects of tracing noise).  Degrades to a vacuous pass without the native agent.
+  (testing "primitive cells allocate nothing per iteration"
+    (let [l 3
+          i (int 3)
+          d 3.0
+          f (float 3.0)]
+      (doseq [[kind m] [[:long (measured/expr (unchecked-inc ^long l))]
+                        [:int (measured/expr (unchecked-inc-int ^int i))]
+                        [:double (measured/expr (unchecked-add 1.0 ^double d))]
+                        [:float (measured/expr (unchecked-add 1.0 ^float f))]]]
+        (let [args (measured/args m)
+              _    (dotimes [_ alloc-warmup-iterations]
+                     (measured/invoke m args alloc-warmup-eval-count))
+              a1   (thread-allocation-count m args alloc-baseline-count)
+              an   (thread-allocation-count m args alloc-probe-count)]
+          ;; small constant noise (a few objects) is tolerated; any
+          ;; per-iteration allocation would add >= `alloc-probe-count`
+          ;; (one per iteration).
+          (is (or (nil? an)
+                  (< (- (long an) (long a1))
+                     (long max-constant-allocation-noise)))
+              (str kind " allocation growth n=" alloc-baseline-count "->n="
+                   alloc-probe-count " must stay below "
+                   max-constant-allocation-noise " (constant noise); got n="
+                   alloc-baseline-count " " a1 ", n=" alloc-probe-count
+                   " " an)))))))
+
 (deftest opaque-reference-no-reflection-test
   ;; The reference-cell read re-hints the AtomicReference.getOpaque Object
   ;; result with the argument tag (acceptance criterion 4). A subject that
@@ -1172,14 +1293,85 @@
     (let [s "abcde"]
       (is (= 5 (second (invoke (measured/expr (.length ^String s)) 10)))))))
 
-(defrecord OpaqueRec [^long x])
-
 (defn- best-ns-per-call
+  "Best per-call ns of `m` over 5 timed runs at count `n`.
+  Warms up once internally (the leading `invoke`) before timing, so call
+  sites do not add their own warmup."
   [m ^long n]
   (invoke m n)
   (->> (repeatedly 5 #(first (invoke m n)))
        (map #(/ (double %) n))
        (apply min)))
+
+(defrecord OpaqueRec [^long x])
+
+(defrecord DoubleNode [^double v])
+
+;; Shared measurement budget for every behavioural timing test
+;; (`opaque-behaviour-test` and `opaque-depth-scaling-test`): a single named
+;; eval-count so the sub-tests carry no incidental numeric variation.
+(def ^:private behaviour-eval-count 10000000)
+
+;; Minimum depth-3 / depth-1 per-call ratio for the folding oracle to pass.
+;; A working setup escape keeps the dependency chain in the loop, so depth 3
+;; costs measurably more than depth 1; a folded (hoisted) chain is
+;; depth-independent (ratio ~1.0).  Tolerant of machine/noise variation.
+(def ^:private depth-scaling-min-ratio 1.5)
+
+;; Minimum subject / control per-call ratio for the hoisting floor in
+;; `opaque-behaviour-test`.  A working barrier makes subject ~= control (ratio
+;; ~1.0); a hoisted subject still costs the empty-loop/consume cost (~0.3-0.4x
+;; control), so this floor fails for a hoisting regression.  See the
+;; `opaque-behaviour-test` comment for why 0.5, not 0.1, has teeth.
+(def ^:private hoisting-floor-ratio 0.5)
+
+(defn- assert-depth-scales
+  "Folding-oracle assertion: the depth-3 subject `d3` must cost at least
+  `depth-scaling-min-ratio` times the depth-1 subject `d1` per call."
+  [d1 d3 ^long n]
+  (let [s1 (best-ns-per-call d1 n)
+        s3 (best-ns-per-call d3 n)]
+    (is (< (* (double depth-scaling-min-ratio) (double s1)) s3)
+        (str "expected depth-3 >= " depth-scaling-min-ratio
+             "x depth-1; got depth-1 " s1 " ns, depth-3 " s3 " ns"))))
+
+(defn- assert-not-hoisted
+  "Hoisting-floor assertion: `subject` must cost at least
+  `hoisting-floor-ratio` times the hoist-resistant `control` per call.  A
+  working opaque barrier keeps subject ~= control; a hoisted subject drops
+  below the floor."
+  [subject control ^long n]
+  (let [s (best-ns-per-call subject n)
+        c (best-ns-per-call control n)]
+    (is (< (* (double hoisting-floor-ratio) (double c)) s)
+        (str "expected subject >= " hoisting-floor-ratio
+             "x control; got subject " s " ns, control " c " ns"))))
+
+(deftest opaque-depth-scaling-test
+  ;; Folding oracle (design 002, acceptance 2/6): a pure subject with an
+  ;; internal dependency chain must cost more at depth 3 than at depth 1.
+  ;; A depth-independent time means escape analysis proved the cell
+  ;; thread-local and folded the chain (missing setup escape, I-4).
+  ;; Mode-agnostic: runs unguarded under both the runtime blackhole
+  ;; (default suite) and the compiler blackhole (CI `:blackhole` focus).
+  (let [n behaviour-eval-count]
+    (testing "a nested Math/sqrt chain scales with depth (double cell)"
+      (let [x 2.0]
+        (assert-depth-scales
+         (measured/expr (Math/sqrt x))
+         (measured/expr (Math/sqrt (Math/sqrt (Math/sqrt x))))
+         n)))
+    (testing "a Math/sqrt chain on a field read scales with depth (reference cell)"
+      ;; A pure field-read chain does not scale measurably: independent
+      ;; iterations overlap the loads (~1 cycle/iteration at depth 1..8 when
+      ;; escaped, see task 002 implementation.md).  The dependency op is a
+      ;; sqrt chain fed by a field read through the reference cell instead.
+      (let [r (->DoubleNode 2.0)]
+        (assert-depth-scales
+         (measured/expr (Math/sqrt (.-v ^DoubleNode r)))
+         (measured/expr
+          (Math/sqrt (Math/sqrt (Math/sqrt (.-v ^DoubleNode r)))))
+         n)))))
 
 (deftest opaque-behaviour-test
   ;; Guarded on the compiler blackhole: under the runtime blackhole every
@@ -1189,99 +1381,82 @@
   ;; under the compiler blackhole (the `:blackhole` alias). Skip explicitly
   ;; otherwise rather than passing vacuously.
   ;;
-  ;; The floor is `(< (* 0.5 c) s)`, not `(* 0.1 c)`. A working barrier makes
-  ;; subject ~= control (ratio ~1.0); a hoisted subject still costs the
+  ;; The floor is `hoisting-floor-ratio` (0.5), not 0.1. A working barrier
+  ;; makes subject ~= control (ratio ~1.0); a hoisted subject still costs the
   ;; empty-loop/consume cost, measured at ~0.4x control, not zero. At these
   ;; magnitudes a `0.1*c` floor passes for BOTH regimes, so it has no teeth:
   ;; it would not catch a broken barrier. `0.5*c` separates them (measured:
   ;; working ratio ~1.0 passes, hoisted ratio ~0.3-0.4 fails), so a hoisting
   ;; regression fails the assertion.
+  ;;
+  ;; Every sub-test shares the same arrange/act/assert shape (bind a value
+  ;; and a volatile of it, build a subject and a hoist-resistant control
+  ;; `measured/expr`, run the floor assertion); `assert-not-hoisted` carries
+  ;; that incidental structure, so the sub-tests differ only in subject and
+  ;; control.
   (if (blackhole/compiler-blackhole-enabled?)
-    (testing "the opaque barrier keeps work in the loop (criterion 2)"
-      (testing "a final field read is not hoisted (reference-cell path)"
-        (let [n       10000000
-              r       (->OpaqueRec 1)
-              v       (volatile! r)
-              subject (measured/expr (.-x ^OpaqueRec r))
-              ;; a volatile read per call can not be hoisted
-              control (measured/expr (.-x ^OpaqueRec (deref ^clojure.lang.Volatile v)))
-              _       (best-ns-per-call subject n)
-              s       (best-ns-per-call subject n)
-              c       (best-ns-per-call control n)]
-          (is (< (* 0.5 (double c)) s)
-              (str "subject " s " ns, control " c " ns"))))
-      (testing "a primitive arithmetic expression is not hoisted (primitive-cell path)"
-        ;; Distinct code from the reference path: the `long` argument flows
-        ;; through an AtomicLong cell read with getOpaque. A regression that
-        ;; re-enabled hoisting for primitive arguments only would pass the
-        ;; reference case above but fail here.
-        (let [n       10000000
-              x       1
-              v       (volatile! x)
-              subject (measured/expr (unchecked-inc ^long x))
-              ;; a volatile read per call can not be hoisted
-              control (measured/expr
-                       (unchecked-inc ^long (deref ^clojure.lang.Volatile v)))
-              _       (best-ns-per-call subject n)
-              s       (best-ns-per-call subject n)
-              c       (best-ns-per-call control n)]
-          (is (< (* 0.5 (double c)) s)
-              (str "subject " s " ns, control " c " ns"))))
-      (testing "a double bit-reinterpretation read is not hoisted (double-cell path)"
-        ;; Distinct code from both long and reference: the `double` argument
-        ;; flows through an AtomicLong cell whose read is wrapped in
-        ;; (Double/longBitsToDouble (.getOpaque cell)). A regression that
-        ;; folded that bit-reinterpretation of a now-provably-stable read
-        ;; would pass the long case above but fail here.
-        (let [n       10000000
-              x       1.5
-              v       (volatile! x)
-              subject (measured/expr (unchecked-add 1.0 ^double x))
-              ;; a volatile read per call can not be hoisted
-              control (measured/expr
-                       (unchecked-add 1.0 ^double (deref ^clojure.lang.Volatile v)))
-              _       (best-ns-per-call subject n)
-              s       (best-ns-per-call subject n)
-              c       (best-ns-per-call control n)]
-          (is (< (* 0.5 (double c)) s)
-              (str "subject " s " ns, control " c " ns"))))
-      (testing "an int read is not hoisted (int-cell path)"
-        ;; Distinct code from the long path: the `int` argument flows through
-        ;; an AtomicInteger cell whose read is re-wrapped (int (.getOpaque
-        ;; cell)). A regression that re-enabled hoisting on the narrower
-        ;; AtomicInteger path only would pass the long case above but fail
-        ;; here.
-        (let [n       10000000
-              x       (int 1)
-              v       (volatile! x)
-              subject (measured/expr (unchecked-inc-int ^int x))
-              ;; a volatile read per call can not be hoisted
-              control (measured/expr
-                       (unchecked-inc-int ^int (deref ^clojure.lang.Volatile v)))
-              _       (best-ns-per-call subject n)
-              s       (best-ns-per-call subject n)
-              c       (best-ns-per-call control n)]
-          (is (< (* 0.5 (double c)) s)
-              (str "subject " s " ns, control " c " ns"))))
-      (testing "a float bit-reinterpretation read is not hoisted (float-cell path)"
-        ;; Distinct code from both long and double: the `float` argument
-        ;; flows through an AtomicInteger cell whose read is wrapped in
-        ;; (Float/intBitsToFloat (.getOpaque cell)) — the only
-        ;; AtomicInteger-based bit-reinterpretation path. A regression that
-        ;; folded that bit-reinterpretation would pass the long/double cases
-        ;; above but fail here.
-        (let [n       10000000
-              x       (float 1.5)
-              v       (volatile! x)
-              subject (measured/expr (unchecked-add 1.0 ^float x))
-              ;; a volatile read per call can not be hoisted
-              control (measured/expr
-                       (unchecked-add 1.0 ^float (deref ^clojure.lang.Volatile v)))
-              _       (best-ns-per-call subject n)
-              s       (best-ns-per-call subject n)
-              c       (best-ns-per-call control n)]
-          (is (< (* 0.5 (double c)) s)
-              (str "subject " s " ns, control " c " ns")))))
+    (let [n behaviour-eval-count]
+      (testing "the opaque barrier keeps work in the loop (criterion 2)"
+        (testing "a final field read is not hoisted (reference-cell path)"
+          (let [r (->OpaqueRec 1)
+                v (volatile! r)]
+            (assert-not-hoisted
+             (measured/expr (.-x ^OpaqueRec r))
+             ;; a volatile read per call can not be hoisted
+             (measured/expr (.-x ^OpaqueRec (deref ^clojure.lang.Volatile v)))
+             n)))
+        (testing "a primitive arithmetic expression is not hoisted (primitive-cell path)"
+          ;; Distinct code from the reference path: the `long` argument flows
+          ;; through an AtomicLong cell read with getOpaque. A regression that
+          ;; re-enabled hoisting for primitive arguments only would pass the
+          ;; reference case above but fail here.
+          (let [x 1
+                v (volatile! x)]
+            (assert-not-hoisted
+             (measured/expr (unchecked-inc ^long x))
+             (measured/expr
+              (unchecked-inc ^long (deref ^clojure.lang.Volatile v)))
+             n)))
+        (testing "a double bit-reinterpretation read is not hoisted (double-cell path)"
+          ;; Distinct code from both long and reference: the `double` argument
+          ;; flows through an AtomicLong cell whose read is wrapped in
+          ;; (Double/longBitsToDouble (.getOpaque cell)). A regression that
+          ;; folded that bit-reinterpretation of a now-provably-stable read
+          ;; would pass the long case above but fail here.
+          (let [x 1.5
+                v (volatile! x)]
+            (assert-not-hoisted
+             (measured/expr (unchecked-add 1.0 ^double x))
+             (measured/expr
+              (unchecked-add 1.0 ^double (deref ^clojure.lang.Volatile v)))
+             n)))
+        (testing "an int read is not hoisted (int-cell path)"
+          ;; Distinct code from the long path: the `int` argument flows through
+          ;; an AtomicInteger cell whose read is re-wrapped (int (.getOpaque
+          ;; cell)). A regression that re-enabled hoisting on the narrower
+          ;; AtomicInteger path only would pass the long case above but fail
+          ;; here.
+          (let [x (int 1)
+                v (volatile! x)]
+            (assert-not-hoisted
+             (measured/expr (unchecked-inc-int ^int x))
+             (measured/expr
+              (unchecked-inc-int ^int (deref ^clojure.lang.Volatile v)))
+             n)))
+        (testing "a float bit-reinterpretation read is not hoisted (float-cell path)"
+          ;; Distinct code from both long and double: the `float` argument
+          ;; flows through an AtomicInteger cell whose read is wrapped in
+          ;; (Float/intBitsToFloat (.getOpaque cell)) — the only
+          ;; AtomicInteger-based bit-reinterpretation path. A regression that
+          ;; folded that bit-reinterpretation would pass the long/double cases
+          ;; above but fail here.
+          (let [x (float 1.5)
+                v (volatile! x)]
+            (assert-not-hoisted
+             (measured/expr (unchecked-add 1.0 ^float x))
+             (measured/expr
+              (unchecked-add 1.0 ^float (deref ^clojure.lang.Volatile v)))
+             n)))))
     (testing "skipped: opaque barrier only observable under compiler blackhole"
       (is (= :runtime (blackhole/mode))
           "expected runtime blackhole when compiler blackhole is disabled"))))
