@@ -51,7 +51,9 @@
   eval-count)`, and returns an `[elapsed-time expr-value]` tuple.
 
   The arguments function is used to prevent constant folding for
-  constant inputs.
+  constant inputs. A Measured built by `expr` also reads each argument
+  with an opaque read on every iteration, so the JIT can not hoist the
+  expression out of the loop; see `expr` for the cost of this.
 
   The eval-count allows the function to time multiple evaluations of the
   subject expression, so that we can measure expressions that are faster
@@ -151,13 +153,23 @@
   The expression is wrapped in a function.
 
   When the expression is a list form, it is treated as a function call.
-  The function arguments are treated as constant expressions and are
-  hoisted into a state function.  The result of the state function is a
-  vector that is passed to the function wrapper as a vector and
-  destructured.
+  The function arguments are evaluated once by an arguments function,
+  which returns a vector. That vector is passed to the function wrapper
+  and destructured into the individual arguments.
 
   Local bindings from the enclosing scope can be used as arguments in
-  the expression."
+  the expression.
+
+  The harness stops constant folding and dead-code elimination. Each
+  argument is stored once in an atomic cell before timing starts, the
+  cell is published once to the blackhole (so escape analysis can not
+  prove it thread-local), and the cell is read with `getOpaque` on every
+  loop iteration, so the JIT keeps the work in the loop. The loop result
+  goes to a blackhole. For very cheap expressions, the reported time
+  includes a small per-argument read cost (about 0.07 ns primitive,
+  0.2-0.35 ns reference) that is not subtracted. Every primitive argument,
+  including `boolean`, `byte`, `short` and `char`, reads through the opaque
+  barrier; only array-typed arguments use a plain binding."
   ([expr]
    (impl/measured-expr* expr nil &env))
   ([expr options]

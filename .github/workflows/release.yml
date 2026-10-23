@@ -20,13 +20,13 @@ jobs:
 
     steps:
       - name: Prepare java
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v5
         with:
           distribution: 'zulu'
           java-version: '11'
 
       - name: Install clojure tools
-        uses: DeLaGuardo/setup-clojure@10.1
+        uses: DeLaGuardo/setup-clojure@13.7.0
         with:
           cli: 1.11.1.1208
           cache: false
@@ -37,7 +37,7 @@ jobs:
           version: '2024.09.27'
 
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -70,13 +70,13 @@ jobs:
           exit 1
 
       - name: Prepare java
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v5
         with:
           distribution: 'zulu'
           java-version: '11'
 
       - name: Install clojure tools
-        uses: DeLaGuardo/setup-clojure@10.1
+        uses: DeLaGuardo/setup-clojure@13.7.0
         with:
           cli: 1.11.1.1208
           cache: false
@@ -87,7 +87,7 @@ jobs:
           tool: git-cliff
 
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 

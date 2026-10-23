@@ -11,6 +11,22 @@
 
 ### Performance
 
+- *(measured)* Add an opaque input barrier to `measured/expr`. Each argument
+  is stored once, before timing, in an atomic cell and read with an opaque
+  read (`getOpaque`) on every iteration, so the JIT can not prove the input
+  is stable, hoist the expression out of the loop, or fold a `final` field
+  read (for example a record field) to a constant. Each cell is also
+  published once to the blackhole at setup, so escape analysis can not prove
+  the cell is thread-local; without this publication the opaque read is still
+  provably loop-invariant and cheap pure expressions (downstream of the read)
+  fold to a constant. Sub-nanosecond pure expressions now report genuine,
+  non-folded time. For very cheap pure expressions the reported time now
+  includes a small, documented, non-subtracted per-argument barrier cost
+  (about 0.07 ns per primitive argument, about 0.2-0.35 ns per reference
+  argument; varies about 25-30% between JVM runs). Every primitive argument
+  (including `boolean`, `byte`, `short` and `char`) reads through the opaque
+  barrier. Arguments with an array type and `measured/callable` arguments use a
+  plain binding, without the opaque read.
 - *(measured)* Unroll the function invocation in `measured/callable` by arg
   count, avoiding the per-iteration argument-seq allocation `apply` produced in
   the measurement loop. Arities above 20 fall back to `apply`.
