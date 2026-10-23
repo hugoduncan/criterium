@@ -59,7 +59,7 @@ jobs:
         babashka-version: 0.7.0
 
     - name: Setup clj-kondo
-      uses: DeLaGuardo/setup-clj-kondo@v1
+      uses: DeLaGuardo/setup-clj-kondo@master
       with:
         version: '2024.09.27'
 
