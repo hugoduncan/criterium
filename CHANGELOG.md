@@ -1,42 +1,28 @@
 # Changelog
 
-## [Unreleased]
+## [0.5.251-ALPHA] - 2026-10-23
+
+### Features
+
+- *(notebooks)* Restore allocation analysis notebooks (#151)
 
 ### Bug Fixes
 
-- *(measured)* Pass all arguments to `measured/callable` functions. Multi-arity
-  callables previously received only their first argument (failing with an
-  arity error), because the measured bound only the first element of the
-  argument list. The measured now binds and spreads the whole argument list.
+- *(measured)* Pass all callable arguments and unroll invocation to avoid apply allocation
 
-### Performance
+### Documentation
 
-- *(measured)* Add an opaque input barrier to `measured/expr`. Each argument
-  is stored once, before timing, in an atomic cell and read with an opaque
-  read (`getOpaque`) on every iteration, so the JIT can not prove the input
-  is stable, hoist the expression out of the loop, or fold a `final` field
-  read (for example a record field) to a constant. Each cell is also
-  published once to the blackhole at setup, so escape analysis can not prove
-  the cell is thread-local; without this publication the opaque read is still
-  provably loop-invariant and cheap pure expressions (downstream of the read)
-  fold to a constant. Sub-nanosecond pure expressions now report genuine,
-  non-folded time. For very cheap pure expressions the reported time now
-  includes a small, documented, non-subtracted per-argument barrier cost
-  (about 0.07 ns per primitive argument, about 0.2-0.35 ns per reference
-  argument; varies about 25-30% between JVM runs). Every primitive argument
-  (including `boolean`, `byte`, `short` and `char`) reads through the opaque
-  barrier. Arguments with an array type and `measured/callable` arguments use a
-  plain binding, without the opaque read.
-- *(measured)* Unroll the function invocation in `measured/callable` by arg
-  count, avoiding the per-iteration argument-seq allocation `apply` produced in
-  the measurement loop. Arities above 20 fall back to `apply`.
-- *(utils)* Extract the invocation unroll into `criterium.utils.forms`
-  (`unrolled-apply-form` / `unrolled-invoke`) so it can be shared.
-- *(instrument-fn, sampled-fn)* Invoke the wrapped function via the unrolled
-  dispatch instead of `apply`, removing the per-call argument-seq allocation
-  from the wrappers' measurement function.
+- Update ALPHA readme install coords to 0.5.245-ALPHA
+
+### Agent
+
+- Persistent extraction with full error handling
 
 ## [0.5.245-ALPHA] - 2026-04-13
+
+### Documentation
+
+- Update changelog for v0.5.245-ALPHA
 
 ### Miscellaneous
 
