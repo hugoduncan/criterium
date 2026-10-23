@@ -23,24 +23,30 @@
 
 (defn with-tap-out*
   "Implementation for with-tap-out macro.
-   Waits for expected-count taps to be received."
+   Waits for expected-count taps to be received.
+
+   Tapped values are delivered asynchronously on Clojure's single
+   tap-dispatch thread, so capture uses an atom (safe across threads) and
+   the wait blocks on a wall-clock deadline until both the tap queue has
+   drained and the expected number of values has arrived. A bounded,
+   non-yielding spin would race the dispatch thread under load and return
+   an incomplete result."
   [expected-count body-fn]
-  (let [v (volatile! [])
-        f (fn [x]
-            (when-not (= ::portal/_ x)
-              (vswap! v conj x)))]
+  (let [v          (atom [])
+        f          (fn [x]
+                     (when-not (= ::portal/_ x)
+                       (swap! v conj x)))
+        timeout-ms 10000]
     (try
       (add-tap f)
       (body-fn)
-      ;; Wait for tap queue to drain
-      (loop []
-        (when-not (.isEmpty ^Queue @#'clojure.core/tapq)
-          (recur)))
-      ;; Wait for expected number of values
-      (loop [attempts (long 0)]
-        (when (and (< (count @v) (long expected-count))
-                   (< attempts 10000))
-          (recur (inc attempts))))
+      ;; Wait for the tap queue to drain and the expected number of values
+      ;; to be delivered, up to timeout-ms.
+      (let [deadline (+ (System/nanoTime) (* (long timeout-ms) 1000000))]
+        (while (and (or (not (.isEmpty ^Queue @#'clojure.core/tapq))
+                        (< (count @v) (long expected-count)))
+                    (< (System/nanoTime) deadline))
+          (Thread/sleep 1)))
       (portal/flush)
       @v
       (finally
