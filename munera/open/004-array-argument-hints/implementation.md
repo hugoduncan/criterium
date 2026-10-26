@@ -156,3 +156,7 @@ All checklist items are complete. No implementation blocker remains. Next review
 ## Static test review — 2026-10-26
 
 - Tests were not rerun in this review pass.
+
+## Documentation review — 2026-10-26
+
+- Added 1 step to be addressed.
