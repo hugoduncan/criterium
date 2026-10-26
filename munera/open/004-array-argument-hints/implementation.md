@@ -134,3 +134,7 @@ All checklist items are complete. No implementation blocker remains. Next review
 ## Test review — 2026-10-26
 
 - Added 2 steps to be addressed.
+
+## Review follow-ups — 2026-10-26
+
+- Addressed escape-check review step: match escape arguments to constructor-bound cell symbols, not generated names. Kaocha array suite passed: 10 tests, 1212 assertions; exit 0.

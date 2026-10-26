@@ -76,10 +76,15 @@
         (is (impl/opaque-tag? tag))
         (let [form (#'measured-test/expr-fn-form tag timer)
               bindings (#'measured-test/outer-let-bindings form)
+              cells (#'measured-test/cell-syms bindings)
+              escape? (fn [x]
+                        (and (seq? x)
+                             (= 'criterium.util.blackhole/consume (first x))
+                             (contains? cells (second x))))
               ctor (#'measured-test/binding-value-index
                     bindings #'measured-test/cell-ctor?)
               escape (#'measured-test/binding-value-index
-                      bindings #'measured-test/cell-escape?)
+                      bindings escape?)
               start (#'measured-test/binding-value-index
                      bindings #'measured-test/start-timestamp?)
               {:keys [init read]} (impl/opaque-cell 'a {:tag tag})]
@@ -88,13 +93,13 @@
                  (rest (second init))) "constructor stores the original reference")
           (is (= {:tag tag} (meta (first read))))
           (is (= 1 (#'measured-test/count-matching
-                    #'measured-test/cell-escape? form)))
+                    escape? form)))
           (is (zero? (#'measured-test/count-matching
-                      #'measured-test/cell-escape?
+                      escape?
                       (#'measured-test/loop-form form))))
           (is (and ctor escape start (< ctor escape start)))
           (is (= (#'measured-test/cell-syms bindings)
-                 (into #{} (comp (filter #'measured-test/cell-escape?)
+                 (into #{} (comp (filter escape?)
                                  (map second))
                        (#'measured-test/form-seq form)))))))))
 
