@@ -32,3 +32,11 @@ The existing array-fallback tests encode the current defect and must not constra
 ## Plan inconsistency review — 2026-10-26
 
 - No new actionable inconsistency feedback across the design, five-slice plan, read-only `steps.md`, and prior implementation notes.
+
+## Slice 1 — 2026-10-26
+
+- `tag-meta` now returns JVM-name strings for arrays; non-array conversions are unchanged. Added a separate measured array test namespace with 13 array shapes and scalar/nil checks. No dependency changes.
+- Build test-time compiler forms with `list`, not syntax-quoted sequence construction: the latter produced an empty captured argument vector and a nil result in this path. Expression-factoring changes are outside scope.
+- Red check against the original implementation: namespace loaded; Kaocha reported 13 metadata failures and one compiler error (runner stopped that test at the first invalid hint).
+- Verification: `clojure -M:kaocha:dev:test --focus criterium.measured-array-test --focus criterium.measured-test` exited 0: 40 tests, 598 assertions, no failures. Environment: JDK 25.0.2, arm64, runtime blackhole, dev Clojure 1.12.4. Scry is not configured. Timing assertions and native-agent allocation assertions are not claimed as executed.
+- Next: string tags still use plain bindings. Slice 2 must establish opaque reference transport; successful compilation here does not prove barrier routing. The design remains unchanged.

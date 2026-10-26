@@ -369,10 +369,12 @@
 
 (defn ^:no-doc tag-meta [^Class t]
   (when t
-    (let [type-name (-> (.getCanonicalName ^Class t)
-                        symbol
-                        type-name-conversion)]
-      {:tag type-name})))
+    (if (.isArray t)
+      {:tag (.getName t)}
+      (let [type-name (-> (.getCanonicalName t)
+                          symbol
+                          type-name-conversion)]
+        {:tag type-name}))))
 
 (declare collect-symbols)
 

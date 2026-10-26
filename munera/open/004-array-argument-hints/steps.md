@@ -2,11 +2,11 @@
 
 ## Slice 1 — Exact metadata
 
-- [ ] Add table-driven `tag-meta` tests in measured tests for all eight primitive arrays, `Object[]`, `String[]`, a test-defined component class, `long[][]`, and a multidimensional reference array; assert each exact JVM-name string.
-- [ ] Add non-array `tag-meta` regression assertions for nil, reference classes, and existing scalar conversions.
-- [ ] Add test-time compiler regressions for inferred array locals; confirm that the current defect fails assertions without preventing test namespace loading.
-- [ ] Change `tag-meta` in `bases/criterium/src/criterium/measured/impl.clj` to use `Class/getName` strings for arrays while retaining the non-array branch.
-- [ ] Run the slice's metadata and local compilation tests; record results in `implementation.md`.
+- [x] Add table-driven `tag-meta` tests in measured tests for all eight primitive arrays, `Object[]`, `String[]`, a test-defined component class, `long[][]`, and a multidimensional reference array; assert each exact JVM-name string.
+- [x] Add non-array `tag-meta` regression assertions for nil, reference classes, and existing scalar conversions.
+- [x] Add test-time compiler regressions for inferred array locals; confirm that the current defect fails assertions without preventing test namespace loading.
+- [x] Change `tag-meta` in `bases/criterium/src/criterium/measured/impl.clj` to use `Class/getName` strings for arrays while retaining the non-array branch.
+- [x] Run the slice's metadata and local compilation tests; record results in `implementation.md`.
 
 ## Slice 2 — Reference-cell routing
 
