@@ -2,7 +2,8 @@
   (:require
    [clojure.test :refer [deftest is testing]]
    [criterium.measured :as measured]
-   [criterium.measured.impl :as impl]))
+   [criterium.measured.impl :as impl]
+   [criterium.measured-test :as measured-test]))
 
 (deftype ArrayComponent [])
 
@@ -59,3 +60,60 @@
                                   '(alength xs))))]
           (is (= 3 (second (measured/invoke
                             subject (measured/args subject) 1)))))))))
+
+(def array-tags
+  (into (mapv first array-cases)
+        '[booleans bytes shorts chars ints longs floats doubles objects]))
+
+(deftest array-reference-structure-test
+  ;; Generated forms establish transport, independently of result correctness.
+  (testing "each array uses one reference cell with its exact read hint"
+    (doseq [tag array-tags
+            timer [nil 'time-fn]]
+      (testing (str tag " timer " timer)
+        (is (= :reference (impl/cell-kind tag)))
+        (is (impl/opaque-tag? tag))
+        (let [form (#'measured-test/expr-fn-form tag timer)
+              bindings (#'measured-test/outer-let-bindings form)
+              ctor (#'measured-test/binding-value-index
+                    bindings #'measured-test/cell-ctor?)
+              escape (#'measured-test/binding-value-index
+                      bindings #'measured-test/cell-escape?)
+              start (#'measured-test/binding-value-index
+                     bindings #'measured-test/start-timestamp?)
+              {:keys [init read]} (impl/opaque-cell 'a {:tag tag})]
+          (#'measured-test/assert-opaque-structure form)
+          (is (= '(java.util.concurrent.atomic.AtomicReference a)
+                 (rest (second init))) "constructor stores the original reference")
+          (is (= {:tag tag} (meta (first read))))
+          (is (= 1 (#'measured-test/count-matching
+                    #'measured-test/cell-escape? form)))
+          (is (zero? (#'measured-test/count-matching
+                      #'measured-test/cell-escape?
+                      (#'measured-test/loop-form form))))
+          (is (and ctor escape start (< ctor escape start)))
+          (is (= (#'measured-test/cell-syms bindings)
+                 (into #{} (comp (filter #'measured-test/cell-escape?)
+                                 (map second))
+                       (#'measured-test/form-seq form)))))))))
+
+(deftest array-reference-identity-test
+  ;; Real opaque reads must preserve the reference and its contents.
+  (testing "single and repeated evaluations preserve arrays"
+    (doseq [[descriptor constructor] array-cases]
+      (testing descriptor
+        (let [xs (eval constructor)
+              before (vec xs)
+              subject (measured/expr (identity xs))]
+          (doseq [n [1 17]]
+            (is (identical? xs (second (measured/invoke
+                                       subject (measured/args subject) n))))
+            (is (= before (vec xs))))))))
+  (testing "mixed scalar and array transport preserves identity and contents"
+    (let [xs (long-array [1 2 3])
+          index 1
+          subject (measured/expr (do (aget xs index) xs))]
+      (doseq [n [1 17]]
+        (is (identical? xs (second (measured/invoke
+                                   subject (measured/args subject) n))))
+        (is (= [1 2 3] (vec xs)))))))

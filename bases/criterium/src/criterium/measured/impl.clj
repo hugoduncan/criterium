@@ -1,7 +1,6 @@
 (ns criterium.measured.impl
   (:require
    [clojure.set]
-   [clojure.string :as str]
    [criterium.jvm :as jvm]
    [criterium.util.blackhole :as blackhole]
    [criterium.util.forms :as forms]
@@ -164,19 +163,13 @@
   out of `PRIMITIVE-CELL-TAGS`, so `cast-fn` does not cast them."
   '#{boolean byte short char})
 
-(defn ^:no-doc array-tag?
-  "Predicate for a tag symbol naming an array type (name ends in `[]`)."
-  [tag]
-  (and (symbol? tag)
-       (str/ends-with? (name tag) "[]")))
-
 (defn ^:no-doc cell-kind
   "Classify an argument tag into the single cell taxonomy.
   Returns the primitive-cell kind (`:long`/`:int`/`:double`/`:float`), the
   small-primitive kind (`:boolean`/`:byte`/`:short`/`:char`, widened into an
-  `AtomicInteger`), `:reference` for a reference-class symbol or no tag
-  (both read through an `AtomicReference`), or `:fallback` for array tags,
-  which have no unboxed cell and keep the non-opaque binding (#156).
+  `AtomicInteger`), `:reference` for a class symbol, class-name string,
+  array hint, or no tag (read through an `AtomicReference`), and
+  `:fallback` for other metadata values.
 
   Every kind is a keyword, so the codomain is one data shape: the
   `opaque-cell` `case` dispatches on a single kind vocabulary and the
@@ -192,13 +185,13 @@
     (cond
       (nil? tag)                                     :reference
       (SMALL-PRIMITIVE-CELL-TAGS tag)                (keyword tag)
-      (and (symbol? tag) (not (array-tag? tag)))     :reference
+      (or (symbol? tag) (string? tag))     :reference
       :else                                          :fallback)))
 
 (defn ^:no-doc opaque-tag?
   "Predicate for an argument tag that can be read through an opaque cell.
-  True for all primitive tags, reference-class symbols, and no tag. False
-  only for array tags, which have no unboxed cell.  Derived from `cell-kind`."
+  True for primitive tags, class symbols, class-name strings, array hints,
+  and no tag. Derived from `cell-kind`."
   [tag]
   (not= :fallback (cell-kind tag)))
 

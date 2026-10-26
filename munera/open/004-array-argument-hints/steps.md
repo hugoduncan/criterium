@@ -10,13 +10,13 @@
 
 ## Slice 2 — Reference-cell routing
 
-- [ ] Replace array-fallback taxonomy assertions with `:reference` and `opaque-tag?` assertions for inferred descriptors, explicit array aliases, and valid non-array string class hints.
-- [ ] Update `cell-kind` to route string class hints to reference cells; remove exclusions and helpers needed only for invalid canonical array symbols without adding compatibility handling.
-- [ ] Extend generated-form checks for array descriptors and aliases to prove one setup store, one setup escape before timing, opaque reads at both subject evaluation sites, and no per-iteration cell allocation or store, with default and custom timers.
-- [ ] Add assertions that reference-cell read bindings retain the exact array metadata.
-- [ ] Replace remaining array-fallback binding and mixed-argument expectations with reference-cell expectations; retain callable-path checks as separate tests.
-- [ ] Add runtime identity and unchanged-content assertions for array transport across single and repeated evaluations, including mixed scalar/array arguments.
-- [ ] Run the affected taxonomy, structural, identity, scalar, and callable tests; record results in `implementation.md`.
+- [x] Replace array-fallback taxonomy assertions with `:reference` and `opaque-tag?` assertions for inferred descriptors, explicit array aliases, and valid non-array string class hints.
+- [x] Update `cell-kind` to route string class hints to reference cells; remove exclusions and helpers needed only for invalid canonical array symbols without adding compatibility handling.
+- [x] Extend generated-form checks for array descriptors and aliases to prove one setup store, one setup escape before timing, opaque reads at both subject evaluation sites, and no per-iteration cell allocation or store, with default and custom timers.
+- [x] Add assertions that reference-cell read bindings retain the exact array metadata.
+- [x] Replace remaining array-fallback binding and mixed-argument expectations with reference-cell expectations; retain callable-path checks as separate tests.
+- [x] Add runtime identity and unchanged-content assertions for array transport across single and repeated evaluations, including mixed scalar/array arguments.
+- [x] Run the affected taxonomy, structural, identity, scalar, and callable tests; record results in `implementation.md`.
 
 ## Slice 3 — Public API and compiler coverage
 

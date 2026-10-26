@@ -40,3 +40,10 @@ The existing array-fallback tests encode the current defect and must not constra
 - Red check against the original implementation: namespace loaded; Kaocha reported 13 metadata failures and one compiler error (runner stopped that test at the first invalid hint).
 - Verification: `clojure -M:kaocha:dev:test --focus criterium.measured-array-test --focus criterium.measured-test` exited 0: 40 tests, 598 assertions, no failures. Environment: JDK 25.0.2, arm64, runtime blackhole, dev Clojure 1.12.4. Scry is not configured. Timing assertions and native-agent allocation assertions are not claimed as executed.
 - Next: string tags still use plain bindings. Slice 2 must establish opaque reference transport; successful compilation here does not prove barrier routing. The design remains unchanged.
+
+## Slice 2 — 2026-10-26
+
+- String class hints now select `:reference`; removed the canonical-array exclusion and its unused string dependency. Invalid canonical symbols have no compatibility handling. No design change or dependency addition.
+- Array descriptor and alias form checks cover both timers, constructor storage of the original argument, setup escape ordering, both opaque reads, read metadata, and absence of loop stores/allocations. Real array tests cover identity and contents for one and 17 evaluations, including mixed scalar/array inputs. Callable expectations remain separate.
+- Verification: `clojure -M:kaocha:dev:test --focus criterium.measured-array-test --focus criterium.measured-test` exited 0: 42 tests, 1357 assertions, no failures. Runtime blackhole; the two compiler-mode timing oracles skipped their timing assertions. Native-agent allocation checks are not claimed as executed. Scry is not configured.
+- Next slice: add public API, generated-array, and compiler-warning coverage. Structural helpers are reused from `criterium.measured-test` through private vars to avoid duplicating traversal logic or extending that oversized file. The design remains unchanged. Barrier knowledge still contains stale fallback statements; proposed update remains in slice 5.
