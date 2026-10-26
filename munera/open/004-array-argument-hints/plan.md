@@ -52,3 +52,7 @@ Both required Clojure versions passed fresh runtime and compiler-mode checks. Co
 ## Test review follow-ups
 
 All three review steps are complete. Escape checks use constructor-bound symbols. Mixed-input checks use bare array and scalar arguments and verify captured metadata, cell routing, per-cell setup and reads with both timers, and runtime identity, contents, and results. Populated primitive and reference arrays now use independent nested value snapshots after one and 17 evaluations, with separate identity checks and non-mutating subjects. No production or design change was needed.
+
+## Code-shaper review follow-up
+
+Keep each array case in a map with its explicit descriptor, constructor, optional alias, non-local Var symbol, and inferred-local eligibility. Select coverage by these fields, not matrix positions. This follow-up is complete; the focused suites passed with both original and reversed case order. No production or design change was needed.

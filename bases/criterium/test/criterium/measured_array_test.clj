@@ -16,32 +16,79 @@
 
 (def array-cases
   ;; Explicit descriptors keep the expected contract independent of tag-meta.
-  [["[Z" '(boolean-array [true false true])]
-   ["[B" '(byte-array [1 2 3])]
-   ["[S" '(short-array [4 5 6])]
-   ["[C" '(char-array [\a \b \c])]
-   ["[I" '(int-array [7 8 9])]
-   ["[J" '(long-array [1 2 3])]
-   ["[F" '(float-array [1.25 2.5 3.75])]
-   ["[D" '(double-array [1.5 2.5 3.5])]
-   ["[Ljava.lang.Object;" '(object-array ["a" 2 :three])]
-   ["[Ljava.lang.String;" '(into-array String ["a" "b" "c"])]
-   ["[Lcriterium.measured_array_test.ArrayComponent;"
-    '(into-array criterium.measured_array_test.ArrayComponent
-                 [(criterium.measured_array_test.ArrayComponent.)
-                  (criterium.measured_array_test.ArrayComponent.)
-                  (criterium.measured_array_test.ArrayComponent.)])]
-   ["[[J" '(into-array [(long-array [1 2])
-                        (long-array [3 4])
-                        (long-array [5 6])])]
-   ["[[Ljava.lang.String;" '(into-array [(into-array String ["a" "b"])
-                                         (into-array String ["c" "d"])
-                                         (into-array String ["e" "f"])])]])
+  [{:descriptor "[Z"
+    :constructor '(boolean-array [true false true])
+    :alias 'booleans
+    :non-local-var 'non-local-booleans
+    :inferred-local? true}
+   {:descriptor "[B"
+    :constructor '(byte-array [1 2 3])
+    :alias 'bytes
+    :non-local-var 'non-local-bytes
+    :inferred-local? true}
+   {:descriptor "[S"
+    :constructor '(short-array [4 5 6])
+    :alias 'shorts
+    :non-local-var 'non-local-shorts
+    :inferred-local? true}
+   {:descriptor "[C"
+    :constructor '(char-array [\a \b \c])
+    :alias 'chars
+    :non-local-var 'non-local-chars
+    :inferred-local? true}
+   {:descriptor "[I"
+    :constructor '(int-array [7 8 9])
+    :alias 'ints
+    :non-local-var 'non-local-ints
+    :inferred-local? true}
+   {:descriptor "[J"
+    :constructor '(long-array [1 2 3])
+    :alias 'longs
+    :non-local-var 'non-local-longs
+    :inferred-local? true}
+   {:descriptor "[F"
+    :constructor '(float-array [1.25 2.5 3.75])
+    :alias 'floats
+    :non-local-var 'non-local-floats
+    :inferred-local? true}
+   {:descriptor "[D"
+    :constructor '(double-array [1.5 2.5 3.5])
+    :alias 'doubles
+    :non-local-var 'non-local-doubles
+    :inferred-local? true}
+   {:descriptor "[Ljava.lang.Object;"
+    :constructor '(object-array ["a" 2 :three])
+    :alias 'objects
+    :non-local-var 'non-local-objects
+    :inferred-local? true}
+   {:descriptor "[Ljava.lang.String;"
+    :constructor '(into-array String ["a" "b" "c"])
+    :non-local-var 'non-local-strings
+    :inferred-local? false}
+   {:descriptor "[Lcriterium.measured_array_test.ArrayComponent;"
+    :constructor '(into-array criterium.measured_array_test.ArrayComponent
+                              [(criterium.measured_array_test.ArrayComponent.)
+                               (criterium.measured_array_test.ArrayComponent.)
+                               (criterium.measured_array_test.ArrayComponent.)])
+    :non-local-var 'non-local-components
+    :inferred-local? false}
+   {:descriptor "[[J"
+    :constructor '(into-array [(long-array [1 2])
+                              (long-array [3 4])
+                              (long-array [5 6])])
+    :non-local-var 'non-local-long-matrix
+    :inferred-local? false}
+   {:descriptor "[[Ljava.lang.String;"
+    :constructor '(into-array [(into-array String ["a" "b"])
+                              (into-array String ["c" "d"])
+                              (into-array String ["e" "f"])])
+    :non-local-var 'non-local-string-matrix
+    :inferred-local? false}])
 
 (deftest array-tag-meta-test
   ;; Each inferred array hint retains its component class and dimensions.
   (testing "tag-meta returns exact JVM-name strings for arrays"
-    (doseq [[descriptor constructor] array-cases]
+    (doseq [{:keys [descriptor constructor]} array-cases]
       (testing descriptor
         (is (= {:tag descriptor}
                (impl/tag-meta (class (eval constructor)))))))))
@@ -67,7 +114,7 @@
 (deftest inferred-array-local-compilation-test
   ;; Compile inside the test so a regression does not prevent namespace loading.
   (testing "inferred array locals compile and return their length"
-    (doseq [[descriptor constructor] array-cases]
+    (doseq [{:keys [descriptor constructor]} array-cases]
       (testing descriptor
         (let [subject (eval (list 'let ['xs constructor]
                             (list 'criterium.measured/expr
@@ -77,8 +124,9 @@
                               subject (measured/args subject) n))))))))))
 
 (def array-tags
-  (into (mapv first array-cases)
-        '[booleans bytes shorts chars ints longs floats doubles objects]))
+  (into (mapv :descriptor array-cases)
+        (keep :alias)
+        array-cases))
 
 (deftest array-reference-structure-test
   ;; Generated forms establish transport, independently of result correctness.
@@ -120,7 +168,7 @@
 (deftest array-reference-identity-test
   ;; Real opaque reads must preserve the reference and its contents.
   (testing "single and repeated evaluations preserve arrays"
-    (doseq [[descriptor constructor] array-cases]
+    (doseq [{:keys [descriptor constructor]} array-cases]
       (testing descriptor
         (let [xs (eval constructor)
               before (array-snapshot xs)
@@ -206,7 +254,7 @@
   ;; Compile real public expressions while warnings are captured, then invoke
   ;; repeatedly to cover both the initial and loop opaque-read sites.
   (testing "array operations compile without reflection and retain results"
-    (doseq [[descriptor constructor] array-cases
+    (doseq [{:keys [descriptor constructor]} array-cases
             operation (cond-> ['(alength xs)]
                         (contains? #{"[Z" "[B" "[S" "[C" "[I" "[J" "[F" "[D"}
                                    descriptor)
@@ -244,11 +292,8 @@
 (deftest explicit-array-hint-test
   ;; Preserve user hints at capture and exercise the real opaque-read path.
   (testing "explicit aliases and descriptors retain metadata and array results"
-    (doseq [[tag constructor]
-            (into array-cases
-                  (map vector
-                       '[booleans bytes shorts chars ints longs floats doubles objects]
-                       (map second (take 9 array-cases))))]
+    (doseq [{:keys [descriptor constructor alias]} array-cases
+            tag (cond-> [descriptor] alias (conj alias))]
       (testing (str tag)
         (let [hinted-xs (with-meta 'xs {:tag tag})
               warnings (java.io.StringWriter.)
@@ -289,15 +334,9 @@
 (deftest inferred-non-local-array-test
   ;; Unhinted Vars require evaluated type capture, not compiler local metadata.
   (testing "non-local arrays retain exact inferred hints and compile without reflection"
-    (doseq [[[descriptor _] var-name]
-            (map vector array-cases
-                 '[non-local-booleans non-local-bytes non-local-shorts
-                   non-local-chars non-local-ints non-local-longs
-                   non-local-floats non-local-doubles non-local-objects
-                   non-local-strings non-local-components
-                   non-local-long-matrix non-local-string-matrix])]
+    (doseq [{:keys [descriptor non-local-var]} array-cases]
       (testing descriptor
-        (let [array-sym (symbol "criterium.measured-array-test" (name var-name))
+        (let [array-sym (symbol "criterium.measured-array-test" (name non-local-var))
               xs (eval array-sym)
               before (array-snapshot xs)]
           (is (= [{:tag descriptor}]
@@ -327,7 +366,8 @@
   ;; Dynamic make-array locals infer Object; their exact descriptors are covered
   ;; by the non-local and explicit-hint tests instead.
   (testing "inferred local array operations compile without reflection"
-    (doseq [[descriptor constructor] (take 9 array-cases)
+    (doseq [{:keys [descriptor constructor inferred-local?]} array-cases
+            :when inferred-local?
             operation (cond-> ['(alength xs)]
                         (not= descriptor "[Ljava.lang.Object;")
                         (conj '(aget xs 0)))]
