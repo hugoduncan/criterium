@@ -56,3 +56,7 @@
 ## Documentation review follow-up
 
 - [x] Correct the array fallback statement in `README.md:53–56` under “What the harness stops, and its cost”. Arrays now use `AtomicReference` cells and opaque reads, not plain bindings. Describe exact inferred JVM-name hints and identity-preserving transport without array copies or element boxing; retain the separate callable limitation. Keep this description consistent with the Unreleased changelog and `measured/expr` documentation, and identify it as current 0.5.x behaviour rather than a guarantee for the surrounding stable 0.4.6 section.
+
+## Code-shaper review follow-up
+
+- [ ] Remove positional coupling from the array test matrix in `bases/criterium/test/criterium/measured_array_test.clj`. `explicit-array-hint-test` pairs aliases with `(take 9 array-cases)`, `inferred-local-array-warning-test` selects cases by the same position, and `inferred-non-local-array-test` pairs the matrix with a separate ordered Var list. Reordering or adding a case can change coverage or pair an alias or Var with the wrong array type. Store each case's descriptor, constructor, optional alias, non-local Var, and inferred-local eligibility together, then select cases by those fields. Retain explicit expected descriptors and all current assertions; verify that reordering cases does not change coverage or results.
