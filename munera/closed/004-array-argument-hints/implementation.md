@@ -189,3 +189,10 @@ All checklist items are complete. No implementation blocker remains. Next review
 - Knowledge extraction completed in `2d2e834` and `02e5593`. These commits resolve the earlier pending knowledge-update notes.
 - Moved the task to `munera/closed/004-array-argument-hints/` and removed it from the open-task plan.
 - No tests were rerun for closure; only task records and working state changed. The recorded validation results and platform limits still apply.
+
+## PR 161 CI follow-up — 2026-10-26
+
+- The macOS job without the native agent in run `40343704273` passed its test suites (1103 tests / 13130 assertions; 25 / 158; validation 74 / 1410), then failed lint. The new array test namespace had unsorted requires and an unresolved `time-fn` symbol in a macro call.
+- Sorted the requires and bound a real primitive-returning timer in the structural test. Production code and test assertions are unchanged.
+- Verification: CI's clj-kondo 2024.09.27 passed `--lint bases projects --fail-level warning` with zero errors and warnings. Focused measured, array, and arg-gen suites passed: 51 tests, 1878 assertions, zero failures. `git diff --check` passed.
+- Local clj-kondo 2026.04.15 reports two redundant-double-coercion warnings in unchanged timing helpers; these are not reported by CI's pinned version. The full CI matrix must still confirm the pushed fix.

@@ -2,6 +2,8 @@
 
 ## Current work
 
+PR [161](https://github.com/hugoduncan/criterium/pull/161) failed lint after the macOS non-agent test suites passed. The follow-up sorts array-test requires and binds the structural test timer. CI-pinned clj-kondo 2024.09.27 now passes with zero warnings and errors; focused suites pass (51 tests, 1878 assertions). Full CI confirmation is pending. Local clj-kondo 2026.04.15 reports two warnings in unchanged timing helpers that the CI version does not report.
+
 Task [004 — Array argument hints and opaque reference reads](../munera/closed/004-array-argument-hints/design.md) is complete and closed at the user's request. All implementation and review follow-up steps are complete. Final implementation, test, documentation, and code-shape reviews found no remaining actionable issues.
 
 Arrays now use exact JVM-name string hints and opaque reference cells. Tests cover metadata, routing, structure, identity, contents, compiler behaviour, public APIs, and generated arguments. The final focused measured, array, and arg-gen suites passed with both original and reversed array-case order: 51 tests and 1878 assertions in each run. Original order was restored.

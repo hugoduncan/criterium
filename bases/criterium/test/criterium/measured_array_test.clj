@@ -2,8 +2,8 @@
   (:require
    [clojure.test :refer [deftest is testing]]
    [criterium.measured :as measured]
-   [criterium.measured.impl :as impl]
-   [criterium.measured-test :as measured-test]))
+   [criterium.measured-test :as measured-test]
+   [criterium.measured.impl :as impl]))
 
 (deftype ArrayComponent [])
 
@@ -206,7 +206,8 @@
   (testing "array, long, and double inputs retain their own opaque cells"
     (let [xs (long-array [1 2 3])
           index 1
-          offset 0.5]
+          offset 0.5
+          time-fn (fn ^long [] (System/nanoTime))]
       (doseq [{:keys [values metas form]}
               [(mixed-capture
                 (measured-test/mixed-array-result xs index offset) nil)
