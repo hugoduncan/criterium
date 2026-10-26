@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes
+
+- *(measured)* Preserve exact JVM array type hints and read array arguments through opaque reference cells (#156). Array transport preserves identity and contents without copying arrays or boxing their elements.
+
 ## [0.5.251-ALPHA] - 2026-10-23
 
 ### Features

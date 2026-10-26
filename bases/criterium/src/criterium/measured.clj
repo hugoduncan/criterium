@@ -169,7 +169,9 @@
   includes a small per-argument read cost (about 0.07 ns primitive,
   0.2-0.35 ns reference) that is not subtracted. Every primitive argument,
   including `boolean`, `byte`, `short` and `char`, reads through the opaque
-  barrier; only array-typed arguments use a plain binding."
+  barrier. Array arguments use opaque reference cells with exact array type
+  hints. Transport preserves array identity and contents without copying
+  arrays or boxing their elements; it does not prevent subject mutations."
   ([expr]
    (impl/measured-expr* expr nil &env))
   ([expr options]

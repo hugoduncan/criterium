@@ -107,3 +107,22 @@ clojure -Sdeps '{:aliases {:array-validation {:override-deps {org.clojure/clojur
 
 - For compiler mode, change the mode assertion to `:compiler` and add runner arguments `"--skip" "criterium.measured-test/opaque-behaviour-test" "--skip" "criterium.measured-test/opaque-depth-scaling-test"`. These two timing oracles are unsupported on Apple Silicon: the volatile control needs an `ldar` barrier, unlike x86-64. CI retains their Linux x86-64 execution. Runtime runs execute only their mode/skip assertions, not timing assertions. All other focused barrier and array checks ran in both modes. No threshold was changed.
 - No code, dependency, or design change was needed. Next slice: release notes, current-contract documentation, stale knowledge proposal, and acceptance evidence map. Do not describe the unsupported timing or agent-gated allocation checks as passed.
+
+## Slice 5 — 2026-10-26
+
+- Added an Unreleased fix entry without a version claim. Updated public expression and metadata docstrings and current barrier design statements. Historical experimental results remain unchanged. Touched tests already describe reference transport, so no test changes were needed.
+- Verification after documentation changes: `clojure -M:kaocha:dev:test all --focus criterium.arg-gen-test --focus criterium.measured-array-test --focus criterium.measured-test` exited 0: 50 tests, 1832 assertions, no failures. `git diff --check` passed. No API, dependency, or scope change.
+- Proposed knowledge update, pending human approval or authorized extraction: `mementum/knowledge/jit-anti-hoisting-input-barrier.md` is stale at lines 48–49, 65–66, 208, and 216. Replace array-only fallback and pending-#156 statements with exact JVM-name string inference and `AtomicReference` transport for arrays; retain the separate callable limitation and historical experiments. No knowledge file was changed without approval.
+
+### Acceptance evidence map
+
+1. `criterium.bench-test/array-local-bench-test` passes the exact slow issue reproduction; inferred-local tests check one and 17 evaluations.
+2. `array-tag-meta-test` checks all 13 shapes; `non-array-tag-meta-test` checks unchanged scalar, reference, and nil metadata.
+3. `inferred-array-local-compilation-test`, `inferred-non-local-array-test`, `explicit-array-hint-test`, and arg-gen's `generated-array-test` cover the public capture paths and results.
+4. `array-public-compiler-test`, `array-java-parameter-test`, inferred-local/non-local warning tests, and generated tests capture real compiler warnings for array length, primitive element reads, and typed Java calls. Dynamic local constructor inference remains outside scope.
+5. `array-reference-structure-test` checks setup storage, escape order, both opaque-read sites, retained metadata, and no loop stores or allocations with both timers. `array-reference-identity-test` and public-path tests check identity and contents with real arrays.
+6. Measured taxonomy and mixed-input tests now require reference cells for arrays. Callable tests remain separate and unchanged in meaning.
+7. Slice 4 records successful fresh Clojure 1.11.4/1.12.4 runtime and compiler runs. Runtime timing assertions skip; the two compiler timing oracles are unsupported on this Darwin arm64 host and excluded per CI limits. Native-agent allocation checks were not executed. No array-specific JIT timing claim is made.
+8. CHANGELOG, public and implementation docstrings, and current-contract barrier design statements now describe arrays as opaque reference values. Stale internal knowledge is identified above for approved extraction.
+
+All checklist items are complete. No implementation blocker remains. Next review should retain the validation limits and handle the proposed knowledge update; the task remains open for review.

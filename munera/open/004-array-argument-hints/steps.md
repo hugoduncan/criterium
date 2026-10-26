@@ -40,8 +40,8 @@
 
 ## Slice 5 — Documentation and acceptance
 
-- [ ] Add a user-facing `CHANGELOG.md` entry for issue #156 that describes exact array hints and opaque reference transport without a new version claim.
-- [ ] Update affected docstrings and comments in measured implementation, public `measured/expr` documentation, and touched tests to describe arrays as reference-cell values.
-- [ ] Update current-contract statements in `design/opaque-input-barrier.md` that describe arrays as a pending defect or non-opaque fallback; preserve labelled historical experiment results and unrelated scope decisions.
-- [ ] Identify stale array-fallback statements in `mementum/knowledge/jit-anti-hoisting-input-barrier.md` and record the proposed knowledge update for human approval or the authorized knowledge-extraction workflow.
-- [ ] Review the diff against all eight design acceptance criteria and record an evidence map, validation limits, and any remaining blockers in `implementation.md`.
+- [x] Add a user-facing `CHANGELOG.md` entry for issue #156 that describes exact array hints and opaque reference transport without a new version claim.
+- [x] Update affected docstrings and comments in measured implementation, public `measured/expr` documentation, and touched tests to describe arrays as reference-cell values.
+- [x] Update current-contract statements in `design/opaque-input-barrier.md` that describe arrays as a pending defect or non-opaque fallback; preserve labelled historical experiment results and unrelated scope decisions.
+- [x] Identify stale array-fallback statements in `mementum/knowledge/jit-anti-hoisting-input-barrier.md` and record the proposed knowledge update for human approval or the authorized knowledge-extraction workflow.
+- [x] Review the diff against all eight design acceptance criteria and record an evidence map, validation limits, and any remaining blockers in `implementation.md`.

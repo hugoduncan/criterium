@@ -178,8 +178,9 @@ assumptions, scope, commitment>`.
   (`VarHandle` access mode `getOpaque`) on every iteration, from a mutable
   cell initialised once before the loop. Apply this **unconditionally**, with
   an **automatic per-argument fallback** to the existing non-opaque binding
-  when an argument cannot be given an opaque cell cleanly (unknown type that
-  would otherwise box, array-typed tag per #156, the callable `:as` path).
+  for unsupported metadata values. Untagged arguments and arrays use
+  reference cells. The callable `:as` path remains a separate whole-binding
+  path outside this per-argument contract.
 - rejects:
   - runtime blackhole on the output (too costly, and cannot defeat
     `final`-field folding); compiler blackhole on the input (a `void` sink
@@ -271,9 +272,13 @@ assumptions, scope, commitment>`.
   the non-opaque fallback — was wrong: these tags widen unboxed into an
   `AtomicInteger`, exactly as `float` widens via `int` bit reinterpretation.
   Task 003 corrects the rationale (above), reclassifies the four tags as
-  opaque-eligible, and moves them onto the opaque path. After this amendment
-  the non-opaque fallback holds only array-typed tags (pending #156), not
-  "small primitives and arrays".
+  opaque-eligible, and moves them onto the opaque path.
+- Task 004 resolves #156: inferred arrays use exact JVM-name string hints
+  and `AtomicReference` cells. Explicit aliases and descriptor strings also
+  use reference cells. The setup stores and publishes each reference cell
+  once; initial and loop evaluations read it opaquely with the exact hint.
+  Transport preserves identity and contents without copying arrays or boxing
+  elements. It does not control subject mutations.
 
 ```text
 id: D-003
@@ -807,8 +812,9 @@ confidence: high
   signals folding.
 - Falls back automatically (not out of scope, but non-opaque): the callable
   path (`[:as args]`), which uses `:as` destructuring and indirect
-  invocation that already resists hoisting; array-typed argument tags
-  (blocked by #156); any argument whose type cannot be captured.
+  invocation that already resists hoisting. Unsupported metadata values also
+  use plain bindings. Arrays and untagged reference arguments use opaque
+  reference cells.
 
 ```text
 id: V-001
@@ -850,6 +856,7 @@ confidence: high
   computation downstream of the read on a default JVM (Q-007). D-5 / I-4
   (one-time cell escape) restore in-loop execution (Q-008, A-3); the task-001
   code does not yet implement D-5.
-- Open dependencies: #158 (pool, optional extension), #156 (array tags, blocks
-  a subset of inputs). Follow-up: implement D-5 and re-validate the field-read
+- Open dependency: #158 (pool, optional extension). Task 004 resolves #156
+  with exact array hints and opaque reference transport. Historical task-001
+  follow-up: implement D-5 and re-validate the field-read
   success (Q-001) with escape analysis on.

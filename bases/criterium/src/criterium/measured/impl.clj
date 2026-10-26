@@ -169,7 +169,8 @@
   small-primitive kind (`:boolean`/`:byte`/`:short`/`:char`, widened into an
   `AtomicInteger`), `:reference` for a class symbol, class-name string,
   array hint, or no tag (read through an `AtomicReference`), and
-  `:fallback` for other metadata values.
+  `:fallback` for other metadata values. Arrays remain references, including
+  primitive arrays; transport does not copy arrays or box their elements.
 
   Every kind is a keyword, so the codomain is one data shape: the
   `opaque-cell` `case` dispatches on a single kind vocabulary and the
@@ -360,7 +361,10 @@
 (defn ^:no-doc type-name-conversion [t]
   (TYPE-NAME-CONVERSIONS t t))
 
-(defn ^:no-doc tag-meta [^Class t]
+(defn ^:no-doc tag-meta
+  "Return inferred type metadata. Arrays use exact JVM-name strings to retain
+  component types and dimensions in compiler-valid hints."
+  [^Class t]
   (when t
     (if (.isArray t)
       {:tag (.getName t)}

@@ -14,9 +14,9 @@ Array-valued benchmark arguments must compile with their exact array type and re
 ;; Unable to resolve classname: long[]
 ```
 
-`criterium.measured.impl/tag-meta` derives a symbol from `Class/getCanonicalName`. Array names such as `long[]` and `user.R[]` are not valid Clojure class hints. This helper also supplies metadata for evaluated non-local arguments and generated arguments through `criterium.arg-gen/arg-metas-from-example`.
+Before this fix, `criterium.measured.impl/tag-meta` derived a symbol from `Class/getCanonicalName`. Array names such as `long[]` and `user.R[]` are not valid Clojure class hints. This helper also supplies metadata for evaluated non-local arguments and generated arguments through `criterium.arg-gen/arg-metas-from-example`.
 
-The current input-barrier classifier sends string tags and canonical array-name symbols to a plain-binding fallback. A string-only compilation fix would therefore leave arrays without the opaque input barrier. An array is a reference value, including when its elements are primitive. The existing `AtomicReference` cell can store that reference without copying the array or boxing its elements.
+Before this fix, the input-barrier classifier sent string tags and canonical array-name symbols to a plain-binding fallback. A string-only compilation fix would therefore leave arrays without the opaque input barrier. An array is a reference value, including when its elements are primitive. The existing `AtomicReference` cell can store that reference without copying the array or boxing its elements.
 
 ## Selected design
 
