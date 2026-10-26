@@ -196,3 +196,10 @@ All checklist items are complete. No implementation blocker remains. Next review
 - Sorted the requires and bound a real primitive-returning timer in the structural test. Production code and test assertions are unchanged.
 - Verification: CI's clj-kondo 2024.09.27 passed `--lint bases projects --fail-level warning` with zero errors and warnings. Focused measured, array, and arg-gen suites passed: 51 tests, 1878 assertions, zero failures. `git diff --check` passed.
 - Local clj-kondo 2026.04.15 reports two redundant-double-coercion warnings in unchanged timing helpers; these are not reported by CI's pinned version. The full CI matrix must still confirm the pushed fix.
+
+## PR 161 compiler-warning follow-up — 2026-10-26
+
+- Run `40346440735` passed all four matrix jobs' test suites and lint. The Ubuntu non-agent job alone failed the separate boxed-math/reflection check: `mixed-array-result` added an untyped offset to a primitive array element. The warning was reported under `measured-array-test` because it requires `measured-test`.
+- Reproduced the failure with `clojure -M:dev:test:check-warnings` before changing code. Added `^long` and `^double` hints to the helper's scalar parameters; no warning suppression or production change.
+- Verification after the fix: the full warning check passed (284 checked namespaces, no warnings found); CI-pinned clj-kondo 2024.09.27 passed with zero warnings/errors; focused suites passed (51 tests, 1878 assertions); the full default suite passed (1103 tests, 13143 assertions). All commands exited 0. `git diff --check` passed. Native-agent and Linux timing checks were not rerun locally.
+- CI preflight must include `clojure -M:dev:test:check-warnings` as well as tests and lint. This check runs only in the Ubuntu non-agent job and was omitted from the first PR follow-up. Remote confirmation remains pending for this fix.

@@ -1175,7 +1175,7 @@
       (is (zero? (count-matching get-opaque? form))))))
 
 (defn mixed-array-result
-  [^longs xs index offset]
+  [^longs xs ^long index ^double offset]
   [xs (+ (aget xs index) offset)])
 
 (deftest opaque-mixed-args-test

@@ -2,7 +2,9 @@
 
 ## Current work
 
-PR [161](https://github.com/hugoduncan/criterium/pull/161) failed lint after the macOS non-agent test suites passed. The follow-up sorts array-test requires and binds the structural test timer. CI-pinned clj-kondo 2024.09.27 now passes with zero warnings and errors; focused suites pass (51 tests, 1878 assertions). Full CI confirmation is pending. Local clj-kondo 2026.04.15 reports two warnings in unchanged timing helpers that the CI version does not report.
+PR [161](https://github.com/hugoduncan/criterium/pull/161): the lint fix passed all matrix jobs. Run `40346440735` then failed only the Ubuntu non-agent compiler-warning check. Reproduced locally and fixed boxed arithmetic in the new `mixed-array-result` helper with primitive scalar parameter hints. Full warning check now passes (284 namespaces); CI-pinned clj-kondo passes; focused suites pass (51 tests, 1878 assertions); full default suite passes (1103 tests, 13143 assertions). Remote confirmation is pending for this second fix.
+
+CI preflight must include `clojure -M:dev:test:check-warnings`, not only tests and lint. It runs only in the Ubuntu non-agent job. Local clj-kondo 2026.04.15 also reports two warnings in unchanged timing helpers that CI-pinned 2024.09.27 does not report.
 
 Task [004 — Array argument hints and opaque reference reads](../munera/closed/004-array-argument-hints/design.md) is complete and closed at the user's request. All implementation and review follow-up steps are complete. Final implementation, test, documentation, and code-shape reviews found no remaining actionable issues.
 
