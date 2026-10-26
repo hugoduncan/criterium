@@ -157,3 +157,27 @@
         (doseq [n [1 17]]
           (is (true? (second (measured/invoke
                               subject (measured/args subject) n)))))))))
+
+(deftest explicit-array-hint-test
+  ;; Preserve user hints at capture and exercise the real opaque-read path.
+  (testing "explicit aliases and descriptors retain metadata and array results"
+    (doseq [[tag constructor]
+            (into array-cases
+                  (map vector
+                       '[booleans bytes shorts chars ints longs floats doubles objects]
+                       (map second (take 9 array-cases))))]
+      (testing (str tag)
+        (let [hinted-xs (with-meta 'xs {:tag tag})
+              warnings (java.io.StringWriter.)
+              subject (binding [*warn-on-reflection* true
+                                *err* warnings]
+                        (eval (list 'let ['xs constructor]
+                                    (list 'criterium.measured/expr
+                                          (list 'alength hinted-xs)))))]
+          (is (= [{:tag tag}]
+                 (impl/capture-arg-types
+                  ['arg1] {'arg1 hinted-xs} #{'arg1} nil)))
+          (is (= "" (str warnings)))
+          (doseq [n [1 17]]
+            (is (= 3 (second (measured/invoke
+                              subject (measured/args subject) n))))))))))

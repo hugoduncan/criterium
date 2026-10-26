@@ -60,3 +60,9 @@ The existing array-fallback tests encode the current defect and must not constra
 - `arg-metas-from-example` takes a generator form that produces the argument tuple, not a generator value. The test uses a real tuple generator and does not override inference.
 - Verification: `clojure -M:kaocha:dev:test --focus criterium.arg-gen-test --focus criterium.measured-array-test --focus criterium.measured-test` exited 0: 47 tests, 1504 assertions, no failures. Runtime blackhole; compiler-mode timing assertions skipped, native-agent allocation checks not claimed. Scry remains unconfigured. An unrelated existing boxed-math warning in `build/check_warnings.clj:348` appeared outside captured array compilation.
 - Next: finish non-local metadata, explicit aliases, inferred-path compiler warnings, and the slow bench smoke check before version/mode validation and documentation.
+
+## Slice 3, explicit-hint pass — 2026-10-26
+
+- Added expression-level alias and descriptor tests: all nine array aliases and all 13 exact descriptors retain user metadata at capture and compile `alength` without reflection warnings. Real public expressions return the correct result for one and 17 evaluations. Existing structural tests establish reference-cell routing for these same tags.
+- Verification: `clojure -M:kaocha:dev:test --focus criterium.arg-gen-test --focus criterium.measured-array-test --focus criterium.measured-test` exited 0: 48 tests, 1592 assertions, no failures. Same runtime-blackhole environment as the previous pass; compiler timing assertions skip, and native-agent allocation checks are not claimed. No production, dependency, or design change.
+- Next: non-local inference and inferred-path warning checks still need separate coverage; explicit expression hints avoid the previously recorded dynamic `make-array` local inference limit. The slow bench smoke check, version/mode validation, and documentation remain.
