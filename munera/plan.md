@@ -5,4 +5,4 @@ tasks move to `closed/`.
 
 ## Open
 
-_No open tasks._
+No tasks are currently scheduled.

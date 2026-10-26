@@ -975,11 +975,11 @@
     (testing "is true for every tag in both primitive sets"
       (doseq [tag (into impl/PRIMITIVE-CELL-TAGS impl/SMALL-PRIMITIVE-CELL-TAGS)]
         (is (impl/opaque-tag? tag) (str tag))))
-    (testing "is false for array tags"
-      (doseq [tag (map symbol ["long[]" "double[]" "java.lang.String[]"])]
-        (is (not (impl/opaque-tag? tag)) (str tag)))))
+    (testing "is true for array and string class hints"
+      (doseq [tag ["[J" "[D" "[Ljava.lang.String;" 'longs 'objects "java.lang.String"]]
+        (is (impl/opaque-tag? tag) (str tag)))))
   (testing "opaque-cell rejects a fallback tag with a named signal"
-    (doseq [tag (map symbol ["long[]" "java.lang.String[]"])]
+    (doseq [tag [:unsupported]]
       (is (thrown-with-msg?
            AssertionError #"opaque-cell requires an opaque-eligible tag"
            (impl/opaque-cell 'x {:tag tag}))
@@ -997,11 +997,9 @@
     (testing "small primitives map to their keyword kind"
       (doseq [tag impl/SMALL-PRIMITIVE-CELL-TAGS]
         (is (= (keyword tag) (impl/cell-kind tag)) (str tag))))
-    (testing "array tags map to :fallback, not :reference"
-      ;; Array tags are symbols; pin that they are excluded from the
-      ;; generic reference catch regardless of cond clause order (#156).
-      (doseq [tag (map symbol ["long[]" "double[]" "java.lang.String[]"])]
-        (is (= :fallback (impl/cell-kind tag)) (str tag)))))
+    (testing "array and string class hints map to :reference"
+      (doseq [tag ["[J" "[D" "[Ljava.lang.String;" 'longs 'objects "java.lang.String"]]
+        (is (= :reference (impl/cell-kind tag)) (str tag)))))
   (testing "opaque-eligible-tags-by-kind covers both primitive sets"
     (doseq [tag (into impl/PRIMITIVE-CELL-TAGS impl/SMALL-PRIMITIVE-CELL-TAGS)]
       (is (= tag (get impl/opaque-eligible-tags-by-kind (impl/cell-kind tag)))
@@ -1165,36 +1163,34 @@
       (is (= 3 (count cells)))
       (is (= cells (set (map second escapes))))
       (is (= 3 (count escapes)))))
-  (testing "fallback args and the callable path produce no escape"
-    (doseq [tag (map symbol ["long[]" "java.lang.String[]"])]
-      (is (zero? (count-matching cell-escape? (expr-fn-form tag)))
-          (str tag)))
+  (testing "the callable path produces no escape"
     (is (zero? (count-matching cell-escape?
                                (impl/measured-callable `(fn [] 1)))))))
 
-(deftest opaque-fallback-test
-  (testing "measured-expr-fn falls back to a plain binding"
-    (doseq [tag (map symbol ["long[]" "java.lang.String[]"])]
-      (testing (str "for tag " tag)
-        (let [form (expr-fn-form tag)]
-          (is (zero? (count-matching cell-ctor? form)))
-          (is (zero? (count-matching get-opaque? form))))))
-    (testing "for the callable path"
-      (let [form (impl/measured-callable `(fn [] 1))]
-        (is (zero? (count-matching get-opaque? form))))
-      (let [form (impl/measured-callable `(fn [] [1]) `identity)]
-        (is (zero? (count-matching get-opaque? form)))))))
+(deftest opaque-callable-test
+  ;; Callable transport is unchanged by array reference support.
+  (testing "the callable path has no opaque reads"
+    (doseq [form [(impl/measured-callable `(fn [] 1))
+                  (impl/measured-callable `(fn [] [1]) `identity)]]
+      (is (zero? (count-matching get-opaque? form))))))
+
+(defn mixed-array-result
+  [^longs xs ^long index ^double offset]
+  [xs (+ (aget xs index) offset)])
 
 (deftest opaque-mixed-args-test
-  (testing "opaque and fallback arguments coexist"
+  (testing "array and scalar arguments use opaque cells"
     (let [xs  (long-array [1 2 3])
           n   2
           d   1.5
-          m   (measured/expr (+ ^long (aget ^longs xs n) d))
+          m   (measured/expr (mixed-array-result xs n d))
           c   (.charAt "abc" 1) ; primitive char reads through its cell
           a   (measured/expr (str c n))]
-      (is (== 4.5 (second (invoke m))))
-      (is (== 4.5 (second (invoke m 1000))))
+      (doseq [evaluations [1 1000]]
+        (let [[result-xs result] (second (invoke m evaluations))]
+          (is (identical? xs result-xs))
+          (is (== 4.5 result))
+          (is (= [1 2 3] (vec xs)))))
       (is (= "b2" (second (invoke a 1000)))))
     (testing "and primitive values round trip through their cells"
       (let [i (int 7)
