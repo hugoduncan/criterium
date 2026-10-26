@@ -143,3 +143,35 @@
               "first call should match")
           (is (= (f1) (f2))
               "second call should match"))))))
+
+(deftype ArrayComponent [])
+
+(deftest generated-array-test
+  ;; Deterministic real generators exercise example metadata and compiled reads.
+  (testing "generated arrays retain exact hints, identity, and contents"
+    (doseq [[descriptor constructor]
+            [["[J" '(long-array [1 2 3])]
+             ["[Lcriterium.arg_gen_test.ArrayComponent;"
+              '(make-array criterium.arg_gen_test.ArrayComponent 3)]
+             ["[[J" '(make-array Long/TYPE 3 2)]
+             ["[[Ljava.lang.String;" '(make-array String 3 2)]]]
+      (testing descriptor
+        (let [generator (list 'clojure.test.check.generators/return constructor)
+              tuple-generator (list 'clojure.test.check.generators/tuple generator)
+              warnings (java.io.StringWriter.)
+              subject (binding [*warn-on-reflection* true
+                                *err* warnings]
+                        (eval (list 'criterium.arg-gen/measured
+                                    ['xs generator]
+                                    '[xs (alength xs)])))
+              args (measured/args subject)
+              original (first args)
+              contents (vec original)]
+          (is (= [{:tag descriptor}]
+                 (arg-gen/arg-metas-from-example tuple-generator)))
+          (is (= "" (str warnings)))
+          (doseq [n [1 17]]
+            (let [[result length] (second (measured/invoke subject args n))]
+              (is (identical? original result))
+              (is (= 3 length))
+              (is (= contents (vec result))))))))))

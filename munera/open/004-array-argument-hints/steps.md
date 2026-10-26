@@ -23,7 +23,7 @@
 - [x] Add `measured/expr` result tests for inferred local arrays across the plan's array matrix, using evaluation counts of one and greater than one.
 - [ ] Add evaluated non-local array result tests and inspect captured metadata to verify the non-local inference path.
 - [ ] Add explicit array-alias and descriptor-string hint tests that verify preserved metadata and correct results after opaque reads.
-- [ ] Add deterministic generated-array tests in `bases/arg-gen/test/criterium/arg_gen_test.clj` for exact `arg-metas-from-example` metadata and correct `arg-gen/measured` results, including primitive, user-defined component, and multidimensional arrays.
+- [x] Add deterministic generated-array tests in `bases/arg-gen/test/criterium/arg_gen_test.clj` for exact `arg-metas-from-example` metadata and correct `arg-gen/measured` results, including primitive, user-defined component, and multidimensional arrays.
 - [x] Add explicit-descriptor compiler checks for `alength` across the matrix, primitive `aget`, and representative Java overloads.
 - [ ] Add compiler-warning assertions for `alength` across the array matrix, `aget` across all eight primitive array types, and representative statically typed Java array-parameter calls; capture warnings during test-time compilation.
 - [ ] Add a slow smoke check using issue #156's exact `bench` expression and options from `plan.md`; require successful completion, not a timing value.
