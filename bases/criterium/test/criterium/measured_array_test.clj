@@ -231,3 +231,37 @@
                     (is (identical? xs result))
                     (is (= expected result)))
                   (is (= before (vec xs))))))))))))
+
+(deftest inferred-local-array-warning-test
+  ;; Constructor return hints supply local types without explicit user hints.
+  ;; Dynamic make-array locals infer Object; their exact descriptors are covered
+  ;; by the non-local and explicit-hint tests instead.
+  (testing "inferred local array operations compile without reflection"
+    (doseq [[descriptor constructor] (take 9 array-cases)
+            operation (cond-> ['(alength xs)]
+                        (not= descriptor "[Ljava.lang.Object;")
+                        (conj '(aget xs 0)))]
+      (testing (str descriptor " " operation)
+        (let [warnings (java.io.StringWriter.)
+              subject (binding [*warn-on-reflection* true
+                                *err* warnings]
+                        (eval (list 'let ['xs constructor]
+                                    (list 'criterium.measured/expr operation))))
+              expected (eval (list 'let ['xs constructor] operation))]
+          (is (= "" (str warnings)))
+          (doseq [n [1 17]]
+            (is (= expected (second (measured/invoke
+                                     subject (measured/args subject) n)))))))))
+  (testing "inferred primitive arrays resolve Java array parameter overloads"
+    (doseq [constructor ['(long-array [1 2 3])
+                         '(double-array [1 2 3])]]
+      (let [warnings (java.io.StringWriter.)
+            subject (binding [*warn-on-reflection* true
+                              *err* warnings]
+                      (eval (list 'let ['xs constructor 'ys constructor]
+                                  (list 'criterium.measured/expr
+                                        '(java.util.Arrays/equals xs ys)))))]
+        (is (= "" (str warnings)))
+        (doseq [n [1 17]]
+          (is (true? (second (measured/invoke
+                              subject (measured/args subject) n)))))))))

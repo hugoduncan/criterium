@@ -25,7 +25,7 @@
 - [x] Add explicit array-alias and descriptor-string hint tests that verify preserved metadata and correct results after opaque reads.
 - [x] Add deterministic generated-array tests in `bases/arg-gen/test/criterium/arg_gen_test.clj` for exact `arg-metas-from-example` metadata and correct `arg-gen/measured` results, including primitive, user-defined component, and multidimensional arrays.
 - [x] Add explicit-descriptor compiler checks for `alength` across the matrix, primitive `aget`, and representative Java overloads.
-- [ ] Add compiler-warning assertions for `alength` across the array matrix, `aget` across all eight primitive array types, and representative statically typed Java array-parameter calls; capture warnings during test-time compilation.
+- [x] Add compiler-warning assertions for `alength` across the array matrix, `aget` across all eight primitive array types, and representative statically typed Java array-parameter calls; capture warnings during test-time compilation.
 - [ ] Add a slow smoke check using issue #156's exact `bench` expression and options from `plan.md`; require successful completion, not a timing value.
 - [ ] Run the new public API, generated-argument, compiler-warning, and smoke checks; record results in `implementation.md`.
 

@@ -72,3 +72,9 @@ The existing array-fallback tests encode the current defect and must not constra
 - Unhinted array Vars exercise evaluated non-local capture across all 13 shapes. Exact descriptors, warning-free length/identity operations, all eight primitive element reads, identity, and unchanged contents pass for one and 17 evaluations. No production, dependency, or design change.
 - Verification: `clojure -M:kaocha:dev:test --focus criterium.arg-gen-test --focus criterium.measured-array-test --focus criterium.measured-test` exited 0: 49 tests, 1775 assertions, no failures. Runtime blackhole; compiler timing assertions skip, native-agent allocation checks not claimed. Scry is not configured.
 - Delimiter repair also changed unrelated balanced forms; restored those forms from HEAD before the successful run. Next: inferred-local warning checks and slow bench smoke coverage, then version/mode validation and documentation.
+
+## Slice 3, inferred-local warning pass — 2026-10-26
+
+- Added real compiler warning checks for unhinted primitive and Object array locals, all eight primitive element reads, and inferred long/double `Arrays/equals` overloads. Results pass for one and 17 evaluations. Dynamic `make-array` inference remains unchanged; exact reference and multidimensional warning coverage uses the existing explicit and non-local tests. No design, production, or dependency change.
+- Verification: `clojure -M:kaocha:dev:test --focus criterium.arg-gen-test --focus criterium.measured-array-test --focus criterium.measured-test` exited 0: 50 tests, 1832 assertions, no failures. Same dev runtime-blackhole environment; compiler timing assertions skip and native-agent allocation checks are not claimed. Scry is not configured.
+- Next: add the slow issue #156 bench smoke check, then complete version/mode validation and documentation.
