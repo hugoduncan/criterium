@@ -55,4 +55,4 @@
 
 ## Documentation review follow-up
 
-- [ ] Correct the array fallback statement in `README.md:53–56` under “What the harness stops, and its cost”. Arrays now use `AtomicReference` cells and opaque reads, not plain bindings. Describe exact inferred JVM-name hints and identity-preserving transport without array copies or element boxing; retain the separate callable limitation. Keep this description consistent with the Unreleased changelog and `measured/expr` documentation, and identify it as current 0.5.x behaviour rather than a guarantee for the surrounding stable 0.4.6 section.
+- [x] Correct the array fallback statement in `README.md:53–56` under “What the harness stops, and its cost”. Arrays now use `AtomicReference` cells and opaque reads, not plain bindings. Describe exact inferred JVM-name hints and identity-preserving transport without array copies or element boxing; retain the separate callable limitation. Keep this description consistent with the Unreleased changelog and `measured/expr` documentation, and identify it as current 0.5.x behaviour rather than a guarantee for the surrounding stable 0.4.6 section.

@@ -31,6 +31,9 @@ This includes:
 
 ### What the harness stops, and its cost
 
+This section describes current 0.5.x development behaviour, including the
+[Unreleased array fix](CHANGELOG.md#unreleased), not stable 0.4.6 guarantees.
+
 The harness stops constant folding and dead-code elimination of the
 measured expression:
 
@@ -51,9 +54,13 @@ reported time includes about 0.07 ns per primitive argument and about
 between JVM runs). Criterium does not subtract this cost.
 
 Every primitive argument (including `boolean`, `byte`, `short` and
-`char`) reads through the opaque cell. Arguments with an array type and
-`measured/callable` arguments use a plain binding, without the opaque
-read.
+`char`) reads through the opaque cell. Array arguments use
+`AtomicReference` cells and opaque reads. Inferred array hints are exact
+JVM-name strings, which preserve the component type and number of
+dimensions. Transport preserves array identity and contents without array
+copies or element boxing; it does not prevent mutations by the measured
+expression. Separately, `measured/callable` arguments use plain bindings
+without opaque reads.
 
 ## Installation
 
