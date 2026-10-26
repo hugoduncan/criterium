@@ -58,8 +58,9 @@
         (let [subject (eval (list 'let ['xs constructor]
                             (list 'criterium.measured/expr
                                   '(alength xs))))]
-          (is (= 3 (second (measured/invoke
-                            subject (measured/args subject) 1)))))))))
+          (doseq [n [1 17]]
+            (is (= 3 (second (measured/invoke
+                              subject (measured/args subject) n))))))))))
 
 (def array-tags
   (into (mapv first array-cases)
@@ -117,3 +118,42 @@
         (is (identical? xs (second (measured/invoke
                                    subject (measured/args subject) n))))
         (is (= [1 2 3] (vec xs)))))))
+
+(deftest array-public-compiler-test
+  ;; Compile real public expressions while warnings are captured, then invoke
+  ;; repeatedly to cover both the initial and loop opaque-read sites.
+  (testing "array operations compile without reflection and retain results"
+    (doseq [[descriptor constructor] array-cases
+            operation (cond-> ['(alength xs)]
+                        (contains? #{"[Z" "[B" "[S" "[C" "[I" "[J" "[F" "[D"}
+                                   descriptor)
+                        (conj '(aget xs 0)))]
+      (testing (str descriptor " " operation)
+        (let [warnings (java.io.StringWriter.)
+              subject (binding [*warn-on-reflection* true
+                                *err* warnings]
+                        (eval (list 'let [(with-meta 'xs {:tag descriptor}) constructor]
+                                    (list 'criterium.measured/expr operation))))
+              expected (eval (list 'let ['xs constructor] operation))]
+          (is (= "" (str warnings)))
+          (doseq [n [1 17]]
+            (is (= expected (second (measured/invoke
+                                     subject (measured/args subject) n))))))))))
+
+(deftest array-java-parameter-test
+  ;; Arrays/equals must resolve its exact primitive or reference overload.
+  (testing "statically typed Java array parameters compile without reflection"
+    (doseq [constructor ['(long-array [1 2 3])
+                         '(double-array [1 2 3])
+                         '(into-array String ["a" "b"])]]
+      (let [warnings (java.io.StringWriter.)
+            subject (binding [*warn-on-reflection* true
+                              *err* warnings]
+                      (eval (list 'let [(with-meta 'xs {:tag (.getName (class (eval constructor)))}) constructor
+                                       (with-meta 'ys {:tag (.getName (class (eval constructor)))}) constructor]
+                                  (list 'criterium.measured/expr
+                                        '(java.util.Arrays/equals xs ys)))))]
+        (is (= "" (str warnings)))
+        (doseq [n [1 17]]
+          (is (true? (second (measured/invoke
+                              subject (measured/args subject) n)))))))))
