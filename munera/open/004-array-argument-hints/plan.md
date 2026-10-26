@@ -50,3 +50,5 @@ Non-local array coverage now checks unhinted Vars across all 13 shapes: evaluate
 Inferred-local warning coverage is complete for the eight primitive constructors and `object-array`, including primitive element reads and long/double Java overloads. Exact reference and multidimensional descriptors remain covered through explicit and non-local paths because dynamic constructors infer Object. The slow smoke check remains in slice 3.
 
 Slice 3 is complete. The slow `criterium.bench-test/array-local-bench-test` compiles the exact issue expression at test time and checks the returned subject value, not timing. It runs only in the slow profile. Version/mode validation and documentation are next.
+
+Slice 4 is complete. Both required Clojure versions pass the focused suites in fresh runtime and compiler modes on JDK 25 / Darwin arm64. Compiler runs exclude only the two Linux x86-64 timing oracles; runtime runs take their skip branches. Native allocation checks are not claimed. See implementation notes for commands and counts. Slice 5 remains.

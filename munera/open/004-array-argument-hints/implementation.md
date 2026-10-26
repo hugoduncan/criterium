@@ -84,3 +84,26 @@ The existing array-fallback tests encode the current defect and must not constra
 - Added a slow public `bench` regression with the exact issue #156 expression and options. Test-time compilation keeps a compiler regression from preventing namespace loading. The assertion checks the returned length (3), not a timing threshold. No design, production, API, or dependency change.
 - Verification: `clojure -M:kaocha:dev:test slow --focus criterium.bench-test/array-local-bench-test` exited 0: 1 test, 1 assertion. `clojure -M:kaocha:dev:test all --focus criterium.arg-gen-test --focus criterium.measured-array-test --focus criterium.measured-test` exited 0: 50 tests, 1832 assertions. Runtime blackhole; compiler timing assertions skip and native-agent allocation checks are not claimed. Scry is not configured.
 - Slice 3 is complete. Next: fresh-process version and blackhole-mode validation, then documentation and acceptance mapping. Existing fast-profile exclusions keep the smoke test out of default fast runs.
+
+## Slice 4 — 2026-10-26
+
+- Rebuilt agent and blackhole Java classes with `clojure -T:build javac :project :agent :class-dir '"bases/agent/target/classes"'` and the equivalent `:blackhole` command. Both exited 0. Environment: OpenJDK 25.0.2+10-69, Darwin arm64 (`os.arch` aarch64), Kaocha. The native dylib exists, but these runs did not enable its startup agent; native allocation assertions are not claimed. Scry is not configured.
+- Four fresh processes verified both `(clojure-version)` and `(criterium.blackhole/mode)` with assertions before running the suites. Clojure 1.11.4 and 1.12.4 each passed runtime mode (50 tests, 1832 assertions) and compiler mode (48 tests, 1830 assertions); all exited 0 with no failures.
+- Reproduction command template (replace VERSION; add `:blackhole` before `:array-validation` for compiler mode):
+
+```sh
+clojure -Sdeps '{:aliases {:array-validation {:override-deps {org.clojure/clojure {:mvn/version "VERSION"}} :main-opts []}}}' \
+  -M:kaocha:dev:test:array-validation -e '
+(require (quote criterium.blackhole) (quote kaocha.runner))
+(prn {:clojure (clojure-version) :mode (criterium.blackhole/mode)
+      :jvm (System/getProperty "java.version") :arch (System/getProperty "os.arch")})
+(assert (= "VERSION" (clojure-version)))
+(assert (= :runtime (criterium.blackhole/mode)))
+(kaocha.runner/-main "all"
+  "--focus" "criterium.measured-array-test"
+  "--focus" "criterium.measured-test"
+  "--focus" "criterium.arg-gen-test")'
+```
+
+- For compiler mode, change the mode assertion to `:compiler` and add runner arguments `"--skip" "criterium.measured-test/opaque-behaviour-test" "--skip" "criterium.measured-test/opaque-depth-scaling-test"`. These two timing oracles are unsupported on Apple Silicon: the volatile control needs an `ldar` barrier, unlike x86-64. CI retains their Linux x86-64 execution. Runtime runs execute only their mode/skip assertions, not timing assertions. All other focused barrier and array checks ran in both modes. No threshold was changed.
+- No code, dependency, or design change was needed. Next slice: release notes, current-contract documentation, stale knowledge proposal, and acceptance evidence map. Do not describe the unsupported timing or agent-gated allocation checks as passed.

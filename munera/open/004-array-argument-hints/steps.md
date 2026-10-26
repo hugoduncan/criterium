@@ -31,12 +31,12 @@
 
 ## Slice 4 — Validation
 
-- [ ] Prepare required local Java classes with the existing build tasks and record the JDK, architecture, test runner, and native-agent availability.
-- [ ] Run focused array metadata, compiler, and functional checks in a fresh Clojure 1.11.4 process; verify the effective version and record the command and result.
-- [ ] Run the same focused checks in a fresh Clojure 1.12.4 process; verify the effective version and record the command and result.
-- [ ] Run the relevant measured and arg-gen suites with the repository test configuration; record runner results and resolve failures caused by this change.
-- [ ] Run existing barrier checks and new array structural/functional checks in a fresh runtime-blackhole process; verify and record the active mode and any platform or agent exclusions.
-- [ ] Run existing barrier checks and new array structural/functional checks in a fresh compiler-blackhole process where supported; verify the active mode, follow CI's Linux x86-64 timing-test limits, and record results or the exact unsupported-environment reason.
+- [x] Prepare required local Java classes with the existing build tasks and record the JDK, architecture, test runner, and native-agent availability.
+- [x] Run focused array metadata, compiler, and functional checks in a fresh Clojure 1.11.4 process; verify the effective version and record the command and result.
+- [x] Run the same focused checks in a fresh Clojure 1.12.4 process; verify the effective version and record the command and result.
+- [x] Run the relevant measured and arg-gen suites with the repository test configuration; record runner results and resolve failures caused by this change.
+- [x] Run existing barrier checks and new array structural/functional checks in a fresh runtime-blackhole process; verify and record the active mode and any platform or agent exclusions.
+- [x] Run existing barrier checks and new array structural/functional checks in a fresh compiler-blackhole process where supported; verify the active mode, follow CI's Linux x86-64 timing-test limits, and record results or the exact unsupported-environment reason.
 
 ## Slice 5 — Documentation and acceptance
 
