@@ -2,6 +2,8 @@
 
 ## Current work
 
+Task 004 code-shaper re-review found no new actionable issues. Static review covered the task artifacts, metadata and cell code, array and generated-argument tests, shared structural helpers, and referenced documentation. Tests were not rerun. No follow-up steps were added.
+
 The code-shaper review follow-up for task 004 is complete. Array cases now group descriptors, constructors, aliases, non-local Var symbols, and inferred-local eligibility; coverage no longer depends on matrix positions. Focused measured, array, and arg-gen suites passed with original and reversed case order (each: 51 tests, 1878 assertions). Original order is restored. No unchecked review follow-ups remain.
 
 Documentation re-review of task 004 found no new actionable issues. The documentation review follow-up is complete: README now describes exact array hints and opaque reference transport, scoped to current 0.5.x development including the Unreleased fix, not stable 0.4.6. No unchecked review follow-ups remain. `doc/` and `ramora/` are absent from this checkout.

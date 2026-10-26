@@ -178,3 +178,7 @@ All checklist items are complete. No implementation blocker remains. Next review
 
 - Addressed 1 review step: grouped array-case fields and removed positional selection and pairing; retained explicit expected descriptors and all assertions.
 - Verification: `clojure -M:kaocha:dev:test all --focus criterium.arg-gen-test --focus criterium.measured-array-test --focus criterium.measured-test` passed with original and temporarily reversed matrix order: each run had 51 tests, 1878 assertions, no failures, exit 0. Restored original order. Scry is not configured. Runtime timing assertions skip; native allocation checks are not claimed. `git diff --check` passed.
+
+## Code-shaper re-review — 2026-10-26
+
+- No new actionable code-shape issues.
