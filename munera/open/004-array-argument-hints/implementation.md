@@ -1,0 +1,9 @@
+# Implementation notes
+
+## Task creation — before step 1
+
+The user selected the recommended fix from the issue #156 analysis: exact JVM-name string hints for arrays, with reference-cell support. No implementation has started.
+
+Analysis confirmed the compilation failure on Clojure 1.12.4 / JDK 25. Separate compiler probes on Clojure 1.11.4 and 1.12.4 accepted string array descriptors after an opaque reference read without `alength` reflection warnings. These probes did not run the full suites or establish array-specific JIT timing behaviour.
+
+The existing array-fallback tests encode the current defect and must not constrain the new design. Existing callable fallback behaviour is outside this task.
