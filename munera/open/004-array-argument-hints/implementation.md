@@ -165,3 +165,7 @@ All checklist items are complete. No implementation blocker remains. Next review
 
 - Addressed 1 review step: corrected README array transport and scoped the harness section to current 0.5.x development, including the Unreleased fix, not stable 0.4.6. Retained the callable limitation.
 - Checked consistency with the Unreleased changelog and `measured/expr` documentation. `git diff --check` passed. Tests were not run; documentation-only change.
+
+## Documentation re-review — 2026-10-26
+
+- No new actionable documentation issues.
