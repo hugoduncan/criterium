@@ -2,21 +2,19 @@
 
 ## Current work
 
-Task 004 code-shaper re-review found no new actionable issues. Static review covered the task artifacts, metadata and cell code, array and generated-argument tests, shared structural helpers, and referenced documentation. Tests were not rerun. No follow-up steps were added.
+Task [004 — Array argument hints and opaque reference reads](../munera/closed/004-array-argument-hints/design.md) is complete and closed at the user's request. All implementation and review follow-up steps are complete. Final implementation, test, documentation, and code-shape reviews found no remaining actionable issues.
 
-The code-shaper review follow-up for task 004 is complete. Array cases now group descriptors, constructors, aliases, non-local Var symbols, and inferred-local eligibility; coverage no longer depends on matrix positions. Focused measured, array, and arg-gen suites passed with original and reversed case order (each: 51 tests, 1878 assertions). Original order is restored. No unchecked review follow-ups remain.
+Arrays now use exact JVM-name string hints and opaque reference cells. Tests cover metadata, routing, structure, identity, contents, compiler behaviour, public APIs, and generated arguments. The final focused measured, array, and arg-gen suites passed with both original and reversed array-case order: 51 tests and 1878 assertions in each run. Original order was restored.
 
-Documentation re-review of task 004 found no new actionable issues. The documentation review follow-up is complete: README now describes exact array hints and opaque reference transport, scoped to current 0.5.x development including the Unreleased fix, not stable 0.4.6. No unchecked review follow-ups remain. `doc/` and `ramora/` are absent from this checkout.
+Knowledge extraction completed in `2d2e834` and `02e5593`. The input-barrier knowledge now describes array reference transport; the type-capture memory records the mixed-input expression-factoring lesson. No knowledge update remains pending for task 004.
 
-Task [004 — Array argument hints and opaque reference reads](../munera/open/004-array-argument-hints/design.md) is implemented and remains open. The latest test-review follow-up is complete: populated arrays and independent nested-content snapshots now detect clearing and inner-element changes, with separate identity checks after one and 17 evaluations. Focused measured, array, and arg-gen suites passed (51 tests, 1878 assertions). No unchecked review follow-ups remain. Test review after the content-check changes found no new actionable issues; the focused suites passed again (51 tests, 1878 assertions). Implementation review found no new actionable issues. The escape-check review follow-up is complete: array tests match constructor-bound symbols, not generated names. The mixed array/scalar review follow-up is also complete: bare inputs have metadata, routing, per-cell structure, identity, content, and result checks. The updated focused suites passed (51 tests, 1878 assertions). A fresh review run passed the focused suites (50 tests, 1832 assertions) and the slow issue #156 smoke check (1 test, 1 assertion). All five slices are complete. Exact JVM-name strings and opaque reference cells preserve array types and identity. The acceptance evidence map and proposed knowledge correction are in the task's implementation notes. Clojure 1.11.4 and 1.12.4 each passed fresh runtime (50 tests, 1832 assertions) and compiler (48 tests, 1830 assertions) runs. Compiler timing oracles are unsupported on Darwin arm64; native allocation checks are not claimed. The final documentation pass also passed the focused suites (50 tests, 1832 assertions). Dynamic make-array locals can infer Object; inference expansion is outside scope.
-
-See [Munera plan](../munera/plan.md) for the task order.
+No tests were rerun for closure. See the task's implementation notes for the acceptance evidence and review results. See [Munera plan](../munera/plan.md) for scheduled work.
 
 ## Relevant knowledge
 
-- [Input barrier](knowledge/jit-anti-hoisting-input-barrier.md): explains cell setup, escape, and opaque reads. Its array-fallback statements are stale after task 004; the proposed correction awaits approval or authorized extraction. Arrays are reference values and can use `AtomicReference` without boxing their elements.
-- [Type capture routing](memories/capture-arg-types-only-widens-long-double.md): verify metadata and cell routing directly; functional or timing checks alone can exercise the wrong path.
+- [Input barrier](knowledge/jit-anti-hoisting-input-barrier.md): cell routing, exact array metadata, setup escape, opaque reads, and measurement limits. Arrays use `AtomicReference` without array copies or element boxing.
+- [Type capture routing](memories/capture-arg-types-only-widens-long-double.md): verify captured metadata and cell routing directly; expression factoring can change which inputs a test exercises.
 
-## Analysis evidence
+## Validation limits
 
-The current array-hint defect was reproduced on Clojure 1.12.4 / JDK 25. Focused compiler probes on Clojure 1.11.4 and 1.12.4 accepted exact JVM-name strings after opaque reference reads for primitive, reference, and multidimensional arrays. Focused version/mode validation is complete; see the task notes for platform and agent limits.
+Fresh runtime and compiler-mode checks passed on Clojure 1.11.4 and 1.12.4. Compiler timing oracles are unsupported on Darwin arm64; native-agent allocation checks were not run. Dynamic `make-array` locals can infer `Object`; broader inference changes remain outside task 004's scope.
