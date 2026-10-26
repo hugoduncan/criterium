@@ -16,3 +16,7 @@ The existing array-fallback tests encode the current defect and must not constra
 ## Ambiguity review — 2026-10-26
 
 - No ambiguity review feedback.
+
+## Inconsistency review — 2026-10-26
+
+- No inconsistency review feedback.
