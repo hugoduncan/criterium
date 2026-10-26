@@ -24,3 +24,7 @@ The existing array-fallback tests encode the current defect and must not constra
 ## Review handoff — 2026-10-26
 
 - Code reference: `bases/criterium/src/criterium/measured/impl.clj` owns `tag-meta`, `cell-kind`, and `opaque-cell`. Keep eligibility derived from `cell-kind`; the existing reference read preserves argument metadata. `bases/arg-gen/src/criterium/arg_gen.clj` delegates generated metadata to `tag-meta` through `arg-metas-from-example`.
+
+## Plan ambiguity review — 2026-10-26
+
+- No new actionable ambiguity feedback. Reviewed the five-slice plan against read-only `steps.md`, prior notes, metadata/cell code, measured and arg-gen tests, barrier documentation, and test/CI configuration; context loaded for the shared `plan-review` inconsistency turn.
