@@ -45,3 +45,8 @@
 - [x] Update current-contract statements in `design/opaque-input-barrier.md` that describe arrays as a pending defect or non-opaque fallback; preserve labelled historical experiment results and unrelated scope decisions.
 - [x] Identify stale array-fallback statements in `mementum/knowledge/jit-anti-hoisting-input-barrier.md` and record the proposed knowledge update for human approval or the authorized knowledge-extraction workflow.
 - [x] Review the diff against all eight design acceptance criteria and record an evidence map, validation limits, and any remaining blockers in `implementation.md`.
+
+## Test review follow-up
+
+- [ ] Correct the mixed scalar/array coverage in `array-reference-identity-test` and `opaque-mixed-args-test`. Expression factoring captures `(aget xs index)` as one evaluated argument in the `do` subject, not `index` as a separate scalar input. The `+` subject similarly captures the `aget` result rather than the array. Use a subject with bare array and scalar arguments, confirm their captured metadata and cell routing, and check identity, contents, and results for one and repeated evaluations. Add a mixed generated-form check for one store and escape per argument and opaque reads at both evaluation sites.
+- [ ] Remove generated-name dependence from the escape checks used by `array-reference-structure-test`. The reused `measured-test/cell-escape?` requires the `-cell` gensym spelling, so a harmless cell rename breaks the new array tests. Identify cell bindings from their constructors and match escape arguments against those symbols. Retain the escape count, identity, and ordering checks without requiring a symbol-name pattern.

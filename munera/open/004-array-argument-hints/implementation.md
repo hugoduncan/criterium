@@ -130,3 +130,7 @@ All checklist items are complete. No implementation blocker remains. Next review
 ## Implementation review — 2026-10-26
 
 - No new actionable issues found.
+
+## Test review — 2026-10-26
+
+- Added 2 steps to be addressed.
