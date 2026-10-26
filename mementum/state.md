@@ -2,7 +2,7 @@
 
 ## Current work
 
-Task [004 — Array argument hints and opaque reference reads](../munera/open/004-array-argument-hints/design.md) is open for [GitHub issue #156](https://github.com/hugoduncan/criterium/issues/156). The user selected exact JVM-name string hints for arrays and the existing opaque reference-cell path. Design, plan, steps, and initial implementation notes are written. The architecture design review found no actionable feedback; source availability is recorded in the task's implementation notes. Implementation has not started.
+Task [004 — Array argument hints and opaque reference reads](../munera/open/004-array-argument-hints/design.md) is open for [GitHub issue #156](https://github.com/hugoduncan/criterium/issues/156). The user selected exact JVM-name string hints for arrays and the existing opaque reference-cell path. Design, plan, steps, and initial implementation notes are written. The architecture and ambiguity design reviews found no actionable feedback; architecture source availability is recorded in the task's implementation notes. Implementation has not started.
 
 See [Munera plan](../munera/plan.md) for the task order.
 
