@@ -146,15 +146,29 @@
 
 (deftype ArrayComponent [])
 
+(defn- array-snapshot
+  ;; Copy nested array values so later element changes cannot alter the snapshot.
+  [value]
+  (if (and value (.isArray (class value)))
+    (mapv array-snapshot value)
+    value))
+
 (deftest generated-array-test
   ;; Deterministic real generators exercise example metadata and compiled reads.
   (testing "generated arrays retain exact hints, identity, and contents"
     (doseq [[descriptor constructor]
             [["[J" '(long-array [1 2 3])]
              ["[Lcriterium.arg_gen_test.ArrayComponent;"
-              '(make-array criterium.arg_gen_test.ArrayComponent 3)]
-             ["[[J" '(make-array Long/TYPE 3 2)]
-             ["[[Ljava.lang.String;" '(make-array String 3 2)]]]
+              '(into-array criterium.arg_gen_test.ArrayComponent
+                           [(criterium.arg_gen_test.ArrayComponent.)
+                            (criterium.arg_gen_test.ArrayComponent.)
+                            (criterium.arg_gen_test.ArrayComponent.)])]
+             ["[[J" '(into-array [(long-array [1 2])
+                                  (long-array [3 4])
+                                  (long-array [5 6])])]
+             ["[[Ljava.lang.String;" '(into-array [(into-array String ["a" "b"])
+                                                   (into-array String ["c" "d"])
+                                                   (into-array String ["e" "f"])])]]]
       (testing descriptor
         (let [generator (list 'clojure.test.check.generators/return constructor)
               tuple-generator (list 'clojure.test.check.generators/tuple generator)
@@ -166,7 +180,7 @@
                                     '[xs (alength xs)])))
               args (measured/args subject)
               original (first args)
-              contents (vec original)]
+              contents (array-snapshot original)]
           (is (= [{:tag descriptor}]
                  (arg-gen/arg-metas-from-example tuple-generator)))
           (is (= "" (str warnings)))
@@ -174,4 +188,4 @@
             (let [[result length] (second (measured/invoke subject args n))]
               (is (identical? original result))
               (is (= 3 length))
-              (is (= contents (vec result))))))))))
+              (is (= contents (array-snapshot result))))))))))

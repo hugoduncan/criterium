@@ -7,22 +7,36 @@
 
 (deftype ArrayComponent [])
 
+(defn- array-snapshot
+  ;; Copy nested array values so later element changes cannot alter the snapshot.
+  [value]
+  (if (and value (.isArray (class value)))
+    (mapv array-snapshot value)
+    value))
+
 (def array-cases
   ;; Explicit descriptors keep the expected contract independent of tag-meta.
-  [["[Z" '(boolean-array 3)]
-   ["[B" '(byte-array 3)]
-   ["[S" '(short-array 3)]
-   ["[C" '(char-array 3)]
-   ["[I" '(int-array 3)]
-   ["[J" '(long-array 3)]
-   ["[F" '(float-array 3)]
-   ["[D" '(double-array 3)]
-   ["[Ljava.lang.Object;" '(object-array 3)]
-   ["[Ljava.lang.String;" '(make-array String 3)]
+  [["[Z" '(boolean-array [true false true])]
+   ["[B" '(byte-array [1 2 3])]
+   ["[S" '(short-array [4 5 6])]
+   ["[C" '(char-array [\a \b \c])]
+   ["[I" '(int-array [7 8 9])]
+   ["[J" '(long-array [1 2 3])]
+   ["[F" '(float-array [1.25 2.5 3.75])]
+   ["[D" '(double-array [1.5 2.5 3.5])]
+   ["[Ljava.lang.Object;" '(object-array ["a" 2 :three])]
+   ["[Ljava.lang.String;" '(into-array String ["a" "b" "c"])]
    ["[Lcriterium.measured_array_test.ArrayComponent;"
-    '(make-array criterium.measured_array_test.ArrayComponent 3)]
-   ["[[J" '(make-array Long/TYPE 3 2)]
-   ["[[Ljava.lang.String;" '(make-array String 3 2)]])
+    '(into-array criterium.measured_array_test.ArrayComponent
+                 [(criterium.measured_array_test.ArrayComponent.)
+                  (criterium.measured_array_test.ArrayComponent.)
+                  (criterium.measured_array_test.ArrayComponent.)])]
+   ["[[J" '(into-array [(long-array [1 2])
+                        (long-array [3 4])
+                        (long-array [5 6])])]
+   ["[[Ljava.lang.String;" '(into-array [(into-array String ["a" "b"])
+                                         (into-array String ["c" "d"])
+                                         (into-array String ["e" "f"])])]])
 
 (deftest array-tag-meta-test
   ;; Each inferred array hint retains its component class and dimensions.
@@ -109,11 +123,11 @@
     (doseq [[descriptor constructor] array-cases]
       (testing descriptor
         (let [xs (eval constructor)
-              before (vec xs)
+              before (array-snapshot xs)
               subject (measured/expr (identity xs))]
           (doseq [n [1 17]]
             (is (identical? xs (second (measured/invoke subject (measured/args subject) n))))
-            (is (= before (vec xs))))))))
+            (is (= before (array-snapshot xs))))))))
   (testing "mixed scalar and array transport preserves identity and contents"
     (let [xs (long-array [1 2 3])
           index 1
@@ -251,19 +265,26 @@
             (is (= 3 (second (measured/invoke
                               subject (measured/args subject) n))))))))))
 
-(def non-local-booleans (boolean-array 3))
-(def non-local-bytes (byte-array 3))
-(def non-local-shorts (short-array 3))
-(def non-local-chars (char-array 3))
-(def non-local-ints (int-array 3))
-(def non-local-longs (long-array 3))
-(def non-local-floats (float-array 3))
-(def non-local-doubles (double-array 3))
-(def non-local-objects (object-array 3))
-(def non-local-strings (make-array String 3))
-(def non-local-components (make-array ArrayComponent 3))
-(def non-local-long-matrix (make-array Long/TYPE 3 2))
-(def non-local-string-matrix (make-array String 3 2))
+(def non-local-booleans (boolean-array [true false true]))
+(def non-local-bytes (byte-array [1 2 3]))
+(def non-local-shorts (short-array [4 5 6]))
+(def non-local-chars (char-array [\a \b \c]))
+(def non-local-ints (int-array [7 8 9]))
+(def non-local-longs (long-array [1 2 3]))
+(def non-local-floats (float-array [1.25 2.5 3.75]))
+(def non-local-doubles (double-array [1.5 2.5 3.5]))
+(def non-local-objects (object-array ["a" 2 :three]))
+(def non-local-strings (into-array String ["a" "b" "c"]))
+(def non-local-components (into-array ArrayComponent
+                                      [(ArrayComponent.)
+                                       (ArrayComponent.)
+                                       (ArrayComponent.)]))
+(def non-local-long-matrix (into-array [(long-array [1 2])
+                                        (long-array [3 4])
+                                        (long-array [5 6])]))
+(def non-local-string-matrix (into-array [(into-array String ["a" "b"])
+                                          (into-array String ["c" "d"])
+                                          (into-array String ["e" "f"])]))
 
 (deftest inferred-non-local-array-test
   ;; Unhinted Vars require evaluated type capture, not compiler local metadata.
@@ -278,7 +299,7 @@
       (testing descriptor
         (let [array-sym (symbol "criterium.measured-array-test" (name var-name))
               xs (eval array-sym)
-              before (vec xs)]
+              before (array-snapshot xs)]
           (is (= [{:tag descriptor}]
                  (impl/capture-arg-types
                   ['arg1] {'arg1 array-sym} #{} nil)))
@@ -299,7 +320,7 @@
                   (if (identical? expected xs)
                     (is (identical? xs result))
                     (is (= expected result)))
-                  (is (= before (vec xs))))))))))))
+                  (is (= before (array-snapshot xs))))))))))))
 
 (deftest inferred-local-array-warning-test
   ;; Constructor return hints supply local types without explicit user hints.
