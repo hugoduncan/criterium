@@ -48,3 +48,7 @@ The design is complete. It agrees with issue #156, the metadata/cell implementat
 Array regressions use the dedicated `criterium.measured-array-test` namespace because the existing measured test file exceeds the coding standard file-size limit. Structural tests reuse its private helpers. Dynamic `make-array` locals can infer Object; exact reference and multidimensional warning checks use explicit hints and evaluated non-local arguments rather than extending inference scope.
 
 Both required Clojure versions passed fresh runtime and compiler-mode checks. Compiler timing oracles remain limited to Linux x86-64; native allocation assertions were not run. Release notes and current-contract documentation are updated. The acceptance evidence map and proposed stale-knowledge correction are in `implementation.md`. No implementation work remains; task closure and knowledge approval are left to review.
+
+## Test review follow-ups
+
+Both review steps are complete. Escape checks use constructor-bound symbols. Mixed-input checks use bare array and scalar arguments and verify captured metadata, cell routing, per-cell setup and reads with both timers, and runtime identity, contents, and results. No production or design change was needed.

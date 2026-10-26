@@ -112,17 +112,81 @@
               before (vec xs)
               subject (measured/expr (identity xs))]
           (doseq [n [1 17]]
-            (is (identical? xs (second (measured/invoke
-                                       subject (measured/args subject) n))))
+            (is (identical? xs (second (measured/invoke subject (measured/args subject) n))))
             (is (= before (vec xs))))))))
   (testing "mixed scalar and array transport preserves identity and contents"
     (let [xs (long-array [1 2 3])
           index 1
-          subject (measured/expr (do (aget xs index) xs))]
+          offset 0.5
+          subject (measured/expr
+                   (measured-test/mixed-array-result xs index offset))]
       (doseq [n [1 17]]
-        (is (identical? xs (second (measured/invoke
-                                   subject (measured/args subject) n))))
-        (is (= [1 2 3] (vec xs)))))))
+        (let [[result-xs result] (second (measured/invoke subject (measured/args subject) n))]
+          (is (identical? xs result-xs))
+          (is (== 2.5 result))
+          (is (= [1 2 3] (vec xs))))))))
+
+(defmacro mixed-capture
+  [subject timer]
+  (let [{:keys [expr arg-vals]} (impl/factor-expr subject &env)
+        syms (vec (keys arg-vals))
+        metas (impl/capture-arg-types
+               syms arg-vals (impl/identify-local-args arg-vals &env) &env)]
+    (list 'quote
+          {:values (mapv arg-vals syms)
+           :metas metas
+           :form (impl/measured-expr-fn
+                  syms expr {:arg-metas metas :time-fn timer})})))
+
+(deftest mixed-array-structure-test
+  ;; Inspect the same bare arguments used by the runtime subject, with real
+  ;; compiler locals. Counts alone cannot establish which inputs were captured.
+  (testing "array, long, and double inputs retain their own opaque cells"
+    (let [xs (long-array [1 2 3])
+          index 1
+          offset 0.5]
+      (doseq [{:keys [values metas form]}
+              [(mixed-capture
+                (measured-test/mixed-array-result xs index offset) nil)
+               (mixed-capture
+                (measured-test/mixed-array-result xs index offset) time-fn)]]
+        (is (= {'xs {:tag "[J"} 'index {:tag 'long} 'offset {:tag 'double}}
+               (zipmap values metas)))
+        (is (= {'xs :reference 'index :long 'offset :double}
+               (zipmap values (mapv #(impl/cell-kind (:tag %)) metas))))
+        (let [bindings (#'measured-test/outer-let-bindings form)
+              pairs (partition 2 bindings)
+              cells (#'measured-test/cell-syms bindings)
+              escape? (fn [x]
+                        (and (seq? x)
+                             (= 'criterium.util.blackhole/consume (first x))
+                             (contains? cells (second x))))
+              lp (#'measured-test/loop-form form)
+              start (#'measured-test/binding-value-index
+                     bindings #'measured-test/start-timestamp?)
+              nodes (#'measured-test/form-seq form)]
+          (is (= 3 (count cells)))
+          (is (= 3 (#'measured-test/count-matching
+                    #'measured-test/cell-ctor? form)))
+          (is (= 3 (#'measured-test/count-matching escape? form)))
+          (doseq [[cell ctor] pairs :when (contains? cells cell)]
+            (let [ctor-index (#'measured-test/binding-value-index bindings #(= ctor %))
+                  escape-index (#'measured-test/binding-value-index bindings #(and (escape? %) (= cell (second %))))]
+              (is (and ctor-index escape-index start
+                       (< ctor-index escape-index start)))
+              (is (= 1 (count (filter #(and (escape? %)
+                                            (= cell (second %))) nodes)))))
+            (let [read? #(and (#'measured-test/get-opaque? %)
+                              (= cell (second %)))]
+              (is (= 2 (#'measured-test/count-matching read? form)))
+              (is (= 1 (#'measured-test/count-matching read? lp)))))
+          (is (zero? (#'measured-test/count-matching
+                      #'measured-test/cell-ctor? lp)))
+          (is (zero? (#'measured-test/count-matching escape? lp)))
+          (is (zero? (#'measured-test/count-matching
+                      #(and (symbol? %)
+                            (re-find #"(?i)^\.?set" (name %)))
+                      form))))))))
 
 (deftest array-public-compiler-test
   ;; Compile real public expressions while warnings are captured, then invoke

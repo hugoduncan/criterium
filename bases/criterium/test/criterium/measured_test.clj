@@ -1174,16 +1174,23 @@
                   (impl/measured-callable `(fn [] [1]) `identity)]]
       (is (zero? (count-matching get-opaque? form))))))
 
+(defn mixed-array-result
+  [^longs xs index offset]
+  [xs (+ (aget xs index) offset)])
+
 (deftest opaque-mixed-args-test
   (testing "array and scalar arguments use opaque cells"
     (let [xs  (long-array [1 2 3])
           n   2
           d   1.5
-          m   (measured/expr (+ ^long (aget ^longs xs n) d))
+          m   (measured/expr (mixed-array-result xs n d))
           c   (.charAt "abc" 1) ; primitive char reads through its cell
           a   (measured/expr (str c n))]
-      (is (== 4.5 (second (invoke m))))
-      (is (== 4.5 (second (invoke m 1000))))
+      (doseq [evaluations [1 1000]]
+        (let [[result-xs result] (second (invoke m evaluations))]
+          (is (identical? xs result-xs))
+          (is (== 4.5 result))
+          (is (= [1 2 3] (vec xs)))))
       (is (= "b2" (second (invoke a 1000)))))
     (testing "and primitive values round trip through their cells"
       (let [i (int 7)
