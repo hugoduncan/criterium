@@ -139,3 +139,7 @@ All checklist items are complete. No implementation blocker remains. Next review
 
 - Addressed escape-check review step: match escape arguments to constructor-bound cell symbols, not generated names. Kaocha array suite passed: 10 tests, 1212 assertions; exit 0.
 - Addressed mixed-input review step: bare array, long, and double arguments now have capture metadata, cell routing, per-cell setup/escape/read checks with both timers, and runtime identity/content/result checks. Focused measured, array, and arg-gen Kaocha suites passed: 51 tests, 1878 assertions; exit 0. Scry is not configured. Runtime timing assertions skip; native allocation checks are not claimed. Both review steps are complete.
+
+## Test review follow-up — 2026-10-26
+
+- Added 1 step to be addressed.
