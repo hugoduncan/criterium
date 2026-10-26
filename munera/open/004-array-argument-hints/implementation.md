@@ -66,3 +66,9 @@ The existing array-fallback tests encode the current defect and must not constra
 - Added expression-level alias and descriptor tests: all nine array aliases and all 13 exact descriptors retain user metadata at capture and compile `alength` without reflection warnings. Real public expressions return the correct result for one and 17 evaluations. Existing structural tests establish reference-cell routing for these same tags.
 - Verification: `clojure -M:kaocha:dev:test --focus criterium.arg-gen-test --focus criterium.measured-array-test --focus criterium.measured-test` exited 0: 48 tests, 1592 assertions, no failures. Same runtime-blackhole environment as the previous pass; compiler timing assertions skip, and native-agent allocation checks are not claimed. No production, dependency, or design change.
 - Next: non-local inference and inferred-path warning checks still need separate coverage; explicit expression hints avoid the previously recorded dynamic `make-array` local inference limit. The slow bench smoke check, version/mode validation, and documentation remain.
+
+## Slice 3, non-local inference pass — 2026-10-26
+
+- Unhinted array Vars exercise evaluated non-local capture across all 13 shapes. Exact descriptors, warning-free length/identity operations, all eight primitive element reads, identity, and unchanged contents pass for one and 17 evaluations. No production, dependency, or design change.
+- Verification: `clojure -M:kaocha:dev:test --focus criterium.arg-gen-test --focus criterium.measured-array-test --focus criterium.measured-test` exited 0: 49 tests, 1775 assertions, no failures. Runtime blackhole; compiler timing assertions skip, native-agent allocation checks not claimed. Scry is not configured.
+- Delimiter repair also changed unrelated balanced forms; restored those forms from HEAD before the successful run. Next: inferred-local warning checks and slow bench smoke coverage, then version/mode validation and documentation.

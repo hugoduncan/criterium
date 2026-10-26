@@ -181,3 +181,53 @@
           (doseq [n [1 17]]
             (is (= 3 (second (measured/invoke
                               subject (measured/args subject) n))))))))))
+
+(def non-local-booleans (boolean-array 3))
+(def non-local-bytes (byte-array 3))
+(def non-local-shorts (short-array 3))
+(def non-local-chars (char-array 3))
+(def non-local-ints (int-array 3))
+(def non-local-longs (long-array 3))
+(def non-local-floats (float-array 3))
+(def non-local-doubles (double-array 3))
+(def non-local-objects (object-array 3))
+(def non-local-strings (make-array String 3))
+(def non-local-components (make-array ArrayComponent 3))
+(def non-local-long-matrix (make-array Long/TYPE 3 2))
+(def non-local-string-matrix (make-array String 3 2))
+
+(deftest inferred-non-local-array-test
+  ;; Unhinted Vars require evaluated type capture, not compiler local metadata.
+  (testing "non-local arrays retain exact inferred hints and compile without reflection"
+    (doseq [[[descriptor _] var-name]
+            (map vector array-cases
+                 '[non-local-booleans non-local-bytes non-local-shorts
+                   non-local-chars non-local-ints non-local-longs
+                   non-local-floats non-local-doubles non-local-objects
+                   non-local-strings non-local-components
+                   non-local-long-matrix non-local-string-matrix])]
+      (testing descriptor
+        (let [array-sym (symbol "criterium.measured-array-test" (name var-name))
+              xs (eval array-sym)
+              before (vec xs)]
+          (is (= [{:tag descriptor}]
+                 (impl/capture-arg-types
+                  ['arg1] {'arg1 array-sym} #{} nil)))
+          (doseq [[operation expected]
+                  (cond-> [[(list 'alength array-sym) 3]
+                           [(list 'identity array-sym) xs]]
+                    (contains? #{"[Z" "[B" "[S" "[C" "[I" "[J" "[F" "[D"}
+                               descriptor)
+                    (conj [(list 'aget array-sym 0) (first xs)]))]
+            (let [warnings (java.io.StringWriter.)
+                  subject (binding [*warn-on-reflection* true
+                                    *err* warnings]
+                            (eval (list 'criterium.measured/expr operation)))]
+              (is (= "" (str warnings)))
+              (doseq [n [1 17]]
+                (let [result (second (measured/invoke
+                                      subject (measured/args subject) n))]
+                  (if (identical? expected xs)
+                    (is (identical? xs result))
+                    (is (= expected result)))
+                  (is (= before (vec xs))))))))))))
