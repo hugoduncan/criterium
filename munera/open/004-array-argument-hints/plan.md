@@ -48,3 +48,5 @@ Generated-array coverage now checks exact example metadata and warning-free publ
 Non-local array coverage now checks unhinted Vars across all 13 shapes: evaluated capture produces exact descriptors, and public expressions compile without reflection for length, identity, and all eight primitive element reads. Local inferred-warning checks and the slow smoke check remain in slice 3.
 
 Inferred-local warning coverage is complete for the eight primitive constructors and `object-array`, including primitive element reads and long/double Java overloads. Exact reference and multidimensional descriptors remain covered through explicit and non-local paths because dynamic constructors infer Object. The slow smoke check remains in slice 3.
+
+Slice 3 is complete. The slow `criterium.bench-test/array-local-bench-test` compiles the exact issue expression at test time and checks the returned subject value, not timing. It runs only in the slow profile. Version/mode validation and documentation are next.

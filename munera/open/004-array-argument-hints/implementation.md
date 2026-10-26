@@ -78,3 +78,9 @@ The existing array-fallback tests encode the current defect and must not constra
 - Added real compiler warning checks for unhinted primitive and Object array locals, all eight primitive element reads, and inferred long/double `Arrays/equals` overloads. Results pass for one and 17 evaluations. Dynamic `make-array` inference remains unchanged; exact reference and multidimensional warning coverage uses the existing explicit and non-local tests. No design, production, or dependency change.
 - Verification: `clojure -M:kaocha:dev:test --focus criterium.arg-gen-test --focus criterium.measured-array-test --focus criterium.measured-test` exited 0: 50 tests, 1832 assertions, no failures. Same dev runtime-blackhole environment; compiler timing assertions skip and native-agent allocation checks are not claimed. Scry is not configured.
 - Next: add the slow issue #156 bench smoke check, then complete version/mode validation and documentation.
+
+## Slice 3, bench smoke pass — 2026-10-26
+
+- Added a slow public `bench` regression with the exact issue #156 expression and options. Test-time compilation keeps a compiler regression from preventing namespace loading. The assertion checks the returned length (3), not a timing threshold. No design, production, API, or dependency change.
+- Verification: `clojure -M:kaocha:dev:test slow --focus criterium.bench-test/array-local-bench-test` exited 0: 1 test, 1 assertion. `clojure -M:kaocha:dev:test all --focus criterium.arg-gen-test --focus criterium.measured-array-test --focus criterium.measured-test` exited 0: 50 tests, 1832 assertions. Runtime blackhole; compiler timing assertions skip and native-agent allocation checks are not claimed. Scry is not configured.
+- Slice 3 is complete. Next: fresh-process version and blackhole-mode validation, then documentation and acceptance mapping. Existing fast-profile exclusions keep the smoke test out of default fast runs.

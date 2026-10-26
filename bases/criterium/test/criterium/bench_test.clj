@@ -421,3 +421,13 @@
                 "quantiles should include 0.99")
             (is (contains? (set quantiles) 0.999)
                 "quantiles should include 0.999")))))))
+
+(deftest ^:slow array-local-bench-test
+  ;; Issue #156 must compile and complete through the public bench macro.
+  ;; Compile at test time so a regression does not prevent namespace loading.
+  (testing "bench with an inferred long-array local"
+    (is (= 3
+           (eval
+            '(let [xs (long-array [1 2 3])]
+               (criterium.bench/bench
+                (alength xs) :viewer :none :limit-time-s 1)))))))
